@@ -6,7 +6,7 @@ export type PlaygroundLanguage =
   | "ruby";
 
 export type PlaygroundAnswerLanguage = Exclude<PlaygroundLanguage, "auto">;
-export type PlaygroundPanel = "notes" | "output" | "saved";
+export type PlaygroundPanel = "terminal" | "notes" | "output" | "saved";
 
 export interface PlaygroundAnswer {
   title: string;
@@ -72,7 +72,12 @@ const answerLanguages = new Set<PlaygroundAnswerLanguage>([
   "typescript",
   "ruby",
 ]);
-const panels = new Set<PlaygroundPanel>(["notes", "output", "saved"]);
+const panels = new Set<PlaygroundPanel>([
+  "terminal",
+  "notes",
+  "output",
+  "saved",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

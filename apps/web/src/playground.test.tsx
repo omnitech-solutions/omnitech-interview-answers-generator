@@ -38,7 +38,7 @@ const emptySnapshot = {
     language: "auto",
     answer: null,
     notes: "",
-    panel: "notes",
+    panel: "terminal",
   },
 };
 
@@ -106,6 +106,7 @@ beforeEach(() => {
 
 describe("Playground", () => {
   it("starts as an accessible unsaved draft with unavailable actions", async () => {
+    const user = userEvent.setup();
     installFetch();
     await renderSettled();
 
@@ -121,9 +122,106 @@ describe("Playground", () => {
     expect(
       screen.getByRole("navigation", { name: "Inspector panels" }),
     ).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     expect(
       screen.getByRole("textbox", { name: "Private notes" }),
     ).toBeVisible();
+  });
+
+  it("runs a command in the project terminal and renders its output", async () => {
+    const user = userEvent.setup();
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/terminal")) {
+        expect(init).toMatchObject({
+          method: "POST",
+          body: JSON.stringify({ command: "pwd" }),
+        });
+        return jsonResponse({
+          cwd: "/repo",
+          stdout: "/repo\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 4,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Terminal command" }),
+      "pwd",
+    );
+    await user.click(screen.getByRole("button", { name: "Run" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("region", { name: "Terminal" }).textContent,
+      ).toContain("/repo"),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/terminal"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(
+      screen.getByRole("region", { name: "Terminal" }).textContent,
+    ).toContain("[done · 4ms]");
+  });
+
+  it("keeps an interactive PTY session open for terminal programs", async () => {
+    const user = userEvent.setup();
+    let pollCount = 0;
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/terminal") && init?.method === "POST") {
+        return jsonResponse({
+          cwd: "/repo",
+          stdout: "codex ready",
+          stderr: "",
+          exitCode: null,
+          running: true,
+          sessionId: "session-1",
+          durationMs: 1,
+        });
+      }
+      if (path.endsWith("/terminal/session-1/input")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ input: "help\n" });
+        return jsonResponse({ ok: true, running: true });
+      }
+      if (path.endsWith("/terminal/session-1")) {
+        pollCount += 1;
+        return jsonResponse({
+          stdout: pollCount === 2 ? "ready" : "",
+          running: pollCount < 2,
+          exitCode: pollCount < 2 ? null : 0,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Terminal command" }),
+      "codex",
+    );
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Terminal command" }),
+      ).toHaveAttribute("placeholder", "Send input to the running program…"),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Terminal command" }),
+      "help",
+    );
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(pollCount).toBeGreaterThanOrEqual(2));
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("generates a routed React draft from the question controls", async () => {
@@ -325,6 +423,7 @@ describe("Playground", () => {
       "Build a counter",
     );
     await user.click(screen.getByRole("button", { name: "Generate" }));
+    await user.click(screen.getByRole("button", { name: "Notes" }));
     await user.type(
       screen.getByLabelText("Editable main solution"),
       "\n// edited",

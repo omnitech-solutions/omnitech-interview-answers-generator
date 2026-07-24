@@ -21,7 +21,7 @@ describe("playgroundControlStore", () => {
         language: "auto",
         answer: null,
         notes: "",
-        panel: "notes",
+        panel: "terminal",
       },
     });
     expect(Date.parse(store.get().updatedAt)).not.toBeNaN();
@@ -75,7 +75,7 @@ describe("playgroundControlStore", () => {
         language: "auto",
         answer: null,
         notes: "",
-        panel: "notes",
+        panel: "terminal",
       },
     });
     expect(store.get()).toBe(reset);

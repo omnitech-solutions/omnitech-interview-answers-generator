@@ -9,7 +9,7 @@ const emptyPlayground: PlaygroundValue = {
   language: "auto",
   answer: null,
   notes: "",
-  panel: "notes",
+  panel: "terminal",
 };
 
 interface PlaygroundControlStore {

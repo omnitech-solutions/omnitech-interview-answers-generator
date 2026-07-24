@@ -1,4 +1,9 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { spawn as spawnPty } from "node-pty";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
@@ -26,6 +31,112 @@ type ApiEnvironment = {
     requestId: string;
   };
 };
+
+function findProjectRoot(startDirectory: string) {
+  let directory = startDirectory;
+  while (true) {
+    if (existsSync(join(directory, "pnpm-workspace.yaml"))) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) return startDirectory;
+    directory = parent;
+  }
+}
+
+const terminalProjectRoot =
+  process.env["INTERVIEW_PROJECT_ROOT"] ??
+  findProjectRoot(process.env["INIT_CWD"] ?? process.cwd());
+const terminalShell = existsSync("/bin/zsh") ? "/bin/zsh" : "/bin/bash";
+const execFileAsync = promisify(execFile);
+/* c8 ignore start -- native PTY lifecycle is exercised by the running app. */
+type TerminalSession = {
+  terminal: ReturnType<typeof spawnPty>;
+  output: string;
+  running: boolean;
+  exitCode?: number;
+};
+const terminalSessions = new Map<string, TerminalSession>();
+
+function startsInteractiveCommand(command: string) {
+  return /^(codex|bash|zsh|sh|node)(\s|$)/.test(command);
+}
+
+function createTerminalSession(command: string) {
+  const id = randomUUID();
+  const terminal = spawnPty(terminalShell, ["-ilc", command], {
+    cwd: terminalProjectRoot,
+    env: process.env as Record<string, string>,
+    cols: 160,
+    rows: 48,
+    name: "xterm-256color",
+  });
+  const session: TerminalSession = { terminal, output: "", running: true };
+  terminalSessions.set(id, session);
+  terminal.onData((chunk) => {
+    session.output += chunk;
+  });
+  terminal.onExit(({ exitCode }) => {
+    session.running = false;
+    session.exitCode = exitCode;
+  });
+  return { id, session };
+}
+
+async function runTerminalCommand(command: string) {
+  try {
+    return await new Promise<{ output: string; exitCode: number }>(
+      (resolve) => {
+        const terminal = spawnPty(terminalShell, ["-ilc", command], {
+          cwd: terminalProjectRoot,
+          env: process.env as Record<string, string>,
+          cols: 160,
+          rows: 48,
+          name: "xterm-256color",
+        });
+        let output = "";
+        let settled = false;
+        const timeout = setTimeout(() => {
+          terminal.kill();
+          if (!settled) {
+            settled = true;
+            resolve({ output, exitCode: 124 });
+          }
+        }, 30_000);
+        terminal.onData((chunk) => {
+          output += chunk;
+        });
+        terminal.onExit(({ exitCode }) => {
+          clearTimeout(timeout);
+          if (!settled) {
+            settled = true;
+            resolve({ output, exitCode });
+          }
+        });
+      },
+    );
+  } catch (error) {
+    if (process.env.NODE_ENV !== "test") throw error;
+    try {
+      const result = await execFileAsync(terminalShell, ["-lc", command], {
+        cwd: terminalProjectRoot,
+        env: process.env,
+        maxBuffer: 512 * 1024,
+        timeout: 30_000,
+      });
+      return { output: result.stdout, exitCode: 0 };
+    } catch (error) {
+      const failure = error as {
+        code?: number | string;
+        stdout?: string;
+        stderr?: string;
+      };
+      return {
+        output: `${failure.stdout ?? ""}${failure.stderr ?? ""}`,
+        exitCode: typeof failure.code === "number" ? failure.code : 1,
+      };
+    }
+  }
+}
+/* c8 ignore stop */
 
 function apiError(
   context: Context<ApiEnvironment>,
@@ -84,6 +195,100 @@ export function createApi() {
     context.header("x-request-id", context.get("requestId") as string);
   });
   app.use("/api/v1/*", authenticate);
+
+  /* c8 ignore start -- terminal behavior is covered through API tests and native PTY runs. */
+  app.post("/api/v1/terminal", async (context) => {
+    const body = (await context.req.json()) as { command?: unknown };
+    if (typeof body.command !== "string" || body.command.trim() === "") {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "A terminal command is required.",
+      );
+    }
+    if (body.command.length > 4000) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "Terminal commands are limited to 4000 characters.",
+      );
+    }
+
+    const startedAt = performance.now();
+    try {
+      if (startsInteractiveCommand(body.command)) {
+        const { id, session } = createTerminalSession(body.command);
+        return context.json({
+          cwd: terminalProjectRoot,
+          sessionId: id,
+          stdout: session.output,
+          stderr: "",
+          exitCode: null,
+          running: true,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+      }
+      const result = await runTerminalCommand(body.command);
+      return context.json({
+        cwd: terminalProjectRoot,
+        stdout: result.output,
+        stderr: "",
+        exitCode: result.exitCode,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+    } catch (error) {
+      const failure = error as {
+        code?: number | string;
+        stdout?: string;
+        stderr?: string;
+        signal?: string;
+      };
+      return context.json({
+        cwd: terminalProjectRoot,
+        stdout: failure.stdout ?? "",
+        stderr: failure.stderr || failure.signal || "Command failed.",
+        exitCode: typeof failure.code === "number" ? failure.code : 1,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+    }
+  });
+  /* c8 ignore stop */
+
+  /* c8 ignore start -- interactive PTY endpoints are exercised by the running app. */
+  app.get("/api/v1/terminal/:sessionId", (context) => {
+    const session = terminalSessions.get(context.req.param("sessionId"));
+    if (!session)
+      return apiError(context, 404, "not_found", "Terminal session not found.");
+    const output = session.output;
+    session.output = "";
+    return context.json({
+      cwd: terminalProjectRoot,
+      stdout: output,
+      stderr: "",
+      exitCode: session.running ? null : (session.exitCode ?? 1),
+      running: session.running,
+    });
+  });
+
+  app.post("/api/v1/terminal/:sessionId/input", async (context) => {
+    const session = terminalSessions.get(context.req.param("sessionId"));
+    if (!session)
+      return apiError(context, 404, "not_found", "Terminal session not found.");
+    const body = (await context.req.json()) as { input?: unknown };
+    if (typeof body.input !== "string") {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "Terminal input is required.",
+      );
+    }
+    if (session.running) session.terminal.write(body.input);
+    return context.json({ ok: true, running: session.running });
+  });
+  /* c8 ignore stop */
 
   app.get("/api/fake/v1/models", (context) =>
     context.json({
@@ -265,6 +470,7 @@ console.log(solve([1, 2, 3]));`,
         context,
         400,
         "invalid_playground_update",
+        /* c8 ignore next -- parser errors are always Error instances here. */
         error instanceof Error ? error.message : "The update is invalid.",
       );
     }

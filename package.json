@@ -30,6 +30,11 @@
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
     "@vitest/coverage-v8": "^4.1.10",

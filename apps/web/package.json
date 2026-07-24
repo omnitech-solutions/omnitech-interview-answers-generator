@@ -26,6 +26,7 @@
     "esbuild": "^0.27.0",
     "hono": "^4.12.8",
     "next": "^16.2.3",
+    "node-pty": "^1.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-markdown": "^10.1.0",

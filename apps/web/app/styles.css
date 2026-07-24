@@ -389,12 +389,116 @@ select {
 
 .panel-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   margin-bottom: 18px;
   padding: 4px;
   border-radius: 10px;
   background: var(--wash);
+}
+
+.terminal-panel {
+  overflow: hidden;
+  border: 1px solid #2d3545;
+  border-radius: 10px;
+  background: #0d1117;
+  color: #d6deeb;
+  box-shadow: 0 12px 28px rgba(13, 17, 23, 0.18);
+}
+
+.terminal-titlebar {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid #252c38;
+  background: #171c25;
+  color: #aeb8c8;
+  font-size: 11px;
+}
+
+.terminal-lights {
+  display: flex;
+  gap: 5px;
+}
+
+.terminal-lights span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.terminal-lights span:nth-child(2) {
+  background: #febc2e;
+}
+
+.terminal-lights span:nth-child(3) {
+  background: #28c840;
+}
+
+.terminal-cwd {
+  overflow: hidden;
+  color: #778397;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-output {
+  overflow: auto;
+  min-height: 300px;
+  max-height: 48vh;
+  margin: 0;
+  padding: 14px;
+  color: #d6deeb;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.terminal-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-top: 1px solid #252c38;
+  background: #11161e;
+}
+
+.terminal-prompt {
+  color: #58d68d;
+  font-weight: 800;
+}
+
+.terminal-form input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f2f5f8;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.terminal-form button {
+  padding: 5px 9px;
+  border: 1px solid #3c475a;
+  border-radius: 5px;
+  background: #202938;
+  color: #d6deeb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.terminal-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .editor-tabs {
