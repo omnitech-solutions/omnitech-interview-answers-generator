@@ -27,7 +27,10 @@ For multiline answers, create one temporary JSON patch containing:
 - `notes`
 - `panel`
 - `answer` with the title, Markdown explanation, primary code, and focused test
-  code expected by the Playground contract
+  code expected by the Playground contract:
+  - `code` for the main solution;
+  - `usageCode` for executable representative usage/output;
+  - `testCode` for executable focused tests
 
 Apply it with:
 

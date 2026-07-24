@@ -1,13 +1,33 @@
 # Engineering contract
 
 - Prefer the smallest complete change that makes the current requirement work.
+- Simplicity comes first: choose the least complex design that satisfies every
+  explicit requirement and constraint; avoid speculative layers, libraries, or
+  architecture.
+- Before coding, extract essential requirements, constraints, required API or
+  entry point, observable behavior, and failure boundaries. Treat them as a
+  completion checklist and visibly address each one.
+- Keep answers specific to the problem and its domain vocabulary. Avoid generic
+  boilerplate or advice detached from the supplied code and constraints.
+- Treat `.rulesync/**` as the source of truth for commands, rules, and skills;
+  regenerate compatibility outputs after source changes instead of editing
+  generated `.agents`, `.claude`, `.cursor`, `.codex`, or `.opencode` files by
+  hand.
+- Keep deterministic unit and contract behavior in package tests. Put Docker,
+  framework-image, browser, or provider-boundary checks in explicit integration
+  tests and make the required environment visible in the command and failure.
 - Keep reusable boundaries narrow: one responsibility, one public entrypoint,
   explicit input/output types, and implementation details kept private.
 - Add an abstraction for a demonstrated second implementation or a real
   lifecycle/boundary—not an imagined future.
 - Use domain names. Keep orchestration readable from top to bottom.
-- Comment decisions, invariants, boundary normalization, and surprising
-  behavior. Do not comment trivial syntax.
+- For interview answers, put PROBLEM, STRATEGY, and COMPLEXITY comments at the
+  top of the main solution. Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`,
+  `[STRATEGY]`, and `[SAFETY]` labels for non-trivial decisions, invariants,
+  boundary normalization, and surprising behavior. Do not comment trivial
+  syntax.
+- Keep main solution, executable usage/output, and executable tests in separate
+  answer fields so the Playground can edit them as tabs and run them in order.
 - Never log questions, generated code, notes, credentials, or model responses by
   default.
 - Verify lint, format, types, tests, and build before claiming completion.

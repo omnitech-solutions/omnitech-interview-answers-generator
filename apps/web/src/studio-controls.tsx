@@ -25,10 +25,8 @@ export function StudioButton({
   );
 }
 
-interface StudioTextareaProps extends Omit<
-  TextareaHTMLAttributes<HTMLTextAreaElement>,
-  "onChange"
-> {
+interface StudioTextareaProps
+  extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> {
   description?: string;
   label?: string;
   onChange?: (value: string) => void;

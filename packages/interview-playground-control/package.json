@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "lint": "oxlint src",
+    "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts"
   },

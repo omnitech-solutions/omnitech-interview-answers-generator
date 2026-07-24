@@ -16,28 +16,35 @@ Routing precedence:
 ## Answer contract
 
 Generate the answer yourself unless the user explicitly asks to use a configured
-AI provider. Start with the simplest correct solution that satisfies the stated
-constraints. Do not present a deliberately poor brute-force implementation when
-the direct solution is already clear.
+AI provider. First extract essential requirements, constraints, required
+entry-point/signature, observable behavior, and failure boundaries; use that as
+a completion checklist. Start with the simplest correct solution that satisfies
+it, preserve the user's relevant coding practices, and keep the answer specific
+to the prompt. Avoid generic boilerplate, speculative architecture, and a
+deliberately poor brute-force implementation when the direct solution is clear.
 
-Include:
+After routing, read exactly one matching reference before producing the answer:
+
+- PHP: `references/php.md`
+- React: `references/react.md`
+- TypeScript: `references/typescript.md`
+- Ruby: `references/ruby.md`
+
+Return a structured answer with:
 
 - a concise restatement and assumptions only when ambiguity matters;
 - the approach and the invariant or state being maintained;
-- complete, screen-share-readable code;
-- comments for decisions, invariants, and non-obvious edge handling—not trivial
-  syntax;
-- focused tests covering the example, boundaries, and a meaningful failure-prone
-  case;
+- `code`: the complete, screen-share-readable main solution;
+- `usageCode`: executable representative usage that prints ordinary output;
+- `testCode`: focused executable tests covering the example, boundaries, and a
+  meaningful failure-prone case;
 - time and space complexity;
 - a short dry run only when it materially clarifies the logic;
 - senior-level trade-offs without speculative architecture.
 
-For React, prioritize semantic HTML, accessibility, explicit state ownership,
-functional state updates when based on previous state, derived data instead of
-duplicated state, and data/config-driven rendering only where it removes real
-repetition. For PHP, prefer one readable function and native arrays before
-introducing classes or patterns.
+Keep the three code fields separately executable in the Playground's ordered
+bundle: main solution, usage/output, then tests. Do not redefine the solution in
+usage or tests. For PHP, omit additional `<?php` tags from usage and tests.
 
 Pass the completed structured answer to the `interview-playground-controller`
 skill. Do not persist unless the user requests it.

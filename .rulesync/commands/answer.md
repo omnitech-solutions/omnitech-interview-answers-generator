@@ -8,10 +8,14 @@ targets: ["*"]
 Treat the supplied arguments as the interview question.
 
 1. Activate the `interview-question-router` skill and determine the language.
-2. Produce the simplest correct, interview-ready answer yourself. Do not invoke
-   another model unless the user explicitly requests configured AI generation.
-3. Put the question, routed language, answer, code, tests, notes, and appropriate
-   panel into one JSON patch.
+2. Extract the essential requirements, constraints, required names/signatures,
+   observable behavior, and failure boundaries before writing code. Produce the
+   simplest correct, interview-ready answer that satisfies that checklist and
+   the user's relevant coding practices. Keep it specific; avoid generic
+   boilerplate or speculative architecture. Do not invoke another model unless
+   the user explicitly requests configured AI generation.
+3. Put the question, routed language, answer, main solution, executable
+   usage/output, tests, notes, and appropriate panel into one JSON patch.
 4. Apply it through `interview-answers playground set --file <temporary-json>`.
    The CLI is the control boundary; do not construct HTTP requests.
 5. Confirm the visible state with `interview-answers playground show`.
