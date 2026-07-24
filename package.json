@@ -1,0 +1,36 @@
+{
+  "name": "omnitech-interview-answers-generator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --filter=@omnitech/interview-web",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "vitest run --coverage",
+    "verify": "pnpm lint && pnpm format && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "cli": "pnpm --filter @omnitech/interview-answers-cli dev",
+    "cli:build": "pnpm --filter @omnitech/interview-answers-cli build",
+    "cli:install:global": "pnpm cli:build && cd packages/interview-cli && pnpm --ignore-workspace link --global",
+    "cli:uninstall:global": "pnpm remove --global @omnitech/interview-answers-cli",
+    "rulesync:generate": "rulesync generate"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
+    "oxlint": "^1.47.0",
+    "prettier": "^3.8.1",
+    "rulesync": "^9.6.2",
+    "turbo": "^2.9.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
+  }
+}

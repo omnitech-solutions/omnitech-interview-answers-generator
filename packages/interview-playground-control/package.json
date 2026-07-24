@@ -1,0 +1,34 @@
+{
+  "name": "@omnitech/interview-playground-control",
+  "version": "0.1.0",
+  "description": "Typed control SDK for the Omnitech Interview Answers Playground",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "lint": "oxlint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config ../../vitest.package.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsup": "^8.5.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
