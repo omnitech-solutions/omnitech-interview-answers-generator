@@ -32,9 +32,16 @@ After routing, read exactly one matching reference before producing the answer:
 
 Return a structured answer with:
 
-- a concise restatement and assumptions only when ambiguity matters;
-- the approach and the invariant or state being maintained;
-- `code`: the complete, screen-share-readable main solution;
+- `answerMarkdown`: Markdown with concise point-form sections in this order:
+  `## Question`, `## Approach`, `## Complexity`, `## Edge cases`, and
+  `## Talking points`. The Question section must turn the prompt into bullets
+  for the **goal**, **inputs**, **outputs**, and **constraints**. Bold the key
+  domain terms, invariants, trade-offs, and complexity notation. The Approach
+  and Complexity sections must be point form, not dense paragraphs.
+- `code`: the complete, screen-share-readable main solution. Put the exact
+  required entry-point function or component above all helper methods/functions;
+  helpers follow the entry point. Do not put example inputs, outputs, or I/O
+  traces in source comments.
 - `usageCode`: executable representative usage that prints ordinary output;
 - `testCode`: focused executable tests covering the example, boundaries, and a
   meaningful failure-prone case;

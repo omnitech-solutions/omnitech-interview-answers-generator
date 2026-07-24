@@ -7,9 +7,10 @@ DSA, use plain TypeScript without React. Name a previewable primary component
 Structure `code` in this order:
 
 1. `// PROBLEM`, `// STRATEGY`, and `// COMPLEXITY` header.
-2. Imports, boundary types, and only justified helpers/hooks/reducers.
+2. Imports and boundary types.
 3. The entry component with one state owner, derived values before effects,
    guard states before primary JSX, and native accessible controls.
+4. Only justified helpers/hooks/reducers below the entry component.
 
 Use typed module-level configuration for genuinely repeated UI with a stable
 shape; keep unique JSX direct. Do not add effects for derived state, duplicate
@@ -19,7 +20,8 @@ protect async work from stale commits.
 
 Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` for
 non-trivial ownership, transitions, accessibility, cleanup, parsing, or race
-decisions. Do not narrate setters or JSX syntax.
+decisions. Comments must not include example inputs, outputs, or I/O traces.
+Do not narrate setters or JSX syntax.
 
 Put concise render/interaction examples in `usageCode`. Put user-visible tests
 in `testCode` using React Testing Library, `userEvent`, accessible role/name

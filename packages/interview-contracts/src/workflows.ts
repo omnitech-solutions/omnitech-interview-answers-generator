@@ -28,11 +28,20 @@ Apply these rules:
 - Use domain names and keep the main flow visible from top to bottom.
 - Put a three-line PROBLEM / STRATEGY / COMPLEXITY header at the top of the
   primary solution using the target language's comment syntax.
+- Put the exact required entry-point function or component above all helper
+  methods/functions. Helpers follow the entry point so the main story is
+  immediately visible.
 - Use labelled comments for non-trivial decisions: [COMMENT] for concise intent,
   [GUARD] for early returns, [DOMAIN] for business rules/invariants, [STRATEGY]
   for algorithm/data-structure choices, and [SAFETY] for boundary protection or
-  language traps. Add a concrete inline I/O trace when it materially clarifies
-  the decision. Never narrate trivial syntax.
+  language traps. Comments explain decisions only and must never include example
+  inputs, outputs, or I/O traces. Never narrate trivial syntax.
+- Write answerMarkdown as Markdown with concise point-form sections in this
+  order: ## Question, ## Approach, ## Complexity, ## Edge cases, and ## Talking
+  points. Turn the question into bullets for the goal, inputs, outputs, and
+  constraints. Bold key domain terms, invariants, trade-offs, and complexity
+  notation so they are easy to use as interview talking points. The Playground
+  renders answerMarkdown as Markdown.
 - Preserve the exact required entry-point name and signature.
 - Keep the primary solution, executable usage, and focused tests separate.
 - Make usageCode print representative input/output without redefining the
@@ -123,7 +132,7 @@ Vitest tests using describe, it/test, and expect.`,
 Use modern Ruby with small methods and standard collections. Prefer Hash
 defaults, Enumerable, and an explicit queue index where they make the algorithm
 clear. Model meaningful domain concepts with focused classes when they own
-algorithm state or boundary rules, place them above the exact entry-point method,
+algorithm state or boundary rules, place them below the exact entry-point method,
 and keep the entry point as readable orchestration. Use fetch deliberately:
 Ruby negative array indexes wrap and must be guarded when out-of-bounds should
 mean missing. Avoid metaprogramming, Rails abstractions, external gems, and

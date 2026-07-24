@@ -7,17 +7,20 @@ and deterministic ordering when ties matter.
 Structure `code` in this order:
 
 1. `// PROBLEM`, `// STRATEGY`, and `// COMPLEXITY` header.
-2. Only earned PHPDoc shapes, focused helpers, or domain classes.
+2. Only earned PHPDoc shapes or boundary types.
 3. The exact entry point with useful guards and readable top-to-bottom flow.
+4. Focused helper functions or domain classes below the entry point when they
+   own real state, invariants, reuse, or workflow boundaries.
 
 Prefer one function, arrays, associative arrays, and readable `foreach` loops.
 Use `SplQueue` for BFS. Add a helper or class only for real state, reuse,
 invariants, or workflow boundaries.
 
 Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` on
-non-trivial decisions. Explain PHP key coercion, missing-versus-null lookups,
-loose-comparison risks, and boundary access when relevant. Do not label trivial
-assignments or loop increments.
+non-trivial decisions. Comments explain decisions only and must not include
+example inputs, outputs, or I/O traces. Explain PHP key coercion,
+missing-versus-null lookups, loose-comparison risks, and boundary access when
+relevant. Do not label trivial assignments or loop increments.
 
 Put representative printing in `usageCode` and focused Pest tests in
 `testCode`, using `test()`/`it()` and `expect()` rather than PHPUnit-style test

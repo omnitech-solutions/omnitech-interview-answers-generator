@@ -7,16 +7,16 @@ operations or loops.
 Structure `code` in this order:
 
 1. `# PROBLEM`, `# STRATEGY`, and `# COMPLEXITY` header.
-2. Focused domain classes above the entry point when they own algorithm state,
-   boundary rules, or meaningful operations.
-3. A readable entry point that opens with useful guards and delegates without
-   hiding the core story.
+2. The exact entry-point method, with useful guards and readable orchestration.
+3. Focused helper methods or domain classes below the entry point when they own
+   real algorithm state, boundary rules, or meaningful operations.
 
 Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` on
-non-trivial decisions and follow with a concise concrete I/O trace when it
-materially clarifies the rule. Remember that negative Ruby array indexes wrap;
-guard them when negative means out-of-bounds. Avoid metaprogramming, Rails
-abstractions, external gems, and clever chains that are hard to narrate.
+non-trivial decisions. Comments explain decisions only and must not include
+example inputs, outputs, or I/O traces. Remember that negative Ruby array
+indexes wrap; guard them when negative means out-of-bounds. Avoid
+metaprogramming, Rails abstractions, external gems, and clever chains that are
+hard to narrate.
 
 Put exactly five representative `puts`/`p` examples in `usageCode`: typical,
 empty/single, all-identical, negative/zero, and no-answer/sentinel, adapting

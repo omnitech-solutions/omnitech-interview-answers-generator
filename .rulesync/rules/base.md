@@ -30,8 +30,17 @@ description: Simplicity-first engineering and automatic interview routing
 - For interview answers, put PROBLEM, STRATEGY, and COMPLEXITY comments at the
   top of the main solution. Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`,
   `[STRATEGY]`, and `[SAFETY]` labels for non-trivial decisions, invariants,
-  boundary normalization, and surprising behavior. Do not comment trivial
-  syntax.
+  boundary normalization, and surprising behavior. Comments must explain the
+  decision only; never include example inputs, outputs, or I/O traces in source
+  comments. Put examples in `usageCode` or tests instead.
+- Interview answer explanations must be Markdown rendered by the Playground.
+  Use concise point form for the **Question**, **Approach**, **Complexity**,
+  **Edge cases**, and **Talking points** sections. Bold the key domain terms,
+  invariants, trade-offs, and complexity notation so they are easy to use as
+  interview talking points.
+- Keep the exact required entry-point function or component above all helper
+  methods and helper functions. Helpers may follow the entry point; do not
+  hide the main function below implementation details.
 - Keep main solution, executable usage/output, and executable tests in separate
   answer fields so the Playground can edit them as tabs and run them in order.
 - Never log questions, generated code, notes, credentials, or model responses by

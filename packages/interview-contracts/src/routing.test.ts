@@ -136,4 +136,16 @@ describe("answer workflows", () => {
     expect(workflow.systemPrompt).toContain('"usageCode"');
     expect(workflow.systemPrompt).toContain("accessible");
   });
+
+  it("requires point-form Markdown talking points and visible entry-point code", () => {
+    const contract = getWorkflow("ruby").systemPrompt;
+
+    expect(contract).toContain("## Question");
+    expect(contract).toContain("## Approach");
+    expect(contract).toContain("## Complexity");
+    expect(contract).toContain("## Talking");
+    expect(contract).toContain("Bold key domain terms");
+    expect(contract).toContain("entry-point function or component above");
+    expect(contract).toContain("must never include example");
+  });
 });
