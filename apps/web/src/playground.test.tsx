@@ -99,6 +99,7 @@ beforeEach(() => {
     value: {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
     },
   });
 });
@@ -171,7 +172,120 @@ describe("Playground", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Draft generated. It has not been saved.",
     );
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("loads a realistic language template before sending it through generate", async () => {
+    const user = userEvent.setup();
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/generate")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.language).toBe("ruby");
+        expect(body.question).toContain("Sliding-Window Rate Limiter");
+        return jsonResponse({
+          ...reactAnswer,
+          title: "Sliding Window Rate Limiter",
+          language: "ruby",
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    await user.selectOptions(
+      screen.getByLabelText("Example template"),
+      "ruby-rate-limiter",
+    );
+    expect(screen.getByLabelText("Language")).toHaveValue("ruby");
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Interview question",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toContain("Sliding-Window Rate Limiter");
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sliding Window Rate Limiter",
+      }),
+    ).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/generate",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("normalizes generated React tests for the Vitest runner", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/generate")) {
+        return jsonResponse({
+          ...reactAnswer,
+          testCode:
+            "import { render, screen } from '@testing-library/react';\nexpect(await screen.findByRole('link')).toHaveAttribute('href', '/items/cat');\nexpect(await screen.findByRole('alert')).toHaveTextContent('Search failed');",
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Interview question" }),
+      "Build a search box",
+    );
+    await user.selectOptions(screen.getByLabelText("Language"), "react");
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    await user.click(await screen.findByRole("tab", { name: "Tests" }));
+
+    const tests = screen.getByLabelText(
+      "Editable tests",
+    ) as HTMLTextAreaElement;
+    expect(tests.value).toContain("afterEach(cleanup)");
+    expect(tests.value).toContain("getAttribute('href')");
+    expect(tests.value).toContain("textContent).toContain");
+    expect(tests.value).not.toContain("toHaveAttribute");
+    expect(tests.value).not.toContain("toHaveTextContent");
+  });
+
+  it("provides a PHP opening tag to the test editor for syntax highlighting", async () => {
+    const user = userEvent.setup();
+    installFetch();
+    await renderSettled();
+
+    await user.selectOptions(
+      screen.getByLabelText("Example template"),
+      "php-log-window",
+    );
+    await user.click(screen.getByRole("tab", { name: "Tests" }));
+
+    expect(
+      (screen.getByLabelText("Editable tests") as HTMLTextAreaElement).value,
+    ).toMatch(/^<\?php\n/);
+  });
+
+  it("renders the question in a separate preview tab", async () => {
+    const user = userEvent.setup();
+    installFetch();
+    await renderSettled();
+
+    await user.selectOptions(
+      screen.getByLabelText("Example template"),
+      "typescript-dependency-order",
+    );
+    await user.click(screen.getByRole("tab", { name: "Rendered preview" }));
+
+    expect(screen.getByText(/# Dependency Order/)).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Question input" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
   });
 
   it("keeps the generated solution editable and saves the current draft", async () => {
@@ -276,6 +390,62 @@ describe("Playground", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
+  it("copies the active normal output or test results panel", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 2,
+          value: {
+            ...emptySnapshot.value,
+            question: "Print ok",
+            language: "php",
+            answer: phpAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "solution output\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 8,
+          timedOut: false,
+        });
+      }
+      if (path.endsWith("/run-all")) {
+        return jsonResponse({
+          stdout: "test output\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 12,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.click(screen.getByRole("button", { name: "Run All" }));
+
+    await screen.findByText("solution output");
+    await user.click(
+      screen.getByRole("button", { name: "Copy normal output" }),
+    );
+    expect(writeText).toHaveBeenCalledWith("solution output\n");
+
+    await user.click(screen.getByRole("tab", { name: "Test results" }));
+    await screen.findByText("test output");
+    await user.click(screen.getByRole("button", { name: "Copy test results" }));
+    expect(writeText).toHaveBeenCalledWith("test output\n");
+  });
+
   it("checks the active editor syntax when it loses focus", async () => {
     const user = userEvent.setup();
     const fetchMock = installFetch(async (path, init) => {
@@ -313,7 +483,62 @@ describe("Playground", () => {
     await user.click(screen.getByLabelText("Editable main solution"));
     await user.click(screen.getByRole("heading", { name: "Frequency Map" }));
 
-    expect(await screen.findByText("Syntax valid")).toBeVisible();
+    expect(await screen.findByText("Syntax looks good")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/syntax-check",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("shows a focused fix summary for syntax errors", async () => {
+    const user = userEvent.setup();
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 7,
+          value: {
+            ...emptySnapshot.value,
+            question: "Find the syntax issue",
+            language: "ruby",
+            answer: {
+              ...phpAnswer,
+              title: "Broken Ruby",
+              language: "ruby",
+              code: "def solution(value)\n  value\nend",
+            },
+          },
+        });
+      }
+      if (path.endsWith("/syntax-check")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          language: "ruby",
+          code: "def solution(value)\n  value\nend",
+        });
+        return jsonResponse({
+          stdout:
+            "ruby: /workspace/solution.rb:2: syntax error found (SyntaxError)\n> 2 |   value\n    |   ^ unexpected local variable",
+          stderr: "",
+          exitCode: 1,
+          durationMs: 4,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await screen.findByRole("heading", { name: "Broken Ruby" });
+
+    await user.click(screen.getByLabelText("Editable main solution"));
+    await user.click(screen.getByRole("heading", { name: "Broken Ruby" }));
+
+    expect(await screen.findByText("Fix 1 syntax issue")).toBeVisible();
+    expect(screen.getByText("Line 2")).toBeVisible();
+    expect(screen.getByText("unexpected local variable")).toBeVisible();
+    expect(
+      screen.getByText(/shown without cascading error colours/i),
+    ).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/syntax-check",
       expect.objectContaining({ method: "POST" }),
@@ -487,6 +712,43 @@ describe("Playground", () => {
       await screen.findByText(/solution\.test\.tsx > renders the counter/),
     ).toBeVisible();
     expect(screen.getByText("Passed · exit 0 · 421ms")).toBeVisible();
+  });
+
+  it("renders a React preview panel below the main solution", async () => {
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 4,
+          value: {
+            ...emptySnapshot.value,
+            language: "react",
+            answer: reactAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/react-preview")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          code: reactAnswer.code,
+          componentName: "App",
+        });
+        return jsonResponse({
+          javascript: "document.body.dataset.preview = 'ready';",
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    expect(
+      await screen.findByRole("region", { name: "React rendered preview" }),
+    ).toBeVisible();
+    expect(screen.getByTitle("Rendered React component")).toHaveAttribute(
+      "sandbox",
+      "allow-scripts",
+    );
+    expect(screen.getByText("Live")).toBeVisible();
   });
 
   it("reruns the solution and usage when the Tests tab is empty", async () => {

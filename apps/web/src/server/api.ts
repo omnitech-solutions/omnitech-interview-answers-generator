@@ -372,7 +372,10 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/react-preview", async (context) => {
-    const body = (await context.req.json()) as { code?: unknown };
+    const body = (await context.req.json()) as {
+      code?: unknown;
+      componentName?: unknown;
+    };
     if (typeof body.code !== "string" || body.code.trim() === "") {
       return apiError(
         context,
@@ -381,6 +384,11 @@ console.log(solve([1, 2, 3]));`,
         "React preview requires non-empty code.",
       );
     }
+    const componentName =
+      typeof body.componentName === "string" &&
+      /^[A-Z][A-Za-z0-9_]*$/.test(body.componentName)
+        ? body.componentName
+        : "App";
 
     try {
       const result = await build({
@@ -394,9 +402,9 @@ console.log(solve([1, 2, 3]));`,
             import React from 'react';
             import { createRoot } from 'react-dom/client';
             ${body.code}
-            const Candidate = typeof App !== 'undefined' ? App : null;
+            const Candidate = typeof ${componentName} !== 'undefined' ? ${componentName} : null;
             if (!Candidate) {
-              throw new Error('Export or declare the preview component as App.');
+              throw new Error('Export or declare a preview component.');
             }
             createRoot(document.getElementById('root')).render(React.createElement(Candidate));
           `,

@@ -60,6 +60,31 @@ textarea {
   backdrop-filter: blur(16px);
 }
 
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-example {
+  display: grid;
+  min-width: min(360px, 32vw);
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.topbar-example select {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+}
+
 h1,
 h2,
 p {
@@ -167,6 +192,7 @@ select {
 
 .main-column {
   display: grid;
+  align-content: start;
   gap: 16px;
   min-width: 0;
 }
@@ -181,7 +207,17 @@ select {
 
 .question-card,
 .answer-card {
+  align-self: start;
   padding: 18px;
+}
+
+.question-card .studio-textarea {
+  display: block;
+  height: 250px;
+  max-height: 45vh;
+  min-height: 180px;
+  overflow: auto;
+  resize: vertical;
 }
 
 .section-heading {
@@ -202,6 +238,13 @@ select {
 .run-meta {
   color: var(--muted);
   font-size: 12px;
+}
+
+.run-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .language-chip {
@@ -235,6 +278,89 @@ select {
 .markdown ul,
 .markdown ol {
   margin: 8px 0;
+}
+
+.question-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.question-tabs button {
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.question-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
+.question-preview {
+  height: 250px;
+  max-height: 45vh;
+  min-height: 180px;
+  overflow: auto;
+  padding: 4px 8px;
+}
+
+.empty-preview {
+  color: var(--muted);
+}
+
+.react-preview-panel {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--wash);
+}
+
+.react-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.react-preview-heading h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.react-preview-heading span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.react-preview-frame {
+  display: block;
+  width: 100%;
+  height: 300px;
+  border: 0;
+  background: white;
+}
+
+.react-preview-empty,
+.react-preview-error {
+  margin: 0;
+  padding: 18px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.react-preview-error {
+  color: #991b1b;
 }
 
 .editor-shell {
@@ -332,8 +458,8 @@ select {
 
 .syntax-status {
   display: grid;
-  gap: 3px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 12px;
   border-top: 1px solid var(--line);
   font-size: 12px;
 }
@@ -342,12 +468,47 @@ select {
   white-space: pre-wrap;
 }
 
+.syntax-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.syntax-location {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.syntax-message {
+  color: #7f1d1d;
+  font-weight: 600;
+}
+
+.syntax-source {
+  overflow: auto;
+  padding: 7px 8px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff7f7;
+  color: #7f1d1d;
+  white-space: pre;
+}
+
+.syntax-help {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .syntax-valid {
   color: #18794e;
 }
 
 .syntax-invalid {
-  color: #b42318;
+  color: #991b1b;
+  background: #fffafa;
 }
 
 .syntax-checking,
@@ -424,6 +585,27 @@ select {
   color: #b42318;
 }
 
+.copy-output {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.copy-output:hover,
+.copy-output:focus-visible {
+  background: rgba(92, 70, 216, 0.08);
+  color: var(--accent);
+}
+
 .output pre {
   overflow-x: auto;
   overflow-y: auto;
@@ -497,6 +679,10 @@ select {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-example {
+    width: 100%;
   }
 
   .toolbar {
