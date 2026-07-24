@@ -9,6 +9,7 @@ export default defineConfig({
           environment: "node",
           include: [
             "packages/*/src/**/*.test.ts",
+            "apps/terminal-gateway/src/**/*.test.ts",
             "apps/web/src/server/**/*.test.ts",
           ],
           exclude: ["**/dist/**", "**/node_modules/**"],
@@ -27,7 +28,11 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
       reportsDirectory: "./coverage",
-      include: ["packages/*/src/**/*.ts", "apps/web/src/**/*.{ts,tsx}"],
+      include: [
+        "packages/*/src/**/*.ts",
+        "apps/terminal-gateway/src/**/*.ts",
+        "apps/web/src/**/*.{ts,tsx}",
+      ],
       exclude: [
         "**/*.test.{ts,tsx}",
         "**/*.d.ts",
