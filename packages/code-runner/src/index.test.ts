@@ -138,6 +138,31 @@ describe("DockerCodeRunner", () => {
     );
   });
 
+  it("normalizes duplicate PHP opening tags before Pest runs", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.runAll({
+      language: "php",
+      code: "<?php\nfunction solution(): int { return 1; }",
+      usageCode: "",
+      testCode: "<?php\nit('works', fn () => expect(solution())->toBe(1));",
+      stdin: "",
+    });
+
+    await vi.waitFor(() => expect(fsMocks.writeFile).toHaveBeenCalled());
+    expect(fsMocks.writeFile).toHaveBeenCalledWith(
+      "/tmp/interview-answer-run-test/SolutionTest.php",
+      "function solution(): int { return 1; }\n\nit('works', fn () => expect(solution())->toBe(1));",
+      { mode: 0o600 },
+    );
+
+    child.emit("close", 0);
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({ exitCode: 0, timedOut: false }),
+    );
+  });
+
   it.each([
     ["typescript", "solution.ts"],
     ["react", "solution.tsx"],

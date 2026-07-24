@@ -98,6 +98,10 @@ const testRuntimes = {
   },
 } as const;
 
+function stripPhpTags(source: string): string {
+  return source.replace(/<\?php\s*/gi, "").replace(/\?>\s*/g, "");
+}
+
 const syntaxRuntimes = {
   php: {
     image: "php:8.3-cli-alpine",
@@ -235,9 +239,11 @@ export class DockerCodeRunner implements CodeRunner {
     const sourcePath = join(temporaryDirectory, runtime.filename);
     // Test runs must stay focused on assertions. Usage output belongs only in
     // the normal-output phase and must never pollute the Test results tab.
-    const source = [input.code, input.testCode]
-      .filter((section) => section.trim())
-      .join("\n\n");
+    const sections =
+      input.language === "php"
+        ? [input.code, input.testCode].map(stripPhpTags)
+        : [input.code, input.testCode];
+    const source = sections.filter((section) => section.trim()).join("\n\n");
     await writeFile(sourcePath, source, { mode: 0o600 });
 
     const dockerArguments = [
