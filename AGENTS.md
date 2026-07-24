@@ -1,0 +1,27 @@
+Please also reference the following rules as needed. The list below is provided in TOON format, and `@` stands for the project root directory.
+
+rules[1]{path,description}:
+  @.opencode/memories/packages.md,Reusable package and SDK boundaries
+
+# Engineering contract
+
+- Prefer the smallest complete change that makes the current requirement work.
+- Keep reusable boundaries narrow: one responsibility, one public entrypoint,
+  explicit input/output types, and implementation details kept private.
+- Add an abstraction for a demonstrated second implementation or a real
+  lifecycle/boundary—not an imagined future.
+- Use domain names. Keep orchestration readable from top to bottom.
+- Comment decisions, invariants, boundary normalization, and surprising
+  behavior. Do not comment trivial syntax.
+- Never log questions, generated code, notes, credentials, or model responses by
+  default.
+- Verify lint, format, types, tests, and build before claiming completion.
+
+## Automatic routing
+
+When the user supplies an interview question, activate the
+`interview-question-router` skill, then use the
+`interview-playground-controller` skill to update the open Playground through
+`interview-answers playground`. Use an explicitly selected language; otherwise
+detect PHP, React, TypeScript, or Ruby and default ambiguous DSA questions to
+TypeScript. Produce an answer directly—there is no mock-interview mode.

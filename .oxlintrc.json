@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "unicorn", "import"],
+  "categories": {
+    "correctness": "deny",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/.next/**",
+    "**/node_modules/**",
+    ".rulesync/**",
+    ".claude/**",
+    ".codex/**",
+    ".cursor/**",
+    ".windsurf/**",
+    "apps/web/next-env.d.ts"
+  ]
+}
