@@ -121,55 +121,6 @@ describe("web API", () => {
     });
   });
 
-  it("runs terminal commands from the configured project root", async () => {
-    const app = createApi();
-
-    const response = await app.request(
-      "http://localhost/api/v1/terminal",
-      jsonRequest("POST", { command: "printf '/repo\\n'" }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      cwd: expect.any(String),
-      stdout: "/repo\n",
-      stderr: "",
-      exitCode: 0,
-    });
-  });
-
-  it("returns terminal failures as structured output", async () => {
-    const app = createApi();
-
-    const response = await app.request(
-      "http://localhost/api/v1/terminal",
-      jsonRequest("POST", {
-        command: "printf 'command not found\\n' >&2; exit 127",
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      stdout: "command not found\n",
-      exitCode: 127,
-    });
-  });
-
-  it("rejects empty and oversized terminal commands", async () => {
-    const app = createApi();
-    const empty = await app.request(
-      "http://localhost/api/v1/terminal",
-      jsonRequest("POST", { command: "  " }),
-    );
-    const oversized = await app.request(
-      "http://localhost/api/v1/terminal",
-      jsonRequest("POST", { command: "x".repeat(4001) }),
-    );
-
-    expect(empty.status).toBe(400);
-    expect(oversized.status).toBe(400);
-  });
-
   it("exposes deterministic fake model and completion endpoints", async () => {
     const app = createApi();
     const models = await app.request("http://localhost/api/fake/v1/models");

@@ -22,6 +22,7 @@ import React, {
 } from "react";
 import ReactMarkdown from "react-markdown";
 
+import { BrowserTerminal } from "./browser-terminal";
 import { StudioButton, StudioTextarea } from "./studio-controls";
 
 type InspectorPanel = "terminal" | "notes" | "output" | "saved";
@@ -268,11 +269,6 @@ export function Playground() {
   const [savedAnswers, setSavedAnswers] = useState<SavedAnswer[]>([]);
   const [savedPage, setSavedPage] = useState(0);
   const [panel, setPanel] = useState<InspectorPanel>("terminal");
-  const [terminalCommand, setTerminalCommand] = useState("");
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [terminalCwd, setTerminalCwd] = useState("Project root");
-  const [terminalBusy, setTerminalBusy] = useState(false);
-  const [terminalSessionId, setTerminalSessionId] = useState<string>();
   const [output, setOutput] = useState<ExecutionOutput>({});
   const [outputTab, setOutputTab] = useState<OutputTab>("solution");
   const [copiedOutput, setCopiedOutput] = useState<OutputTab>();
@@ -323,87 +319,6 @@ export function Playground() {
       setBusy(false);
     }
   }
-
-  async function runTerminalCommand(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const command = terminalCommand.trim();
-    if (!command || terminalBusy) return;
-    setTerminalBusy(true);
-    setTerminalOutput((current) => [
-      ...current,
-      `${terminalSessionId ? "" : "$ "}${command}`,
-    ]);
-    setTerminalCommand("");
-    try {
-      if (terminalSessionId) {
-        await api(`/terminal/${terminalSessionId}/input`, {
-          method: "POST",
-          body: JSON.stringify({ input: `${command}\n` }),
-        });
-        return;
-      }
-      const result = await api<{
-        cwd: string;
-        stdout: string;
-        stderr: string;
-        exitCode: number | null;
-        durationMs: number;
-        sessionId?: string;
-        running?: boolean;
-      }>("/terminal", {
-        method: "POST",
-        body: JSON.stringify({ command }),
-      });
-      setTerminalCwd(result.cwd);
-      if (result.sessionId) {
-        setTerminalSessionId(result.sessionId);
-        setTerminalBusy(false);
-        if (result.stdout)
-          setTerminalOutput((current) => [...current, result.stdout]);
-        return;
-      }
-      const output = [result.stdout, result.stderr]
-        .filter(Boolean)
-        .join("")
-        .replace(/\n$/, "");
-      setTerminalOutput((current) => [
-        ...current,
-        output || `[exit ${result.exitCode}]`,
-        `[${result.exitCode === 0 ? "done" : "failed"} · ${result.durationMs}ms]`,
-      ]);
-    } catch (error) {
-      setTerminalOutput((current) => [
-        ...current,
-        error instanceof Error ? error.message : "Terminal unavailable.",
-      ]);
-    } finally {
-      setTerminalBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!terminalSessionId) return;
-    const timer = window.setInterval(() => {
-      void api<{
-        stdout: string;
-        running: boolean;
-        exitCode: number | null;
-      }>(`/terminal/${terminalSessionId}`)
-        .then((result) => {
-          if (result.stdout)
-            setTerminalOutput((current) => [...current, result.stdout]);
-          if (!result.running) {
-            setTerminalOutput((current) => [
-              ...current,
-              `[${result.exitCode === 0 ? "done" : "failed"}]`,
-            ]);
-            setTerminalSessionId(undefined);
-          }
-        })
-        .catch(() => undefined);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [terminalSessionId]);
 
   async function copyOutput(tab: OutputTab, result: RunResult) {
     const text = result.stdout || result.stderr || "(no output)";
@@ -1128,42 +1043,11 @@ export function Playground() {
                   <span />
                 </div>
                 <strong>iTerm</strong>
-                <span className="terminal-cwd" title={terminalCwd}>
-                  {terminalCwd}
+                <span className="terminal-cwd">
+                  tmux · workspace · project root
                 </span>
               </div>
-              <pre className="terminal-output" aria-live="polite">
-                {terminalOutput.length > 0
-                  ? terminalOutput.join("\n")
-                  : "Project terminal ready. Run a command from the repository root."}
-              </pre>
-              <form className="terminal-form" onSubmit={runTerminalCommand}>
-                <span className="terminal-prompt" aria-hidden="true">
-                  ❯
-                </span>
-                <input
-                  aria-label="Terminal command"
-                  autoComplete="off"
-                  disabled={terminalBusy}
-                  placeholder={
-                    terminalSessionId
-                      ? "Send input to the running program…"
-                      : "Type a command…"
-                  }
-                  value={terminalCommand}
-                  onChange={(event) => setTerminalCommand(event.target.value)}
-                />
-                <button
-                  type="submit"
-                  disabled={terminalBusy || !terminalCommand.trim()}
-                >
-                  {terminalBusy
-                    ? "Sending…"
-                    : terminalSessionId
-                      ? "Send"
-                      : "Run"}
-                </button>
-              </form>
+              <BrowserTerminal />
             </section>
           ) : null}
 

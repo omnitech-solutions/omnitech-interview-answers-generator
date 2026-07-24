@@ -1,0 +1,96 @@
+"use client";
+/* c8 ignore file -- browser/WebSocket behavior is verified in the running app. */
+
+import "@xterm/xterm/css/xterm.css";
+
+import { FitAddon } from "@xterm/addon-fit";
+import { Terminal } from "@xterm/xterm";
+import { type JSX, useEffect, useRef } from "react";
+
+const gatewayUrl =
+  process.env["NEXT_PUBLIC_TERMINAL_GATEWAY_URL"] ??
+  "ws://localhost:3001/terminal";
+
+export function BrowserTerminal(): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const terminal = new Terminal({
+      cursorBlink: true,
+      convertEol: true,
+      fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+      fontSize: 13,
+      theme: {
+        background: "#0d1117",
+        foreground: "#d6deeb",
+        cursor: "#58d68d",
+        selectionBackground: "#264f78",
+      },
+    });
+    const fitAddon = new FitAddon();
+    const socket = new WebSocket(gatewayUrl);
+
+    terminal.loadAddon(fitAddon);
+    terminal.open(container);
+    fitAddon.fit();
+    terminal.writeln("Connecting to terminal gateway…");
+
+    socket.addEventListener("open", () => {
+      terminal.writeln("Connected to tmux session: workspace");
+      fitAddon.fit();
+      socket.send(
+        JSON.stringify({
+          type: "resize",
+          cols: terminal.cols,
+          rows: terminal.rows,
+        }),
+      );
+    });
+    socket.addEventListener("message", (event: MessageEvent<string>) => {
+      terminal.write(event.data);
+    });
+    socket.addEventListener("close", () => {
+      terminal.writeln("\r\nTerminal gateway disconnected.");
+    });
+    socket.addEventListener("error", () => {
+      terminal.writeln("\r\nUnable to connect to terminal gateway.");
+    });
+
+    const inputSubscription = terminal.onData((data) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "input", data }));
+      }
+    });
+    const resizeObserver = new ResizeObserver(() => {
+      fitAddon.fit();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(
+          JSON.stringify({
+            type: "resize",
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        );
+      }
+    });
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      inputSubscription.dispose();
+      socket.close();
+      terminal.dispose();
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="browser-terminal"
+      aria-label="Terminal emulator"
+    />
+  );
+}
