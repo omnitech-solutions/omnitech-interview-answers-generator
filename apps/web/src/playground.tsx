@@ -1,7 +1,7 @@
 "use client";
 
-import { php } from "@codemirror/lang-php";
 import { javascript } from "@codemirror/lang-javascript";
+import { php } from "@codemirror/lang-php";
 import { StreamLanguage } from "@codemirror/language";
 import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import type {
@@ -27,6 +27,8 @@ import { StudioButton, StudioTextarea } from "./studio-controls";
 type InspectorPanel = "notes" | "output" | "saved";
 type EditorTab = "solution" | "usage" | "tests";
 type OutputTab = "solution" | "tests";
+
+const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 
 interface ExecutionOutput {
   solution?: RunResult;
@@ -98,6 +100,7 @@ export function Playground() {
   const [panel, setPanel] = useState<InspectorPanel>("notes");
   const [output, setOutput] = useState<ExecutionOutput>({});
   const [outputTab, setOutputTab] = useState<OutputTab>("solution");
+  const [wordWrap, setWordWrap] = useState(false);
   const [preview, setPreview] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -136,6 +139,18 @@ export function Playground() {
   useEffect(() => {
     void loadSaved();
   }, [loadSaved]);
+
+  useEffect(() => {
+    setWordWrap(window.localStorage.getItem(WORD_WRAP_STORAGE_KEY) === "true");
+  }, []);
+
+  function toggleWordWrap() {
+    setWordWrap((current) => {
+      const next = !current;
+      window.localStorage.setItem(WORD_WRAP_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
 
   useEffect(() => {
     let active = true;
@@ -486,6 +501,18 @@ export function Playground() {
 
           {panel === "output" ? (
             <div className="output">
+              <div className="output-toolbar">
+                <span className="output-label">Display</span>
+                <button
+                  type="button"
+                  className="output-wrap-toggle"
+                  aria-pressed={wordWrap}
+                  aria-label="Toggle word wrap"
+                  onClick={toggleWordWrap}
+                >
+                  Word wrap: {wordWrap ? "On" : "Off"}
+                </button>
+              </div>
               <div
                 className="output-tabs"
                 role="tablist"
@@ -534,7 +561,7 @@ export function Playground() {
                           {String(result.exitCode)} · {result.durationMs}ms
                         </div>
                         <pre
-                          className={failed ? "output-error" : "output-success"}
+                          className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
                         >
                           {result.stdout || result.stderr || "(no output)"}
                         </pre>

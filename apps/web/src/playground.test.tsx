@@ -90,6 +90,14 @@ async function renderSettled() {
 
 beforeEach(() => {
   vi.unstubAllGlobals();
+  const values = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    },
+  });
 });
 
 describe("Playground", () => {
@@ -265,6 +273,62 @@ describe("Playground", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
+  it("defaults word wrap off and caches the last chosen display mode", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 5,
+          value: {
+            ...emptySnapshot.value,
+            question: "Print output",
+            language: "php",
+            answer: phpAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "a very long output line that should remain scrollable",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 8,
+          timedOut: false,
+        });
+      }
+      if (path.endsWith("/run-all")) {
+        return jsonResponse({
+          stdout: "tests passed",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 10,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.click(await screen.findByRole("button", { name: "Run All" }));
+
+    const toggle = await screen.findByRole("button", {
+      name: "Toggle word wrap",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveTextContent("Word wrap: Off");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveTextContent("Word wrap: On");
+    expect(window.localStorage.getItem("interview-playground.word-wrap")).toBe(
+      "true",
+    );
+    expect(screen.getByText(/a very long output line/)).toHaveClass(
+      "output-wrap",
+    );
+  });
+
   it("runs the solution, usage, and tests together", async () => {
     const user = userEvent.setup();
     installFetch(async (path, init) => {
@@ -299,7 +363,7 @@ describe("Playground", () => {
           stdin: "",
         });
         return jsonResponse({
-          stdout: "okusagetests passed\n",
+          stdout: "tests passed\n",
           stderr: "",
           exitCode: 0,
           durationMs: 18,
@@ -318,7 +382,8 @@ describe("Playground", () => {
     );
     expect(await screen.findByText("okusage")).toBeVisible();
     await user.click(screen.getByRole("tab", { name: "Test results" }));
-    expect(await screen.findByText("okusagetests passed")).toBeVisible();
+    expect(await screen.findByText("tests passed")).toBeVisible();
+    expect(screen.queryByText("okusage")).not.toBeInTheDocument();
     expect(screen.getByText("Passed · exit 0 · 18ms")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });

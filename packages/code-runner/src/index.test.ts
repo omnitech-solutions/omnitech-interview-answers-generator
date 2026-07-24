@@ -6,9 +6,17 @@ const childProcessMocks = vi.hoisted(() => ({
   spawn: vi.fn(),
 }));
 
+const fsMocks = vi.hoisted(() => ({
+  mkdtemp: vi.fn().mockResolvedValue("/tmp/interview-answer-run-test"),
+  rm: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("node:child_process", () => ({
   spawn: childProcessMocks.spawn,
 }));
+
+vi.mock("node:fs/promises", () => fsMocks);
 
 import { DockerCodeRunner } from "./index.js";
 
@@ -104,6 +112,31 @@ describe("DockerCodeRunner", () => {
       );
     },
   );
+
+  it("keeps usage output out of the test source", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.runAll({
+      language: "ruby",
+      code: "solution",
+      usageCode: "puts 'normal output'",
+      testCode: "RSpec.describe { it { expect(true).to be(true) } }",
+      stdin: "",
+    });
+
+    await vi.waitFor(() => expect(fsMocks.writeFile).toHaveBeenCalled());
+    expect(fsMocks.writeFile).toHaveBeenCalledWith(
+      "/tmp/interview-answer-run-test/solution_spec.rb",
+      "solution\n\nRSpec.describe { it { expect(true).to be(true) } }",
+      { mode: 0o600 },
+    );
+
+    child.emit("close", 0);
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({ exitCode: 0, timedOut: false }),
+    );
+  });
 
   it("captures stdout and stderr and preserves a nonzero exit code", async () => {
     const child = createChildProcess();

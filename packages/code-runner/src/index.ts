@@ -157,7 +157,9 @@ export class DockerCodeRunner implements CodeRunner {
       join(tmpdir(), "interview-answer-run-"),
     );
     const sourcePath = join(temporaryDirectory, runtime.filename);
-    const source = [input.code, input.usageCode, input.testCode]
+    // Test runs must stay focused on assertions. Usage output belongs only in
+    // the normal-output phase and must never pollute the Test results tab.
+    const source = [input.code, input.testCode]
       .filter((section) => section.trim())
       .join("\n\n");
     await writeFile(sourcePath, source, { mode: 0o600 });
