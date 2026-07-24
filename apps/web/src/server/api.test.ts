@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   listAnswersPage: vi.fn(),
   runAllCode: vi.fn(),
   runCode: vi.fn(),
+  checkSyntax: vi.fn(),
   saveAnswer: vi.fn(),
 }));
 
@@ -25,7 +26,11 @@ vi.mock("./services", () => ({
     listPage: mocks.listAnswersPage,
     save: mocks.saveAnswer,
   },
-  codeRunner: { run: mocks.runCode, runAll: mocks.runAllCode },
+  codeRunner: {
+    run: mocks.runCode,
+    runAll: mocks.runAllCode,
+    checkSyntax: mocks.checkSyntax,
+  },
   generateInterviewAnswer: mocks.generateInterviewAnswer,
 }));
 
@@ -402,6 +407,44 @@ describe("web API", () => {
     expect(await responseJson(unavailable)).toMatchObject({
       error: { code: "runner_unavailable" },
     });
+  });
+
+  it("checks syntax without executing the answer", async () => {
+    const app = createApi();
+    const syntaxResult = {
+      stdout: "No syntax errors detected",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 4,
+      timedOut: false,
+    };
+    mocks.checkSyntax.mockResolvedValueOnce(syntaxResult);
+
+    const response = await app.request(
+      "http://localhost/api/v1/syntax-check",
+      jsonRequest("POST", { language: "php", code: "<?php echo 'ok';" }),
+    );
+
+    expect(await response.json()).toEqual(syntaxResult);
+    expect(mocks.checkSyntax).toHaveBeenCalledWith({
+      language: "php",
+      code: "<?php echo 'ok';",
+    });
+    expect(mocks.runCode).not.toHaveBeenCalled();
+    expect(mocks.runAllCode).not.toHaveBeenCalled();
+
+    const invalid = await app.request(
+      "http://localhost/api/v1/syntax-check",
+      jsonRequest("POST", { language: "php", code: "" }),
+    );
+    expect(invalid.status).toBe(400);
+
+    mocks.checkSyntax.mockRejectedValueOnce(new Error("Docker unavailable"));
+    const unavailable = await app.request(
+      "http://localhost/api/v1/syntax-check",
+      jsonRequest("POST", { language: "ruby", code: "puts 'ok'" }),
+    );
+    expect(unavailable.status).toBe(503);
   });
 
   it("runs the complete answer with its language-specific test framework", async () => {

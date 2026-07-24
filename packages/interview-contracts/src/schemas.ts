@@ -53,6 +53,11 @@ export const runRequestSchema = z.object({
   stdin: z.string().default(""),
 });
 
+export const syntaxCheckRequestSchema = z.object({
+  language: languageSchema,
+  code: z.string().min(1),
+});
+
 export const runAllRequestSchema = z.object({
   language: languageSchema,
   code: z.string().min(1),
@@ -87,6 +92,7 @@ export type GenerateRequest = z.infer<typeof generateRequestSchema>;
 export type SavedAnswer = z.infer<typeof savedAnswerSchema>;
 export type SaveAnswerRequest = z.infer<typeof saveAnswerRequestSchema>;
 export type RunRequest = z.infer<typeof runRequestSchema>;
+export type SyntaxCheckRequest = z.infer<typeof syntaxCheckRequestSchema>;
 export type RunAllRequest = z.infer<typeof runAllRequestSchema>;
 export type RunResult = z.infer<typeof runResultSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;

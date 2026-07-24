@@ -3,23 +3,23 @@ import { randomUUID } from "node:crypto";
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
   generateRequestSchema,
-  routeRequestSchema,
   routeQuestion,
+  routeRequestSchema,
   runAllRequestSchema,
   runRequestSchema,
   saveAnswerRequestSchema,
+  syntaxCheckRequestSchema,
 } from "@omnitech/interview-contracts";
 import { parsePlaygroundPatch } from "@omnitech/interview-playground-control";
-import { Hono } from "hono";
-import type { Context, Next } from "hono";
 import { build } from "esbuild";
-
+import type { Context, Next } from "hono";
+import { Hono } from "hono";
+import { playgroundControlStore } from "./playground-control";
 import {
   answerRepository,
   codeRunner,
   generateInterviewAnswer,
 } from "./services";
-import { playgroundControlStore } from "./playground-control";
 
 type ApiEnvironment = {
   Variables: {
@@ -321,6 +321,29 @@ console.log(solve([1, 2, 3]));`,
         503,
         "runner_unavailable",
         "The code runner is unavailable. Start Docker Desktop, wait until it is running, then try again.",
+      );
+    }
+  });
+
+  app.post("/api/v1/syntax-check", async (context) => {
+    const parsed = syntaxCheckRequestSchema.safeParse(await context.req.json());
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The syntax-check request is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(await codeRunner.checkSyntax(parsed.data));
+    } catch {
+      return apiError(
+        context,
+        503,
+        "runner_unavailable",
+        "The syntax checker is unavailable. Start Docker Desktop, then try again.",
       );
     }
   });

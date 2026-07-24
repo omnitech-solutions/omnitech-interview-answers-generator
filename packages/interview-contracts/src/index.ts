@@ -1,7 +1,23 @@
+export { routeQuestion } from "./routing.js";
+export type {
+  ApiError,
+  GeneratedAnswer,
+  GenerateRequest,
+  Language,
+  LanguageSelection,
+  RouteRequest,
+  RouteResult,
+  RunAllRequest,
+  RunRequest,
+  RunResult,
+  SaveAnswerRequest,
+  SavedAnswer,
+  SyntaxCheckRequest,
+} from "./schemas.js";
 export {
   apiErrorSchema,
-  generateRequestSchema,
   generatedAnswerSchema,
+  generateRequestSchema,
   languageSchema,
   languageSelectionSchema,
   routeRequestSchema,
@@ -11,24 +27,10 @@ export {
   runResultSchema,
   saveAnswerRequestSchema,
   savedAnswerSchema,
+  syntaxCheckRequestSchema,
 } from "./schemas.js";
-export type {
-  ApiError,
-  GeneratedAnswer,
-  GenerateRequest,
-  Language,
-  LanguageSelection,
-  RouteRequest,
-  RouteResult,
-  RunRequest,
-  RunAllRequest,
-  RunResult,
-  SaveAnswerRequest,
-  SavedAnswer,
-} from "./schemas.js";
-export { routeQuestion } from "./routing.js";
 export {
+  type AnswerWorkflowDefinition,
   getWorkflow,
   listWorkflows,
-  type AnswerWorkflowDefinition,
 } from "./workflows.js";

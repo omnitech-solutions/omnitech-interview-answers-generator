@@ -9,16 +9,19 @@ vi.mock("@uiw/react-codemirror", () => ({
   default: ({
     value,
     onChange,
+    onBlur,
     "aria-label": ariaLabel,
   }: {
     value: string;
     onChange: (value: string) => void;
+    onBlur?: () => void;
     "aria-label"?: string;
   }) => (
     <textarea
       aria-label={ariaLabel ?? "Editable solution"}
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
     />
   ),
 }));
@@ -271,6 +274,50 @@ describe("Playground", () => {
     expect(output).toBeVisible();
     expect(screen.getByText("Passed · exit 0 · 8ms")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
+  });
+
+  it("checks the active editor syntax when it loses focus", async () => {
+    const user = userEvent.setup();
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 6,
+          value: {
+            ...emptySnapshot.value,
+            question: "Check syntax",
+            language: "php",
+            answer: phpAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/syntax-check")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          language: "php",
+          code: phpAnswer.code,
+        });
+        return jsonResponse({
+          stdout: "No syntax errors detected",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 4,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await screen.findByRole("heading", { name: "Frequency Map" });
+
+    await user.click(screen.getByLabelText("Editable main solution"));
+    await user.click(screen.getByRole("heading", { name: "Frequency Map" }));
+
+    expect(await screen.findByText("Syntax valid")).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/syntax-check",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("defaults word wrap off and caches the last chosen display mode", async () => {

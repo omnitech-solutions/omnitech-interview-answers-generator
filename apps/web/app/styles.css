@@ -330,6 +330,31 @@ select {
   border-radius: 8px;
 }
 
+.syntax-status {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.syntax-status span {
+  white-space: pre-wrap;
+}
+
+.syntax-valid {
+  color: #18794e;
+}
+
+.syntax-invalid {
+  color: #b42318;
+}
+
+.syntax-checking,
+.syntax-unavailable {
+  color: var(--muted);
+}
+
 .output-tabs {
   display: flex;
   gap: 6px;

@@ -27,6 +27,7 @@ import { StudioButton, StudioTextarea } from "./studio-controls";
 type InspectorPanel = "notes" | "output" | "saved";
 type EditorTab = "solution" | "usage" | "tests";
 type OutputTab = "solution" | "tests";
+type SyntaxState = "idle" | "checking" | "valid" | "invalid" | "unavailable";
 
 const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 
@@ -105,6 +106,9 @@ export function Playground() {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [editorTab, setEditorTab] = useState<EditorTab>("solution");
+  const [syntaxState, setSyntaxState] = useState<SyntaxState>("idle");
+  const [syntaxMessage, setSyntaxMessage] = useState("");
+  const syntaxRequestId = useRef(0);
   const appliedControlRevision = useRef(-1);
 
   const loadSaved = useCallback(async () => {
@@ -176,6 +180,8 @@ export function Playground() {
         setOutput({});
         setPreview("");
         setEditorTab("solution");
+        setSyntaxState("idle");
+        setSyntaxMessage("");
         if (snapshot.revision > 0) {
           setStatus(
             `Playground updated through the control API (revision ${snapshot.revision}).`,
@@ -220,6 +226,8 @@ export function Playground() {
       setOutput({});
       setPreview("");
       setEditorTab("solution");
+      setSyntaxState("idle");
+      setSyntaxMessage("");
       setStatus("Draft generated. It has not been saved.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -329,7 +337,40 @@ export function Playground() {
     setOutput({});
     setPreview("");
     setEditorTab("solution");
+    setSyntaxState("idle");
+    setSyntaxMessage("");
     setStatus("New unsaved playground.");
+  }
+
+  async function checkSyntax(tab: EditorTab) {
+    if (!answer) return;
+    const source =
+      tab === "solution"
+        ? answer.code
+        : [answer.code, tab === "usage" ? answer.usageCode : answer.testCode]
+            .filter((section) => section.trim())
+            .join("\n\n");
+    if (!source.trim()) return;
+
+    const requestId = ++syntaxRequestId.current;
+    setSyntaxState("checking");
+    setSyntaxMessage("");
+    try {
+      const result = await api<RunResult>("/syntax-check", {
+        method: "POST",
+        body: JSON.stringify({ language: answer.language, code: source }),
+      });
+      if (requestId !== syntaxRequestId.current) return;
+      const diagnostic = result.stderr || result.stdout;
+      setSyntaxState(result.exitCode === 0 ? "valid" : "invalid");
+      setSyntaxMessage(diagnostic.trim());
+    } catch (error) {
+      if (requestId !== syntaxRequestId.current) return;
+      setSyntaxState("unavailable");
+      setSyntaxMessage(
+        error instanceof Error ? error.message : "Syntax check unavailable.",
+      );
+    }
   }
 
   return (
@@ -427,7 +468,12 @@ export function Playground() {
                         role="tab"
                         aria-selected={editorTab === tab.id}
                         className={editorTab === tab.id ? "active" : ""}
-                        onClick={() => setEditorTab(tab.id)}
+                        onClick={() => {
+                          syntaxRequestId.current += 1;
+                          setEditorTab(tab.id);
+                          setSyntaxState("idle");
+                          setSyntaxMessage("");
+                        }}
                       >
                         {tab.label}
                       </button>
@@ -444,6 +490,7 @@ export function Playground() {
                     height="430px"
                     extensions={extensions}
                     theme="dark"
+                    onBlur={() => void checkSyntax(editorTab)}
                     aria-label={
                       editorTab === "solution"
                         ? "Editable main solution"
@@ -451,7 +498,9 @@ export function Playground() {
                           ? "Editable usage and output"
                           : "Editable tests"
                     }
-                    onChange={(source) =>
+                    onChange={(source) => (
+                      setSyntaxState("idle"),
+                      setSyntaxMessage(""),
                       setAnswer({
                         ...answer,
                         ...(editorTab === "solution"
@@ -460,8 +509,25 @@ export function Playground() {
                             ? { usageCode: source }
                             : { testCode: source }),
                       })
-                    }
+                    )}
                   />
+                  {syntaxState !== "idle" ? (
+                    <div
+                      className={`syntax-status syntax-${syntaxState}`}
+                      aria-live="polite"
+                    >
+                      <strong>
+                        {syntaxState === "checking"
+                          ? "Checking syntax…"
+                          : syntaxState === "valid"
+                            ? "Syntax valid"
+                            : syntaxState === "invalid"
+                              ? "Syntax error"
+                              : "Syntax check unavailable"}
+                      </strong>
+                      {syntaxMessage ? <span>{syntaxMessage}</span> : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : (

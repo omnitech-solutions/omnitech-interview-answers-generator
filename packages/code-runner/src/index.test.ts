@@ -138,6 +138,75 @@ describe("DockerCodeRunner", () => {
     );
   });
 
+  it.each([
+    ["typescript", "solution.ts"],
+    ["react", "solution.tsx"],
+  ] as const)(
+    "uses the TypeScript parser for %s",
+    async (language, filename) => {
+      const child = createChildProcess();
+      const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+      const resultPromise = runner.checkSyntax({
+        language,
+        code: "valid source",
+      });
+      await vi.waitFor(() =>
+        expect(childProcessMocks.spawn).toHaveBeenCalled(),
+      );
+
+      const [, dockerArguments] = childProcessMocks.spawn.mock.calls[0] as [
+        string,
+        string[],
+      ];
+      expect(dockerArguments).toEqual(
+        expect.arrayContaining(["node", "--input-type=module", "-e"]),
+      );
+      expect(dockerArguments).toContainEqual(
+        expect.stringMatching(new RegExp(`/workspace/${filename}:ro$`)),
+      );
+
+      child.emit("close", 0);
+      await expect(resultPromise).resolves.toEqual(
+        expect.objectContaining({ exitCode: 0, timedOut: false }),
+      );
+    },
+  );
+
+  it.each([
+    ["php", "solution.php", ["php", "-l", "/workspace/solution.php"]],
+    ["ruby", "solution.rb", ["ruby", "-c", "/workspace/solution.rb"]],
+  ] as const)(
+    "uses the native syntax checker for %s",
+    async (language, filename, command) => {
+      const child = createChildProcess();
+      const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+      const resultPromise = runner.checkSyntax({
+        language,
+        code: "valid source",
+      });
+      await vi.waitFor(() =>
+        expect(childProcessMocks.spawn).toHaveBeenCalled(),
+      );
+
+      const [, dockerArguments] = childProcessMocks.spawn.mock.calls[0] as [
+        string,
+        string[],
+      ];
+      expect(dockerArguments).toEqual(expect.arrayContaining([...command]));
+      expect(dockerArguments).toContain("--volume");
+      expect(dockerArguments).toContainEqual(
+        expect.stringMatching(new RegExp(`/workspace/${filename}:ro$`)),
+      );
+
+      child.emit("close", 0);
+      await expect(resultPromise).resolves.toEqual(
+        expect.objectContaining({ exitCode: 0, timedOut: false }),
+      );
+    },
+  );
+
   it("captures stdout and stderr and preserves a nonzero exit code", async () => {
     const child = createChildProcess();
     const runner = new DockerCodeRunner();

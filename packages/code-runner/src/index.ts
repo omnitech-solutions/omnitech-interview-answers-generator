@@ -7,11 +7,13 @@ import type {
   RunAllRequest,
   RunRequest,
   RunResult,
+  SyntaxCheckRequest,
 } from "@omnitech/interview-contracts";
 
 export interface CodeRunner {
   run(input: RunRequest): Promise<RunResult>;
   runAll(input: RunAllRequest): Promise<RunResult>;
+  checkSyntax(input: SyntaxCheckRequest): Promise<RunResult>;
 }
 
 export interface DockerCodeRunnerOptions {
@@ -96,6 +98,39 @@ const testRuntimes = {
   },
 } as const;
 
+const syntaxRuntimes = {
+  php: {
+    image: "php:8.3-cli-alpine",
+    filename: "solution.php",
+    command: ["php", "-l", "/workspace/solution.php"],
+  },
+  ruby: {
+    image: "ruby:3.4-alpine",
+    filename: "solution.rb",
+    command: ["ruby", "-c", "/workspace/solution.rb"],
+  },
+  typescript: {
+    image: "omnitech/vitest-runner:latest",
+    filename: "solution.ts",
+    command: [
+      "node",
+      "--input-type=module",
+      "-e",
+      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.ts'; const source = readFileSync(file, 'utf8'); const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS; const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, kind); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\\n')); process.exitCode = 1; }",
+    ],
+  },
+  react: {
+    image: "omnitech/vitest-runner:latest",
+    filename: "solution.tsx",
+    command: [
+      "node",
+      "--input-type=module",
+      "-e",
+      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.tsx'; const source = readFileSync(file, 'utf8'); const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\\n')); process.exitCode = 1; }",
+    ],
+  },
+} as const;
+
 function isDockerDaemonUnavailable(stderr: string): boolean {
   const normalized = stderr.toLowerCase();
 
@@ -138,6 +173,47 @@ export class DockerCodeRunner implements CodeRunner {
     ];
 
     return this.execute(dockerArguments, input.stdin, startedAt);
+  }
+
+  async checkSyntax(input: SyntaxCheckRequest): Promise<RunResult> {
+    const runtime = syntaxRuntimes[input.language];
+    const temporaryDirectory = await mkdtemp(
+      join(tmpdir(), "interview-answer-syntax-"),
+    );
+    const sourcePath = join(temporaryDirectory, runtime.filename);
+    const source =
+      input.language === "php"
+        ? input.code.replace(/^\s*<\?php\s*/, "").replace(/\?>\s*$/, "")
+        : input.code;
+    await writeFile(sourcePath, source, { mode: 0o600 });
+
+    const dockerArguments = [
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--memory",
+      "128m",
+      "--cpus",
+      "0.5",
+      "--pids-limit",
+      "64",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,noexec,nosuid,size=16m",
+      "--security-opt",
+      "no-new-privileges",
+      "--volume",
+      `${sourcePath}:/workspace/${runtime.filename}:ro`,
+      runtime.image,
+      ...runtime.command,
+    ];
+
+    try {
+      return await this.execute(dockerArguments, "", performance.now());
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
   }
 
   async runAll(input: RunAllRequest): Promise<RunResult> {
