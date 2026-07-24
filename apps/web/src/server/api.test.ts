@@ -449,6 +449,12 @@ describe("web API", () => {
 
   it("runs the complete answer with its language-specific test framework", async () => {
     const app = createApi();
+    const invalid = await app.request(
+      "http://localhost/api/v1/run-all",
+      jsonRequest("POST", { language: "typescript" }),
+    );
+    expect(invalid.status).toBe(400);
+
     const runResult = {
       stdout:
         "✓ solution.test.ts > handles an empty input\n\nTest Files  1 passed\nTests  1 passed\n",

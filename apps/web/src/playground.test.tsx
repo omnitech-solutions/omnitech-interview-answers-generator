@@ -446,6 +446,52 @@ describe("Playground", () => {
     expect(writeText).toHaveBeenCalledWith("test output\n");
   });
 
+  it("shows the empty output state before an answer has run", async () => {
+    const user = userEvent.setup();
+    installFetch();
+    await renderSettled();
+    await user.click(screen.getByRole("button", { name: "Output" }));
+
+    expect(screen.getByText("Run a solution to see its output.")).toBeVisible();
+  });
+
+  it("shows failed output and reports clipboard permission errors", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) },
+    });
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 8,
+          value: { ...emptySnapshot.value, language: "php", answer: phpAnswer },
+        });
+      }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "",
+          stderr: "failed output",
+          exitCode: 1,
+          durationMs: 10,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.click(screen.getByRole("button", { name: "Run All" }));
+    expect(await screen.findByText("Failed · exit 1 · 10ms")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Copy normal output" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Couldn’t copy output",
+    );
+  });
+
   it("checks the active editor syntax when it loses focus", async () => {
     const user = userEvent.setup();
     const fetchMock = installFetch(async (path, init) => {
@@ -657,6 +703,8 @@ describe("Playground", () => {
     expect(await screen.findByText("tests passed")).toBeVisible();
     expect(screen.queryByText("okusage")).not.toBeInTheDocument();
     expect(screen.getByText("Passed · exit 0 · 18ms")).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Normal output" }));
+    expect(await screen.findByText("okusage")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
@@ -749,6 +797,36 @@ describe("Playground", () => {
       "allow-scripts",
     );
     expect(screen.getByText("Live")).toBeVisible();
+  });
+
+  it("shows a useful error when the React preview cannot compile", async () => {
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 6,
+          value: {
+            ...emptySnapshot.value,
+            language: "react",
+            answer: reactAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/react-preview")) {
+        return jsonResponse(
+          { error: { message: "React compilation failed." } },
+          400,
+        );
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    expect(await screen.findByText("React compilation failed.")).toBeVisible();
+    expect(
+      screen.queryByTitle("Rendered React component"),
+    ).not.toBeInTheDocument();
   });
 
   it("reruns the solution and usage when the Tests tab is empty", async () => {
@@ -846,6 +924,45 @@ describe("Playground", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "New unsaved playground.",
     );
+  });
+
+  it("paginates and deletes saved answers", async () => {
+    const user = userEvent.setup();
+    let savedAnswers = Array.from({ length: 6 }, (_, index) => ({
+      ...phpAnswer,
+      id: `550e8400-e29b-41d4-a716-44665544000${index}`,
+      title: `Frequency Map ${index + 1}`,
+      question: `Count values ${index + 1}`,
+      notes: "",
+      createdAt: "2026-07-24T00:00:00.000Z",
+      updatedAt: "2026-07-24T00:00:00.000Z",
+    }));
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse(savedAnswers);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.includes("/answers/") && init?.method === "DELETE") {
+        savedAnswers = savedAnswers.slice(1);
+        return jsonResponse({ deleted: true });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.click(screen.getByRole("button", { name: "Saved" }));
+
+    expect(screen.getByText("Page 1 of 2")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Frequency Map 1/ }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Page 2 of 2")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Frequency Map 6/ }),
+    ).toBeVisible();
+    await user.click(
+      screen.getAllByRole("button", { name: "Delete saved answer" }).at(-1)!,
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("Deleted.");
   });
 
   it("applies a newer external control revision to all visible fields", async () => {
