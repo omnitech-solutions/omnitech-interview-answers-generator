@@ -9,8 +9,9 @@ const createOpenAICompatible = vi.fn(() => provider);
 vi.mock("ai", () => ({ generateText, streamText }));
 vi.mock("@ai-sdk/openai-compatible", () => ({ createOpenAICompatible }));
 
-const { createOpenAiCompatibleProvider } =
-  await import("./openai-compatible.js");
+const { createOpenAiCompatibleProvider } = await import(
+  "./openai-compatible.js"
+);
 
 const options = {
   id: "local",

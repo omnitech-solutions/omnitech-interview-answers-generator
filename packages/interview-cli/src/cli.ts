@@ -157,6 +157,7 @@ export function createProgram(): Command {
     .option("--title <title>", "answer title")
     .option("--answer-markdown <markdown>")
     .option("--code-file <path>")
+    .option("--usage-code-file <path>")
     .option("--test-code-file <path>")
     .option("--clear-answer", "remove the answer from the Playground")
     .action(async (options) => {
@@ -170,6 +171,7 @@ export function createProgram(): Command {
         options.title,
         options.answerMarkdown,
         options.codeFile,
+        options.usageCodeFile,
         options.testCodeFile,
         options.clearAnswer,
       ].some((value) => value !== undefined && value !== false);
@@ -195,6 +197,7 @@ export function createProgram(): Command {
           options.title !== undefined ||
           options.answerMarkdown !== undefined ||
           options.codeFile !== undefined ||
+          options.usageCodeFile !== undefined ||
           options.testCodeFile !== undefined;
         if (options.clearAnswer && hasAnswerFields) {
           throw new Error(
@@ -220,6 +223,9 @@ export function createProgram(): Command {
             language: options.language as PlaygroundAnswerLanguage,
             answerMarkdown: options.answerMarkdown,
             code: await readFile(options.codeFile, "utf8"),
+            usageCode: options.usageCodeFile
+              ? await readFile(options.usageCodeFile, "utf8")
+              : "",
             testCode: options.testCodeFile
               ? await readFile(options.testCodeFile, "utf8")
               : "",
@@ -228,9 +234,9 @@ export function createProgram(): Command {
       }
 
       print(
-        await (
-          await createConfiguredPlaygroundControlClient(globals)
-        ).set(patch),
+        await (await createConfiguredPlaygroundControlClient(globals)).set(
+          patch,
+        ),
         globals.format,
       );
     });
@@ -259,9 +265,7 @@ export function createProgram(): Command {
         url?: string;
       }>();
       print(
-        await (
-          await createConfiguredClient(globals)
-        ).route({
+        await (await createConfiguredClient(globals)).route({
           question: await readQuestion(options),
           language: options.language,
         }),
@@ -285,9 +289,9 @@ export function createProgram(): Command {
         ? await readFile(options.file, "utf8")
         : await readQuestion({});
       print(
-        await (
-          await createConfiguredClient(globals)
-        ).saveAnswer(saveAnswerRequestSchema.parse(JSON.parse(json))),
+        await (await createConfiguredClient(globals)).saveAnswer(
+          saveAnswerRequestSchema.parse(JSON.parse(json)),
+        ),
         globals.format,
       );
     });
@@ -321,9 +325,7 @@ export function createProgram(): Command {
         : options.code;
       if (!code) throw new Error("Provide --file or --code.");
       print(
-        await (
-          await createConfiguredClient(globals)
-        ).run({
+        await (await createConfiguredClient(globals)).run({
           code,
           language: options.language,
           stdin: options.stdin,

@@ -1,5 +1,9 @@
 export type PlaygroundLanguage =
-  "auto" | "php" | "react" | "typescript" | "ruby";
+  | "auto"
+  | "php"
+  | "react"
+  | "typescript"
+  | "ruby";
 
 export type PlaygroundAnswerLanguage = Exclude<PlaygroundLanguage, "auto">;
 export type PlaygroundPanel = "notes" | "output" | "saved";
@@ -9,6 +13,7 @@ export interface PlaygroundAnswer {
   language: PlaygroundAnswerLanguage;
   answerMarkdown: string;
   code: string;
+  usageCode: string;
   testCode: string;
 }
 
@@ -81,6 +86,15 @@ function requireString(record: Record<string, unknown>, key: string): string {
   return value;
 }
 
+function optionalString(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  if (value === undefined) return "";
+  if (typeof value !== "string") {
+    throw new TypeError(`Playground field "${key}" must be a string.`);
+  }
+  return value;
+}
+
 function parseAnswer(value: unknown): PlaygroundAnswer | null {
   if (value === null) return null;
   if (!isRecord(value)) {
@@ -99,6 +113,7 @@ function parseAnswer(value: unknown): PlaygroundAnswer | null {
     language: language as PlaygroundAnswerLanguage,
     answerMarkdown: requireString(value, "answerMarkdown"),
     code: requireString(value, "code"),
+    usageCode: optionalString(value, "usageCode"),
     testCode: requireString(value, "testCode"),
   };
 }
@@ -171,7 +186,9 @@ export function createPlaygroundControlClient(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const responseBody = (await response.json().catch(() => undefined)) as
-      PlaygroundSnapshot | { error?: { message?: string } } | undefined;
+      | PlaygroundSnapshot
+      | { error?: { message?: string } }
+      | undefined;
 
     if (!response.ok) {
       const message =

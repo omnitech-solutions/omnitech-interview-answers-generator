@@ -252,6 +252,7 @@ describe("interview-answers CLI", () => {
         language: "react",
         answerMarkdown: "Explanation",
         code: "export function Counter() {}",
+        usageCode: "",
         testCode: "test('counter', () => {})",
       },
     });

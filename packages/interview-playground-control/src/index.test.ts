@@ -37,6 +37,7 @@ describe("parsePlaygroundPatch", () => {
       language: "react" as const,
       answerMarkdown: "Use one state value.",
       code: "function App() {}",
+      usageCode: "render(<App />)",
       testCode: "test('counter', () => {})",
     };
 

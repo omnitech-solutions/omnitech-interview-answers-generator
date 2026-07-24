@@ -25,6 +25,7 @@ export const generatedAnswerSchema = z.object({
   language: languageSchema,
   answerMarkdown: z.string().trim().min(1),
   code: z.string(),
+  usageCode: z.string().default(""),
   testCode: z.string().default(""),
 });
 
@@ -49,6 +50,14 @@ export const saveAnswerRequestSchema = generatedAnswerSchema.extend({
 export const runRequestSchema = z.object({
   language: z.enum(["php", "typescript", "ruby"]),
   code: z.string().min(1),
+  stdin: z.string().default(""),
+});
+
+export const runAllRequestSchema = z.object({
+  language: languageSchema,
+  code: z.string().min(1),
+  usageCode: z.string().default(""),
+  testCode: z.string().default(""),
   stdin: z.string().default(""),
 });
 
@@ -78,5 +87,6 @@ export type GenerateRequest = z.infer<typeof generateRequestSchema>;
 export type SavedAnswer = z.infer<typeof savedAnswerSchema>;
 export type SaveAnswerRequest = z.infer<typeof saveAnswerRequestSchema>;
 export type RunRequest = z.infer<typeof runRequestSchema>;
+export type RunAllRequest = z.infer<typeof runAllRequestSchema>;
 export type RunResult = z.infer<typeof runResultSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;

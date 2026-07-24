@@ -133,6 +133,7 @@ const answerInput = {
   language: "php" as const,
   answerMarkdown: "Explanation",
   code: "<?php",
+  usageCode: "echo 'usage';",
   testCode: "",
   question: "Solve it",
   notes: "",

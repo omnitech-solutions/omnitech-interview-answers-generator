@@ -9,12 +9,14 @@ vi.mock("@uiw/react-codemirror", () => ({
   default: ({
     value,
     onChange,
+    "aria-label": ariaLabel,
   }: {
     value: string;
     onChange: (value: string) => void;
+    "aria-label"?: string;
   }) => (
     <textarea
-      aria-label="Editable solution"
+      aria-label={ariaLabel ?? "Editable solution"}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />
@@ -42,6 +44,7 @@ const reactAnswer = {
   language: "react",
   answerMarkdown: "Use semantic buttons and announce the current count.",
   code: "function App() { return <button>Count</button>; }",
+  usageCode: "// Render App",
   testCode: "expect(screen.getByRole('button')).toBeVisible();",
 };
 
@@ -50,6 +53,7 @@ const phpAnswer = {
   language: "php",
   answerMarkdown: "Count each value in one pass.",
   code: "<?php echo 'ok';",
+  usageCode: "echo 'usage';",
   testCode: "expect output ok",
 };
 
@@ -101,7 +105,7 @@ describe("Playground", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run All" })).toBeDisabled();
     expect(
       screen.getByRole("navigation", { name: "Inspector panels" }),
     ).toBeVisible();
@@ -141,10 +145,18 @@ describe("Playground", () => {
       await screen.findByRole("heading", { name: "Accessible Counter" }),
     ).toBeVisible();
     expect(screen.getByText(reactAnswer.answerMarkdown)).toBeVisible();
-    expect(screen.getByLabelText("Editable solution")).toHaveValue(
+    expect(screen.getByLabelText("Editable main solution")).toHaveValue(
       reactAnswer.code,
     );
-    expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();
+    await user.click(screen.getByRole("tab", { name: "Usage / Output" }));
+    expect(screen.getByLabelText("Editable usage and output")).toHaveValue(
+      reactAnswer.usageCode,
+    );
+    await user.click(screen.getByRole("tab", { name: "Tests" }));
+    expect(screen.getByLabelText("Editable tests")).toHaveValue(
+      reactAnswer.testCode,
+    );
+    expect(screen.getByRole("button", { name: "Run All" })).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Draft generated. It has not been saved.",
     );
@@ -188,7 +200,10 @@ describe("Playground", () => {
       "Build a counter",
     );
     await user.click(screen.getByRole("button", { name: "Generate" }));
-    await user.type(screen.getByLabelText("Editable solution"), "\n// edited");
+    await user.type(
+      screen.getByLabelText("Editable main solution"),
+      "\n// edited",
+    );
     await user.type(
       screen.getByRole("textbox", { name: "Private notes" }),
       "Use a functional update",
@@ -217,7 +232,7 @@ describe("Playground", () => {
           },
         });
       }
-      if (path.endsWith("/run")) {
+      if (path.endsWith("/run-all")) {
         return jsonResponse({
           stdout: "ok\n",
           stderr: "",
@@ -233,7 +248,7 @@ describe("Playground", () => {
     expect(
       await screen.findByRole("heading", { name: "Frequency Map" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Run" }));
+    await user.click(screen.getByRole("button", { name: "Run All" }));
 
     const output = await screen.findByText("ok");
     expect(output).toBeVisible();
@@ -241,9 +256,56 @@ describe("Playground", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
-  it("builds a sandboxed React preview and neutralizes closing script tags", async () => {
+  it("runs the solution, usage, and tests together", async () => {
     const user = userEvent.setup();
-    installFetch(async (path) => {
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 4,
+          value: {
+            ...emptySnapshot.value,
+            question: "Test it",
+            language: "php",
+            answer: phpAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/run-all")) {
+        expect(JSON.parse(String(init?.body))).toEqual({
+          language: "php",
+          code: "<?php echo 'ok';",
+          usageCode: "echo 'usage';",
+          testCode: "expect output ok",
+          stdin: "",
+        });
+        return jsonResponse({
+          stdout: "okusagetests passed\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 18,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    await screen.findByRole("heading", { name: "Frequency Map" });
+    await user.click(screen.getByRole("button", { name: "Run All" }));
+
+    expect(await screen.findByRole("button", { name: "Output" })).toHaveClass(
+      "active",
+    );
+    expect(await screen.findByText("okusagetests passed")).toBeVisible();
+    expect(screen.getByText("exit 0 · 18ms")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
+  });
+
+  it("runs React through the Vitest endpoint and displays its real output", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path, init) => {
       if (path.endsWith("/answers")) return jsonResponse([]);
       if (path.endsWith("/playground-control")) {
         return jsonResponse({
@@ -257,18 +319,77 @@ describe("Playground", () => {
           },
         });
       }
-      if (path.endsWith("/react-preview")) {
-        return jsonResponse({ javascript: 'document.write("</script>")' });
+      if (path.endsWith("/run-all")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          language: "react",
+          code: reactAnswer.code,
+          usageCode: reactAnswer.usageCode,
+          testCode: reactAnswer.testCode,
+        });
+        return jsonResponse({
+          stdout:
+            "✓ solution.test.tsx > renders the counter\n\nTest Files  1 passed\nTests  1 passed\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 421,
+          timedOut: false,
+        });
       }
       throw new Error(`Unexpected request: ${path}`);
     });
     await renderSettled();
 
-    await user.click(await screen.findByRole("button", { name: "Preview" }));
+    await user.click(await screen.findByRole("button", { name: "Run All" }));
 
-    const frame = await screen.findByTitle("React solution preview");
-    expect(frame).toHaveAttribute("sandbox", "allow-scripts");
-    expect(frame.getAttribute("srcdoc")).toContain("<\\/script>");
+    expect(
+      await screen.findByText(/solution\.test\.tsx > renders the counter/),
+    ).toBeVisible();
+    expect(screen.getByText("exit 0 · 421ms")).toBeVisible();
+  });
+
+  it("reruns the solution and usage when the Tests tab is empty", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control")) {
+        return jsonResponse({
+          ...emptySnapshot,
+          revision: 5,
+          value: {
+            ...emptySnapshot.value,
+            question: "Test it",
+            language: "react",
+            answer: reactAnswer,
+          },
+        });
+      }
+      if (path.endsWith("/run-all")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          language: "react",
+          code: reactAnswer.code,
+          usageCode: reactAnswer.usageCode,
+          testCode: "",
+        });
+        return jsonResponse({
+          stdout: "rendered usage\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 120,
+          timedOut: false,
+        });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    await screen.findByRole("heading", { name: "Accessible Counter" });
+    await user.click(screen.getByRole("tab", { name: "Tests" }));
+    await user.clear(screen.getByLabelText("Editable tests"));
+
+    expect(screen.getByRole("button", { name: "Run All" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Run All" }));
+    expect(await screen.findByText("rendered usage")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
   it("opens a saved answer and clears it with New", async () => {

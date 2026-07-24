@@ -29,6 +29,7 @@ describe("JsonAnswerRepository", () => {
       language: "typescript",
       answerMarkdown: "Use a map.",
       code: "export const answer = 1;",
+      usageCode: "console.log(answer);",
       testCode: "",
       question: "Solve it",
       notes: "Review later",
@@ -107,6 +108,25 @@ describe("JsonAnswerRepository", () => {
     await expect(repository.get(saved.id)).resolves.toBeUndefined();
   });
 
+  it("returns a page with newest-first items and metadata", async () => {
+    vi.useFakeTimers();
+    const directory = await mkdtemp(join(tmpdir(), "interview-storage-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonAnswerRepository(directory);
+    vi.setSystemTime("2026-07-23T00:00:00.000Z");
+    const first = await repository.save({ ...answerInput(), title: "First" });
+    vi.setSystemTime("2026-07-24T00:00:00.000Z");
+    const second = await repository.save({ ...answerInput(), title: "Second" });
+    vi.setSystemTime("2026-07-25T00:00:00.000Z");
+    await repository.save({ ...answerInput(), title: "Third" });
+
+    const page = await repository.listPage(2, 1);
+    expect(page).toMatchObject({ total: 3, page: 2, pageSize: 1 });
+    expect(page.items).toEqual([second]);
+    expect(first.id).not.toBe(second.id);
+    vi.useRealTimers();
+  });
+
   it("writes private, readable JSON with a trailing newline", async () => {
     const directory = await mkdtemp(join(tmpdir(), "interview-storage-"));
     temporaryDirectories.push(directory);
@@ -135,6 +155,7 @@ function answerInput() {
     language: "typescript" as const,
     answerMarkdown: "Use a map.",
     code: "export const answer = 1;",
+    usageCode: "console.log(answer);",
     testCode: "",
     question: "Solve it",
     notes: "Review later",

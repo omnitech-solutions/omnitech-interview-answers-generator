@@ -59,6 +59,7 @@ describe("playgroundControlStore", () => {
         language: "php",
         answerMarkdown: "Explanation",
         code: "<?php",
+        usageCode: "echo 'usage';",
         testCode: "tests",
       },
       notes: "Notes",

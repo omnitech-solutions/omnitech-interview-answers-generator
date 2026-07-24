@@ -11,7 +11,15 @@ export interface AnswerRepository {
   delete(id: string): Promise<boolean>;
   get(id: string): Promise<SavedAnswer | undefined>;
   list(): Promise<SavedAnswer[]>;
+  listPage(page: number, pageSize: number): Promise<AnswerPage>;
   save(input: SaveAnswerRequest): Promise<SavedAnswer>;
+}
+
+export interface AnswerPage {
+  items: SavedAnswer[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export class JsonAnswerRepository implements AnswerRepository {
@@ -26,6 +34,17 @@ export class JsonAnswerRepository implements AnswerRepository {
     return answers.toSorted((left, right) =>
       right.updatedAt.localeCompare(left.updatedAt),
     );
+  }
+
+  async listPage(page: number, pageSize: number): Promise<AnswerPage> {
+    const answers = await this.list();
+    const start = (page - 1) * pageSize;
+    return {
+      items: answers.slice(start, start + pageSize),
+      total: answers.length,
+      page,
+      pageSize,
+    };
   }
 
   async get(id: string): Promise<SavedAnswer | undefined> {
@@ -67,7 +86,13 @@ export class JsonAnswerRepository implements AnswerRepository {
   private async readAll(): Promise<SavedAnswer[]> {
     try {
       const content = await readFile(this.filePath, "utf8");
-      return JSON.parse(content) as SavedAnswer[];
+      const answers = JSON.parse(content) as Array<
+        SavedAnswer & { usageCode?: string }
+      >;
+      return answers.map((answer) => ({
+        ...answer,
+        usageCode: answer.usageCode ?? "",
+      }));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw error;

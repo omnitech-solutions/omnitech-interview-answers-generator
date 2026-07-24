@@ -75,15 +75,16 @@ describe("request and response schemas", () => {
     ).toBe(false);
   });
 
-  it("supplies an empty test file for a generated answer", () => {
-    expect(
-      generatedAnswerSchema.parse({
-        title: "Answer",
-        language: "typescript",
-        answerMarkdown: "Explanation",
-        code: "export {};",
-      }).testCode,
-    ).toBe("");
+  it("supplies empty usage and test files for a generated answer", () => {
+    const answer = generatedAnswerSchema.parse({
+      title: "Answer",
+      language: "typescript",
+      answerMarkdown: "Explanation",
+      code: "export {};",
+    });
+
+    expect(answer.usageCode).toBe("");
+    expect(answer.testCode).toBe("");
   });
 
   it("validates persisted answer identifiers and timestamps", () => {
@@ -93,6 +94,7 @@ describe("request and response schemas", () => {
       language: "php",
       answerMarkdown: "Explanation",
       code: "<?php",
+      usageCode: "",
       testCode: "",
       question: "Solve it",
       notes: "",
@@ -129,8 +131,9 @@ describe("answer workflows", () => {
     expect(workflow.label).toBe("React");
     expect(workflow.codeFence).toBe("tsx");
     expect(workflow.systemPrompt).toContain(
-      "Start with the simplest correct solution",
+      "Start with the simplest correct scalable solution",
     );
+    expect(workflow.systemPrompt).toContain('"usageCode"');
     expect(workflow.systemPrompt).toContain("accessible");
   });
 });

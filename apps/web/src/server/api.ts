@@ -5,6 +5,7 @@ import {
   generateRequestSchema,
   routeRequestSchema,
   routeQuestion,
+  runAllRequestSchema,
   runRequestSchema,
   saveAnswerRequestSchema,
 } from "@omnitech/interview-contracts";
@@ -143,6 +144,10 @@ console.log(solve([1, 2, 3]));`,
       answerMarkdown:
         "## Approach\n\nStart with the smallest correct implementation, verify the primary example, then discuss only improvements justified by the constraints.\n\n## Complexity\n\nTime: **O(n)**. Space: **O(n)** for the returned collection.",
       code: codeByLanguage[languageId] ?? codeByLanguage["typescript"],
+      usageCode:
+        languageId === "react"
+          ? "// Render <App /> in the supplied React entry point."
+          : "// Print representative inputs and outputs here.",
       testCode:
         "The deterministic fake provider is intended for transport and UI tests.",
     });
@@ -219,9 +224,30 @@ console.log(solve([1, 2, 3]));`,
     }
   });
 
-  app.get("/api/v1/answers", async (context) =>
-    context.json(await answerRepository.list()),
-  );
+  app.get("/api/v1/answers", async (context) => {
+    const pageParam = context.req.query("page");
+    const pageSizeParam = context.req.query("pageSize");
+    if (pageParam === undefined && pageSizeParam === undefined) {
+      return context.json(await answerRepository.list());
+    }
+    const page = Number(pageParam ?? 1);
+    const pageSize = Number(pageSizeParam ?? 20);
+    if (
+      !Number.isInteger(page) ||
+      page < 1 ||
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100
+    ) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "Pagination parameters are invalid.",
+      );
+    }
+    return context.json(await answerRepository.listPage(page, pageSize));
+  });
 
   app.get("/api/v1/playground-control", (context) =>
     context.json(playgroundControlStore.get()),
@@ -294,7 +320,30 @@ console.log(solve([1, 2, 3]));`,
         context,
         503,
         "runner_unavailable",
-        "Docker is unavailable or the execution container could not start.",
+        "The code runner is unavailable. Start Docker Desktop, wait until it is running, then try again.",
+      );
+    }
+  });
+
+  app.post("/api/v1/run-all", async (context) => {
+    const parsed = runAllRequestSchema.safeParse(await context.req.json());
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The complete execution request is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(await codeRunner.runAll(parsed.data));
+    } catch {
+      return apiError(
+        context,
+        503,
+        "runner_unavailable",
+        "The framework runner is unavailable. Build the local runner images with pnpm runner:build, then try again.",
       );
     }
   });

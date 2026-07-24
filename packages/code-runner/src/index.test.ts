@@ -190,4 +190,135 @@ describe("DockerCodeRunner", () => {
     await expect(resultPromise).rejects.toBe(error);
     vi.clearAllTimers();
   });
+
+  it("rejects when Docker starts but its daemon is unavailable", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner();
+
+    const resultPromise = runner.run({
+      language: "ruby",
+      code: "puts 'ready'",
+      stdin: "",
+    });
+    child.stderr.emit(
+      "data",
+      Buffer.from(
+        "Cannot connect to the Docker daemon at unix:///tmp/docker.sock. Is the docker daemon running?",
+      ),
+    );
+    child.emit("close", 1);
+
+    await expect(resultPromise).rejects.toThrow(
+      "Docker daemon is unavailable.",
+    );
+  });
+
+  it.each([
+    {
+      language: "ruby" as const,
+      image: "omnitech/rspec-runner:latest",
+      filename: "solution_spec.rb",
+      command: ["rspec", "--format", "documentation"],
+    },
+    {
+      language: "php" as const,
+      image: "omnitech/pest-runner:latest",
+      filename: "SolutionTest.php",
+      command: ["/runner/vendor/bin/pest", "--colors=never", "--no-coverage"],
+    },
+    {
+      language: "typescript" as const,
+      image: "omnitech/vitest-runner:latest",
+      filename: "solution.test.ts",
+      command: [
+        "/runner/node_modules/.bin/vitest",
+        "run",
+        "--environment",
+        "node",
+        "--reporter",
+        "verbose",
+      ],
+    },
+    {
+      language: "react" as const,
+      image: "omnitech/vitest-runner:latest",
+      filename: "solution.test.tsx",
+      command: [
+        "/runner/node_modules/.bin/vitest",
+        "run",
+        "--environment",
+        "jsdom",
+        "--reporter",
+        "verbose",
+      ],
+    },
+  ])(
+    "runs $language tests with the dedicated framework image",
+    async ({ language, image, filename, command }) => {
+      const child = createChildProcess();
+      const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+      const resultPromise = runner.runAll({
+        language,
+        code: "solution",
+        usageCode: "usage",
+        testCode: "tests",
+        stdin: "",
+      });
+      await vi.waitFor(() =>
+        expect(childProcessMocks.spawn).toHaveBeenCalled(),
+      );
+
+      const [, dockerArguments] = childProcessMocks.spawn.mock.calls[0] as [
+        string,
+        string[],
+      ];
+      expect(dockerArguments).toEqual(
+        expect.arrayContaining([
+          "--volume",
+          expect.stringMatching(
+            new RegExp(`:${`/workspace/${filename}`.replace(".", "\\.")}:ro$`),
+          ),
+          image,
+          ...command,
+          `/workspace/${filename}`,
+        ]),
+      );
+      expect(child.stdin.end).toHaveBeenCalledWith("");
+
+      child.emit("close", 0);
+      await expect(resultPromise).resolves.toEqual(
+        expect.objectContaining({ exitCode: 0, timedOut: false }),
+      );
+    },
+  );
+
+  it("runs solution and usage without invoking a test framework when tests are empty", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.runAll({
+      language: "php",
+      code: "<?php echo 'solution';",
+      usageCode: "echo 'usage';",
+      testCode: "",
+      stdin: "",
+    });
+
+    expect(childProcessMocks.spawn).toHaveBeenCalledWith(
+      "podman",
+      expect.arrayContaining([
+        "php:8.3-cli-alpine",
+        "-r",
+        "echo 'solution';\n\necho 'usage';",
+      ]),
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+    expect(child.stdin.end).toHaveBeenCalledWith("");
+
+    child.emit("close", 0);
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({ exitCode: 0, timedOut: false }),
+    );
+  });
 });

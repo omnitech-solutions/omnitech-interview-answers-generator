@@ -2,6 +2,8 @@
 
 import { php } from "@codemirror/lang-php";
 import { javascript } from "@codemirror/lang-javascript";
+import { StreamLanguage } from "@codemirror/language";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import type {
   GeneratedAnswer,
   Language,
@@ -23,11 +25,18 @@ import ReactMarkdown from "react-markdown";
 import { StudioButton, StudioTextarea } from "./studio-controls";
 
 type InspectorPanel = "notes" | "output" | "saved";
+type EditorTab = "solution" | "usage" | "tests";
 
 const panels: Array<{ id: InspectorPanel; label: string }> = [
   { id: "notes", label: "Notes" },
   { id: "output", label: "Output" },
   { id: "saved", label: "Saved" },
+];
+
+const editorTabs: Array<{ id: EditorTab; label: string }> = [
+  { id: "solution", label: "Main Solution" },
+  { id: "usage", label: "Usage / Output" },
+  { id: "tests", label: "Tests" },
 ];
 
 const languages: Array<{ id: LanguageSelection; label: string }> = [
@@ -62,7 +71,14 @@ function languageExtension(language: Language | undefined) {
   if (language === "react")
     return [javascript({ jsx: true, typescript: true })];
   if (language === "typescript") return [javascript({ typescript: true })];
+  if (language === "ruby") return [StreamLanguage.define(ruby)];
   return [];
+}
+
+function normalizeAnswer(
+  answer: GeneratedAnswer | undefined,
+): GeneratedAnswer | undefined {
+  return answer ? { ...answer, usageCode: answer.usageCode ?? "" } : undefined;
 }
 
 export function Playground() {
@@ -72,16 +88,43 @@ export function Playground() {
   const [savedId, setSavedId] = useState<string>();
   const [notes, setNotes] = useState("");
   const [savedAnswers, setSavedAnswers] = useState<SavedAnswer[]>([]);
+  const [savedPage, setSavedPage] = useState(0);
   const [panel, setPanel] = useState<InspectorPanel>("notes");
   const [output, setOutput] = useState<RunResult>();
   const [preview, setPreview] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editorTab, setEditorTab] = useState<EditorTab>("solution");
   const appliedControlRevision = useRef(-1);
 
   const loadSaved = useCallback(async () => {
     setSavedAnswers(await api<SavedAnswer[]>("/answers"));
+    setSavedPage(0);
   }, []);
+
+  const savedPageSize = 5;
+  const savedPageCount = Math.max(
+    1,
+    Math.ceil(savedAnswers.length / savedPageSize),
+  );
+  const visibleSavedAnswers = savedAnswers.slice(
+    savedPage * savedPageSize,
+    (savedPage + 1) * savedPageSize,
+  );
+
+  async function deleteSaved(id: string) {
+    setBusy(true);
+    try {
+      await api<{ deleted: boolean }>(`/answers/${id}`, { method: "DELETE" });
+      if (savedId === id) setSavedId(undefined);
+      await loadSaved();
+      setStatus("Deleted.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     void loadSaved();
@@ -102,12 +145,15 @@ export function Playground() {
         appliedControlRevision.current = snapshot.revision;
         setQuestion(snapshot.value.question);
         setLanguage(snapshot.value.language);
-        setAnswer(snapshot.value.answer ?? undefined);
+        setAnswer(
+          normalizeAnswer(snapshot.value.answer as GeneratedAnswer | undefined),
+        );
         setNotes(snapshot.value.notes);
         setPanel(snapshot.value.panel);
         setSavedId(undefined);
         setOutput(undefined);
         setPreview("");
+        setEditorTab("solution");
         if (snapshot.revision > 0) {
           setStatus(
             `Playground updated through the control API (revision ${snapshot.revision}).`,
@@ -147,10 +193,11 @@ export function Playground() {
         method: "POST",
         body: JSON.stringify({ question, language }),
       });
-      setAnswer(generated);
+      setAnswer(normalizeAnswer(generated));
       setSavedId(undefined);
       setOutput(undefined);
       setPreview("");
+      setEditorTab("solution");
       setStatus("Draft generated. It has not been saved.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -187,36 +234,23 @@ export function Playground() {
     setBusy(true);
     setPanel("output");
     setStatus(
-      answer.language === "react" ? "Building preview…" : "Running code…",
+      answer.testCode.trim()
+        ? "Running solution, usage, and tests…"
+        : "Running solution and usage…",
     );
     try {
-      if (answer.language === "react") {
-        const result = await api<{ javascript: string }>("/react-preview", {
-          method: "POST",
-          body: JSON.stringify({ code: answer.code }),
-        });
-        const safeScript = result.javascript.replaceAll(
-          "</script",
-          "<\\/script",
-        );
-        setPreview(`<!doctype html><html><head><style>
-          body { font: 15px system-ui; margin: 24px; color: #172033; }
-          button, input { font: inherit; }
-        </style></head><body><div id="root"></div><script>${safeScript}</script></body></html>`);
-        setOutput(undefined);
-      } else {
-        setOutput(
-          await api<RunResult>("/run", {
-            method: "POST",
-            body: JSON.stringify({
-              language: answer.language,
-              code: answer.code,
-              stdin: "",
-            }),
-          }),
-        );
-        setPreview("");
-      }
+      const result = await api<RunResult>("/run-all", {
+        method: "POST",
+        body: JSON.stringify({
+          language: answer.language,
+          code: answer.code,
+          usageCode: answer.usageCode,
+          testCode: answer.testCode,
+          stdin: "",
+        }),
+      });
+      setOutput(result);
+      setPreview("");
       setStatus("Run complete.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -228,11 +262,12 @@ export function Playground() {
   function openSaved(saved: SavedAnswer) {
     setQuestion(saved.question);
     setLanguage(saved.language);
-    setAnswer(saved);
+    setAnswer(normalizeAnswer(saved));
     setSavedId(saved.id);
     setNotes(saved.notes);
     setOutput(undefined);
     setPreview("");
+    setEditorTab("solution");
     setStatus(`Opened “${saved.title}”.`);
   }
 
@@ -244,6 +279,7 @@ export function Playground() {
     setNotes("");
     setOutput(undefined);
     setPreview("");
+    setEditorTab("solution");
     setStatus("New unsaved playground.");
   }
 
@@ -289,10 +325,10 @@ export function Playground() {
           </StudioButton>
           <StudioButton
             variant="outline"
-            onClick={run}
+            onClick={() => void run()}
             disabled={busy || !answer}
           >
-            {answer?.language === "react" ? "Preview" : "Run"}
+            Run All
           </StudioButton>
         </div>
       </header>
@@ -335,13 +371,47 @@ export function Playground() {
                   <ReactMarkdown>{answer.answerMarkdown}</ReactMarkdown>
                 </article>
                 <div className="editor-shell">
-                  <div className="editor-label">Editable solution</div>
+                  <div className="editor-tabs" role="tablist" aria-label="Code">
+                    {editorTabs.map((tab) => (
+                      <button
+                        key={tab.id}
+                        role="tab"
+                        aria-selected={editorTab === tab.id}
+                        className={editorTab === tab.id ? "active" : ""}
+                        onClick={() => setEditorTab(tab.id)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                   <CodeMirror
-                    value={answer.code}
+                    value={
+                      editorTab === "solution"
+                        ? answer.code
+                        : editorTab === "usage"
+                          ? answer.usageCode
+                          : answer.testCode
+                    }
                     height="430px"
                     extensions={extensions}
                     theme="dark"
-                    onChange={(code) => setAnswer({ ...answer, code })}
+                    aria-label={
+                      editorTab === "solution"
+                        ? "Editable main solution"
+                        : editorTab === "usage"
+                          ? "Editable usage and output"
+                          : "Editable tests"
+                    }
+                    onChange={(source) =>
+                      setAnswer({
+                        ...answer,
+                        ...(editorTab === "solution"
+                          ? { code: source }
+                          : editorTab === "usage"
+                            ? { usageCode: source }
+                            : { testCode: source }),
+                      })
+                    }
                   />
                 </div>
               </div>
@@ -408,15 +478,57 @@ export function Playground() {
               {savedAnswers.length === 0 ? (
                 <div className="empty compact">No saved answers yet.</div>
               ) : (
-                savedAnswers.map((saved) => (
-                  <button key={saved.id} onClick={() => openSaved(saved)}>
-                    <strong>{saved.title}</strong>
-                    <span>
-                      {saved.language} ·{" "}
-                      {new Date(saved.updatedAt).toLocaleDateString()}
-                    </span>
-                  </button>
-                ))
+                <>
+                  {visibleSavedAnswers.map((saved) => (
+                    <div className="saved-item" key={saved.id}>
+                      <button onClick={() => openSaved(saved)}>
+                        <strong>{saved.title}</strong>
+                        <span>
+                          {saved.language} ·{" "}
+                          {new Date(saved.updatedAt).toLocaleDateString()}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete saved answer"
+                        onClick={() => void deleteSaved(saved.id)}
+                        disabled={busy}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                  {savedPageCount > 1 ? (
+                    <div
+                      className="saved-pagination"
+                      aria-label="Saved answers pagination"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSavedPage((page) => Math.max(0, page - 1))
+                        }
+                        disabled={savedPage === 0}
+                      >
+                        Previous
+                      </button>
+                      <span>
+                        Page {savedPage + 1} of {savedPageCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSavedPage((page) =>
+                            Math.min(savedPageCount - 1, page + 1),
+                          )
+                        }
+                        disabled={savedPage >= savedPageCount - 1}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           ) : null}

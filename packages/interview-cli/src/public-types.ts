@@ -7,6 +7,7 @@ export interface GeneratedInterviewAnswer {
   language: InterviewLanguage;
   testCode: string;
   title: string;
+  usageCode: string;
 }
 
 export interface SavedInterviewAnswer extends GeneratedInterviewAnswer {

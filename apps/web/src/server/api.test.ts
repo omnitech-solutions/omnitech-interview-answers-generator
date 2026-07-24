@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   generateInterviewAnswer: vi.fn(),
   getAnswer: vi.fn(),
   listAnswers: vi.fn(),
+  listAnswersPage: vi.fn(),
+  runAllCode: vi.fn(),
   runCode: vi.fn(),
   saveAnswer: vi.fn(),
 }));
@@ -20,9 +22,10 @@ vi.mock("./services", () => ({
     delete: mocks.deleteAnswer,
     get: mocks.getAnswer,
     list: mocks.listAnswers,
+    listPage: mocks.listAnswersPage,
     save: mocks.saveAnswer,
   },
-  codeRunner: { run: mocks.runCode },
+  codeRunner: { run: mocks.runCode, runAll: mocks.runAllCode },
   generateInterviewAnswer: mocks.generateInterviewAnswer,
 }));
 
@@ -33,6 +36,7 @@ const generatedAnswer = {
   language: "react" as const,
   answerMarkdown: "## Approach\n\nKeep state local.",
   code: "function App() { return <button>0</button>; }",
+  usageCode: "render(<App />)",
   testCode: "render(<App />)",
 };
 
@@ -64,6 +68,12 @@ describe("web API", () => {
     vi.clearAllMocks();
     delete process.env["INTERVIEW_API_TOKEN"];
     mocks.listAnswers.mockResolvedValue([]);
+    mocks.listAnswersPage.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    });
     mocks.createAiClientFromEnv.mockReturnValue({
       listProviders: () => [{ id: "fake", label: "Fake", model: "fake-1" }],
     });
@@ -213,6 +223,12 @@ describe("web API", () => {
   it("lists, reads, saves, and deletes answers through the repository", async () => {
     const app = createApi();
     mocks.listAnswers.mockResolvedValue([savedAnswer]);
+    mocks.listAnswersPage.mockResolvedValue({
+      items: [savedAnswer],
+      total: 1,
+      page: 1,
+      pageSize: 10,
+    });
     mocks.getAnswer.mockResolvedValue(savedAnswer);
     mocks.saveAnswer.mockResolvedValue(savedAnswer);
     mocks.deleteAnswer.mockResolvedValue(true);
@@ -244,6 +260,25 @@ describe("web API", () => {
       notes: savedAnswer.notes,
     });
     expect(await remove.json()).toEqual({ deleted: true });
+  });
+
+  it("supports paginated answer listing and validates pagination", async () => {
+    const app = createApi();
+    const page = { items: [savedAnswer], total: 4, page: 2, pageSize: 1 };
+    mocks.listAnswersPage.mockResolvedValue(page);
+
+    const response = await app.request(
+      "http://localhost/api/v1/answers?page=2&pageSize=1",
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(page);
+    expect(mocks.listAnswersPage).toHaveBeenCalledWith(2, 1);
+
+    const invalid = await app.request(
+      "http://localhost/api/v1/answers?page=0&pageSize=1",
+    );
+    expect(invalid.status).toBe(400);
+    expect(mocks.listAnswersPage).toHaveBeenCalledTimes(1);
   });
 
   it("returns not-found and validation errors for answer operations", async () => {
@@ -366,6 +401,58 @@ describe("web API", () => {
     expect(unavailable.status).toBe(503);
     expect(await responseJson(unavailable)).toMatchObject({
       error: { code: "runner_unavailable" },
+    });
+  });
+
+  it("runs the complete answer with its language-specific test framework", async () => {
+    const app = createApi();
+    const runResult = {
+      stdout:
+        "✓ solution.test.ts > handles an empty input\n\nTest Files  1 passed\nTests  1 passed\n",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 281,
+      timedOut: false,
+    };
+    mocks.runAllCode.mockResolvedValueOnce(runResult);
+
+    const request = {
+      language: "typescript",
+      code: "function solve(values: number[]) { return values.length; }",
+      usageCode: "console.log(solve([1, 2]));",
+      testCode:
+        'import { expect, it } from "vitest"; it("handles an empty input", () => expect(solve([])).toBe(0));',
+      stdin: "",
+    };
+    const success = await app.request(
+      "http://localhost/api/v1/run-all",
+      jsonRequest("POST", request),
+    );
+
+    expect(await success.json()).toEqual(runResult);
+    expect(mocks.runAllCode).toHaveBeenCalledWith(request);
+
+    const withoutTests = await app.request(
+      "http://localhost/api/v1/run-all",
+      jsonRequest("POST", { ...request, testCode: "" }),
+    );
+    expect(withoutTests.status).toBe(200);
+    expect(mocks.runAllCode).toHaveBeenLastCalledWith({
+      ...request,
+      testCode: "",
+    });
+
+    mocks.runAllCode.mockRejectedValueOnce(new Error("runner image missing"));
+    const unavailable = await app.request(
+      "http://localhost/api/v1/run-all",
+      jsonRequest("POST", request),
+    );
+    expect(unavailable.status).toBe(503);
+    expect(await responseJson(unavailable)).toMatchObject({
+      error: {
+        code: "runner_unavailable",
+        message: expect.stringContaining("pnpm runner:build"),
+      },
     });
   });
 

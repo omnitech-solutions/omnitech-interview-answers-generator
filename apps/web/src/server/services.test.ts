@@ -16,6 +16,7 @@ describe("generateInterviewAnswer", () => {
         language: "php",
         answerMarkdown: "Use a functional state update.",
         code: "export function Counter() {}",
+        usageCode: "render(<Counter />)",
         testCode: "",
       },
     });

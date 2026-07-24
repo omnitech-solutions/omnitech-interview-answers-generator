@@ -93,6 +93,7 @@ describe("createConfiguredClient", () => {
       language: "php",
       answerMarkdown: "Explanation",
       code: "<?php",
+      usageCode: "echo 'usage';",
       testCode: "",
       question: "Question",
     });

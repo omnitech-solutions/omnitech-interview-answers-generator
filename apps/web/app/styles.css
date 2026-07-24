@@ -271,6 +271,28 @@ select {
   background: var(--wash);
 }
 
+.editor-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 5px;
+  border-bottom: 1px solid #273147;
+  background: #151d2c;
+}
+
+.editor-tabs button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #a9b2c4;
+  cursor: pointer;
+}
+
+.editor-tabs button.active {
+  background: #273147;
+  color: white;
+}
+
 .panel-tabs button {
   padding: 8px;
   border: 0;
