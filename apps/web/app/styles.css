@@ -330,6 +330,43 @@ select {
   border-radius: 8px;
 }
 
+.output-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.output-tabs button {
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.output-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.output-empty {
+  padding: 20px 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.run-meta.run-passed {
+  color: #18794e;
+}
+
+.run-meta.run-failed {
+  color: #b42318;
+}
+
 .output pre {
   overflow: auto;
   min-height: 360px;
@@ -338,6 +375,14 @@ select {
   background: #0f1522;
   color: #e9edf5;
   white-space: pre-wrap;
+}
+
+.output pre.output-success {
+  border-left: 3px solid #35b779;
+}
+
+.output pre.output-error {
+  border-left: 3px solid #ef6a67;
 }
 
 .saved-list {

@@ -232,6 +232,15 @@ describe("Playground", () => {
           },
         });
       }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "ok\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 8,
+          timedOut: false,
+        });
+      }
       if (path.endsWith("/run-all")) {
         return jsonResponse({
           stdout: "ok\n",
@@ -252,7 +261,7 @@ describe("Playground", () => {
 
     const output = await screen.findByText("ok");
     expect(output).toBeVisible();
-    expect(screen.getByText("exit 0 · 12ms")).toBeVisible();
+    expect(screen.getByText("Passed · exit 0 · 8ms")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
@@ -270,6 +279,15 @@ describe("Playground", () => {
             language: "php",
             answer: phpAnswer,
           },
+        });
+      }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "okusage\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 10,
+          timedOut: false,
         });
       }
       if (path.endsWith("/run-all")) {
@@ -298,8 +316,10 @@ describe("Playground", () => {
     expect(await screen.findByRole("button", { name: "Output" })).toHaveClass(
       "active",
     );
+    expect(await screen.findByText("okusage")).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Test results" }));
     expect(await screen.findByText("okusagetests passed")).toBeVisible();
-    expect(screen.getByText("exit 0 · 18ms")).toBeVisible();
+    expect(screen.getByText("Passed · exit 0 · 18ms")).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Run complete.");
   });
 
@@ -317,6 +337,15 @@ describe("Playground", () => {
             language: "react",
             answer: reactAnswer,
           },
+        });
+      }
+      if (path.endsWith("/run")) {
+        return jsonResponse({
+          stdout: "compiled usage\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 20,
+          timedOut: false,
         });
       }
       if (path.endsWith("/run-all")) {
@@ -341,10 +370,11 @@ describe("Playground", () => {
 
     await user.click(await screen.findByRole("button", { name: "Run All" }));
 
+    await user.click(screen.getByRole("tab", { name: "Test results" }));
     expect(
       await screen.findByText(/solution\.test\.tsx > renders the counter/),
     ).toBeVisible();
-    expect(screen.getByText("exit 0 · 421ms")).toBeVisible();
+    expect(screen.getByText("Passed · exit 0 · 421ms")).toBeVisible();
   });
 
   it("reruns the solution and usage when the Tests tab is empty", async () => {
@@ -361,6 +391,19 @@ describe("Playground", () => {
             language: "react",
             answer: reactAnswer,
           },
+        });
+      }
+      if (path.endsWith("/run")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          language: "typescript",
+          code: `${reactAnswer.code}\n\n${reactAnswer.usageCode}`,
+        });
+        return jsonResponse({
+          stdout: "rendered usage\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 120,
+          timedOut: false,
         });
       }
       if (path.endsWith("/run-all")) {

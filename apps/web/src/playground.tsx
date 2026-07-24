@@ -26,6 +26,12 @@ import { StudioButton, StudioTextarea } from "./studio-controls";
 
 type InspectorPanel = "notes" | "output" | "saved";
 type EditorTab = "solution" | "usage" | "tests";
+type OutputTab = "solution" | "tests";
+
+interface ExecutionOutput {
+  solution?: RunResult;
+  tests?: RunResult;
+}
 
 const panels: Array<{ id: InspectorPanel; label: string }> = [
   { id: "notes", label: "Notes" },
@@ -90,7 +96,8 @@ export function Playground() {
   const [savedAnswers, setSavedAnswers] = useState<SavedAnswer[]>([]);
   const [savedPage, setSavedPage] = useState(0);
   const [panel, setPanel] = useState<InspectorPanel>("notes");
-  const [output, setOutput] = useState<RunResult>();
+  const [output, setOutput] = useState<ExecutionOutput>({});
+  const [outputTab, setOutputTab] = useState<OutputTab>("solution");
   const [preview, setPreview] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -151,7 +158,7 @@ export function Playground() {
         setNotes(snapshot.value.notes);
         setPanel(snapshot.value.panel);
         setSavedId(undefined);
-        setOutput(undefined);
+        setOutput({});
         setPreview("");
         setEditorTab("solution");
         if (snapshot.revision > 0) {
@@ -195,7 +202,7 @@ export function Playground() {
       });
       setAnswer(normalizeAnswer(generated));
       setSavedId(undefined);
-      setOutput(undefined);
+      setOutput({});
       setPreview("");
       setEditorTab("solution");
       setStatus("Draft generated. It has not been saved.");
@@ -233,30 +240,57 @@ export function Playground() {
     if (!answer?.code) return;
     setBusy(true);
     setPanel("output");
+    setOutput({});
+    setOutputTab("solution");
     setStatus(
-      answer.testCode.trim()
-        ? "Running solution, usage, and tests…"
-        : "Running solution and usage…",
+      answer.testCode.trim() ? "Running solution…" : "Running solution…",
     );
+
+    const solutionPromise = api<RunResult>("/run", {
+      method: "POST",
+      body: JSON.stringify({
+        language: answer.language === "react" ? "typescript" : answer.language,
+        code: [answer.code, answer.usageCode]
+          .filter((section) => section.trim())
+          .join("\n\n"),
+        stdin: "",
+      }),
+    });
+
     try {
-      const result = await api<RunResult>("/run-all", {
-        method: "POST",
-        body: JSON.stringify({
-          language: answer.language,
-          code: answer.code,
-          usageCode: answer.usageCode,
-          testCode: answer.testCode,
-          stdin: "",
-        }),
-      });
-      setOutput(result);
-      setPreview("");
-      setStatus("Run complete.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
+      const solution = await solutionPromise;
+      setOutput((current) => ({ ...current, solution }));
       setBusy(false);
+      setStatus(
+        answer.testCode.trim()
+          ? "Solution ready. Tests running…"
+          : "Run complete.",
+      );
+    } catch (error) {
+      setBusy(false);
+      setStatus(error instanceof Error ? error.message : String(error));
+      return;
     }
+
+    if (!answer.testCode.trim()) return;
+
+    void api<RunResult>("/run-all", {
+      method: "POST",
+      body: JSON.stringify({
+        language: answer.language,
+        code: answer.code,
+        usageCode: answer.usageCode,
+        testCode: answer.testCode,
+        stdin: "",
+      }),
+    })
+      .then((tests) => {
+        setOutput((current) => ({ ...current, tests }));
+        setStatus("Run complete.");
+      })
+      .catch((error) => {
+        setStatus(error instanceof Error ? error.message : String(error));
+      });
   }
 
   function openSaved(saved: SavedAnswer) {
@@ -265,7 +299,7 @@ export function Playground() {
     setAnswer(normalizeAnswer(saved));
     setSavedId(saved.id);
     setNotes(saved.notes);
-    setOutput(undefined);
+    setOutput({});
     setPreview("");
     setEditorTab("solution");
     setStatus(`Opened “${saved.title}”.`);
@@ -277,7 +311,7 @@ export function Playground() {
     setAnswer(undefined);
     setSavedId(undefined);
     setNotes("");
-    setOutput(undefined);
+    setOutput({});
     setPreview("");
     setEditorTab("solution");
     setStatus("New unsaved playground.");
@@ -452,24 +486,68 @@ export function Playground() {
 
           {panel === "output" ? (
             <div className="output">
-              {preview ? (
-                <iframe
-                  title="React solution preview"
-                  sandbox="allow-scripts"
-                  srcDoc={preview}
-                />
-              ) : output ? (
-                <>
-                  <div className="run-meta">
-                    exit {String(output.exitCode)} · {output.durationMs}ms
-                  </div>
-                  <pre>{output.stdout || output.stderr || "(no output)"}</pre>
-                </>
+              <div
+                className="output-tabs"
+                role="tablist"
+                aria-label="Run output"
+              >
+                <button
+                  role="tab"
+                  aria-selected={outputTab === "solution"}
+                  className={outputTab === "solution" ? "active" : ""}
+                  onClick={() => setOutputTab("solution")}
+                >
+                  Normal output
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={outputTab === "tests"}
+                  className={outputTab === "tests" ? "active" : ""}
+                  onClick={() => setOutputTab("tests")}
+                >
+                  Test results
+                </button>
+              </div>
+              {outputTab === "tests" && !output.tests ? (
+                <div className="output-empty output-pending">
+                  {answer?.testCode.trim()
+                    ? "Tests are running…"
+                    : "No tests supplied for this answer."}
+                </div>
+              ) : outputTab === "solution" && !output.solution ? (
+                <div className="output-empty output-pending">
+                  Running solution…
+                </div>
               ) : (
+                <>
+                  {(() => {
+                    const result =
+                      outputTab === "tests" ? output.tests : output.solution;
+                    if (!result) return null;
+                    const failed = result.exitCode !== 0 || result.timedOut;
+                    return (
+                      <>
+                        <div
+                          className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
+                        >
+                          {failed ? "Failed" : "Passed"} · exit{" "}
+                          {String(result.exitCode)} · {result.durationMs}ms
+                        </div>
+                        <pre
+                          className={failed ? "output-error" : "output-success"}
+                        >
+                          {result.stdout || result.stderr || "(no output)"}
+                        </pre>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+              {!output.solution && !output.tests && !answer ? (
                 <div className="empty compact">
                   Run a solution to see its output.
                 </div>
-              )}
+              ) : null}
             </div>
           ) : null}
 
