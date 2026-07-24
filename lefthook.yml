@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      run: pnpm lint
+    format:
+      run: pnpm format
+    rulesync:
+      run: pnpm rulesync:verify
+
+pre-push:
+  commands:
+    verify:
+      run: pnpm verify
