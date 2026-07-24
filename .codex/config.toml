@@ -1,0 +1,55 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Generated from .rulesync by @omnitech/interview-rulesync-codex.
+# Edit the canonical .rulesync sources, then run pnpm rulesync:generate.
+developer_instructions = """
+Interview workflow routing:
+- Classify coding questions and Playground requests before acting.
+- Activate codex-interview-routing for explicit slash commands and matching
+  plain-language requests.
+  - /answer -> codex-interview-route-answer
+  - /playground -> codex-interview-route-playground
+  - /playground-reset -> codex-interview-route-playground-reset
+  - /playground-show -> codex-interview-route-playground-show
+  - /verify -> codex-interview-route-verify
+- Use interview-question-router to choose PHP, React, TypeScript, or Ruby.
+- Use interview-playground-controller for app updates and keep the
+  interview-answers playground CLI as the control boundary.
+- Do not force interview routing for unrelated repository work.
+"""
+
+[[skills.config]]
+path = ".codex/skills/ai-sdk-maintainer/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-answer/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-playground/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-playground-reset/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-playground-show/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-verify/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-routing/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/interview-playground-controller/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/interview-question-router/SKILL.md"
+enabled = true

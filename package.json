@@ -22,7 +22,8 @@
     "cli:build": "pnpm --filter @omnitech/interview-answers-cli build",
     "cli:install:global": "pnpm cli:build && cd packages/interview-cli && pnpm --ignore-workspace link --global",
     "cli:uninstall:global": "pnpm remove --global @omnitech/interview-answers-cli",
-    "rulesync:generate": "rulesync generate"
+    "rulesync:generate": "rulesync generate && pnpm --filter @omnitech/interview-rulesync-codex build && pnpm --filter @omnitech/interview-rulesync-codex generate",
+    "rulesync:verify": "pnpm --filter @omnitech/interview-rulesync-codex verify"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.10",
