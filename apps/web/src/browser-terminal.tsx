@@ -21,7 +21,7 @@ export function BrowserTerminal(): JSX.Element {
     const terminal = new Terminal({
       cursorBlink: true,
       convertEol: true,
-      scrollback: 0,
+      scrollback: 1_000,
       fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
       fontSize: 13,
       theme: {
@@ -33,22 +33,29 @@ export function BrowserTerminal(): JSX.Element {
     });
     const fitAddon = new FitAddon();
     const socket = new WebSocket(gatewayUrl);
+    const fitVisibleTerminal = () => {
+      const { height, width } = container.getBoundingClientRect();
+      if (width < 40 || height < 40) return false;
+      fitAddon.fit();
+      return true;
+    };
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
-    fitAddon.fit();
+    fitVisibleTerminal();
     terminal.writeln("Connecting to terminal gateway…");
 
     socket.addEventListener("open", () => {
       terminal.writeln("Connected to tmux session: workspace");
-      fitAddon.fit();
-      socket.send(
-        JSON.stringify({
-          type: "resize",
-          cols: terminal.cols,
-          rows: terminal.rows,
-        }),
-      );
+      if (fitVisibleTerminal()) {
+        socket.send(
+          JSON.stringify({
+            type: "resize",
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        );
+      }
     });
     socket.addEventListener("message", (event: MessageEvent<string>) => {
       terminal.write(event.data);
@@ -66,8 +73,7 @@ export function BrowserTerminal(): JSX.Element {
       }
     });
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
-      if (socket.readyState === WebSocket.OPEN) {
+      if (fitVisibleTerminal() && socket.readyState === WebSocket.OPEN) {
         socket.send(
           JSON.stringify({
             type: "resize",

@@ -1277,7 +1277,7 @@ export function Playground() {
                     </DrawerDescription>
                   </DrawerHeader>
                   <div className="inspector-scroll">
-                    <div className="card p-4">
+                    <div className="card p-4 inspector-main">
                       <nav className="panel-tabs" aria-label="Inspector panels">
                         {panels.map((item) => (
                           <button

@@ -70,11 +70,13 @@ vi.mock("@oc-tech/omni-ui-components", async (importOriginal) => {
     DrawerContent: ({
       children,
       className,
+      "aria-label": ariaLabel,
     }: {
       children: ReactNode;
       className?: string;
+      "aria-label"?: string;
     }) => (
-      <div role="dialog" aria-label="Inspector" className={className}>
+      <div role="dialog" aria-label={ariaLabel} className={className}>
         {children}
       </div>
     ),
@@ -240,6 +242,10 @@ describe("Playground", () => {
     expect(inspectorScroll).toContainElement(
       screen.getByRole("region", { name: "Terminal" }),
     );
+    expect(inspectorScroll?.children[0]).toHaveClass("inspector-main");
+    expect(inspectorScroll?.children[1]).toBe(
+      screen.getByRole("region", { name: "Terminal" }),
+    );
     expect(screen.getByRole("button", { name: "Show terminal" })).toBeVisible();
     expect(
       screen.getByRole("region", { name: "Terminal" }),
@@ -264,10 +270,15 @@ describe("Playground", () => {
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Show inspector" }));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Hide inspector" }));
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Hide terminal" }));
     await user.click(screen.getByRole("button", { name: "Show inspector" }));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toHaveClass(
+      "terminal-dock-hidden",
+    );
     await user.click(screen.getByRole("button", { name: "Dismiss drawer" }));
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
   });
