@@ -30,6 +30,68 @@ vi.mock("react-markdown", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("@oc-tech/omni-ui-components/dynamic-form", () => ({
+  DynamicForm: ({
+    formData,
+    onChange,
+  }: {
+    formData: { question: string };
+    onChange: (value: { question: string }) => void;
+  }) => (
+    <textarea
+      aria-label="Interview question"
+      value={formData.question}
+      onChange={(event) => onChange({ question: event.target.value })}
+    />
+  ),
+}));
+
+vi.mock("@oc-tech/omni-ui-components", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@oc-tech/omni-ui-components")>();
+  return {
+    ...actual,
+    Drawer: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open?: boolean;
+      onOpenChange?: (open: boolean) => void;
+      children: ReactNode;
+    }) => (
+      <div data-testid="inspector-drawer" data-open={open ? "true" : "false"}>
+        {open ? children : null}
+        <button type="button" onClick={() => onOpenChange?.(false)}>
+          Dismiss drawer
+        </button>
+      </div>
+    ),
+    DrawerContent: ({
+      children,
+      className,
+    }: {
+      children: ReactNode;
+      className?: string;
+    }) => (
+      <div role="dialog" aria-label="Inspector" className={className}>
+        {children}
+      </div>
+    ),
+    DrawerHeader: ({
+      children,
+      className,
+    }: {
+      children: ReactNode;
+      className?: string;
+    }) => <header className={className}>{children}</header>,
+    DrawerTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+    DrawerDescription: ({ children }: { children: ReactNode }) => (
+      <p>{children}</p>
+    ),
+  };
+});
+
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
     fit() {}
@@ -107,9 +169,15 @@ function installFetch(
   return fetchMock;
 }
 
-async function renderSettled() {
+async function renderSettled({ openInspector = true } = {}) {
   render(<Playground />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
+  if (openInspector) {
+    screen.getByRole("button", { name: "Show inspector" }).click();
+    await waitFor(() =>
+      expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible(),
+    );
+  }
 }
 
 beforeEach(() => {
@@ -144,10 +212,10 @@ describe("Playground", () => {
   it("starts as an accessible unsaved draft with unavailable actions", async () => {
     const user = userEvent.setup();
     installFetch();
-    await renderSettled();
+    await renderSettled({ openInspector: false });
 
     expect(
-      screen.getByRole("heading", { name: "Interview Answers Playground" }),
+      screen.getByRole("heading", { name: "Interview Studio" }),
     ).toBeVisible();
     expect(
       screen.getByRole("textbox", { name: "Interview question" }),
@@ -155,14 +223,53 @@ describe("Playground", () => {
     expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Run All" })).toBeDisabled();
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
     expect(
-      screen.getByRole("navigation", { name: "Inspector panels" }),
+      screen.getByRole("button", { name: "Show inspector" }),
     ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Show inspector" }));
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toHaveClass(
+      "terminal-dock-hidden",
+    );
+    const inspectorScroll = screen
+      .getByRole("dialog", { name: "Inspector" })
+      .querySelector(".inspector-scroll");
+    expect(inspectorScroll).not.toBeNull();
+    expect(inspectorScroll).toContainElement(
+      screen.getByRole("region", { name: "Terminal" }),
+    );
+    expect(screen.getByRole("button", { name: "Show terminal" })).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Terminal" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show terminal" }));
     expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).not.toHaveClass(
+      "terminal-dock-hidden",
+    );
+    await user.click(screen.getByRole("button", { name: "Close terminal" }));
+    const showTerminalButton = screen.getByRole("button", {
+      name: "Show terminal",
+    });
+    expect(showTerminalButton).toBeVisible();
+    expect(showTerminalButton).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "Show terminal" }));
     await user.click(screen.getByRole("button", { name: "Notes" }));
     expect(
       screen.getByRole("textbox", { name: "Private notes" }),
     ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Hide inspector" }));
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show inspector" }));
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Hide inspector" }));
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Show inspector" }));
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Dismiss drawer" }));
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
   });
 
   it("generates a routed React draft from the question controls", async () => {
@@ -212,6 +319,37 @@ describe("Playground", () => {
       "Draft generated. It has not been saved.",
     );
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps the editable solution and offers an inline copy action", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/generate")) return jsonResponse(reactAnswer);
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Interview question" }),
+      "Build an accessible counter",
+    );
+    await user.selectOptions(screen.getByLabelText("Language"), "react");
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+
+    await user.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(writeText).toHaveBeenCalledWith(reactAnswer.code);
+    expect(screen.getByRole("status")).toHaveTextContent("Code copied.");
+
+    expect(screen.getByLabelText("Editable main solution")).toHaveValue(
+      reactAnswer.code,
+    );
   });
 
   it("loads a realistic language template before sending it through generate", async () => {
@@ -576,7 +714,7 @@ describe("Playground", () => {
     );
   });
 
-  it("shows a focused fix summary for syntax errors", async () => {
+  it("shows the native syntax checker output", async () => {
     const user = userEvent.setup();
     const fetchMock = installFetch(async (path, init) => {
       if (path.endsWith("/answers")) return jsonResponse([]);
@@ -619,12 +757,12 @@ describe("Playground", () => {
     await user.click(screen.getByLabelText("Editable main solution"));
     await user.click(screen.getByRole("heading", { name: "Broken Ruby" }));
 
-    expect(await screen.findByText("Fix 1 syntax issue")).toBeVisible();
-    expect(screen.getByText("Line 2")).toBeVisible();
-    expect(screen.getByText("unexpected local variable")).toBeVisible();
     expect(
-      screen.getByText(/shown without cascading error colours/i),
-    ).toBeVisible();
+      await screen.findByLabelText("Syntax checker output"),
+    ).toHaveTextContent(
+      "ruby: /workspace/solution.rb:2: syntax error found (SyntaxError)",
+    );
+    expect(screen.getByText(/unexpected local variable/)).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/syntax-check",
       expect.objectContaining({ method: "POST" }),
@@ -1063,5 +1201,28 @@ describe("Playground", () => {
       "Provider unavailable",
     );
     expect(question).toHaveValue("Keep this question");
+  });
+
+  it("persists the selected theme", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Switch to dark theme" }),
+    );
+
+    expect(document.documentElement.dataset["theme"]).toBe("dark");
+    expect(window.localStorage.getItem("interview-playground.theme")).toBe(
+      "dark",
+    );
+    expect(
+      screen.getByRole("button", { name: "Switch to light theme" }),
+    ).toBeVisible();
   });
 });

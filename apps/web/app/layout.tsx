@@ -1,13 +1,13 @@
 // Stylesheets are intentionally imported for their application-wide side effect.
 // oxlint-disable import/no-unassigned-import
-import "@omnitech/omni-ui-core/styles.css";
+import "@oc-tech/omni-ui-components/styles.css";
 import "./styles.css";
 
 import type { Metadata } from "next";
 import React, { type ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Interview Answers Playground",
+  title: "Interview Studio",
   description: "A local-first, AI-assisted interview coding playground.",
 };
 

@@ -87,6 +87,12 @@ importers:
       '@codemirror/legacy-modes':
         specifier: ^6.5.3
         version: 6.5.3
+      '@codemirror/view':
+        specifier: ^6.43.6
+        version: 6.43.6
+      '@oc-tech/omni-ui-components':
+        specifier: link:../../../omni-ui-components/packages/core
+        version: link:../../../omni-ui-components/packages/core
       '@omnitech/ai-sdk':
         specifier: workspace:*
         version: link:../../packages/ai-sdk
@@ -102,9 +108,9 @@ importers:
       '@omnitech/interview-storage':
         specifier: workspace:*
         version: link:../../packages/interview-storage
-      '@omnitech/omni-ui-core':
-        specifier: link:../../../omni-ui-components/packages/core
-        version: link:../../../omni-ui-components/packages/core
+      '@rjsf/utils':
+        specifier: ^6.7.0
+        version: 6.7.0(react@18.3.1)
       '@uiw/react-codemirror':
         specifier: ^4.25.4
         version: 4.25.11(@babel/runtime@8.0.0)(@codemirror/autocomplete@6.20.3)(@codemirror/language@6.12.4)(@codemirror/lint@6.9.7)(@codemirror/search@6.7.1)(@codemirror/state@6.7.1)(@codemirror/theme-one-dark@6.1.3)(@codemirror/view@6.43.6)(codemirror@6.0.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1196,6 +1202,12 @@ packages:
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
 
+  '@rjsf/utils@6.7.0':
+    resolution: {integrity: sha512-jNnEL/rFYJR7TF9vPmV/oBs6CblbZ1emahGlFfBqvy60dpyog3luk1CPE3ss7H8/egBGES4XvIucKgvgEnxbaQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: '>=18'
+
   '@rolldown/binding-android-arm64@1.1.5':
     resolution: {integrity: sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1540,6 +1552,9 @@ packages:
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
 
+  '@types/json-schema@7.0.15':
+    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
 
@@ -1640,6 +1655,9 @@ packages:
 
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
+
+  '@x0k/json-schema-merge@1.0.4':
+    resolution: {integrity: sha512-KvmMgAftbVzATq4IRnkno/SKSu+gjaR2ZUPJG5JUlY4W3twRJo03sk2914u8scmosibBZ0m7s6euZlJuqpv8Ww==}
 
   '@xterm/addon-fit@0.11.0':
     resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
@@ -2060,12 +2078,19 @@ packages:
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
+  fast-equals@6.0.2:
+    resolution: {integrity: sha512-sAjhj9ZhOxYCGiNMnZLaucOqf5ZeFnHNoKoAZiD9thhJ0N8RP85qJK759/97C/3L7NzzmGVB5uiX9AUpySZmUQ==}
+    engines: {node: '>=6.0.0'}
+
   fast-glob@3.3.3:
     resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
     engines: {node: '>=8.6.0'}
 
   fast-uri@3.1.4:
     resolution: {integrity: sha512-8JnbkQ4juDyvYs4mgFGQqg4yCYtFDtUtmp2QIQq11ZZe5CFQ5wcqm1rqDgAh/QdMySuBnPzMUiJUNZG5N/AiQw==}
+
+  fast-uri@4.1.1:
+    resolution: {integrity: sha512-YPOs1zD5TG2+EZt+r88LwF6mclA7TPkpwMP7ZN3TO2HiHS8TXvq7QA/17iJsV9dubcLo/f8eEYqMBruyQV21hQ==}
 
   fastmcp@4.4.0:
     resolution: {integrity: sha512-WM3q5Edo8ZHGYx2DBXtbAfATM+LfvfxJU94LfS0MSartOyQljAg8GycWbx+W4A41RfMlCcQMvN5qgpUG7JxK8g==}
@@ -2378,6 +2403,10 @@ packages:
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
+  jsonpointer@5.0.1:
+    resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
+    engines: {node: '>=0.10.0'}
+
   keygrip@1.1.0:
     resolution: {integrity: sha512-iYSchDJ+liQ8iwbSI2QqsQOvqv58eJCEanyJPJi+Khyu8smkcKSFUCbPwzFcL7YVtZ6eONjqRX/38caJ7QjRAQ==}
     engines: {node: '>= 0.6'}
@@ -2539,6 +2568,12 @@ packages:
   load-tsconfig@0.2.5:
     resolution: {integrity: sha512-IXO6OCs9yg8tMKzfPZ1YmheJbZCiEsnBdcB03l0OcfK9prKnJb96siuHCr5Fl37/yo9DnKU+TLpxzTUspw9shg==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
+
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
@@ -2903,6 +2938,9 @@ packages:
 
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
+
+  react-is@18.3.1:
+    resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
   react-markdown@10.1.0:
     resolution: {integrity: sha512-qKxVopLT/TyA6BX3Ue5NwabOsAzm0Q7kAPwq6L+wWDwisYs7R8vZ0nRXqq6rkueboxpkjvLGU9fWifiX/ZZFxQ==}
@@ -4213,6 +4251,17 @@ snapshots:
 
   '@oxc-project/types@0.139.0': {}
 
+  '@rjsf/utils@6.7.0(react@18.3.1)':
+    dependencies:
+      '@x0k/json-schema-merge': 1.0.4
+      fast-equals: 6.0.2
+      fast-uri: 4.1.1
+      jsonpointer: 5.0.1
+      lodash: 4.18.1
+      lodash-es: 4.18.1
+      react: 18.3.1
+      react-is: 18.3.1
+
   '@rolldown/binding-android-arm64@1.1.5':
     optional: true
 
@@ -4441,6 +4490,8 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
+  '@types/json-schema@7.0.15': {}
+
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
@@ -4567,6 +4618,10 @@ snapshots:
       '@vitest/pretty-format': 4.1.10
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@x0k/json-schema-merge@1.0.4':
+    dependencies:
+      '@types/json-schema': 7.0.15
 
   '@xterm/addon-fit@0.11.0': {}
 
@@ -5022,6 +5077,8 @@ snapshots:
 
   fast-deep-equal@3.1.3: {}
 
+  fast-equals@6.0.2: {}
+
   fast-glob@3.3.3:
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -5031,6 +5088,8 @@ snapshots:
       micromatch: 4.0.8
 
   fast-uri@3.1.4: {}
+
+  fast-uri@4.1.1: {}
 
   fastmcp@4.4.0(@valibot/to-json-schema@1.7.1(valibot@1.4.2(typescript@5.9.3)))(effect@3.21.4)(sury@10.0.4):
     dependencies:
@@ -5373,6 +5432,8 @@ snapshots:
 
   jsonc-parser@3.3.1: {}
 
+  jsonpointer@5.0.1: {}
+
   keygrip@1.1.0:
     dependencies:
       tsscmp: 1.0.6
@@ -5510,6 +5571,10 @@ snapshots:
   lines-and-columns@1.2.4: {}
 
   load-tsconfig@0.2.5: {}
+
+  lodash-es@4.18.1: {}
+
+  lodash@4.18.1: {}
 
   longest-streak@3.1.0: {}
 
@@ -5988,6 +6053,8 @@ snapshots:
       scheduler: 0.23.2
 
   react-is@17.0.2: {}
+
+  react-is@18.3.1: {}
 
   react-markdown@10.1.0(@types/react@18.3.31)(react@18.3.1):
     dependencies:

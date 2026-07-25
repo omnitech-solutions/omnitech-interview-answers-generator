@@ -21,13 +21,14 @@ export function BrowserTerminal(): JSX.Element {
     const terminal = new Terminal({
       cursorBlink: true,
       convertEol: true,
+      scrollback: 0,
       fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
       fontSize: 13,
       theme: {
-        background: "#0d1117",
-        foreground: "#d6deeb",
-        cursor: "#58d68d",
-        selectionBackground: "#264f78",
+        background: "#111827",
+        foreground: "#e5e7eb",
+        cursor: "#86efac",
+        selectionBackground: "#374151",
       },
     });
     const fitAddon = new FitAddon();

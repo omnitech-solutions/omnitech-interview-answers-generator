@@ -153,7 +153,7 @@ describe("DockerCodeRunner", () => {
     await vi.waitFor(() => expect(fsMocks.writeFile).toHaveBeenCalled());
     expect(fsMocks.writeFile).toHaveBeenCalledWith(
       "/tmp/interview-answer-run-test/SolutionTest.php",
-      "function solution(): int { return 1; }\n\nit('works', fn () => expect(solution())->toBe(1));",
+      "<?php\nfunction solution(): int { return 1; }\n\nit('works', fn () => expect(solution())->toBe(1));",
       { mode: 0o600 },
     );
 
@@ -231,6 +231,28 @@ describe("DockerCodeRunner", () => {
       );
     },
   );
+
+  it("writes PHP syntax checks as executable PHP source", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.checkSyntax({
+      language: "php",
+      code: "function solution(array $timestamps, int $window: int",
+    });
+
+    await vi.waitFor(() => expect(fsMocks.writeFile).toHaveBeenCalled());
+    expect(fsMocks.writeFile).toHaveBeenCalledWith(
+      "/tmp/interview-answer-run-test/solution.php",
+      "<?php\nfunction solution(array $timestamps, int $window: int",
+      { mode: 0o600 },
+    );
+
+    child.emit("close", 1);
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({ exitCode: 1, timedOut: false }),
+    );
+  });
 
   it("captures stdout and stderr and preserves a nonzero exit code", async () => {
     const child = createChildProcess();
@@ -351,7 +373,12 @@ describe("DockerCodeRunner", () => {
       language: "php" as const,
       image: "omnitech/pest-runner:latest",
       filename: "SolutionTest.php",
-      command: ["/runner/vendor/bin/pest", "--colors=never", "--no-coverage"],
+      command: [
+        "/runner/vendor/bin/pest",
+        "--colors=never",
+        "--no-coverage",
+        "--do-not-cache-result",
+      ],
     },
     {
       language: "typescript" as const,

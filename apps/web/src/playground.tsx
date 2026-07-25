@@ -2,8 +2,28 @@
 
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
-import { StreamLanguage } from "@codemirror/language";
+import {
+  defaultHighlightStyle,
+  StreamLanguage,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { Decoration, EditorView } from "@codemirror/view";
 import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+import {
+  App,
+  Badge,
+  Button,
+  Card,
+  CardDescription,
+  ConfigProvider,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  IconButton,
+} from "@oc-tech/omni-ui-components";
+import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
 import type {
   GeneratedAnswer,
   Language,
@@ -12,6 +32,7 @@ import type {
   SavedAnswer,
 } from "@omnitech/interview-contracts";
 import type { PlaygroundSnapshot } from "@omnitech/interview-playground-control";
+import type { RJSFSchema } from "@rjsf/utils";
 import CodeMirror from "@uiw/react-codemirror";
 import React, {
   useCallback,
@@ -21,26 +42,34 @@ import React, {
   useState,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import { z } from "zod";
 
 import { BrowserTerminal } from "./browser-terminal";
-import { StudioButton, StudioTextarea } from "./studio-controls";
+import { StudioTextarea } from "./studio-controls";
 
-type InspectorPanel = "terminal" | "notes" | "output" | "saved";
+type InspectorPanel = "notes" | "output" | "saved";
 type EditorTab = "solution" | "usage" | "tests";
 type OutputTab = "solution" | "tests";
 type QuestionTab = "input" | "preview";
 type SyntaxState = "idle" | "checking" | "valid" | "invalid" | "unavailable";
 
-interface SyntaxDiagnostic {
-  line?: number | undefined;
-  column?: number | undefined;
-  message: string;
-  source?: string | undefined;
-}
-
 const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 const DRAFT_STORAGE_KEY = "interview-playground.draft";
 const PHP_EDITOR_PREFIX = "<?php\n";
+const THEME_STORAGE_KEY = "interview-playground.theme";
+
+const setupSchema: RJSFSchema = {
+  type: "object",
+  properties: {
+    question: {
+      type: "string",
+      title: "Interview question",
+    },
+  },
+  required: ["question"],
+};
+
+const setupZodSchema = z.object({ question: z.string().min(1) });
 
 interface ExecutionOutput {
   solution?: RunResult;
@@ -56,7 +85,6 @@ interface ExampleTemplate {
 }
 
 const panels: Array<{ id: InspectorPanel; label: string }> = [
-  { id: "terminal", label: "Terminal" },
   { id: "notes", label: "Notes" },
   { id: "output", label: "Output" },
   { id: "saved", label: "Saved" },
@@ -196,6 +224,24 @@ function languageExtension(language: Language | undefined) {
   return [];
 }
 
+function syntaxErrorLineExtension(lineNumber: number | undefined) {
+  if (!lineNumber) return [];
+  return EditorView.decorations.of((view) =>
+    syntaxErrorLineDecorations(view, lineNumber),
+  );
+}
+
+function syntaxErrorLineDecorations(
+  view: EditorView,
+  lineNumber: number | undefined,
+) {
+  if (!lineNumber || lineNumber > view.state.doc.lines) return Decoration.none;
+  const line = view.state.doc.line(lineNumber);
+  return Decoration.set([
+    Decoration.line({ class: "cm-syntax-error-line" }).range(line.from),
+  ]);
+}
+
 function normalizeAnswer(
   answer: GeneratedAnswer | undefined,
 ): GeneratedAnswer | undefined {
@@ -235,32 +281,14 @@ function normalizeAnswer(
   return { ...answer, usageCode: answer.usageCode ?? "", testCode };
 }
 
-function parseSyntaxDiagnostic(raw: string): SyntaxDiagnostic {
-  const lineMatch = raw.match(/:(\d+)(?::(\d+))?(?=\s|:|$)/);
-  const diagnosticLine = raw
-    .split("\n")
-    .find((line) => /syntax error|parse error|error:/i.test(line));
-  const sourceLine = raw.match(/^>\s*\d+\s*\|\s?(.*)$/m)?.[1]?.trim();
-  const caretMessage = raw.match(/^\s*\|\s*\^+\s*(.+)$/m)?.[1]?.trim();
-  const message = (
-    caretMessage ??
-    diagnosticLine ??
-    raw.split("\n")[0] ??
-    "Syntax error"
-  )
-    .replace(/^.*?:\d+(?::\d+)?[:\s]*/, "")
-    .replace(/^syntax error found \(SyntaxError\)\s*/i, "")
-    .trim();
-
-  return {
-    line: lineMatch ? Number(lineMatch[1]) : undefined,
-    column: lineMatch?.[2] ? Number(lineMatch[2]) : undefined,
-    message: message || "Syntax error",
-    source: sourceLine,
-  };
+function syntaxLineNumber(raw: string): number | undefined {
+  const match =
+    raw.match(/:(\d+)(?::\d+)?(?=\s|:|$)/) ?? raw.match(/\bline\s+(\d+)/i);
+  return match ? Number(match[1]) : undefined;
 }
 
 export function Playground() {
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
   const [answer, setAnswer] = useState<GeneratedAnswer>();
@@ -268,10 +296,13 @@ export function Playground() {
   const [notes, setNotes] = useState("");
   const [savedAnswers, setSavedAnswers] = useState<SavedAnswer[]>([]);
   const [savedPage, setSavedPage] = useState(0);
-  const [panel, setPanel] = useState<InspectorPanel>("terminal");
+  const [panel, setPanel] = useState<InspectorPanel>("output");
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [output, setOutput] = useState<ExecutionOutput>({});
   const [outputTab, setOutputTab] = useState<OutputTab>("solution");
   const [copiedOutput, setCopiedOutput] = useState<OutputTab>();
+  const [copiedCode, setCopiedCode] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
   const [preview, setPreview] = useState("");
   const [previewState, setPreviewState] = useState<
@@ -290,6 +321,22 @@ export function Playground() {
   const syntaxRequestId = useRef(0);
   const previewRequestId = useRef(0);
   const appliedControlRevision = useRef(-1);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const nextTheme = storedTheme === "dark" ? "dark" : "light";
+    setTheme(nextTheme);
+    document.documentElement.dataset["theme"] = nextTheme;
+  }, []);
+
+  function toggleTheme() {
+    setTheme((current) => {
+      const nextTheme = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+      document.documentElement.dataset["theme"] = nextTheme;
+      return nextTheme;
+    });
+  }
 
   const loadSaved = useCallback(async () => {
     setSavedAnswers(await api<SavedAnswer[]>("/answers"));
@@ -331,6 +378,17 @@ export function Playground() {
       window.setTimeout(() => setCopiedOutput(undefined), 1500);
     } catch {
       setStatus("Couldn’t copy output. Check clipboard permissions.");
+    }
+  }
+
+  async function copyEditorCode() {
+    try {
+      await navigator.clipboard.writeText(editorValue);
+      setCopiedCode(true);
+      setStatus("Code copied.");
+      window.setTimeout(() => setCopiedCode(false), 1500);
+    } catch {
+      setStatus("Couldn’t copy code. Check clipboard permissions.");
     }
   }
 
@@ -439,7 +497,14 @@ export function Playground() {
           normalizeAnswer(snapshot.value.answer as GeneratedAnswer | undefined),
         );
         setNotes(snapshot.value.notes);
-        setPanel(snapshot.value.panel);
+        const nextPanel: InspectorPanel =
+          snapshot.value.panel === "notes" || snapshot.value.panel === "saved"
+            ? snapshot.value.panel
+            : "output";
+        setPanel(nextPanel);
+        if (snapshot.revision > 0 && snapshot.value.panel === "terminal") {
+          setTerminalOpen(true);
+        }
         setSavedId(undefined);
         setOutput({});
         setPreview("");
@@ -472,14 +537,6 @@ export function Playground() {
     () => languageExtension(answer?.language),
     [answer?.language],
   );
-  const editorExtensions = syntaxState === "invalid" ? [] : extensions;
-  const syntaxDiagnostic = useMemo(
-    () =>
-      syntaxState === "invalid"
-        ? parseSyntaxDiagnostic(syntaxMessage)
-        : undefined,
-    [syntaxMessage, syntaxState],
-  );
   const editorSource = answer
     ? editorTab === "solution"
       ? answer.code
@@ -487,6 +544,17 @@ export function Playground() {
         ? answer.usageCode
         : answer.testCode
     : "";
+  // Keep the language extension active while invalid so syntax colours remain useful.
+  const syntaxErrorLine =
+    syntaxState === "invalid" ? syntaxLineNumber(syntaxMessage) : undefined;
+  const editorExtensions = useMemo(
+    () => [
+      ...extensions,
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      syntaxErrorLineExtension(syntaxErrorLine),
+    ],
+    [extensions, syntaxErrorLine],
+  );
   const addsPhpEditorPrefix =
     answer?.language === "php" &&
     editorTab !== "solution" &&
@@ -494,6 +562,15 @@ export function Playground() {
   const editorValue = addsPhpEditorPrefix
     ? `${PHP_EDITOR_PREFIX}${editorSource}`
     : editorSource;
+  useEffect(() => {
+    if (!answer || !editorValue.trim()) return;
+
+    const timer = window.setTimeout(() => {
+      void checkSyntax(editorTab);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [answer?.language, editorTab, editorValue]);
 
   async function generateAnswer(
     questionValue: string,
@@ -560,6 +637,7 @@ export function Playground() {
     if (!answer?.code) return;
     setBusy(true);
     setPanel("output");
+    setInspectorOpen(true);
     setOutput({});
     setOutputTab("solution");
     setStatus(
@@ -741,484 +819,716 @@ export function Playground() {
   }
 
   return (
-    <main className="studio">
-      <header className="topbar">
-        <div className="topbar-brand">
-          <p className="eyebrow">LOCAL AI WORKBENCH</p>
-          <h1>Interview Answers Playground</h1>
-        </div>
-        <label className="topbar-example">
-          <span>Example template</span>
-          <select
-            aria-label="Example template"
-            value={exampleId}
-            onChange={(event) => selectExample(event.target.value)}
-          >
-            <option value="">Choose a realistic example…</option>
-            {preparedExampleTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="toolbar">
-          <label>
-            <span>Language</span>
-            <select
-              value={language}
-              onChange={(event) =>
-                setLanguage(event.target.value as LanguageSelection)
-              }
-            >
-              {languages.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <StudioButton
-            variant="outline"
-            onClick={newPlayground}
-            disabled={busy}
-          >
-            New
-          </StudioButton>
-          <StudioButton onClick={generate} disabled={busy || !question.trim()}>
-            {busy ? "Working…" : "Generate"}
-          </StudioButton>
-          <StudioButton
-            variant="outline"
-            onClick={save}
-            disabled={busy || !answer}
-          >
-            Save
-          </StudioButton>
-          <StudioButton
-            variant="outline"
-            onClick={() => void run()}
-            disabled={busy || !answer}
-          >
-            Run All
-          </StudioButton>
-        </div>
-      </header>
-
-      <section className="workspace">
-        <div className="main-column">
-          <section className="card question-card">
-            <div className="section-heading">
-              <div>
-                <span className="step">01</span>
-                <h2>Question</h2>
-              </div>
-              <span className="save-state">
-                {savedId ? "Saved" : "Playground · unsaved"}
+    <ConfigProvider theme={{ mode: theme }}>
+      <App>
+        <main className="studio">
+          <header className="topbar">
+            <div className="topbar-brand">
+              <span className="brand-symbol" aria-hidden="true">
+                <svg
+                  viewBox="0 0 38 38"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9.5 8.5h19v14h-9l-6.5 5v-5H9.5z" />
+                  <path d="m14 13 3 3-3 3M20 19h4" />
+                  <path d="m28.5 5 .7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+                </svg>
               </span>
-            </div>
-            <div
-              className="question-tabs"
-              role="tablist"
-              aria-label="Question view"
-            >
-              <button
-                role="tab"
-                aria-selected={questionTab === "input"}
-                className={questionTab === "input" ? "active" : ""}
-                onClick={() => setQuestionTab("input")}
-              >
-                Question input
-              </button>
-              <button
-                role="tab"
-                aria-selected={questionTab === "preview"}
-                className={questionTab === "preview" ? "active" : ""}
-                onClick={() => setQuestionTab("preview")}
-              >
-                Rendered preview
-              </button>
-            </div>
-            {questionTab === "input" ? (
-              <StudioTextarea
-                aria-label="Interview question"
-                placeholder="Paste a coding, React, API, debugging, or system-design question…"
-                rows={8}
-                value={question}
-                onChange={(value) => {
-                  localEdits.current = true;
-                  setQuestion(value);
-                }}
-              />
-            ) : (
-              <article className="question-preview markdown">
-                {question.trim() ? (
-                  <ReactMarkdown>{question}</ReactMarkdown>
-                ) : (
-                  <span className="empty-preview">
-                    Your rendered question will appear here.
-                  </span>
-                )}
-              </article>
-            )}
-          </section>
-
-          <section className="card answer-card">
-            <div className="section-heading">
-              <div>
-                <span className="step">02</span>
-                <h2>{answer?.title ?? "Answer"}</h2>
+              <div className="brand-copy">
+                <h1 aria-label="Interview Studio">
+                  Interview<span>Studio</span>
+                </h1>
+                <p>Think clearly. Code confidently.</p>
               </div>
-              {answer ? (
-                <span className="language-chip">{answer.language}</span>
-              ) : null}
             </div>
+            <label className="topbar-example">
+              <span>Example template</span>
+              <select
+                aria-label="Example template"
+                value={exampleId}
+                onChange={(event) => selectExample(event.target.value)}
+              >
+                <option value="">Choose a realistic example…</option>
+                {preparedExampleTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="toolbar">
+              <label>
+                <span>Language</span>
+                <select
+                  value={language}
+                  onChange={(event) =>
+                    setLanguage(event.target.value as LanguageSelection)
+                  }
+                >
+                  {languages.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button variant="outline" onClick={newPlayground} disabled={busy}>
+                New
+              </Button>
+              <Button
+                className="generate-button"
+                onClick={generate}
+                disabled={busy || !question.trim()}
+              >
+                {busy ? "Working…" : "Generate"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={save}
+                disabled={busy || !answer}
+              >
+                Save
+              </Button>
+              <span className="toolbar-divider" aria-hidden="true" />
+              <Button
+                className="run-button"
+                variant="outline"
+                onClick={() => void run()}
+                disabled={busy || !answer}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.5v13l10-6.5z" />
+                </svg>
+                Run All
+              </Button>
+              <span className="toolbar-divider" aria-hidden="true" />
+              <IconButton
+                variant={terminalOpen ? "secondary" : "outline"}
+                className="terminal-toggle-button"
+                aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+                aria-pressed={terminalOpen}
+                onClick={() => {
+                  setTerminalOpen((current) => {
+                    const nextOpen = !current;
+                    if (nextOpen) setInspectorOpen(true);
+                    return nextOpen;
+                  });
+                }}
+                icon={
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="m7 9 3 3-3 3M13 15h4" />
+                  </svg>
+                }
+              />
+              <IconButton
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+                onClick={toggleTheme}
+                icon={
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
+                    {theme === "dark" ? (
+                      <>
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+                      </>
+                    ) : (
+                      <path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
+                    )}
+                  </svg>
+                }
+              />
+              <IconButton
+                variant={inspectorOpen ? "secondary" : "outline"}
+                className="inspector-toggle-button"
+                aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"}
+                aria-pressed={inspectorOpen}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  if (inspectorOpen) {
+                    setInspectorOpen(false);
+                    return;
+                  }
+                  setInspectorOpen(true);
+                }}
+                icon={
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M15 4v16" />
+                  </svg>
+                }
+              />
+            </div>
+          </header>
 
-            {answer ? (
-              <div className="answer-grid">
-                <article className="markdown">
-                  <ReactMarkdown>{answer.answerMarkdown}</ReactMarkdown>
-                </article>
-                <div className="editor-shell">
-                  <div className="editor-tabs" role="tablist" aria-label="Code">
-                    {editorTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        role="tab"
-                        aria-selected={editorTab === tab.id}
-                        className={editorTab === tab.id ? "active" : ""}
-                        onClick={() => {
-                          syntaxRequestId.current += 1;
-                          setEditorTab(tab.id);
-                          setSyntaxState("idle");
-                          setSyntaxMessage("");
-                        }}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
+          <div
+            className={`studio-body ${inspectorOpen ? "inspector-visible" : ""}`}
+          >
+            <section className="workspace">
+              <div className="main-column">
+                <Card className="card question-card">
+                  <div className="section-heading">
+                    <div>
+                      <span className="step">01</span>
+                      <h2>Question</h2>
+                    </div>
+                    <span className="save-state">
+                      {savedId ? "Saved" : "Playground · unsaved"}
+                    </span>
                   </div>
-                  <CodeMirror
-                    value={editorValue}
-                    height="430px"
-                    extensions={editorExtensions}
-                    theme="dark"
-                    onBlur={() => void checkSyntax(editorTab)}
-                    aria-label={
-                      editorTab === "solution"
-                        ? "Editable main solution"
-                        : editorTab === "usage"
-                          ? "Editable usage and output"
-                          : "Editable tests"
-                    }
-                    onChange={(source) => {
-                      const normalizedSource =
-                        addsPhpEditorPrefix &&
-                        source.startsWith(PHP_EDITOR_PREFIX)
-                          ? source.slice(PHP_EDITOR_PREFIX.length)
-                          : source;
-                      localEdits.current = true;
-                      setSyntaxState("idle");
-                      setSyntaxMessage("");
-                      setAnswer({
-                        ...answer,
-                        ...(editorTab === "solution"
-                          ? { code: normalizedSource }
-                          : editorTab === "usage"
-                            ? { usageCode: normalizedSource }
-                            : { testCode: normalizedSource }),
-                      });
-                    }}
-                  />
-                  {syntaxState !== "idle" ? (
-                    <div
-                      className={`syntax-status syntax-${syntaxState}`}
-                      aria-live="polite"
+                  <div
+                    className="question-tabs"
+                    role="tablist"
+                    aria-label="Question view"
+                  >
+                    <button
+                      role="tab"
+                      aria-selected={questionTab === "input"}
+                      className={questionTab === "input" ? "active" : ""}
+                      onClick={() => setQuestionTab("input")}
                     >
-                      {syntaxState === "checking" ? (
-                        <strong>Checking syntax…</strong>
-                      ) : null}
-                      {syntaxState === "valid" ? (
-                        <strong>Syntax looks good</strong>
-                      ) : null}
-                      {syntaxState === "unavailable" ? (
-                        <>
-                          <strong>Couldn’t check syntax</strong>
-                          {syntaxMessage ? <span>{syntaxMessage}</span> : null}
-                        </>
-                      ) : null}
-                      {syntaxState === "invalid" && syntaxDiagnostic ? (
-                        <>
-                          <div className="syntax-summary">
-                            <strong>Fix 1 syntax issue</strong>
-                            {syntaxDiagnostic.line ? (
-                              <span className="syntax-location">
-                                Line {syntaxDiagnostic.line}
-                                {syntaxDiagnostic.column
-                                  ? `, column ${syntaxDiagnostic.column}`
-                                  : ""}
-                              </span>
+                      Question input
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={questionTab === "preview"}
+                      className={questionTab === "preview" ? "active" : ""}
+                      onClick={() => setQuestionTab("preview")}
+                    >
+                      Rendered preview
+                    </button>
+                  </div>
+                  {questionTab === "input" ? (
+                    <DynamicForm
+                      schema={setupSchema}
+                      zodSchema={setupZodSchema}
+                      formData={{ question }}
+                      onChange={(next) => {
+                        localEdits.current = true;
+                        setQuestion(next.question);
+                      }}
+                      onSubmit={() => undefined}
+                      uiSchema={{
+                        question: {
+                          "ui:widget": "textarea",
+                          "ui:options": {
+                            rows: 9,
+                            placeholder:
+                              "Paste a coding, React, API, debugging, or system-design question…",
+                          },
+                        },
+                        "ui:submitButtonOptions": { norender: true },
+                      }}
+                    />
+                  ) : (
+                    <article className="question-preview markdown">
+                      {question.trim() ? (
+                        <ReactMarkdown>{question}</ReactMarkdown>
+                      ) : (
+                        <span className="empty-preview">
+                          Your rendered question will appear here.
+                        </span>
+                      )}
+                    </article>
+                  )}
+                </Card>
+
+                <Card className="card answer-card">
+                  <div className="section-heading">
+                    <div>
+                      <span className="step">02</span>
+                      <h2>{answer?.title ?? "Answer"}</h2>
+                    </div>
+                    {answer ? (
+                      <Badge className="language-chip" variant="secondary">
+                        {answer.language}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  {answer ? (
+                    <div className="answer-grid">
+                      <article className="markdown">
+                        <ReactMarkdown>{answer.answerMarkdown}</ReactMarkdown>
+                      </article>
+                      <div className="editor-shell">
+                        <div
+                          className="editor-tabs"
+                          role="tablist"
+                          aria-label="Code"
+                        >
+                          {editorTabs.map((tab) => (
+                            <button
+                              key={tab.id}
+                              role="tab"
+                              aria-selected={editorTab === tab.id}
+                              className={editorTab === tab.id ? "active" : ""}
+                              onClick={() => {
+                                syntaxRequestId.current += 1;
+                                setEditorTab(tab.id);
+                                setSyntaxState("idle");
+                                setSyntaxMessage("");
+                              }}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="editable-code-shell">
+                          <CodeMirror
+                            value={editorValue}
+                            height="430px"
+                            extensions={editorExtensions}
+                            theme="dark"
+                            onBlur={() => void checkSyntax(editorTab)}
+                            aria-label={
+                              editorTab === "solution"
+                                ? "Editable main solution"
+                                : editorTab === "usage"
+                                  ? "Editable usage and output"
+                                  : "Editable tests"
+                            }
+                            onChange={(source) => {
+                              const normalizedSource =
+                                addsPhpEditorPrefix &&
+                                source.startsWith(PHP_EDITOR_PREFIX)
+                                  ? source.slice(PHP_EDITOR_PREFIX.length)
+                                  : source;
+                              localEdits.current = true;
+                              setSyntaxState("idle");
+                              setSyntaxMessage("");
+                              setAnswer({
+                                ...answer,
+                                ...(editorTab === "solution"
+                                  ? { code: normalizedSource }
+                                  : editorTab === "usage"
+                                    ? { usageCode: normalizedSource }
+                                    : { testCode: normalizedSource }),
+                              });
+                            }}
+                          />
+                          <IconButton
+                            className="copy-code-button"
+                            aria-label={
+                              copiedCode ? "Code copied" : "Copy code"
+                            }
+                            title={copiedCode ? "Code copied" : "Copy code"}
+                            onClick={() => void copyEditorCode()}
+                            icon={
+                              <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                width="16"
+                                height="16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              >
+                                <rect
+                                  x="8"
+                                  y="8"
+                                  width="12"
+                                  height="12"
+                                  rx="2"
+                                />
+                                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                              </svg>
+                            }
+                          />
+                        </div>
+                        {syntaxState !== "idle" ? (
+                          <div
+                            className={`syntax-status syntax-${syntaxState}`}
+                            aria-live="polite"
+                          >
+                            {syntaxState === "checking" ? (
+                              <strong>Checking syntax…</strong>
+                            ) : null}
+                            {syntaxState === "valid" ? (
+                              <strong>Syntax looks good</strong>
+                            ) : null}
+                            {syntaxState === "unavailable" ? (
+                              <>
+                                <strong>Couldn’t check syntax</strong>
+                                {syntaxMessage ? (
+                                  <span>{syntaxMessage}</span>
+                                ) : null}
+                              </>
+                            ) : null}
+                            {syntaxState === "invalid" ? (
+                              <>
+                                <pre
+                                  className="syntax-raw"
+                                  aria-label="Syntax checker output"
+                                >
+                                  {syntaxMessage ||
+                                    "Syntax checker reported an error."}
+                                </pre>
+                              </>
                             ) : null}
                           </div>
-                          <span className="syntax-message">
-                            {syntaxDiagnostic.message}
-                          </span>
-                          {syntaxDiagnostic.source ? (
-                            <code className="syntax-source">
-                              {syntaxDiagnostic.source}
-                            </code>
-                          ) : null}
-                          <span className="syntax-help">
-                            The editor is shown without cascading error colours.
-                            Start at the marked line.
-                          </span>
-                        </>
+                        ) : null}
+                      </div>
+                      {answer.language === "react" ? (
+                        <section
+                          className="react-preview-panel"
+                          aria-label="React rendered preview"
+                        >
+                          <div className="react-preview-heading">
+                            <h3>Rendered React preview</h3>
+                            <span>
+                              {previewState === "loading"
+                                ? "Compiling…"
+                                : previewState === "ready"
+                                  ? "Live"
+                                  : null}
+                            </span>
+                          </div>
+                          {previewState === "error" ? (
+                            <p className="react-preview-error">
+                              {previewError}
+                            </p>
+                          ) : preview ? (
+                            <iframe
+                              title="Rendered React component"
+                              className="react-preview-frame"
+                              sandbox="allow-scripts"
+                              srcDoc={`<!doctype html><html><body><div id="root"></div><script>${preview.replace(/<\/script/gi, "<\\/script")}</script></body></html>`}
+                            />
+                          ) : (
+                            <p className="react-preview-empty">
+                              The rendered component will appear here.
+                            </p>
+                          )}
+                        </section>
                       ) : null}
                     </div>
-                  ) : null}
-                </div>
-                {answer.language === "react" ? (
-                  <section
-                    className="react-preview-panel"
-                    aria-label="React rendered preview"
-                  >
-                    <div className="react-preview-heading">
-                      <h3>Rendered React preview</h3>
-                      <span>
-                        {previewState === "loading"
-                          ? "Compiling…"
-                          : previewState === "ready"
-                            ? "Live"
-                            : null}
-                      </span>
+                  ) : (
+                    <div className="empty">
+                      <strong>Your answer will appear here.</strong>
+                      <CardDescription>
+                        Generation creates a draft. Saving is always an explicit
+                        action.
+                      </CardDescription>
                     </div>
-                    {previewState === "error" ? (
-                      <p className="react-preview-error">{previewError}</p>
-                    ) : preview ? (
-                      <iframe
-                        title="Rendered React component"
-                        className="react-preview-frame"
-                        sandbox="allow-scripts"
-                        srcDoc={`<!doctype html><html><body><div id="root"></div><script>${preview.replace(/<\/script/gi, "<\\/script")}</script></body></html>`}
-                      />
-                    ) : (
-                      <p className="react-preview-empty">
-                        The rendered component will appear here.
-                      </p>
-                    )}
-                  </section>
-                ) : null}
+                  )}
+                </Card>
               </div>
-            ) : (
-              <div className="empty">
-                <strong>Your answer will appear here.</strong>
-                <span>
-                  Generation creates a draft. Saving is always an explicit
-                  action.
-                </span>
-              </div>
-            )}
-          </section>
-        </div>
 
-        <aside className="inspector card">
-          <nav className="panel-tabs" aria-label="Inspector panels">
-            {panels.map((item) => (
-              <button
-                key={item.id}
-                className={panel === item.id ? "active" : ""}
-                onClick={() => setPanel(item.id)}
+              <Drawer
+                modal={false}
+                open={inspectorOpen}
+                onOpenChange={setInspectorOpen}
               >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-
-          {panel === "terminal" ? (
-            <section className="terminal-panel" aria-label="Terminal">
-              <div className="terminal-titlebar">
-                <div className="terminal-lights" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <strong>iTerm</strong>
-                <span className="terminal-cwd">
-                  tmux · workspace · project root
-                </span>
-              </div>
-              <BrowserTerminal />
-            </section>
-          ) : null}
-
-          {panel === "notes" ? (
-            <StudioTextarea
-              label="Private notes"
-              description="Notes remain local and are stored only when you save."
-              rows={18}
-              value={notes}
-              onChange={(value) => {
-                localEdits.current = true;
-                setNotes(value);
-              }}
-            />
-          ) : null}
-
-          {panel === "output" ? (
-            <div className="output">
-              <div className="output-toolbar">
-                <span className="output-label">Display</span>
-                <button
-                  type="button"
-                  className="output-wrap-toggle"
-                  aria-pressed={wordWrap}
-                  aria-label="Toggle word wrap"
-                  onClick={toggleWordWrap}
+                <DrawerContent
+                  side="right"
+                  overlay={false}
+                  forceMount
+                  className="inspector-drawer"
+                  aria-label="Inspector"
+                  onInteractOutside={(event) => {
+                    const target = event.target;
+                    if (
+                      target instanceof Element &&
+                      target.closest(".topbar")
+                    ) {
+                      event.preventDefault();
+                      return;
+                    }
+                    if (terminalOpen) {
+                      event.preventDefault();
+                      return;
+                    }
+                    setInspectorOpen(false);
+                  }}
                 >
-                  Word wrap: {wordWrap ? "On" : "Off"}
-                </button>
-              </div>
-              <div
-                className="output-tabs"
-                role="tablist"
-                aria-label="Run output"
-              >
-                <button
-                  role="tab"
-                  aria-selected={outputTab === "solution"}
-                  className={outputTab === "solution" ? "active" : ""}
-                  onClick={() => setOutputTab("solution")}
-                >
-                  Normal output
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={outputTab === "tests"}
-                  className={outputTab === "tests" ? "active" : ""}
-                  onClick={() => setOutputTab("tests")}
-                >
-                  Test results
-                </button>
-              </div>
-              {outputTab === "tests" && !output.tests ? (
-                <div className="output-empty output-pending">
-                  {answer?.testCode.trim()
-                    ? "Tests are running…"
-                    : "No tests supplied for this answer."}
-                </div>
-              ) : outputTab === "solution" && !output.solution ? (
-                <div className="output-empty output-pending">
-                  Running solution…
-                </div>
-              ) : (
-                <>
-                  {(() => {
-                    const result =
-                      outputTab === "tests" ? output.tests : output.solution;
-                    if (!result) return null;
-                    const failed = result.exitCode !== 0 || result.timedOut;
-                    return (
-                      <>
-                        <div
-                          className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
-                        >
-                          <span>
-                            {failed ? "Failed" : "Passed"} · exit{" "}
-                            {String(result.exitCode)} · {result.durationMs}ms
-                          </span>
+                  <DrawerHeader className="inspector-header">
+                    <DrawerTitle>Inspector</DrawerTitle>
+                    <DrawerDescription>
+                      Review notes, execution output, and saved answers.
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <div className="inspector-scroll">
+                    <div className="card p-4">
+                      <nav className="panel-tabs" aria-label="Inspector panels">
+                        {panels.map((item) => (
                           <button
-                            type="button"
-                            className="copy-output"
-                            aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                            title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                            onClick={() => void copyOutput(outputTab, result)}
+                            key={item.id}
+                            className={panel === item.id ? "active" : ""}
+                            onClick={() => {
+                              setPanel(item.id);
+                              setInspectorOpen(true);
+                            }}
                           >
-                            {copiedOutput === outputTab ? "✓" : "⧉"}
+                            {item.label}
                           </button>
+                        ))}
+                      </nav>
+
+                      {panel === "notes" ? (
+                        <StudioTextarea
+                          label="Private notes"
+                          description="Notes remain local and are stored only when you save."
+                          rows={18}
+                          value={notes}
+                          onChange={(value) => {
+                            localEdits.current = true;
+                            setNotes(value);
+                          }}
+                        />
+                      ) : null}
+
+                      {panel === "output" ? (
+                        <div className="output">
+                          <div className="output-toolbar">
+                            <span className="output-label">Display</span>
+                            <button
+                              type="button"
+                              className="output-wrap-toggle"
+                              aria-pressed={wordWrap}
+                              aria-label="Toggle word wrap"
+                              onClick={toggleWordWrap}
+                            >
+                              Word wrap: {wordWrap ? "On" : "Off"}
+                            </button>
+                          </div>
+                          <div
+                            className="output-tabs"
+                            role="tablist"
+                            aria-label="Run output"
+                          >
+                            <button
+                              role="tab"
+                              aria-selected={outputTab === "solution"}
+                              className={
+                                outputTab === "solution" ? "active" : ""
+                              }
+                              onClick={() => setOutputTab("solution")}
+                            >
+                              Normal output
+                            </button>
+                            <button
+                              role="tab"
+                              aria-selected={outputTab === "tests"}
+                              className={outputTab === "tests" ? "active" : ""}
+                              onClick={() => setOutputTab("tests")}
+                            >
+                              Test results
+                            </button>
+                          </div>
+                          {outputTab === "tests" && !output.tests ? (
+                            <div className="output-empty output-pending">
+                              {answer?.testCode.trim()
+                                ? "Tests are running…"
+                                : "No tests supplied for this answer."}
+                            </div>
+                          ) : outputTab === "solution" && !output.solution ? (
+                            <div className="output-empty output-pending">
+                              Running solution…
+                            </div>
+                          ) : (
+                            <>
+                              {(() => {
+                                const result =
+                                  outputTab === "tests"
+                                    ? output.tests
+                                    : output.solution;
+                                if (!result) return null;
+                                const failed =
+                                  result.exitCode !== 0 || result.timedOut;
+                                return (
+                                  <>
+                                    <div
+                                      className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
+                                    >
+                                      <span>
+                                        {failed ? "Failed" : "Passed"} · exit{" "}
+                                        {String(result.exitCode)} ·{" "}
+                                        {result.durationMs}
+                                        ms
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="copy-output"
+                                        aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                        title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                        onClick={() =>
+                                          void copyOutput(outputTab, result)
+                                        }
+                                      >
+                                        {copiedOutput === outputTab ? "✓" : "⧉"}
+                                      </button>
+                                    </div>
+                                    <pre
+                                      className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
+                                    >
+                                      {result.stdout ||
+                                        result.stderr ||
+                                        "(no output)"}
+                                    </pre>
+                                  </>
+                                );
+                              })()}
+                            </>
+                          )}
+                          {!output.solution && !output.tests && !answer ? (
+                            <div className="empty compact">
+                              Run a solution to see its output.
+                            </div>
+                          ) : null}
                         </div>
-                        <pre
-                          className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
-                        >
-                          {result.stdout || result.stderr || "(no output)"}
-                        </pre>
-                      </>
-                    );
-                  })()}
-                </>
-              )}
-              {!output.solution && !output.tests && !answer ? (
-                <div className="empty compact">
-                  Run a solution to see its output.
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+                      ) : null}
 
-          {panel === "saved" ? (
-            <div className="saved-list">
-              {savedAnswers.length === 0 ? (
-                <div className="empty compact">No saved answers yet.</div>
-              ) : (
-                <>
-                  {visibleSavedAnswers.map((saved) => (
-                    <div className="saved-item" key={saved.id}>
-                      <button onClick={() => openSaved(saved)}>
-                        <strong>{saved.title}</strong>
-                        <span>
-                          {saved.language} ·{" "}
-                          {new Date(saved.updatedAt).toLocaleDateString()}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Delete saved answer"
-                        onClick={() => void deleteSaved(saved.id)}
-                        disabled={busy}
-                      >
-                        Delete
-                      </button>
+                      {panel === "saved" ? (
+                        <div className="saved-list">
+                          {savedAnswers.length === 0 ? (
+                            <div className="empty compact">
+                              No saved answers yet.
+                            </div>
+                          ) : (
+                            <>
+                              {visibleSavedAnswers.map((saved) => (
+                                <div className="saved-item" key={saved.id}>
+                                  <button
+                                    type="button"
+                                    className="saved-open-button"
+                                    onClick={() => openSaved(saved)}
+                                  >
+                                    <strong>{saved.title}</strong>
+                                    <span>
+                                      {saved.language} ·{" "}
+                                      {new Date(
+                                        saved.updatedAt,
+                                      ).toLocaleDateString()}
+                                    </span>
+                                  </button>
+                                  <IconButton
+                                    className="saved-delete-button"
+                                    aria-label="Delete saved answer"
+                                    onClick={() => void deleteSaved(saved.id)}
+                                    disabled={busy}
+                                    icon={
+                                      <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 24 24"
+                                        width="16"
+                                        height="16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                      >
+                                        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7l1-3h4l1 3" />
+                                      </svg>
+                                    }
+                                  />
+                                </div>
+                              ))}
+                              {savedPageCount > 1 ? (
+                                <div
+                                  className="saved-pagination"
+                                  aria-label="Saved answers pagination"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSavedPage((page) =>
+                                        Math.max(0, page - 1),
+                                      )
+                                    }
+                                    disabled={savedPage === 0}
+                                  >
+                                    Previous
+                                  </button>
+                                  <span>
+                                    Page {savedPage + 1} of {savedPageCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSavedPage((page) =>
+                                        Math.min(savedPageCount - 1, page + 1),
+                                      )
+                                    }
+                                    disabled={savedPage >= savedPageCount - 1}
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <p className="status" role="status">
+                        {status}
+                      </p>
                     </div>
-                  ))}
-                  {savedPageCount > 1 ? (
-                    <div
-                      className="saved-pagination"
-                      aria-label="Saved answers pagination"
+                    <section
+                      className={`terminal-dock ${terminalOpen ? "" : "terminal-dock-hidden"}`}
+                      aria-label="Terminal"
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSavedPage((page) => Math.max(0, page - 1))
-                        }
-                        disabled={savedPage === 0}
-                      >
-                        Previous
-                      </button>
-                      <span>
-                        Page {savedPage + 1} of {savedPageCount}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSavedPage((page) =>
-                            Math.min(savedPageCount - 1, page + 1),
-                          )
-                        }
-                        disabled={savedPage >= savedPageCount - 1}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ) : null}
-
-          <p className="status" role="status">
-            {status}
-          </p>
-        </aside>
-      </section>
-    </main>
+                      <div className="terminal-titlebar">
+                        <strong>Terminal</strong>
+                        <span className="terminal-cwd">
+                          tmux · workspace · project root
+                        </span>
+                        <IconButton
+                          className="terminal-close-button"
+                          aria-label="Close terminal"
+                          onClick={() => setTerminalOpen(false)}
+                          icon={
+                            <svg
+                              aria-hidden="true"
+                              viewBox="0 0 24 24"
+                              width="18"
+                              height="18"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="m7 7 10 10M17 7 7 17" />
+                            </svg>
+                          }
+                        />
+                      </div>
+                      <BrowserTerminal />
+                    </section>
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            </section>
+          </div>
+        </main>
+      </App>
+    </ConfigProvider>
   );
 }

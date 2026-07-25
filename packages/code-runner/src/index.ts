@@ -47,11 +47,14 @@ const testRuntimes = {
     dockerArguments: [
       "--tmpfs",
       "/runner/vendor/pestphp/pest-plugin-mutate/.temp:rw,noexec,nosuid,size=4m",
+      "--tmpfs",
+      "/runner/vendor/pestphp/pest/.temp:rw,noexec,nosuid,size=4m",
     ],
     command: [
       "/runner/vendor/bin/pest",
       "--colors=never",
       "--no-coverage",
+      "--do-not-cache-result",
       "--configuration",
       "/runner/phpunit.xml",
       "/workspace/SolutionTest.php",
@@ -100,6 +103,14 @@ const testRuntimes = {
 
 function stripPhpTags(source: string): string {
   return source.replace(/<\?php\s*/gi, "").replace(/\?>\s*/g, "");
+}
+
+function buildPhpTestSource(solution: string, tests: string): string {
+  const sections = [solution, tests]
+    .map(stripPhpTags)
+    .filter((section) => section.trim());
+
+  return sections.length ? `<?php\n${sections.join("\n\n")}` : "";
 }
 
 const syntaxRuntimes = {
@@ -187,7 +198,7 @@ export class DockerCodeRunner implements CodeRunner {
     const sourcePath = join(temporaryDirectory, runtime.filename);
     const source =
       input.language === "php"
-        ? input.code.replace(/^\s*<\?php\s*/, "").replace(/\?>\s*$/, "")
+        ? buildPhpTestSource(input.code, "")
         : input.code;
     await writeFile(sourcePath, source, { mode: 0o600 });
 
@@ -239,11 +250,12 @@ export class DockerCodeRunner implements CodeRunner {
     const sourcePath = join(temporaryDirectory, runtime.filename);
     // Test runs must stay focused on assertions. Usage output belongs only in
     // the normal-output phase and must never pollute the Test results tab.
-    const sections =
+    const source =
       input.language === "php"
-        ? [input.code, input.testCode].map(stripPhpTags)
-        : [input.code, input.testCode];
-    const source = sections.filter((section) => section.trim()).join("\n\n");
+        ? buildPhpTestSource(input.code, input.testCode)
+        : [input.code, input.testCode]
+            .filter((section) => section.trim())
+            .join("\n\n");
     await writeFile(sourcePath, source, { mode: 0o600 });
 
     const dockerArguments = [
