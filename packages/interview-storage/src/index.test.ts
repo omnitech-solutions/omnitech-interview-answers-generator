@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { JsonAnswerRepository } from "./index.js";
+import { JsonAnswerRepository, JsonExplanationRepository } from "./index.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -14,6 +14,50 @@ afterEach(async () => {
       .splice(0)
       .map((directory) => rm(directory, { recursive: true, force: true })),
   );
+});
+
+describe("JsonExplanationRepository", () => {
+  it("creates, updates, sorts, and deletes explanations", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-storage-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonExplanationRepository(directory);
+    expect(await repository.list()).toEqual([]);
+    const first = await repository.save({
+      topic: "React",
+      title: "React",
+      markdown: "First",
+    });
+    const updated = await repository.save({
+      id: first.id,
+      topic: "React",
+      title: "React lifecycle",
+      markdown: "Updated",
+    });
+    expect(updated.createdAt).toBe(first.createdAt);
+    expect(await repository.get(first.id)).toEqual(updated);
+    expect(await repository.delete("missing")).toBe(false);
+    expect(await repository.delete(first.id)).toBe(true);
+    expect(await repository.get(first.id)).toBeUndefined();
+  });
+
+  it("preserves supplied ids and surfaces malformed JSON", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-storage-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonExplanationRepository(directory);
+    const id = "123e4567-e89b-42d3-a456-426614174000";
+    expect(
+      (
+        await repository.save({
+          id,
+          topic: "Queues",
+          title: "Queues",
+          markdown: "FIFO",
+        })
+      ).id,
+    ).toBe(id);
+    await writeFile(repository.filePath, "{broken");
+    await expect(repository.list()).rejects.toBeInstanceOf(SyntaxError);
+  });
 });
 
 describe("JsonAnswerRepository", () => {

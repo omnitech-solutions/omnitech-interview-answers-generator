@@ -5,7 +5,9 @@ const createAiClientFromEnv = vi.fn(() => ({ generateObject }));
 
 vi.mock("@omnitech/ai-sdk", () => ({ createAiClientFromEnv }));
 
-const { generateInterviewAnswer } = await import("./services.js");
+const { generateExplanation, generateInterviewAnswer } = await import(
+  "./services.js"
+);
 
 describe("generateInterviewAnswer", () => {
   beforeEach(() => {
@@ -52,6 +54,42 @@ describe("generateInterviewAnswer", () => {
       language: "php",
     });
 
+    expect(generateObject).toHaveBeenCalledWith(
+      expect.not.objectContaining({ providerId: expect.anything() }),
+    );
+  });
+
+  it("generates a concise explanation with candidate evidence available", async () => {
+    generateObject.mockResolvedValueOnce({
+      object: { title: "React hooks", markdown: "## Talking points" },
+    });
+    await expect(
+      generateExplanation({
+        topic: "Explain React hooks",
+        context: "Karat screen",
+        providerId: "local",
+      }),
+    ).resolves.toEqual({
+      title: "React hooks",
+      markdown: "## Talking points",
+    });
+    expect(generateObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: "local",
+        prompt: expect.stringContaining("Explain React hooks"),
+        maxOutputTokens: 2_200,
+        system: expect.stringMatching(
+          /where to start[\s\S]*Question N[\s\S]*> \*\*Answer:\*\*/,
+        ),
+      }),
+    );
+  });
+
+  it("omits optional explanation inputs", async () => {
+    generateObject.mockResolvedValueOnce({
+      object: { title: "Queues", markdown: "FIFO" },
+    });
+    await generateExplanation({ topic: "Queues" });
     expect(generateObject).toHaveBeenCalledWith(
       expect.not.objectContaining({ providerId: expect.anything() }),
     );

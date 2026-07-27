@@ -38,6 +38,12 @@ description: Simplicity-first engineering and automatic interview routing
   **Edge cases**, and **Talking points** sections. Bold the key domain terms,
   invariants, trade-offs, and complexity notation so they are easy to use as
   interview talking points.
+- Concept explanations must be deliverable aloud: default to a 60–90 second
+  briefing with a verbatim “I’d start by…” opening, a 3–5 step answer plan, and
+  grouped spoken responses. For multi-part prompts, show where to start and
+  what to discuss next instead of producing an exhaustive essay. Avoid
+  repetition and cap follow-ups and deeper trade-offs at three each unless the
+  user requests a deep dive.
 - Keep the exact required entry-point function or component above all helper
   methods and helper functions. Helpers may follow the entry point; do not
   hide the main function below implementation details.

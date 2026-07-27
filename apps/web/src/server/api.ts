@@ -3,14 +3,19 @@ import { randomUUID } from "node:crypto";
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
   generateRequestSchema,
+  explanationRequestSchema,
   routeQuestion,
   routeRequestSchema,
   runAllRequestSchema,
   runRequestSchema,
   saveAnswerRequestSchema,
+  saveExplanationRequestSchema,
   syntaxCheckRequestSchema,
 } from "@omnitech/interview-contracts";
-import { parsePlaygroundPatch } from "@omnitech/interview-playground-control";
+import {
+  parsePlaygroundExplanation,
+  parsePlaygroundPatch,
+} from "@omnitech/interview-playground-control";
 import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
@@ -18,6 +23,8 @@ import { playgroundControlStore } from "./playground-control";
 import {
   answerRepository,
   codeRunner,
+  explanationRepository,
+  generateExplanation,
   generateInterviewAnswer,
 } from "./services";
 
@@ -138,19 +145,25 @@ p solve([1, 2, 3])`,
 
 console.log(solve([1, 2, 3]));`,
     };
-    const content = JSON.stringify({
-      title: `Fake ${language} Answer`,
-      language: languageId,
-      answerMarkdown:
-        "## Approach\n\nStart with the smallest correct implementation, verify the primary example, then discuss only improvements justified by the constraints.\n\n## Complexity\n\nTime: **O(n)**. Space: **O(n)** for the returned collection.",
-      code: codeByLanguage[languageId] ?? codeByLanguage["typescript"],
-      usageCode:
-        languageId === "react"
-          ? "// Render <App /> in the supplied React entry point."
-          : "// Print representative inputs and outputs here.",
-      testCode:
-        "The deterministic fake provider is intended for transport and UI tests.",
-    });
+    const content = prompt?.includes("Concept to explain:")
+      ? JSON.stringify({
+          title: "Interview-ready concept",
+          markdown:
+            "# Interview-ready concept\n\n## In one sentence\n\nExplain the core idea before the implementation detail.\n\n## Talking points\n\n- **Purpose:** connect the concept to a concrete problem.\n- **Trade-off:** state what improves and what it costs.\n\n## How it works\n\n```mermaid\nflowchart LR\n  A[Input] --> B[Decision]\n  B --> C[Outcome]\n```\n\n## Trade-offs and pitfalls\n\n- Avoid unnecessary complexity.\n\n## Interview example\n\nUse a concrete, measurable example.\n\n## Follow-up questions\n\n- What constraint changes the design?",
+        })
+      : JSON.stringify({
+          title: `Fake ${language} Answer`,
+          language: languageId,
+          answerMarkdown:
+            "## Approach\n\nStart with the smallest correct implementation, verify the primary example, then discuss only improvements justified by the constraints.\n\n## Complexity\n\nTime: **O(n)**. Space: **O(n)** for the returned collection.",
+          code: codeByLanguage[languageId] ?? codeByLanguage["typescript"],
+          usageCode:
+            languageId === "react"
+              ? "// Render <App /> in the supplied React entry point."
+              : "// Print representative inputs and outputs here.",
+          testCode:
+            "The deterministic fake provider is intended for transport and UI tests.",
+        });
 
     return context.json({
       id: `fake-${randomUUID()}`,
@@ -224,6 +237,77 @@ console.log(solve([1, 2, 3]));`,
     }
   });
 
+  app.post("/api/v1/explain", async (context) => {
+    const parsed = explanationRequestSchema.safeParse(await context.req.json());
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The explanation request is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(await generateExplanation(parsed.data));
+    } catch (error) {
+      console.error("Explanation generation failed", {
+        requestId: context.get("requestId"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return apiError(
+        context,
+        503,
+        "generation_failed",
+        "The configured AI provider could not generate an explanation.",
+      );
+    }
+  });
+
+  app.get("/api/v1/explanations", async (context) =>
+    context.json(await explanationRepository.list()),
+  );
+
+  app.get("/api/v1/explanations/:id", async (context) => {
+    const item = await explanationRepository.get(context.req.param("id"));
+    return item
+      ? context.json(item)
+      : apiError(
+          context,
+          404,
+          "not_found",
+          "The saved explanation was not found.",
+        );
+  });
+
+  app.post("/api/v1/explanations", async (context) => {
+    const parsed = saveExplanationRequestSchema.safeParse(
+      await context.req.json(),
+    );
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The explanation is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    return context.json(await explanationRepository.save(parsed.data), 201);
+  });
+
+  app.delete("/api/v1/explanations/:id", async (context) => {
+    const deleted = await explanationRepository.delete(context.req.param("id"));
+    return deleted
+      ? context.json({ deleted: true })
+      : apiError(
+          context,
+          404,
+          "not_found",
+          "The saved explanation was not found.",
+        );
+  });
+
   app.get("/api/v1/answers", async (context) => {
     const pageParam = context.req.query("page");
     const pageSizeParam = context.req.query("pageSize");
@@ -267,6 +351,23 @@ console.log(solve([1, 2, 3]));`,
         "invalid_playground_update",
         /* c8 ignore next -- parser errors are always Error instances here. */
         error instanceof Error ? error.message : "The update is invalid.",
+      );
+    }
+  });
+
+  app.post("/api/v1/playground-control/explanations", async (context) => {
+    try {
+      return context.json(
+        playgroundControlStore.appendExplanation(
+          parsePlaygroundExplanation(await context.req.json()),
+        ),
+      );
+    } catch (error) {
+      return apiError(
+        context,
+        400,
+        "invalid_explanation_append",
+        error instanceof Error ? error.message : "The append is invalid.",
       );
     }
   });

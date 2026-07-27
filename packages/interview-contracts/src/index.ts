@@ -1,6 +1,8 @@
 export { routeQuestion } from "./routing.js";
 export type {
   ApiError,
+  ExplanationRequest,
+  GeneratedExplanation,
   GeneratedAnswer,
   GenerateRequest,
   Language,
@@ -11,12 +13,16 @@ export type {
   RunRequest,
   RunResult,
   SaveAnswerRequest,
+  SaveExplanationRequest,
   SavedAnswer,
+  SavedExplanation,
   SyntaxCheckRequest,
 } from "./schemas.js";
 export {
   apiErrorSchema,
+  explanationRequestSchema,
   generatedAnswerSchema,
+  generatedExplanationSchema,
   generateRequestSchema,
   languageSchema,
   languageSelectionSchema,
@@ -26,7 +32,9 @@ export {
   runRequestSchema,
   runResultSchema,
   saveAnswerRequestSchema,
+  saveExplanationRequestSchema,
   savedAnswerSchema,
+  savedExplanationSchema,
   syntaxCheckRequestSchema,
 } from "./schemas.js";
 export {

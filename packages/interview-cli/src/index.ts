@@ -29,6 +29,7 @@ export async function createConfiguredClient(
 
   return {
     deleteAnswer: (id) => client.deleteAnswer(id),
+    explain: (input) => client.explain(input),
     generate: (input) =>
       client.generate({
         ...input,
@@ -37,6 +38,7 @@ export async function createConfiguredClient(
     getAnswer: (id) => client.getAnswer(id),
     health: () => client.health(),
     listAnswers: () => client.listAnswers(),
+    listExplanations: () => client.listExplanations(),
     route: (input) =>
       client.route({
         ...input,
@@ -55,6 +57,7 @@ export async function createConfiguredClient(
         notes: notes ?? "",
       });
     },
+    saveExplanation: (input) => client.saveExplanation(input),
   };
 }
 
@@ -78,12 +81,14 @@ export async function createConfiguredPlaygroundControlClient(
 export { configPath, readConfig, writeConfig } from "./config.js";
 export type {
   GeneratedInterviewAnswer,
+  GeneratedInterviewExplanation,
   InterviewAnswersClient,
   InterviewLanguage,
   InterviewLanguageSelection,
   InterviewRouteResult,
   InterviewRunResult,
   SavedInterviewAnswer,
+  SavedInterviewExplanation,
 } from "./public-types.js";
 export {
   createPlaygroundControlClient,

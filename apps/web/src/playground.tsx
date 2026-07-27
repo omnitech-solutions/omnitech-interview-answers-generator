@@ -41,10 +41,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import ReactMarkdown from "react-markdown";
 import { z } from "zod";
 
 import { BrowserTerminal } from "./browser-terminal";
+import { ConceptLab, type ConceptDraft } from "./concept-lab";
+import { MarkdownContent } from "./markdown-content";
 import { StudioTextarea } from "./studio-controls";
 
 type InspectorPanel = "notes" | "output" | "saved";
@@ -288,6 +289,11 @@ function syntaxLineNumber(raw: string): number | undefined {
 }
 
 export function Playground() {
+  const [activeView, setActiveView] = useState<"playground" | "concept-lab">(
+    "playground",
+  );
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const [externalConcepts, setExternalConcepts] = useState<ConceptDraft[]>([]);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
@@ -497,6 +503,11 @@ export function Playground() {
           normalizeAnswer(snapshot.value.answer as GeneratedAnswer | undefined),
         );
         setNotes(snapshot.value.notes);
+        setActiveView(snapshot.value.view ?? "playground");
+        setExternalConcepts(
+          snapshot.value.explanations ??
+            (snapshot.value.explanation ? [snapshot.value.explanation] : []),
+        );
         const nextPanel: InspectorPanel =
           snapshot.value.panel === "notes" || snapshot.value.panel === "saved"
             ? snapshot.value.panel
@@ -822,7 +833,30 @@ export function Playground() {
     <ConfigProvider theme={{ mode: theme }}>
       <App>
         <main className="studio">
-          <header className="topbar">
+          <header
+            className={`topbar ${
+              activeView === "concept-lab" ? "topbar-concept" : ""
+            }`}
+          >
+            <IconButton
+              className="navigation-toggle"
+              aria-label="Open navigation"
+              aria-expanded={navigationOpen}
+              onClick={() => setNavigationOpen((open) => !open)}
+              icon={
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  width="19"
+                  height="19"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M4 7h16M4 12h16M4 17h16" />
+                </svg>
+              }
+            />
             <div className="topbar-brand">
               <span className="brand-symbol" aria-hidden="true">
                 <svg
@@ -844,689 +878,760 @@ export function Playground() {
                 <p>Think clearly. Code confidently.</p>
               </div>
             </div>
-            <label className="topbar-example">
-              <span>Example template</span>
-              <select
-                aria-label="Example template"
-                value={exampleId}
-                onChange={(event) => selectExample(event.target.value)}
-              >
-                <option value="">Choose a realistic example…</option>
-                {preparedExampleTemplates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="toolbar">
-              <label>
-                <span>Language</span>
+            {activeView === "playground" ? (
+              <label className="topbar-example">
+                <span>Example template</span>
                 <select
-                  value={language}
-                  onChange={(event) =>
-                    setLanguage(event.target.value as LanguageSelection)
-                  }
+                  aria-label="Example template"
+                  value={exampleId}
+                  onChange={(event) => selectExample(event.target.value)}
                 >
-                  {languages.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
+                  <option value="">Choose a realistic example…</option>
+                  {preparedExampleTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
                     </option>
                   ))}
                 </select>
               </label>
-              <Button variant="outline" onClick={newPlayground} disabled={busy}>
-                New
-              </Button>
-              <Button
-                className="generate-button"
-                onClick={generate}
-                disabled={busy || !question.trim()}
-              >
-                {busy ? "Working…" : "Generate"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={save}
-                disabled={busy || !answer}
-              >
-                Save
-              </Button>
-              <span className="toolbar-divider" aria-hidden="true" />
-              <Button
-                className="run-button"
-                variant="outline"
-                onClick={() => void run()}
-                disabled={busy || !answer}
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5.5v13l10-6.5z" />
-                </svg>
-                Run All
-              </Button>
-              <span className="toolbar-divider" aria-hidden="true" />
-              <IconButton
-                variant={terminalOpen ? "secondary" : "outline"}
-                className="terminal-toggle-button"
-                aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
-                aria-pressed={terminalOpen}
-                onClick={() => {
-                  setTerminalOpen((current) => {
-                    const nextOpen = !current;
-                    if (nextOpen) setInspectorOpen(true);
-                    return nextOpen;
-                  });
-                }}
-                icon={
+            ) : (
+              <div className="topbar-view-title">Concept Lab</div>
+            )}
+            {activeView === "playground" ? (
+              <div className="toolbar">
+                <label>
+                  <span>Language</span>
+                  <select
+                    value={language}
+                    onChange={(event) =>
+                      setLanguage(event.target.value as LanguageSelection)
+                    }
+                  >
+                    {languages.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant="outline"
+                  onClick={newPlayground}
+                  disabled={busy}
+                >
+                  New
+                </Button>
+                <Button
+                  className="generate-button"
+                  onClick={generate}
+                  disabled={busy || !question.trim()}
+                >
+                  {busy ? "Working…" : "Generate"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={save}
+                  disabled={busy || !answer}
+                >
+                  Save
+                </Button>
+                <span className="toolbar-divider" aria-hidden="true" />
+                <Button
+                  className="run-button"
+                  variant="outline"
+                  onClick={() => void run()}
+                  disabled={busy || !answer}
+                >
                   <svg
                     aria-hidden="true"
                     viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
+                    fill="currentColor"
                   >
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <path d="m7 9 3 3-3 3M13 15h4" />
+                    <path d="M8 5.5v13l10-6.5z" />
                   </svg>
-                }
-              />
-              <IconButton
-                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-                onClick={toggleTheme}
-                icon={
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="18"
-                    height="18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    {theme === "dark" ? (
-                      <>
-                        <circle cx="12" cy="12" r="4" />
-                        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
-                      </>
-                    ) : (
-                      <path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
-                    )}
-                  </svg>
-                }
-              />
-              <IconButton
-                variant={inspectorOpen ? "secondary" : "outline"}
-                className="inspector-toggle-button"
-                aria-label={inspectorOpen ? "Hide inspector" : "Show inspector"}
-                aria-pressed={inspectorOpen}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => {
-                  if (inspectorOpen) {
-                    setInspectorOpen(false);
-                    return;
+                  Run All
+                </Button>
+                <span className="toolbar-divider" aria-hidden="true" />
+                <IconButton
+                  variant={terminalOpen ? "secondary" : "outline"}
+                  className="terminal-toggle-button"
+                  aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
+                  aria-pressed={terminalOpen}
+                  onClick={() => {
+                    setTerminalOpen((current) => {
+                      const nextOpen = !current;
+                      if (nextOpen) setInspectorOpen(true);
+                      return nextOpen;
+                    });
+                  }}
+                  icon={
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <rect x="3" y="4" width="18" height="16" rx="2" />
+                      <path d="m7 9 3 3-3 3M13 15h4" />
+                    </svg>
                   }
-                  setInspectorOpen(true);
-                }}
-                icon={
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="20"
-                    height="20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="4" width="18" height="16" rx="2" />
-                    <path d="M15 4v16" />
-                  </svg>
-                }
-              />
-            </div>
+                />
+                <IconButton
+                  aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+                  onClick={toggleTheme}
+                  icon={
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      {theme === "dark" ? (
+                        <>
+                          <circle cx="12" cy="12" r="4" />
+                          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
+                        </>
+                      ) : (
+                        <path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
+                      )}
+                    </svg>
+                  }
+                />
+                <IconButton
+                  variant={inspectorOpen ? "secondary" : "outline"}
+                  className="inspector-toggle-button"
+                  aria-label={
+                    inspectorOpen ? "Hide inspector" : "Show inspector"
+                  }
+                  aria-pressed={inspectorOpen}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => {
+                    if (inspectorOpen) {
+                      setInspectorOpen(false);
+                      return;
+                    }
+                    setInspectorOpen(true);
+                  }}
+                  icon={
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="4" width="18" height="16" rx="2" />
+                      <path d="M15 4v16" />
+                    </svg>
+                  }
+                />
+              </div>
+            ) : (
+              <div />
+            )}
           </header>
 
-          <div
-            className={`studio-body ${inspectorOpen ? "inspector-visible" : ""}`}
-          >
-            <section className="workspace">
-              <div className="main-column">
-                <Card className="card question-card">
-                  <div className="section-heading">
-                    <div>
-                      <span className="step">01</span>
-                      <h2>Question</h2>
+          {navigationOpen ? (
+            <>
+              <button
+                className="navigation-scrim"
+                aria-label="Close navigation"
+                onClick={() => setNavigationOpen(false)}
+              />
+              <nav className="studio-navigation" aria-label="Studio">
+                <span className="eyebrow">WORKSPACES</span>
+                <button
+                  className={activeView === "playground" ? "active" : ""}
+                  onClick={() => {
+                    setActiveView("playground");
+                    setNavigationOpen(false);
+                  }}
+                >
+                  <strong>Playground</strong>
+                  <span>Solve, run, and test code</span>
+                </button>
+                <button
+                  className={activeView === "concept-lab" ? "active" : ""}
+                  onClick={() => {
+                    setActiveView("concept-lab");
+                    setNavigationOpen(false);
+                  }}
+                >
+                  <strong>Concept Lab</strong>
+                  <span>Prepare concise talking points</span>
+                </button>
+              </nav>
+            </>
+          ) : null}
+
+          {activeView === "concept-lab" ? (
+            <ConceptLab
+              {...(externalConcepts.length
+                ? { externalDrafts: externalConcepts }
+                : {})}
+            />
+          ) : (
+            <div
+              className={`studio-body ${inspectorOpen ? "inspector-visible" : ""}`}
+            >
+              <section className="workspace">
+                <div className="main-column">
+                  <Card className="card question-card">
+                    <div className="section-heading">
+                      <div>
+                        <span className="step">01</span>
+                        <h2>Question</h2>
+                      </div>
+                      <span className="save-state">
+                        {savedId ? "Saved" : "Playground · unsaved"}
+                      </span>
                     </div>
-                    <span className="save-state">
-                      {savedId ? "Saved" : "Playground · unsaved"}
-                    </span>
-                  </div>
-                  <div
-                    className="question-tabs"
-                    role="tablist"
-                    aria-label="Question view"
-                  >
-                    <button
-                      role="tab"
-                      aria-selected={questionTab === "input"}
-                      className={questionTab === "input" ? "active" : ""}
-                      onClick={() => setQuestionTab("input")}
+                    <div
+                      className="question-tabs"
+                      role="tablist"
+                      aria-label="Question view"
                     >
-                      Question input
-                    </button>
-                    <button
-                      role="tab"
-                      aria-selected={questionTab === "preview"}
-                      className={questionTab === "preview" ? "active" : ""}
-                      onClick={() => setQuestionTab("preview")}
-                    >
-                      Rendered preview
-                    </button>
-                  </div>
-                  {questionTab === "input" ? (
-                    <DynamicForm
-                      schema={setupSchema}
-                      zodSchema={setupZodSchema}
-                      formData={{ question }}
-                      onChange={(next) => {
-                        localEdits.current = true;
-                        setQuestion(next.question);
-                      }}
-                      onSubmit={() => undefined}
-                      uiSchema={{
-                        question: {
-                          "ui:widget": "textarea",
-                          "ui:options": {
-                            rows: 9,
-                            placeholder:
-                              "Paste a coding, React, API, debugging, or system-design question…",
+                      <button
+                        role="tab"
+                        aria-selected={questionTab === "input"}
+                        className={questionTab === "input" ? "active" : ""}
+                        onClick={() => setQuestionTab("input")}
+                      >
+                        Question input
+                      </button>
+                      <button
+                        role="tab"
+                        aria-selected={questionTab === "preview"}
+                        className={questionTab === "preview" ? "active" : ""}
+                        onClick={() => setQuestionTab("preview")}
+                      >
+                        Rendered preview
+                      </button>
+                    </div>
+                    {questionTab === "input" ? (
+                      <DynamicForm
+                        schema={setupSchema}
+                        zodSchema={setupZodSchema}
+                        formData={{ question }}
+                        onChange={(next) => {
+                          localEdits.current = true;
+                          setQuestion(next.question);
+                        }}
+                        onSubmit={() => undefined}
+                        uiSchema={{
+                          question: {
+                            "ui:widget": "textarea",
+                            "ui:options": {
+                              rows: 9,
+                              placeholder:
+                                "Paste a coding, React, API, debugging, or system-design question…",
+                            },
                           },
-                        },
-                        "ui:submitButtonOptions": { norender: true },
-                      }}
-                    />
-                  ) : (
-                    <article className="question-preview markdown">
-                      {question.trim() ? (
-                        <ReactMarkdown>{question}</ReactMarkdown>
-                      ) : (
-                        <span className="empty-preview">
-                          Your rendered question will appear here.
-                        </span>
-                      )}
-                    </article>
-                  )}
-                </Card>
-
-                <Card className="card answer-card">
-                  <div className="section-heading">
-                    <div>
-                      <span className="step">02</span>
-                      <h2>{answer?.title ?? "Answer"}</h2>
-                    </div>
-                    {answer ? (
-                      <Badge className="language-chip" variant="secondary">
-                        {answer.language}
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  {answer ? (
-                    <div className="answer-grid">
-                      <article className="markdown">
-                        <ReactMarkdown>{answer.answerMarkdown}</ReactMarkdown>
+                          "ui:submitButtonOptions": { norender: true },
+                        }}
+                      />
+                    ) : (
+                      <article className="question-preview markdown">
+                        {question.trim() ? (
+                          <MarkdownContent>{question}</MarkdownContent>
+                        ) : (
+                          <span className="empty-preview">
+                            Your rendered question will appear here.
+                          </span>
+                        )}
                       </article>
-                      <div className="editor-shell">
-                        <div
-                          className="editor-tabs"
-                          role="tablist"
-                          aria-label="Code"
-                        >
-                          {editorTabs.map((tab) => (
-                            <button
-                              key={tab.id}
-                              role="tab"
-                              aria-selected={editorTab === tab.id}
-                              className={editorTab === tab.id ? "active" : ""}
-                              onClick={() => {
-                                syntaxRequestId.current += 1;
-                                setEditorTab(tab.id);
+                    )}
+                  </Card>
+
+                  <Card className="card answer-card">
+                    <div className="section-heading">
+                      <div>
+                        <span className="step">02</span>
+                        <h2>{answer?.title ?? "Answer"}</h2>
+                      </div>
+                      {answer ? (
+                        <Badge className="language-chip" variant="secondary">
+                          {answer.language}
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    {answer ? (
+                      <div className="answer-grid">
+                        <article className="markdown">
+                          <MarkdownContent>
+                            {answer.answerMarkdown}
+                          </MarkdownContent>
+                        </article>
+                        <div className="editor-shell">
+                          <div
+                            className="editor-tabs"
+                            role="tablist"
+                            aria-label="Code"
+                          >
+                            {editorTabs.map((tab) => (
+                              <button
+                                key={tab.id}
+                                role="tab"
+                                aria-selected={editorTab === tab.id}
+                                className={editorTab === tab.id ? "active" : ""}
+                                onClick={() => {
+                                  syntaxRequestId.current += 1;
+                                  setEditorTab(tab.id);
+                                  setSyntaxState("idle");
+                                  setSyntaxMessage("");
+                                }}
+                              >
+                                {tab.label}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="editable-code-shell">
+                            <CodeMirror
+                              value={editorValue}
+                              height="430px"
+                              extensions={editorExtensions}
+                              theme="dark"
+                              onBlur={() => void checkSyntax(editorTab)}
+                              aria-label={
+                                editorTab === "solution"
+                                  ? "Editable main solution"
+                                  : editorTab === "usage"
+                                    ? "Editable usage and output"
+                                    : "Editable tests"
+                              }
+                              onChange={(source) => {
+                                const normalizedSource =
+                                  addsPhpEditorPrefix &&
+                                  source.startsWith(PHP_EDITOR_PREFIX)
+                                    ? source.slice(PHP_EDITOR_PREFIX.length)
+                                    : source;
+                                localEdits.current = true;
                                 setSyntaxState("idle");
                                 setSyntaxMessage("");
+                                setAnswer({
+                                  ...answer,
+                                  ...(editorTab === "solution"
+                                    ? { code: normalizedSource }
+                                    : editorTab === "usage"
+                                      ? { usageCode: normalizedSource }
+                                      : { testCode: normalizedSource }),
+                                });
+                              }}
+                            />
+                            <IconButton
+                              className="copy-code-button"
+                              aria-label={
+                                copiedCode ? "Code copied" : "Copy code"
+                              }
+                              title={copiedCode ? "Code copied" : "Copy code"}
+                              onClick={() => void copyEditorCode()}
+                              icon={
+                                <svg
+                                  aria-hidden="true"
+                                  viewBox="0 0 24 24"
+                                  width="16"
+                                  height="16"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                >
+                                  <rect
+                                    x="8"
+                                    y="8"
+                                    width="12"
+                                    height="12"
+                                    rx="2"
+                                  />
+                                  <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                                </svg>
+                              }
+                            />
+                          </div>
+                          {syntaxState !== "idle" ? (
+                            <div
+                              className={`syntax-status syntax-${syntaxState}`}
+                              aria-live="polite"
+                            >
+                              {syntaxState === "checking" ? (
+                                <strong>Checking syntax…</strong>
+                              ) : null}
+                              {syntaxState === "valid" ? (
+                                <strong>Syntax looks good</strong>
+                              ) : null}
+                              {syntaxState === "unavailable" ? (
+                                <>
+                                  <strong>Couldn’t check syntax</strong>
+                                  {syntaxMessage ? (
+                                    <span>{syntaxMessage}</span>
+                                  ) : null}
+                                </>
+                              ) : null}
+                              {syntaxState === "invalid" ? (
+                                <>
+                                  <pre
+                                    className="syntax-raw"
+                                    aria-label="Syntax checker output"
+                                  >
+                                    {syntaxMessage ||
+                                      "Syntax checker reported an error."}
+                                  </pre>
+                                </>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                        {answer.language === "react" ? (
+                          <section
+                            className="react-preview-panel"
+                            aria-label="React rendered preview"
+                          >
+                            <div className="react-preview-heading">
+                              <h3>Rendered React preview</h3>
+                              <span>
+                                {previewState === "loading"
+                                  ? "Compiling…"
+                                  : previewState === "ready"
+                                    ? "Live"
+                                    : null}
+                              </span>
+                            </div>
+                            {previewState === "error" ? (
+                              <p className="react-preview-error">
+                                {previewError}
+                              </p>
+                            ) : preview ? (
+                              <iframe
+                                title="Rendered React component"
+                                className="react-preview-frame"
+                                sandbox="allow-scripts"
+                                srcDoc={`<!doctype html><html><body><div id="root"></div><script>${preview.replace(/<\/script/gi, "<\\/script")}</script></body></html>`}
+                              />
+                            ) : (
+                              <p className="react-preview-empty">
+                                The rendered component will appear here.
+                              </p>
+                            )}
+                          </section>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="empty">
+                        <strong>Your answer will appear here.</strong>
+                        <CardDescription>
+                          Generation creates a draft. Saving is always an
+                          explicit action.
+                        </CardDescription>
+                      </div>
+                    )}
+                  </Card>
+                </div>
+
+                <Drawer
+                  modal={false}
+                  open={inspectorOpen}
+                  onOpenChange={setInspectorOpen}
+                >
+                  <DrawerContent
+                    side="right"
+                    overlay={false}
+                    forceMount
+                    className="inspector-drawer"
+                    aria-label="Inspector"
+                    onInteractOutside={(event) => {
+                      const target = event.target;
+                      if (
+                        target instanceof Element &&
+                        target.closest(".topbar")
+                      ) {
+                        event.preventDefault();
+                        return;
+                      }
+                      if (terminalOpen) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setInspectorOpen(false);
+                    }}
+                  >
+                    <DrawerHeader className="inspector-header">
+                      <DrawerTitle>Inspector</DrawerTitle>
+                      <DrawerDescription>
+                        Review notes, execution output, and saved answers.
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    <div className="inspector-scroll">
+                      <div className="card p-4 inspector-main">
+                        <nav
+                          className="panel-tabs"
+                          aria-label="Inspector panels"
+                        >
+                          {panels.map((item) => (
+                            <button
+                              key={item.id}
+                              className={panel === item.id ? "active" : ""}
+                              onClick={() => {
+                                setPanel(item.id);
+                                setInspectorOpen(true);
                               }}
                             >
-                              {tab.label}
+                              {item.label}
                             </button>
                           ))}
-                        </div>
-                        <div className="editable-code-shell">
-                          <CodeMirror
-                            value={editorValue}
-                            height="430px"
-                            extensions={editorExtensions}
-                            theme="dark"
-                            onBlur={() => void checkSyntax(editorTab)}
-                            aria-label={
-                              editorTab === "solution"
-                                ? "Editable main solution"
-                                : editorTab === "usage"
-                                  ? "Editable usage and output"
-                                  : "Editable tests"
-                            }
-                            onChange={(source) => {
-                              const normalizedSource =
-                                addsPhpEditorPrefix &&
-                                source.startsWith(PHP_EDITOR_PREFIX)
-                                  ? source.slice(PHP_EDITOR_PREFIX.length)
-                                  : source;
+                        </nav>
+
+                        {panel === "notes" ? (
+                          <StudioTextarea
+                            label="Private notes"
+                            description="Notes remain local and are stored only when you save."
+                            rows={18}
+                            value={notes}
+                            onChange={(value) => {
                               localEdits.current = true;
-                              setSyntaxState("idle");
-                              setSyntaxMessage("");
-                              setAnswer({
-                                ...answer,
-                                ...(editorTab === "solution"
-                                  ? { code: normalizedSource }
-                                  : editorTab === "usage"
-                                    ? { usageCode: normalizedSource }
-                                    : { testCode: normalizedSource }),
-                              });
+                              setNotes(value);
                             }}
                           />
+                        ) : null}
+
+                        {panel === "output" ? (
+                          <div className="output">
+                            <div className="output-toolbar">
+                              <span className="output-label">Display</span>
+                              <button
+                                type="button"
+                                className="output-wrap-toggle"
+                                aria-pressed={wordWrap}
+                                aria-label="Toggle word wrap"
+                                onClick={toggleWordWrap}
+                              >
+                                Word wrap: {wordWrap ? "On" : "Off"}
+                              </button>
+                            </div>
+                            <div
+                              className="output-tabs"
+                              role="tablist"
+                              aria-label="Run output"
+                            >
+                              <button
+                                role="tab"
+                                aria-selected={outputTab === "solution"}
+                                className={
+                                  outputTab === "solution" ? "active" : ""
+                                }
+                                onClick={() => setOutputTab("solution")}
+                              >
+                                Normal output
+                              </button>
+                              <button
+                                role="tab"
+                                aria-selected={outputTab === "tests"}
+                                className={
+                                  outputTab === "tests" ? "active" : ""
+                                }
+                                onClick={() => setOutputTab("tests")}
+                              >
+                                Test results
+                              </button>
+                            </div>
+                            {outputTab === "tests" && !output.tests ? (
+                              <div className="output-empty output-pending">
+                                {answer?.testCode.trim()
+                                  ? "Tests are running…"
+                                  : "No tests supplied for this answer."}
+                              </div>
+                            ) : outputTab === "solution" && !output.solution ? (
+                              <div className="output-empty output-pending">
+                                Running solution…
+                              </div>
+                            ) : (
+                              <>
+                                {(() => {
+                                  const result =
+                                    outputTab === "tests"
+                                      ? output.tests
+                                      : output.solution;
+                                  if (!result) return null;
+                                  const failed =
+                                    result.exitCode !== 0 || result.timedOut;
+                                  return (
+                                    <>
+                                      <div
+                                        className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
+                                      >
+                                        <span>
+                                          {failed ? "Failed" : "Passed"} · exit{" "}
+                                          {String(result.exitCode)} ·{" "}
+                                          {result.durationMs}
+                                          ms
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className="copy-output"
+                                          aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                          title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                          onClick={() =>
+                                            void copyOutput(outputTab, result)
+                                          }
+                                        >
+                                          {copiedOutput === outputTab
+                                            ? "✓"
+                                            : "⧉"}
+                                        </button>
+                                      </div>
+                                      <pre
+                                        className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
+                                      >
+                                        {result.stdout ||
+                                          result.stderr ||
+                                          "(no output)"}
+                                      </pre>
+                                    </>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {!output.solution && !output.tests && !answer ? (
+                              <div className="empty compact">
+                                Run a solution to see its output.
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {panel === "saved" ? (
+                          <div className="saved-list">
+                            {savedAnswers.length === 0 ? (
+                              <div className="empty compact">
+                                No saved answers yet.
+                              </div>
+                            ) : (
+                              <>
+                                {visibleSavedAnswers.map((saved) => (
+                                  <div className="saved-item" key={saved.id}>
+                                    <button
+                                      type="button"
+                                      className="saved-open-button"
+                                      onClick={() => openSaved(saved)}
+                                    >
+                                      <strong>{saved.title}</strong>
+                                      <span>
+                                        {saved.language} ·{" "}
+                                        {new Date(
+                                          saved.updatedAt,
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    </button>
+                                    <IconButton
+                                      className="saved-delete-button"
+                                      aria-label="Delete saved answer"
+                                      onClick={() => void deleteSaved(saved.id)}
+                                      disabled={busy}
+                                      icon={
+                                        <svg
+                                          aria-hidden="true"
+                                          viewBox="0 0 24 24"
+                                          width="16"
+                                          height="16"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                        >
+                                          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7l1-3h4l1 3" />
+                                        </svg>
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                                {savedPageCount > 1 ? (
+                                  <div
+                                    className="saved-pagination"
+                                    aria-label="Saved answers pagination"
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSavedPage((page) =>
+                                          Math.max(0, page - 1),
+                                        )
+                                      }
+                                      disabled={savedPage === 0}
+                                    >
+                                      Previous
+                                    </button>
+                                    <span>
+                                      Page {savedPage + 1} of {savedPageCount}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSavedPage((page) =>
+                                          Math.min(
+                                            savedPageCount - 1,
+                                            page + 1,
+                                          ),
+                                        )
+                                      }
+                                      disabled={savedPage >= savedPageCount - 1}
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </>
+                            )}
+                          </div>
+                        ) : null}
+
+                        <p className="status" role="status">
+                          {status}
+                        </p>
+                      </div>
+                      <section
+                        className={`terminal-dock ${terminalOpen ? "" : "terminal-dock-hidden"}`}
+                        aria-label="Terminal"
+                      >
+                        <div className="terminal-titlebar">
+                          <strong>Terminal</strong>
+                          <span className="terminal-cwd">
+                            tmux · workspace · project root
+                          </span>
                           <IconButton
-                            className="copy-code-button"
-                            aria-label={
-                              copiedCode ? "Code copied" : "Copy code"
-                            }
-                            title={copiedCode ? "Code copied" : "Copy code"}
-                            onClick={() => void copyEditorCode()}
+                            className="terminal-close-button"
+                            aria-label="Close terminal"
+                            onClick={() => setTerminalOpen(false)}
                             icon={
                               <svg
                                 aria-hidden="true"
                                 viewBox="0 0 24 24"
-                                width="16"
-                                height="16"
+                                width="18"
+                                height="18"
                                 fill="none"
                                 stroke="currentColor"
-                                strokeWidth="1.8"
+                                strokeWidth="2"
                               >
-                                <rect
-                                  x="8"
-                                  y="8"
-                                  width="12"
-                                  height="12"
-                                  rx="2"
-                                />
-                                <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                                <path d="m7 7 10 10M17 7 7 17" />
                               </svg>
                             }
                           />
                         </div>
-                        {syntaxState !== "idle" ? (
-                          <div
-                            className={`syntax-status syntax-${syntaxState}`}
-                            aria-live="polite"
-                          >
-                            {syntaxState === "checking" ? (
-                              <strong>Checking syntax…</strong>
-                            ) : null}
-                            {syntaxState === "valid" ? (
-                              <strong>Syntax looks good</strong>
-                            ) : null}
-                            {syntaxState === "unavailable" ? (
-                              <>
-                                <strong>Couldn’t check syntax</strong>
-                                {syntaxMessage ? (
-                                  <span>{syntaxMessage}</span>
-                                ) : null}
-                              </>
-                            ) : null}
-                            {syntaxState === "invalid" ? (
-                              <>
-                                <pre
-                                  className="syntax-raw"
-                                  aria-label="Syntax checker output"
-                                >
-                                  {syntaxMessage ||
-                                    "Syntax checker reported an error."}
-                                </pre>
-                              </>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                      {answer.language === "react" ? (
-                        <section
-                          className="react-preview-panel"
-                          aria-label="React rendered preview"
-                        >
-                          <div className="react-preview-heading">
-                            <h3>Rendered React preview</h3>
-                            <span>
-                              {previewState === "loading"
-                                ? "Compiling…"
-                                : previewState === "ready"
-                                  ? "Live"
-                                  : null}
-                            </span>
-                          </div>
-                          {previewState === "error" ? (
-                            <p className="react-preview-error">
-                              {previewError}
-                            </p>
-                          ) : preview ? (
-                            <iframe
-                              title="Rendered React component"
-                              className="react-preview-frame"
-                              sandbox="allow-scripts"
-                              srcDoc={`<!doctype html><html><body><div id="root"></div><script>${preview.replace(/<\/script/gi, "<\\/script")}</script></body></html>`}
-                            />
-                          ) : (
-                            <p className="react-preview-empty">
-                              The rendered component will appear here.
-                            </p>
-                          )}
-                        </section>
-                      ) : null}
+                        <BrowserTerminal />
+                      </section>
                     </div>
-                  ) : (
-                    <div className="empty">
-                      <strong>Your answer will appear here.</strong>
-                      <CardDescription>
-                        Generation creates a draft. Saving is always an explicit
-                        action.
-                      </CardDescription>
-                    </div>
-                  )}
-                </Card>
-              </div>
-
-              <Drawer
-                modal={false}
-                open={inspectorOpen}
-                onOpenChange={setInspectorOpen}
-              >
-                <DrawerContent
-                  side="right"
-                  overlay={false}
-                  forceMount
-                  className="inspector-drawer"
-                  aria-label="Inspector"
-                  onInteractOutside={(event) => {
-                    const target = event.target;
-                    if (
-                      target instanceof Element &&
-                      target.closest(".topbar")
-                    ) {
-                      event.preventDefault();
-                      return;
-                    }
-                    if (terminalOpen) {
-                      event.preventDefault();
-                      return;
-                    }
-                    setInspectorOpen(false);
-                  }}
-                >
-                  <DrawerHeader className="inspector-header">
-                    <DrawerTitle>Inspector</DrawerTitle>
-                    <DrawerDescription>
-                      Review notes, execution output, and saved answers.
-                    </DrawerDescription>
-                  </DrawerHeader>
-                  <div className="inspector-scroll">
-                    <div className="card p-4 inspector-main">
-                      <nav className="panel-tabs" aria-label="Inspector panels">
-                        {panels.map((item) => (
-                          <button
-                            key={item.id}
-                            className={panel === item.id ? "active" : ""}
-                            onClick={() => {
-                              setPanel(item.id);
-                              setInspectorOpen(true);
-                            }}
-                          >
-                            {item.label}
-                          </button>
-                        ))}
-                      </nav>
-
-                      {panel === "notes" ? (
-                        <StudioTextarea
-                          label="Private notes"
-                          description="Notes remain local and are stored only when you save."
-                          rows={18}
-                          value={notes}
-                          onChange={(value) => {
-                            localEdits.current = true;
-                            setNotes(value);
-                          }}
-                        />
-                      ) : null}
-
-                      {panel === "output" ? (
-                        <div className="output">
-                          <div className="output-toolbar">
-                            <span className="output-label">Display</span>
-                            <button
-                              type="button"
-                              className="output-wrap-toggle"
-                              aria-pressed={wordWrap}
-                              aria-label="Toggle word wrap"
-                              onClick={toggleWordWrap}
-                            >
-                              Word wrap: {wordWrap ? "On" : "Off"}
-                            </button>
-                          </div>
-                          <div
-                            className="output-tabs"
-                            role="tablist"
-                            aria-label="Run output"
-                          >
-                            <button
-                              role="tab"
-                              aria-selected={outputTab === "solution"}
-                              className={
-                                outputTab === "solution" ? "active" : ""
-                              }
-                              onClick={() => setOutputTab("solution")}
-                            >
-                              Normal output
-                            </button>
-                            <button
-                              role="tab"
-                              aria-selected={outputTab === "tests"}
-                              className={outputTab === "tests" ? "active" : ""}
-                              onClick={() => setOutputTab("tests")}
-                            >
-                              Test results
-                            </button>
-                          </div>
-                          {outputTab === "tests" && !output.tests ? (
-                            <div className="output-empty output-pending">
-                              {answer?.testCode.trim()
-                                ? "Tests are running…"
-                                : "No tests supplied for this answer."}
-                            </div>
-                          ) : outputTab === "solution" && !output.solution ? (
-                            <div className="output-empty output-pending">
-                              Running solution…
-                            </div>
-                          ) : (
-                            <>
-                              {(() => {
-                                const result =
-                                  outputTab === "tests"
-                                    ? output.tests
-                                    : output.solution;
-                                if (!result) return null;
-                                const failed =
-                                  result.exitCode !== 0 || result.timedOut;
-                                return (
-                                  <>
-                                    <div
-                                      className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
-                                    >
-                                      <span>
-                                        {failed ? "Failed" : "Passed"} · exit{" "}
-                                        {String(result.exitCode)} ·{" "}
-                                        {result.durationMs}
-                                        ms
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="copy-output"
-                                        aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                                        title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                                        onClick={() =>
-                                          void copyOutput(outputTab, result)
-                                        }
-                                      >
-                                        {copiedOutput === outputTab ? "✓" : "⧉"}
-                                      </button>
-                                    </div>
-                                    <pre
-                                      className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
-                                    >
-                                      {result.stdout ||
-                                        result.stderr ||
-                                        "(no output)"}
-                                    </pre>
-                                  </>
-                                );
-                              })()}
-                            </>
-                          )}
-                          {!output.solution && !output.tests && !answer ? (
-                            <div className="empty compact">
-                              Run a solution to see its output.
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      {panel === "saved" ? (
-                        <div className="saved-list">
-                          {savedAnswers.length === 0 ? (
-                            <div className="empty compact">
-                              No saved answers yet.
-                            </div>
-                          ) : (
-                            <>
-                              {visibleSavedAnswers.map((saved) => (
-                                <div className="saved-item" key={saved.id}>
-                                  <button
-                                    type="button"
-                                    className="saved-open-button"
-                                    onClick={() => openSaved(saved)}
-                                  >
-                                    <strong>{saved.title}</strong>
-                                    <span>
-                                      {saved.language} ·{" "}
-                                      {new Date(
-                                        saved.updatedAt,
-                                      ).toLocaleDateString()}
-                                    </span>
-                                  </button>
-                                  <IconButton
-                                    className="saved-delete-button"
-                                    aria-label="Delete saved answer"
-                                    onClick={() => void deleteSaved(saved.id)}
-                                    disabled={busy}
-                                    icon={
-                                      <svg
-                                        aria-hidden="true"
-                                        viewBox="0 0 24 24"
-                                        width="16"
-                                        height="16"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.8"
-                                      >
-                                        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7l1-3h4l1 3" />
-                                      </svg>
-                                    }
-                                  />
-                                </div>
-                              ))}
-                              {savedPageCount > 1 ? (
-                                <div
-                                  className="saved-pagination"
-                                  aria-label="Saved answers pagination"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSavedPage((page) =>
-                                        Math.max(0, page - 1),
-                                      )
-                                    }
-                                    disabled={savedPage === 0}
-                                  >
-                                    Previous
-                                  </button>
-                                  <span>
-                                    Page {savedPage + 1} of {savedPageCount}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSavedPage((page) =>
-                                        Math.min(savedPageCount - 1, page + 1),
-                                      )
-                                    }
-                                    disabled={savedPage >= savedPageCount - 1}
-                                  >
-                                    Next
-                                  </button>
-                                </div>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                      ) : null}
-
-                      <p className="status" role="status">
-                        {status}
-                      </p>
-                    </div>
-                    <section
-                      className={`terminal-dock ${terminalOpen ? "" : "terminal-dock-hidden"}`}
-                      aria-label="Terminal"
-                    >
-                      <div className="terminal-titlebar">
-                        <strong>Terminal</strong>
-                        <span className="terminal-cwd">
-                          tmux · workspace · project root
-                        </span>
-                        <IconButton
-                          className="terminal-close-button"
-                          aria-label="Close terminal"
-                          onClick={() => setTerminalOpen(false)}
-                          icon={
-                            <svg
-                              aria-hidden="true"
-                              viewBox="0 0 24 24"
-                              width="18"
-                              height="18"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <path d="m7 7 10 10M17 7 7 17" />
-                            </svg>
-                          }
-                        />
-                      </div>
-                      <BrowserTerminal />
-                    </section>
-                  </div>
-                </DrawerContent>
-              </Drawer>
-            </section>
-          </div>
+                  </DrawerContent>
+                </Drawer>
+              </section>
+            </div>
+          )}
         </main>
       </App>
     </ConfigProvider>

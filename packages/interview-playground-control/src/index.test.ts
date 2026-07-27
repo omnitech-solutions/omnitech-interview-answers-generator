@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createPlaygroundControlClient,
   parsePlaygroundPatch,
+  parsePlaygroundExplanation,
   PlaygroundControlError,
 } from "./index";
 
@@ -43,6 +44,20 @@ describe("parsePlaygroundPatch", () => {
 
     expect(parsePlaygroundPatch({ answer })).toEqual({ answer });
     expect(parsePlaygroundPatch({ answer: null })).toEqual({ answer: null });
+  });
+
+  it("validates a Concept Lab explanation append", () => {
+    expect(
+      parsePlaygroundExplanation({
+        topic: "Follow-up",
+        title: "Race safety",
+        markdown: "Use a request generation.",
+      }),
+    ).toEqual({
+      topic: "Follow-up",
+      title: "Race safety",
+      markdown: "Use a request generation.",
+    });
   });
 
   it.each([
@@ -157,6 +172,39 @@ describe("createPlaygroundControlClient", () => {
       2,
       "http://localhost:3000/control",
       expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("appends an explanation through the dedicated endpoint", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        revision: 2,
+        updatedAt: "2026-07-25T00:00:00.000Z",
+        value: {},
+      }),
+    );
+    const client = createPlaygroundControlClient({
+      baseUrl: "http://localhost:3000",
+      fetch: fetchMock,
+    });
+    const explanation = {
+      topic: "Follow-up",
+      title: "Caching",
+      markdown: "Cache raw results.",
+    };
+
+    await client.appendExplanation(explanation);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3000/api/v1/playground-control/explanations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: explanation.title,
+          topic: explanation.topic,
+          markdown: explanation.markdown,
+        }),
+      }),
     );
   });
 

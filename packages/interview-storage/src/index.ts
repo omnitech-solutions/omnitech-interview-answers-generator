@@ -4,7 +4,9 @@ import { dirname, join } from "node:path";
 
 import type {
   SaveAnswerRequest,
+  SaveExplanationRequest,
   SavedAnswer,
+  SavedExplanation,
 } from "@omnitech/interview-contracts";
 
 export interface AnswerRepository {
@@ -13,6 +15,71 @@ export interface AnswerRepository {
   list(): Promise<SavedAnswer[]>;
   listPage(page: number, pageSize: number): Promise<AnswerPage>;
   save(input: SaveAnswerRequest): Promise<SavedAnswer>;
+}
+
+export class JsonExplanationRepository {
+  readonly filePath: string;
+
+  constructor(dataDirectory: string) {
+    this.filePath = join(dataDirectory, "explanations.json");
+  }
+
+  async list(): Promise<SavedExplanation[]> {
+    return (await this.readAll()).toSorted((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt),
+    );
+  }
+
+  async get(id: string): Promise<SavedExplanation | undefined> {
+    return (await this.readAll()).find((item) => item.id === id);
+  }
+
+  async save(input: SaveExplanationRequest): Promise<SavedExplanation> {
+    const items = await this.readAll();
+    const now = new Date().toISOString();
+    const index = input.id
+      ? items.findIndex((item) => item.id === input.id)
+      : -1;
+    const existing = index >= 0 ? items[index] : undefined;
+    const saved: SavedExplanation = {
+      ...input,
+      id: existing?.id ?? input.id ?? randomUUID(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (index >= 0) items[index] = saved;
+    else items.push(saved);
+    await this.writeAll(items);
+    return saved;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const items = await this.readAll();
+    const remaining = items.filter((item) => item.id !== id);
+    if (remaining.length === items.length) return false;
+    await this.writeAll(remaining);
+    return true;
+  }
+
+  private async readAll(): Promise<SavedExplanation[]> {
+    try {
+      return JSON.parse(
+        await readFile(this.filePath, "utf8"),
+      ) as SavedExplanation[];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
+    }
+  }
+
+  private async writeAll(items: SavedExplanation[]): Promise<void> {
+    await mkdir(dirname(this.filePath), { recursive: true });
+    const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`;
+    await writeFile(temporaryPath, `${JSON.stringify(items, null, 2)}\n`, {
+      mode: 0o600,
+    });
+    await rename(temporaryPath, this.filePath);
+  }
 }
 
 export interface AnswerPage {

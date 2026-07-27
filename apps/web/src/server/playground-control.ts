@@ -1,5 +1,6 @@
 import {
   type PlaygroundPatch,
+  type PlaygroundExplanation,
   type PlaygroundSnapshot,
   type PlaygroundValue,
 } from "@omnitech/interview-playground-control";
@@ -10,16 +11,22 @@ const emptyPlayground: PlaygroundValue = {
   answer: null,
   notes: "",
   panel: "terminal",
+  view: "playground",
+  explanation: null,
+  explanations: [],
 };
 
 interface PlaygroundControlStore {
   get(): PlaygroundSnapshot;
   reset(): PlaygroundSnapshot;
+  appendExplanation(explanation: PlaygroundExplanation): PlaygroundSnapshot;
   set(patch: PlaygroundPatch): PlaygroundSnapshot;
 }
 
-function createStore(): PlaygroundControlStore {
-  let snapshot: PlaygroundSnapshot = {
+function createStore(
+  initialSnapshot?: PlaygroundSnapshot,
+): PlaygroundControlStore {
+  let snapshot: PlaygroundSnapshot = initialSnapshot ?? {
     revision: 0,
     updatedAt: new Date().toISOString(),
     value: emptyPlayground,
@@ -36,7 +43,24 @@ function createStore(): PlaygroundControlStore {
 
   return {
     get: () => snapshot,
-    set: (patch) => update({ ...snapshot.value, ...patch }),
+    appendExplanation: (explanation) => {
+      const existing =
+        snapshot.value.explanations ??
+        (snapshot.value.explanation ? [snapshot.value.explanation] : []);
+      return update({
+        ...snapshot.value,
+        view: "concept-lab",
+        explanation,
+        explanations: [...existing, explanation],
+      });
+    },
+    set: (patch) => {
+      const next = { ...snapshot.value, ...patch };
+      if ("explanation" in patch) {
+        next.explanations = patch.explanation ? [patch.explanation] : [];
+      }
+      return update(next);
+    },
     reset: () => update(emptyPlayground),
   };
 }
@@ -47,7 +71,10 @@ declare global {
   var interviewPlaygroundControlStore: PlaygroundControlStore | undefined;
 }
 
+const existingStore = globalThis.interviewPlaygroundControlStore;
 export const playgroundControlStore =
-  globalThis.interviewPlaygroundControlStore ?? createStore();
+  existingStore && typeof existingStore.appendExplanation === "function"
+    ? existingStore
+    : createStore(existingStore?.get());
 
 globalThis.interviewPlaygroundControlStore = playgroundControlStore;

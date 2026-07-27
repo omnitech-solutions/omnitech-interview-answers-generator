@@ -112,6 +112,43 @@ export function createProgram(): Command {
       print(output, globals.format);
     });
 
+  program
+    .command("explain")
+    .description(
+      "Generate a concise interview briefing and open it in Concept Lab.",
+    )
+    .option("-t, --topic <topic>")
+    .option("-f, --file <path>")
+    .option("-c, --context <context>")
+    .option("--append", "append as a collapsed Concept Lab follow-up")
+    .option("--save", "persist the generated explanation")
+    .action(async (options) => {
+      const globals = globalOptions(program);
+      const topic = await readQuestion({
+        question: options.topic,
+        file: options.file,
+      });
+      const client = await createConfiguredClient(globals);
+      const explanation = await client.explain({
+        topic,
+        ...(options.context ? { context: options.context } : {}),
+      });
+      const output = options.save
+        ? await client.saveExplanation({ ...explanation, topic })
+        : explanation;
+      const playground = await createConfiguredPlaygroundControlClient(globals);
+      const draft = { ...explanation, topic };
+      if (options.append) {
+        await playground.appendExplanation(draft);
+      } else {
+        await playground.set({
+          view: "concept-lab",
+          explanation: draft,
+        });
+      }
+      print(output, globals.format);
+    });
+
   program.command("list").action(async () => {
     const globals = program.opts<{
       format: OutputFormat;
@@ -145,6 +182,26 @@ export function createProgram(): Command {
   });
 
   playground
+    .command("append-explanation")
+    .description("Append a collapsed follow-up to the current Concept Lab.")
+    .requiredOption("--topic <topic>")
+    .requiredOption("--title <title>")
+    .requiredOption("--markdown-file <path>")
+    .action(async (options) => {
+      const globals = globalOptions(program);
+      print(
+        await (
+          await createConfiguredPlaygroundControlClient(globals)
+        ).appendExplanation({
+          topic: options.topic,
+          title: options.title,
+          markdown: await readFile(options.markdownFile, "utf8"),
+        }),
+        globals.format,
+      );
+    });
+
+  playground
     .command("set")
     .description(
       "Patch Playground controls with --file/stdin JSON or individual options.",
@@ -154,6 +211,7 @@ export function createProgram(): Command {
     .option("-l, --language <language>")
     .option("--notes <notes>")
     .option("--panel <panel>", "notes, output, or saved")
+    .option("--view <view>", "playground or concept-lab")
     .option("--title <title>", "answer title")
     .option("--answer-markdown <markdown>")
     .option("--code-file <path>")
@@ -174,6 +232,7 @@ export function createProgram(): Command {
         options.usageCodeFile,
         options.testCodeFile,
         options.clearAnswer,
+        options.view,
       ].some((value) => value !== undefined && value !== false);
 
       if (options.file || (!hasNamedOptions && !process.stdin.isTTY)) {
@@ -191,6 +250,7 @@ export function createProgram(): Command {
             : { language: options.language }),
           ...(options.notes === undefined ? {} : { notes: options.notes }),
           ...(options.panel === undefined ? {} : { panel: options.panel }),
+          ...(options.view === undefined ? {} : { view: options.view }),
         });
 
         const hasAnswerFields =

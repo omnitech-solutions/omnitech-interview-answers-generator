@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiClient = {
   generate: vi.fn(),
+  explain: vi.fn(),
+  saveExplanation: vi.fn(),
   saveAnswer: vi.fn(),
   listAnswers: vi.fn(),
   health: vi.fn(),
@@ -12,6 +14,7 @@ const apiClient = {
   run: vi.fn(),
 };
 const playgroundClient = {
+  appendExplanation: vi.fn(),
   get: vi.fn(),
   set: vi.fn(),
   reset: vi.fn(),
@@ -100,6 +103,75 @@ describe("interview-answers CLI", () => {
     expect(process.stdout.write).toHaveBeenCalledWith(
       expect.stringContaining('"id": "saved"'),
     );
+  });
+
+  it("explains a topic, opens Concept Lab, and optionally saves", async () => {
+    apiClient.explain.mockResolvedValue({
+      title: "React hooks",
+      markdown: "## Talking points",
+    });
+    apiClient.saveExplanation.mockResolvedValue({
+      id: "saved",
+      title: "React hooks",
+      markdown: "## Talking points",
+      topic: "React hooks",
+    });
+    playgroundClient.set.mockResolvedValue({});
+
+    await run("explain", "--topic", "React hooks", "--save");
+
+    expect(apiClient.explain).toHaveBeenCalledWith({ topic: "React hooks" });
+    expect(apiClient.saveExplanation).toHaveBeenCalledWith({
+      title: "React hooks",
+      markdown: "## Talking points",
+      topic: "React hooks",
+    });
+    expect(playgroundClient.set).toHaveBeenCalledWith({
+      view: "concept-lab",
+      explanation: {
+        topic: "React hooks",
+        title: "React hooks",
+        markdown: "## Talking points",
+      },
+    });
+  });
+
+  it("explains file input with context without saving", async () => {
+    vi.mocked(readFile).mockResolvedValueOnce("System design");
+    apiClient.explain.mockResolvedValue({
+      title: "System design",
+      markdown: "Brief",
+    });
+    playgroundClient.set.mockResolvedValue({});
+    await run(
+      "explain",
+      "--file",
+      "topic.md",
+      "--context",
+      "Backend interview",
+    );
+    expect(apiClient.explain).toHaveBeenCalledWith({
+      topic: "System design",
+      context: "Backend interview",
+    });
+    expect(apiClient.saveExplanation).not.toHaveBeenCalled();
+  });
+
+  it("appends a generated explanation to the current Concept Lab session", async () => {
+    apiClient.explain.mockResolvedValue({
+      title: "Cache expiry",
+      markdown: "Expire stale entries.",
+    });
+    playgroundClient.appendExplanation.mockResolvedValue({});
+
+    await run("explain", "--topic", "Cache follow-up", "--append");
+
+    expect(playgroundClient.appendExplanation).toHaveBeenCalledWith({
+      topic: "Cache follow-up",
+      title: "Cache expiry",
+      markdown: "Expire stale entries.",
+    });
+    expect(playgroundClient.set).not.toHaveBeenCalled();
   });
 
   it("reads questions and save payloads from files", async () => {
@@ -221,6 +293,28 @@ describe("interview-answers CLI", () => {
       language: "react",
       notes: "Use updater",
       panel: "notes",
+    });
+  });
+
+  it("appends a prepared explanation from a Markdown file", async () => {
+    vi.mocked(readFile).mockResolvedValueOnce("Follow-up answer");
+    playgroundClient.appendExplanation.mockResolvedValue({});
+
+    await run(
+      "playground",
+      "append-explanation",
+      "--topic",
+      "Race safety",
+      "--title",
+      "Request generations",
+      "--markdown-file",
+      "follow-up.md",
+    );
+
+    expect(playgroundClient.appendExplanation).toHaveBeenCalledWith({
+      topic: "Race safety",
+      title: "Request generations",
+      markdown: "Follow-up answer",
     });
   });
 

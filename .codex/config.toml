@@ -8,6 +8,7 @@ Interview workflow routing:
 - Activate codex-interview-routing for explicit slash commands and matching
   plain-language requests.
   - /answer -> codex-interview-route-answer
+  - /explain -> codex-interview-route-explain
   - /playground -> codex-interview-route-playground
   - /playground-reset -> codex-interview-route-playground-reset
   - /playground-show -> codex-interview-route-playground-show
@@ -24,6 +25,10 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/codex-interview-route-answer/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-explain/SKILL.md"
 enabled = true
 
 [[skills.config]]
@@ -44,6 +49,10 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/codex-interview-routing/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/interview-concept-explainer/SKILL.md"
 enabled = true
 
 [[skills.config]]

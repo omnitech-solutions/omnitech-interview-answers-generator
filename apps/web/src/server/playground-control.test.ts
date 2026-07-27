@@ -95,4 +95,46 @@ describe("playgroundControlStore", () => {
       value: { question: "Preserved across a reload" },
     });
   });
+
+  it("upgrades a legacy global store while preserving its snapshot", async () => {
+    const snapshot = {
+      revision: 4,
+      updatedAt: "2026-07-25T08:00:00.000Z",
+      value: {
+        question: "",
+        language: "auto" as const,
+        answer: null,
+        notes: "",
+        panel: "terminal" as const,
+        view: "concept-lab" as const,
+        explanation: null,
+        explanations: [],
+      },
+    };
+    Reflect.set(globalThis, "interviewPlaygroundControlStore", {
+      get: () => snapshot,
+      reset: () => snapshot,
+      set: () => snapshot,
+    });
+
+    vi.resetModules();
+    const upgraded = (await import("./playground-control"))
+      .playgroundControlStore;
+
+    expect(upgraded.get()).toBe(snapshot);
+    expect(upgraded.appendExplanation).toBeTypeOf("function");
+    expect(
+      upgraded.appendExplanation({
+        title: "Follow-up",
+        topic: "Focus",
+        markdown: "# Focus",
+      }),
+    ).toMatchObject({
+      revision: 5,
+      value: {
+        explanation: { title: "Follow-up" },
+        explanations: [{ title: "Follow-up" }],
+      },
+    });
+  });
 });

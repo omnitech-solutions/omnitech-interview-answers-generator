@@ -3,7 +3,9 @@
 A local-first, AI-assisted coding interview workspace. Interview Studio routes
 questions to PHP, React, TypeScript, or Ruby; generates structured answers;
 provides editable solution, usage, and test code; and runs code in isolated
-Docker containers.
+Docker containers. Its Concept Lab prepares concise Markdown briefings for
+full-stack concepts, DSA, system design, behavioural questions, and
+candidate-experience stories.
 
 The workspace can be used interactively in the browser or controlled by Codex,
 Claude, shell scripts, and other tools through the `interview-answers` CLI. The
@@ -26,6 +28,15 @@ authentication details.
   project-root terminal.
 - CLI and generated Rulesync commands for reading, updating, resetting, and
   solving questions in the open Playground.
+- Burger navigation between the default Playground and Concept Lab without
+  discarding either workspace's draft state.
+- Interview-ready Concept Lab briefings with talking points, trade-offs,
+  rendered Mermaid workflows, GitHub-flavoured Markdown tables, browser draft
+  recovery, and explicit saving.
+- Interactive Mermaid controls for drag/pinch navigation, zoom in/out, reset,
+  fullscreen viewing, syntax disclosure, and syntax copying.
+- Experience-grounded explanations using the configured candidate experience
+  matrix; unsupported personal claims are never invented.
 
 ## Prerequisites
 
@@ -93,6 +104,7 @@ The web server reads the following variables from `apps/web/.env.local`:
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
 | `INTERVIEW_API_TOKEN` | Bearer token required for non-same-origin API calls | Unset |
 | `INTERVIEW_DATA_DIR` | Directory used by the JSON answer repository | `.data` |
+| `INTERVIEW_EXPERIENCE_MATRIX_PATH` | Candidate evidence used for experience-based explanations | `~/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json` |
 | `NEXT_PUBLIC_TERMINAL_GATEWAY_URL` | Browser WebSocket terminal URL | `ws://localhost:3001/terminal` |
 
 The terminal gateway accepts:
@@ -154,6 +166,14 @@ interview-answers ask \
 interview-answers ask --file question.md --save --format json
 interview-answers list
 cat answer.json | interview-answers save --format json
+interview-answers explain \
+  --topic "Explain React reconciliation and its performance trade-offs"
+interview-answers explain \
+  --topic "Give me a STAR story about modernizing a legacy workflow" \
+  --save
+interview-answers explain \
+  --topic "How would the cache change for pagination?" \
+  --append
 ```
 
 Update the open Playground directly:
@@ -166,12 +186,18 @@ interview-answers playground set \
   --panel notes
 
 interview-answers playground show
+interview-answers playground append-explanation \
+  --topic "Cache follow-up" \
+  --title "Pagination and cache keys" \
+  --markdown-file follow-up.md
 interview-answers playground reset
 ```
 
 The open page polls for external control changes and applies them within roughly
 500 ms. A complete Playground patch can also be supplied as JSON through
-`--file` or stdin.
+`--file` or stdin. Concept Lab keeps the first session briefing expanded;
+explanations added with `--append` or
+`POST /api/v1/playground-control/explanations` appear as collapsed follow-ups.
 
 CLI connection precedence is command flags, `INTERVIEW_API_URL` and
 `INTERVIEW_API_TOKEN`, then
@@ -185,6 +211,7 @@ Generated Rulesync commands provide the same workflow to supported coding
 agents:
 
 - `/answer` solves a supplied question and updates the live Playground.
+- `/explain` creates a concise briefing and updates Concept Lab.
 - `/playground` routes show, reset, and question-update requests.
 - `/playground-show` displays the current Playground state.
 - `/playground-reset` clears the Playground.
@@ -207,13 +234,14 @@ artifacts are current.
   adapter and one public entrypoint.
 - `@omnitech/interview-contracts`: shared Zod schemas, language routing, and
   prompt workflows.
-- `@omnitech/interview-storage`: persistence contract and JSON-file repository.
+- `@omnitech/interview-storage`: JSON repositories for saved coding answers and
+  Concept Lab explanations.
 - `@omnitech/code-runner`: isolated Docker execution, test, and syntax-check
   adapter.
 - `@omnitech/interview-api-client`: typed API client used by automation tools.
 - `@omnitech/interview-answers-cli`: global CLI and configured client factories.
-- `@omnitech/interview-playground-control`: typed `get`, `set`, and `reset`
-  client for the live Playground.
+- `@omnitech/interview-playground-control`: typed `get`, `set`,
+  `appendExplanation`, and `reset` client for the live Playground.
 - `@omnitech/interview-rulesync-codex`: validates and generates Codex-facing
   Rulesync artifacts.
 

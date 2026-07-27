@@ -18,6 +18,19 @@ export interface SavedInterviewAnswer extends GeneratedInterviewAnswer {
   updatedAt: string;
 }
 
+export interface GeneratedInterviewExplanation {
+  markdown: string;
+  title: string;
+}
+
+export interface SavedInterviewExplanation
+  extends GeneratedInterviewExplanation {
+  createdAt: string;
+  id: string;
+  topic: string;
+  updatedAt: string;
+}
+
 export interface InterviewRouteResult {
   confidence: number;
   language: InterviewLanguage;
@@ -39,9 +52,15 @@ export interface InterviewAnswersClient {
     providerId?: string | undefined;
     question: string;
   }): Promise<GeneratedInterviewAnswer>;
+  explain(input: {
+    context?: string | undefined;
+    providerId?: string | undefined;
+    topic: string;
+  }): Promise<GeneratedInterviewExplanation>;
   getAnswer(id: string): Promise<SavedInterviewAnswer>;
   health(): Promise<{ ok: boolean; providers: unknown[] }>;
   listAnswers(): Promise<SavedInterviewAnswer[]>;
+  listExplanations(): Promise<SavedInterviewExplanation[]>;
   route(input: {
     language?: InterviewLanguageSelection | undefined;
     question: string;
@@ -58,4 +77,10 @@ export interface InterviewAnswersClient {
       question: string;
     },
   ): Promise<SavedInterviewAnswer>;
+  saveExplanation(
+    input: GeneratedInterviewExplanation & {
+      id?: string | undefined;
+      topic: string;
+    },
+  ): Promise<SavedInterviewExplanation>;
 }

@@ -16,6 +16,10 @@ interview-answers playground set \
 
 interview-answers playground show
 interview-answers playground reset
+interview-answers playground append-explanation \
+  --topic "Follow-up topic" \
+  --title "Short follow-up title" \
+  --markdown-file /tmp/follow-up.md
 ```
 
 ## Complete answer updates
@@ -38,6 +42,11 @@ Apply it with:
 interview-answers playground set --file <temporary-json>
 interview-answers playground show
 ```
+
+Use `interview-answers playground append-explanation` for subsequent Concept
+Lab prompts in the current session. Append preserves the first briefing and
+renders the new entry collapsed. Use a normal `set` with `explanation` to start
+a replacement session.
 
 Prefer `--file` over fragile shell escaping. Delete the temporary file after a
 successful update. Use `--panel notes` when notes are the requested focus and

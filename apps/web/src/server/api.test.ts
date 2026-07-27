@@ -12,6 +12,11 @@ const mocks = vi.hoisted(() => ({
   runCode: vi.fn(),
   checkSyntax: vi.fn(),
   saveAnswer: vi.fn(),
+  generateExplanation: vi.fn(),
+  listExplanations: vi.fn(),
+  getExplanation: vi.fn(),
+  saveExplanation: vi.fn(),
+  deleteExplanation: vi.fn(),
 }));
 
 vi.mock("esbuild", () => ({ build: mocks.build }));
@@ -26,12 +31,19 @@ vi.mock("./services", () => ({
     listPage: mocks.listAnswersPage,
     save: mocks.saveAnswer,
   },
+  explanationRepository: {
+    delete: mocks.deleteExplanation,
+    get: mocks.getExplanation,
+    list: mocks.listExplanations,
+    save: mocks.saveExplanation,
+  },
   codeRunner: {
     run: mocks.runCode,
     runAll: mocks.runAllCode,
     checkSyntax: mocks.checkSyntax,
   },
   generateInterviewAnswer: mocks.generateInterviewAnswer,
+  generateExplanation: mocks.generateExplanation,
 }));
 
 import { createApi } from "./api";
@@ -73,6 +85,7 @@ describe("web API", () => {
     vi.clearAllMocks();
     delete process.env["INTERVIEW_API_TOKEN"];
     mocks.listAnswers.mockResolvedValue([]);
+    mocks.listExplanations.mockResolvedValue([]);
     mocks.listAnswersPage.mockResolvedValue({
       items: [],
       total: 0,
@@ -151,6 +164,19 @@ describe("web API", () => {
     expect(await fallback.json()).toMatchObject({
       model: "fake-interview-model",
     });
+    const explanation = await app.request(
+      "http://localhost/api/fake/v1/chat/completions",
+      jsonRequest("POST", {
+        messages: [{ content: "Concept to explain: React hooks" }],
+      }),
+    );
+    const explanationBody = await responseJson(explanation);
+    const explanationChoices = explanationBody["choices"] as Array<{
+      message: { content: string };
+    }>;
+    expect(JSON.parse(explanationChoices[0]!.message.content)).toMatchObject({
+      title: "Interview-ready concept",
+    });
   });
 
   it("reports configured providers and tolerates missing AI configuration", async () => {
@@ -223,6 +249,95 @@ describe("web API", () => {
       },
     });
     expect(mocks.generateInterviewAnswer).not.toHaveBeenCalled();
+  });
+
+  it("generates and persists Concept Lab explanations", async () => {
+    const app = createApi();
+    const generated = { title: "React hooks", markdown: "## Talking points" };
+    const saved = {
+      ...generated,
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      topic: "React hooks",
+      createdAt: "2026-07-25T00:00:00.000Z",
+      updatedAt: "2026-07-25T00:00:00.000Z",
+    };
+    mocks.generateExplanation.mockResolvedValue(generated);
+    mocks.listExplanations.mockResolvedValue([saved]);
+    mocks.getExplanation.mockResolvedValue(saved);
+    mocks.saveExplanation.mockResolvedValue(saved);
+    mocks.deleteExplanation.mockResolvedValue(true);
+
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/explain",
+          jsonRequest("POST", { topic: "React hooks" }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      await (await app.request("http://localhost/api/v1/explanations")).json(),
+    ).toEqual([saved]);
+    expect(
+      (await app.request(`http://localhost/api/v1/explanations/${saved.id}`))
+        .status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/explanations",
+          jsonRequest("POST", {
+            topic: saved.topic,
+            title: saved.title,
+            markdown: saved.markdown,
+          }),
+        )
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await app.request(`http://localhost/api/v1/explanations/${saved.id}`, {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it("validates explanation requests and maps provider failures", async () => {
+    const app = createApi();
+    const invalid = await app.request(
+      "http://localhost/api/v1/explain",
+      jsonRequest("POST", { topic: "" }),
+    );
+    mocks.generateExplanation.mockRejectedValueOnce(new Error("secret"));
+    const failed = await app.request(
+      "http://localhost/api/v1/explain",
+      jsonRequest("POST", { topic: "React" }),
+    );
+    expect(invalid.status).toBe(400);
+    expect(failed.status).toBe(503);
+
+    mocks.getExplanation.mockResolvedValue(undefined);
+    mocks.deleteExplanation.mockResolvedValue(false);
+    expect(
+      (await app.request("http://localhost/api/v1/explanations/missing"))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request("http://localhost/api/v1/explanations/missing", {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/explanations",
+          jsonRequest("POST", { title: "" }),
+        )
+      ).status,
+    ).toBe(400);
   });
 
   it("lists, reads, saves, and deletes answers through the repository", async () => {
@@ -338,6 +453,47 @@ describe("web API", () => {
       },
     });
 
+    await app.request(
+      "http://localhost/api/v1/playground-control",
+      jsonRequest("PATCH", {
+        view: "concept-lab",
+        explanation: {
+          topic: "Root",
+          title: "Root briefing",
+          markdown: "Root answer.",
+        },
+      }),
+    );
+    const appended = await app.request(
+      "http://localhost/api/v1/playground-control/explanations",
+      jsonRequest("POST", {
+        topic: "Follow-up",
+        title: "Cache expiry",
+        markdown: "Expire after 60 seconds.",
+      }),
+    );
+    expect(await responseJson(appended)).toMatchObject({
+      value: {
+        view: "concept-lab",
+        explanation: { title: "Cache expiry" },
+        explanations: [{ title: "Root briefing" }, { title: "Cache expiry" }],
+      },
+    });
+
+    const invalidAppend = await app.request(
+      "http://localhost/api/v1/playground-control/explanations",
+      jsonRequest("POST", { title: "Missing fields" }),
+    );
+    expect(invalidAppend.status).toBe(400);
+
+    const clearedSession = await app.request(
+      "http://localhost/api/v1/playground-control",
+      jsonRequest("PATCH", { explanation: null }),
+    );
+    expect(await responseJson(clearedSession)).toMatchObject({
+      value: { explanation: null, explanations: [] },
+    });
+
     const invalid = await app.request(
       "http://localhost/api/v1/playground-control",
       jsonRequest("PATCH", { pannel: "output" }),
@@ -361,6 +517,7 @@ describe("web API", () => {
         answer: null,
         notes: "",
         panel: "terminal",
+        explanations: [],
       },
     });
   });

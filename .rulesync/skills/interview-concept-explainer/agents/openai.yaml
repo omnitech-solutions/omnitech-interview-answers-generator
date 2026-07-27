@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interview Concept Explainer"
+  short_description: "Prepare spoken, time-boxed interview briefings"
+  default_prompt: "Explain this topic as a 60–90 second interview answer with concise talking points, then update Concept Lab."

@@ -23,16 +23,20 @@
     "@omnitech/interview-contracts": "workspace:*",
     "@omnitech/interview-playground-control": "workspace:*",
     "@omnitech/interview-storage": "workspace:*",
+    "@panzoom/panzoom": "^4.6.2",
     "@rjsf/utils": "^6.7.0",
     "@uiw/react-codemirror": "^4.25.4",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "esbuild": "^0.27.0",
     "hono": "^4.12.8",
+    "mermaid": "^11.16.0",
     "next": "^16.2.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.1",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -42,6 +46,7 @@
     "@types/node": "catalog:",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -33,6 +33,29 @@ export const generateRequestSchema = routeRequestSchema.extend({
   providerId: z.string().trim().min(1).optional(),
 });
 
+export const explanationRequestSchema = z.object({
+  topic: z.string().trim().min(1),
+  context: z.string().trim().optional(),
+  providerId: z.string().trim().min(1).optional(),
+});
+
+export const generatedExplanationSchema = z.object({
+  title: z.string().trim().min(1),
+  markdown: z.string().trim().min(1),
+});
+
+export const savedExplanationSchema = generatedExplanationSchema.extend({
+  id: z.string().uuid(),
+  topic: z.string().trim().min(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const saveExplanationRequestSchema = generatedExplanationSchema.extend({
+  id: z.string().uuid().optional(),
+  topic: z.string().trim().min(1),
+});
+
 export const savedAnswerSchema = generatedAnswerSchema.extend({
   id: z.string().uuid(),
   question: z.string().trim().min(1),
@@ -89,6 +112,12 @@ export type RouteRequest = z.infer<typeof routeRequestSchema>;
 export type RouteResult = z.infer<typeof routeResultSchema>;
 export type GeneratedAnswer = z.infer<typeof generatedAnswerSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
+export type ExplanationRequest = z.infer<typeof explanationRequestSchema>;
+export type GeneratedExplanation = z.infer<typeof generatedExplanationSchema>;
+export type SavedExplanation = z.infer<typeof savedExplanationSchema>;
+export type SaveExplanationRequest = z.infer<
+  typeof saveExplanationRequestSchema
+>;
 export type SavedAnswer = z.infer<typeof savedAnswerSchema>;
 export type SaveAnswerRequest = z.infer<typeof saveAnswerRequestSchema>;
 export type RunRequest = z.infer<typeof runRequestSchema>;
