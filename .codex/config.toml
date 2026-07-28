@@ -9,6 +9,9 @@ Interview workflow routing:
   plain-language requests.
   - /answer -> codex-interview-route-answer
   - /explain -> codex-interview-route-explain
+  - /mock-interview -> codex-interview-route-mock-interview
+  - /mock-interview-reset -> codex-interview-route-mock-interview-reset
+  - /mock-interview-show -> codex-interview-route-mock-interview-show
   - /playground -> codex-interview-route-playground
   - /playground-reset -> codex-interview-route-playground-reset
   - /playground-show -> codex-interview-route-playground-show
@@ -29,6 +32,18 @@ enabled = true
 
 [[skills.config]]
 path = ".codex/skills/codex-interview-route-explain/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-mock-interview/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-mock-interview-reset/SKILL.md"
+enabled = true
+
+[[skills.config]]
+path = ".codex/skills/codex-interview-route-mock-interview-show/SKILL.md"
 enabled = true
 
 [[skills.config]]
