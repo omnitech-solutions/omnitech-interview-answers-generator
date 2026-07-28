@@ -173,13 +173,24 @@ export function createProgram(): Command {
     .command("playground")
     .description("Read or update the open Playground form.");
 
-  playground.command("show").action(async () => {
-    const globals = globalOptions(program);
-    print(
-      await (await createConfiguredPlaygroundControlClient(globals)).get(),
-      globals.format,
-    );
-  });
+  playground
+    .command("show")
+    .option("--summary", "print only the active view and content title")
+    .action(async (options: { summary?: boolean }) => {
+      const globals = globalOptions(program);
+      const snapshot = await (
+        await createConfiguredPlaygroundControlClient(globals)
+      ).get();
+      if (options.summary) {
+        const title =
+          snapshot.value.explanation?.title ??
+          snapshot.value.answer?.title ??
+          "empty";
+        process.stdout.write(`${snapshot.value.view}: ${title}\n`);
+        return;
+      }
+      print(snapshot, globals.format);
+    });
 
   playground
     .command("append-explanation")
@@ -218,6 +229,7 @@ export function createProgram(): Command {
     .option("--usage-code-file <path>")
     .option("--test-code-file <path>")
     .option("--clear-answer", "remove the answer from the Playground")
+    .option("--quiet", "apply the patch without printing the resulting state")
     .action(async (options) => {
       const globals = globalOptions(program);
       let patch: PlaygroundPatch;
@@ -293,12 +305,10 @@ export function createProgram(): Command {
         }
       }
 
-      print(
-        await (await createConfiguredPlaygroundControlClient(globals)).set(
-          patch,
-        ),
-        globals.format,
-      );
+      const snapshot = await (
+        await createConfiguredPlaygroundControlClient(globals)
+      ).set(patch);
+      if (!options.quiet) print(snapshot, globals.format);
     });
 
   playground.command("reset").action(async () => {

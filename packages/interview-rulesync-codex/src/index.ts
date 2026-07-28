@@ -260,12 +260,14 @@ enabled = true
 developer_instructions = """
 Interview workflow routing:
 - Classify coding questions and Playground requests before acting.
-- Activate codex-interview-routing for explicit slash commands and matching
-  plain-language requests.
+- For an explicit slash command, activate only its mapped
+  codex-interview-route-* skill. Use codex-interview-routing only for matching
+  plain-language requests that do not already name a slash command.
 ${routes}
 - Use interview-question-router to choose PHP, React, TypeScript, or Ruby.
-- Use interview-playground-controller for app updates and keep the
-  interview-answers playground CLI as the control boundary.
+- Keep the interview-answers playground CLI as the app-control boundary. Load
+  interview-playground-controller when a selected workflow does not already
+  provide the required CLI instructions.
 - Do not force interview routing for unrelated repository work.
 """
 

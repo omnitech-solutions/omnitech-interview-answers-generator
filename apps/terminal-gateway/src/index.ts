@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { spawn } from "node-pty";
 import { type WebSocket, WebSocketServer } from "ws";
 import { ensureNodePtySpawnHelperExecutable } from "./node-pty-helper.js";
+import { startConceptSession } from "./concept-session.js";
 
 const port = Number(process.env["TERMINAL_GATEWAY_PORT"] ?? 3001);
 const token = process.env["TERMINAL_GATEWAY_TOKEN"];
@@ -38,7 +39,37 @@ function authorized(socket: WebSocket, requestUrl: string | undefined) {
   return false;
 }
 
-const server = createServer((_request, response) => {
+const server = createServer((request, response) => {
+  if (request.method === "POST" && request.url === "/concept-sessions") {
+    if (token && request.headers.authorization !== `Bearer ${token}`) {
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+          topic?: unknown;
+        };
+        if (typeof body.topic !== "string") {
+          throw new TypeError("A concept topic is required.");
+        }
+        const session = startConceptSession(body.topic, { cwd });
+        response.writeHead(201, { "content-type": "application/json" });
+        response.end(JSON.stringify(session));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+    });
+    return;
+  }
   response.writeHead(200, { "content-type": "text/plain" });
   response.end("terminal gateway\n");
 });
@@ -46,10 +77,23 @@ const sockets = new WebSocketServer({ server, path: "/terminal" });
 
 sockets.on("connection", (socket, request) => {
   if (!authorized(socket, request.url)) return;
+  const requestedSession = request.url
+    ? new URL(request.url, `http://localhost:${port}`).searchParams.get(
+        "session",
+      )
+    : null;
+  const sessionName =
+    requestedSession &&
+    /^(?:workspace|concept-[a-z0-9-]+)$/.test(requestedSession)
+      ? requestedSession
+      : "workspace";
 
   const terminal = spawn(
     shell,
-    ["-ilc", "exec tmux new-session -A -s workspace"],
+    [
+      "-ilc",
+      `tmux set-option -g mouse on && tmux set-option -g history-limit 10000 && exec tmux new-session -A -s ${sessionName}`,
+    ],
     {
       cwd,
       env: process.env as Record<string, string>,

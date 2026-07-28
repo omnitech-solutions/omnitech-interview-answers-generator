@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listExplanations: vi.fn(),
   getExplanation: vi.fn(),
   saveExplanation: vi.fn(),
+  startCodexConceptSession: vi.fn(),
   deleteExplanation: vi.fn(),
   libraryArchive: vi.fn(),
   libraryDeleteDraft: vi.fn(),
@@ -72,6 +73,9 @@ vi.mock("./services", () => ({
     search: mocks.librarySearch,
     synchronize: mocks.librarySynchronize,
   },
+}));
+vi.mock("./terminal-client", () => ({
+  startCodexConceptSession: mocks.startCodexConceptSession,
 }));
 
 import { createApi } from "./api";
@@ -159,6 +163,10 @@ describe("web API", () => {
     });
     mocks.createAiClientFromEnv.mockReturnValue({
       listProviders: () => [{ id: "fake", label: "Fake", model: "fake-1" }],
+    });
+    mocks.startCodexConceptSession.mockResolvedValue({
+      name: "concept-test",
+      command: "/explain React rendering",
     });
     await createApi().request(
       "http://localhost/api/v1/playground-control",
@@ -257,6 +265,24 @@ describe("web API", () => {
       providers: [{ id: "fake", label: "Fake", model: "fake-1" }],
     });
     expect(await unconfigured.json()).toEqual({ ok: true, providers: [] });
+  });
+
+  it("starts a Codex concept session and validates its topic", async () => {
+    const app = createApi();
+    const started = await app.request(
+      "http://localhost/api/v1/concept-sessions",
+      jsonRequest("POST", { topic: "React rendering" }),
+    );
+    const invalid = await app.request(
+      "http://localhost/api/v1/concept-sessions",
+      jsonRequest("POST", { topic: "" }),
+    );
+
+    expect(started.status).toBe(201);
+    expect(mocks.startCodexConceptSession).toHaveBeenCalledWith(
+      "React rendering",
+    );
+    expect(invalid.status).toBe(400);
   });
 
   it("generates an answer and maps provider failures to a stable error", async () => {

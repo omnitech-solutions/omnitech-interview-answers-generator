@@ -8,6 +8,11 @@ import { ConceptLab } from "./concept-lab";
 vi.mock("react-markdown", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
+vi.mock("./browser-terminal", () => ({
+  BrowserTerminal: ({ sessionName }: { sessionName?: string }) => (
+    <div data-testid="browser-terminal">{sessionName}</div>
+  ),
+}));
 
 function response(body: unknown, status = 200) {
   return Promise.resolve(
@@ -57,10 +62,23 @@ describe("ConceptLab", () => {
     );
 
     render(<ConceptLab />);
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "openai",
+    );
     const topic = screen.getByLabelText("What do you need to explain?");
     await userEvent.type(topic, "React reconciliation");
     await userEvent.click(screen.getByRole("button", { name: "Explain" }));
     expect(await screen.findByText("# Reconciliation")).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/explain",
+      expect.objectContaining({
+        body: JSON.stringify({
+          topic: "React reconciliation",
+          providerId: "openai",
+        }),
+      }),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("Briefing saved.")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Saved" }));
@@ -151,6 +169,10 @@ describe("ConceptLab", () => {
       />,
     );
 
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "openai",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Explain" }));
 
     expect(
@@ -175,7 +197,7 @@ describe("ConceptLab", () => {
       "fetch",
       vi.fn(() => response([saved])),
     );
-    render(<ConceptLab />);
+    const { unmount } = render(<ConceptLab />);
     await userEvent.click(screen.getByRole("button", { name: "Saved" }));
     const savedPanel = await screen.findByLabelText("Saved briefings");
     const openButton = savedPanel.querySelector(
@@ -185,6 +207,24 @@ describe("ConceptLab", () => {
     await userEvent.click(openButton as HTMLButtonElement);
     expect(screen.getByText("Fast lookup")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "New" }));
+    expect(screen.getByLabelText("What do you need to explain?")).toHaveValue(
+      "",
+    );
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/v1/playground-control",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({
+            view: "concept-lab",
+            explanation: null,
+            explanations: [],
+          }),
+        }),
+      ),
+    );
+    unmount();
+    render(<ConceptLab />);
     expect(screen.getByLabelText("What do you need to explain?")).toHaveValue(
       "",
     );
@@ -200,6 +240,10 @@ describe("ConceptLab", () => {
       ),
     );
     render(<ConceptLab />);
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "openai",
+    );
     await userEvent.type(
       screen.getByLabelText("What do you need to explain?"),
       "React",
@@ -257,5 +301,103 @@ describe("ConceptLab", () => {
       await screen.findByLabelText("What do you need to explain?"),
     ).toHaveValue("");
     expect(screen.getByText("Ready when you are")).toBeVisible();
+    expect(screen.getByLabelText("Explanation provider")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Explain" })).toBeDisabled();
+  });
+
+  it("selects LM Studio for compatible generation", async () => {
+    const fetch = vi.fn((input: string | URL | Request) =>
+      String(input).endsWith("/explain")
+        ? response({ title: "Local", markdown: "Local model answer" })
+        : response([]),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(<ConceptLab />);
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "lm-studio",
+    );
+    await userEvent.type(
+      screen.getByLabelText("What do you need to explain?"),
+      "React effects",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Explain" }));
+
+    expect(await screen.findByText("Local model answer")).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/explain",
+      expect.objectContaining({
+        body: JSON.stringify({
+          topic: "React effects",
+          providerId: "lm-studio",
+        }),
+      }),
+    );
+  });
+
+  it("starts Codex in a new terminal session without changing the topic", async () => {
+    const onTerminalOpen = vi.fn();
+    const fetch = vi.fn((input: string | URL | Request, init?: RequestInit) =>
+      String(input).endsWith("/concept-sessions")
+        ? response(
+            {
+              name: "concept-abc",
+              command: "/explain React rendering",
+            },
+            201,
+          )
+        : response([]),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { unmount } = render(
+      <ConceptLab onTerminalClose={vi.fn()} onTerminalOpen={onTerminalOpen} />,
+    );
+
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "codex",
+    );
+    const topic = screen.getByLabelText("What do you need to explain?");
+    await userEvent.type(topic, "React rendering");
+    await userEvent.click(screen.getByRole("button", { name: "Explain" }));
+
+    expect(topic).toHaveValue("React rendering");
+    expect(onTerminalOpen).toHaveBeenCalledOnce();
+    expect(
+      await screen.findByText(
+        /Codex session “concept-abc” started.*\/explain result/,
+      ),
+    ).toBeVisible();
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/concept-sessions",
+      expect.objectContaining({
+        body: JSON.stringify({ topic: "React rendering" }),
+      }),
+    );
+    expect(fetch).not.toHaveBeenCalledWith(
+      "/api/v1/explain",
+      expect.anything(),
+    );
+
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("interview-studio.concept-lab") ?? "{}",
+        ),
+      ).toMatchObject({ terminalSession: "concept-abc" }),
+    );
+    unmount();
+    render(
+      <ConceptLab
+        inspectorOpen
+        terminalOpen
+        onTerminalClose={vi.fn()}
+        onTerminalOpen={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText("tmux · concept-abc · project root"),
+    ).toBeVisible();
   });
 });

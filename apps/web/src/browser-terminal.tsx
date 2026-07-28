@@ -11,7 +11,11 @@ const gatewayUrl =
   process.env["NEXT_PUBLIC_TERMINAL_GATEWAY_URL"] ??
   "ws://localhost:3001/terminal";
 
-export function BrowserTerminal(): JSX.Element {
+export function BrowserTerminal({
+  sessionName = "workspace",
+}: {
+  sessionName?: string;
+}): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,7 +25,9 @@ export function BrowserTerminal(): JSX.Element {
     const terminal = new Terminal({
       cursorBlink: true,
       convertEol: true,
-      scrollback: 1_000,
+      scrollback: 10_000,
+      scrollOnUserInput: true,
+      smoothScrollDuration: 80,
       fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
       fontSize: 13,
       theme: {
@@ -32,7 +38,9 @@ export function BrowserTerminal(): JSX.Element {
       },
     });
     const fitAddon = new FitAddon();
-    const socket = new WebSocket(gatewayUrl);
+    let socket: WebSocket | undefined;
+    let reconnectTimer: number | undefined;
+    let disposed = false;
     const fitVisibleTerminal = () => {
       const { height, width } = container.getBoundingClientRect();
       if (width < 40 || height < 40) return false;
@@ -42,38 +50,48 @@ export function BrowserTerminal(): JSX.Element {
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    const preventPageScroll = (event: WheelEvent) => {
+      event.stopPropagation();
+    };
+    container.addEventListener("wheel", preventPageScroll, { passive: true });
     fitVisibleTerminal();
-    terminal.writeln("Connecting to terminal gateway…");
 
-    socket.addEventListener("open", () => {
-      terminal.writeln("Connected to tmux session: workspace");
-      if (fitVisibleTerminal()) {
-        socket.send(
-          JSON.stringify({
-            type: "resize",
-            cols: terminal.cols,
-            rows: terminal.rows,
-          }),
-        );
-      }
-    });
-    socket.addEventListener("message", (event: MessageEvent<string>) => {
-      terminal.write(event.data);
-    });
-    socket.addEventListener("close", () => {
-      terminal.writeln("\r\nTerminal gateway disconnected.");
-    });
-    socket.addEventListener("error", () => {
-      terminal.writeln("\r\nUnable to connect to terminal gateway.");
-    });
+    function connect() {
+      if (disposed) return;
+      terminal.writeln("Connecting to terminal gateway…");
+      const url = new URL(gatewayUrl);
+      url.searchParams.set("session", sessionName);
+      socket = new WebSocket(url.toString());
+      socket.addEventListener("open", () => {
+        terminal.writeln(`Connected to tmux session: ${sessionName}`);
+        if (fitVisibleTerminal()) {
+          socket?.send(
+            JSON.stringify({
+              type: "resize",
+              cols: terminal.cols,
+              rows: terminal.rows,
+            }),
+          );
+        }
+      });
+      socket.addEventListener("message", (event: MessageEvent<string>) => {
+        terminal.write(event.data);
+      });
+      socket.addEventListener("close", () => {
+        if (disposed) return;
+        terminal.writeln("\r\nTerminal gateway unavailable. Retrying…");
+        reconnectTimer = window.setTimeout(connect, 1_000);
+      });
+    }
+    connect();
 
     const inputSubscription = terminal.onData((data) => {
-      if (socket.readyState === WebSocket.OPEN) {
+      if (socket?.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "input", data }));
       }
     });
     const resizeObserver = new ResizeObserver(() => {
-      if (fitVisibleTerminal() && socket.readyState === WebSocket.OPEN) {
+      if (fitVisibleTerminal() && socket?.readyState === WebSocket.OPEN) {
         socket.send(
           JSON.stringify({
             type: "resize",
@@ -86,12 +104,15 @@ export function BrowserTerminal(): JSX.Element {
     resizeObserver.observe(container);
 
     return () => {
+      disposed = true;
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
       resizeObserver.disconnect();
       inputSubscription.dispose();
-      socket.close();
+      container.removeEventListener("wheel", preventPageScroll);
+      socket?.close();
       terminal.dispose();
     };
-  }, []);
+  }, [sessionName]);
 
   return (
     <div

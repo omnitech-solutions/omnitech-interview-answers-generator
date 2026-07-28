@@ -16,11 +16,6 @@ import {
   Card,
   CardDescription,
   ConfigProvider,
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
   IconButton,
 } from "@oc-tech/omni-ui-components";
 import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
@@ -43,7 +38,6 @@ import React, {
 } from "react";
 import { z } from "zod";
 
-import { BrowserTerminal } from "./browser-terminal";
 import { ConceptLab, type ConceptDraft } from "./concept-lab";
 import { MarkdownContent } from "./markdown-content";
 import { MockInterview } from "./mock-interview";
@@ -55,6 +49,8 @@ import {
   useStudioTheme,
 } from "./studio-shell";
 import { StudioTextarea } from "./studio-controls";
+import { InspectorToggleButton, StudioInspector } from "./studio-inspector";
+import { TerminalDock, TerminalToggleButton } from "./terminal-dock";
 
 type InspectorPanel = "notes" | "output" | "saved";
 type EditorTab = "solution" | "usage" | "tests";
@@ -313,6 +309,22 @@ export function Playground() {
   const [panel, setPanel] = useState<InspectorPanel>("output");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const setInspectorVisibility = useCallback((open: boolean) => {
+    setInspectorOpen(open);
+    if (!open) setTerminalOpen(false);
+  }, []);
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((current) => {
+      const nextOpen = !current;
+      if (!nextOpen) setTerminalOpen(false);
+      return nextOpen;
+    });
+  }, []);
+  useEffect(() => {
+    if (terminalOpen && !inspectorOpen) setInspectorOpen(true);
+  }, [inspectorOpen, terminalOpen]);
+  const [conceptToolbarTarget, setConceptToolbarTarget] =
+    useState<HTMLDivElement | null>(null);
   const [output, setOutput] = useState<ExecutionOutput>({});
   const [outputTab, setOutputTab] = useState<OutputTab>("solution");
   const [copiedOutput, setCopiedOutput] = useState<OutputTab>();
@@ -933,65 +945,43 @@ export function Playground() {
                   Run All
                 </Button>
                 <span className="toolbar-divider" aria-hidden="true" />
-                <IconButton
-                  variant={terminalOpen ? "secondary" : "outline"}
-                  className="terminal-toggle-button"
-                  aria-label={terminalOpen ? "Hide terminal" : "Show terminal"}
-                  aria-pressed={terminalOpen}
-                  onClick={() => {
+                <TerminalToggleButton
+                  open={terminalOpen}
+                  onToggle={() => {
                     setTerminalOpen((current) => {
                       const nextOpen = !current;
                       if (nextOpen) setInspectorOpen(true);
                       return nextOpen;
                     });
                   }}
-                  icon={
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      <rect x="3" y="4" width="18" height="16" rx="2" />
-                      <path d="m7 9 3 3-3 3M13 15h4" />
-                    </svg>
-                  }
                 />
                 <ThemeToggle theme={theme} onClick={toggleTheme} />
-                <IconButton
-                  variant={inspectorOpen ? "secondary" : "outline"}
-                  className="inspector-toggle-button"
-                  aria-label={
-                    inspectorOpen ? "Hide inspector" : "Show inspector"
-                  }
-                  aria-pressed={inspectorOpen}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => {
-                    if (inspectorOpen) {
-                      setInspectorOpen(false);
-                      return;
-                    }
-                    setInspectorOpen(true);
+                <InspectorToggleButton
+                  open={inspectorOpen}
+                  onToggle={toggleInspector}
+                />
+              </div>
+            ) : activeView === "concept-lab" ? (
+              <div className="toolbar concept-toolbar">
+                <div
+                  className="concept-toolbar-actions"
+                  ref={setConceptToolbarTarget}
+                />
+                <span className="toolbar-divider" aria-hidden="true" />
+                <TerminalToggleButton
+                  open={terminalOpen}
+                  onToggle={() => {
+                    setTerminalOpen((current) => {
+                      const nextOpen = !current;
+                      if (nextOpen) setInspectorOpen(true);
+                      return nextOpen;
+                    });
                   }}
-                  icon={
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      width="20"
-                      height="20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="4" width="18" height="16" rx="2" />
-                      <path d="M15 4v16" />
-                    </svg>
-                  }
+                />
+                <ThemeToggle theme={theme} onClick={toggleTheme} />
+                <InspectorToggleButton
+                  open={inspectorOpen}
+                  onToggle={toggleInspector}
                 />
               </div>
             ) : (
@@ -1008,11 +998,29 @@ export function Playground() {
           ) : null}
 
           {activeView === "concept-lab" ? (
-            <ConceptLab
-              {...(externalConcepts.length
-                ? { externalDrafts: externalConcepts }
-                : {})}
-            />
+            <div
+              className={`studio-body ${
+                inspectorOpen
+                  ? "inspector-visible concept-inspector-visible"
+                  : ""
+              }`}
+            >
+              <ConceptLab
+                toolbarTarget={conceptToolbarTarget}
+                inspectorOpen={inspectorOpen}
+                onClearExternal={() => setExternalConcepts([])}
+                onInspectorClose={() => setInspectorVisibility(false)}
+                terminalOpen={terminalOpen}
+                onTerminalClose={() => setTerminalOpen(false)}
+                onTerminalOpen={() => {
+                  setTerminalOpen(true);
+                  setInspectorOpen(true);
+                }}
+                {...(externalConcepts.length
+                  ? { externalDrafts: externalConcepts }
+                  : {})}
+              />
+            </div>
           ) : activeView === "mock-interview" ? (
             <MockInterview
               {...(externalMockControl
@@ -1276,298 +1284,233 @@ export function Playground() {
                   </Card>
                 </div>
 
-                <Drawer
-                  modal={false}
+                <StudioInspector
                   open={inspectorOpen}
-                  onOpenChange={setInspectorOpen}
+                  onOpenChange={setInspectorVisibility}
+                  description="Review notes, execution output, and saved answers."
+                  preserveOnOutsideInteraction={terminalOpen}
                 >
-                  <DrawerContent
-                    side="right"
-                    overlay={false}
-                    forceMount
-                    className="inspector-drawer"
-                    aria-label="Inspector"
-                    onInteractOutside={(event) => {
-                      const target = event.target;
-                      if (
-                        target instanceof Element &&
-                        target.closest(".topbar")
-                      ) {
-                        event.preventDefault();
-                        return;
-                      }
-                      if (terminalOpen) {
-                        event.preventDefault();
-                        return;
-                      }
-                      setInspectorOpen(false);
-                    }}
-                  >
-                    <DrawerHeader className="inspector-header">
-                      <DrawerTitle>Inspector</DrawerTitle>
-                      <DrawerDescription>
-                        Review notes, execution output, and saved answers.
-                      </DrawerDescription>
-                    </DrawerHeader>
-                    <div className="inspector-scroll">
-                      <div className="card p-4 inspector-main">
-                        <nav
-                          className="panel-tabs"
-                          aria-label="Inspector panels"
-                        >
-                          {panels.map((item) => (
-                            <button
-                              key={item.id}
-                              className={panel === item.id ? "active" : ""}
-                              onClick={() => {
-                                setPanel(item.id);
-                                setInspectorOpen(true);
-                              }}
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </nav>
-
-                        {panel === "notes" ? (
-                          <StudioTextarea
-                            label="Private notes"
-                            description="Notes remain local and are stored only when you save."
-                            rows={18}
-                            value={notes}
-                            onChange={(value) => {
-                              localEdits.current = true;
-                              setNotes(value);
+                  <>
+                    <div className="card p-4 inspector-main">
+                      <nav className="panel-tabs" aria-label="Inspector panels">
+                        {panels.map((item) => (
+                          <button
+                            key={item.id}
+                            className={panel === item.id ? "active" : ""}
+                            onClick={() => {
+                              setPanel(item.id);
+                              setInspectorOpen(true);
                             }}
-                          />
-                        ) : null}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </nav>
 
-                        {panel === "output" ? (
-                          <div className="output">
-                            <div className="output-toolbar">
-                              <span className="output-label">Display</span>
-                              <button
-                                type="button"
-                                className="output-wrap-toggle"
-                                aria-pressed={wordWrap}
-                                aria-label="Toggle word wrap"
-                                onClick={toggleWordWrap}
-                              >
-                                Word wrap: {wordWrap ? "On" : "Off"}
-                              </button>
-                            </div>
-                            <div
-                              className="output-tabs"
-                              role="tablist"
-                              aria-label="Run output"
+                      {panel === "notes" ? (
+                        <StudioTextarea
+                          label="Private notes"
+                          description="Notes remain local and are stored only when you save."
+                          rows={18}
+                          value={notes}
+                          onChange={(value) => {
+                            localEdits.current = true;
+                            setNotes(value);
+                          }}
+                        />
+                      ) : null}
+
+                      {panel === "output" ? (
+                        <div className="output">
+                          <div className="output-toolbar">
+                            <span className="output-label">Display</span>
+                            <button
+                              type="button"
+                              className="output-wrap-toggle"
+                              aria-pressed={wordWrap}
+                              aria-label="Toggle word wrap"
+                              onClick={toggleWordWrap}
                             >
-                              <button
-                                role="tab"
-                                aria-selected={outputTab === "solution"}
-                                className={
-                                  outputTab === "solution" ? "active" : ""
-                                }
-                                onClick={() => setOutputTab("solution")}
-                              >
-                                Normal output
-                              </button>
-                              <button
-                                role="tab"
-                                aria-selected={outputTab === "tests"}
-                                className={
-                                  outputTab === "tests" ? "active" : ""
-                                }
-                                onClick={() => setOutputTab("tests")}
-                              >
-                                Test results
-                              </button>
+                              Word wrap: {wordWrap ? "On" : "Off"}
+                            </button>
+                          </div>
+                          <div
+                            className="output-tabs"
+                            role="tablist"
+                            aria-label="Run output"
+                          >
+                            <button
+                              role="tab"
+                              aria-selected={outputTab === "solution"}
+                              className={
+                                outputTab === "solution" ? "active" : ""
+                              }
+                              onClick={() => setOutputTab("solution")}
+                            >
+                              Normal output
+                            </button>
+                            <button
+                              role="tab"
+                              aria-selected={outputTab === "tests"}
+                              className={outputTab === "tests" ? "active" : ""}
+                              onClick={() => setOutputTab("tests")}
+                            >
+                              Test results
+                            </button>
+                          </div>
+                          {outputTab === "tests" && !output.tests ? (
+                            <div className="output-empty output-pending">
+                              {answer?.testCode.trim()
+                                ? "Tests are running…"
+                                : "No tests supplied for this answer."}
                             </div>
-                            {outputTab === "tests" && !output.tests ? (
-                              <div className="output-empty output-pending">
-                                {answer?.testCode.trim()
-                                  ? "Tests are running…"
-                                  : "No tests supplied for this answer."}
-                              </div>
-                            ) : outputTab === "solution" && !output.solution ? (
-                              <div className="output-empty output-pending">
-                                Running solution…
-                              </div>
-                            ) : (
-                              <>
-                                {(() => {
-                                  const result =
-                                    outputTab === "tests"
-                                      ? output.tests
-                                      : output.solution;
-                                  if (!result) return null;
-                                  const failed =
-                                    result.exitCode !== 0 || result.timedOut;
-                                  return (
-                                    <>
-                                      <div
-                                        className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
-                                      >
-                                        <span>
-                                          {failed ? "Failed" : "Passed"} · exit{" "}
-                                          {String(result.exitCode)} ·{" "}
-                                          {result.durationMs}
-                                          ms
-                                        </span>
-                                        <button
-                                          type="button"
-                                          className="copy-output"
-                                          aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                                          title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
-                                          onClick={() =>
-                                            void copyOutput(outputTab, result)
-                                          }
-                                        >
-                                          {copiedOutput === outputTab
-                                            ? "✓"
-                                            : "⧉"}
-                                        </button>
-                                      </div>
-                                      <pre
-                                        className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
-                                      >
-                                        {result.stdout ||
-                                          result.stderr ||
-                                          "(no output)"}
-                                      </pre>
-                                    </>
-                                  );
-                                })()}
-                              </>
-                            )}
-                            {!output.solution && !output.tests && !answer ? (
-                              <div className="empty compact">
-                                Run a solution to see its output.
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-
-                        {panel === "saved" ? (
-                          <div className="saved-list">
-                            {savedAnswers.length === 0 ? (
-                              <div className="empty compact">
-                                No saved answers yet.
-                              </div>
-                            ) : (
-                              <>
-                                {visibleSavedAnswers.map((saved) => (
-                                  <div className="saved-item" key={saved.id}>
-                                    <button
-                                      type="button"
-                                      className="saved-open-button"
-                                      onClick={() => openSaved(saved)}
+                          ) : outputTab === "solution" && !output.solution ? (
+                            <div className="output-empty output-pending">
+                              Running solution…
+                            </div>
+                          ) : (
+                            <>
+                              {(() => {
+                                const result =
+                                  outputTab === "tests"
+                                    ? output.tests
+                                    : output.solution;
+                                if (!result) return null;
+                                const failed =
+                                  result.exitCode !== 0 || result.timedOut;
+                                return (
+                                  <>
+                                    <div
+                                      className={`run-meta ${failed ? "run-failed" : "run-passed"}`}
                                     >
-                                      <strong>{saved.title}</strong>
                                       <span>
-                                        {saved.language} ·{" "}
-                                        {new Date(
-                                          saved.updatedAt,
-                                        ).toLocaleDateString()}
+                                        {failed ? "Failed" : "Passed"} · exit{" "}
+                                        {String(result.exitCode)} ·{" "}
+                                        {result.durationMs}
+                                        ms
                                       </span>
-                                    </button>
-                                    <IconButton
-                                      className="saved-delete-button"
-                                      aria-label="Delete saved answer"
-                                      onClick={() => void deleteSaved(saved.id)}
-                                      disabled={busy}
-                                      icon={
-                                        <svg
-                                          aria-hidden="true"
-                                          viewBox="0 0 24 24"
-                                          width="16"
-                                          height="16"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                        >
-                                          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7l1-3h4l1 3" />
-                                        </svg>
-                                      }
-                                    />
-                                  </div>
-                                ))}
-                                {savedPageCount > 1 ? (
-                                  <div
-                                    className="saved-pagination"
-                                    aria-label="Saved answers pagination"
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setSavedPage((page) =>
-                                          Math.max(0, page - 1),
-                                        )
-                                      }
-                                      disabled={savedPage === 0}
+                                      <button
+                                        type="button"
+                                        className="copy-output"
+                                        aria-label={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                        title={`Copy ${outputTab === "tests" ? "test results" : "normal output"}`}
+                                        onClick={() =>
+                                          void copyOutput(outputTab, result)
+                                        }
+                                      >
+                                        {copiedOutput === outputTab ? "✓" : "⧉"}
+                                      </button>
+                                    </div>
+                                    <pre
+                                      className={`${failed ? "output-error" : "output-success"} ${wordWrap ? "output-wrap" : "output-nowrap"}`}
                                     >
-                                      Previous
-                                    </button>
-                                    <span>
-                                      Page {savedPage + 1} of {savedPageCount}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setSavedPage((page) =>
-                                          Math.min(
-                                            savedPageCount - 1,
-                                            page + 1,
-                                          ),
-                                        )
-                                      }
-                                      disabled={savedPage >= savedPageCount - 1}
-                                    >
-                                      Next
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </>
-                            )}
-                          </div>
-                        ) : null}
-
-                        <p className="status" role="status">
-                          {status}
-                        </p>
-                      </div>
-                      <section
-                        className={`terminal-dock ${terminalOpen ? "" : "terminal-dock-hidden"}`}
-                        aria-label="Terminal"
-                      >
-                        <div className="terminal-titlebar">
-                          <strong>Terminal</strong>
-                          <span className="terminal-cwd">
-                            tmux · workspace · project root
-                          </span>
-                          <IconButton
-                            className="terminal-close-button"
-                            aria-label="Close terminal"
-                            onClick={() => setTerminalOpen(false)}
-                            icon={
-                              <svg
-                                aria-hidden="true"
-                                viewBox="0 0 24 24"
-                                width="18"
-                                height="18"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                              >
-                                <path d="m7 7 10 10M17 7 7 17" />
-                              </svg>
-                            }
-                          />
+                                      {result.stdout ||
+                                        result.stderr ||
+                                        "(no output)"}
+                                    </pre>
+                                  </>
+                                );
+                              })()}
+                            </>
+                          )}
+                          {!output.solution && !output.tests && !answer ? (
+                            <div className="empty compact">
+                              Run a solution to see its output.
+                            </div>
+                          ) : null}
                         </div>
-                        <BrowserTerminal />
-                      </section>
+                      ) : null}
+
+                      {panel === "saved" ? (
+                        <div className="saved-list">
+                          {savedAnswers.length === 0 ? (
+                            <div className="empty compact">
+                              No saved answers yet.
+                            </div>
+                          ) : (
+                            <>
+                              {visibleSavedAnswers.map((saved) => (
+                                <div className="saved-item" key={saved.id}>
+                                  <button
+                                    type="button"
+                                    className="saved-open-button"
+                                    onClick={() => openSaved(saved)}
+                                  >
+                                    <strong>{saved.title}</strong>
+                                    <span>
+                                      {saved.language} ·{" "}
+                                      {new Date(
+                                        saved.updatedAt,
+                                      ).toLocaleDateString()}
+                                    </span>
+                                  </button>
+                                  <IconButton
+                                    className="saved-delete-button"
+                                    aria-label="Delete saved answer"
+                                    onClick={() => void deleteSaved(saved.id)}
+                                    disabled={busy}
+                                    icon={
+                                      <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 24 24"
+                                        width="16"
+                                        height="16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                      >
+                                        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7l1-3h4l1 3" />
+                                      </svg>
+                                    }
+                                  />
+                                </div>
+                              ))}
+                              {savedPageCount > 1 ? (
+                                <div
+                                  className="saved-pagination"
+                                  aria-label="Saved answers pagination"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSavedPage((page) =>
+                                        Math.max(0, page - 1),
+                                      )
+                                    }
+                                    disabled={savedPage === 0}
+                                  >
+                                    Previous
+                                  </button>
+                                  <span>
+                                    Page {savedPage + 1} of {savedPageCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSavedPage((page) =>
+                                        Math.min(savedPageCount - 1, page + 1),
+                                      )
+                                    }
+                                    disabled={savedPage >= savedPageCount - 1}
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  </DrawerContent>
-                </Drawer>
+                    <TerminalDock
+                      open={terminalOpen}
+                      onClose={() => setTerminalOpen(false)}
+                    />
+                  </>
+                </StudioInspector>
+                <p className="status workspace-status" role="status">
+                  {status}
+                </p>
               </section>
             </div>
           )}

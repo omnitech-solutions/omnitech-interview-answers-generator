@@ -112,20 +112,27 @@ The web server reads the following variables from `apps/web/.env.local`:
 | `AI_BASE_URL` | Base URL for an OpenAI-compatible `/v1` API | Required |
 | `AI_MODEL` | Model sent to the provider | Required |
 | `AI_API_KEY` | Optional bearer token for the AI provider | Unset |
-| `AI_PROVIDER_ID` | Internal provider identifier | `default` |
-| `AI_PROVIDER_LABEL` | Display label for the provider | `Default` |
+| `AI_PROVIDER_ID` | Legacy provider identifier | Inferred as `openai` or `lm-studio` |
+| `AI_PROVIDER_LABEL` | Legacy provider display label | Inferred from its URL |
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
+| `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
+| `OPENAI_MODEL` | OpenAI model exposed in the Concept Lab provider selector | Unset |
+| `OPENAI_API_KEY` | OpenAI credential | Unset |
+| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `https://api.openai.com/v1` |
+| `LM_STUDIO_MODEL` | Loaded LM Studio model identifier | Unset |
+| `LM_STUDIO_BASE_URL` | LM Studio OpenAI-compatible endpoint | `http://127.0.0.1:1234/v1` |
 | `INTERVIEW_API_TOKEN` | Bearer token required for non-same-origin API calls | Unset |
 | `INTERVIEW_DATA_DIR` | Directory used by the JSON answer repository | `.data` |
 | `INTERVIEW_EXPERIENCE_MATRIX_PATH` | Candidate evidence used for experience-based explanations | `~/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json` |
 | `NEXT_PUBLIC_TERMINAL_GATEWAY_URL` | Browser WebSocket terminal URL | `ws://localhost:3001/terminal` |
+| `TERMINAL_GATEWAY_HTTP_URL` | Server-side endpoint for starting Codex concept sessions | `http://127.0.0.1:3001/concept-sessions` |
 
 The terminal gateway accepts:
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `TERMINAL_GATEWAY_PORT` | Local terminal gateway port | `3001` |
-| `TERMINAL_GATEWAY_TOKEN` | Optional WebSocket query-string token | Unset |
+| `TERMINAL_GATEWAY_TOKEN` | Optional WebSocket query-string and HTTP bearer token | Unset |
 | `INTERVIEW_PROJECT_ROOT` | Working directory opened by tmux | Detected workspace root |
 
 If `TERMINAL_GATEWAY_TOKEN` is enabled, include the same token in

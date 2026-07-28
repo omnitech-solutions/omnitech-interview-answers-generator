@@ -22,11 +22,11 @@ beforeEach(() => {
 describe("createAiClientFromEnv", () => {
   it("requires a non-empty base URL and model", () => {
     expect(() => createAiClientFromEnv({})).toThrow(
-      "AI_BASE_URL and AI_MODEL must be configured.",
+      "Configure AI_BASE_URL and AI_MODEL, OPENAI_MODEL, or LM_STUDIO_MODEL.",
     );
     expect(() =>
       createAiClientFromEnv({ AI_BASE_URL: "  ", AI_MODEL: "model" }),
-    ).toThrow("AI_BASE_URL and AI_MODEL must be configured.");
+    ).toThrow("Configure AI_BASE_URL and AI_MODEL");
   });
 
   it("trims values and applies safe defaults", () => {
@@ -36,13 +36,29 @@ describe("createAiClientFromEnv", () => {
     });
 
     expect(createOpenAiCompatibleProvider).toHaveBeenCalledWith({
-      id: "default",
-      label: "Default",
+      id: "lm-studio",
+      label: "LM Studio",
       baseUrl: "http://localhost/v1/",
       model: "fake-model",
       timeoutMs: 120_000,
     });
-    expect(client.getDefaultProviderId()).toBe("default");
+    expect(client.getDefaultProviderId()).toBe("lm-studio");
+  });
+
+  it("configures OpenAI and LM Studio together with an explicit default", () => {
+    const client = createAiClientFromEnv({
+      OPENAI_MODEL: "gpt-5-mini",
+      OPENAI_API_KEY: "openai-secret",
+      LM_STUDIO_MODEL: "qwen",
+      LM_STUDIO_BASE_URL: "http://localhost:1234/v1",
+      AI_DEFAULT_PROVIDER_ID: "lm-studio",
+    });
+
+    expect(client.listProviders()).toEqual([
+      { id: "openai", label: "OpenAI", model: "gpt-5-mini" },
+      { id: "lm-studio", label: "LM Studio", model: "qwen" },
+    ]);
+    expect(client.getDefaultProviderId()).toBe("lm-studio");
   });
 
   it("forwards explicit identity, credentials, and timeout", () => {

@@ -79,7 +79,7 @@ describe("generateInterviewAnswer", () => {
         prompt: expect.stringContaining("Explain React hooks"),
         maxOutputTokens: 2_200,
         system: expect.stringMatching(
-          /where to start[\s\S]*Question N[\s\S]*> \*\*Answer:\*\*/,
+          /senior technical interviewer[\s\S]*Question #1[\s\S]*Code example[\s\S]*Talking points[\s\S]*one Collapse/,
         ),
       }),
     );

@@ -85,4 +85,11 @@ export interface AiEnvironment {
   AI_PROVIDER_ID?: string;
   AI_PROVIDER_LABEL?: string;
   AI_TIMEOUT_MS?: string;
+  AI_DEFAULT_PROVIDER_ID?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_BASE_URL?: string;
+  OPENAI_MODEL?: string;
+  LM_STUDIO_API_KEY?: string;
+  LM_STUDIO_BASE_URL?: string;
+  LM_STUDIO_MODEL?: string;
 }

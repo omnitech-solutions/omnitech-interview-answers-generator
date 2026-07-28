@@ -314,6 +314,9 @@ function MarkdownCode({
   if (language === "mermaid") {
     return <MermaidDiagram source={String(children).replace(/\n$/, "")} />;
   }
+  if (!language) {
+    return <InlineShikiCode source={String(children)} {...props} />;
+  }
   return (
     <code
       className={
@@ -322,6 +325,46 @@ function MarkdownCode({
       {...props}
     >
       {children}
+    </code>
+  );
+}
+
+function inlineCodeLanguage(source: string): string {
+  if (/^(?:<|<\/)[A-Za-z]/.test(source)) return "tsx";
+  if (/\$[A-Za-z_]|\->/.test(source)) return "php";
+  if (/^(?:def|class|module)\s|\.(?:each|map|select)\b/.test(source))
+    return "ruby";
+  return "typescript";
+}
+
+function InlineShikiCode({
+  source,
+  ...props
+}: ComponentProps<"code"> & { source: string }) {
+  const [html, setHtml] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void import("shiki").then(async ({ codeToHtml }) => {
+      const rendered = await codeToHtml(source, {
+        lang: inlineCodeLanguage(source),
+        themes: { light: "github-light", dark: "github-dark" },
+      });
+      if (!active) return;
+      setHtml(/<code[^>]*>([\s\S]*?)<\/code>/.exec(rendered)?.[1] ?? "");
+    });
+    return () => {
+      active = false;
+    };
+  }, [source]);
+
+  return (
+    <code
+      className="markdown-inline-code markdown-inline-code-highlighted"
+      {...props}
+      {...(html ? { dangerouslySetInnerHTML: { __html: html } } : {})}
+    >
+      {html ? undefined : source}
     </code>
   );
 }

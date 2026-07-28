@@ -36,6 +36,7 @@ import {
   libraryService,
 } from "./services";
 import { LibraryIndexUnavailableError } from "./library-service";
+import { startCodexConceptSession } from "./terminal-client";
 
 type ApiEnvironment = {
   Variables: {
@@ -235,6 +236,32 @@ console.log(solve([1, 2, 3]));`,
       return context.json({ ok: true, providers: client.listProviders() });
     } catch {
       return context.json({ ok: true, providers: [] });
+    }
+  });
+
+  app.post("/api/v1/concept-sessions", async (context) => {
+    const body = (await context.req.json().catch(() => undefined)) as
+      | { topic?: unknown }
+      | undefined;
+    if (!body || typeof body.topic !== "string" || !body.topic.trim()) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "A concept topic is required.",
+      );
+    }
+    try {
+      return context.json(await startCodexConceptSession(body.topic), 201);
+    } catch (error) {
+      return apiError(
+        context,
+        503,
+        "terminal_unavailable",
+        error instanceof Error
+          ? error.message
+          : "The terminal gateway is unavailable.",
+      );
     }
   });
 

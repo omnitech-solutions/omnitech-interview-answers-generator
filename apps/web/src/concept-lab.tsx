@@ -6,9 +6,14 @@ import type {
   SavedExplanation,
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useState } from "react";
-import { MarkdownContent } from "./markdown-content";
+import { createPortal } from "react-dom";
+import { ConceptMarkdownContent } from "./concept-markdown-content";
+import { StudioInspector } from "./studio-inspector";
+import { TerminalDock } from "./terminal-dock";
 
 const DRAFT_KEY = "interview-studio.concept-lab";
+type ConceptProvider = "" | "openai" | "lm-studio" | "codex";
+const CONCEPT_SESSION_PATTERN = /^concept-[a-z0-9-]+$/;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
@@ -34,11 +39,26 @@ export interface ConceptDraft extends GeneratedExplanation {
 export function ConceptLab({
   externalDraft,
   externalDrafts,
+  inspectorOpen = false,
+  onClearExternal,
+  onInspectorClose,
+  onTerminalClose,
+  onTerminalOpen,
+  terminalOpen = false,
+  toolbarTarget,
 }: {
   externalDraft?: ConceptDraft;
   externalDrafts?: ConceptDraft[];
+  inspectorOpen?: boolean;
+  onClearExternal?: () => void;
+  onInspectorClose?: () => void;
+  onTerminalClose?: () => void;
+  onTerminalOpen?: () => void;
+  terminalOpen?: boolean;
+  toolbarTarget?: HTMLElement | null;
 }) {
   const [topic, setTopic] = useState("");
+  const [provider, setProvider] = useState<ConceptProvider>("");
   const [title, setTitle] = useState("");
   const [markdown, setMarkdown] = useState("");
   const [followUps, setFollowUps] = useState<ConceptDraft[]>([]);
@@ -48,6 +68,7 @@ export function ConceptLab({
   const [savedOpen, setSavedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [terminalSession, setTerminalSession] = useState("workspace");
 
   const loadSaved = useCallback(async () => {
     setSaved(await request<SavedExplanation[]>("/explanations"));
@@ -58,10 +79,24 @@ export function ConceptLab({
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
-      const draft = JSON.parse(raw) as Partial<ConceptDraft>;
+      const draft = JSON.parse(raw) as Partial<ConceptDraft> & {
+        provider?: ConceptProvider;
+        terminalSession?: unknown;
+      };
       setTopic(draft.topic ?? "");
+      setProvider(
+        ["", "openai", "lm-studio", "codex"].includes(draft.provider ?? "")
+          ? (draft.provider as ConceptProvider)
+          : "",
+      );
       setTitle(draft.title ?? "");
       setMarkdown(draft.markdown ?? "");
+      if (
+        typeof draft.terminalSession === "string" &&
+        CONCEPT_SESSION_PATTERN.test(draft.terminalSession)
+      ) {
+        setTerminalSession(draft.terminalSession);
+      }
       setFollowUps(
         Array.isArray(
           (draft as Partial<ConceptDraft> & { followUps?: unknown }).followUps,
@@ -99,18 +134,43 @@ export function ConceptLab({
   useEffect(() => {
     window.localStorage.setItem(
       DRAFT_KEY,
-      JSON.stringify({ topic, title, markdown, followUps }),
+      JSON.stringify({
+        topic,
+        provider,
+        title,
+        markdown,
+        followUps,
+        terminalSession,
+      }),
     );
-  }, [followUps, markdown, title, topic]);
+  }, [followUps, markdown, provider, terminalSession, title, topic]);
 
   async function generate() {
-    if (!topic.trim()) return;
+    if (!topic.trim() || !provider) return;
     setBusy(true);
-    setStatus("Building interview talking points…");
+    setStatus(
+      provider === "codex"
+        ? "Starting a fresh Codex terminal session…"
+        : `Building interview talking points with ${
+            provider === "lm-studio" ? "LM Studio" : "OpenAI"
+          }…`,
+    );
     try {
+      if (provider === "codex") {
+        const session = await request<{ name: string }>("/concept-sessions", {
+          method: "POST",
+          body: JSON.stringify({ topic: topic.trim() }),
+        });
+        setTerminalSession(session.name);
+        onTerminalOpen?.();
+        setStatus(
+          `Codex session “${session.name}” started. Its /explain result will appear here.`,
+        );
+        return;
+      }
       const result = await request<GeneratedExplanation>("/explain", {
         method: "POST",
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, providerId: provider }),
       });
       if (markdown.trim()) {
         setFollowUps((current) => [
@@ -168,15 +228,57 @@ export function ConceptLab({
     setStatus("Saved briefing deleted.");
   }
 
-  function clear() {
+  async function clear() {
+    window.localStorage.removeItem(DRAFT_KEY);
     setTopic("");
     setTitle("");
     setMarkdown("");
     setFollowUps([]);
     setOpenFollowUps([]);
     setSavedId(undefined);
-    setStatus("New unsaved briefing.");
+    onClearExternal?.();
+    try {
+      await request<unknown>("/playground-control", {
+        method: "PATCH",
+        body: JSON.stringify({
+          view: "concept-lab",
+          explanation: null,
+          explanations: [],
+        }),
+      });
+      setStatus("New unsaved briefing.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? `Briefing cleared locally. ${error.message}`
+          : "Briefing cleared locally.",
+      );
+    }
   }
+
+  const actions = (
+    <div className="concept-actions">
+      <Button variant="outline" onClick={() => void clear()} disabled={busy}>
+        New
+      </Button>
+      <Button
+        onClick={() => void generate()}
+        disabled={busy || !topic.trim() || !provider}
+      >
+        {busy ? "Working…" : "Explain"}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => void save()}
+        disabled={busy || !markdown.trim()}
+      >
+        Save
+      </Button>
+      <Button variant="outline" onClick={() => setSavedOpen((value) => !value)}>
+        Saved
+      </Button>
+    </div>
+  );
 
   return (
     <section className="concept-lab" aria-labelledby="concept-lab-title">
@@ -188,34 +290,24 @@ export function ConceptLab({
             Fast recall for full-stack concepts, DSA, and experience stories.
           </p>
         </div>
-        <div className="concept-actions">
-          <Button variant="outline" onClick={clear} disabled={busy}>
-            New
-          </Button>
-          <Button
-            onClick={() => void generate()}
-            disabled={busy || !topic.trim()}
-          >
-            {busy ? "Working…" : "Explain"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => void save()}
-            disabled={busy || !markdown.trim()}
-          >
-            Save
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setSavedOpen((value) => !value)}
-          >
-            Saved
-          </Button>
-        </div>
+        {toolbarTarget ? createPortal(actions, toolbarTarget) : actions}
       </div>
 
       <div className="concept-grid">
         <Card className="concept-prompt-card">
+          <label htmlFor="concept-provider">Explanation provider</label>
+          <select
+            id="concept-provider"
+            value={provider}
+            onChange={(event) =>
+              setProvider(event.target.value as ConceptProvider)
+            }
+          >
+            <option value="">Choose a provider…</option>
+            <option value="openai">OpenAI</option>
+            <option value="lm-studio">LM Studio</option>
+            <option value="codex">Codex CLI</option>
+          </select>
           <label htmlFor="concept-topic">What do you need to explain?</label>
           <textarea
             id="concept-topic"
@@ -239,7 +331,7 @@ export function ConceptLab({
           </div>
           <article className="markdown concept-markdown">
             {markdown ? (
-              <MarkdownContent>{markdown}</MarkdownContent>
+              <ConceptMarkdownContent>{markdown}</ConceptMarkdownContent>
             ) : (
               <div className="empty">
                 <strong>Build a clear answer you can say out loud.</strong>
@@ -294,7 +386,9 @@ export function ConceptLab({
                     id={contentId}
                     className="markdown concept-markdown concept-follow-up-content"
                   >
-                    <MarkdownContent>{followUp.markdown}</MarkdownContent>
+                    <ConceptMarkdownContent>
+                      {followUp.markdown}
+                    </ConceptMarkdownContent>
                   </article>
                 ) : null}
               </Card>
@@ -335,6 +429,24 @@ export function ConceptLab({
       <p className="status" role="status">
         {status}
       </p>
+      {onTerminalClose ? (
+        <StudioInspector
+          className="concept-inspector"
+          title="Concept Inspector"
+          description="Use the terminal for Codex explanations and project commands."
+          open={inspectorOpen}
+          onOpenChange={(open) => {
+            if (!open) onInspectorClose?.();
+          }}
+        >
+          <TerminalDock
+            className="inspector-terminal-dock"
+            open={terminalOpen}
+            onClose={onTerminalClose}
+            sessionName={terminalSession}
+          />
+        </StudioInspector>
+      ) : null}
     </section>
   );
 }

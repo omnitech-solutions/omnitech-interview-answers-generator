@@ -272,6 +272,21 @@ describe("interview-answers CLI", () => {
     expect(playgroundClient.reset).toHaveBeenCalledOnce();
   });
 
+  it("prints a concise playground summary", async () => {
+    playgroundClient.get.mockResolvedValue({
+      value: {
+        view: "concept-lab",
+        explanation: { title: "React rendering" },
+      },
+    });
+
+    await run("playground", "show", "--summary");
+
+    expect(process.stdout.write).toHaveBeenCalledWith(
+      "concept-lab: React rendering\n",
+    );
+  });
+
   it("starts, shows, ends, and resets the Mock Interview workspace", async () => {
     playgroundClient.set.mockResolvedValue({});
     playgroundClient.get.mockResolvedValue({});
@@ -318,6 +333,15 @@ describe("interview-answers CLI", () => {
       notes: "Use updater",
       panel: "notes",
     });
+  });
+
+  it("can patch playground controls without printing the state", async () => {
+    playgroundClient.set.mockResolvedValue({ value: { view: "concept-lab" } });
+
+    await run("playground", "set", "--view", "concept-lab", "--quiet");
+
+    expect(playgroundClient.set).toHaveBeenCalledWith({ view: "concept-lab" });
+    expect(process.stdout.write).not.toHaveBeenCalled();
   });
 
   it("appends a prepared explanation from a Markdown file", async () => {

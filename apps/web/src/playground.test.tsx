@@ -30,6 +30,10 @@ vi.mock("react-markdown", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("./browser-terminal", () => ({
+  BrowserTerminal: () => <div data-testid="browser-terminal" />,
+}));
+
 vi.mock("@oc-tech/omni-ui-components/dynamic-form", () => ({
   DynamicForm: ({
     formData,
@@ -175,7 +179,7 @@ async function renderSettled({ openInspector = true } = {}) {
   render(<Playground />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
   if (openInspector) {
-    screen.getByRole("button", { name: "Show inspector" }).click();
+    screen.queryByRole("button", { name: "Show inspector" })?.click();
     await waitFor(() =>
       expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible(),
     );
@@ -183,6 +187,7 @@ async function renderSettled({ openInspector = true } = {}) {
 }
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
   class MockWebSocket {
     static OPEN = 1;
@@ -211,6 +216,52 @@ beforeEach(() => {
 });
 
 describe("Playground", () => {
+  it("keeps the Concept Lab terminal open until its toggle or close button is used", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, "", "/?view=concept-lab");
+    installFetch((path) => {
+      if (path.endsWith("/explanations") || path.endsWith("/answers"))
+        return jsonResponse([]);
+      return jsonResponse({
+        ...emptySnapshot,
+        value: { ...emptySnapshot.value, view: "concept-lab" },
+      });
+    });
+    await renderSettled({ openInspector: false });
+
+    const toggle = screen.getByRole("button", { name: "Show terminal" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await user.click(toggle);
+
+    const terminal = screen.getByRole("region", { name: "Terminal" });
+    expect(terminal).toBeVisible();
+    expect(
+      screen.getByRole("dialog", { name: "Concept Inspector" }),
+    ).toBeVisible();
+    expect(terminal).toHaveClass("inspector-terminal-dock");
+    expect(
+      screen.getByRole("button", { name: "Hide terminal" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    await user.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "openai",
+    );
+    expect(terminal).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Close terminal" }));
+    expect(
+      screen.getByRole("button", { name: "Show terminal" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.getByRole("dialog", { name: "Concept Inspector" }),
+    ).toBeVisible();
+    expect(terminal).toHaveClass("terminal-dock-hidden");
+    expect(
+      screen.getByRole("button", { name: "Hide inspector" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("starts as an accessible unsaved draft with unavailable actions", async () => {
     const user = userEvent.setup();
     installFetch();
@@ -268,12 +319,16 @@ describe("Playground", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Hide inspector" }));
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Show terminal" }),
+    ).toHaveAttribute("aria-pressed", "false");
     await user.click(screen.getByRole("button", { name: "Show inspector" }));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toHaveClass(
+      "terminal-dock-hidden",
+    );
     await user.click(screen.getByRole("button", { name: "Hide inspector" }));
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Hide terminal" }));
     await user.click(screen.getByRole("button", { name: "Show inspector" }));
     expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Terminal" })).toHaveClass(
