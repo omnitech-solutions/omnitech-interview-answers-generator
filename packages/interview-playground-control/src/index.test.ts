@@ -26,6 +26,18 @@ describe("parsePlaygroundPatch", () => {
     });
   });
 
+  it("accepts a validated Mock Interview command", () => {
+    expect(
+      parsePlaygroundPatch({
+        view: "mock-interview",
+        mockInterview: { action: "start", strict: true },
+      }),
+    ).toEqual({
+      view: "mock-interview",
+      mockInterview: { action: "start", strict: true },
+    });
+  });
+
   it("rejects unknown control names", () => {
     expect(() => parsePlaygroundPatch({ questions: "typo" })).toThrow(
       'Unknown Playground field "questions".',
@@ -66,6 +78,14 @@ describe("parsePlaygroundPatch", () => {
     [{ question: 42 }, 'Playground field "question" must be a string.'],
     [{ language: "python" }, 'Unsupported Playground language "python".'],
     [{ panel: "preview" }, 'Unsupported Playground panel "preview".'],
+    [
+      { mockInterview: { action: "pause", strict: false } },
+      'Unsupported mock interview action "pause".',
+    ],
+    [
+      { mockInterview: { action: "start", strict: "yes" } },
+      'Playground field "strict" must be a boolean.',
+    ],
     [
       { answer: "nope" },
       'Playground field "answer" must be an object or null.',

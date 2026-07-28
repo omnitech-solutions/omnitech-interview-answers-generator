@@ -211,7 +211,7 @@ export function createProgram(): Command {
     .option("-l, --language <language>")
     .option("--notes <notes>")
     .option("--panel <panel>", "notes, output, or saved")
-    .option("--view <view>", "playground or concept-lab")
+    .option("--view <view>", "playground, concept-lab, or mock-interview")
     .option("--title <title>", "answer title")
     .option("--answer-markdown <markdown>")
     .option("--code-file <path>")
@@ -308,6 +308,48 @@ export function createProgram(): Command {
       globals.format,
     );
   });
+
+  const mockInterview = program
+    .command("mock-interview")
+    .description("Control the dedicated timed Mock Interview workspace.");
+
+  mockInterview
+    .command("start")
+    .option("--strict", "disable pausing for this session")
+    .action(async (options: { strict?: boolean }) => {
+      const globals = globalOptions(program);
+      print(
+        await (await createConfiguredPlaygroundControlClient(globals)).set({
+          view: "mock-interview",
+          mockInterview: {
+            action: "start",
+            strict: Boolean(options.strict),
+          },
+        }),
+        globals.format,
+      );
+    });
+
+  mockInterview.command("show").action(async () => {
+    const globals = globalOptions(program);
+    print(
+      await (await createConfiguredPlaygroundControlClient(globals)).get(),
+      globals.format,
+    );
+  });
+
+  for (const action of ["end", "reset"] as const) {
+    mockInterview.command(action).action(async () => {
+      const globals = globalOptions(program);
+      print(
+        await (await createConfiguredPlaygroundControlClient(globals)).set({
+          view: "mock-interview",
+          mockInterview: { action, strict: false },
+        }),
+        globals.format,
+      );
+    });
+  }
 
   program
     .command("route")

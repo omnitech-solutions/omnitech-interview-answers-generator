@@ -1257,6 +1257,211 @@ textarea {
   padding: 28px;
 }
 
+.mock-interview {
+  display: grid;
+  gap: 18px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.mock-heading,
+.mock-actions,
+.mock-timers,
+.mock-reveal-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.mock-heading {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.mock-heading h2 {
+  margin: 4px 0;
+  font-size: 28px;
+}
+
+.mock-heading p,
+.mock-setup p,
+.mock-reveals > p,
+.mock-summary p {
+  color: var(--muted);
+}
+
+.mock-actions,
+.mock-reveal-buttons {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mock-timers {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mock-timers span,
+.mock-timers strong,
+.mock-timers em {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.mock-timers em {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.mock-setup {
+  display: grid;
+  width: min(620px, 100%);
+  gap: 14px;
+  padding: 24px;
+}
+
+.mock-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mock-check input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.mock-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  gap: 18px;
+}
+
+.mock-main {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
+.mock-question,
+.mock-editor,
+.mock-reveals,
+.mock-coach,
+.mock-concept,
+.mock-summary {
+  padding: 18px;
+}
+
+.mock-question > span,
+.mock-concept > span,
+.mock-coach > span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.mock-question code {
+  display: block;
+  overflow-x: auto;
+  padding: 12px;
+  border-radius: 7px;
+  background: var(--wash);
+}
+
+.mock-editor,
+.mock-coach,
+.mock-concept {
+  display: grid;
+  gap: 12px;
+}
+
+.mock-editor label {
+  font-weight: 750;
+}
+
+.mock-editor textarea,
+.mock-editor input,
+.mock-concept textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-field);
+  color: var(--ink);
+}
+
+.mock-editor textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.mock-editor textarea.mock-code {
+  min-height: 320px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.mock-concept textarea {
+  min-height: 220px;
+  resize: vertical;
+}
+
+.mock-coach {
+  position: sticky;
+  top: 92px;
+}
+
+.mock-coach > strong {
+  font-size: 30px;
+}
+
+.mock-reveals {
+  display: grid;
+  gap: 13px;
+}
+
+.mock-reveals section {
+  border-top: 1px solid var(--line);
+}
+
+.mock-reveals pre {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--wash);
+  white-space: pre-wrap;
+}
+
+.mock-score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mock-score-grid > div {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.mock-score-grid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mock-score-grid strong {
+  font-size: 26px;
+}
+
 .concept-lab-heading,
 .concept-actions,
 .concept-preview-header,
@@ -2595,8 +2800,17 @@ select {
 
 @media (max-width: 1050px) {
   .workspace,
-  .answer-grid {
+  .answer-grid,
+  .mock-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mock-coach {
+    position: static;
+  }
+
+  .mock-score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   /* Keep the code users need to act on immediately visible on narrow screens. */
@@ -2673,5 +2887,14 @@ select {
 
   .topbar-concept .topbar-view-title {
     display: none;
+  }
+
+  .mock-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mock-score-grid {
+    grid-template-columns: 1fr;
   }
 }

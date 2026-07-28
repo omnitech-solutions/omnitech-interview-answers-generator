@@ -272,6 +272,30 @@ describe("interview-answers CLI", () => {
     expect(playgroundClient.reset).toHaveBeenCalledOnce();
   });
 
+  it("starts, shows, ends, and resets the Mock Interview workspace", async () => {
+    playgroundClient.set.mockResolvedValue({});
+    playgroundClient.get.mockResolvedValue({});
+
+    await run("mock-interview", "start", "--strict");
+    await run("mock-interview", "show");
+    await run("mock-interview", "end");
+    await run("mock-interview", "reset");
+
+    expect(playgroundClient.set).toHaveBeenNthCalledWith(1, {
+      view: "mock-interview",
+      mockInterview: { action: "start", strict: true },
+    });
+    expect(playgroundClient.get).toHaveBeenCalledOnce();
+    expect(playgroundClient.set).toHaveBeenNthCalledWith(2, {
+      view: "mock-interview",
+      mockInterview: { action: "end", strict: false },
+    });
+    expect(playgroundClient.set).toHaveBeenNthCalledWith(3, {
+      view: "mock-interview",
+      mockInterview: { action: "reset", strict: false },
+    });
+  });
+
   it("patches named playground controls", async () => {
     playgroundClient.set.mockResolvedValue({ question: "Counter" });
 

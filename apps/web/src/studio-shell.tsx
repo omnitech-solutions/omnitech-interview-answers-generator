@@ -3,7 +3,11 @@
 import { IconButton } from "@oc-tech/omni-ui-components";
 import React, { useEffect, useState } from "react";
 
-export type StudioWorkspace = "playground" | "concept-lab" | "library";
+export type StudioWorkspace =
+  | "playground"
+  | "concept-lab"
+  | "mock-interview"
+  | "library";
 
 const THEME_STORAGE_KEY = "interview-playground.theme";
 
@@ -19,6 +23,12 @@ const workspaces = [
     href: "/?view=concept-lab",
     title: "Concept Lab",
     description: "Prepare concise talking points",
+  },
+  {
+    id: "mock-interview",
+    href: "/?view=mock-interview",
+    title: "Mock Interview",
+    description: "Run a timed, scored rehearsal",
   },
   {
     id: "library",
@@ -106,7 +116,9 @@ export function StudioNavigation({
   onClose,
 }: {
   active: StudioWorkspace;
-  onSelect?: (workspace: "playground" | "concept-lab") => void;
+  onSelect?: (
+    workspace: "playground" | "concept-lab" | "mock-interview",
+  ) => void;
   onClose: () => void;
 }) {
   return (

@@ -7,7 +7,12 @@ export type PlaygroundLanguage =
 
 export type PlaygroundAnswerLanguage = Exclude<PlaygroundLanguage, "auto">;
 export type PlaygroundPanel = "terminal" | "notes" | "output" | "saved";
-export type StudioView = "playground" | "concept-lab";
+export type StudioView = "playground" | "concept-lab" | "mock-interview";
+
+export interface MockInterviewControl {
+  action: "start" | "end" | "reset";
+  strict: boolean;
+}
 
 export interface PlaygroundExplanation {
   title: string;
@@ -33,6 +38,7 @@ export interface PlaygroundValue {
   view: StudioView;
   explanation: PlaygroundExplanation | null;
   explanations: PlaygroundExplanation[];
+  mockInterview: MockInterviewControl | null;
 }
 
 export type PlaygroundPatch = Partial<PlaygroundValue>;
@@ -91,7 +97,11 @@ const panels = new Set<PlaygroundPanel>([
   "output",
   "saved",
 ]);
-const views = new Set<StudioView>(["playground", "concept-lab"]);
+const views = new Set<StudioView>([
+  "playground",
+  "concept-lab",
+  "mock-interview",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -155,6 +165,26 @@ function parseExplanation(value: unknown): PlaygroundExplanation | null {
   return parsePlaygroundExplanation(value);
 }
 
+function parseMockInterview(value: unknown): MockInterviewControl | null {
+  if (value === null) return null;
+  if (!isRecord(value)) {
+    throw new TypeError(
+      'Playground field "mockInterview" must be an object or null.',
+    );
+  }
+  const action = requireString(value, "action");
+  if (!["start", "end", "reset"].includes(action)) {
+    throw new TypeError(`Unsupported mock interview action "${action}".`);
+  }
+  if (typeof value["strict"] !== "boolean") {
+    throw new TypeError('Playground field "strict" must be a boolean.');
+  }
+  return {
+    action: action as MockInterviewControl["action"],
+    strict: value["strict"],
+  };
+}
+
 /**
  * Validates untrusted CLI and HTTP input at the package boundary. Unknown
  * fields are rejected so misspelled control names cannot silently do nothing.
@@ -172,6 +202,7 @@ export function parsePlaygroundPatch(input: unknown): PlaygroundPatch {
     "panel",
     "view",
     "explanation",
+    "mockInterview",
   ]);
   const unknownField = Object.keys(input).find((key) => !knownFields.has(key));
   if (unknownField) {
@@ -184,6 +215,9 @@ export function parsePlaygroundPatch(input: unknown): PlaygroundPatch {
   if ("answer" in input) patch.answer = parseAnswer(input["answer"]);
   if ("explanation" in input) {
     patch.explanation = parseExplanation(input["explanation"]);
+  }
+  if ("mockInterview" in input) {
+    patch.mockInterview = parseMockInterview(input["mockInterview"]);
   }
 
   if ("language" in input) {

@@ -14,6 +14,7 @@ const emptyPlayground: PlaygroundValue = {
   view: "playground",
   explanation: null,
   explanations: [],
+  mockInterview: null,
 };
 
 interface PlaygroundControlStore {

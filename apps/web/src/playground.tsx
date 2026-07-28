@@ -46,6 +46,7 @@ import { z } from "zod";
 import { BrowserTerminal } from "./browser-terminal";
 import { ConceptLab, type ConceptDraft } from "./concept-lab";
 import { MarkdownContent } from "./markdown-content";
+import { MockInterview } from "./mock-interview";
 import {
   NavigationToggle,
   StudioBrand,
@@ -294,11 +295,13 @@ function syntaxLineNumber(raw: string): number | undefined {
 }
 
 export function Playground() {
-  const [activeView, setActiveView] = useState<"playground" | "concept-lab">(
-    "playground",
-  );
+  const [activeView, setActiveView] = useState<
+    "playground" | "concept-lab" | "mock-interview"
+  >("playground");
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [externalConcepts, setExternalConcepts] = useState<ConceptDraft[]>([]);
+  const [externalMockControl, setExternalMockControl] =
+    useState<PlaygroundSnapshot["value"]["mockInterview"]>();
   const { theme, toggleTheme } = useStudioTheme();
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
@@ -334,19 +337,21 @@ export function Playground() {
   const appliedControlRevision = useRef(-1);
 
   useEffect(() => {
-    if (
-      new URLSearchParams(window.location.search).get("view") === "concept-lab"
-    ) {
-      setActiveView("concept-lab");
-    }
+    const requestedView = new URLSearchParams(window.location.search).get(
+      "view",
+    );
+    if (requestedView === "concept-lab" || requestedView === "mock-interview")
+      setActiveView(requestedView);
   }, []);
 
-  function selectWorkspace(view: "playground" | "concept-lab") {
+  function selectWorkspace(
+    view: "playground" | "concept-lab" | "mock-interview",
+  ) {
     setActiveView(view);
     window.history.replaceState(
       {},
       "",
-      view === "concept-lab" ? "/?view=concept-lab" : "/",
+      view === "playground" ? "/" : `/?view=${view}`,
     );
   }
 
@@ -514,6 +519,7 @@ export function Playground() {
           snapshot.value.explanations ??
             (snapshot.value.explanation ? [snapshot.value.explanation] : []),
         );
+        setExternalMockControl(snapshot.value.mockInterview);
         const nextPanel: InspectorPanel =
           snapshot.value.panel === "notes" || snapshot.value.panel === "saved"
             ? snapshot.value.panel
@@ -841,7 +847,7 @@ export function Playground() {
         <main className="studio">
           <header
             className={`topbar ${
-              activeView === "concept-lab" ? "topbar-concept" : ""
+              activeView !== "playground" ? "topbar-concept" : ""
             }`}
           >
             <NavigationToggle
@@ -866,7 +872,11 @@ export function Playground() {
                 </select>
               </label>
             ) : (
-              <div className="topbar-view-title">Concept Lab</div>
+              <div className="topbar-view-title">
+                {activeView === "concept-lab"
+                  ? "Concept Lab"
+                  : "Mock Interview"}
+              </div>
             )}
             {activeView === "playground" ? (
               <div className="toolbar">
@@ -1001,6 +1011,12 @@ export function Playground() {
             <ConceptLab
               {...(externalConcepts.length
                 ? { externalDrafts: externalConcepts }
+                : {})}
+            />
+          ) : activeView === "mock-interview" ? (
+            <MockInterview
+              {...(externalMockControl
+                ? { externalControl: externalMockControl }
                 : {})}
             />
           ) : (
