@@ -45,8 +45,14 @@ Return a structured answer with:
   and Complexity sections must be point form, not dense paragraphs.
 - `code`: the complete, screen-share-readable main solution. Put the exact
   required entry-point function or component above all helper methods/functions;
-  helpers follow the entry point. Do not put example inputs, outputs, or I/O
-  traces in source comments.
+  helpers follow the entry point. Inside function/component bodies, add a
+  concise labeled comment immediately before each major logical block,
+  including guards, state/invariants, algorithmic passes, consequential
+  branches, and result assembly. Header comments do not count. When the original
+  prompt supplies an example, include `[TRACE] Input:` inside the entry-point
+  body with the actual method/function argument values copied from that example.
+  Keep those values consistent throughout later trace comments; never invent a
+  second example inside the code.
 - `usageCode`: executable representative usage that prints ordinary output;
 - `testCode`: focused executable tests covering the example, boundaries, and a
   meaningful failure-prone case. Derive cases from the actual contract rather
@@ -66,8 +72,10 @@ Keep the main solution portable to a browser interview IDE: use the exact
 signature, standard language/runtime APIs, deterministic logic, no filesystem,
 network, timers, environment variables, external packages, test-only imports,
 or process termination. Place framework-specific test imports only in
-`testCode`. Comments must explain guards, invariants, and decisions that help
-the candidate communicate; do not narrate obvious syntax.
+`testCode`. Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, `[SAFETY]`,
+and `[TRACE]` consistently. Comments must explain guards, invariants, major
+logic, and decisions that help the candidate communicate; do not narrate
+obvious syntax.
 
 Pass the completed structured answer to the `interview-playground-controller`
 skill. Do not persist unless the user requests it.

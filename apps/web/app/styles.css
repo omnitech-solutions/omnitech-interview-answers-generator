@@ -482,8 +482,10 @@ textarea {
 .library-quick-list a,
 .library-result-list > button,
 .library-result-list > a {
+  position: relative;
   display: grid;
   gap: 6px;
+  overflow: hidden;
   padding: 14px 15px;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -502,6 +504,51 @@ textarea {
 .library-result-list > a.active {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
   background: color-mix(in srgb, var(--accent) 5%, var(--wash));
+}
+
+.library-result-list > button.loading::after,
+.library-result-list > a.loading::after {
+  position: absolute;
+  inset: -1px;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--library-beam-angle),
+    transparent 0deg 265deg,
+    color-mix(in srgb, var(--accent) 30%, transparent) 285deg,
+    var(--accent) 320deg,
+    transparent 360deg
+  );
+  content: "";
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: library-border-beam 1.8s linear infinite;
+}
+
+@property --library-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes library-border-beam {
+  to {
+    --library-beam-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library-result-list > button.loading::after,
+  .library-result-list > a.loading::after {
+    animation: none;
+  }
 }
 
 .library-quick-list button > span,
@@ -1224,31 +1271,84 @@ textarea {
   display: grid;
   width: min(320px, 88vw);
   align-content: start;
-  gap: 10px;
-  padding: 28px 18px;
+  gap: 8px;
+  padding: 30px 20px;
   border-right: 1px solid var(--line);
   background: var(--paper);
   box-shadow: 18px 0 50px rgba(2, 6, 23, 0.3);
 }
 
+.studio-navigation > .eyebrow {
+  margin: 4px 12px 12px;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+}
+
 .studio-navigation > button,
 .studio-navigation > a {
   display: grid;
-  gap: 4px;
-  padding: 15px;
+  grid-template-columns: 44px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 13px;
+  min-height: 76px;
+  padding: 12px 13px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 15px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
   text-decoration: none;
   text-align: left;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
-.studio-navigation > button span,
-.studio-navigation > a span {
+.workspace-navigation-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.studio-navigation .workspace-navigation-copy > span {
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.4;
+}
+
+.workspace-navigation-copy strong {
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.workspace-navigation-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--paper));
+  color: color-mix(in srgb, var(--accent) 88%, var(--ink));
+}
+
+.workspace-navigation-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.workspace-navigation-arrow {
+  width: 17px;
+  height: 17px;
+  color: var(--muted);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
 }
 
 .studio-navigation > button.active,
@@ -1257,6 +1357,30 @@ textarea {
 .studio-navigation > a:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 10%, transparent);
+  transform: translateX(2px);
+}
+
+.studio-navigation > button.active .workspace-navigation-icon,
+.studio-navigation > a.active .workspace-navigation-icon {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--line));
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.studio-navigation > button:hover .workspace-navigation-arrow,
+.studio-navigation > a:hover .workspace-navigation-arrow,
+.studio-navigation > button.active .workspace-navigation-arrow,
+.studio-navigation > a.active .workspace-navigation-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.studio-navigation > button:focus-visible,
+.studio-navigation > a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .concept-lab {

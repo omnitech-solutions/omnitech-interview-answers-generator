@@ -46,6 +46,13 @@ describe("Studio shell", () => {
       "aria-current",
       "page",
     );
+    expect(
+      screen
+        .getByRole("link", { name: /Library/ })
+        .compareDocumentPosition(
+          screen.getByRole("link", { name: /Mock Interview/ }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Close navigation" }));
     expect(close).toHaveBeenCalled();
   });

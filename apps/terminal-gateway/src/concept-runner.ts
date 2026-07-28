@@ -19,6 +19,11 @@ export interface GeneratedConcept {
   title: string;
 }
 
+export function formatConceptFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return `\r\n[CONCEPT_FAILED] ${message}\r\n`;
+}
+
 export function normalizeCommentedExample(markdown: string): string {
   const fencedCode = /```([a-z][\w+-]*)\n([\s\S]+?)\n```/i;
   const match = fencedCode.exec(markdown);
@@ -220,7 +225,7 @@ async function main() {
       `Added “${concept.title}” to Concept Lab in ${elapsedSeconds}s.\r\n`,
     );
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    process.stdout.write(formatConceptFailure(error));
   }
 
   const shell = process.env["SHELL"] || "/bin/zsh";

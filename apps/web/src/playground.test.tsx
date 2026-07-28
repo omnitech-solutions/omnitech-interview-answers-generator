@@ -343,6 +343,23 @@ describe("Playground", () => {
     expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
   });
 
+  it("enables Generate when the question is entered before the provider", async () => {
+    const user = userEvent.setup();
+    installFetch();
+    await renderSettled({ openInspector: false });
+
+    const generate = screen.getByRole("button", { name: "Generate" });
+    await user.type(
+      screen.getByRole("textbox", { name: "Interview question" }),
+      "Format a newspaper page",
+    );
+    expect(generate).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Answer provider"), "codex");
+
+    expect(generate).toBeEnabled();
+  });
+
   it("generates a routed React draft from the question controls", async () => {
     const user = userEvent.setup();
     const fetchMock = installFetch(async (path, init) => {

@@ -23,10 +23,17 @@
 - Use domain names. Keep orchestration readable from top to bottom.
 - For interview answers, put PROBLEM, STRATEGY, and COMPLEXITY comments at the
   top of the main solution. Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`,
-  `[STRATEGY]`, and `[SAFETY]` labels for non-trivial decisions, invariants,
-  boundary normalization, and surprising behavior. Comments must explain the
-  decision only; never include example inputs, outputs, or I/O traces in source
-  comments. Put examples in `usageCode` or tests instead.
+  `[STRATEGY]`, `[SAFETY]`, and `[TRACE]` labels. Inside the entry-point and
+  helper bodies, add a concise comment immediately before every major logical
+  block: guards/normalization, state and invariants, each algorithmic pass,
+  consequential branch, and result assembly. Header comments do not satisfy
+  this body-comment requirement. Explain why the block exists and what remains
+  true; do not narrate individual syntax. When the prompt supplies a concrete
+  example, put a `[TRACE] Input:` comment inside the entry-point body containing
+  the original method/function arguments and their concrete values. Subsequent
+  `[TRACE]` body comments must use that same example and values consistently—
+  never invent, rename, or silently change them. Keep full expected outputs in
+  `usageCode` or tests.
 - Interview answer explanations must be Markdown rendered by the Playground.
   Use concise point form for the **Question**, **Approach**, **Complexity**,
   **Edge cases**, and **Talking points** sections. Bold the key domain terms,

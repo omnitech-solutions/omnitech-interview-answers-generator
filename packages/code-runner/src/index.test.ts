@@ -113,6 +113,32 @@ describe("DockerCodeRunner", () => {
     },
   );
 
+  it("removes PHP tags from every normal-output section", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.run({
+      language: "php",
+      code: "<?php function solution(): int { return 1; }\n\n<?php echo solution(); ?>",
+      stdin: "",
+    });
+
+    expect(childProcessMocks.spawn).toHaveBeenCalledWith(
+      "podman",
+      expect.arrayContaining([
+        "php:8.3-cli-alpine",
+        "-r",
+        "function solution(): int { return 1; }\n\necho solution(); ",
+      ]),
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+
+    child.emit("close", 0);
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({ exitCode: 0 }),
+    );
+  });
+
   it("keeps usage output out of the test source", async () => {
     const child = createChildProcess();
     const runner = new DockerCodeRunner({ dockerBinary: "podman" });
@@ -446,6 +472,35 @@ describe("DockerCodeRunner", () => {
       );
     },
   );
+
+  it("fails a PHP run when Pest discovers no tests", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ dockerBinary: "podman" });
+
+    const resultPromise = runner.runAll({
+      language: "php",
+      code: "function solution(): int { return 1; }",
+      usageCode: "",
+      testCode: "print 'All tests passed.';",
+      stdin: "",
+    });
+    await vi.waitFor(() => expect(childProcessMocks.spawn).toHaveBeenCalled());
+
+    child.stdout.emit(
+      "data",
+      Buffer.from("INFO  All tests passed.\n\nINFO  No tests found.\n"),
+    );
+    child.emit("close", 0);
+
+    await expect(resultPromise).resolves.toEqual(
+      expect.objectContaining({
+        exitCode: 1,
+        stderr: expect.stringContaining(
+          "completed without discovering any tests",
+        ),
+      }),
+    );
+  });
 
   it("runs solution and usage without invoking a test framework when tests are empty", async () => {
     const child = createChildProcess();

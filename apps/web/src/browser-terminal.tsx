@@ -43,6 +43,7 @@ export function BrowserTerminal({
     let socket: WebSocket | undefined;
     let reconnectTimer: number | undefined;
     let disposed = false;
+    let recentOutput = "";
     const fitVisibleTerminal = () => {
       const { height, width } = container.getBoundingClientRect();
       if (width < 40 || height < 40) return false;
@@ -87,7 +88,16 @@ export function BrowserTerminal({
         }
       });
       socket.addEventListener("message", (event: MessageEvent<string>) => {
-        terminal.write(event.data);
+        recentOutput = `${recentOutput}${event.data}`.slice(-512);
+        terminal.write(event.data, () => {
+          if (
+            recentOutput.includes("[ANSWER_FAILED]") ||
+            recentOutput.includes("[CONCEPT_FAILED]")
+          ) {
+            terminal.scrollToBottom();
+            recentOutput = "";
+          }
+        });
       });
       socket.addEventListener("close", () => {
         if (disposed) return;

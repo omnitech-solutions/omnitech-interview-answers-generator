@@ -9,9 +9,9 @@ import type {
   LibrarySearchHit,
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";
-import { useRouter } from "next/navigation";
 import React, {
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
   useRef,
@@ -102,10 +102,34 @@ function isDocumentTitleHeading(hit: LibrarySearchHit) {
   );
 }
 
-function hitHref(hit: LibrarySearchHit) {
+function libraryFilterParameters({
+  collections,
+  officialOnly,
+  query,
+  tags,
+  types,
+}: {
+  collections: string[];
+  officialOnly: boolean;
+  query: string;
+  tags: string[];
+  types: LibraryContentType[];
+}) {
+  const parameters = new URLSearchParams();
+  if (query) parameters.set("q", query);
+  for (const type of types) parameters.append("type", type);
+  for (const collection of collections) {
+    parameters.append("collection", collection);
+  }
+  for (const tag of tags) parameters.append("tag", tag);
+  if (officialOnly) parameters.set("official", "true");
+  return parameters;
+}
+
+function hitHref(hit: LibrarySearchHit, filters = "") {
   const anchor =
     hit.anchor && !isDocumentTitleHeading(hit) ? `#${hit.anchor}` : "";
-  return `/library/${hit.slug}${anchor}`;
+  return `/library/${hit.slug}${filters ? `?${filters}` : ""}${anchor}`;
 }
 
 function articleBodyWithoutDuplicateTitle(body: string, title: string) {
@@ -125,13 +149,15 @@ function articleBodyWithoutDuplicateTitle(body: string, title: string) {
 }
 
 export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
-  const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<LibrarySearchResponse>();
   const [landingResult, setLandingResult] = useState<LibrarySearchResponse>();
   const [facets, setFacets] = useState<LibraryFacets>();
   const [item, setItem] = useState<LibraryItem>();
+  const [currentSlug, setCurrentSlug] = useState(initialSlug);
+  const [pendingSlug, setPendingSlug] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeResult, setActiveResult] = useState(0);
@@ -146,11 +172,42 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
   const { theme, toggleTheme } = useStudioTheme();
 
   useEffect(() => {
-    const collection = new URLSearchParams(window.location.search).get(
-      "collection",
+    const parameters = new URLSearchParams(window.location.search);
+    setQuery(parameters.get("q") ?? "");
+    setTypes(
+      parameters
+        .getAll("type")
+        .filter((value): value is LibraryContentType =>
+          Object.hasOwn(contentTypeLabels, value),
+        ),
     );
-    if (collection) setCollections([collection]);
+    setCollections(parameters.getAll("collection"));
+    setTags(parameters.getAll("tag"));
+    setOfficialOnly(parameters.get("official") === "true");
+    setFiltersHydrated(true);
   }, []);
+
+  const filterQuery = useMemo(
+    () =>
+      libraryFilterParameters({
+        collections,
+        officialOnly,
+        query,
+        tags,
+        types,
+      }).toString(),
+    [collections, officialOnly, query, tags, types],
+  );
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+    const search = filterQuery ? `?${filterQuery}` : "";
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}${search}${window.location.hash}`,
+    );
+  }, [filterQuery, filtersHydrated]);
 
   useEffect(() => {
     void requestJson<LibraryFacets>("/api/v1/library/facets")
@@ -161,23 +218,37 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
   }, []);
 
   useEffect(() => {
-    if (!initialSlug) {
+    if (!currentSlug) {
       setItem(undefined);
+      setPendingSlug(undefined);
       return;
     }
     setLoading(true);
     void requestJson<LibraryItem>(
-      `/api/v1/library/items/${encodeURIComponent(initialSlug)}`,
+      `/api/v1/library/items/${encodeURIComponent(currentSlug)}`,
     )
       .then((next) => {
         setItem(next);
+        setPendingSlug(undefined);
         setError("");
       })
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : "Article failed."),
-      )
+      .catch((reason: unknown) => {
+        setPendingSlug(undefined);
+        setError(reason instanceof Error ? reason.message : "Article failed.");
+      })
       .finally(() => setLoading(false));
-  }, [initialSlug]);
+  }, [currentSlug]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const match = window.location.pathname.match(/^\/library\/([^/]+)$/);
+      const slug = match?.[1] ? decodeURIComponent(match[1]) : undefined;
+      setPendingSlug(slug);
+      setCurrentSlug(slug);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (!item || !window.location.hash) return;
@@ -301,7 +372,27 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
   }
 
   function openHit(hit: LibrarySearchHit) {
-    router.push(hitHref(hit));
+    const href = hitHref(hit, filterQuery);
+    setPendingSlug(hit.slug);
+    setCurrentSlug(hit.slug);
+    window.history.pushState({}, "", href);
+  }
+
+  function onHitClick(
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    hit: LibrarySearchHit,
+  ) {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    openHit(hit);
   }
 
   function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
@@ -449,9 +540,13 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
                   </div>
                   <SearchResults
                     active={activeResult}
+                    filters={filterQuery}
                     loading={loading}
                     query={query}
                     response={result}
+                    selectedSlug={item?.slug}
+                    pendingSlug={pendingSlug}
+                    onHitClick={onHitClick}
                   />
                 </>
               ) : (
@@ -518,9 +613,16 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
 
             <section className="library-main">
               {item ? (
-                <LibraryArticle item={item} {...adjacentItems} />
+                <LibraryArticle
+                  item={item}
+                  filters={filterQuery}
+                  {...adjacentItems}
+                />
               ) : (
-                <LibraryLanding response={landingResult} />
+                <LibraryLanding
+                  filters={filterQuery}
+                  response={landingResult}
+                />
               )}
             </section>
 
@@ -568,15 +670,30 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
 
 function SearchResults({
   active,
+  filters,
   loading,
+  onHitClick,
+  pendingSlug,
   query,
   response,
+  selectedSlug,
 }: {
   active: number;
+  filters: string;
   loading: boolean;
+  onHitClick: (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    hit: LibrarySearchHit,
+  ) => void;
+  pendingSlug?: string | undefined;
   query: string;
   response?: LibrarySearchResponse | undefined;
+  selectedSlug?: string | undefined;
 }) {
+  const selectedIndex = selectedSlug
+    ? response?.hits.findIndex((hit) => hit.slug === selectedSlug)
+    : -1;
+
   return (
     <div className="library-results" id="library-results">
       <header>
@@ -590,36 +707,48 @@ function SearchResults({
       </header>
       {response?.hits.length ? (
         <div className="library-result-list">
-          {response.hits.map((hit, index) => (
-            <a
-              id={`library-result-${index}`}
-              key={`${hit.itemId}:${hit.anchor}`}
-              className={active === index ? "active" : ""}
-              href={hitHref(hit)}
-              aria-current={active === index ? "true" : undefined}
-            >
-              <span className="library-result-meta">
-                <span className={typeClass(hit.contentType)}>
-                  {contentTypeLabels[hit.contentType]}
+          {response.hits.map((hit, index) => {
+            const selected =
+              selectedIndex !== undefined && selectedIndex === index;
+            const keyboardActive = !selectedSlug && active === index;
+            const pending = pendingSlug === hit.slug;
+            return (
+              <a
+                id={`library-result-${index}`}
+                key={`${hit.itemId}:${hit.anchor}`}
+                className={[
+                  selected || keyboardActive ? "active" : "",
+                  pending ? "loading" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                href={hitHref(hit, filters)}
+                onClick={(event) => onHitClick(event, hit)}
+                aria-current={selected ? "page" : undefined}
+              >
+                <span className="library-result-meta">
+                  <span className={typeClass(hit.contentType)}>
+                    {contentTypeLabels[hit.contentType]}
+                  </span>
+                  {hit.official ? (
+                    <span className="library-official">Verified source</span>
+                  ) : null}
                 </span>
-                {hit.official ? (
-                  <span className="library-official">Verified source</span>
+                <strong>{hit.title}</strong>
+                {hit.headingPath.length ? (
+                  <span className="library-breadcrumb">
+                    {hit.headingPath.join(" › ")}
+                  </span>
                 ) : null}
-              </span>
-              <strong>{hit.title}</strong>
-              {hit.headingPath.length ? (
-                <span className="library-breadcrumb">
-                  {hit.headingPath.join(" › ")}
+                <p>{highlightedExcerpt(hit.excerpt, query)}</p>
+                <span className="library-result-tags">
+                  {hit.tags.slice(0, 4).map((tag) => (
+                    <small key={tag}>{tag}</small>
+                  ))}
                 </span>
-              ) : null}
-              <p>{highlightedExcerpt(hit.excerpt, query)}</p>
-              <span className="library-result-tags">
-                {hit.tags.slice(0, 4).map((tag) => (
-                  <small key={tag}>{tag}</small>
-                ))}
-              </span>
-            </a>
-          ))}
+              </a>
+            );
+          })}
         </div>
       ) : !loading ? (
         <div className="library-empty">
@@ -632,8 +761,10 @@ function SearchResults({
 }
 
 function LibraryLanding({
+  filters,
   response,
 }: {
+  filters: string;
   response?: LibrarySearchResponse | undefined;
 }) {
   const collections = [
@@ -676,7 +807,7 @@ function LibraryLanding({
       <h2>Recently verified and reviewed</h2>
       <div className="library-quick-list">
         {response?.hits.slice(0, 8).map((hit) => (
-          <a key={`${hit.itemId}:${hit.anchor}`} href={hitHref(hit)}>
+          <a key={`${hit.itemId}:${hit.anchor}`} href={hitHref(hit, filters)}>
             <span className={typeClass(hit.contentType)}>
               {contentTypeLabels[hit.contentType]}
             </span>
@@ -690,10 +821,12 @@ function LibraryLanding({
 }
 
 function LibraryArticle({
+  filters,
   item,
   next,
   previous,
 }: {
+  filters: string;
   item: LibraryItem;
   next?: LibrarySearchHit | undefined;
   previous?: LibrarySearchHit | undefined;
@@ -757,7 +890,7 @@ function LibraryArticle({
           aria-label="Adjacent references"
         >
           {previous ? (
-            <a href={`/library/${previous.slug}`}>
+            <a href={hitHref(previous, filters)}>
               <small>Previous</small>
               <strong>{previous.title}</strong>
             </a>
@@ -765,7 +898,7 @@ function LibraryArticle({
             <span />
           )}
           {next ? (
-            <a href={`/library/${next.slug}`}>
+            <a href={hitHref(next, filters)}>
               <small>Next</small>
               <strong>{next.title}</strong>
             </a>

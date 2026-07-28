@@ -3,11 +3,21 @@ import { describe, expect, it, vi } from "vitest";
 import {
   appendConcept,
   buildConceptPrompt,
+  formatConceptFailure,
   normalizeCommentedExample,
   runCodexConcept,
 } from "./concept-runner.js";
 
 describe("concept runner", () => {
+  it("formats failures with a stable terminal marker", () => {
+    expect(formatConceptFailure(new Error("Example missing"))).toBe(
+      "\r\n[CONCEPT_FAILED] Example missing\r\n",
+    );
+    expect(formatConceptFailure("Provider unavailable")).toContain(
+      "[CONCEPT_FAILED] Provider unavailable",
+    );
+  });
+
   it("uses a narrow prompt and an isolated Codex execution", () => {
     const markdown = `# Answer
 \`\`\`tsx

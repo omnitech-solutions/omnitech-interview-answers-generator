@@ -1,17 +1,16 @@
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const mocks = vi.hoisted(() => ({
-  push: vi.fn(),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
-}));
 
 import { Library } from "./library";
 
@@ -88,7 +87,6 @@ function response(body: unknown, ok = true): Response {
 
 describe("Library", () => {
   beforeEach(() => {
-    mocks.push.mockReset();
     window.history.replaceState({}, "", "/library");
     vi.stubGlobal(
       "fetch",
@@ -168,10 +166,107 @@ describe("Library", () => {
     expect(screen.getByText("React state › Ownership")).toBeVisible();
 
     await user.keyboard("{Enter}");
-    expect(mocks.push).toHaveBeenCalledWith("/library/react-state#ownership");
+    expect(
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    ).toBe("/library/react-state?q=React+state&tag=php#ownership");
     await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(search).toHaveValue("");
     expect(screen.getByText("Content type")).toBeVisible();
+  });
+
+  it("preserves active filters in selected reference links", async () => {
+    const user = userEvent.setup();
+    render(<Library />);
+
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search Library" }),
+      "frequency",
+    );
+    await user.click(screen.getByRole("button", { name: /TypeScript/ }));
+
+    const resultLink = (
+      await screen.findAllByRole("link", { name: /React state/ })
+    )[0];
+    expect(resultLink).toHaveAttribute(
+      "href",
+      "/library/react-state?q=frequency&tag=typescript#ownership",
+    );
+    expect(window.location.search).toBe("?q=frequency&tag=typescript");
+  });
+
+  it("marks the open reference instead of the first filtered result", async () => {
+    window.history.replaceState({}, "", "/library/react-state?tag=typescript");
+    const firstHit = {
+      ...hit,
+      itemId: "223e4567-e89b-42d3-a456-426614174000",
+      slug: "string-frequency",
+      title: "String frequency",
+    };
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/facets")) return response(facets);
+      if (url.includes("/items/react-state")) return response(article);
+      if (url.includes("/search")) {
+        return response({
+          ...searchResponse,
+          hits: [firstHit, hit],
+          total: 2,
+        });
+      }
+      return response({});
+    });
+
+    render(<Library initialSlug="react-state" />);
+
+    const index = screen.getByRole("complementary", {
+      name: "Library index",
+    });
+    const selected = (
+      await within(index).findByText("React state", { selector: "strong" })
+    ).closest("a");
+    const first = (
+      await within(index).findByText("String frequency", {
+        selector: "strong",
+      })
+    ).closest("a");
+    expect(selected).toHaveAttribute("aria-current", "page");
+    expect(selected).toHaveClass("active");
+    expect(first).not.toHaveAttribute("aria-current");
+    expect(first).not.toHaveClass("active");
+  });
+
+  it("shows the border beam only while the selected article is loading", async () => {
+    window.history.replaceState({}, "", "/library?tag=typescript");
+    let resolveArticle: ((value: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/facets")) return response(facets);
+      if (url.includes("/items/react-state")) {
+        return new Promise<Response>((resolve) => {
+          resolveArticle = resolve;
+        });
+      }
+      if (url.includes("/search")) return response(searchResponse);
+      return response({});
+    });
+    const user = userEvent.setup();
+    render(<Library />);
+
+    const index = screen.getByRole("complementary", {
+      name: "Library index",
+    });
+    const selected = (
+      await within(index).findByText("React state", { selector: "strong" })
+    ).closest("a");
+    await user.click(selected!);
+    expect(selected).toHaveClass("loading");
+
+    await act(async () => resolveArticle?.(response(article)));
+    await waitFor(() => expect(selected).not.toHaveClass("loading"));
+    expect(selected).toHaveClass("active");
+    expect(
+      screen.getByRole("heading", { name: "React state", level: 1 }),
+    ).toBeVisible();
   });
 
   it("supports command focus, slash focus, arrows, Escape, and filters", async () => {
@@ -184,7 +279,7 @@ describe("Library", () => {
     await user.type(search, "React");
     await screen.findAllByRole("link", { name: /React state/ });
     await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
-    expect(mocks.push).toHaveBeenCalled();
+    expect(window.location.pathname).toBe("/library/react-state");
     await user.keyboard("{Escape}");
     expect(search).toHaveValue("");
 
@@ -221,7 +316,7 @@ describe("Library", () => {
       "useRef",
     );
     const links = await screen.findAllByRole("link", { name: /useRef/ });
-    expect(links[0]).toHaveAttribute("href", "/library/react-use-ref");
+    expect(links[0]).toHaveAttribute("href", "/library/react-use-ref?q=useRef");
   });
 
   it("uses compact collection, trust, tag, mobile, and quick-link controls", async () => {

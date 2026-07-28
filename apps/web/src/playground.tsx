@@ -18,7 +18,6 @@ import {
   ConfigProvider,
   IconButton,
 } from "@oc-tech/omni-ui-components";
-import { DynamicForm } from "@oc-tech/omni-ui-components/dynamic-form";
 import type {
   GeneratedAnswer,
   Language,
@@ -27,7 +26,6 @@ import type {
   SavedAnswer,
 } from "@omnitech/interview-contracts";
 import type { PlaygroundSnapshot } from "@omnitech/interview-playground-control";
-import type { RJSFSchema } from "@rjsf/utils";
 import CodeMirror from "@uiw/react-codemirror";
 import React, {
   useCallback,
@@ -36,7 +34,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { z } from "zod";
 
 import { type ConceptDraft, ConceptLab } from "./concept-lab";
 import { formatTimestamp } from "./format-timestamp";
@@ -64,18 +61,6 @@ const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 const DRAFT_STORAGE_KEY = "interview-playground.draft";
 const ANSWER_SESSION_PATTERN = /^answer-[a-z0-9-]+$/;
 const PHP_EDITOR_PREFIX = "<?php\n";
-const setupSchema: RJSFSchema = {
-  type: "object",
-  properties: {
-    question: {
-      type: "string",
-      title: "Interview question",
-    },
-  },
-  required: ["question"],
-};
-
-const setupZodSchema = z.object({ question: z.string().min(1) });
 
 interface ExecutionOutput {
   solution?: RunResult;
@@ -1188,25 +1173,15 @@ export function Playground() {
                             <option value="codex">Codex CLI</option>
                           </select>
                         </label>
-                        <DynamicForm
-                          schema={setupSchema}
-                          zodSchema={setupZodSchema}
-                          formData={{ question }}
-                          onChange={(next) => {
+                        <StudioTextarea
+                          label="Interview question"
+                          aria-label="Interview question"
+                          rows={9}
+                          value={question}
+                          placeholder="Paste a coding, React, API, debugging, or system-design question…"
+                          onChange={(nextQuestion) => {
                             localEdits.current = true;
-                            setQuestion(next.question);
-                          }}
-                          onSubmit={() => undefined}
-                          uiSchema={{
-                            question: {
-                              "ui:widget": "textarea",
-                              "ui:options": {
-                                rows: 9,
-                                placeholder:
-                                  "Paste a coding, React, API, debugging, or system-design question…",
-                              },
-                            },
-                            "ui:submitButtonOptions": { norender: true },
+                            setQuestion(nextQuestion);
                           }}
                         />
                         <Button

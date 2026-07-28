@@ -16,9 +16,13 @@ Prefer one function, arrays, associative arrays, and readable `foreach` loops.
 Use `SplQueue` for BFS. Add a helper or class only for real state, reuse,
 invariants, or workflow boundaries.
 
-Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` on
-non-trivial decisions. Comments explain decisions only and must not include
-example inputs, outputs, or I/O traces. Explain PHP key coercion,
+Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, `[SAFETY]`, and `[TRACE]`.
+Inside function bodies, comment every major logical block, including guards,
+state/invariants, passes, wrapping or other consequential branches, and result
+assembly. Header comments do not count. When the prompt provides an example,
+put `// [TRACE] Input:` inside `solution()` with the original PHP argument
+values, then keep those values consistent across later body comments. Explain
+PHP key coercion,
 missing-versus-null lookups, loose-comparison risks, and boundary access when
 relevant. Do not label trivial assignments or loop increments.
 

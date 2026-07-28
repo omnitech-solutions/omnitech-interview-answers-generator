@@ -2,6 +2,8 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildAnswerPrompt,
+  formatAnswerFailure,
+  normalizeSolutionHeader,
   publishAnswer,
   runCodexAnswer,
 } from "./answer-runner.js";
@@ -14,7 +16,10 @@ const answer = {
   code: `// PROBLEM: Find two values.
 // STRATEGY: Track complements.
 // COMPLEXITY: O(n) time and O(n) space.
-function twoSum(values: number[], target: number): number[] { return []; }`,
+function twoSum(values: number[], target: number): number[] {
+  // [STRATEGY] Keep the result contract explicit when no pair exists.
+  return [];
+}`,
   usageCode: "console.log(twoSum([], 1));",
   testCode:
     'import { expect, it } from "vitest"; it("works", () => expect(twoSum([], 1)).toEqual([]));',
@@ -22,6 +27,18 @@ function twoSum(values: number[], target: number): number[] { return []; }`,
 };
 
 describe("answer runner", () => {
+  it("formats failures with a stable terminal marker", () => {
+    expect(formatAnswerFailure(new Error("RSpec failed"))).toContain(
+      "[ANSWER_FAILED]\r\nStage: answer generation or publication\r\nType: Error\r\nDetails: RSpec failed",
+    );
+    expect(formatAnswerFailure(new Error("RSpec failed"))).toContain(
+      "existing Playground answer was preserved",
+    );
+    expect(formatAnswerFailure("Provider unavailable")).toContain(
+      "Type: string\r\nDetails: Provider unavailable",
+    );
+  });
+
   it("uses one isolated, schema-constrained Codex call", () => {
     const spawnSync = vi.fn(
       (_command: string, args: string[], _options: unknown) => {
@@ -68,26 +85,149 @@ describe("answer runner", () => {
 
     expect(() =>
       runCodexAnswer("Find two values", { spawnSync: spawnSync as never }),
-    ).toThrow("incomplete coding answer");
+    ).toThrow(
+      "Answer validation failed after 2 attempts: Codex returned an incomplete coding answer",
+    );
+    expect(spawnSync).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects invalid JSON shapes and missing solution headers", () => {
-    const outputs = [
-      "null",
-      JSON.stringify({ ...answer, code: "function twoSum() {}" }),
-    ];
+  it("rejects invalid JSON shapes after one focused retry", () => {
+    const outputs = ["null", "null"];
+    const spawnSync = vi.fn(
+      (_command: string, args: string[], _options: unknown) => {
+        const outputPath = args.at(args.indexOf("--output-last-message") + 1);
+        writeFileSync(outputPath!, outputs.shift()!);
+        return { status: 0, stderr: "", stdout: "" };
+      },
+    );
+
+    expect(() =>
+      runCodexAnswer("Find two values", { spawnSync: spawnSync as never }),
+    ).toThrow("Answer validation failed after 2 attempts");
+    expect(spawnSync.mock.calls[1]?.[2]).toEqual(
+      expect.objectContaining({
+        input: expect.stringContaining(
+          "CORRECTION: The previous response failed validation",
+        ),
+      }),
+    );
+  });
+
+  it("repairs missing solution headers deterministically", () => {
     const spawnSync = vi.fn((_command: string, args: string[]) => {
       const outputPath = args.at(args.indexOf("--output-last-message") + 1);
-      writeFileSync(outputPath!, outputs.shift()!);
+      writeFileSync(
+        outputPath!,
+        JSON.stringify({
+          ...answer,
+          code: `function twoSum() {
+  // [STRATEGY] Keep the empty result explicit.
+  return [];
+}`,
+        }),
+      );
       return { status: 0, stderr: "", stdout: "" };
     });
 
-    expect(() =>
-      runCodexAnswer("Find two values", { spawnSync: spawnSync as never }),
-    ).toThrow("invalid coding answer");
-    expect(() =>
-      runCodexAnswer("Find two values", { spawnSync: spawnSync as never }),
-    ).toThrow("required solution comment header");
+    const result = runCodexAnswer("Find two values", {
+      spawnSync: spawnSync as never,
+    });
+    expect(result.code).toMatch(
+      /^\/\/ PROBLEM:.*\n\/\/ STRATEGY:.*\n\/\/ COMPLEXITY:/,
+    );
+    expect(result.code).toContain("function twoSum()");
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+
+    expect(
+      normalizeSolutionHeader(
+        "# PROBLEM: Keep this.\ndef solve = true",
+        "ruby",
+      ),
+    ).toMatch(
+      /^# PROBLEM:.*\n# STRATEGY:.*\n# COMPLEXITY:.*\ndef solve = true/,
+    );
+  });
+
+  it("regenerates answers that omit comments inside the solution body", () => {
+    let attempt = 0;
+    const spawnSync = vi.fn(
+      (_command: string, args: string[], _options: unknown) => {
+        attempt += 1;
+        const outputPath = args.at(args.indexOf("--output-last-message") + 1);
+        writeFileSync(
+          outputPath!,
+          JSON.stringify(
+            attempt === 1
+              ? {
+                  ...answer,
+                  code: `// PROBLEM: Find two values.
+// STRATEGY: Track complements.
+// COMPLEXITY: O(n) time and O(n) space.
+function twoSum(): number[] { return []; }`,
+                }
+              : answer,
+          ),
+        );
+        return { status: 0, stderr: "", stdout: "" };
+      },
+    );
+
+    expect(
+      runCodexAnswer("Find two values", {
+        spawnSync: spawnSync as never,
+      }),
+    ).toEqual(answer);
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+    expect(spawnSync.mock.calls[1]?.[2]).toEqual(
+      expect.objectContaining({
+        input: expect.stringContaining(
+          "omitted labeled comments inside the solution body",
+        ),
+      }),
+    );
+    expect(buildAnswerPrompt("Find two values")).toContain(
+      "INSIDE function/component bodies",
+    );
+  });
+
+  it("requires original example inputs in an entry-point body trace", () => {
+    const tracedAnswer = {
+      ...answer,
+      code: `// PROBLEM: Find two values.
+// STRATEGY: Track complements.
+// COMPLEXITY: O(n) time and O(n) space.
+function twoSum(values: number[], target: number): number[] {
+  // [TRACE] Input: values = [2, 7], target = 9.
+  // [STRATEGY] Keep the result contract explicit when no pair exists.
+  return [];
+}`,
+    };
+    let attempt = 0;
+    const spawnSync = vi.fn(
+      (_command: string, args: string[], _options: unknown) => {
+        attempt += 1;
+        const outputPath = args.at(args.indexOf("--output-last-message") + 1);
+        writeFileSync(
+          outputPath!,
+          JSON.stringify(attempt === 1 ? answer : tracedAnswer),
+        );
+        return { status: 0, stderr: "", stdout: "" };
+      },
+    );
+
+    expect(
+      runCodexAnswer("Example: values = [2, 7], target = 9", {
+        spawnSync: spawnSync as never,
+      }),
+    ).toEqual(tracedAnswer);
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+    expect(spawnSync.mock.calls[1]?.[2]).toEqual(
+      expect.objectContaining({
+        input: expect.stringContaining(
+          "omitted the original example inputs from the entry-point body",
+        ),
+      }),
+    );
   });
 
   it("surfaces Codex process failures", () => {
@@ -124,7 +264,13 @@ describe("answer runner", () => {
         JSON.stringify({
           ...answer,
           language: "ruby",
-          code: "# PROBLEM: Add.\n# STRATEGY: Add.\n# COMPLEXITY: O(1).\ndef add(a, b) = a + b",
+          code: `# PROBLEM: Add.
+# STRATEGY: Add.
+# COMPLEXITY: O(1).
+def add(a, b)
+  # [STRATEGY] Addition directly satisfies the numeric contract.
+  a + b
+end`,
           testCode:
             "def assert_equal(expected, actual); raise unless expected == actual; end\nassert_equal(3, add(1, 2))",
         }),
@@ -136,14 +282,21 @@ describe("answer runner", () => {
       runCodexAnswer("Add values in Ruby", {
         spawnSync: spawnSync as never,
       }),
-    ).toThrow("not genuine RSpec examples");
+    ).toThrow("Answer validation failed after 2 attempts");
+    expect(spawnSync).toHaveBeenCalledTimes(2);
   });
 
   it("accepts genuine RSpec tests", () => {
     const rubyAnswer = {
       ...answer,
       language: "ruby" as const,
-      code: "# PROBLEM: Add.\n# STRATEGY: Add.\n# COMPLEXITY: O(1).\ndef add(a, b) = a + b",
+      code: `# PROBLEM: Add.
+# STRATEGY: Add.
+# COMPLEXITY: O(1).
+def add(a, b)
+  # [STRATEGY] Addition directly satisfies the numeric contract.
+  a + b
+end`,
       testCode:
         'RSpec.describe "add" do\n  it("adds") { expect(add(1, 2)).to eq(3) }\nend',
     };
@@ -158,6 +311,54 @@ describe("answer runner", () => {
         spawnSync: spawnSync as never,
       }),
     ).toEqual(rubyAnswer);
+  });
+
+  it("requires genuine Pest tests for PHP answers", () => {
+    const invalidPhp = {
+      ...answer,
+      language: "php" as const,
+      code: `// PROBLEM: Add.
+// STRATEGY: Add.
+// COMPLEXITY: O(1).
+function add(int $a, int $b): int {
+    // [STRATEGY] Addition directly satisfies the numeric contract.
+    return $a + $b;
+}`,
+      testCode:
+        "if (add(1, 2) !== 3) { throw new RuntimeException('failed'); }\nprint 'All tests passed';",
+    };
+    const validPhp = {
+      ...invalidPhp,
+      testCode:
+        "test('adds values', function () { expect(add(1, 2))->toBe(3); });",
+    };
+    let attempt = 0;
+    const spawnSync = vi.fn(
+      (_command: string, args: string[], _options: unknown) => {
+        attempt += 1;
+        const outputPath = args.at(args.indexOf("--output-last-message") + 1);
+        writeFileSync(
+          outputPath!,
+          JSON.stringify(attempt === 1 ? invalidPhp : validPhp),
+        );
+        return { status: 0, stderr: "", stdout: "" };
+      },
+    );
+
+    expect(
+      runCodexAnswer("Add values in PHP", {
+        spawnSync: spawnSync as never,
+      }),
+    ).toEqual(validPhp);
+    expect(spawnSync).toHaveBeenCalledTimes(2);
+    expect(spawnSync.mock.calls[1]?.[2]).toEqual(
+      expect.objectContaining({
+        input: expect.stringContaining("not genuine Pest tests"),
+      }),
+    );
+    expect(buildAnswerPrompt("Add values in PHP")).toContain(
+      "PHP: genuine Pest",
+    );
   });
 
   it("publishes all answer fields in one Playground patch", async () => {

@@ -18,10 +18,13 @@ state, memoization without evidence, generic registries, or new dependencies.
 Use functional updates when the next value depends on the previous value and
 protect async work from stale commits.
 
-Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` for
-non-trivial ownership, transitions, accessibility, cleanup, parsing, or race
-decisions. Comments must not include example inputs, outputs, or I/O traces.
-Do not narrate setters or JSX syntax.
+Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, `[SAFETY]`, and `[TRACE]`.
+Inside component, hook, and handler bodies, comment every major logical block,
+including state ownership, guards, effects and cleanup, event transitions, and
+derived rendering decisions. Header comments do not count. When the prompt
+provides example props or interactions, put `// [TRACE] Input:` inside the
+component or handler body with those original values, then keep them consistent
+across later body comments. Do not narrate setters or JSX syntax.
 
 Put concise render/interaction examples in `usageCode`. Put user-visible tests
 in `testCode` using React Testing Library, `userEvent`, accessible role/name

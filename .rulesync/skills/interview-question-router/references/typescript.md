@@ -17,9 +17,13 @@ Model 1–3 real domain concepts when doing so makes the algorithm easier to
 explain; do not create `Helper`, `Utils`, or technical-role abstractions.
 Treat `undefined`, bounds, ordering, and JavaScript runtime semantics as real.
 
-Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` on every
-non-trivial business, algorithm, or boundary decision. Comments must not include
-example inputs, outputs, or I/O traces; keep examples in usageCode and tests.
+Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, `[SAFETY]`, and `[TRACE]`.
+Inside function bodies, comment every major logical block: guards,
+state/invariants, algorithmic passes, consequential branches, and result
+assembly. Header comments do not count. When the prompt provides an example,
+put `// [TRACE] Input:` inside the entry point with its original argument
+values, then keep those values consistent across all later body comments. Keep
+full expected outputs in usageCode and tests.
 
 Put exactly five representative `console.log` examples in `usageCode`: typical,
 empty/single, all-identical, negative/zero, and no-answer/sentinel, adapting

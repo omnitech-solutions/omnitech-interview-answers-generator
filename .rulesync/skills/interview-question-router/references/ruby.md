@@ -11,12 +11,15 @@ Structure `code` in this order:
 3. Focused helper methods or domain classes below the entry point when they own
    real algorithm state, boundary rules, or meaningful operations.
 
-Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, and `[SAFETY]` on
-non-trivial decisions. Comments explain decisions only and must not include
-example inputs, outputs, or I/O traces. Remember that negative Ruby array
-indexes wrap; guard them when negative means out-of-bounds. Avoid
-metaprogramming, Rails abstractions, external gems, and clever chains that are
-hard to narrate.
+Use `[COMMENT]`, `[GUARD]`, `[DOMAIN]`, `[STRATEGY]`, `[SAFETY]`, and `[TRACE]`.
+Inside method bodies, comment every major logical block: guards,
+state/invariants, algorithmic passes, consequential branches, and result
+assembly. Header comments do not count. When the prompt provides an example,
+put `# [TRACE] Input:` inside the entry-point method with its original argument
+values, then keep those values consistent across all later body comments.
+Remember that negative Ruby array indexes wrap; guard them when
+negative means out-of-bounds. Avoid metaprogramming, Rails abstractions,
+external gems, and clever chains that are hard to narrate.
 
 Put exactly five representative `puts`/`p` examples in `usageCode`: typical,
 empty/single, all-identical, negative/zero, and no-answer/sentinel, adapting

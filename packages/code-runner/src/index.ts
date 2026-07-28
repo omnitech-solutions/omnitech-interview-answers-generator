@@ -182,9 +182,7 @@ export class DockerCodeRunner implements CodeRunner {
       runtime.image,
       ...runtime.command,
       runtime.evalFlag,
-      input.language === "php"
-        ? input.code.replace(/^\s*<\?php\s*/, "").replace(/\?>\s*$/, "")
-        : input.code,
+      input.language === "php" ? stripPhpTags(input.code) : input.code,
     ];
 
     return this.execute(dockerArguments, input.stdin, startedAt);
@@ -285,11 +283,27 @@ export class DockerCodeRunner implements CodeRunner {
     ];
 
     try {
-      return await this.execute(
+      const result = await this.execute(
         dockerArguments,
         input.stdin,
         performance.now(),
       );
+      if (
+        result.exitCode === 0 &&
+        /\bNo tests found\b/i.test(`${result.stdout}\n${result.stderr}`)
+      ) {
+        return {
+          ...result,
+          stderr: [
+            result.stderr.trimEnd(),
+            "Test framework completed without discovering any tests.",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          exitCode: 1,
+        };
+      }
+      return result;
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
