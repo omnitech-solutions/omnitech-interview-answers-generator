@@ -13,6 +13,7 @@
   "references": [
     { "path": "../../packages/ai-sdk" },
     { "path": "../../packages/interview-contracts" },
+    { "path": "../../packages/interview-library" },
     { "path": "../../packages/interview-storage" },
     { "path": "../../packages/code-runner" }
   ],

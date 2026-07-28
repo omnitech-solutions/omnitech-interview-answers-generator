@@ -112,7 +112,12 @@ describe("MarkdownContent", () => {
     expect(container.querySelector(".mermaid-source code")).toHaveTextContent(
       "A --> B",
     );
-    expect(container.querySelector(".mermaid-source .token")).not.toBeNull();
+    await waitFor(() =>
+      expect(container.querySelector(".mermaid-source .shiki")).not.toBeNull(),
+    );
+    expect(
+      container.querySelector(".mermaid-source .shiki span[style]"),
+    ).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Copy syntax" }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       "flowchart LR\nA --> B",
@@ -171,7 +176,33 @@ describe("MarkdownContent", () => {
   it("renders ordinary code without invoking Mermaid", async () => {
     render(<MarkdownContent>{"```ts\nconst value = 1;\n```"}</MarkdownContent>);
     expect(screen.getByText("const value = 1;")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "const value = 1;",
+    );
+    await screen.findByRole("button", { name: "Code copied" });
     await waitFor(() => expect(renderDiagram).not.toHaveBeenCalled());
+  });
+
+  it("renders stable linked headings and safe internal and external links", () => {
+    render(
+      <MarkdownContent>
+        {
+          "# One\n## Two\n### Three\n#### Four\n##### Five\n###### Six\n\n[Internal](/library) [External](https://example.com)"
+        }
+      </MarkdownContent>,
+    );
+    expect(screen.getByRole("heading", { name: "Six" })).toHaveAttribute(
+      "id",
+      "six",
+    );
+    expect(screen.getByRole("link", { name: "Internal" })).not.toHaveAttribute(
+      "target",
+    );
+    expect(screen.getByRole("link", { name: "External" })).toHaveAttribute(
+      "target",
+      "_blank",
+    );
   });
 
   it("uses Mermaid's light theme when the studio is light", async () => {

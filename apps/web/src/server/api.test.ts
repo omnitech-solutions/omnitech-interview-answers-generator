@@ -17,6 +17,18 @@ const mocks = vi.hoisted(() => ({
   getExplanation: vi.fn(),
   saveExplanation: vi.fn(),
   deleteExplanation: vi.fn(),
+  libraryArchive: vi.fn(),
+  libraryDeleteDraft: vi.fn(),
+  libraryGet: vi.fn(),
+  libraryGetPublished: vi.fn(),
+  libraryFacets: vi.fn(),
+  libraryInitialize: vi.fn(),
+  libraryList: vi.fn(),
+  libraryListPublished: vi.fn(),
+  libraryPublish: vi.fn(),
+  librarySaveDraft: vi.fn(),
+  librarySearch: vi.fn(),
+  librarySynchronize: vi.fn(),
 }));
 
 vi.mock("esbuild", () => ({ build: mocks.build }));
@@ -44,6 +56,22 @@ vi.mock("./services", () => ({
   },
   generateInterviewAnswer: mocks.generateInterviewAnswer,
   generateExplanation: mocks.generateExplanation,
+  libraryRepository: {
+    archive: mocks.libraryArchive,
+    deleteDraft: mocks.libraryDeleteDraft,
+    get: mocks.libraryGet,
+    getPublished: mocks.libraryGetPublished,
+    list: mocks.libraryList,
+    listPublished: mocks.libraryListPublished,
+    publish: mocks.libraryPublish,
+    saveDraft: mocks.librarySaveDraft,
+  },
+  libraryService: {
+    facets: mocks.libraryFacets,
+    initialize: mocks.libraryInitialize,
+    search: mocks.librarySearch,
+    synchronize: mocks.librarySynchronize,
+  },
 }));
 
 import { createApi } from "./api";
@@ -64,6 +92,26 @@ const savedAnswer = {
   notes: "Prefer a functional updater.",
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+const libraryInput = {
+  slug: "react-state",
+  title: "React state",
+  summary: "State ownership.",
+  body: "# State\n\nKeep one owner.",
+  contentType: "concept-guide" as const,
+  collection: "react",
+  tags: ["react", "state"],
+};
+
+const libraryItem = {
+  ...libraryInput,
+  id: "123e4567-e89b-42d3-a456-426614174001",
+  status: "published" as const,
+  createdAt: "2026-07-27T00:00:00.000Z",
+  updatedAt: "2026-07-27T00:00:00.000Z",
+  publishedAt: "2026-07-27T00:00:00.000Z",
+  revision: 2,
 };
 
 function jsonRequest(method: string, body?: unknown, headers?: HeadersInit) {
@@ -91,6 +139,23 @@ describe("web API", () => {
       total: 0,
       page: 1,
       pageSize: 20,
+    });
+    mocks.libraryList.mockResolvedValue([]);
+    mocks.libraryListPublished.mockResolvedValue([]);
+    mocks.libraryFacets.mockResolvedValue({
+      contentTypes: { "concept-guide": 1 },
+      collections: { react: 1 },
+      tags: { react: 1 },
+    });
+    mocks.librarySearch.mockResolvedValue({
+      hits: [],
+      total: 0,
+      elapsedMs: 1,
+      facets: {
+        contentTypes: { "concept-guide": 1 },
+        collections: { react: 1 },
+        tags: { react: 1 },
+      },
     });
     mocks.createAiClientFromEnv.mockReturnValue({
       listProviders: () => [{ id: "fake", label: "Fake", model: "fake-1" }],
@@ -696,6 +761,147 @@ describe("web API", () => {
     expect(await responseJson(failed)).toMatchObject({
       error: { code: "compile_failed", message: "Unexpected token" },
     });
+  });
+
+  it("searches the Library with composed filters and exposes facets", async () => {
+    const app = createApi();
+    const response = await app.request(
+      "http://localhost/api/v1/library/search?q=React&type=concept-guide&collection=react&tag=hooks&official=true&offset=2&limit=5",
+    );
+    const facets = await app.request("http://localhost/api/v1/library/facets");
+    const invalid = await app.request(
+      "http://localhost/api/v1/library/search?limit=500",
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.librarySearch).toHaveBeenCalledWith({
+      query: "React",
+      contentTypes: ["concept-guide"],
+      collections: ["react"],
+      tags: ["hooks"],
+      officialOnly: true,
+      offset: 2,
+      limit: 5,
+    });
+    expect(await facets.json()).toEqual({
+      contentTypes: { "concept-guide": 1 },
+      collections: { react: 1 },
+      tags: { react: 1 },
+    });
+    expect(invalid.status).toBe(400);
+  });
+
+  it("lists published Library records and reads drafts only when requested", async () => {
+    const app = createApi();
+    mocks.libraryListPublished.mockResolvedValueOnce([libraryItem]);
+    mocks.libraryList.mockResolvedValueOnce([libraryItem]);
+    mocks.libraryGetPublished.mockResolvedValueOnce(libraryItem);
+    mocks.libraryGet.mockResolvedValueOnce(libraryItem);
+
+    expect(
+      await (await app.request("http://localhost/api/v1/library/items")).json(),
+    ).toEqual([libraryItem]);
+    expect(
+      await (
+        await app.request("http://localhost/api/v1/library/items?drafts=true")
+      ).json(),
+    ).toEqual([libraryItem]);
+    expect(
+      await (
+        await app.request("http://localhost/api/v1/library/items/react-state")
+      ).json(),
+    ).toEqual(libraryItem);
+    expect(
+      await (
+        await app.request(
+          "http://localhost/api/v1/library/items/react-state?draft=true",
+        )
+      ).json(),
+    ).toEqual(libraryItem);
+
+    mocks.libraryGetPublished.mockResolvedValueOnce(undefined);
+    const missing = await app.request(
+      "http://localhost/api/v1/library/items/missing",
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  it("creates, updates, publishes, archives, and deletes Library drafts", async () => {
+    const app = createApi();
+    const draft = { ...libraryItem, status: "draft" as const };
+    mocks.librarySaveDraft.mockResolvedValue(draft);
+    mocks.libraryPublish.mockResolvedValue(libraryItem);
+    mocks.libraryArchive.mockResolvedValue({
+      ...libraryItem,
+      status: "archived",
+    });
+    mocks.libraryDeleteDraft.mockResolvedValue(true);
+
+    const created = await app.request(
+      "http://localhost/api/v1/library/items",
+      jsonRequest("POST", libraryInput),
+    );
+    const updated = await app.request(
+      `http://localhost/api/v1/library/items/${libraryItem.id}`,
+      jsonRequest("PUT", { ...libraryInput, title: "Updated" }),
+    );
+    const published = await app.request(
+      `http://localhost/api/v1/library/items/${libraryItem.id}/publish`,
+      jsonRequest("POST"),
+    );
+    const archived = await app.request(
+      `http://localhost/api/v1/library/items/${libraryItem.id}/archive`,
+      jsonRequest("POST"),
+    );
+    const deleted = await app.request(
+      `http://localhost/api/v1/library/items/${libraryItem.id}`,
+      jsonRequest("DELETE"),
+    );
+
+    expect(created.status).toBe(201);
+    expect(updated.status).toBe(200);
+    expect(published.status).toBe(200);
+    expect(archived.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true });
+    expect(mocks.librarySynchronize).toHaveBeenCalledTimes(2);
+
+    const invalid = await app.request(
+      "http://localhost/api/v1/library/items",
+      jsonRequest("POST", { ...libraryInput, tags: [] }),
+    );
+    expect(invalid.status).toBe(400);
+  });
+
+  it("returns stable Library mutation failures", async () => {
+    const app = createApi();
+    mocks.libraryPublish.mockResolvedValueOnce(undefined);
+    mocks.libraryArchive.mockResolvedValueOnce(undefined);
+    mocks.libraryDeleteDraft.mockResolvedValueOnce(false);
+
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/library/items/missing/publish",
+          jsonRequest("POST"),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/library/items/missing/archive",
+          jsonRequest("POST"),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request(
+          "http://localhost/api/v1/library/items/missing",
+          jsonRequest("DELETE"),
+        )
+      ).status,
+    ).toBe(404);
   });
 
   it("requires a bearer token for cross-origin requests but permits same-origin requests", async () => {

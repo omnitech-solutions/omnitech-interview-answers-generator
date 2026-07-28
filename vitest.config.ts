@@ -69,6 +69,8 @@ export default defineConfig({
       exclude: [
         "**/*.test.{ts,tsx}",
         "**/*.d.ts",
+        "**/benchmark.ts",
+        "packages/interview-rulesync-codex/src/cli.ts",
         "**/dist/**",
         "**/index.ts",
         "**/types.ts",

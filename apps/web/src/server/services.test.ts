@@ -66,7 +66,7 @@ describe("generateInterviewAnswer", () => {
     await expect(
       generateExplanation({
         topic: "Explain React hooks",
-        context: "Karat screen",
+        context: "Technical interview",
         providerId: "local",
       }),
     ).resolves.toEqual({

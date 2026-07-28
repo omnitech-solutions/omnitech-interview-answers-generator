@@ -10,10 +10,9 @@ import React, {
   useState,
 } from "react";
 import type { PanzoomObject } from "@panzoom/panzoom";
+import GithubSlugger from "github-slugger";
+import rehypeSlug from "rehype-slug";
 import ReactMarkdown, { type Components } from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import oneDark from "react-syntax-highlighter/dist/esm/styles/prism/one-dark";
-import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
 import remarkGfm from "remark-gfm";
 
 function MermaidDiagram({ source }: { source: string }) {
@@ -225,21 +224,84 @@ function MermaidDiagram({ source }: { source: string }) {
         />
       </div>
       {showSource ? (
-        <SyntaxHighlighter
+        <ShikiCodeBlock
           className="mermaid-source"
           language="mermaid"
-          showLineNumbers
-          style={
-            document.documentElement.dataset["theme"] === "dark"
-              ? oneDark
-              : oneLight
-          }
-          wrapLongLines
-        >
-          {source}
-        </SyntaxHighlighter>
+          source={source}
+        />
       ) : null}
     </figure>
+  );
+}
+
+function ShikiCodeBlock({
+  className = "",
+  language,
+  source,
+}: {
+  className?: string;
+  language: string;
+  source: string;
+}) {
+  const [html, setHtml] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([import("shiki"), import("@shikijs/transformers")]).then(
+      async ([{ codeToHtml }, transformers]) => {
+        const rendered = await codeToHtml(source, {
+          lang: language,
+          themes: { light: "github-light", dark: "github-dark" },
+          transformers: [
+            transformers.transformerNotationDiff(),
+            transformers.transformerNotationFocus(),
+            transformers.transformerNotationHighlight(),
+          ],
+        }).catch(() =>
+          codeToHtml(source, {
+            lang: "text",
+            themes: { light: "github-light", dark: "github-dark" },
+          }),
+        );
+        if (active) setHtml(rendered);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [language, source]);
+
+  async function copy() {
+    await navigator.clipboard.writeText(source);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1_500);
+  }
+
+  return (
+    <div className={`markdown-code-block ${className}`.trim()}>
+      <div className="markdown-code-toolbar">
+        <span>{language}</span>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          aria-label={copied ? "Code copied" : "Copy code"}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {html ? (
+        <div
+          className="shiki-output"
+          // Shiki escapes source text and emits only highlighted code markup.
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      ) : (
+        <pre>
+          <code>{source}</code>
+        </pre>
+      )}
+    </div>
   );
 }
 
@@ -263,24 +325,89 @@ function MarkdownPre({
   children,
   ...props
 }: ComponentProps<"pre"> & { children?: ReactNode }) {
-  const child = children as ReactElement<{ className?: string }> | undefined;
-  if (
-    React.isValidElement(child) &&
-    child.props.className?.includes("language-mermaid")
-  ) {
+  const child = children as
+    | ReactElement<{ className?: string; children?: ReactNode }>
+    | undefined;
+  if (!React.isValidElement(child)) return <pre {...props}>{children}</pre>;
+  if (child.props.className?.includes("language-mermaid")) {
     return children;
   }
-  return <pre {...props}>{children}</pre>;
+  const language =
+    /language-([\w-]+)/.exec(child.props.className ?? "")?.[1] ?? "text";
+  return (
+    <ShikiCodeBlock
+      language={language}
+      source={String(child.props.children ?? "").replace(/\n$/, "")}
+    />
+  );
 }
 
-const components: Components = {
-  code: MarkdownCode,
-  pre: MarkdownPre,
-};
+export interface MarkdownHeading {
+  depth: number;
+  id: string;
+  text: string;
+}
+
+export function extractMarkdownHeadings(markdown: string): MarkdownHeading[] {
+  const slugger = new GithubSlugger();
+  return markdown.split(/\r?\n/).flatMap((line) => {
+    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line);
+    if (!match) return [];
+    const text = (match[2] ?? "")
+      .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+      .replace(/[*_~`]/g, "")
+      .trim();
+    return [{ depth: match[1]?.length ?? 1, id: slugger.slug(text), text }];
+  });
+}
 
 export function MarkdownContent({ children }: { children: string }) {
+  const heading = (Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
+    function Heading({
+      children: headingChildren,
+      id,
+      node: _node,
+      ...props
+    }: ComponentProps<"h2"> & { node?: unknown }) {
+      return (
+        <Tag id={id} {...props}>
+          <a
+            className="markdown-heading-anchor"
+            href={id ? `#${id}` : undefined}
+          >
+            {headingChildren}
+          </a>
+        </Tag>
+      );
+    };
+  const components: Components = {
+    code: MarkdownCode,
+    pre: MarkdownPre,
+    h1: heading("h1"),
+    h2: heading("h2"),
+    h3: heading("h3"),
+    h4: heading("h4"),
+    h5: heading("h5"),
+    h6: heading("h6"),
+    a: ({ href = "", children: linkChildren, node: _node, ...props }) => {
+      const external = /^https?:\/\//.test(href);
+      return (
+        <a
+          href={href}
+          {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+          {...props}
+        >
+          {linkChildren}
+        </a>
+      );
+    },
+  };
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeSlug]}
+      components={components}
+    >
       {children}
     </ReactMarkdown>
   );

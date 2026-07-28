@@ -4,7 +4,13 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { JsonAnswerRepository, JsonExplanationRepository } from "./index.js";
+import {
+  JsonAnswerRepository,
+  JsonExplanationRepository,
+  JsonLibraryRepository,
+  LibrarySlugConflictError,
+  LibraryStateError,
+} from "./index.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -193,6 +199,91 @@ describe("JsonAnswerRepository", () => {
   });
 });
 
+describe("JsonLibraryRepository", () => {
+  it("keeps drafts out of published reads and increments source revisions", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-library-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonLibraryRepository(directory);
+
+    const draft = await repository.saveDraft(libraryInput());
+    expect(await repository.revision()).toBe(0);
+    expect(await repository.listPublished()).toEqual([]);
+    expect(await repository.get(draft.slug)).toEqual(draft);
+    expect(await repository.getPublished(draft.slug)).toBeUndefined();
+
+    const published = await repository.publish(draft.id);
+    expect(published).toMatchObject({ status: "published", revision: 2 });
+    expect(await repository.revision()).toBe(1);
+    expect(await repository.getPublished(draft.slug)).toEqual(published);
+  });
+
+  it("preserves the published snapshot while a revision is drafted", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-library-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonLibraryRepository(directory);
+    const draft = await repository.saveDraft(libraryInput());
+    const published = await repository.publish(draft.id);
+    const revised = await repository.saveDraft(
+      { ...libraryInput(), title: "Revised title" },
+      draft.id,
+    );
+
+    expect(revised.status).toBe("draft");
+    expect((await repository.getPublished(draft.id))?.title).toBe(
+      published?.title,
+    );
+    expect((await repository.get(draft.id))?.title).toBe("Revised title");
+    expect(await repository.revision()).toBe(1);
+  });
+
+  it("archives published content and only deletes never-published drafts", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-library-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonLibraryRepository(directory);
+    const deletable = await repository.saveDraft({
+      ...libraryInput(),
+      slug: "delete-me",
+    });
+    expect(await repository.deleteDraft("missing")).toBe(false);
+    expect(await repository.deleteDraft(deletable.id)).toBe(true);
+
+    const draft = await repository.saveDraft(libraryInput());
+    await repository.publish(draft.id);
+    await expect(repository.deleteDraft(draft.id)).rejects.toBeInstanceOf(
+      LibraryStateError,
+    );
+    const archived = await repository.archive(draft.id);
+    expect(archived?.status).toBe("archived");
+    expect(await repository.getPublished(draft.id)).toBeUndefined();
+    expect(await repository.revision()).toBe(2);
+    await expect(repository.archive("missing")).resolves.toBeUndefined();
+  });
+
+  it("rejects conflicts and missing updates and surfaces malformed files", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "interview-library-"));
+    temporaryDirectories.push(directory);
+    const repository = new JsonLibraryRepository(directory);
+    await repository.saveDraft(libraryInput());
+    await expect(repository.saveDraft(libraryInput())).rejects.toBeInstanceOf(
+      LibrarySlugConflictError,
+    );
+    await expect(
+      repository.saveDraft(libraryInput(), "missing"),
+    ).rejects.toBeInstanceOf(LibraryStateError);
+    await expect(
+      repository.saveDraft({
+        ...libraryInput(),
+        slug: "invalid",
+        tags: [],
+      }),
+    ).rejects.toThrow();
+    expect(await repository.publish("missing")).toBeUndefined();
+
+    await writeFile(repository.filePath, "{broken");
+    await expect(repository.list()).rejects.toBeInstanceOf(SyntaxError);
+  });
+});
+
 function answerInput() {
   return {
     title: "Simple answer",
@@ -203,5 +294,17 @@ function answerInput() {
     testCode: "",
     question: "Solve it",
     notes: "Review later",
+  };
+}
+
+function libraryInput() {
+  return {
+    slug: "react-state",
+    title: "React state",
+    summary: "State ownership and snapshots.",
+    body: "# State\n\nKeep one source of truth.",
+    contentType: "concept-guide" as const,
+    collection: "react",
+    tags: ["react", "state"],
   };
 }

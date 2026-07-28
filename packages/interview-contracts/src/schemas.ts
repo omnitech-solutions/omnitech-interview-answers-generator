@@ -97,6 +97,122 @@ export const runResultSchema = z.object({
   timedOut: z.boolean(),
 });
 
+export const libraryContentTypeSchema = z.enum([
+  "official-reference",
+  "cheat-sheet",
+  "concept-guide",
+  "dsa-pattern",
+]);
+
+export const libraryStatusSchema = z.enum(["draft", "published", "archived"]);
+
+export const librarySourceSchema = z
+  .object({
+    publisher: z.string().trim().min(1),
+    canonicalUrl: z.string().url().startsWith("https://"),
+    official: z.boolean(),
+    version: z.string().trim().min(1).optional(),
+    lastVerifiedAt: z.string().date(),
+  })
+  .superRefine((source, context) => {
+    if (!source.official) {
+      context.addIssue({
+        code: "custom",
+        message: "Library source metadata is reserved for official references.",
+        path: ["official"],
+      });
+    }
+  });
+
+const normalizedLibraryTagSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Tags must be lowercase slugs.");
+
+export const libraryItemInputSchema = z
+  .object({
+    slug: z
+      .string()
+      .trim()
+      .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        "Slug must contain lowercase letters, numbers, and hyphens.",
+      ),
+    title: z.string().trim().min(1),
+    summary: z.string().trim().min(1),
+    body: z.string().trim().min(1),
+    contentType: libraryContentTypeSchema,
+    collection: normalizedLibraryTagSchema,
+    tags: z.array(normalizedLibraryTagSchema).min(1),
+    source: librarySourceSchema.optional(),
+  })
+  .superRefine((item, context) => {
+    if (item.contentType === "official-reference" && !item.source) {
+      context.addIssue({
+        code: "custom",
+        message: "Official references require canonical source metadata.",
+        path: ["source"],
+      });
+    }
+    if (item.contentType !== "official-reference" && item.source) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Only official references may provide official source metadata.",
+        path: ["source"],
+      });
+    }
+  });
+
+export const libraryItemSchema = libraryItemInputSchema.extend({
+  id: z.string().uuid(),
+  status: libraryStatusSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  publishedAt: z.string().datetime().optional(),
+  revision: z.number().int().positive(),
+});
+
+export const librarySearchQuerySchema = z.object({
+  query: z.string().trim().max(200).default(""),
+  contentTypes: z.array(libraryContentTypeSchema).default([]),
+  collections: z.array(normalizedLibraryTagSchema).default([]),
+  tags: z.array(normalizedLibraryTagSchema).default([]),
+  officialOnly: z.boolean().default(false),
+  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+
+export const librarySearchHitSchema = z.object({
+  itemId: z.string().uuid(),
+  slug: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  contentType: libraryContentTypeSchema,
+  collection: z.string(),
+  tags: z.array(z.string()),
+  official: z.boolean(),
+  publisher: z.string().optional(),
+  canonicalUrl: z.string().url().optional(),
+  anchor: z.string(),
+  headingPath: z.array(z.string()),
+  excerpt: z.string(),
+  score: z.number(),
+});
+
+export const libraryFacetsSchema = z.object({
+  contentTypes: z.record(z.string(), z.number().int().nonnegative()),
+  collections: z.record(z.string(), z.number().int().nonnegative()),
+  tags: z.record(z.string(), z.number().int().nonnegative()),
+});
+
+export const librarySearchResponseSchema = z.object({
+  hits: z.array(librarySearchHitSchema),
+  total: z.number().int().nonnegative(),
+  elapsedMs: z.number().nonnegative(),
+  facets: libraryFacetsSchema,
+});
+
 export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -124,4 +240,13 @@ export type RunRequest = z.infer<typeof runRequestSchema>;
 export type SyntaxCheckRequest = z.infer<typeof syntaxCheckRequestSchema>;
 export type RunAllRequest = z.infer<typeof runAllRequestSchema>;
 export type RunResult = z.infer<typeof runResultSchema>;
+export type LibraryContentType = z.infer<typeof libraryContentTypeSchema>;
+export type LibraryStatus = z.infer<typeof libraryStatusSchema>;
+export type LibrarySource = z.infer<typeof librarySourceSchema>;
+export type LibraryItemInput = z.infer<typeof libraryItemInputSchema>;
+export type LibraryItem = z.infer<typeof libraryItemSchema>;
+export type LibrarySearchQuery = z.infer<typeof librarySearchQuerySchema>;
+export type LibrarySearchHit = z.infer<typeof librarySearchHitSchema>;
+export type LibraryFacets = z.infer<typeof libraryFacetsSchema>;
+export type LibrarySearchResponse = z.infer<typeof librarySearchResponseSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;

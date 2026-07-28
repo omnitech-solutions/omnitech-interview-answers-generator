@@ -4,6 +4,8 @@ import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
   generateRequestSchema,
   explanationRequestSchema,
+  libraryItemInputSchema,
+  librarySearchQuerySchema,
   routeQuestion,
   routeRequestSchema,
   runAllRequestSchema,
@@ -16,6 +18,10 @@ import {
   parsePlaygroundExplanation,
   parsePlaygroundPatch,
 } from "@omnitech/interview-playground-control";
+import {
+  LibrarySlugConflictError,
+  LibraryStateError,
+} from "@omnitech/interview-storage";
 import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
@@ -26,7 +32,10 @@ import {
   explanationRepository,
   generateExplanation,
   generateInterviewAnswer,
+  libraryRepository,
+  libraryService,
 } from "./services";
+import { LibraryIndexUnavailableError } from "./library-service";
 
 type ApiEnvironment = {
   Variables: {
@@ -36,7 +45,7 @@ type ApiEnvironment = {
 
 function apiError(
   context: Context<ApiEnvironment>,
-  status: 400 | 401 | 404 | 500 | 503,
+  status: 400 | 401 | 404 | 409 | 500 | 503,
   code: string,
   message: string,
   issues?: string[],
@@ -52,6 +61,41 @@ function apiError(
     },
     status,
   );
+}
+
+function queryList(context: Context<ApiEnvironment>, name: string): string[] {
+  return (context.req.queries(name) ?? [])
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function parseLibrarySearchQuery(context: Context<ApiEnvironment>) {
+  return librarySearchQuerySchema.safeParse({
+    query: context.req.query("q") ?? "",
+    contentTypes: queryList(context, "type"),
+    collections: queryList(context, "collection"),
+    tags: queryList(context, "tag"),
+    officialOnly: context.req.query("official") === "true",
+    offset: Number(context.req.query("offset") ?? 0),
+    limit: Number(context.req.query("limit") ?? 20),
+  });
+}
+
+function libraryMutationError(
+  context: Context<ApiEnvironment>,
+  error: unknown,
+) {
+  if (error instanceof LibrarySlugConflictError) {
+    return apiError(context, 409, "slug_conflict", error.message);
+  }
+  if (error instanceof LibraryStateError) {
+    return apiError(context, 409, "invalid_library_state", error.message);
+  }
+  if (error instanceof LibraryIndexUnavailableError) {
+    return apiError(context, 503, "library_index_unavailable", error.message);
+  }
+  throw error;
 }
 
 async function authenticate(context: Context<ApiEnvironment>, next: Next) {
@@ -191,6 +235,159 @@ console.log(solve([1, 2, 3]));`,
       return context.json({ ok: true, providers: client.listProviders() });
     } catch {
       return context.json({ ok: true, providers: [] });
+    }
+  });
+
+  app.get("/api/v1/library/search", async (context) => {
+    const parsed = parseLibrarySearchQuery(context);
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The Library search query is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(await libraryService.search(parsed.data));
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.get("/api/v1/library/facets", async (context) => {
+    try {
+      return context.json(await libraryService.facets());
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.get("/api/v1/library/items", async (context) => {
+    try {
+      await libraryService.initialize();
+      const includeDrafts = context.req.query("drafts") === "true";
+      return context.json(
+        includeDrafts
+          ? await libraryRepository.list()
+          : await libraryRepository.listPublished(),
+      );
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.get("/api/v1/library/items/:idOrSlug", async (context) => {
+    try {
+      await libraryService.initialize();
+      const identifier = context.req.param("idOrSlug");
+      const item =
+        context.req.query("draft") === "true"
+          ? await libraryRepository.get(identifier)
+          : await libraryRepository.getPublished(identifier);
+      return item
+        ? context.json(item)
+        : apiError(
+            context,
+            404,
+            "not_found",
+            "The Library item was not found.",
+          );
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.post("/api/v1/library/items", async (context) => {
+    const parsed = libraryItemInputSchema.safeParse(await context.req.json());
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The Library item is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(await libraryRepository.saveDraft(parsed.data), 201);
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.put("/api/v1/library/items/:id", async (context) => {
+    const parsed = libraryItemInputSchema.safeParse(await context.req.json());
+    if (!parsed.success) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The Library item is invalid.",
+        parsed.error.issues.map((issue) => issue.message),
+      );
+    }
+    try {
+      return context.json(
+        await libraryRepository.saveDraft(parsed.data, context.req.param("id")),
+      );
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.post("/api/v1/library/items/:id/publish", async (context) => {
+    try {
+      const item = await libraryRepository.publish(context.req.param("id"));
+      if (!item) {
+        return apiError(
+          context,
+          404,
+          "not_found",
+          "The Library item was not found.",
+        );
+      }
+      await libraryService.synchronize();
+      return context.json(item);
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.post("/api/v1/library/items/:id/archive", async (context) => {
+    try {
+      const item = await libraryRepository.archive(context.req.param("id"));
+      if (!item) {
+        return apiError(
+          context,
+          404,
+          "not_found",
+          "The Library item was not found.",
+        );
+      }
+      await libraryService.synchronize();
+      return context.json(item);
+    } catch (error) {
+      return libraryMutationError(context, error);
+    }
+  });
+
+  app.delete("/api/v1/library/items/:id", async (context) => {
+    try {
+      const deleted = await libraryRepository.deleteDraft(
+        context.req.param("id"),
+      );
+      return deleted
+        ? context.json({ deleted: true })
+        : apiError(
+            context,
+            404,
+            "not_found",
+            "The Library item was not found.",
+          );
+    } catch (error) {
+      return libraryMutationError(context, error);
     }
   });
 

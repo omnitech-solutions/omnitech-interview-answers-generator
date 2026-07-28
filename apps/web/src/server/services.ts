@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import { DockerCodeRunner } from "@omnitech/code-runner";
@@ -14,7 +14,13 @@ import {
 import {
   JsonAnswerRepository,
   JsonExplanationRepository,
+  JsonLibraryRepository,
 } from "@omnitech/interview-storage";
+import {
+  interviewLibrarySeed,
+  OramaLibrarySearchIndex,
+} from "@omnitech/interview-library";
+import { LibraryService } from "./library-service";
 
 const dataDirectory =
   process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data");
@@ -22,6 +28,13 @@ const dataDirectory =
 export const answerRepository = new JsonAnswerRepository(dataDirectory);
 export const explanationRepository = new JsonExplanationRepository(
   dataDirectory,
+);
+export const libraryRepository = new JsonLibraryRepository(dataDirectory);
+export const libraryService = new LibraryService(
+  libraryRepository,
+  new OramaLibrarySearchIndex(),
+  join(dataDirectory, "library-index.msp"),
+  interviewLibrarySeed,
 );
 export const codeRunner = new DockerCodeRunner();
 

@@ -37,6 +37,15 @@ authentication details.
   fullscreen viewing, syntax disclosure, and syntax copying.
 - Experience-grounded explanations using the configured candidate experience
   matrix; unsupported personal claims are never invented.
+- Deep-linked `/library` reference workspace with a DevDocs-style fixed index,
+  section search, keyboard navigation, compact facets, and an independent
+  article reader and table of contents.
+- Fifty-four reviewed interview-focused React, web, backend, and DSA references with
+  explicit official-source provenance and draft-then-publish authoring.
+- Revisioned, persisted Orama indexes that rebuild automatically from
+  authoritative Markdown when missing, stale, corrupt, or schema-incompatible.
+- Shared safe Markdown rendering with linked headings, GFM, Mermaid, Shiki
+  dual-theme highlighting, diff/focus annotations, and copy controls.
 
 ## Prerequisites
 
@@ -71,6 +80,10 @@ pnpm dev
 Open <http://127.0.0.1:3000>. The development command starts both the Next.js
 web app and the terminal gateway. The gateway listens at
 `ws://127.0.0.1:3001/terminal` by default.
+
+Open <http://127.0.0.1:3000/library> for the interview reference Library.
+Library source records are stored in `INTERVIEW_DATA_DIR/library.json`; the
+derived search index is disposable and rebuilt automatically.
 
 Drafts are cached in browser storage for recovery. Answers are not persisted to
 the JSON repository until **Save** is selected.
@@ -235,7 +248,10 @@ artifacts are current.
 - `@omnitech/interview-contracts`: shared Zod schemas, language routing, and
   prompt workflows.
 - `@omnitech/interview-storage`: JSON repositories for saved coding answers and
-  Concept Lab explanations.
+  Concept Lab explanations, plus draft and published Library records.
+- `@omnitech/interview-library`: Markdown section extraction, reviewed seed
+  content, and the provider-neutral Library search interface with its Orama
+  implementation.
 - `@omnitech/code-runner`: isolated Docker execution, test, and syntax-check
   adapter.
 - `@omnitech/interview-api-client`: typed API client used by automation tools.
@@ -270,6 +286,7 @@ pnpm typecheck
 pnpm test
 pnpm test:coverage
 pnpm build
+pnpm --filter @omnitech/interview-library benchmark
 pnpm hooks:run:pre-commit
 pnpm hooks:run:pre-push
 ```

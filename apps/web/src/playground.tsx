@@ -46,6 +46,13 @@ import { z } from "zod";
 import { BrowserTerminal } from "./browser-terminal";
 import { ConceptLab, type ConceptDraft } from "./concept-lab";
 import { MarkdownContent } from "./markdown-content";
+import {
+  NavigationToggle,
+  StudioBrand,
+  StudioNavigation,
+  ThemeToggle,
+  useStudioTheme,
+} from "./studio-shell";
 import { StudioTextarea } from "./studio-controls";
 
 type InspectorPanel = "notes" | "output" | "saved";
@@ -57,8 +64,6 @@ type SyntaxState = "idle" | "checking" | "valid" | "invalid" | "unavailable";
 const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 const DRAFT_STORAGE_KEY = "interview-playground.draft";
 const PHP_EDITOR_PREFIX = "<?php\n";
-const THEME_STORAGE_KEY = "interview-playground.theme";
-
 const setupSchema: RJSFSchema = {
   type: "object",
   properties: {
@@ -294,7 +299,7 @@ export function Playground() {
   );
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [externalConcepts, setExternalConcepts] = useState<ConceptDraft[]>([]);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { theme, toggleTheme } = useStudioTheme();
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
   const [answer, setAnswer] = useState<GeneratedAnswer>();
@@ -329,19 +334,20 @@ export function Playground() {
   const appliedControlRevision = useRef(-1);
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-    const nextTheme = storedTheme === "dark" ? "dark" : "light";
-    setTheme(nextTheme);
-    document.documentElement.dataset["theme"] = nextTheme;
+    if (
+      new URLSearchParams(window.location.search).get("view") === "concept-lab"
+    ) {
+      setActiveView("concept-lab");
+    }
   }, []);
 
-  function toggleTheme() {
-    setTheme((current) => {
-      const nextTheme = current === "dark" ? "light" : "dark";
-      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-      document.documentElement.dataset["theme"] = nextTheme;
-      return nextTheme;
-    });
+  function selectWorkspace(view: "playground" | "concept-lab") {
+    setActiveView(view);
+    window.history.replaceState(
+      {},
+      "",
+      view === "concept-lab" ? "/?view=concept-lab" : "/",
+    );
   }
 
   const loadSaved = useCallback(async () => {
@@ -838,46 +844,11 @@ export function Playground() {
               activeView === "concept-lab" ? "topbar-concept" : ""
             }`}
           >
-            <IconButton
-              className="navigation-toggle"
-              aria-label="Open navigation"
-              aria-expanded={navigationOpen}
+            <NavigationToggle
+              open={navigationOpen}
               onClick={() => setNavigationOpen((open) => !open)}
-              icon={
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  width="19"
-                  height="19"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M4 7h16M4 12h16M4 17h16" />
-                </svg>
-              }
             />
-            <div className="topbar-brand">
-              <span className="brand-symbol" aria-hidden="true">
-                <svg
-                  viewBox="0 0 38 38"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9.5 8.5h19v14h-9l-6.5 5v-5H9.5z" />
-                  <path d="m14 13 3 3-3 3M20 19h4" />
-                  <path d="m28.5 5 .7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
-                </svg>
-              </span>
-              <div className="brand-copy">
-                <h1 aria-label="Interview Studio">
-                  Interview<span>Studio</span>
-                </h1>
-                <p>Think clearly. Code confidently.</p>
-              </div>
-            </div>
+            <StudioBrand />
             {activeView === "playground" ? (
               <label className="topbar-example">
                 <span>Example template</span>
@@ -979,30 +950,7 @@ export function Playground() {
                     </svg>
                   }
                 />
-                <IconButton
-                  aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-                  onClick={toggleTheme}
-                  icon={
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      width="18"
-                      height="18"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      {theme === "dark" ? (
-                        <>
-                          <circle cx="12" cy="12" r="4" />
-                          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" />
-                        </>
-                      ) : (
-                        <path d="M20.5 15.3A8.5 8.5 0 0 1 8.7 3.5 8.5 8.5 0 1 0 20.5 15.3Z" />
-                      )}
-                    </svg>
-                  }
-                />
+                <ThemeToggle theme={theme} onClick={toggleTheme} />
                 <IconButton
                   variant={inspectorOpen ? "secondary" : "outline"}
                   className="inspector-toggle-button"
@@ -1042,36 +990,11 @@ export function Playground() {
           </header>
 
           {navigationOpen ? (
-            <>
-              <button
-                className="navigation-scrim"
-                aria-label="Close navigation"
-                onClick={() => setNavigationOpen(false)}
-              />
-              <nav className="studio-navigation" aria-label="Studio">
-                <span className="eyebrow">WORKSPACES</span>
-                <button
-                  className={activeView === "playground" ? "active" : ""}
-                  onClick={() => {
-                    setActiveView("playground");
-                    setNavigationOpen(false);
-                  }}
-                >
-                  <strong>Playground</strong>
-                  <span>Solve, run, and test code</span>
-                </button>
-                <button
-                  className={activeView === "concept-lab" ? "active" : ""}
-                  onClick={() => {
-                    setActiveView("concept-lab");
-                    setNavigationOpen(false);
-                  }}
-                >
-                  <strong>Concept Lab</strong>
-                  <span>Prepare concise talking points</span>
-                </button>
-              </nav>
-            </>
+            <StudioNavigation
+              active={activeView}
+              onSelect={selectWorkspace}
+              onClose={() => setNavigationOpen(false)}
+            />
           ) : null}
 
           {activeView === "concept-lab" ? (
