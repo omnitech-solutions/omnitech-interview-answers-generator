@@ -184,6 +184,40 @@ describe("MarkdownContent", () => {
     await waitFor(() => expect(renderDiagram).not.toHaveBeenCalled());
   });
 
+  it("highlights standalone code references with the collection language", async () => {
+    render(
+      <MarkdownContent defaultCodeLanguage="php">
+        {
+          "## Signature\n\n`array_map(?callable $callback, array $array): array`\n\nUse `array_map` for transforms."
+        }
+      </MarkdownContent>,
+    );
+
+    expect(
+      screen.getByText("array_map(?callable $callback, array $array): array"),
+    ).toBeVisible();
+    expect(screen.getByText("php")).toBeVisible();
+    expect(screen.getByText("array_map", { selector: "code" })).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Copy code" })).toHaveLength(
+      1,
+    );
+  });
+
+  it("emphasizes interview keywords without altering inline code", () => {
+    render(
+      <MarkdownContent keywords={["source state", "useRef"]}>
+        {
+          "Keep source state minimal and use `useRef` for mutable infrastructure."
+        }
+      </MarkdownContent>,
+    );
+
+    expect(screen.getByText("source state")).toHaveClass("markdown-keyword");
+    const inlineCode = screen.getByText("useRef", { selector: "code" });
+    expect(inlineCode).toHaveClass("markdown-inline-code");
+    expect(inlineCode).not.toHaveClass("markdown-keyword");
+  });
+
   it("renders stable linked headings and safe internal and external links", () => {
     render(
       <MarkdownContent>

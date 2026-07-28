@@ -1,5 +1,7 @@
 "use client";
 
+import type { PanzoomObject } from "@panzoom/panzoom";
+import GithubSlugger from "github-slugger";
 import React, {
   type ComponentProps,
   type ReactElement,
@@ -9,10 +11,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import type { PanzoomObject } from "@panzoom/panzoom";
-import GithubSlugger from "github-slugger";
-import rehypeSlug from "rehype-slug";
 import ReactMarkdown, { type Components } from "react-markdown";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
 function MermaidDiagram({ source }: { source: string }) {
@@ -315,7 +315,12 @@ function MarkdownCode({
     return <MermaidDiagram source={String(children).replace(/\n$/, "")} />;
   }
   return (
-    <code className={className} {...props}>
+    <code
+      className={
+        className ? `${className} markdown-inline-code` : "markdown-inline-code"
+      }
+      {...props}
+    >
       {children}
     </code>
   );
@@ -361,7 +366,57 @@ export function extractMarkdownHeadings(markdown: string): MarkdownHeading[] {
   });
 }
 
-export function MarkdownContent({ children }: { children: string }) {
+function highlightedStandaloneCode(markdown: string, language: string): string {
+  let insideFence = false;
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => {
+      if (/^\s*```/.test(line)) {
+        insideFence = !insideFence;
+        return line;
+      }
+      if (insideFence) return line;
+      const standaloneCode = /^\s*`([^`\n]+)`\s*$/.exec(line)?.[1];
+      return standaloneCode
+        ? `\`\`\`${language}\n${standaloneCode}\n\`\`\``
+        : line;
+    })
+    .join("\n");
+}
+
+function highlightedKeywords(
+  children: ReactNode,
+  keywords: string[],
+): ReactNode {
+  if (typeof children !== "string" || keywords.length === 0) return children;
+  const terms = [...keywords]
+    .sort((left, right) => right.length - left.length)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`\\b(${terms.join("|")})\\b`, "gi");
+  return children.split(pattern).map((part, index) =>
+    keywords.some((keyword) => keyword.toLowerCase() === part.toLowerCase()) ? (
+      <strong
+        // The source order is stable and duplicate words need distinct keys.
+        key={`${part}-${index}`}
+        className="markdown-keyword"
+      >
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+export function MarkdownContent({
+  children,
+  defaultCodeLanguage = "text",
+  keywords = [],
+}: {
+  children: string;
+  defaultCodeLanguage?: string;
+  keywords?: string[];
+}) {
   const heading = (Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") =>
     function Heading({
       children: headingChildren,
@@ -389,6 +444,34 @@ export function MarkdownContent({ children }: { children: string }) {
     h4: heading("h4"),
     h5: heading("h5"),
     h6: heading("h6"),
+    p: ({ children: paragraphChildren, node: _node, ...props }) => (
+      <p {...props}>
+        {React.Children.map(paragraphChildren, (child) =>
+          highlightedKeywords(child, keywords),
+        )}
+      </p>
+    ),
+    li: ({ children: itemChildren, node: _node, ...props }) => (
+      <li {...props}>
+        {React.Children.map(itemChildren, (child) =>
+          highlightedKeywords(child, keywords),
+        )}
+      </li>
+    ),
+    td: ({ children: cellChildren, node: _node, ...props }) => (
+      <td {...props}>
+        {React.Children.map(cellChildren, (child) =>
+          highlightedKeywords(child, keywords),
+        )}
+      </td>
+    ),
+    th: ({ children: cellChildren, node: _node, ...props }) => (
+      <th {...props}>
+        {React.Children.map(cellChildren, (child) =>
+          highlightedKeywords(child, keywords),
+        )}
+      </th>
+    ),
     a: ({ href = "", children: linkChildren, node: _node, ...props }) => {
       const external = /^https?:\/\//.test(href);
       return (
@@ -408,7 +491,7 @@ export function MarkdownContent({ children }: { children: string }) {
       rehypePlugins={[rehypeSlug]}
       components={components}
     >
-      {children}
+      {highlightedStandaloneCode(children, defaultCodeLanguage)}
     </ReactMarkdown>
   );
 }

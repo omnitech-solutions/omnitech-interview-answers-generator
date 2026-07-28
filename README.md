@@ -40,8 +40,8 @@ authentication details.
 - Deep-linked `/library` reference workspace with a DevDocs-style fixed index,
   section search, keyboard navigation, compact facets, and an independent
   article reader and table of contents.
-- Fifty-four reviewed interview-focused React, web, backend, and DSA references with
-  explicit official-source provenance and draft-then-publish authoring.
+- Eighty-five reviewed React, PHP 8.4, Laravel 13, Symfony, web, backend, and
+  DSA references with explicit provenance and draft-then-publish authoring.
 - Revisioned, persisted Orama indexes that rebuild automatically from
   authoritative Markdown when missing, stale, corrupt, or schema-incompatible.
 - Shared safe Markdown rendering with linked headings, GFM, Mermaid, Shiki

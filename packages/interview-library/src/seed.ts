@@ -86,7 +86,7 @@ function pattern(
   };
 }
 
-export const interviewLibrarySeed: LibraryItemInput[] = [
+export const coreInterviewLibrarySeed: LibraryItemInput[] = [
   official(
     "react-state",
     "React state",
@@ -425,6 +425,12 @@ outweighs comparison and maintenance cost.`,
     "https://react.dev/reference/react/useState",
     `# useState
 
+## Usage example
+
+\`\`\`tsx
+const [brokerQuery, setBrokerQuery] = useState("");
+\`\`\`
+
 ## Signature
 
 \`const [state, setState] = useState(initialState)\`
@@ -449,6 +455,15 @@ storing values that can be derived during rendering.`,
     "React",
     "https://react.dev/reference/react/useEffect",
     `# useEffect
+
+## Usage example
+
+\`\`\`tsx
+useEffect(() => {
+  const unsubscribe = carrierApi.subscribe(quoteId, setCarrierQuotes);
+  return unsubscribe;
+}, [quoteId]);
+\`\`\`
 
 ## Signature
 
@@ -475,6 +490,12 @@ development replay.`,
     "https://react.dev/reference/react/useContext",
     `# useContext
 
+## Usage example
+
+\`\`\`tsx
+const brokerage = useContext(BrokerageContext);
+\`\`\`
+
 ## Signature
 
 \`const value = useContext(SomeContext)\`
@@ -500,6 +521,13 @@ their identity would trigger unnecessary consumer work.`,
     "https://react.dev/reference/react/useReducer",
     `# useReducer
 
+## Usage example
+
+\`\`\`tsx
+const [quote, dispatch] = useReducer(quoteReducer, initialQuote);
+dispatch({ type: "carrier-accepted", carrierId });
+\`\`\`
+
 ## Signature
 
 \`const [state, dispatch] = useReducer(reducer, initialArg, init?)\`
@@ -524,14 +552,27 @@ layer rather than moving it into a reducer solely for centralization.`,
     "https://react.dev/reference/react/useRef",
     `# useRef
 
+## Usage example
+
+\`\`\`tsx
+const requestRef = useRef<AbortController | null>(null);
+
+function refreshCarrierQuotes() {
+  requestRef.current?.abort(); // Cancel the superseded request.
+  requestRef.current = new AbortController();
+  void loadCarrierQuotes(requestRef.current.signal);
+}
+\`\`\`
+
 ## Signature
 
 \`const ref = useRef(initialValue)\`
 
 ## Use it for
 
-Hold a DOM node, timer ID, previous request token, or mutable infrastructure
-that must survive renders but should not appear in the UI.
+Keep the current carrier-request controller available across renders without
+rendering it. Updating \`ref.current\` does not refresh the screen; quote data
+that brokers see belongs in state.
 
 ## Interview caveat
 
@@ -548,6 +589,14 @@ render except for predictable initialization.`,
     "React",
     "https://react.dev/reference/react/useImperativeHandle",
     `# useImperativeHandle
+
+## Usage example
+
+\`\`\`tsx
+useImperativeHandle(ref, () => ({
+  focusBrokerSearch: () => brokerSearchRef.current?.focus(),
+}));
+\`\`\`
 
 ## Signature
 
@@ -594,6 +643,15 @@ It blocks painting and does not run during server rendering. Prefer
     "https://react.dev/reference/react/useMemo",
     `# useMemo
 
+## Usage example
+
+\`\`\`tsx
+const rankedQuotes = useMemo(
+  () => rankCarrierQuotes(quotes, brokerPriorities),
+  [quotes, brokerPriorities],
+);
+\`\`\`
+
 ## Signature
 
 \`const value = useMemo(calculateValue, dependencies)\`
@@ -617,6 +675,15 @@ do not add memoization before profiling shows useful avoided work.`,
     "React",
     "https://react.dev/reference/react/useCallback",
     `# useCallback
+
+## Usage example
+
+\`\`\`tsx
+const selectCarrier = useCallback(
+  (carrierId: string) => onCarrierSelected(quoteId, carrierId),
+  [quoteId, onCarrierSelected],
+);
+\`\`\`
 
 ## Signature
 
@@ -643,6 +710,13 @@ over memoizing everything.`,
     "https://react.dev/reference/react/useTransition",
     `# useTransition
 
+## Usage example
+
+\`\`\`tsx
+const [isPending, startTransition] = useTransition();
+startTransition(() => setVisibleQuotes(applyBrokerFilters(quotes)));
+\`\`\`
+
 ## Signature
 
 \`const [isPending, startTransition] = useTransition()\`
@@ -668,6 +742,13 @@ useful existing content.`,
     "https://react.dev/reference/react/useId",
     `# useId
 
+## Usage example
+
+\`\`\`tsx
+const appetiteHelpId = useId();
+<input aria-describedby={appetiteHelpId} />
+\`\`\`
+
 ## Signature
 
 \`const id = useId()\`
@@ -691,6 +772,15 @@ being rendered.`,
     "React",
     "https://react.dev/reference/react/useSyncExternalStore",
     `# useSyncExternalStore
+
+## Usage example
+
+\`\`\`tsx
+const carrierStatus = useSyncExternalStore(
+  carrierHealth.subscribe,
+  carrierHealth.getSnapshot,
+);
+\`\`\`
 
 ## Signature
 
@@ -717,6 +807,15 @@ than implementing this integration repeatedly.`,
     "https://react.dev/reference/react/useActionState",
     `# useActionState
 
+## Usage example
+
+\`\`\`tsx
+const [result, submitQuote, isPending] = useActionState(
+  createCarrierSubmission,
+  initialResult,
+);
+\`\`\`
+
 ## Signature
 
 \`const [state, action, isPending] = useActionState(fn, initialState, permalink?)\`
@@ -740,6 +839,18 @@ Do not duplicate the same action result in another local state variable.`,
     "React",
     "https://react.dev/reference/react/useOptimistic",
     `# useOptimistic
+
+## Usage example
+
+\`\`\`tsx
+const [visibleQuotes, markSubmitted] = useOptimistic(
+  quotes,
+  (current, quoteId: string) =>
+    current.map((quote) =>
+      quote.id === quoteId ? { ...quote, status: "submitting" } : quote,
+    ),
+);
+\`\`\`
 
 ## Signature
 

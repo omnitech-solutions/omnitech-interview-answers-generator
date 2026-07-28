@@ -21,7 +21,15 @@ const facets = {
     "concept-guide": 2,
   },
   collections: { react: 3, backend: 1 },
-  tags: { react: 3, hooks: 2, state: 1 },
+  tags: {
+    react: 3,
+    typescript: 3,
+    php: 2,
+    laravel: 2,
+    symfony: 1,
+    hooks: 2,
+    state: 1,
+  },
 };
 
 const hit = {
@@ -121,11 +129,33 @@ describe("Library", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Find the useful answer, fast." }),
+      screen.getByRole("heading", { name: "Find the exact answer, fast." }),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: /React & Frontend/ }),
     ).toHaveAttribute("href", "?collection=react");
+    expect(screen.getByRole("link", { name: /PHP 8.4/ })).toHaveAttribute(
+      "href",
+      "?collection=php",
+    );
+    expect(screen.getByRole("link", { name: /Laravel 13/ })).toHaveAttribute(
+      "href",
+      "?collection=laravel",
+    );
+    expect(screen.getByRole("link", { name: /Symfony/ })).toHaveAttribute(
+      "href",
+      "?collection=symfony",
+    );
+    expect(
+      screen.getByRole("navigation", { name: "Filter by technology" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "PHP2" }));
+    await waitFor(() =>
+      expect(fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining("tag=php"),
+        expect.anything(),
+      ),
+    );
 
     const search = screen.getByRole("searchbox", { name: "Search Library" });
     await user.type(search, "React state");

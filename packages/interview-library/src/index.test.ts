@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  libraryItemInputSchema,
   type LibraryItem,
   type LibrarySearchQuery,
+  libraryItemInputSchema,
 } from "@omnitech/interview-contracts";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -185,6 +185,29 @@ describe("OramaLibrarySearchIndex", () => {
       );
       expect(response.hits[0]?.title).toBe(apiName);
     }
+
+    for (const [collection, exactTitle] of [
+      ["php", "array_map"],
+      ["php", "array_find"],
+      ["php", "PDO"],
+      ["php", "preg_match"],
+      ["laravel", "Laravel Service Container"],
+      ["laravel", "Eloquent ORM"],
+      ["laravel", "Laravel Collections"],
+      ["laravel", "Laravel Queues"],
+    ] as const) {
+      const response = await index.search(
+        query({ query: exactTitle, collections: [collection] }),
+      );
+      expect(response.hits[0]?.title).toBe(exactTitle);
+    }
+
+    for (const term of ["HttpKernel", "Autowiring", "Messenger"]) {
+      const response = await index.search(
+        query({ query: term, collections: ["symfony"] }),
+      );
+      expect(response.hits[0]?.collection).toBe("symfony");
+    }
   });
 
   it("handles empty indexes, pagination, short terms, and seed composition", async () => {
@@ -193,7 +216,7 @@ describe("OramaLibrarySearchIndex", () => {
         libraryItemInputSchema.parse(entry),
       ),
     ).not.toThrow();
-    expect(interviewLibrarySeed).toHaveLength(54);
+    expect(interviewLibrarySeed).toHaveLength(85);
     expect(
       interviewLibrarySeed.filter((entry) => entry.collection === "react"),
     ).toHaveLength(32);
@@ -206,6 +229,40 @@ describe("OramaLibrarySearchIndex", () => {
     expect(
       interviewLibrarySeed.filter((entry) => entry.collection === "dsa"),
     ).toHaveLength(8);
+    expect(
+      interviewLibrarySeed.filter((entry) => entry.collection === "php"),
+    ).toHaveLength(14);
+    expect(
+      interviewLibrarySeed.filter((entry) => entry.collection === "laravel"),
+    ).toHaveLength(14);
+    expect(
+      interviewLibrarySeed.filter((entry) => entry.collection === "symfony"),
+    ).toHaveLength(3);
+    for (const entry of interviewLibrarySeed) {
+      const usage = entry.body.match(
+        /## Usage example\n\n([\s\S]+?)(?=\n## |\s*$)/,
+      )?.[1];
+      expect(usage, `${entry.slug} needs a usage example`).toBeTruthy();
+      expect(usage, `${entry.slug} needs the shared quoting domain`).toMatch(
+        /quote|broker|carrier|policy|coverage|underwriting|appetite|premium/i,
+      );
+    }
+    for (const entry of interviewLibrarySeed.filter((item) =>
+      item.body.includes("## Signature"),
+    )) {
+      const usageIndex = entry.body.indexOf("## Usage example");
+      const signatureIndex = entry.body.indexOf("## Signature");
+      expect(usageIndex, `${entry.slug} needs a usage example`).toBeGreaterThan(
+        -1,
+      );
+      expect(
+        usageIndex,
+        `${entry.slug} example must precede its signature`,
+      ).toBeLessThan(signatureIndex);
+      expect(entry.body.slice(usageIndex, signatureIndex)).toMatch(
+        /```(?:tsx|php)[\s\S]+(?:quote|broker|carrier|policy|appetite)/i,
+      );
+    }
 
     const index = new OramaLibrarySearchIndex();
     await index.rebuild([], 0);

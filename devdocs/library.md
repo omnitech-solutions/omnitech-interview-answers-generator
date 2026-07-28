@@ -137,9 +137,9 @@ Raw HTML remains disabled.
 - Exact-title and heading matches outrank body-only matches.
 - Filters compose and facets reflect the published corpus.
 - Publishing, editing, and archiving are reflected by the next search.
-- The initial corpus contains 54 reviewed interview-focused items, including a
-  React 19.2 collection organized around the official Learn and Reference
-  documentation categories used by DevDocs.
+- The initial corpus contains 85 reviewed items: React 19.2, PHP 8.4.x, and
+  Laravel 13 official-reference collections; focused Symfony 8.1 cheat sheets;
+  and the existing web, backend, and DSA collections.
 - Keyboard search, deep links, provenance, responsive panes, authoring, GFM,
   Shiki, and Mermaid are covered by tests.
 - A deterministic 10,000-section benchmark reports warm-search p95 and index

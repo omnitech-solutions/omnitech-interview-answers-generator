@@ -1,5 +1,6 @@
 "use client";
 
+import { App, ConfigProvider } from "@oc-tech/omni-ui-components";
 import type {
   LibraryContentType,
   LibraryFacets,
@@ -8,7 +9,6 @@ import type {
   LibrarySearchHit,
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";
-import { App, ConfigProvider } from "@oc-tech/omni-ui-components";
 import { useRouter } from "next/navigation";
 import React, {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -33,6 +33,18 @@ const contentTypeLabels: Record<LibraryContentType, string> = {
   "concept-guide": "Concept Guide",
   "dsa-pattern": "DSA Pattern",
 };
+
+const technologyFilters = [
+  { label: "TypeScript", tag: "typescript" },
+  { label: "PHP", tag: "php" },
+  { label: "React", tag: "react" },
+  { label: "Laravel", tag: "laravel" },
+  { label: "Symfony", tag: "symfony" },
+] as const;
+
+const technologyTags: ReadonlySet<string> = new Set(
+  technologyFilters.map((technology) => technology.tag),
+);
 
 const emptyDraft: LibraryItemInput = {
   slug: "",
@@ -327,7 +339,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Search React, browser, backend, DSA…"
+                placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
                 aria-label="Search Library"
                 aria-controls="library-results"
                 aria-activedescendant={
@@ -369,6 +381,45 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
               {error}
             </div>
           ) : null}
+
+          <nav
+            className="library-technology-filters"
+            aria-label="Filter by technology"
+          >
+            <button
+              type="button"
+              className={
+                tags.some((tag) => technologyTags.has(tag)) ? "" : "active"
+              }
+              aria-pressed={!tags.some((tag) => technologyTags.has(tag))}
+              onClick={() =>
+                setTags((current) =>
+                  current.filter((tag) => !technologyTags.has(tag)),
+                )
+              }
+            >
+              All
+            </button>
+            {technologyFilters.map(({ label, tag }) => (
+              <button
+                type="button"
+                key={tag}
+                className={tags.includes(tag) ? "active" : ""}
+                aria-pressed={tags.includes(tag)}
+                onClick={() =>
+                  setTags((current) => [
+                    ...current.filter(
+                      (currentTag) => !technologyTags.has(currentTag),
+                    ),
+                    ...(current.includes(tag) ? [] : [tag]),
+                  ])
+                }
+              >
+                {label}
+                {facets?.tags[tag] ? <span>{facets.tags[tag]}</span> : null}
+              </button>
+            ))}
+          </nav>
 
           <div className="library-workspace">
             <aside
@@ -587,6 +638,9 @@ function LibraryLanding({
 }) {
   const collections = [
     ["react", "React & Frontend", "Hooks, state, rendering, accessibility"],
+    ["php", "PHP 8.4", "Language, arrays, types, PDO"],
+    ["laravel", "Laravel 13", "Container, Eloquent, queues, testing"],
+    ["symfony", "Symfony", "Request flow, services, Messenger"],
     ["web", "Web Fundamentals", "Browser, HTTP, CORS, storage"],
     ["backend", "Backend", "APIs, data, caching, reliability"],
     ["dsa", "DSA Patterns", "Recognition cues, invariants, complexity"],
@@ -594,10 +648,11 @@ function LibraryLanding({
   return (
     <div className="library-landing">
       <span className="library-eyebrow">Interview reference</span>
-      <h1>Find the useful answer, fast.</h1>
+      <h1>Find the exact answer, fast.</h1>
       <p>
-        Search concise, reviewed sections. Official sources are visibly
-        separated from Studio-authored cheat sheets and interview guides.
+        Search concise API references, framework guidance, and interview-ready
+        explanations. Each result identifies whether it comes from official
+        documentation or a focused Studio note.
       </p>
       <div className="library-collection-grid">
         {collections.map(([slug, title, description]) => (
@@ -605,7 +660,13 @@ function LibraryLanding({
             <span>
               {slug === "dsa"
                 ? "O(n)"
-                : "0" + (collections.findIndex((c) => c[0] === slug) + 1)}
+                : slug === "php"
+                  ? "8.4"
+                  : slug === "laravel"
+                    ? "L"
+                    : slug === "symfony"
+                      ? "S"
+                      : "0" + (collections.findIndex((c) => c[0] === slug) + 1)}
             </span>
             <strong>{title}</strong>
             <small>{description}</small>
@@ -673,7 +734,7 @@ function LibraryArticle({
           </div>
         ) : (
           <div className="library-studio-source">
-            Interview Studio-authored preparation material
+            Focused Interview Studio reference
           </div>
         )}
         <div className="library-result-tags">
@@ -683,7 +744,10 @@ function LibraryArticle({
         </div>
       </header>
       <div className="library-markdown">
-        <MarkdownContent>
+        <MarkdownContent
+          defaultCodeLanguage={libraryCodeLanguage(item.collection)}
+          keywords={libraryKeywords(item.collection)}
+        >
           {articleBodyWithoutDuplicateTitle(item.body, item.title)}
         </MarkdownContent>
       </div>
@@ -710,6 +774,89 @@ function LibraryArticle({
       ) : null}
     </article>
   );
+}
+
+function libraryCodeLanguage(collection: string): string {
+  if (["php", "laravel", "symfony"].includes(collection)) return "php";
+  if (collection === "react") return "tsx";
+  if (collection === "web") return "html";
+  if (collection === "backend") return "typescript";
+  if (collection === "dsa") return "typescript";
+  return "text";
+}
+
+function libraryKeywords(collection: string): string[] {
+  const shared = [
+    "complexity",
+    "invariant",
+    "trade-off",
+    "idempotent",
+    "authentication",
+    "authorization",
+    "validation",
+    "accessibility",
+  ];
+  const byCollection: Record<string, string[]> = {
+    react: [
+      "source state",
+      "derived state",
+      "Strict Mode",
+      "memoization",
+      "hydration",
+      "rendering",
+      "effect",
+      "state",
+      "props",
+    ],
+    php: [
+      "prepared statements",
+      "transactions",
+      "type declarations",
+      "generator",
+      "enum",
+      "array",
+      "exception",
+      "PDO",
+    ],
+    laravel: [
+      "service container",
+      "dependency injection",
+      "Eloquent",
+      "N+1",
+      "middleware",
+      "queues",
+      "transactions",
+      "Form Request",
+    ],
+    symfony: [
+      "HttpKernel",
+      "autowiring",
+      "autoconfiguration",
+      "Doctrine",
+      "Messenger",
+      "firewalls",
+      "voters",
+      "services",
+    ],
+    web: ["HTTP", "CORS", "event loop", "browser", "cache", "security"],
+    backend: [
+      "API",
+      "database",
+      "cache",
+      "reliability",
+      "transaction",
+      "idempotency",
+    ],
+    dsa: [
+      "time complexity",
+      "space complexity",
+      "hash map",
+      "two pointers",
+      "sliding window",
+      "binary search",
+    ],
+  };
+  return [...shared, ...(byCollection[collection] ?? [])];
 }
 
 function LibraryAuthor({ onClose }: { onClose: () => void }) {
@@ -944,7 +1091,12 @@ function LibraryAuthor({ onClose }: { onClose: () => void }) {
             <span className="library-eyebrow">Live preview</span>
             <h1>{draft.title || "Untitled reference"}</h1>
             <p>{draft.summary}</p>
-            <MarkdownContent>{draft.body}</MarkdownContent>
+            <MarkdownContent
+              defaultCodeLanguage={libraryCodeLanguage(draft.collection)}
+              keywords={libraryKeywords(draft.collection)}
+            >
+              {draft.body}
+            </MarkdownContent>
           </div>
         </div>
         <footer>

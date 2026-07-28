@@ -1,16 +1,17 @@
-import { create, insertMultiple, search } from "@orama/orama";
-import {
-  persistToFile,
-  restoreFromFile,
-} from "@orama/plugin-data-persistence/server";
 import type {
   LibraryFacets,
   LibraryItem,
   LibrarySearchQuery,
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";
+import { create, insertMultiple, search } from "@orama/orama";
+import {
+  persistToFile,
+  restoreFromFile,
+} from "@orama/plugin-data-persistence/server";
 import GithubSlugger from "github-slugger";
-export { interviewLibrarySeed } from "./seed.js";
+
+export { interviewLibrarySeed } from "./catalog.js";
 
 const indexFormatVersion = 3;
 
@@ -130,9 +131,10 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
   async search(query: LibrarySearchQuery): Promise<LibrarySearchResponse> {
     const startedAt = performance.now();
     const where = buildWhere(query);
+    const searchTerm = searchableTechnicalTerm(query.query);
     const result = await search(this.database, {
       mode: "fulltext",
-      term: query.query,
+      term: searchTerm,
       properties: [
         "title",
         "heading",
@@ -149,7 +151,7 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
         publisher: 2,
         body: 1,
       },
-      tolerance: query.query.length >= 5 ? 1 : 0,
+      tolerance: searchTerm.length >= 5 ? 1 : 0,
       ...(where ? { where } : {}),
       facets: {
         contentType: { limit: 20 },
@@ -193,6 +195,13 @@ export class OramaLibrarySearchIndex implements LibrarySearchIndex {
       facets: facetsFrom(result.facets),
     };
   }
+}
+
+function searchableTechnicalTerm(value: string): string {
+  return value
+    .replace(/[_\\:]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function extractLibrarySections(

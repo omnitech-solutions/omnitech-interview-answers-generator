@@ -2,9 +2,9 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import type {
+  LibraryFacets,
   LibraryItem,
   LibraryItemInput,
-  LibraryFacets,
   LibrarySearchQuery,
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";
@@ -80,12 +80,20 @@ export class LibraryService {
 
   private async synchronizeSeed(): Promise<void> {
     if (this.seed.length === 0) return;
-    const existingSlugs = new Set(
-      (await this.repository.list()).map((item) => item.slug),
+    const existingBySlug = new Map(
+      (await this.repository.list()).map((item) => [item.slug, item]),
     );
     for (const input of this.seed) {
-      if (existingSlugs.has(input.slug)) continue;
-      const draft = await this.repository.saveDraft(input);
+      const existing = existingBySlug.get(input.slug);
+      if (
+        existing &&
+        (existing.status !== "published" || sameLibraryInput(existing, input))
+      ) {
+        continue;
+      }
+      const draft = existing
+        ? await this.repository.saveDraft(input, existing.id)
+        : await this.repository.saveDraft(input);
       await this.repository.publish(draft.id);
     }
   }
@@ -109,6 +117,19 @@ export class LibraryService {
       throw new LibraryIndexUnavailableError();
     }
   }
+}
+
+function sameLibraryInput(item: LibraryItem, input: LibraryItemInput): boolean {
+  return (
+    item.slug === input.slug &&
+    item.title === input.title &&
+    item.summary === input.summary &&
+    item.body === input.body &&
+    item.contentType === input.contentType &&
+    item.collection === input.collection &&
+    JSON.stringify(item.tags) === JSON.stringify(input.tags) &&
+    JSON.stringify(item.source) === JSON.stringify(input.source)
+  );
 }
 
 function increment(values: Record<string, number>, key: string): void {

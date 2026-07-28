@@ -132,6 +132,34 @@ describe("LibraryService", () => {
     expect(mocks.publish).toHaveBeenCalledWith(draft.id);
   });
 
+  it("backfills changed published seed content without replacing active drafts", async () => {
+    const updated = {
+      ...input(),
+      body: "# React\n\n## Usage example\n\n```tsx\nconst quote = true;\n```",
+    };
+    const published = item();
+    const draft = item({ ...updated, status: "draft" });
+    mocks.list.mockResolvedValueOnce([published]);
+    mocks.saveDraft.mockResolvedValue(draft);
+    mocks.publish.mockResolvedValue(item(updated));
+
+    await new LibraryService(repository, index, "/tmp/index.msp", [
+      updated,
+    ]).initialize();
+
+    expect(mocks.saveDraft).toHaveBeenCalledWith(updated, published.id);
+    expect(mocks.publish).toHaveBeenCalledWith(draft.id);
+
+    vi.clearAllMocks();
+    mocks.list.mockResolvedValue([item({ status: "draft" })]);
+    mocks.revision.mockResolvedValue(4);
+    mocks.restore.mockResolvedValue(true);
+    await new LibraryService(repository, index, "/tmp/index.msp", [
+      updated,
+    ]).initialize();
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
+  });
+
   it("maps rebuild failures and allows initialization to be retried", async () => {
     mocks.restore.mockResolvedValue(false);
     mocks.rebuild.mockRejectedValueOnce(new Error("corrupt"));

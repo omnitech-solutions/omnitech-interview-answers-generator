@@ -166,7 +166,7 @@ textarea {
 .library-workspace {
   display: grid;
   grid-template-columns: 238px minmax(0, 1fr) 220px;
-  height: calc(100dvh - 68px);
+  height: calc(100dvh - 121px);
 }
 
 .library-filters,
@@ -685,6 +685,44 @@ textarea {
   line-height: 1.72;
 }
 
+.library-technology-filters {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 9px 26px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  scrollbar-width: none;
+}
+
+.library-technology-filters button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.library-technology-filters button:hover,
+.library-technology-filters button.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.library-technology-filters button span {
+  color: inherit;
+  font-size: 10px;
+  opacity: 0.72;
+}
+
 .library-markdown h1,
 .library-markdown h2,
 .library-markdown h3,
@@ -710,6 +748,21 @@ textarea {
 
 .library-markdown a {
   color: var(--accent);
+}
+
+.library-markdown .markdown-keyword {
+  color: var(--accent);
+  font-weight: 680;
+}
+
+.library-markdown .markdown-inline-code,
+.library-author-preview .markdown-inline-code {
+  padding: 0.12em 0.34em;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--ink));
+  font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .library-markdown blockquote,
