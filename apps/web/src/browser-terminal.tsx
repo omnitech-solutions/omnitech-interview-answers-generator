@@ -12,8 +12,10 @@ const gatewayUrl =
   "ws://localhost:3001/terminal";
 
 export function BrowserTerminal({
+  onCopyReady,
   sessionName = "workspace",
 }: {
+  onCopyReady?: (copy: (() => Promise<void>) | null) => void;
   sessionName?: string;
 }): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,6 +52,16 @@ export function BrowserTerminal({
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    onCopyReady?.(async () => {
+      const buffer = terminal.buffer.active;
+      const contents = Array.from({ length: buffer.length }, (_, index) =>
+        buffer.getLine(index)?.translateToString(true),
+      )
+        .filter((line): line is string => line !== undefined)
+        .join("\n")
+        .trimEnd();
+      await navigator.clipboard.writeText(contents);
+    });
     const preventPageScroll = (event: WheelEvent) => {
       event.stopPropagation();
     };
@@ -110,9 +122,10 @@ export function BrowserTerminal({
       inputSubscription.dispose();
       container.removeEventListener("wheel", preventPageScroll);
       socket?.close();
+      onCopyReady?.(null);
       terminal.dispose();
     };
-  }, [sessionName]);
+  }, [onCopyReady, sessionName]);
 
   return (
     <div

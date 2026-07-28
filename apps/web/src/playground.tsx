@@ -7,8 +7,8 @@ import {
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { Decoration, EditorView } from "@codemirror/view";
 import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+import { Decoration, EditorView } from "@codemirror/view";
 import {
   App,
   Badge,
@@ -38,9 +38,12 @@ import React, {
 } from "react";
 import { z } from "zod";
 
-import { ConceptLab, type ConceptDraft } from "./concept-lab";
+import { type ConceptDraft, ConceptLab } from "./concept-lab";
+import { formatTimestamp } from "./format-timestamp";
 import { MarkdownContent } from "./markdown-content";
 import { MockInterview } from "./mock-interview";
+import { StudioTextarea } from "./studio-controls";
+import { InspectorToggleButton, StudioInspector } from "./studio-inspector";
 import {
   NavigationToggle,
   StudioBrand,
@@ -48,8 +51,6 @@ import {
   ThemeToggle,
   useStudioTheme,
 } from "./studio-shell";
-import { StudioTextarea } from "./studio-controls";
-import { InspectorToggleButton, StudioInspector } from "./studio-inspector";
 import { TerminalDock, TerminalToggleButton } from "./terminal-dock";
 
 type InspectorPanel = "notes" | "output" | "saved";
@@ -57,9 +58,11 @@ type EditorTab = "solution" | "usage" | "tests";
 type OutputTab = "solution" | "tests";
 type QuestionTab = "input" | "preview";
 type SyntaxState = "idle" | "checking" | "valid" | "invalid" | "unavailable";
+type AnswerProvider = "" | "openai" | "lm-studio" | "codex";
 
 const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 const DRAFT_STORAGE_KEY = "interview-playground.draft";
+const ANSWER_SESSION_PATTERN = /^answer-[a-z0-9-]+$/;
 const PHP_EDITOR_PREFIX = "<?php\n";
 const setupSchema: RJSFSchema = {
   type: "object",
@@ -300,6 +303,8 @@ export function Playground() {
     useState<PlaygroundSnapshot["value"]["mockInterview"]>();
   const { theme, toggleTheme } = useStudioTheme();
   const [question, setQuestion] = useState("");
+  const [refinementRequest, setRefinementRequest] = useState("");
+  const [answerProvider, setAnswerProvider] = useState<AnswerProvider>("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
   const [answer, setAnswer] = useState<GeneratedAnswer>();
   const [savedId, setSavedId] = useState<string>();
@@ -309,6 +314,8 @@ export function Playground() {
   const [panel, setPanel] = useState<InspectorPanel>("output");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [playgroundTerminalSession, setPlaygroundTerminalSession] =
+    useState("workspace");
   const setInspectorVisibility = useCallback((open: boolean) => {
     setInspectorOpen(open);
     if (!open) setTerminalOpen(false);
@@ -471,14 +478,31 @@ export function Playground() {
           question?: string;
           language?: LanguageSelection;
           answer?: GeneratedAnswer;
+          answerProvider?: AnswerProvider;
           notes?: string;
+          refinementRequest?: string;
+          terminalSession?: unknown;
         };
         if (draft.question || draft.answer) {
           localEdits.current = true;
           setQuestion(draft.question ?? "");
+          setAnswerProvider(
+            ["", "openai", "lm-studio", "codex"].includes(
+              draft.answerProvider ?? "",
+            )
+              ? (draft.answerProvider as AnswerProvider)
+              : "",
+          );
           setLanguage(draft.language ?? "auto");
           setAnswer(normalizeAnswer(draft.answer));
           setNotes(draft.notes ?? "");
+          setRefinementRequest(draft.refinementRequest ?? "");
+          if (
+            typeof draft.terminalSession === "string" &&
+            ANSWER_SESSION_PATTERN.test(draft.terminalSession)
+          ) {
+            setPlaygroundTerminalSession(draft.terminalSession);
+          }
         }
       } catch {
         window.localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -491,9 +515,25 @@ export function Playground() {
     if (!draftHydrated.current) return;
     window.localStorage.setItem(
       DRAFT_STORAGE_KEY,
-      JSON.stringify({ question, language, answer, notes }),
+      JSON.stringify({
+        question,
+        answerProvider,
+        language,
+        answer,
+        notes,
+        refinementRequest,
+        terminalSession: playgroundTerminalSession,
+      }),
     );
-  }, [answer, language, notes, question]);
+  }, [
+    answer,
+    answerProvider,
+    language,
+    notes,
+    playgroundTerminalSession,
+    question,
+    refinementRequest,
+  ]);
 
   function toggleWordWrap() {
     setWordWrap((current) => {
@@ -525,6 +565,8 @@ export function Playground() {
         setAnswer(
           normalizeAnswer(snapshot.value.answer as GeneratedAnswer | undefined),
         );
+        setRefinementRequest("");
+        setExampleId("");
         setNotes(snapshot.value.notes);
         setActiveView(snapshot.value.view ?? "playground");
         setExternalConcepts(
@@ -610,27 +652,74 @@ export function Playground() {
   async function generateAnswer(
     questionValue: string,
     languageValue: LanguageSelection,
+    providerId: Exclude<AnswerProvider, "" | "codex">,
   ): Promise<GeneratedAnswer> {
     const generated = await api<GeneratedAnswer>("/generate", {
       method: "POST",
       body: JSON.stringify({
         question: questionValue,
         language: languageValue,
+        providerId,
       }),
     });
     return normalizeAnswer(generated) as GeneratedAnswer;
   }
 
-  async function generate() {
+  async function generate(mode: "new" | "refine" = "new") {
     localEdits.current = true;
-    if (!question.trim()) {
-      setStatus("Enter a question first.");
+    const refinement = mode === "refine" ? refinementRequest.trim() : "";
+    if (
+      !question.trim() ||
+      !answerProvider ||
+      (mode === "refine" && (!answer || !refinement))
+    ) {
+      setStatus(
+        mode === "refine"
+          ? "Enter the change you want to apply."
+          : "Enter a question first.",
+      );
       return;
     }
+    if (mode === "new") setRefinementRequest("");
     setBusy(true);
-    setStatus("Generating the simplest correct answer…");
+    setStatus(
+      answerProvider === "codex"
+        ? "Starting a fresh Codex answer session…"
+        : "Generating the simplest correct answer…",
+    );
     try {
-      setAnswer(await generateAnswer(question, language));
+      if (answerProvider === "codex") {
+        const session = await api<{ name: string }>("/answer-sessions", {
+          method: "POST",
+          body: JSON.stringify({
+            question: question.trim(),
+            ...(mode === "refine" && answer
+              ? {
+                  refinement,
+                  currentAnswer: { ...answer, notes },
+                }
+              : {}),
+          }),
+        });
+        setPlaygroundTerminalSession(session.name);
+        setTerminalOpen(true);
+        setInspectorOpen(true);
+        setStatus(
+          `Codex session “${session.name}” started. Its /answer result will populate the solution, usage, and tests.`,
+        );
+        return;
+      }
+      const generationQuestion =
+        mode === "refine" && answer && refinement
+          ? `Original question:\n${question}\n\nCurrent answer:\n${JSON.stringify(
+              { ...answer, notes },
+            )}\n\nRequested change:\n${refinement}\n\nReturn the complete revised answer.`
+          : question;
+      setAnswer(
+        await generateAnswer(generationQuestion, language, answerProvider),
+      );
+      setRefinementRequest("");
+      setExampleId("");
       setSavedId(undefined);
       setOutput({});
       setPreview("");
@@ -782,10 +871,12 @@ export function Playground() {
     setStatus(`Opened “${saved.title}”.`);
   }
 
-  function newPlayground() {
+  async function newPlayground() {
     localEdits.current = false;
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
     setQuestion("");
+    setRefinementRequest("");
+    setAnswerProvider("");
     setLanguage("auto");
     setAnswer(undefined);
     setSavedId(undefined);
@@ -797,7 +888,31 @@ export function Playground() {
     setSyntaxMessage("");
     setExampleId("");
     setQuestionTab("input");
-    setStatus("New unsaved playground.");
+    setPanel("output");
+    setPlaygroundTerminalSession("workspace");
+    setTerminalOpen(false);
+    setInspectorOpen(false);
+    try {
+      const snapshot = await api<PlaygroundSnapshot>("/playground-control", {
+        method: "PATCH",
+        body: JSON.stringify({
+          view: "playground",
+          question: "",
+          language: "auto",
+          answer: null,
+          notes: "",
+          panel: "output",
+        }),
+      });
+      appliedControlRevision.current = snapshot.revision;
+      setStatus("New unsaved playground.");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? `Playground cleared locally. ${error.message}`
+          : "Playground cleared locally.",
+      );
+    }
   }
 
   async function checkSyntax(tab: EditorTab) {
@@ -909,17 +1024,10 @@ export function Playground() {
                 </label>
                 <Button
                   variant="outline"
-                  onClick={newPlayground}
+                  onClick={() => void newPlayground()}
                   disabled={busy}
                 >
                   New
-                </Button>
-                <Button
-                  className="generate-button"
-                  onClick={generate}
-                  disabled={busy || !question.trim()}
-                >
-                  {busy ? "Working…" : "Generate"}
                 </Button>
                 <Button
                   variant="outline"
@@ -999,11 +1107,7 @@ export function Playground() {
 
           {activeView === "concept-lab" ? (
             <div
-              className={`studio-body ${
-                inspectorOpen
-                  ? "inspector-visible concept-inspector-visible"
-                  : ""
-              }`}
+              className={`studio-body ${inspectorOpen ? "inspector-visible" : ""}`}
             >
               <ConceptLab
                 toolbarTarget={conceptToolbarTarget}
@@ -1066,27 +1170,80 @@ export function Playground() {
                       </button>
                     </div>
                     {questionTab === "input" ? (
-                      <DynamicForm
-                        schema={setupSchema}
-                        zodSchema={setupZodSchema}
-                        formData={{ question }}
-                        onChange={(next) => {
-                          localEdits.current = true;
-                          setQuestion(next.question);
-                        }}
-                        onSubmit={() => undefined}
-                        uiSchema={{
-                          question: {
-                            "ui:widget": "textarea",
-                            "ui:options": {
-                              rows: 9,
-                              placeholder:
-                                "Paste a coding, React, API, debugging, or system-design question…",
+                      <div className="playground-question-entry">
+                        <label className="playground-provider-field">
+                          <span>Answer provider</span>
+                          <select
+                            aria-label="Answer provider"
+                            value={answerProvider}
+                            onChange={(event) =>
+                              setAnswerProvider(
+                                event.target.value as AnswerProvider,
+                              )
+                            }
+                          >
+                            <option value="">Choose a provider…</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="lm-studio">LM Studio</option>
+                            <option value="codex">Codex CLI</option>
+                          </select>
+                        </label>
+                        <DynamicForm
+                          schema={setupSchema}
+                          zodSchema={setupZodSchema}
+                          formData={{ question }}
+                          onChange={(next) => {
+                            localEdits.current = true;
+                            setQuestion(next.question);
+                          }}
+                          onSubmit={() => undefined}
+                          uiSchema={{
+                            question: {
+                              "ui:widget": "textarea",
+                              "ui:options": {
+                                rows: 9,
+                                placeholder:
+                                  "Paste a coding, React, API, debugging, or system-design question…",
+                              },
                             },
-                          },
-                          "ui:submitButtonOptions": { norender: true },
-                        }}
-                      />
+                            "ui:submitButtonOptions": { norender: true },
+                          }}
+                        />
+                        <Button
+                          className="generate-button playground-generate-button"
+                          onClick={() => void generate("new")}
+                          disabled={busy || !question.trim() || !answerProvider}
+                        >
+                          {busy ? "Working…" : "Generate"}
+                        </Button>
+                        {answer ? (
+                          <label className="playground-refinement-field">
+                            <span>What should be fixed or expanded?</span>
+                            <textarea
+                              aria-label="Answer refinement"
+                              rows={4}
+                              value={refinementRequest}
+                              placeholder="For example: Fix the stress-test expectation, support another constraint, or add missing edge-case tests…"
+                              onChange={(event) =>
+                                setRefinementRequest(event.target.value)
+                              }
+                            />
+                            <Button
+                              className="playground-refinement-button"
+                              aria-label="Apply change"
+                              onClick={() => void generate("refine")}
+                              disabled={
+                                busy ||
+                                !question.trim() ||
+                                !answerProvider ||
+                                !refinementRequest.trim()
+                              }
+                            >
+                              + Apply change
+                            </Button>
+                          </label>
+                        ) : null}
+                      </div>
                     ) : (
                       <article className="question-preview markdown">
                         {question.trim() ? (
@@ -1439,9 +1596,7 @@ export function Playground() {
                                     <strong>{saved.title}</strong>
                                     <span>
                                       {saved.language} ·{" "}
-                                      {new Date(
-                                        saved.updatedAt,
-                                      ).toLocaleDateString()}
+                                      {formatTimestamp(saved.updatedAt)}
                                     </span>
                                   </button>
                                   <IconButton
@@ -1505,6 +1660,7 @@ export function Playground() {
                     <TerminalDock
                       open={terminalOpen}
                       onClose={() => setTerminalOpen(false)}
+                      sessionName={playgroundTerminalSession}
                     />
                   </>
                 </StudioInspector>

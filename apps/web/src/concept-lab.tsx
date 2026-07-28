@@ -8,6 +8,7 @@ import type {
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ConceptMarkdownContent } from "./concept-markdown-content";
+import { formatTimestamp } from "./format-timestamp";
 import { StudioInspector } from "./studio-inspector";
 import { TerminalDock } from "./terminal-dock";
 
@@ -58,11 +59,11 @@ export function ConceptLab({
   toolbarTarget?: HTMLElement | null;
 }) {
   const [topic, setTopic] = useState("");
+  const [answerTopic, setAnswerTopic] = useState("");
   const [provider, setProvider] = useState<ConceptProvider>("");
   const [title, setTitle] = useState("");
   const [markdown, setMarkdown] = useState("");
   const [followUps, setFollowUps] = useState<ConceptDraft[]>([]);
-  const [openFollowUps, setOpenFollowUps] = useState<number[]>([]);
   const [savedId, setSavedId] = useState<string>();
   const [saved, setSaved] = useState<SavedExplanation[]>([]);
   const [savedOpen, setSavedOpen] = useState(false);
@@ -83,7 +84,15 @@ export function ConceptLab({
         provider?: ConceptProvider;
         terminalSession?: unknown;
       };
-      setTopic(draft.topic ?? "");
+      setTopic(draft.markdown ? "" : (draft.topic ?? ""));
+      setAnswerTopic(
+        draft.markdown
+          ? ((draft as Partial<ConceptDraft> & { answerTopic?: string })
+              .answerTopic ??
+              draft.topic ??
+              "")
+          : "",
+      );
       setProvider(
         ["", "openai", "lm-studio", "codex"].includes(draft.provider ?? "")
           ? (draft.provider as ConceptProvider)
@@ -118,11 +127,11 @@ export function ConceptLab({
         : [];
     const [first, ...rest] = drafts;
     if (!first) return;
-    setTopic(first.topic);
+    setTopic("");
+    setAnswerTopic(first.topic);
     setTitle(first.title);
     setMarkdown(first.markdown);
     setFollowUps(rest);
-    setOpenFollowUps([]);
     setSavedId(undefined);
     setStatus(
       rest.length
@@ -136,6 +145,7 @@ export function ConceptLab({
       DRAFT_KEY,
       JSON.stringify({
         topic,
+        answerTopic,
         provider,
         title,
         markdown,
@@ -143,10 +153,19 @@ export function ConceptLab({
         terminalSession,
       }),
     );
-  }, [followUps, markdown, provider, terminalSession, title, topic]);
+  }, [
+    answerTopic,
+    followUps,
+    markdown,
+    provider,
+    terminalSession,
+    title,
+    topic,
+  ]);
 
   async function generate() {
     if (!topic.trim() || !provider) return;
+    const submittedTopic = topic.trim();
     setBusy(true);
     setStatus(
       provider === "codex"
@@ -159,7 +178,7 @@ export function ConceptLab({
       if (provider === "codex") {
         const session = await request<{ name: string }>("/concept-sessions", {
           method: "POST",
-          body: JSON.stringify({ topic: topic.trim() }),
+          body: JSON.stringify({ topic: submittedTopic }),
         });
         setTerminalSession(session.name);
         onTerminalOpen?.();
@@ -170,20 +189,21 @@ export function ConceptLab({
       }
       const result = await request<GeneratedExplanation>("/explain", {
         method: "POST",
-        body: JSON.stringify({ topic, providerId: provider }),
+        body: JSON.stringify({ topic: submittedTopic, providerId: provider }),
       });
       if (markdown.trim()) {
         setFollowUps((current) => [
           ...current,
-          { ...result, topic: topic.trim() },
+          { ...result, topic: submittedTopic },
         ]);
-        setOpenFollowUps([]);
-        setStatus("Follow-up appended to this Concept Lab session.");
+        setStatus("Answer added to the top of Concept Lab.");
       } else {
+        setAnswerTopic(submittedTopic);
         setTitle(result.title);
         setMarkdown(result.markdown);
-        setStatus("Briefing generated. It has not been saved.");
+        setStatus("Answer generated. It has not been saved.");
       }
+      setTopic("");
       setSavedId(undefined);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -193,12 +213,20 @@ export function ConceptLab({
   }
 
   async function save() {
-    if (!topic.trim() || !title.trim() || !markdown.trim()) return;
+    const latest =
+      followUps.at(-1) ??
+      (markdown.trim() ? { topic: answerTopic, title, markdown } : undefined);
+    if (!latest?.title.trim() || !latest.markdown.trim()) return;
     setBusy(true);
     try {
       const result = await request<SavedExplanation>("/explanations", {
         method: "POST",
-        body: JSON.stringify({ id: savedId, topic, title, markdown }),
+        body: JSON.stringify({
+          id: savedId,
+          topic: latest.topic,
+          title: latest.title,
+          markdown: latest.markdown,
+        }),
       });
       setSavedId(result.id);
       await loadSaved();
@@ -211,11 +239,11 @@ export function ConceptLab({
   }
 
   function open(item: SavedExplanation) {
-    setTopic(item.topic);
+    setTopic("");
+    setAnswerTopic(item.topic);
     setTitle(item.title);
     setMarkdown(item.markdown);
     setFollowUps([]);
-    setOpenFollowUps([]);
     setSavedId(item.id);
     setSavedOpen(false);
     setStatus(`Opened “${item.title}”.`);
@@ -231,21 +259,28 @@ export function ConceptLab({
   async function clear() {
     window.localStorage.removeItem(DRAFT_KEY);
     setTopic("");
+    setAnswerTopic("");
+    setProvider("");
     setTitle("");
     setMarkdown("");
     setFollowUps([]);
-    setOpenFollowUps([]);
     setSavedId(undefined);
+    setSavedOpen(false);
+    setStatus("");
+    setTerminalSession("workspace");
     onClearExternal?.();
+    onTerminalClose?.();
+    onInspectorClose?.();
     try {
       await request<unknown>("/playground-control", {
         method: "PATCH",
         body: JSON.stringify({
           view: "concept-lab",
           explanation: null,
-          explanations: [],
+          panel: "output",
         }),
       });
+      onClearExternal?.();
       setStatus("New unsaved briefing.");
     } catch (error) {
       setStatus(
@@ -260,12 +295,6 @@ export function ConceptLab({
     <div className="concept-actions">
       <Button variant="outline" onClick={() => void clear()} disabled={busy}>
         New
-      </Button>
-      <Button
-        onClick={() => void generate()}
-        disabled={busy || !topic.trim() || !provider}
-      >
-        {busy ? "Working…" : "Explain"}
       </Button>
       <Button
         variant="outline"
@@ -293,8 +322,8 @@ export function ConceptLab({
         {toolbarTarget ? createPortal(actions, toolbarTarget) : actions}
       </div>
 
-      <div className="concept-grid">
-        <Card className="concept-prompt-card">
+      <Card className="concept-composer-card">
+        <div className="concept-provider-field">
           <label htmlFor="concept-provider">Explanation provider</label>
           <select
             id="concept-provider"
@@ -308,94 +337,51 @@ export function ConceptLab({
             <option value="lm-studio">LM Studio</option>
             <option value="codex">Codex CLI</option>
           </select>
-          <label htmlFor="concept-topic">What do you need to explain?</label>
+        </div>
+        <label htmlFor="concept-topic">What do you need to explain?</label>
+        <div className="concept-question-entry">
           <textarea
             id="concept-topic"
             value={topic}
             onChange={(event) => setTopic(event.target.value)}
             placeholder="e.g. Explain React reconciliation, or give me a STAR story about modernizing a legacy workflow."
-            rows={8}
+            rows={4}
           />
-          <p>
-            Use a concept, system-design topic, behavioural prompt, or
-            experience question.
-          </p>
-        </Card>
+          <Button
+            className="run-button concept-explain-button"
+            onClick={() => void generate()}
+            disabled={busy || !topic.trim() || !provider}
+          >
+            {busy ? "Working…" : "Explain"}
+          </Button>
+        </div>
+      </Card>
 
-        <Card className="concept-preview-card">
-          <div className="concept-preview-header">
-            <div>
-              <span>{savedId ? "SAVED BRIEFING" : "MARKDOWN BRIEFING"}</span>
-              <strong>{title || "Ready when you are"}</strong>
-            </div>
-          </div>
-          <article className="markdown concept-markdown">
-            {markdown ? (
-              <ConceptMarkdownContent>{markdown}</ConceptMarkdownContent>
-            ) : (
-              <div className="empty">
-                <strong>Build a clear answer you can say out loud.</strong>
-                <span>
-                  Talking points and useful workflows will appear here.
-                </span>
-              </div>
-            )}
-          </article>
-        </Card>
-      </div>
-
-      {followUps.length ? (
-        <section
-          className="concept-follow-up-list"
-          aria-label="Follow-up answers"
-        >
-          {followUps.map((followUp, index) => {
-            const open = openFollowUps.includes(index);
-            const contentId = `concept-follow-up-${index}`;
-            return (
+      {markdown ? (
+        <section className="concept-answer-list" aria-label="Concept answers">
+          {[{ topic: answerTopic, title, markdown }, ...followUps]
+            .toReversed()
+            .map((answer, index) => (
               <Card
-                className="concept-follow-up-panel"
-                key={`${followUp.topic}-${index}`}
+                className="concept-answer-card"
+                key={`${answer.topic}-${answer.title}-${index}`}
               >
-                <button
-                  type="button"
-                  className="concept-follow-up-trigger"
-                  aria-expanded={open}
-                  aria-controls={contentId}
-                  onClick={() =>
-                    setOpenFollowUps((current) =>
-                      current.includes(index)
-                        ? current.filter((item) => item !== index)
-                        : [...current, index],
-                    )
-                  }
-                >
-                  <span>
-                    <small>Follow-up {index + 1}</small>
-                    <strong>{followUp.title}</strong>
-                  </span>
-                  <span
-                    className="concept-follow-up-chevron"
-                    aria-hidden="true"
-                  >
-                    {open ? "−" : "+"}
-                  </span>
-                </button>
-                {open ? (
-                  <article
-                    id={contentId}
-                    className="markdown concept-markdown concept-follow-up-content"
-                  >
-                    <ConceptMarkdownContent>
-                      {followUp.markdown}
-                    </ConceptMarkdownContent>
-                  </article>
-                ) : null}
+                <article className="markdown concept-markdown">
+                  <ConceptMarkdownContent>
+                    {answer.markdown}
+                  </ConceptMarkdownContent>
+                </article>
               </Card>
-            );
-          })}
+            ))}
         </section>
-      ) : null}
+      ) : (
+        <Card className="concept-answer-card concept-answer-empty">
+          <div className="empty">
+            <strong>Build a clear answer you can say out loud.</strong>
+            <span>Questions and talking points will appear here.</span>
+          </div>
+        </Card>
+      )}
 
       {savedOpen ? (
         <aside className="concept-saved" aria-label="Saved briefings">
@@ -412,7 +398,7 @@ export function ConceptLab({
               <div className="concept-saved-item" key={item.id}>
                 <button type="button" onClick={() => open(item)}>
                   <strong>{item.title}</strong>
-                  <span>{new Date(item.updatedAt).toLocaleDateString()}</span>
+                  <span>{formatTimestamp(item.updatedAt)}</span>
                 </button>
                 <IconButton
                   aria-label={`Delete ${item.title}`}

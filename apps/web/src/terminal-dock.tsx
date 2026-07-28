@@ -1,6 +1,7 @@
 "use client";
 
 import { IconButton } from "@oc-tech/omni-ui-components";
+import { useCallback, useRef, useState } from "react";
 import { BrowserTerminal } from "./browser-terminal";
 
 export function TerminalToggleButton({
@@ -46,6 +47,21 @@ export function TerminalDock({
   open: boolean;
   sessionName?: string;
 }) {
+  const copyTerminalRef = useRef<(() => Promise<void>) | null>(null);
+  const [copied, setCopied] = useState(false);
+  const registerCopy = useCallback((copy: (() => Promise<void>) | null) => {
+    copyTerminalRef.current = copy;
+  }, []);
+  const copyTerminal = async () => {
+    try {
+      await copyTerminalRef.current?.();
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <section
       className={`terminal-dock ${className} ${
@@ -58,6 +74,40 @@ export function TerminalDock({
         <span className="terminal-cwd">
           tmux · {sessionName} · project root
         </span>
+        <IconButton
+          className="terminal-copy-button"
+          aria-label={copied ? "Terminal copied" : "Copy terminal"}
+          title={copied ? "Copied" : "Copy terminal"}
+          onClick={() => void copyTerminal()}
+          icon={
+            copied ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="m5 12 4 4L19 6" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              >
+                <rect x="8" y="8" width="11" height="11" rx="2" />
+                <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+              </svg>
+            )
+          }
+        />
         <IconButton
           className="terminal-close-button"
           aria-label="Close terminal"
@@ -77,7 +127,9 @@ export function TerminalDock({
           }
         />
       </div>
-      {open ? <BrowserTerminal sessionName={sessionName} /> : null}
+      {open ? (
+        <BrowserTerminal sessionName={sessionName} onCopyReady={registerCopy} />
+      ) : null}
     </section>
   );
 }

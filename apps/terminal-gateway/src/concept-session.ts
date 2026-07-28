@@ -40,7 +40,7 @@ export function startConceptSession(
       process.execPath,
       ...(runningFromTypeScript ? (options.execArgv ?? process.execArgv) : []),
       runner,
-      command,
+      normalizedTopic,
     ],
     {
       cwd: options.cwd,

@@ -3,8 +3,9 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { spawn } from "node-pty";
 import { type WebSocket, WebSocketServer } from "ws";
-import { ensureNodePtySpawnHelperExecutable } from "./node-pty-helper.js";
+import { type ExistingAnswer, startAnswerSession } from "./answer-session.js";
 import { startConceptSession } from "./concept-session.js";
+import { ensureNodePtySpawnHelperExecutable } from "./node-pty-helper.js";
 
 const port = Number(process.env["TERMINAL_GATEWAY_PORT"] ?? 3001);
 const token = process.env["TERMINAL_GATEWAY_TOKEN"];
@@ -40,6 +41,58 @@ function authorized(socket: WebSocket, requestUrl: string | undefined) {
 }
 
 const server = createServer((request, response) => {
+  if (request.method === "POST" && request.url === "/answer-sessions") {
+    if (token && request.headers.authorization !== `Bearer ${token}`) {
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      try {
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+          currentAnswer?: unknown;
+          question?: unknown;
+          refinement?: unknown;
+        };
+        if (typeof body.question !== "string") {
+          throw new TypeError("An interview question is required.");
+        }
+        if (
+          body.refinement !== undefined &&
+          typeof body.refinement !== "string"
+        ) {
+          throw new TypeError("The refinement request must be a string.");
+        }
+        if (
+          body.currentAnswer !== undefined &&
+          (!body.currentAnswer || typeof body.currentAnswer !== "object")
+        ) {
+          throw new TypeError("The current answer must be an object.");
+        }
+        const session = startAnswerSession(body.question, {
+          cwd,
+          ...(body.refinement === undefined
+            ? {}
+            : { refinement: body.refinement }),
+          ...(body.currentAnswer === undefined
+            ? {}
+            : { currentAnswer: body.currentAnswer as ExistingAnswer }),
+        });
+        response.writeHead(201, { "content-type": "application/json" });
+        response.end(JSON.stringify(session));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+    });
+    return;
+  }
   if (request.method === "POST" && request.url === "/concept-sessions") {
     if (token && request.headers.authorization !== `Bearer ${token}`) {
       response.writeHead(401, { "content-type": "application/json" });
@@ -84,7 +137,9 @@ sockets.on("connection", (socket, request) => {
     : null;
   const sessionName =
     requestedSession &&
-    /^(?:workspace|concept-[a-z0-9-]+)$/.test(requestedSession)
+    /^(?:workspace|concept-[a-z0-9-]+|answer-[a-z0-9-]+)$/.test(
+      requestedSession,
+    )
       ? requestedSession
       : "workspace";
 

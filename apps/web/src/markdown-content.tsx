@@ -487,6 +487,19 @@ export function MarkdownContent({
     h4: heading("h4"),
     h5: heading("h5"),
     h6: heading("h6"),
+    strong: ({ children: strongChildren, node: _node, ...props }) => {
+      const isLabel =
+        typeof strongChildren === "string" &&
+        strongChildren.trimEnd().endsWith(":");
+      return (
+        <strong
+          className={isLabel ? "markdown-answer-label" : undefined}
+          {...props}
+        >
+          {strongChildren}
+        </strong>
+      );
+    },
     p: ({ children: paragraphChildren, node: _node, ...props }) => (
       <p {...props}>
         {React.Children.map(paragraphChildren, (child) =>

@@ -97,6 +97,12 @@ describe("ConceptMarkdownContent", () => {
         name: "Question #1: What triggers a render?",
       }),
     ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByText("Question #1: What triggers a render?"),
+    ).toHaveClass("concept-question-label");
+    expect(
+      screen.queryByRole("heading", { name: "Rendering" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Refs do not trigger renders.")).toBeVisible();
   });
 });

@@ -186,6 +186,10 @@ async function renderSettled({ openInspector = true } = {}) {
   }
 }
 
+async function selectOpenAiProvider(user: ReturnType<typeof userEvent.setup>) {
+  await user.selectOptions(screen.getByLabelText("Answer provider"), "openai");
+}
+
 beforeEach(() => {
   window.history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
@@ -273,6 +277,7 @@ describe("Playground", () => {
     expect(
       screen.getByRole("textbox", { name: "Interview question" }),
     ).toBeVisible();
+    expect(screen.getByLabelText("Answer provider")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Run All" })).toBeDisabled();
@@ -350,6 +355,7 @@ describe("Playground", () => {
           body: JSON.stringify({
             question: "Build an accessible counter",
             language: "react",
+            providerId: "openai",
           }),
         });
         return jsonResponse(reactAnswer);
@@ -363,6 +369,7 @@ describe("Playground", () => {
       "Build an accessible counter",
     );
     await user.selectOptions(screen.getByLabelText("Language"), "react");
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
 
     expect(
@@ -387,6 +394,105 @@ describe("Playground", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("starts Codex with the unchanged answer command in the inspector terminal", async () => {
+    const user = userEvent.setup();
+    const fetchMock = installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse(emptySnapshot);
+      if (path.endsWith("/answer-sessions")) {
+        expect(init).toMatchObject({
+          method: "POST",
+          body: JSON.stringify({ question: "Build a tested counter" }),
+        });
+        return jsonResponse(
+          {
+            name: "answer-abc",
+            command: "/answer Build a tested counter",
+          },
+          201,
+        );
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled({ openInspector: false });
+
+    await user.selectOptions(screen.getByLabelText("Answer provider"), "codex");
+    await user.type(
+      screen.getByRole("textbox", { name: "Interview question" }),
+      "Build a tested counter",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+
+    expect(
+      await screen.findByText("tmux · answer-abc · project root"),
+    ).toBeVisible();
+    expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /\/answer result will populate the solution, usage, and tests/,
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/v1/generate",
+      expect.anything(),
+    );
+  });
+
+  it("keeps Generate for a new answer and uses + Apply change for refinement", async () => {
+    const user = userEvent.setup();
+    installFetch(async (path, init) => {
+      if (path.endsWith("/answers")) return jsonResponse([]);
+      if (path.endsWith("/playground-control"))
+        return jsonResponse({
+          revision: 1,
+          updatedAt: "2026-07-28T00:00:00.000Z",
+          value: {
+            ...emptySnapshot.value,
+            question: "Build a tested counter",
+            language: "react",
+            answer: reactAnswer,
+          },
+        });
+      if (path.endsWith("/answer-sessions")) {
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          question: "Build a tested counter",
+          refinement: "Fix the failing boundary test",
+          currentAnswer: {
+            title: "Accessible Counter",
+            code: reactAnswer.code,
+          },
+        });
+        return jsonResponse(
+          {
+            name: "answer-refine",
+            command: "/answer refine Fix the failing boundary test",
+          },
+          201,
+        );
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    await renderSettled({ openInspector: false });
+
+    expect(
+      await screen.findByRole("button", { name: "Generate" }),
+    ).toBeVisible();
+    const applyChange = await screen.findByRole("button", {
+      name: "Apply change",
+    });
+    expect(applyChange).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText("Answer provider"), "codex");
+    await user.type(
+      screen.getByRole("textbox", { name: "Answer refinement" }),
+      "Fix the failing boundary test",
+    );
+    await user.click(applyChange);
+
+    expect(
+      await screen.findByText("tmux · answer-refine · project root"),
+    ).toBeVisible();
+  });
+
   it("keeps the editable solution and offers an inline copy action", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -407,6 +513,7 @@ describe("Playground", () => {
       "Build an accessible counter",
     );
     await user.selectOptions(screen.getByLabelText("Language"), "react");
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
 
     await user.click(screen.getByRole("button", { name: "Copy code" }));
@@ -450,6 +557,7 @@ describe("Playground", () => {
         }) as HTMLTextAreaElement
       ).value,
     ).toContain("Sliding-Window Rate Limiter");
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
 
     expect(
@@ -484,6 +592,7 @@ describe("Playground", () => {
       "Build a search box",
     );
     await user.selectOptions(screen.getByLabelText("Language"), "react");
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
     await user.click(await screen.findByRole("tab", { name: "Tests" }));
 
@@ -567,6 +676,7 @@ describe("Playground", () => {
       screen.getByRole("textbox", { name: "Interview question" }),
       "Build a counter",
     );
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
     await user.click(screen.getByRole("button", { name: "Notes" }));
     await user.type(
@@ -1141,8 +1251,24 @@ describe("Playground", () => {
       createdAt: "2026-07-24T00:00:00.000Z",
       updatedAt: "2026-07-24T00:00:00.000Z",
     };
-    installFetch(async (path) => {
+    let resetPatch: Record<string, unknown> | undefined;
+    installFetch(async (path, init) => {
       if (path.endsWith("/answers")) return jsonResponse([saved]);
+      if (path.endsWith("/playground-control") && init?.method === "PATCH") {
+        resetPatch = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return jsonResponse({
+          revision: 1,
+          updatedAt: "2026-07-28T00:00:00.000Z",
+          value: {
+            ...emptySnapshot.value,
+            explanation: {
+              topic: "React",
+              title: "React",
+              markdown: "Preserved concept.",
+            },
+          },
+        });
+      }
       if (path.endsWith("/playground-control"))
         return jsonResponse(emptySnapshot);
       throw new Error(`Unexpected request: ${path}`);
@@ -1165,9 +1291,19 @@ describe("Playground", () => {
       screen.getByRole("textbox", { name: "Interview question" }),
     ).toHaveValue("");
     expect(screen.getByText("Your answer will appear here.")).toBeVisible();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "New unsaved playground.",
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "New unsaved playground.",
+      ),
     );
+    expect(resetPatch).toEqual({
+      view: "playground",
+      question: "",
+      language: "auto",
+      answer: null,
+      notes: "",
+      panel: "output",
+    });
   });
 
   it("paginates and deletes saved answers", async () => {
@@ -1261,6 +1397,7 @@ describe("Playground", () => {
       name: "Interview question",
     });
     await user.type(question, "Keep this question");
+    await selectOpenAiProvider(user);
     await user.click(screen.getByRole("button", { name: "Generate" }));
 
     expect(screen.getByRole("status")).toHaveTextContent(

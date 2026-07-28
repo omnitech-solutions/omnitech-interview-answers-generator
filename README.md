@@ -125,7 +125,7 @@ The web server reads the following variables from `apps/web/.env.local`:
 | `INTERVIEW_DATA_DIR` | Directory used by the JSON answer repository | `.data` |
 | `INTERVIEW_EXPERIENCE_MATRIX_PATH` | Candidate evidence used for experience-based explanations | `~/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json` |
 | `NEXT_PUBLIC_TERMINAL_GATEWAY_URL` | Browser WebSocket terminal URL | `ws://localhost:3001/terminal` |
-| `TERMINAL_GATEWAY_HTTP_URL` | Server-side endpoint for starting Codex concept sessions | `http://127.0.0.1:3001/concept-sessions` |
+| `TERMINAL_GATEWAY_HTTP_URL` | Terminal gateway base URL or concept endpoint used to start Codex concept and answer sessions | `http://127.0.0.1:3001/concept-sessions` |
 
 The terminal gateway accepts:
 

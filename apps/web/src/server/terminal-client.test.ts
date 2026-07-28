@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { startCodexConceptSession } from "./terminal-client";
+import {
+  startCodexAnswerSession,
+  startCodexConceptSession,
+} from "./terminal-client";
 
 describe("startCodexConceptSession", () => {
   it("sends only the topic to the authenticated terminal boundary", async () => {
@@ -39,5 +42,53 @@ describe("startCodexConceptSession", () => {
           Response.json({ error: "tmux is unavailable" }, { status: 503 }),
       }),
     ).rejects.toThrow("tmux is unavailable");
+  });
+
+  it("starts an answer session through the same terminal boundary", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json(
+        { name: "answer-abc", command: "/answer Build a counter" },
+        { status: 201 },
+      ),
+    );
+
+    await expect(
+      startCodexAnswerSession("Build a counter", { fetch }),
+    ).resolves.toEqual({
+      name: "answer-abc",
+      command: "/answer Build a counter",
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:3001/answer-sessions",
+      expect.objectContaining({
+        body: JSON.stringify({ question: "Build a counter" }),
+      }),
+    );
+  });
+
+  it("passes the current answer when refining", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json(
+        { name: "answer-refine", command: "/answer refine Fix tests" },
+        { status: 201 },
+      ),
+    );
+
+    await startCodexAnswerSession("Build a counter", {
+      fetch,
+      refinement: "Fix tests",
+      currentAnswer: { title: "Counter" },
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:3001/answer-sessions",
+      expect.objectContaining({
+        body: JSON.stringify({
+          question: "Build a counter",
+          refinement: "Fix tests",
+          currentAnswer: { title: "Counter" },
+        }),
+      }),
+    );
   });
 });

@@ -12,8 +12,11 @@ Treat the supplied arguments as the interview question.
    observable behavior, and failure boundaries before writing code. Produce the
    simplest correct, interview-ready answer that satisfies that checklist and
    the user's relevant coding practices. Keep it specific; avoid generic
-   boilerplate or speculative architecture. Do not invoke another model unless
-   the user explicitly requests configured AI generation.
+   boilerplate or speculative architecture. Preserve the exact signature and do
+   not invent validation, but make every allowed boundary path deterministic and
+   safe for a browser interview IDE. Exercise those paths in focused executable
+   tests. Do not invoke another model unless the user explicitly requests
+   configured AI generation.
 3. Put the question, routed language, answer, main solution, executable
    usage/output, tests, notes, and appropriate panel into one JSON patch.
 4. Apply it through `interview-answers playground set --file <temporary-json>`.

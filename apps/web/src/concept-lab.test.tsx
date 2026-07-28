@@ -70,6 +70,7 @@ describe("ConceptLab", () => {
     await userEvent.type(topic, "React reconciliation");
     await userEvent.click(screen.getByRole("button", { name: "Explain" }));
     expect(await screen.findByText("# Reconciliation")).toBeVisible();
+    expect(topic).toHaveValue("");
     expect(fetch).toHaveBeenCalledWith(
       "/api/v1/explain",
       expect.objectContaining({
@@ -98,7 +99,10 @@ describe("ConceptLab", () => {
       vi.fn(() => response([])),
     );
     const { rerender } = render(<ConceptLab />);
-    expect(await screen.findByDisplayValue("Hooks")).toBeVisible();
+    expect(await screen.findByText("Local")).toBeVisible();
+    expect(screen.getByLabelText("What do you need to explain?")).toHaveValue(
+      "",
+    );
 
     rerender(
       <ConceptLab
@@ -115,7 +119,7 @@ describe("ConceptLab", () => {
     ).toBeVisible();
   });
 
-  it("renders appended CLI follow-ups as collapsed sections", async () => {
+  it("renders appended CLI answers newest first without an outer collapse", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => response([])),
@@ -133,21 +137,14 @@ describe("ConceptLab", () => {
       />,
     );
 
-    expect(await screen.findByText("Root briefing")).toBeVisible();
-    const trigger = screen.getByRole("button", {
-      name: /Follow-up 1.*Cache follow-up/,
-    });
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("LRU answer")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText("Cache follow-up"));
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("LRU answer")).toBeVisible();
-    expect(trigger.closest(".concept-follow-up-panel")).not.toBeNull();
-    expect(trigger.closest(".concept-preview-card")).toBeNull();
-
-    await userEvent.click(screen.getByText("Follow-up 1"));
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("LRU answer")).not.toBeInTheDocument();
+    const newest = await screen.findByText("LRU answer");
+    const oldest = screen.getByText("Root briefing");
+    expect(
+      newest.compareDocumentPosition(oldest) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /Follow-up/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("appends a generated follow-up when a session already exists", async () => {
@@ -173,18 +170,29 @@ describe("ConceptLab", () => {
       screen.getByLabelText("Explanation provider"),
       "openai",
     );
+    await userEvent.type(
+      screen.getByLabelText("What do you need to explain?"),
+      "How should state be shared?",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Explain" }));
 
     expect(
-      await screen.findByText(
-        "Follow-up appended to this Concept Lab session.",
-      ),
+      await screen.findByText("Answer added to the top of Concept Lab."),
     ).toBeVisible();
-    await userEvent.click(screen.getByText("Follow-up"));
-    expect(screen.getByText("Generated follow-up")).toBeVisible();
+    const newest = screen.getByText("Generated follow-up");
+    const oldest = screen.getByText("Root briefing");
+    expect(
+      newest.compareDocumentPosition(oldest) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByLabelText("What do you need to explain?")).toHaveValue(
+      "",
+    );
   });
 
   it("opens saved content and starts a new briefing", async () => {
+    const onClearExternal = vi.fn();
+    const onInspectorClose = vi.fn();
+    const onTerminalClose = vi.fn();
     const saved = {
       id: "123e4567-e89b-42d3-a456-426614174000",
       topic: "Hash maps",
@@ -197,7 +205,15 @@ describe("ConceptLab", () => {
       "fetch",
       vi.fn(() => response([saved])),
     );
-    const { unmount } = render(<ConceptLab />);
+    const { unmount } = render(
+      <ConceptLab
+        inspectorOpen
+        terminalOpen
+        onClearExternal={onClearExternal}
+        onInspectorClose={onInspectorClose}
+        onTerminalClose={onTerminalClose}
+      />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Saved" }));
     const savedPanel = await screen.findByLabelText("Saved briefings");
     const openButton = savedPanel.querySelector(
@@ -206,10 +222,19 @@ describe("ConceptLab", () => {
     expect(openButton).not.toBeNull();
     await userEvent.click(openButton as HTMLButtonElement);
     expect(screen.getByText("Fast lookup")).toBeVisible();
+    await userEvent.selectOptions(
+      screen.getByLabelText("Explanation provider"),
+      "codex",
+    );
     await userEvent.click(screen.getByRole("button", { name: "New" }));
     expect(screen.getByLabelText("What do you need to explain?")).toHaveValue(
       "",
     );
+    expect(screen.getByLabelText("Explanation provider")).toHaveValue("");
+    expect(screen.queryByText("Fast lookup")).not.toBeInTheDocument();
+    expect(onTerminalClose).toHaveBeenCalledOnce();
+    expect(onInspectorClose).toHaveBeenCalledOnce();
+    expect(onClearExternal).toHaveBeenCalled();
     await waitFor(() =>
       expect(fetch).toHaveBeenCalledWith(
         "/api/v1/playground-control",
@@ -218,10 +243,25 @@ describe("ConceptLab", () => {
           body: JSON.stringify({
             view: "concept-lab",
             explanation: null,
-            explanations: [],
+            panel: "output",
           }),
         }),
       ),
+    );
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("interview-studio.concept-lab") ?? "{}",
+        ),
+      ).toMatchObject({
+        topic: "",
+        answerTopic: "",
+        provider: "",
+        title: "",
+        markdown: "",
+        followUps: [],
+        terminalSession: "workspace",
+      }),
     );
     unmount();
     render(<ConceptLab />);
@@ -300,7 +340,9 @@ describe("ConceptLab", () => {
     expect(
       await screen.findByLabelText("What do you need to explain?"),
     ).toHaveValue("");
-    expect(screen.getByText("Ready when you are")).toBeVisible();
+    expect(
+      screen.getByText("Build a clear answer you can say out loud."),
+    ).toBeVisible();
     expect(screen.getByLabelText("Explanation provider")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Explain" })).toBeDisabled();
   });

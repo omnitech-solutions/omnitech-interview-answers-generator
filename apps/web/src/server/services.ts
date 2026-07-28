@@ -4,22 +4,22 @@ import { join, resolve } from "node:path";
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
+  type ExplanationRequest,
+  type GenerateRequest,
   generatedAnswerSchema,
   generatedExplanationSchema,
   getWorkflow,
   routeQuestion,
-  type GenerateRequest,
-  type ExplanationRequest,
 } from "@omnitech/interview-contracts";
+import {
+  interviewLibrarySeed,
+  OramaLibrarySearchIndex,
+} from "@omnitech/interview-library";
 import {
   JsonAnswerRepository,
   JsonExplanationRepository,
   JsonLibraryRepository,
 } from "@omnitech/interview-storage";
-import {
-  interviewLibrarySeed,
-  OramaLibrarySearchIndex,
-} from "@omnitech/interview-library";
 import { LibraryService } from "./library-service";
 
 const dataDirectory =
@@ -38,6 +38,120 @@ export const libraryService = new LibraryService(
 );
 export const codeRunner = new DockerCodeRunner();
 
+function normalizeCommentedConceptExample(markdown: string): string {
+  const fencedCode = /```([a-z][\w+-]*)\n([\s\S]+?)\n```/i;
+  const match = fencedCode.exec(markdown);
+  if (!match) {
+    throw new TypeError(
+      "The generated explanation is missing the required code example.",
+    );
+  }
+  const comment = match[1]?.toLowerCase() === "ruby" ? "#" : "//";
+  const source = match[2] ?? "";
+  const requiredHeaders = [
+    {
+      pattern: /(?:\/\/|#)[ \t]*PROBLEM:/i,
+      value: `${comment} PROBLEM: Ground the interview question in code.`,
+    },
+    {
+      pattern: /(?:\/\/|#)[ \t]*STRATEGY:/i,
+      value: `${comment} STRATEGY: Isolate the mechanism being discussed.`,
+    },
+    {
+      pattern: /(?:\/\/|#)[ \t]*COMPLEXITY:/i,
+      value: `${comment} COMPLEXITY: Use the bounds stated in the answer.`,
+    },
+  ];
+  const sourceLines = source.split("\n");
+  const headers = requiredHeaders.map(
+    ({ pattern, value }) =>
+      sourceLines.find((line) => pattern.test(line))?.trim() ?? value,
+  );
+  const remaining = sourceLines.filter(
+    (line) => !requiredHeaders.some(({ pattern }) => pattern.test(line)),
+  );
+  if (
+    !/(?:\/\/|#|<!--)[^\n]*\[(?:COMMENT|GUARD|DOMAIN|STRATEGY|SAFETY)\]/.test(
+      remaining.join("\n"),
+    )
+  ) {
+    remaining.unshift(
+      `${comment} [DOMAIN] Keep the example focused on the interview decision.`,
+    );
+  }
+
+  const normalizedBlock = `\`\`\`${match[1]}\n${[...headers, ...remaining].join("\n")}\n\`\`\``;
+  return `${markdown.slice(0, match.index)}${normalizedBlock}${markdown.slice(
+    match.index + match[0].length,
+  )}`;
+}
+
+export const conceptExplanationSystemPrompt = `Act as a senior technical
+interviewer, interview coach, and personal cheatsheet writer. Produce the
+concise answer an interviewer wants to hear: technically precise, point-form,
+easy to say aloud, and usable without rewriting.
+
+First classify each supplied question as a mechanism, comparison/trade-off,
+practical API, DSA pattern, system-design/troubleshooting, or
+experience/behavioural question. Preserve its scope. Never invent subquestions
+to make one simple prompt look comprehensive.
+
+Use this outer Markdown shape:
+# Short title
+## Questions
+### Question #1: Concise question
+- **Answer:** The answer first.
+- **Mechanics:** Only the mechanics needed to prove understanding.
+- **Distinction:** The key comparison, invariant, or misconception.
+#### Example
+Exactly one valid syntax-highlighted code example with labeled comments.
+#### Talking points
+- Exactly 3 short details the candidate can say if probed.
+
+Every supplied question must be one Question section and one Collapse,
+including a single question. Use 2–4 answer bullets with domain-specific
+labels; the labels above are defaults, not mandatory filler. Keep answer
+bullets under 70 spoken words for a simple question and 110 for a genuinely
+multi-part question. Always include exactly 3 short Talking points.
+
+Always provide exactly one valid 7–14-line fenced code block. Use the requested
+language, React/TypeScript for frontend concepts, and TypeScript when otherwise
+ambiguous. Use a focused implementation, configuration, contract, decision
+function, or typed evidence object that directly grounds the answer. Begin with
+the language-appropriate PROBLEM, STRATEGY, and COMPLEXITY comment header; use
+N/A only when complexity genuinely does not apply. Label non-trivial decisions
+with [COMMENT], [GUARD], [DOMAIN], [STRATEGY], or [SAFETY]. Never narrate
+trivial assignments, loop increments, setters, or JSX. Never put example
+inputs, outputs, or I/O traces in source comments. Keep the required entry
+point above helpers. For an experience question, represent an evidence-backed
+mini-STAR without inventing candidate evidence.
+
+Bold only key domain terms, decisions, invariants, and complexity. Put API
+names, identifiers, values, and complexity notation in inline code. Declare
+the language on every code block. Do not add "Key point", an answer plan,
+invented questions, links, generic coaching, or repetitive prose.
+
+React calibration: distinguish render triggers from work during or after a
+render. State that state updates, parent renders, and consumed context can
+schedule rendering; refs, \`useMemo\`, \`useCallback\`, and \`useEffect\` do
+not independently do so. Distinguish render, reconciliation, and DOM commit.
+Mention \`Object.is\` and shallow per-prop comparison only when equality or
+memoization is relevant; React does not generally deep-compare. Never call a
+state setter unconditionally during render.
+
+Web calibration: distinguish browser behavior from HTTP behavior, client
+caches from shared caches, and state the security boundary for CORS, cookies,
+storage, and authentication.
+
+Backend calibration: lead with the contract, source of truth, consistency
+boundary, and failure/retry behavior. DSA calibration: lead with the
+pattern-recognition clue and invariant, state assumptions before complexity,
+and prioritize working code before optional optimization.
+
+Never invent candidate experience. For personal examples, use only evidence in
+the supplied experience matrix and name the company, system, technology, and
+metric when available. If evidence is absent, say what is missing.`;
+
 const experienceMatrixPath =
   process.env["INTERVIEW_EXPERIENCE_MATRIX_PATH"] ??
   "/Users/desoleary/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json";
@@ -50,53 +164,7 @@ export async function generateExplanation(input: ExplanationRequest) {
   const result = await client.generateObject({
     ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
     schema: generatedExplanationSchema,
-    system: `Act as a senior technical interviewer, interview coach, and
-personal cheatsheet writer. Produce the concise answer an interviewer wants to
-hear: direct, technically precise, easy to scan, and usable without rewriting.
-
-Every supplied question must be its own Collapse section, including a
-single-question prompt. Use exactly this Markdown shape:
-# Short title
-## Questions
-### Question #1: Concise question
-- **Direct answer:** The answer first.
-- **How it works:** The minimum mechanics needed to prove understanding.
-- **Interviewer distinction:** The key comparison, invariant, or misconception.
-#### Code example
-One focused 6–12-line fenced block for programming, framework, or API questions.
-Show only 2–4 representative behaviors. Comment every demonstrated behavior
-with what triggers, does not trigger, or merely runs after work. Prefer a small
-valid snippet over full scaffolding; never call a React state setter
-unconditionally during render.
-#### Talking points
-- Exactly 3 short points the candidate can use if the interviewer probes.
-
-For non-code questions, use "#### Example" with 2–3 concrete bullets instead
-of a code block. Repeat the Question section only for distinct questions
-actually supplied by the user. Keep each question's three answer bullets under
-90 spoken words. Concept Lab renders each Question section as one Collapse with
-a blue header; its answer, example, and talking points stay together inside.
-
-Do not add "Key point", an answer plan, invented questions, generic advice, or
-repetitive prose. Inline API names must use backticks and every code block must
-declare the correct language.
-
-Choose details by asking, "Would a senior interviewer expect this distinction?"
-For React rendering questions, distinguish state, parent rendering, context,
-refs, effects, memoization, reconciliation, and DOM commits when relevant.
-Choose only the 2–4 most illustrative React APIs for the code block; cover
-remaining distinctions in Talking points. Place setters inside an event handler
-or effect and explain that refs, memo hooks, and effect hooks do not
-independently schedule rendering.
-State explicitly that React uses identity/value checks such as \`Object.is\`
-and shallow per-prop comparison where applicable; it does not generally perform
-deep comparison. Do not repeat facts across sections or turn the answer into an
-exhaustive reference guide.
-
-Never invent candidate experience. When the topic asks for a personal example,
-use only evidence present in the supplied experience matrix and name the
-company, system, technology, and metric when available. If evidence is absent,
-say what evidence is missing.`,
+    system: conceptExplanationSystemPrompt,
     prompt: [
       `Concept to explain:\n${input.topic}`,
       input.context ? `Additional context:\n${input.context}` : "",
@@ -109,7 +177,10 @@ say what evidence is missing.`,
     temperature: 0.2,
     maxOutputTokens: 2_200,
   });
-  return result.object;
+  return {
+    ...result.object,
+    markdown: normalizeCommentedConceptExample(result.object.markdown),
+  };
 }
 
 export async function generateInterviewAnswer(input: GenerateRequest) {

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
-  generateRequestSchema,
   explanationRequestSchema,
+  generateRequestSchema,
   libraryItemInputSchema,
   librarySearchQuerySchema,
   routeQuestion,
@@ -25,6 +25,7 @@ import {
 import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
+import { LibraryIndexUnavailableError } from "./library-service";
 import { playgroundControlStore } from "./playground-control";
 import {
   answerRepository,
@@ -35,8 +36,10 @@ import {
   libraryRepository,
   libraryService,
 } from "./services";
-import { LibraryIndexUnavailableError } from "./library-service";
-import { startCodexConceptSession } from "./terminal-client";
+import {
+  startCodexAnswerSession,
+  startCodexConceptSession,
+} from "./terminal-client";
 
 type ApiEnvironment = {
   Variables: {
@@ -253,6 +256,63 @@ console.log(solve([1, 2, 3]));`,
     }
     try {
       return context.json(await startCodexConceptSession(body.topic), 201);
+    } catch (error) {
+      return apiError(
+        context,
+        503,
+        "terminal_unavailable",
+        error instanceof Error
+          ? error.message
+          : "The terminal gateway is unavailable.",
+      );
+    }
+  });
+
+  app.post("/api/v1/answer-sessions", async (context) => {
+    const body = (await context.req.json().catch(() => undefined)) as
+      | {
+          currentAnswer?: unknown;
+          question?: unknown;
+          refinement?: unknown;
+        }
+      | undefined;
+    if (!body || typeof body.question !== "string" || !body.question.trim()) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "An interview question is required.",
+      );
+    }
+    if (
+      (body.refinement !== undefined && typeof body.refinement !== "string") ||
+      (body.currentAnswer !== undefined &&
+        (!body.currentAnswer || typeof body.currentAnswer !== "object"))
+    ) {
+      return apiError(
+        context,
+        400,
+        "invalid_request",
+        "The refinement request is invalid.",
+      );
+    }
+    try {
+      const options = {
+        ...(body.refinement === undefined
+          ? {}
+          : { refinement: body.refinement }),
+        ...(body.currentAnswer === undefined
+          ? {}
+          : {
+              currentAnswer: body.currentAnswer as Record<string, unknown>,
+            }),
+      };
+      return context.json(
+        Object.keys(options).length
+          ? await startCodexAnswerSession(body.question, options)
+          : await startCodexAnswerSession(body.question),
+        201,
+      );
     } catch (error) {
       return apiError(
         context,

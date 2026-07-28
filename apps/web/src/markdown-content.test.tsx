@@ -218,6 +218,19 @@ describe("MarkdownContent", () => {
     expect(inlineCode).not.toHaveClass("markdown-keyword");
   });
 
+  it("marks bold answer labels separately from technical emphasis", () => {
+    render(
+      <MarkdownContent>
+        {"- **Direct answer:** State updates trigger a **render**."}
+      </MarkdownContent>,
+    );
+
+    expect(screen.getByText("Direct answer:")).toHaveClass(
+      "markdown-answer-label",
+    );
+    expect(screen.getByText("render")).not.toHaveClass("markdown-answer-label");
+  });
+
   it("renders stable linked headings and safe internal and external links", () => {
     render(
       <MarkdownContent>

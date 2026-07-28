@@ -25,7 +25,7 @@ describe("startConceptSession", () => {
         "concept-abc",
         process.execPath,
         expect.stringMatching(/concept-runner\.ts$/),
-        "/explain React effects; echo unsafe",
+        "React effects; echo unsafe",
       ],
       {
         cwd: "/project",

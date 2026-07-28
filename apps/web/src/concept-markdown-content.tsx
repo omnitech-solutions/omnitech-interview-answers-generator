@@ -90,18 +90,28 @@ function splitQuestionSections(markdown: string): {
 }
 
 export function ConceptMarkdownContent({ children }: { children: string }) {
-  const { after, before, questions } = splitQuestionSections(children);
+  const { after, questions } = splitQuestionSections(children);
   if (!questions.length) return <ConceptMarkdown>{children}</ConceptMarkdown>;
 
   return (
     <>
-      {before ? <ConceptMarkdown>{before}</ConceptMarkdown> : null}
       <Collapse
         className="concept-question-collapse"
         defaultActiveKey={questions[0]!.label}
         items={questions.map((question) => ({
           key: question.label,
-          label: question.label,
+          label: (
+            <span
+              className="concept-question-label"
+              onClick={(event) => {
+                if (window.getSelection()?.toString()) {
+                  event.stopPropagation();
+                }
+              }}
+            >
+              {question.label}
+            </span>
+          ),
           children: <ConceptMarkdown>{question.answer}</ConceptMarkdown>,
         }))}
       />
