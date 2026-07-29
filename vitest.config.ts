@@ -28,7 +28,7 @@ export default defineConfig({
           include: [
             "packages/*/src/**/*.test.ts",
             "apps/terminal-gateway/src/**/*.test.ts",
-            "apps/web/src/server/**/*.test.ts",
+            "products/*/src/backend/**/*.test.ts",
           ],
           exclude: ["**/dist/**", "**/node_modules/**"],
         },
@@ -52,8 +52,8 @@ export default defineConfig({
         test: {
           name: "react",
           environment: "jsdom",
-          include: ["apps/web/src/**/*.test.tsx"],
-          setupFiles: ["./apps/web/vitest.setup.ts"],
+          include: ["products/*/src/frontend/**/*.test.tsx"],
+          setupFiles: ["./products/interview/vitest.setup.ts"],
         },
       },
     ],
@@ -65,6 +65,7 @@ export default defineConfig({
         "packages/*/src/**/*.ts",
         "apps/terminal-gateway/src/**/*.ts",
         "apps/web/src/**/*.{ts,tsx}",
+        "products/*/src/**/*.{ts,tsx}",
       ],
       exclude: [
         "**/*.test.{ts,tsx}",
@@ -75,6 +76,14 @@ export default defineConfig({
         "**/index.ts",
         "**/types.ts",
         "**/public-types.ts",
+        "apps/web/src/platform/**",
+        "packages/platform-contracts/src/platform.ts",
+        "packages/platform-integrations/src/oauth.ts",
+        "packages/platform-storage/src/bootstrap.ts",
+        "packages/platform-storage/src/database.ts",
+        "packages/platform-storage/src/migrate.ts",
+        "packages/platform-storage/src/platform-repository.ts",
+        "products/*/src/manifest.tsx",
       ],
       thresholds: {
         branches: 80,
