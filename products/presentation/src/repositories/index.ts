@@ -1,4 +1,5 @@
 import type { PlatformDatabase } from "@omnitech/platform-storage";
+import { createHash, randomBytes } from "node:crypto";
 import type {
   CreatePresentationInput,
   GeneratedImage,
@@ -295,6 +296,226 @@ export class PresentationRepository {
         metadata: row.metadata,
         createdAt: row.created_at.toISOString(),
       }));
+    });
+  }
+
+  async softDelete(context: TenantContext, id: string): Promise<void> {
+    await this.database.tenantTransaction(context.tenantId, async (client) => {
+      await client.query(
+        `UPDATE presentation.documents
+         SET deleted_at = now(), updated_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [context.tenantId, id],
+      );
+    });
+  }
+
+  async duplicate(context: TenantContext, id: string): Promise<string> {
+    return this.database.tenantTransaction(context.tenantId, async (client) => {
+      const source = await client.query<{
+        title: string;
+        content: Record<string, unknown>;
+        outline: string[];
+        theme_id: string | null;
+        settings: Record<string, unknown>;
+        generation_state: Record<string, unknown>;
+      }>(
+        `SELECT d.title, d.content, p.outline, p.theme_id, p.settings,
+           p.generation_state
+         FROM presentation.documents d
+         JOIN presentation.presentations p ON p.document_id = d.id
+         WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL`,
+        [context.tenantId, id],
+      );
+      const row = source.rows[0];
+      if (!row) throw new Error("Presentation not found.");
+      const document = await client.query<{ id: string }>(
+        `INSERT INTO presentation.documents
+           (tenant_id, owner_user_id, title, content)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [context.tenantId, context.userId, `${row.title} copy`, row.content],
+      );
+      const duplicateId = document.rows[0]?.id;
+      if (!duplicateId) throw new Error("Presentation duplication failed.");
+      await client.query(
+        `INSERT INTO presentation.presentations
+           (document_id, tenant_id, outline, theme_id, settings,
+            generation_state)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          duplicateId,
+          context.tenantId,
+          row.outline,
+          row.theme_id,
+          row.settings,
+          row.generation_state,
+        ],
+      );
+      await client.query(
+        `INSERT INTO presentation.slides
+           (tenant_id, document_id, position, source_xml, content)
+         SELECT tenant_id, $3, position, source_xml, content
+         FROM presentation.slides
+         WHERE tenant_id = $1 AND document_id = $2`,
+        [context.tenantId, id, duplicateId],
+      );
+      return duplicateId;
+    });
+  }
+
+  async setFavorite(
+    context: TenantContext,
+    documentId: string,
+    favorite: boolean,
+  ): Promise<void> {
+    await this.database.tenantTransaction(context.tenantId, async (client) => {
+      if (favorite) {
+        await client.query(
+          `INSERT INTO presentation.document_favorites
+             (tenant_id, user_id, document_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT DO NOTHING`,
+          [context.tenantId, context.userId, documentId],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM presentation.document_favorites
+           WHERE tenant_id = $1 AND user_id = $2 AND document_id = $3`,
+          [context.tenantId, context.userId, documentId],
+        );
+      }
+    });
+  }
+
+  async createTheme(
+    context: TenantContext,
+    input: {
+      name: string;
+      description: string;
+      definition: Readonly<Record<string, unknown>>;
+    },
+  ): Promise<string> {
+    return this.database.tenantTransaction(context.tenantId, async (client) => {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO presentation.themes
+           (tenant_id, owner_user_id, name, description, definition)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          context.tenantId,
+          context.userId,
+          input.name,
+          input.description,
+          input.definition,
+        ],
+      );
+      const id = result.rows[0]?.id;
+      if (!id) throw new Error("Theme creation failed.");
+      return id;
+    });
+  }
+
+  async setThemeReaction(
+    context: TenantContext,
+    themeId: string,
+    reaction: "favorite" | "like",
+    enabled: boolean,
+  ): Promise<void> {
+    await this.database.tenantTransaction(context.tenantId, async (client) => {
+      const table =
+        reaction === "favorite"
+          ? "presentation.theme_favorites"
+          : "presentation.theme_likes";
+      if (enabled) {
+        await client.query(
+          `INSERT INTO ${table} (tenant_id, user_id, theme_id)
+           VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+          [context.tenantId, context.userId, themeId],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM ${table}
+           WHERE tenant_id = $1 AND user_id = $2 AND theme_id = $3`,
+          [context.tenantId, context.userId, themeId],
+        );
+      }
+    });
+  }
+
+  async createShare(
+    context: TenantContext,
+    documentId: string,
+  ): Promise<string> {
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    await this.database.tenantTransaction(context.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO presentation.shares
+           (tenant_id, document_id, token_hash, created_by)
+         VALUES ($1, $2, $3, $4)`,
+        [context.tenantId, documentId, tokenHash, context.userId],
+      );
+    });
+    return token;
+  }
+
+  async revokeShare(context: TenantContext, shareId: string): Promise<void> {
+    await this.database.tenantTransaction(context.tenantId, async (client) => {
+      await client.query(
+        `UPDATE presentation.shares SET revoked_at = now()
+         WHERE tenant_id = $1 AND id = $2`,
+        [context.tenantId, shareId],
+      );
+    });
+  }
+
+  async requestExport(
+    context: TenantContext,
+    documentId: string,
+    format: "pptx" | "pdf",
+    idempotencyKey: string,
+  ): Promise<string> {
+    return this.database.tenantTransaction(context.tenantId, async (client) => {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO presentation.exports
+           (tenant_id, document_id, requested_by, format, status,
+            idempotency_key)
+         VALUES ($1, $2, $3, $4, 'queued', $5)
+         ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET
+           updated_at = presentation.exports.updated_at
+         RETURNING id`,
+        [context.tenantId, documentId, context.userId, format, idempotencyKey],
+      );
+      const id = result.rows[0]?.id;
+      if (!id) throw new Error("Export request failed.");
+      return id;
+    });
+  }
+
+  async saveRecording(
+    context: TenantContext,
+    documentId: string,
+    assetReference: string,
+    metadata: Readonly<Record<string, unknown>>,
+  ): Promise<string> {
+    return this.database.tenantTransaction(context.tenantId, async (client) => {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO presentation.recordings
+           (tenant_id, document_id, owner_user_id, asset_reference, metadata)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          context.tenantId,
+          documentId,
+          context.userId,
+          assetReference,
+          metadata,
+        ],
+      );
+      const id = result.rows[0]?.id;
+      if (!id) throw new Error("Recording persistence failed.");
+      return id;
     });
   }
 }

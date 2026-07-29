@@ -43,4 +43,77 @@ export class PresentationService {
   listImages(context: TenantContext) {
     return this.repository.listImages(context);
   }
+
+  delete(context: TenantContext, id: string) {
+    return this.repository.softDelete(context, id);
+  }
+
+  duplicate(context: TenantContext, id: string) {
+    return this.repository.duplicate(context, id);
+  }
+
+  setFavorite(context: TenantContext, id: string, favorite: boolean) {
+    return this.repository.setFavorite(context, id, favorite);
+  }
+
+  createTheme(
+    context: TenantContext,
+    input: {
+      name: string;
+      description: string;
+      definition: Readonly<Record<string, unknown>>;
+    },
+  ) {
+    return this.repository.createTheme(context, input);
+  }
+
+  setThemeReaction(
+    context: TenantContext,
+    themeId: string,
+    reaction: "favorite" | "like",
+    enabled: boolean,
+  ) {
+    return this.repository.setThemeReaction(
+      context,
+      themeId,
+      reaction,
+      enabled,
+    );
+  }
+
+  createShare(context: TenantContext, documentId: string) {
+    return this.repository.createShare(context, documentId);
+  }
+
+  revokeShare(context: TenantContext, shareId: string) {
+    return this.repository.revokeShare(context, shareId);
+  }
+
+  requestExport(
+    context: TenantContext,
+    documentId: string,
+    format: "pptx" | "pdf",
+    idempotencyKey: string,
+  ) {
+    return this.repository.requestExport(
+      context,
+      documentId,
+      format,
+      idempotencyKey,
+    );
+  }
+
+  saveRecording(
+    context: TenantContext,
+    documentId: string,
+    assetReference: string,
+    metadata: Readonly<Record<string, unknown>>,
+  ) {
+    return this.repository.saveRecording(
+      context,
+      documentId,
+      assetReference,
+      metadata,
+    );
+  }
 }

@@ -71,7 +71,7 @@ try {
                 path: "/p/presentation/themes",
                 hidden: false,
               },
-              "presentation.imageStudio": {
+              "presentation.image-studio": {
                 label: "Image Studio",
                 description: "Generate and manage images",
                 path: "/p/presentation/images",
