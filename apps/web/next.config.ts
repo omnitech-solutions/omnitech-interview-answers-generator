@@ -6,6 +6,7 @@ const config: NextConfig = {
     "@oc-tech/omni-ui-components",
     "@omnitech/platform-api",
     "@omnitech/platform-contracts",
+    "@omnitech/platform-integrations",
     "@omnitech/platform-runtime",
     "@omnitech/platform-storage",
     "@omnitech/product-interview",

@@ -19,6 +19,7 @@
     { "path": "../../packages/interview-storage" },
     { "path": "../../packages/platform-api" },
     { "path": "../../packages/platform-contracts" },
+    { "path": "../../packages/platform-integrations" },
     { "path": "../../packages/platform-runtime" },
     { "path": "../../packages/platform-storage" },
     { "path": "../../products/interview" },

@@ -26,6 +26,7 @@
     "@omnitech/interview-storage": "workspace:*",
     "@omnitech/platform-api": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
+    "@omnitech/platform-integrations": "workspace:*",
     "@omnitech/platform-runtime": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
     "@omnitech/product-interview": "workspace:*",

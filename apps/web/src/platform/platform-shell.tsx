@@ -15,6 +15,7 @@ export function PlatformShell({
 }) {
   const pathname = usePathname();
   const [theme, setTheme] = useState(context.preferences.theme);
+  const [locale, setLocale] = useState(context.preferences.locale);
 
   useEffect(() => {
     const resolved =
@@ -25,6 +26,24 @@ export function PlatformShell({
         : theme;
     document.documentElement.dataset["theme"] = resolved;
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  async function savePreferences(
+    nextTheme: "system" | "light" | "dark",
+    nextLocale: string,
+  ) {
+    await fetch(
+      `/api/platform/v1/preferences?tenant=${encodeURIComponent(context.tenant.slug)}`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ theme: nextTheme, locale: nextLocale }),
+      },
+    );
+  }
 
   const routes = context.products.flatMap((product) =>
     Object.entries(product.navigation.routes)
@@ -66,7 +85,14 @@ export function PlatformShell({
             <span className="platform-visually-hidden">Theme</span>
             <select
               onChange={(event) =>
-                setTheme(event.target.value as "system" | "light" | "dark")
+                (() => {
+                  const nextTheme = event.target.value as
+                    | "system"
+                    | "light"
+                    | "dark";
+                  setTheme(nextTheme);
+                  void savePreferences(nextTheme, locale);
+                })()
               }
               value={theme}
             >
@@ -75,6 +101,26 @@ export function PlatformShell({
               <option value="dark">Dark</option>
             </select>
           </label>
+          <label>
+            <span className="platform-visually-hidden">Language</span>
+            <select
+              onChange={(event) => {
+                const nextLocale = event.target.value;
+                setLocale(nextLocale);
+                void savePreferences(theme, nextLocale);
+              }}
+              value={locale}
+            >
+              <option value="en">English</option>
+              <option value="fr-CA">Français (Canada)</option>
+            </select>
+          </label>
+          <Link
+            className="platform-settings-link"
+            href={`/t/${context.tenant.slug}/settings/integrations`}
+          >
+            Connections
+          </Link>
           <span className="platform-user" title={context.user.email}>
             {context.user.displayName}
           </span>

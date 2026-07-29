@@ -6,6 +6,7 @@ import type {
 } from "@omnitech/platform-contracts";
 
 import type { DatabaseClient, PlatformDatabase } from "./database.js";
+import type { EncryptedValue } from "./connected-account-vault.js";
 
 type ContextRow = {
   user_id: string;
@@ -168,6 +169,40 @@ export class PlatformRepository {
       scopes: row.scopes,
       expiresAt: row.expires_at?.toISOString() ?? null,
     }));
+  }
+
+  async saveConnectedAccount(input: {
+    userId: string;
+    provider: "google" | "linkedin";
+    providerAccountId: string;
+    scopes: string[];
+    accessToken: EncryptedValue;
+    refreshToken: EncryptedValue | null;
+    expiresAt: Date | null;
+  }): Promise<void> {
+    await this.database.query(
+      `INSERT INTO platform.connected_accounts
+         (user_id, provider, provider_account_id, status, scopes,
+          access_token_ciphertext, refresh_token_ciphertext, expires_at)
+       VALUES ($1, $2, $3, 'connected', $4, $5, $6, $7)
+       ON CONFLICT (user_id, provider) DO UPDATE SET
+         provider_account_id = EXCLUDED.provider_account_id,
+         status = 'connected',
+         scopes = EXCLUDED.scopes,
+         access_token_ciphertext = EXCLUDED.access_token_ciphertext,
+         refresh_token_ciphertext = EXCLUDED.refresh_token_ciphertext,
+         expires_at = EXCLUDED.expires_at,
+         updated_at = now()`,
+      [
+        input.userId,
+        input.provider,
+        input.providerAccountId,
+        input.scopes,
+        input.accessToken,
+        input.refreshToken,
+        input.expiresAt,
+      ],
+    );
   }
 
   async audit(
