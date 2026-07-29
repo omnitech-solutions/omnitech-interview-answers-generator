@@ -1,0 +1,50 @@
+{
+  "name": "@omnitech/product-presentation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "import": "./dist/backend/index.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend/index.d.ts",
+      "import": "./dist/frontend/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    },
+    "./importer": {
+      "types": "./dist/import/index.d.ts",
+      "import": "./dist/import/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "import": "node dist/import/cli.js",
+    "lint": "biome lint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config ../../vitest.package.config.ts"
+  },
+  "dependencies": {
+    "@omnitech/ai-contracts": "workspace:*",
+    "@omnitech/platform-contracts": "workspace:*",
+    "@omnitech/platform-storage": "workspace:*",
+    "hono": "^4.12.8",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "^29.1.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

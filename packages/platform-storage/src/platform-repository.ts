@@ -233,15 +233,29 @@ export class PlatformRepository {
 }
 
 function rolePermissions(role: ContextRow["role"]): string[] {
-  const common = ["platform.read", "artifact.read", "interview.read"];
+  const common = [
+    "platform.read",
+    "artifact.read",
+    "interview.read",
+    "presentation.read",
+  ];
   if (role === "member") return common;
   if (role === "admin") {
-    return [...common, "artifact.write", "interview.write", "tenant.manage"];
+    return [
+      ...common,
+      "artifact.write",
+      "interview.write",
+      "presentation.write",
+      "presentation.share",
+      "tenant.manage",
+    ];
   }
   return [
     ...common,
     "artifact.write",
     "interview.write",
+    "presentation.write",
+    "presentation.share",
     "tenant.manage",
     "tenant.delete",
   ];

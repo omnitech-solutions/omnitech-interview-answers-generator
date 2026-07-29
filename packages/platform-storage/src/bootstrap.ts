@@ -35,6 +35,63 @@ try {
     );
     await client.query(
       `INSERT INTO platform.product_installations
+         (tenant_id, product_id, display_name, description, icon, sort_order,
+          configuration)
+       VALUES ($1, 'omnitech.presentation', 'Presentations',
+         'Create, edit, present, and share visual documents.', 'presentation',
+         20, $2)
+       ON CONFLICT (tenant_id, product_id) DO UPDATE SET
+         configuration = EXCLUDED.configuration,
+         updated_at = now()`,
+      [
+        tenantId,
+        {
+          enabled: true,
+          routePrefix: "/p/presentation",
+          navigation: {
+            group: "Products",
+            order: 20,
+            hidden: false,
+            routes: {
+              "presentation.library": {
+                label: "Presentations",
+                description: "Browse and manage visual documents",
+                path: "/p/presentation/library",
+                hidden: false,
+              },
+              "presentation.create": {
+                label: "Create",
+                description: "Start a presentation",
+                path: "/p/presentation/create",
+                hidden: false,
+              },
+              "presentation.themes": {
+                label: "Themes",
+                description: "Manage reusable visual systems",
+                path: "/p/presentation/themes",
+                hidden: false,
+              },
+              "presentation.imageStudio": {
+                label: "Image Studio",
+                description: "Generate and manage images",
+                path: "/p/presentation/images",
+                hidden: false,
+              },
+            },
+          },
+          featureFlags: {
+            sharing: true,
+            recording: true,
+            exports: true,
+            imageStudio: true,
+          },
+          settings: {},
+          revision: 1,
+        },
+      ],
+    );
+    await client.query(
+      `INSERT INTO platform.product_installations
          (tenant_id, product_id, display_name, description, icon, configuration)
        VALUES ($1, 'omnitech.interview', 'Interview',
          'Create, practise, and organize interview material.', 'sparkles', $2)
