@@ -32,6 +32,7 @@ export default async function ProductPage({
   const route = product.manifest.routes.find(
     (candidate) =>
       candidate.defaultPath === requestedPath ||
+      requestedPath.startsWith(`${candidate.defaultPath}/`) ||
       installation.navigation.routes[candidate.id]?.path.endsWith(
         requestedPath,
       ),

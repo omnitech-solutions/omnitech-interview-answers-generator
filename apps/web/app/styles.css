@@ -2911,6 +2911,228 @@ select {
   background: #475569;
 }
 
+.studio-page {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3vw, 3rem);
+}
+
+.studio-page-header,
+.presentation-editor-toolbar,
+.studio-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.studio-page-header {
+  margin-bottom: 2rem;
+}
+
+.studio-page-header h1 {
+  margin: 0.25rem 0;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  letter-spacing: -0.04em;
+}
+
+.studio-eyebrow {
+  margin: 0;
+  color: var(--color-accent, #6d5dfc);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.studio-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #6d5dfc;
+  color: white;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.studio-card-grid,
+.studio-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1rem;
+}
+
+.studio-document-card,
+.studio-theme-card,
+.studio-panel,
+.studio-empty-state {
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: color-mix(in srgb, Canvas 96%, currentColor 4%);
+}
+
+.studio-document-card {
+  display: grid;
+  gap: 0.65rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.studio-document-preview,
+.studio-theme-preview {
+  display: grid;
+  min-height: 145px;
+  place-items: center;
+  border-radius: 0.65rem;
+  background:
+    radial-gradient(circle at 25% 20%, #a99fff, transparent 38%),
+    linear-gradient(145deg, #252047, #6253d7);
+  color: white;
+}
+
+.studio-create-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.4fr);
+  gap: 1rem;
+}
+
+.studio-panel {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.studio-panel label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.studio-panel input,
+.studio-panel textarea,
+.presentation-editor-toolbar input,
+.presentation-slide textarea,
+.presentation-agent-panel textarea {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+
+.presentation-editor {
+  display: grid;
+  grid-template:
+    "toolbar toolbar toolbar" auto
+    "slides canvas agent" minmax(70vh, 1fr) /
+    230px minmax(420px, 1fr) 300px;
+  min-height: calc(100vh - 76px);
+}
+
+.presentation-editor-toolbar {
+  grid-area: toolbar;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.presentation-slide-list {
+  grid-area: slides;
+  overflow: auto;
+  padding: 0.75rem;
+  border-right: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.presentation-slide-list button {
+  display: grid;
+  width: 100%;
+  margin-bottom: 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 0.65rem;
+  padding: 0.65rem;
+  background: Canvas;
+  color: CanvasText;
+  text-align: left;
+}
+
+.presentation-slide-list button[aria-current="true"] {
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6d5dfc 24%, transparent);
+}
+
+.presentation-canvas {
+  grid-area: canvas;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: color-mix(in srgb, Canvas 90%, currentColor 10%);
+}
+
+.presentation-slide {
+  width: min(960px, 100%);
+  aspect-ratio: 16 / 9;
+  border-radius: 0.4rem;
+  padding: 2rem;
+  background: white;
+  color: #111827;
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 18%);
+}
+
+.presentation-slide textarea {
+  height: calc(100% - 3rem);
+  resize: none;
+}
+
+.presentation-agent-panel {
+  grid-area: agent;
+  padding: 1rem;
+  border-left: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.studio-image-grid img {
+  width: 100%;
+  border-radius: 0.75rem;
+}
+
+.presentation-mode {
+  display: grid;
+  min-height: calc(100vh - 76px);
+  place-items: center;
+  padding: 2rem;
+  background: #111;
+  color: white;
+}
+
+.presentation-mode-slide {
+  width: min(1200px, 90vw);
+  aspect-ratio: 16 / 9;
+  padding: 3rem;
+  background: white;
+  color: #111;
+}
+
+@media (max-width: 980px) {
+  .studio-create-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .presentation-editor {
+    grid-template:
+      "toolbar" auto
+      "canvas" minmax(60vh, 1fr)
+      "slides" auto
+      "agent" auto / 1fr;
+  }
+}
+
 .editor-tabs {
   display: flex;
   gap: 2px;

@@ -124,6 +124,21 @@ importers:
       '@oc-tech/omni-ui-components':
         specifier: link:../../../omni-ui-components/packages/core
         version: link:../../../omni-ui-components/packages/core
+      '@omnitech/ai-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ai-contracts
+      '@omnitech/ai-provider-anthropic':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider-anthropic
+      '@omnitech/ai-provider-images':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider-images
+      '@omnitech/ai-provider-openai':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider-openai
+      '@omnitech/ai-runtime':
+        specifier: workspace:*
+        version: link:../../packages/ai-runtime
       '@omnitech/ai-sdk':
         specifier: workspace:*
         version: link:../../packages/ai-sdk
@@ -160,6 +175,9 @@ importers:
       '@omnitech/product-interview':
         specifier: workspace:*
         version: link:../../products/interview
+      '@omnitech/product-presentation':
+        specifier: workspace:*
+        version: link:../../products/presentation
       '@panzoom/panzoom':
         specifier: ^4.6.2
         version: 4.6.2

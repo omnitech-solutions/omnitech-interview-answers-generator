@@ -1,7 +1,10 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 
 import { auth } from "@/auth";
-import { localInterviewInstallation } from "./catalog";
+import {
+  localInterviewInstallation,
+  localPresentationInstallation,
+} from "./catalog";
 
 const localContext: PlatformContext = {
   user: {
@@ -27,9 +30,12 @@ const localContext: PlatformContext = {
     "artifact.write",
     "interview.read",
     "interview.write",
+    "presentation.read",
+    "presentation.write",
+    "presentation.share",
     "tenant.manage",
   ],
-  products: [localInterviewInstallation],
+  products: [localInterviewInstallation, localPresentationInstallation],
 };
 
 export async function resolvePlatformContext(

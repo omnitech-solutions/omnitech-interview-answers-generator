@@ -1,5 +1,7 @@
 import { createPlatformApi } from "@omnitech/platform-api";
+import { getPlatformDatabase } from "@omnitech/platform-storage";
 import { createInterviewApi } from "@omnitech/product-interview/backend";
+import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 
 import { resolvePlatformContext } from "./context";
@@ -23,5 +25,14 @@ export function createApplicationApi() {
     }),
   );
   api.route("/", createInterviewApi());
+  if (process.env["DATABASE_URL"]) {
+    api.route(
+      "/",
+      createPresentationApi({
+        database: getPlatformDatabase(),
+        resolveContext: resolvePlatformContext,
+      }),
+    );
+  }
   return api;
 }

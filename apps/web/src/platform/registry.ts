@@ -3,11 +3,19 @@ import {
   frontendPlugin as interviewFrontend,
   manifest as interviewManifest,
 } from "@omnitech/product-interview/manifest";
+import {
+  frontendPlugin as presentationFrontend,
+  manifest as presentationManifest,
+} from "@omnitech/product-presentation/manifest";
 
 const registry = new ProductRegistry();
 registry.register({
   manifest: interviewManifest,
   frontend: interviewFrontend,
+});
+registry.register({
+  manifest: presentationManifest,
+  frontend: presentationFrontend,
 });
 
 export function getProductRegistry(): ProductRegistry {
