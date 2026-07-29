@@ -1,5 +1,5 @@
 {
-  "name": "@omnitech/ai-provider-anthropic",
+  "name": "@omnitech/agent-runtime-claude",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,8 +18,8 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
-    "@omnitech/ai-contracts": "workspace:*"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
+    "@omnitech/agent-runtime-contracts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",
