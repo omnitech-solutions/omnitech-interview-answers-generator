@@ -1,7 +1,5 @@
-import React from "react";
+import { redirect } from "next/navigation";
 
-import { ClientPage } from "./client-page";
-
-export default function Page() {
-  return <ClientPage />;
+export default function Page(): never {
+  redirect("/t/local/workspace");
 }

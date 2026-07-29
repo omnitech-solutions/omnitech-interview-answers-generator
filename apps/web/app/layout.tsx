@@ -7,13 +7,16 @@ import type { Metadata } from "next";
 import React, { type ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Interview Studio",
-  description: "A local-first, AI-assisted interview coding playground.",
+  title: {
+    default: "Omnitech Studio",
+    template: "%s · Omnitech Studio",
+  },
+  description: "A configurable catalog of AI-assisted creative products.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

@@ -35,6 +35,165 @@ body {
     sans-serif;
 }
 
+.platform-frame {
+  min-height: 100dvh;
+}
+
+.platform-header {
+  position: sticky;
+  z-index: 100;
+  top: 0;
+  display: grid;
+  grid-template-columns: minmax(190px, auto) minmax(0, 1fr) auto;
+  min-height: 64px;
+  align-items: center;
+  gap: 28px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.platform-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.platform-brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: white;
+  font-weight: 900;
+}
+
+.platform-brand span:last-child {
+  display: grid;
+}
+
+.platform-brand small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.platform-navigation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.platform-navigation a {
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.platform-navigation a:hover,
+.platform-navigation a[aria-current="page"] {
+  background: var(--studio-focus);
+  color: var(--ink);
+}
+
+.platform-globals {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.platform-globals select {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.platform-user {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.platform-content {
+  min-height: calc(100dvh - 64px);
+}
+
+.sign-in-page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: 24px;
+}
+
+.sign-in-page section {
+  width: min(100%, 440px);
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 12%);
+}
+
+.sign-in-page form + form {
+  margin-top: 10px;
+}
+
+.sign-in-page button {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.platform-eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .platform-header {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  .platform-navigation {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    overflow-x: auto;
+  }
+
+  .platform-user {
+    display: none;
+  }
+}
+
 button,
 select,
 textarea {

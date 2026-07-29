@@ -4,6 +4,8 @@
     "jsx": "react-jsx",
     "incremental": true,
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "plugins": [{ "name": "next" }],
     "types": ["node"],
     "paths": {
@@ -15,6 +17,9 @@
     { "path": "../../packages/interview-contracts" },
     { "path": "../../packages/interview-library" },
     { "path": "../../packages/interview-storage" },
+    { "path": "../../packages/platform-contracts" },
+    { "path": "../../packages/platform-runtime" },
+    { "path": "../../packages/platform-storage" },
     { "path": "../../packages/code-runner" }
   ],
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
