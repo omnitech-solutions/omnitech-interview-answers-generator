@@ -49,8 +49,8 @@ export const frontendPlugin: ProductFrontendPlugin = {
   id: manifest.id,
   routes: {
     "interview.workspace": async () => {
-      const { Playground } = await import("./frontend/workspace.js");
-      return { default: Playground };
+      const { Workspace } = await import("./frontend/workspace.js");
+      return { default: Workspace };
     },
     "interview.knowledge": async () => {
       const { Library } = await import("./frontend/library.js");

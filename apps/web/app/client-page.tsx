@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import React from "react";
 
-const Playground = dynamic(
+const Workspace = dynamic(
   () =>
     import("@omnitech/product-interview/frontend").then(
       (module) => module.Workspace,
@@ -15,5 +15,5 @@ const Playground = dynamic(
 );
 
 export function ClientPage() {
-  return <Playground />;
+  return <Workspace />;
 }

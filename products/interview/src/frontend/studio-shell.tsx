@@ -14,26 +14,26 @@ const THEME_STORAGE_KEY = "interview-playground.theme";
 const workspaces = [
   {
     id: "playground",
-    href: "/",
-    title: "Playground",
-    description: "Solve, run, and test code",
+    href: "./workspace",
+    title: "Solution Builder",
+    description: "Create, run, and test answers",
   },
   {
     id: "concept-lab",
-    href: "/?view=concept-lab",
-    title: "Concept Lab",
+    href: "./workspace?view=concept-lab",
+    title: "Briefing",
     description: "Prepare concise talking points",
   },
   {
     id: "library",
-    href: "/library",
-    title: "Library",
+    href: "./knowledge",
+    title: "Knowledge",
     description: "Search reviewed interview references",
   },
   {
     id: "mock-interview",
-    href: "/?view=mock-interview",
-    title: "Mock Interview",
+    href: "./workspace?view=mock-interview",
+    title: "Rehearsal",
     description: "Run a timed, scored rehearsal",
   },
 ] as const;
@@ -66,7 +66,11 @@ export function StudioBrand({
   subtitle?: string;
 }) {
   return (
-    <a className="topbar-brand" href="/" aria-label="Interview Studio home">
+    <a
+      className="topbar-brand"
+      href="./workspace"
+      aria-label="Interview product home"
+    >
       <span className="brand-symbol" aria-hidden="true">
         <BrandMark />
       </span>

@@ -110,15 +110,14 @@ describe("Library", () => {
     render(<Library />);
 
     await user.click(screen.getByRole("button", { name: "Open navigation" }));
-    expect(screen.getByRole("link", { name: /Playground/ })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /Solution Builder/ }),
+    ).toHaveAttribute("href", "./workspace");
+    expect(screen.getByRole("link", { name: /Briefing/ })).toHaveAttribute(
       "href",
-      "/",
+      "./workspace?view=concept-lab",
     );
-    expect(screen.getByRole("link", { name: /Concept Lab/ })).toHaveAttribute(
-      "href",
-      "/?view=concept-lab",
-    );
-    expect(screen.getByRole("link", { name: /Library/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Knowledge/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -155,7 +154,7 @@ describe("Library", () => {
       ),
     );
 
-    const search = screen.getByRole("searchbox", { name: "Search Library" });
+    const search = screen.getByRole("searchbox", { name: "Search knowledge" });
     await user.type(search, "React state");
     expect(
       await screen.findByRole("heading", { name: "Results for “React state”" }),
@@ -179,7 +178,7 @@ describe("Library", () => {
     render(<Library />);
 
     await user.type(
-      screen.getByRole("searchbox", { name: "Search Library" }),
+      screen.getByRole("searchbox", { name: "Search knowledge" }),
       "frequency",
     );
     await user.click(screen.getByRole("button", { name: /TypeScript/ }));
@@ -219,7 +218,7 @@ describe("Library", () => {
     render(<Library initialSlug="react-state" />);
 
     const index = screen.getByRole("complementary", {
-      name: "Library index",
+      name: "Knowledge index",
     });
     const selected = (
       await within(index).findByText("React state", { selector: "strong" })
@@ -253,7 +252,7 @@ describe("Library", () => {
     render(<Library />);
 
     const index = screen.getByRole("complementary", {
-      name: "Library index",
+      name: "Knowledge index",
     });
     const selected = (
       await within(index).findByText("React state", { selector: "strong" })
@@ -272,7 +271,7 @@ describe("Library", () => {
   it("supports command focus, slash focus, arrows, Escape, and filters", async () => {
     const user = userEvent.setup();
     render(<Library />);
-    const search = screen.getByRole("searchbox", { name: "Search Library" });
+    const search = screen.getByRole("searchbox", { name: "Search knowledge" });
 
     await user.keyboard("{Meta>}k{/Meta}");
     expect(search).toHaveFocus();
@@ -312,7 +311,7 @@ describe("Library", () => {
     render(<Library />);
 
     await user.type(
-      screen.getByRole("searchbox", { name: "Search Library" }),
+      screen.getByRole("searchbox", { name: "Search knowledge" }),
       "useRef",
     );
     const links = await screen.findAllByRole("link", { name: /useRef/ });
@@ -337,7 +336,7 @@ describe("Library", () => {
     await user.click(screen.getByRole("button", { name: "Clear" }));
 
     const index = screen.getByRole("complementary", {
-      name: "Library index",
+      name: "Knowledge index",
     });
     await user.click(screen.getByRole("button", { name: "Filters" }));
     expect(index).toHaveClass("open");

@@ -1,5 +1,8 @@
 {
   "instructions": [
-    ".opencode/memories/packages.md"
+    ".opencode/memories/overview.md",
+    ".opencode/memories/packages.md",
+    ".opencode/memories/platform-architecture.md",
+    ".opencode/memories/simplicity-first.md"
   ]
 }

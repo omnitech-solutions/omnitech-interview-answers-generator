@@ -114,9 +114,7 @@ describe("ConceptLab", () => {
       />,
     );
     expect(await screen.findByText("External")).toBeVisible();
-    expect(
-      screen.getByText("Concept Lab updated through the CLI."),
-    ).toBeVisible();
+    expect(screen.getByText("Briefing updated through the CLI.")).toBeVisible();
   });
 
   it("renders appended CLI answers newest first without an outer collapse", async () => {
@@ -177,7 +175,7 @@ describe("ConceptLab", () => {
     await userEvent.click(screen.getByRole("button", { name: "Explain" }));
 
     expect(
-      await screen.findByText("Answer added to the top of Concept Lab."),
+      await screen.findByText("Answer added to the top of the briefing."),
     ).toBeVisible();
     const newest = screen.getByText("Generated follow-up");
     const oldest = screen.getByText("Root briefing");

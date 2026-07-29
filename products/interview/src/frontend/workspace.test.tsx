@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Playground } from "./workspace";
+import { Workspace } from "./workspace";
 
 vi.mock("@uiw/react-codemirror", () => ({
   default: ({
@@ -176,7 +176,7 @@ function installFetch(
 }
 
 async function renderSettled({ openInspector = true } = {}) {
-  render(<Playground />);
+  render(<Workspace />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
   if (openInspector) {
     screen.queryByRole("button", { name: "Show inspector" })?.click();
@@ -219,8 +219,8 @@ beforeEach(() => {
   });
 });
 
-describe("Playground", () => {
-  it("keeps the Concept Lab terminal open until its toggle or close button is used", async () => {
+describe("Workspace", () => {
+  it("keeps the briefing terminal open until its toggle or close button is used", async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, "", "/?view=concept-lab");
     installFetch((path) => {
@@ -1310,7 +1310,7 @@ describe("Playground", () => {
     expect(screen.getByText("Your answer will appear here.")).toBeVisible();
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "New unsaved playground.",
+        "New unsaved workspace.",
       ),
     );
     expect(resetPatch).toEqual({

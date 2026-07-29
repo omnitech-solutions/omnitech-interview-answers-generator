@@ -1,9 +1,14 @@
-# Interview Studio
+# Omnitech Studio
 
-A local-first, AI-assisted coding interview workspace. Interview Studio routes
+Omnitech Studio is a pluggable, tenant-aware product catalog. Next.js provides
+the cohesive delivery shell while product frontend and backend logic lives in
+`products/*`. See [Platform architecture](docs/platform-architecture.md) and
+[Adding a product](docs/adding-a-product.md).
+
+Its interview product is a local-first, AI-assisted workspace. It routes
 questions to PHP, React, TypeScript, or Ruby; generates structured answers;
 provides editable solution, usage, and test code; and runs code in isolated
-Docker containers. Its Concept Lab prepares concise Markdown briefings for
+Docker containers. Its Briefing view prepares concise Markdown guidance for
 full-stack concepts, DSA, system design, behavioural questions, and
 candidate-experience stories.
 
@@ -112,8 +117,8 @@ The web server reads the following variables from `apps/web/.env.local`:
 | `AI_BASE_URL` | Base URL for an OpenAI-compatible `/v1` API | Required |
 | `AI_MODEL` | Model sent to the provider | Required |
 | `AI_API_KEY` | Optional bearer token for the AI provider | Unset |
-| `AI_PROVIDER_ID` | Legacy provider identifier | Inferred as `openai` or `lm-studio` |
-| `AI_PROVIDER_LABEL` | Legacy provider display label | Inferred from its URL |
+| `AI_PROVIDER_ID` | Previous provider identifier | Inferred as `openai` or `lm-studio` |
+| `AI_PROVIDER_LABEL` | Previous provider display label | Inferred from its URL |
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
 | `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
 | `OPENAI_MODEL` | OpenAI model exposed in the Concept Lab provider selector | Unset |
@@ -189,7 +194,7 @@ cat answer.json | interview-answers save --format json
 interview-answers explain \
   --topic "Explain React reconciliation and its performance trade-offs"
 interview-answers explain \
-  --topic "Give me a STAR story about modernizing a legacy workflow" \
+  --topic "Give me a STAR story about modernizing an older workflow" \
   --save
 interview-answers explain \
   --topic "How would the cache change for pagination?" \

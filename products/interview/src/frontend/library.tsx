@@ -213,7 +213,9 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
     void requestJson<LibraryFacets>("/api/v1/library/facets")
       .then(setFacets)
       .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : "Library failed."),
+        setError(
+          reason instanceof Error ? reason.message : "Knowledge view failed.",
+        ),
       );
   }, []);
 
@@ -421,7 +423,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
               open={navigationOpen}
               onClick={() => setNavigationOpen((open) => !open)}
             />
-            <StudioBrand subtitle="Reference Library" />
+            <StudioBrand subtitle="Knowledge base" />
             <div className="library-search-wrap">
               <SearchIcon />
               <input
@@ -431,7 +433,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
-                aria-label="Search Library"
+                aria-label="Search knowledge"
                 aria-controls="library-results"
                 aria-activedescendant={
                   result?.hits[activeResult]
@@ -515,7 +517,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
           <div className="library-workspace">
             <aside
               className={`library-filters${filtersOpen ? " open" : ""}`}
-              aria-label="Library index"
+              aria-label="Knowledge index"
             >
               {query ||
               types.length ||
@@ -1099,7 +1101,7 @@ function LibraryAuthor({ onClose }: { onClose: () => void }) {
         <header>
           <div>
             <span className="library-eyebrow">Draft → review → publish</span>
-            <h2 id="library-author-title">Add Library item</h2>
+            <h2 id="library-author-title">Add knowledge item</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Close authoring">
             ×

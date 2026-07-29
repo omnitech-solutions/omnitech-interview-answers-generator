@@ -96,7 +96,7 @@ describe("playgroundControlStore", () => {
     });
   });
 
-  it("upgrades a legacy global store while preserving its snapshot", async () => {
+  it("upgrades an older global store while preserving its snapshot", async () => {
     const snapshot = {
       revision: 4,
       updatedAt: "2026-07-25T08:00:00.000Z",

@@ -8,11 +8,11 @@ export function createAiClientFromEnv(
 ) {
   const providers: AiProvider[] = [];
   const timeoutMs = Number(environment.AI_TIMEOUT_MS) || 120_000;
-  const legacyBaseUrl = environment.AI_BASE_URL?.trim();
-  const legacyModel = environment.AI_MODEL?.trim();
+  const previousBaseUrl = environment.AI_BASE_URL?.trim();
+  const previousModel = environment.AI_MODEL?.trim();
 
-  if (legacyBaseUrl && legacyModel) {
-    const isLmStudio = /localhost|127\.0\.0\.1/.test(legacyBaseUrl);
+  if (previousBaseUrl && previousModel) {
+    const isLmStudio = /localhost|127\.0\.0\.1/.test(previousBaseUrl);
     providers.push(
       createOpenAiCompatibleProvider({
         id:
@@ -21,8 +21,8 @@ export function createAiClientFromEnv(
         label:
           environment.AI_PROVIDER_LABEL?.trim() ||
           (isLmStudio ? "LM Studio" : "OpenAI"),
-        baseUrl: legacyBaseUrl,
-        model: legacyModel,
+        baseUrl: previousBaseUrl,
+        model: previousModel,
         ...(environment.AI_API_KEY === undefined
           ? {}
           : { apiKey: environment.AI_API_KEY }),

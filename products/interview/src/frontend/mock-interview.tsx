@@ -243,7 +243,7 @@ export function MockInterview({
         <div className="mock-heading">
           <div>
             <span className="eyebrow">REALISTIC REHEARSAL</span>
-            <h2 id="mock-title">Mock Interview</h2>
+            <h2 id="mock-title">Rehearsal</h2>
             <p>15 minutes of concepts, then 45 minutes of coding.</p>
           </div>
         </div>
@@ -328,7 +328,7 @@ export function MockInterview({
           <span className="eyebrow">
             {session.phase === "concept" ? "CONCEPT PHASE" : "CODING PHASE"}
           </span>
-          <h2 id="mock-title">Mock Interview</h2>
+          <h2 id="mock-title">Rehearsal</h2>
         </div>
         <div className="mock-timers" aria-live="polite">
           <span>Session {formatTime(remaining)}</span>

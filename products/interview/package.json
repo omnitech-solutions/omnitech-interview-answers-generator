@@ -27,7 +27,6 @@
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-php": "^6.0.2",
     "@codemirror/language": "^6.12.4",
-    "@codemirror/legacy-modes": "^6.5.3",
     "@codemirror/view": "^6.43.6",
     "@oc-tech/omni-ui-components": "link:../../../omni-ui-components/packages/core",
     "@omnitech/ai-sdk": "workspace:*",

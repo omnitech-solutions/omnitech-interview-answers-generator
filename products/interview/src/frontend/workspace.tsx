@@ -4,10 +4,8 @@ import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
 import {
   defaultHighlightStyle,
-  StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import { Decoration, EditorView } from "@codemirror/view";
 import {
   App,
@@ -211,7 +209,7 @@ function languageExtension(language: Language | undefined) {
   if (language === "react")
     return [javascript({ jsx: true, typescript: true })];
   if (language === "typescript") return [javascript({ typescript: true })];
-  if (language === "ruby") return [StreamLanguage.define(ruby)];
+  if (language === "ruby") return [];
   return [];
 }
 
@@ -278,7 +276,7 @@ function syntaxLineNumber(raw: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-export function Playground() {
+export function Workspace() {
   const [activeView, setActiveView] = useState<
     "playground" | "concept-lab" | "mock-interview"
   >("playground");
@@ -575,7 +573,7 @@ export function Playground() {
         setSyntaxMessage("");
         if (snapshot.revision > 0) {
           setStatus(
-            `Playground updated through the control API (revision ${snapshot.revision}).`,
+            `Workspace updated through the control API (revision ${snapshot.revision}).`,
           );
         }
       } catch {
@@ -890,12 +888,12 @@ export function Playground() {
         }),
       });
       appliedControlRevision.current = snapshot.revision;
-      setStatus("New unsaved playground.");
+      setStatus("New unsaved workspace.");
     } catch (error) {
       setStatus(
         error instanceof Error
-          ? `Playground cleared locally. ${error.message}`
-          : "Playground cleared locally.",
+          ? `Workspace cleared locally. ${error.message}`
+          : "Workspace cleared locally.",
       );
     }
   }
@@ -985,9 +983,7 @@ export function Playground() {
               </label>
             ) : (
               <div className="topbar-view-title">
-                {activeView === "concept-lab"
-                  ? "Concept Lab"
-                  : "Mock Interview"}
+                {activeView === "concept-lab" ? "Briefing" : "Rehearsal"}
               </div>
             )}
             {activeView === "playground" ? (
@@ -1129,7 +1125,7 @@ export function Playground() {
                         <h2>Question</h2>
                       </div>
                       <span className="save-state">
-                        {savedId ? "Saved" : "Playground · unsaved"}
+                        {savedId ? "Saved" : "Workspace · unsaved"}
                       </span>
                     </div>
                     <div

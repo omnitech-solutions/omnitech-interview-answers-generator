@@ -50,7 +50,7 @@ search and predicate operations explicit.
 ## Upgrade cautions
 
 Implicitly nullable parameters are deprecated, several extensions moved to
-PECL, invalid \`round()\` modes throw \`ValueError\`, and some legacy APIs are
+PECL, invalid \`round()\` modes throw \`ValueError\`, and some older APIs are
 deprecated or removed. Read the migration guide before upgrading production.`,
   ),
   php(

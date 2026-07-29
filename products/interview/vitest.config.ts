@@ -20,6 +20,7 @@ export default defineConfig({
     ],
   },
   test: {
+    exclude: ["dist/**", "node_modules/**"],
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     clearMocks: true,

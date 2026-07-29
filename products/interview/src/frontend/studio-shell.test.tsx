@@ -31,26 +31,25 @@ describe("Studio shell", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Interview Studio home" }),
-    ).toHaveAttribute("href", "/");
+      screen.getByRole("link", { name: "Interview product home" }),
+    ).toHaveAttribute("href", "./workspace");
     expect(screen.getByText("Reference Library")).toBeVisible();
-    expect(screen.getByRole("link", { name: /Playground/ })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /Solution Builder/ }),
+    ).toHaveAttribute("href", "./workspace");
+    expect(screen.getByRole("link", { name: /Briefing/ })).toHaveAttribute(
       "href",
-      "/",
+      "./workspace?view=concept-lab",
     );
-    expect(screen.getByRole("link", { name: /Concept Lab/ })).toHaveAttribute(
-      "href",
-      "/?view=concept-lab",
-    );
-    expect(screen.getByRole("link", { name: /Library/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Knowledge/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
     expect(
       screen
-        .getByRole("link", { name: /Library/ })
+        .getByRole("link", { name: /Knowledge/ })
         .compareDocumentPosition(
-          screen.getByRole("link", { name: /Mock Interview/ }),
+          screen.getByRole("link", { name: /Rehearsal/ }),
         ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Close navigation" }));
@@ -69,12 +68,12 @@ describe("Studio shell", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Concept Lab/ }));
+    await user.click(screen.getByRole("button", { name: /Briefing/ }));
     expect(select).toHaveBeenCalledWith("concept-lab");
     expect(close).toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: /Library/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Knowledge/ })).toHaveAttribute(
       "href",
-      "/library",
+      "./knowledge",
     );
   });
 

@@ -135,8 +135,8 @@ export function ConceptLab({
     setSavedId(undefined);
     setStatus(
       rest.length
-        ? `Concept Lab session updated with ${rest.length} follow-up${rest.length === 1 ? "" : "s"}.`
-        : "Concept Lab updated through the CLI.",
+        ? `Briefing session updated with ${rest.length} follow-up${rest.length === 1 ? "" : "s"}.`
+        : "Briefing updated through the CLI.",
     );
   }, [externalDraft, externalDrafts]);
 
@@ -196,7 +196,7 @@ export function ConceptLab({
           ...current,
           { ...result, topic: submittedTopic },
         ]);
-        setStatus("Answer added to the top of Concept Lab.");
+        setStatus("Answer added to the top of the briefing.");
       } else {
         setAnswerTopic(submittedTopic);
         setTitle(result.title);
@@ -314,7 +314,7 @@ export function ConceptLab({
       <div className="concept-lab-heading">
         <div>
           <span className="eyebrow">INTERVIEW BRIEFINGS</span>
-          <h2 id="concept-lab-title">Concept Lab</h2>
+          <h2 id="concept-lab-title">Briefing</h2>
           <p>
             Fast recall for full-stack concepts, DSA, and experience stories.
           </p>
@@ -344,7 +344,7 @@ export function ConceptLab({
             id="concept-topic"
             value={topic}
             onChange={(event) => setTopic(event.target.value)}
-            placeholder="e.g. Explain React reconciliation, or give me a STAR story about modernizing a legacy workflow."
+            placeholder="e.g. Explain React reconciliation, or give me a STAR story about modernizing an older workflow."
             rows={4}
           />
           <Button
