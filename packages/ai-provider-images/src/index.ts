@@ -86,3 +86,43 @@ export function createImageProviderAdapter(
   }
   return adapter;
 }
+
+export type NamedImageProviderOptions = Omit<ImageAdapterOptions, "id">;
+
+export const createFalImageProvider = (options: NamedImageProviderOptions) =>
+  createImageProviderAdapter({ ...options, id: "fal" });
+
+export const createTogetherImageProvider = (
+  options: NamedImageProviderOptions,
+) => createImageProviderAdapter({ ...options, id: "together" });
+
+export const createComfyUiImageProvider = (
+  options: NamedImageProviderOptions,
+) => createImageProviderAdapter({ ...options, id: "comfyui" });
+
+export const createOpenAiImageProvider = (options: NamedImageProviderOptions) =>
+  createImageProviderAdapter({ ...options, id: "openai-image" });
+
+export function createFakeImageProvider(
+  persist: ImageAdapterOptions["persist"],
+): ImageProviderAdapter {
+  return createImageProviderAdapter({
+    id: "fake-image",
+    model: "deterministic",
+    aspectRatios: ["1:1", "16:9", "9:16"],
+    supportsEditing: true,
+    async generate(request, mode) {
+      const encoded = encodeURIComponent(
+        `${mode}:${request.task.prompt}`.slice(0, 200),
+      );
+      return {
+        url: `https://fake.invalid/${encoded}.png`,
+        mimeType: "image/png",
+        width: 1024,
+        height: 1024,
+        metadata: { deterministic: true },
+      };
+    },
+    persist,
+  });
+}

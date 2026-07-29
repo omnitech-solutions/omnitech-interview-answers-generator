@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createImageProviderAdapter } from "./index.js";
+import {
+  createFakeImageProvider,
+  createImageProviderAdapter,
+} from "./index.js";
 
 describe("image provider boundary", () => {
   it("rejects remote loopback results before persistence", async () => {
@@ -21,5 +24,23 @@ describe("image provider boundary", () => {
         task: { type: "image-generation", prompt: "test" },
       }),
     ).rejects.toThrow("loopback");
+  });
+
+  it("provides a deterministic fake for product and contract tests", async () => {
+    const adapter = createFakeImageProvider(async (payload) => ({
+      reference: payload.url,
+      mimeType: "image/png",
+    }));
+    const result = await adapter.generate({
+      context: {
+        tenantId: "tenant",
+        userId: "user",
+        productId: "presentation",
+        permissions: [],
+      },
+      task: { type: "image-generation", prompt: "mountain" },
+    });
+    expect(result.providerId).toBe("fake-image");
+    expect(result.assetReference).toContain("generate%3Amountain");
   });
 });
