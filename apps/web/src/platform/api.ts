@@ -5,6 +5,7 @@ import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 
 import { resolvePlatformContext } from "./context";
+import { createAgentApi } from "./agent-api";
 
 export function createApplicationApi() {
   const api = new Hono();
@@ -26,6 +27,7 @@ export function createApplicationApi() {
   );
   api.route("/", createInterviewApi());
   if (process.env["DATABASE_URL"]) {
+    api.route("/", createAgentApi());
     api.route(
       "/",
       createPresentationApi({

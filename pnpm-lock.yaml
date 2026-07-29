@@ -65,9 +65,18 @@ importers:
       '@omnitech/agent-job-service':
         specifier: workspace:*
         version: link:../../packages/agent-job-service
+      '@omnitech/agent-runtime-claude':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime-claude
+      '@omnitech/agent-runtime-codex':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime-codex
       '@omnitech/agent-runtime-contracts':
         specifier: workspace:*
         version: link:../../packages/agent-runtime-contracts
+      '@omnitech/platform-storage':
+        specifier: workspace:*
+        version: link:../../packages/platform-storage
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -84,9 +93,6 @@ importers:
 
   apps/terminal-gateway:
     dependencies:
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
       ws:
         specifier: ^8.21.1
         version: 8.21.1
@@ -124,6 +130,12 @@ importers:
       '@oc-tech/omni-ui-components':
         specifier: link:../../../omni-ui-components/packages/core
         version: link:../../../omni-ui-components/packages/core
+      '@omnitech/agent-job-service':
+        specifier: workspace:*
+        version: link:../../packages/agent-job-service
+      '@omnitech/agent-runtime-contracts':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime-contracts
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../../packages/ai-contracts
@@ -656,6 +668,12 @@ importers:
 
   packages/platform-storage:
     dependencies:
+      '@omnitech/agent-job-service':
+        specifier: workspace:*
+        version: link:../agent-job-service
+      '@omnitech/agent-runtime-contracts':
+        specifier: workspace:*
+        version: link:../agent-runtime-contracts
       '@omnitech/platform-contracts':
         specifier: workspace:*
         version: link:../platform-contracts
@@ -4000,12 +4018,6 @@ packages:
         optional: true
       sass:
         optional: true
-
-  node-addon-api@7.1.1:
-    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
-
-  node-pty@1.1.0:
-    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   npm-run-path@6.0.0:
     resolution: {integrity: sha512-9qny7Z9DsQU8Ou39ERsPU4OZQlSTP47ShQzuKZ6PRXpYLtIFgl/DEBYEXKlvcEa+9tHVcK8CF81Y2V72qaZhWA==}
@@ -8080,12 +8092,6 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
-
-  node-addon-api@7.1.1: {}
-
-  node-pty@1.1.0:
-    dependencies:
-      node-addon-api: 7.1.1
 
   npm-run-path@6.0.0:
     dependencies:

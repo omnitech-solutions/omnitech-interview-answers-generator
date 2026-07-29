@@ -1,34 +1,13 @@
-import { existsSync } from "node:fs";
 import { createServer } from "node:http";
-import { dirname, join } from "node:path";
-import { spawn } from "node-pty";
 import { type WebSocket, WebSocketServer } from "ws";
-import { type ExistingAnswer, startAnswerSession } from "./answer-session.js";
-import { startConceptSession } from "./concept-session.js";
-import { ensureNodePtySpawnHelperExecutable } from "./node-pty-helper.js";
+import { renderEvent } from "./render-event.js";
 
 const port = Number(process.env["TERMINAL_GATEWAY_PORT"] ?? 3001);
 const token = process.env["TERMINAL_GATEWAY_TOKEN"];
-const shell = existsSync("/bin/zsh") ? "/bin/zsh" : "/bin/bash";
-
-ensureNodePtySpawnHelperExecutable({
-  platform: process.platform,
-  arch: process.arch,
-});
-
-function projectRoot(startDirectory: string) {
-  let directory = startDirectory;
-  while (true) {
-    if (existsSync(join(directory, "pnpm-workspace.yaml"))) return directory;
-    const parent = dirname(directory);
-    if (parent === directory) return startDirectory;
-    directory = parent;
-  }
-}
-
-const cwd =
-  process.env["INTERVIEW_PROJECT_ROOT"] ??
-  projectRoot(process.env["INIT_CWD"] ?? process.cwd());
+const serviceToken = process.env["AGENT_SERVICE_TOKEN"];
+const platformUrl = (
+  process.env["PLATFORM_HTTP_URL"] ?? "http://127.0.0.1:3000"
+).replace(/\/$/, "");
 
 function authorized(socket: WebSocket, requestUrl: string | undefined) {
   if (!token) return true;
@@ -40,154 +19,87 @@ function authorized(socket: WebSocket, requestUrl: string | undefined) {
   return false;
 }
 
-const server = createServer((request, response) => {
-  if (request.method === "POST" && request.url === "/answer-sessions") {
-    if (token && request.headers.authorization !== `Bearer ${token}`) {
-      response.writeHead(401, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: "Unauthorized" }));
-      return;
-    }
-    const chunks: Buffer[] = [];
-    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    request.on("end", () => {
-      try {
-        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
-          currentAnswer?: unknown;
-          question?: unknown;
-          refinement?: unknown;
-        };
-        if (typeof body.question !== "string") {
-          throw new TypeError("An interview question is required.");
-        }
-        if (
-          body.refinement !== undefined &&
-          typeof body.refinement !== "string"
-        ) {
-          throw new TypeError("The refinement request must be a string.");
-        }
-        if (
-          body.currentAnswer !== undefined &&
-          (!body.currentAnswer || typeof body.currentAnswer !== "object")
-        ) {
-          throw new TypeError("The current answer must be an object.");
-        }
-        const session = startAnswerSession(body.question, {
-          cwd,
-          ...(body.refinement === undefined
-            ? {}
-            : { refinement: body.refinement }),
-          ...(body.currentAnswer === undefined
-            ? {}
-            : { currentAnswer: body.currentAnswer as ExistingAnswer }),
-        });
-        response.writeHead(201, { "content-type": "application/json" });
-        response.end(JSON.stringify(session));
-      } catch (error) {
-        response.writeHead(400, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
-      }
-    });
-    return;
-  }
-  if (request.method === "POST" && request.url === "/concept-sessions") {
-    if (token && request.headers.authorization !== `Bearer ${token}`) {
-      response.writeHead(401, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: "Unauthorized" }));
-      return;
-    }
-    const chunks: Buffer[] = [];
-    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    request.on("end", () => {
-      try {
-        const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
-          topic?: unknown;
-        };
-        if (typeof body.topic !== "string") {
-          throw new TypeError("A concept topic is required.");
-        }
-        const session = startConceptSession(body.topic, { cwd });
-        response.writeHead(201, { "content-type": "application/json" });
-        response.end(JSON.stringify(session));
-      } catch (error) {
-        response.writeHead(400, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
-      }
-    });
-    return;
-  }
+function line(value: string): string {
+  return `${value.replaceAll("\n", "\r\n")}\r\n`;
+}
+
+const server = createServer((_request, response) => {
   response.writeHead(200, { "content-type": "text/plain" });
-  response.end("terminal gateway\n");
+  response.end("agent job event gateway\n");
 });
 const sockets = new WebSocketServer({ server, path: "/terminal" });
 
 sockets.on("connection", (socket, request) => {
   if (!authorized(socket, request.url)) return;
-  const requestedSession = request.url
+  const jobId = request.url
     ? new URL(request.url, `http://localhost:${port}`).searchParams.get(
         "session",
       )
     : null;
-  const sessionName =
-    requestedSession &&
-    /^(?:workspace|concept-[a-z0-9-]+|answer-[a-z0-9-]+)$/.test(
-      requestedSession,
-    )
-      ? requestedSession
-      : "workspace";
+  if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) {
+    socket.close(1008, "A valid agent job id is required.");
+    return;
+  }
+  let sequence = 0;
+  let closed = false;
+  socket.send(line(`Observing agent job ${jobId}`));
 
-  const terminal = spawn(
-    shell,
-    [
-      "-ilc",
-      `tmux set-option -g mouse on && tmux set-option -g history-limit 10000 && exec tmux new-session -A -s ${sessionName}`,
-    ],
-    {
-      cwd,
-      env: process.env as Record<string, string>,
-      cols: 120,
-      rows: 32,
-      name: "xterm-256color",
-    },
-  );
-
-  terminal.onData((data) => {
-    if (socket.readyState === socket.OPEN) socket.send(data);
-  });
-  terminal.onExit(() => socket.close());
-  socket.on("message", (raw) => {
+  const poll = async () => {
+    if (closed) return;
     try {
-      const message = JSON.parse(String(raw)) as {
-        type?: string;
-        data?: unknown;
-        cols?: unknown;
-        rows?: unknown;
-      };
-      if (message.type === "input" && typeof message.data === "string") {
-        terminal.write(message.data);
+      const response = await fetch(
+        `${platformUrl}/api/platform/v1/agent-jobs/${jobId}/events?after=${sequence}`,
+        {
+          headers: serviceToken
+            ? { authorization: `Bearer ${serviceToken}` }
+            : {},
+          signal: AbortSignal.timeout(5_000),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Event service returned ${response.status}`);
+      const events = (await response.json()) as Array<{
+        sequence: number;
+        event: unknown;
+      }>;
+      for (const persisted of events) {
+        sequence = Math.max(sequence, persisted.sequence);
+        if (socket.readyState === socket.OPEN) {
+          socket.send(renderEvent(persisted.event));
+        }
       }
-      if (
-        message.type === "resize" &&
-        typeof message.cols === "number" &&
-        typeof message.rows === "number"
-      ) {
-        terminal.resize(Math.max(2, message.cols), Math.max(2, message.rows));
+    } catch (error) {
+      if (socket.readyState === socket.OPEN) {
+        socket.send(
+          line(
+            `[observer] ${
+              error instanceof Error ? error.message : "Unable to read events"
+            }`,
+          ),
+        );
       }
-    } catch {
-      socket.close(1003, "Invalid terminal message");
+    } finally {
+      if (!closed) setTimeout(() => void poll(), 750);
+    }
+  };
+  void poll();
+
+  socket.on("message", () => {
+    if (socket.readyState === socket.OPEN) {
+      socket.send(
+        line(
+          "[observer] Follow-up input is submitted through the product job controls.",
+        ),
+      );
     }
   });
-  socket.on("close", () => terminal.kill());
+  socket.on("close", () => {
+    closed = true;
+  });
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Terminal gateway listening on ws://127.0.0.1:${port}/terminal`);
-  console.log(`Terminal project root: ${cwd}`);
+  console.log(
+    `Agent job event gateway listening on ws://127.0.0.1:${port}/terminal`,
+  );
 });

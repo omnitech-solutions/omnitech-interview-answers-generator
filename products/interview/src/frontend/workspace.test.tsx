@@ -411,21 +411,20 @@ describe("Workspace", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("starts Codex with the unchanged answer command in the inspector terminal", async () => {
+  it("starts an isolated agent job and opens its event observer", async () => {
     const user = userEvent.setup();
     const fetchMock = installFetch(async (path, init) => {
       if (path.endsWith("/answers")) return jsonResponse([]);
       if (path.endsWith("/playground-control"))
         return jsonResponse(emptySnapshot);
-      if (path.endsWith("/answer-sessions")) {
+      if (path.includes("/platform/v1/agent-jobs")) {
         expect(init).toMatchObject({
           method: "POST",
-          body: JSON.stringify({ question: "Build a tested counter" }),
         });
         return jsonResponse(
           {
-            name: "answer-abc",
-            command: "/answer Build a tested counter",
+            id: "123e4567-e89b-42d3-a456-426614174000",
+            status: "queued",
           },
           201,
         );
@@ -442,11 +441,13 @@ describe("Workspace", () => {
     await user.click(screen.getByRole("button", { name: "Generate" }));
 
     expect(
-      await screen.findByText("tmux · answer-abc · project root"),
+      await screen.findByText(
+        "agent job · 123e4567-e89b-42d3-a456-426614174000",
+      ),
     ).toBeVisible();
     expect(screen.getByRole("region", { name: "Terminal" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(
-      /\/answer result will populate the solution, usage, and tests/,
+      /Progress is available in the terminal drawer/,
     );
     expect(fetchMock).not.toHaveBeenCalledWith(
       "/api/v1/generate",
@@ -469,19 +470,15 @@ describe("Workspace", () => {
             answer: reactAnswer,
           },
         });
-      if (path.endsWith("/answer-sessions")) {
+      if (path.includes("/platform/v1/agent-jobs")) {
         expect(JSON.parse(String(init?.body))).toMatchObject({
-          question: "Build a tested counter",
-          refinement: "Fix the failing boundary test",
-          currentAnswer: {
-            title: "Accessible Counter",
-            code: reactAnswer.code,
-          },
+          productId: "omnitech.interview",
+          profileId: "coding-quality",
         });
         return jsonResponse(
           {
-            name: "answer-refine",
-            command: "/answer refine Fix the failing boundary test",
+            id: "123e4567-e89b-42d3-a456-426614174001",
+            status: "queued",
           },
           201,
         );
@@ -506,7 +503,9 @@ describe("Workspace", () => {
     await user.click(applyChange);
 
     expect(
-      await screen.findByText("tmux · answer-refine · project root"),
+      await screen.findByText(
+        "agent job · 123e4567-e89b-42d3-a456-426614174001",
+      ),
     ).toBeVisible();
   });
 

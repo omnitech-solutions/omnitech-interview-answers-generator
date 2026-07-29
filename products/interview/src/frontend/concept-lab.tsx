@@ -7,14 +7,19 @@ import type {
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  createAgentJob,
+  type ExecutionTarget,
+  executionTargets,
+} from "./agent-jobs";
 import { ConceptMarkdownContent } from "./concept-markdown-content";
 import { formatTimestamp } from "./format-timestamp";
 import { StudioInspector } from "./studio-inspector";
 import { TerminalDock } from "./terminal-dock";
 
 const DRAFT_KEY = "interview-studio.concept-lab";
-type ConceptProvider = "" | "openai" | "lm-studio" | "codex";
-const CONCEPT_SESSION_PATTERN = /^concept-[a-z0-9-]+$/;
+type ConceptProvider = "" | ExecutionTarget["id"];
+const AGENT_JOB_PATTERN = /^[0-9a-f-]{36}$/i;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
@@ -94,7 +99,9 @@ export function ConceptLab({
           : "",
       );
       setProvider(
-        ["", "openai", "lm-studio", "codex"].includes(draft.provider ?? "")
+        ["", ...executionTargets.map((target) => target.id)].includes(
+          draft.provider ?? "",
+        )
           ? (draft.provider as ConceptProvider)
           : "",
       );
@@ -102,7 +109,7 @@ export function ConceptLab({
       setMarkdown(draft.markdown ?? "");
       if (
         typeof draft.terminalSession === "string" &&
-        CONCEPT_SESSION_PATTERN.test(draft.terminalSession)
+        AGENT_JOB_PATTERN.test(draft.terminalSession)
       ) {
         setTerminalSession(draft.terminalSession);
       }
@@ -166,30 +173,35 @@ export function ConceptLab({
   async function generate() {
     if (!topic.trim() || !provider) return;
     const submittedTopic = topic.trim();
+    const target = executionTargets.find(
+      (candidate) => candidate.id === provider,
+    );
+    if (!target) return;
     setBusy(true);
     setStatus(
-      provider === "codex"
-        ? "Starting a fresh Codex terminal session…"
-        : `Building interview talking points with ${
-            provider === "lm-studio" ? "LM Studio" : "OpenAI"
-          }…`,
+      target.family === "agent-runtime"
+        ? "Starting an isolated explanation job…"
+        : `Building interview talking points with ${target.label}…`,
     );
     try {
-      if (provider === "codex") {
-        const session = await request<{ name: string }>("/concept-sessions", {
-          method: "POST",
-          body: JSON.stringify({ topic: submittedTopic }),
+      if (target.family === "agent-runtime") {
+        const job = await createAgentJob({
+          profileId: target.profileId,
+          prompt: submittedTopic,
         });
-        setTerminalSession(session.name);
+        setTerminalSession(job.id);
         onTerminalOpen?.();
         setStatus(
-          `Codex session “${session.name}” started. Its /explain result will appear here.`,
+          `Agent job “${job.id}” started. Progress is available in the terminal drawer.`,
         );
         return;
       }
       const result = await request<GeneratedExplanation>("/explain", {
         method: "POST",
-        body: JSON.stringify({ topic: submittedTopic, providerId: provider }),
+        body: JSON.stringify({
+          topic: submittedTopic,
+          providerId: target.providerId,
+        }),
       });
       if (markdown.trim()) {
         setFollowUps((current) => [
@@ -333,9 +345,11 @@ export function ConceptLab({
             }
           >
             <option value="">Choose a provider…</option>
-            <option value="openai">OpenAI</option>
-            <option value="lm-studio">LM Studio</option>
-            <option value="codex">Codex CLI</option>
+            {executionTargets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.label}
+              </option>
+            ))}
           </select>
         </div>
         <label htmlFor="concept-topic">What do you need to explain?</label>

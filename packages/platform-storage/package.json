@@ -20,6 +20,8 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
+    "@omnitech/agent-job-service": "workspace:*",
+    "@omnitech/agent-runtime-contracts": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
     "pg": "^8.16.3",
     "zod": "catalog:"

@@ -376,14 +376,14 @@ describe("ConceptLab", () => {
     );
   });
 
-  it("starts Codex in a new terminal session without changing the topic", async () => {
+  it("starts an agent job without changing the topic", async () => {
     const onTerminalOpen = vi.fn();
     const fetch = vi.fn((input: string | URL | Request, init?: RequestInit) =>
-      String(input).endsWith("/concept-sessions")
+      String(input).includes("/platform/v1/agent-jobs")
         ? response(
             {
-              name: "concept-abc",
-              command: "/explain React rendering",
+              id: "123e4567-e89b-42d3-a456-426614174002",
+              status: "queued",
             },
             201,
           )
@@ -406,13 +406,17 @@ describe("ConceptLab", () => {
     expect(onTerminalOpen).toHaveBeenCalledOnce();
     expect(
       await screen.findByText(
-        /Codex session “concept-abc” started.*\/explain result/,
+        /Agent job “123e4567-e89b-42d3-a456-426614174002” started/,
       ),
     ).toBeVisible();
     expect(fetch).toHaveBeenCalledWith(
-      "/api/v1/concept-sessions",
+      "/api/platform/v1/agent-jobs?tenant=local",
       expect.objectContaining({
-        body: JSON.stringify({ topic: "React rendering" }),
+        body: JSON.stringify({
+          productId: "omnitech.interview",
+          profileId: "coding-quality",
+          prompt: "React rendering",
+        }),
       }),
     );
     expect(fetch).not.toHaveBeenCalledWith(
@@ -425,7 +429,9 @@ describe("ConceptLab", () => {
         JSON.parse(
           window.localStorage.getItem("interview-studio.concept-lab") ?? "{}",
         ),
-      ).toMatchObject({ terminalSession: "concept-abc" }),
+      ).toMatchObject({
+        terminalSession: "123e4567-e89b-42d3-a456-426614174002",
+      }),
     );
     unmount();
     render(
@@ -437,7 +443,9 @@ describe("ConceptLab", () => {
       />,
     );
     expect(
-      await screen.findByText("tmux · concept-abc · project root"),
+      await screen.findByText(
+        "agent job · 123e4567-e89b-42d3-a456-426614174002",
+      ),
     ).toBeVisible();
   });
 });

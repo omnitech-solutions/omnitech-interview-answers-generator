@@ -71,9 +71,7 @@ export function TerminalDock({
     >
       <div className="terminal-titlebar">
         <strong>Terminal</strong>
-        <span className="terminal-cwd">
-          tmux · {sessionName} · project root
-        </span>
+        <span className="terminal-cwd">agent job · {sessionName}</span>
         <IconButton
           className="terminal-copy-button"
           aria-label={copied ? "Terminal copied" : "Copy terminal"}

@@ -12,6 +12,8 @@
     "test": "vitest run --config vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
+    "@omnitech/agent-job-service": "workspace:*",
+    "@omnitech/agent-runtime-contracts": "workspace:*",
     "@codemirror/lang-javascript": "^6.2.4",
     "@codemirror/lang-php": "^6.0.2",
     "@codemirror/language": "^6.12.4",

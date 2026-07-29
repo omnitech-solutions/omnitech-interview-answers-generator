@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
     "@omnitech/agent-job-service": "workspace:*",
-    "@omnitech/agent-runtime-contracts": "workspace:*"
+    "@omnitech/agent-runtime-claude": "workspace:*",
+    "@omnitech/agent-runtime-codex": "workspace:*",
+    "@omnitech/agent-runtime-contracts": "workspace:*",
+    "@omnitech/platform-storage": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

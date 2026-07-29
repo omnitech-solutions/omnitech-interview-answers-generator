@@ -33,6 +33,11 @@ import React, {
   useState,
 } from "react";
 
+import {
+  createAgentJob,
+  type ExecutionTarget,
+  executionTargets,
+} from "./agent-jobs";
 import { type ConceptDraft, ConceptLab } from "./concept-lab";
 import { formatTimestamp } from "./format-timestamp";
 import { MarkdownContent } from "./markdown-content";
@@ -53,11 +58,11 @@ type EditorTab = "solution" | "usage" | "tests";
 type OutputTab = "solution" | "tests";
 type QuestionTab = "input" | "preview";
 type SyntaxState = "idle" | "checking" | "valid" | "invalid" | "unavailable";
-type AnswerProvider = "" | "openai" | "lm-studio" | "codex";
+type AnswerProvider = "" | ExecutionTarget["id"];
 
 const WORD_WRAP_STORAGE_KEY = "interview-playground.word-wrap";
 const DRAFT_STORAGE_KEY = "interview-playground.draft";
-const ANSWER_SESSION_PATTERN = /^answer-[a-z0-9-]+$/;
+const AGENT_JOB_PATTERN = /^[0-9a-f-]{36}$/i;
 const PHP_EDITOR_PREFIX = "<?php\n";
 
 interface ExecutionOutput {
@@ -470,7 +475,7 @@ export function Workspace() {
           localEdits.current = true;
           setQuestion(draft.question ?? "");
           setAnswerProvider(
-            ["", "openai", "lm-studio", "codex"].includes(
+            ["", ...executionTargets.map((target) => target.id)].includes(
               draft.answerProvider ?? "",
             )
               ? (draft.answerProvider as AnswerProvider)
@@ -482,7 +487,7 @@ export function Workspace() {
           setRefinementRequest(draft.refinementRequest ?? "");
           if (
             typeof draft.terminalSession === "string" &&
-            ANSWER_SESSION_PATTERN.test(draft.terminalSession)
+            AGENT_JOB_PATTERN.test(draft.terminalSession)
           ) {
             setPlaygroundTerminalSession(draft.terminalSession);
           }
@@ -635,7 +640,7 @@ export function Workspace() {
   async function generateAnswer(
     questionValue: string,
     languageValue: LanguageSelection,
-    providerId: Exclude<AnswerProvider, "" | "codex">,
+    providerId: "openai" | "lm-studio",
   ): Promise<GeneratedAnswer> {
     const generated = await api<GeneratedAnswer>("/generate", {
       method: "POST",
@@ -664,31 +669,32 @@ export function Workspace() {
       return;
     }
     if (mode === "new") setRefinementRequest("");
+    const target = executionTargets.find(
+      (candidate) => candidate.id === answerProvider,
+    );
+    if (!target) return;
     setBusy(true);
     setStatus(
-      answerProvider === "codex"
-        ? "Starting a fresh Codex answer session…"
+      target.family === "agent-runtime"
+        ? "Starting an isolated agent job…"
         : "Generating the simplest correct answer…",
     );
     try {
-      if (answerProvider === "codex") {
-        const session = await api<{ name: string }>("/answer-sessions", {
-          method: "POST",
-          body: JSON.stringify({
-            question: question.trim(),
-            ...(mode === "refine" && answer
-              ? {
-                  refinement,
-                  currentAnswer: { ...answer, notes },
-                }
-              : {}),
-          }),
+      if (target.family === "agent-runtime") {
+        const job = await createAgentJob({
+          profileId: target.profileId,
+          prompt:
+            mode === "refine" && answer
+              ? `Original question:\n${question}\n\nCurrent answer:\n${JSON.stringify(
+                  { ...answer, notes },
+                )}\n\nRequested change:\n${refinement}\n\nReturn the complete revised answer using the required structured answer schema.`
+              : question.trim(),
         });
-        setPlaygroundTerminalSession(session.name);
+        setPlaygroundTerminalSession(job.id);
         setTerminalOpen(true);
         setInspectorOpen(true);
         setStatus(
-          `Codex session “${session.name}” started. Its /answer result will populate the solution, usage, and tests.`,
+          `Agent job “${job.id}” started. Progress is available in the terminal drawer.`,
         );
         return;
       }
@@ -699,7 +705,7 @@ export function Workspace() {
             )}\n\nRequested change:\n${refinement}\n\nReturn the complete revised answer.`
           : question;
       setAnswer(
-        await generateAnswer(generationQuestion, language, answerProvider),
+        await generateAnswer(generationQuestion, language, target.providerId),
       );
       setRefinementRequest("");
       setExampleId("");
@@ -1164,9 +1170,11 @@ export function Workspace() {
                             }
                           >
                             <option value="">Choose a provider…</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="lm-studio">LM Studio</option>
-                            <option value="codex">Codex CLI</option>
+                            {executionTargets.map((target) => (
+                              <option key={target.id} value={target.id}>
+                                {target.label}
+                              </option>
+                            ))}
                           </select>
                         </label>
                         <StudioTextarea

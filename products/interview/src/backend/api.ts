@@ -36,10 +36,6 @@ import {
   libraryRepository,
   libraryService,
 } from "./services";
-import {
-  startCodexAnswerSession,
-  startCodexConceptSession,
-} from "./terminal-client";
 
 type ApiEnvironment = {
   Variables: {
@@ -239,89 +235,6 @@ console.log(solve([1, 2, 3]));`,
       return context.json({ ok: true, providers: client.listProviders() });
     } catch {
       return context.json({ ok: true, providers: [] });
-    }
-  });
-
-  app.post("/api/v1/concept-sessions", async (context) => {
-    const body = (await context.req.json().catch(() => undefined)) as
-      | { topic?: unknown }
-      | undefined;
-    if (!body || typeof body.topic !== "string" || !body.topic.trim()) {
-      return apiError(
-        context,
-        400,
-        "invalid_request",
-        "A concept topic is required.",
-      );
-    }
-    try {
-      return context.json(await startCodexConceptSession(body.topic), 201);
-    } catch (error) {
-      return apiError(
-        context,
-        503,
-        "terminal_unavailable",
-        error instanceof Error
-          ? error.message
-          : "The terminal gateway is unavailable.",
-      );
-    }
-  });
-
-  app.post("/api/v1/answer-sessions", async (context) => {
-    const body = (await context.req.json().catch(() => undefined)) as
-      | {
-          currentAnswer?: unknown;
-          question?: unknown;
-          refinement?: unknown;
-        }
-      | undefined;
-    if (!body || typeof body.question !== "string" || !body.question.trim()) {
-      return apiError(
-        context,
-        400,
-        "invalid_request",
-        "An interview question is required.",
-      );
-    }
-    if (
-      (body.refinement !== undefined && typeof body.refinement !== "string") ||
-      (body.currentAnswer !== undefined &&
-        (!body.currentAnswer || typeof body.currentAnswer !== "object"))
-    ) {
-      return apiError(
-        context,
-        400,
-        "invalid_request",
-        "The refinement request is invalid.",
-      );
-    }
-    try {
-      const options = {
-        ...(body.refinement === undefined
-          ? {}
-          : { refinement: body.refinement }),
-        ...(body.currentAnswer === undefined
-          ? {}
-          : {
-              currentAnswer: body.currentAnswer as Record<string, unknown>,
-            }),
-      };
-      return context.json(
-        Object.keys(options).length
-          ? await startCodexAnswerSession(body.question, options)
-          : await startCodexAnswerSession(body.question),
-        201,
-      );
-    } catch (error) {
-      return apiError(
-        context,
-        503,
-        "terminal_unavailable",
-        error instanceof Error
-          ? error.message
-          : "The terminal gateway is unavailable.",
-      );
     }
   });
 

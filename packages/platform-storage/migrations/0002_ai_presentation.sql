@@ -100,6 +100,14 @@ CREATE TABLE IF NOT EXISTS ai.agent_job_events (
   PRIMARY KEY (job_id, sequence)
 );
 
+CREATE TABLE IF NOT EXISTS ai.agent_job_payloads (
+  reference text PRIMARY KEY,
+  tenant_id uuid NOT NULL REFERENCES platform.tenants(id) ON DELETE CASCADE,
+  ciphertext jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai.agent_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES platform.tenants(id) ON DELETE CASCADE,
@@ -326,6 +334,7 @@ ALTER TABLE ai.tenant_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai.usage_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai.agent_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai.agent_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai.agent_job_payloads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai.workflow_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentation.documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentation.presentations ENABLE ROW LEVEL SECURITY;
@@ -348,6 +357,7 @@ BEGIN
       ('ai', 'usage_records'),
       ('ai', 'agent_jobs'),
       ('ai', 'agent_sessions'),
+      ('ai', 'agent_job_payloads'),
       ('ai', 'workflow_threads'),
       ('presentation', 'documents'),
       ('presentation', 'presentations'),

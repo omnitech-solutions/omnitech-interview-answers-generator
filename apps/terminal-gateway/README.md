@@ -1,26 +1,18 @@
-# Terminal gateway
+# Agent job event gateway
 
-This package is the persistent Node.js terminal service used by the browser
-terminal. It must run outside Next.js so the WebSocket connection, PTY, and
-tmux process remain alive.
+This service keeps browser WebSocket connections outside Next.js and renders
+normalized agent-job events in the existing terminal drawer.
 
-```bash
-pnpm dev
-```
+It does not launch Codex, Claude Code, shells, or other processes. Agent
+execution belongs exclusively to `apps/agent-worker`.
 
-The gateway listens on `ws://127.0.0.1:3001/terminal`, starts in the detected
-repository root, and attaches every browser connection to the shared tmux
-session named `workspace`. Concept Lab and the Playground add validated
-`session=concept-*` and `session=answer-*` query parameters so their terminals
-can attach to the latest isolated Codex session.
+Configuration:
 
-Set `TERMINAL_GATEWAY_TOKEN` to require a matching `token` query parameter and
-`INTERVIEW_PROJECT_ROOT` to override root detection.
+- `TERMINAL_GATEWAY_PORT`: WebSocket port, default `3001`.
+- `TERMINAL_GATEWAY_TOKEN`: optional browser connection token.
+- `PLATFORM_HTTP_URL`: platform API origin, default `http://127.0.0.1:3000`.
+- `AGENT_SERVICE_TOKEN`: internal token used to read job events.
 
-Concept Lab uses `POST /concept-sessions` for concise explanation generation.
-The coding Playground uses `POST /answer-sessions` to show `/answer <question>`
-in an isolated terminal while a single ephemeral, schema-constrained Codex call
-generates and atomically publishes the solution, usage, and tests. This avoids
-the slower interactive file/tool workflow. When a token is configured, both
-endpoints require `Authorization: Bearer <token>` and accept only their typed
-input.
+Connect to `/terminal?session=<agent-job-uuid>`. The gateway resumes after the
+last observed event sequence and displays normalized progress, tool, usage,
+completion, and failure events.

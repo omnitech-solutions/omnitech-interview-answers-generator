@@ -76,7 +76,7 @@ export function BrowserTerminal({
       url.searchParams.set("session", sessionName);
       socket = new WebSocket(url.toString());
       socket.addEventListener("open", () => {
-        terminal.writeln(`Connected to tmux session: ${sessionName}`);
+        terminal.writeln(`Connected to agent job: ${sessionName}`);
         if (fitVisibleTerminal()) {
           socket?.send(
             JSON.stringify({
