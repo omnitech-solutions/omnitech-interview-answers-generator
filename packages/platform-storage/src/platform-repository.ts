@@ -1,0 +1,213 @@
+import type {
+  ConnectedAccountSummary,
+  InstalledProductSummary,
+  PlatformContext,
+  UserPreferences,
+} from "@omnitech/platform-contracts";
+
+import type { DatabaseClient, PlatformDatabase } from "./database.js";
+
+type ContextRow = {
+  user_id: string;
+  email: string;
+  display_name: string;
+  avatar_url: string | null;
+  tenant_id: string;
+  tenant_slug: string;
+  tenant_name: string;
+  role: "owner" | "admin" | "member";
+  theme: "system" | "light" | "dark";
+  locale: string;
+};
+
+type InstallationRow = {
+  product_id: string;
+  display_name: string;
+  description: string;
+  icon: string;
+  configuration: InstalledProductSummary;
+};
+
+export interface IdentityProfile {
+  provider: "google" | "linkedin";
+  providerAccountId: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export class PlatformRepository {
+  constructor(private readonly database: PlatformDatabase) {}
+
+  async upsertIdentity(profile: IdentityProfile): Promise<string> {
+    return this.database.transaction(async (client) => {
+      const user = await client.query<{ id: string }>(
+        `INSERT INTO platform.users (email, display_name, avatar_url)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           avatar_url = EXCLUDED.avatar_url,
+           updated_at = now()
+         RETURNING id`,
+        [profile.email, profile.displayName, profile.avatarUrl],
+      );
+      const userId = user.rows[0]?.id;
+      if (!userId) throw new Error("Identity upsert did not return a user.");
+      await client.query(
+        `INSERT INTO platform.login_identities
+           (user_id, provider, provider_account_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (provider, provider_account_id) DO UPDATE SET
+           user_id = EXCLUDED.user_id,
+           updated_at = now()`,
+        [userId, profile.provider, profile.providerAccountId],
+      );
+      return userId;
+    });
+  }
+
+  async resolveContext(
+    email: string,
+    tenantSlug: string,
+  ): Promise<PlatformContext | null> {
+    const result = await this.database.query<ContextRow>(
+      `SELECT
+         u.id AS user_id, u.email, u.display_name, u.avatar_url,
+         t.id AS tenant_id, t.slug AS tenant_slug, t.name AS tenant_name,
+         m.role, p.theme, p.locale
+       FROM platform.users u
+       JOIN platform.tenant_memberships m ON m.user_id = u.id
+       JOIN platform.tenants t ON t.id = m.tenant_id
+       LEFT JOIN platform.user_preferences p ON p.user_id = u.id
+       WHERE u.email = $1 AND t.slug = $2`,
+      [email, tenantSlug],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const products = await this.listInstalledProducts(row.tenant_id);
+    return {
+      user: {
+        id: row.user_id,
+        email: row.email,
+        displayName: row.display_name,
+        avatarUrl: row.avatar_url,
+      },
+      tenant: {
+        id: row.tenant_id,
+        slug: row.tenant_slug,
+        name: row.tenant_name,
+      },
+      membership: {
+        tenantId: row.tenant_id,
+        userId: row.user_id,
+        role: row.role,
+      },
+      preferences: {
+        theme: row.theme ?? "system",
+        locale: row.locale ?? "en",
+      },
+      permissions: rolePermissions(row.role),
+      products,
+    };
+  }
+
+  async listInstalledProducts(
+    tenantId: string,
+  ): Promise<InstalledProductSummary[]> {
+    return this.database.tenantTransaction(tenantId, async (client) => {
+      const result = await client.query<InstallationRow>(
+        `SELECT product_id, display_name, description, icon, configuration
+         FROM platform.product_installations
+         WHERE tenant_id = $1 AND enabled = true
+         ORDER BY sort_order, product_id`,
+        [tenantId],
+      );
+      return result.rows.map((row) => ({
+        ...row.configuration,
+        productId: row.product_id,
+        name: row.display_name,
+        description: row.description,
+        icon: row.icon,
+      }));
+    });
+  }
+
+  async savePreferences(
+    userId: string,
+    preferences: UserPreferences,
+  ): Promise<void> {
+    await this.database.query(
+      `INSERT INTO platform.user_preferences (user_id, theme, locale)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET
+         theme = EXCLUDED.theme,
+         locale = EXCLUDED.locale,
+         updated_at = now()`,
+      [userId, preferences.theme, preferences.locale],
+    );
+  }
+
+  async listConnectedAccounts(
+    userId: string,
+  ): Promise<ConnectedAccountSummary[]> {
+    const result = await this.database.query<{
+      provider: "google" | "linkedin";
+      status: "connected" | "expired" | "revoked";
+      scopes: string[];
+      expires_at: Date | null;
+    }>(
+      `SELECT provider, status, scopes, expires_at
+       FROM platform.connected_accounts
+       WHERE user_id = $1
+       ORDER BY provider`,
+      [userId],
+    );
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      status: row.status,
+      scopes: row.scopes,
+      expiresAt: row.expires_at?.toISOString() ?? null,
+    }));
+  }
+
+  async audit(
+    client: DatabaseClient,
+    input: {
+      tenantId: string;
+      actorUserId: string;
+      action: string;
+      subjectType: string;
+      subjectId: string;
+      metadata?: Readonly<Record<string, unknown>>;
+    },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO platform.audit_events
+         (tenant_id, actor_user_id, action, subject_type, subject_id, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        input.tenantId,
+        input.actorUserId,
+        input.action,
+        input.subjectType,
+        input.subjectId,
+        input.metadata ?? {},
+      ],
+    );
+  }
+}
+
+function rolePermissions(role: ContextRow["role"]): string[] {
+  const common = ["platform.read", "artifact.read", "interview.read"];
+  if (role === "member") return common;
+  if (role === "admin") {
+    return [...common, "artifact.write", "interview.write", "tenant.manage"];
+  }
+  return [
+    ...common,
+    "artifact.write",
+    "interview.write",
+    "tenant.manage",
+    "tenant.delete",
+  ];
+}
