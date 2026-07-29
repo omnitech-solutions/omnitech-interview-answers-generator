@@ -17,9 +17,11 @@
     { "path": "../../packages/interview-contracts" },
     { "path": "../../packages/interview-library" },
     { "path": "../../packages/interview-storage" },
+    { "path": "../../packages/platform-api" },
     { "path": "../../packages/platform-contracts" },
     { "path": "../../packages/platform-runtime" },
     { "path": "../../packages/platform-storage" },
+    { "path": "../../products/interview" },
     { "path": "../../packages/code-runner" }
   ],
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

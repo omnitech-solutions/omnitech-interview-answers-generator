@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 async function freshStore() {
   vi.resetModules();
   Reflect.deleteProperty(globalThis, "interviewPlaygroundControlStore");
-  return (await import("./playground-control")).playgroundControlStore;
+  return (await import("./workspace-control")).playgroundControlStore;
 }
 
 describe("playgroundControlStore", () => {
@@ -86,7 +86,7 @@ describe("playgroundControlStore", () => {
     first.set({ question: "Preserved across a reload" });
 
     vi.resetModules();
-    const reloaded = (await import("./playground-control"))
+    const reloaded = (await import("./workspace-control"))
       .playgroundControlStore;
 
     expect(reloaded).toBe(first);
@@ -118,7 +118,7 @@ describe("playgroundControlStore", () => {
     });
 
     vi.resetModules();
-    const upgraded = (await import("./playground-control"))
+    const upgraded = (await import("./workspace-control"))
       .playgroundControlStore;
 
     expect(upgraded.get()).toBe(snapshot);

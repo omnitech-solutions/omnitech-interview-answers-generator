@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Playground } from "./playground";
+import { Playground } from "./workspace";
 
 vi.mock("@uiw/react-codemirror", () => ({
   default: ({

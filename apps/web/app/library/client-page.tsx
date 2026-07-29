@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { Library } from "@/src/library";
+import { Library } from "@omnitech/product-interview/frontend";
 
 export function LibraryClientPage({
   initialSlug,

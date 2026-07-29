@@ -1,15 +1,27 @@
 {
-  "name": "@omnitech/interview-web",
-  "version": "0.1.0",
+  "name": "@omnitech/product-interview",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "import": "./dist/backend/index.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend/index.d.ts",
+      "import": "./dist/frontend/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    }
+  },
   "scripts": {
-    "build": "next build",
-    "dev": "next dev --hostname 127.0.0.1",
-    "lint": "biome lint app src",
-    "start": "next start --hostname 127.0.0.1",
+    "build": "tsc -b",
+    "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts --passWithNoTests"
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",
@@ -24,11 +36,7 @@
     "@omnitech/interview-library": "workspace:*",
     "@omnitech/interview-playground-control": "workspace:*",
     "@omnitech/interview-storage": "workspace:*",
-    "@omnitech/platform-api": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
-    "@omnitech/platform-runtime": "workspace:*",
-    "@omnitech/platform-storage": "workspace:*",
-    "@omnitech/product-interview": "workspace:*",
     "@panzoom/panzoom": "^4.6.2",
     "@rjsf/utils": "^6.7.0",
     "@shikijs/transformers": "^4.3.1",
@@ -39,8 +47,6 @@
     "github-slugger": "^2.0.0",
     "hono": "^4.12.8",
     "mermaid": "^11.16.0",
-    "next": "^16.2.3",
-    "next-auth": "5.0.0-beta.30",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-markdown": "^10.1.0",

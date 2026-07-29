@@ -6,5 +6,5 @@ export default async function TenantPage({
   params: Promise<{ tenantSlug: string }>;
 }): Promise<never> {
   const { tenantSlug } = await params;
-  redirect(`/t/${tenantSlug}/workspace`);
+  redirect(`/t/${tenantSlug}/p/interview/workspace`);
 }

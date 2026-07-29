@@ -26,7 +26,7 @@ import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { LibraryIndexUnavailableError } from "./library-service";
-import { playgroundControlStore } from "./playground-control";
+import { playgroundControlStore } from "./workspace-control";
 import {
   answerRepository,
   codeRunner,

@@ -1,11 +1,11 @@
 import { handle } from "hono/vercel";
 
-import { createApi } from "@/src/server/api";
+import { createApplicationApi } from "@/src/platform/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const handler = handle(createApi());
+const handler = handle(createApplicationApi());
 
 export {
   handler as DELETE,

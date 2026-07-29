@@ -4,9 +4,12 @@ import dynamic from "next/dynamic";
 import React from "react";
 
 const Playground = dynamic(
-  () => import("@/src/playground").then((module) => module.Playground),
+  () =>
+    import("@omnitech/product-interview/frontend").then(
+      (module) => module.Workspace,
+    ),
   {
-    loading: () => <main className="loading-page">Loading playground…</main>,
+    loading: () => <main className="loading-page">Loading workspace…</main>,
     ssr: false,
   },
 );
