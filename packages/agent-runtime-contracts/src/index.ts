@@ -40,6 +40,7 @@ export interface AgentProfile {
   maximumOutputBytes: number;
   additionalDirectories: readonly string[];
   webSearch: boolean;
+  outputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentRunRequest {
@@ -60,6 +61,7 @@ export interface AgentResumeRequest {
   prompt: string;
   profile: AgentProfile;
   workingDirectory: string;
+  outputSchema?: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentResult {

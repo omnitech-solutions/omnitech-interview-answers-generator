@@ -171,6 +171,9 @@ export function createCodexRuntimeAdapter(
           additionalDirectories: [],
           attachments: [],
           timeoutMs: request.profile.timeoutMs,
+          ...(request.outputSchema === undefined
+            ? {}
+            : { outputSchema: request.outputSchema }),
         },
         request.sessionId,
       ),

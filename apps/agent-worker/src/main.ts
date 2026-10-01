@@ -25,6 +25,8 @@ try {
       workerId: process.env["AGENT_WORKER_ID"] ?? crypto.randomUUID(),
       repository: new PostgresAgentJobRepository(database),
       loadPrompt: (reference) => payloads.load(reference),
+      storeResult: (tenantId, result) =>
+        payloads.save(tenantId, JSON.stringify(result)),
       runtimes: {
         codex: createCodexRuntimeAdapter(),
         "claude-code": createClaudeRuntimeAdapter(),
