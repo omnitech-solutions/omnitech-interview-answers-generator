@@ -120,7 +120,6 @@ const source = (row: Record<string, unknown>): InterviewEvidence =>
 export class InterviewWorkspaceRepository {
   constructor(private readonly database: WorkspaceDatabasePort) {}
   private async bind(tx: WorkspaceTransaction, scope: WorkspaceScope) {
-    scopeSchema.parse(scope);
     await tx.query(
       "SELECT set_config('app.actor_id',$1,true),set_config('app.product_id',$2,true)",
       [scope.actorId, scope.productId],
@@ -128,12 +127,12 @@ export class InterviewWorkspaceRepository {
   }
   private transaction<T>(
     scope: WorkspaceScope,
-    fn: (tx: WorkspaceTransaction) => Promise<T>,
+    fn: (tx: WorkspaceTransaction, scope: WorkspaceScope) => Promise<T>,
   ): Promise<T> {
-    scopeSchema.parse(scope);
+    scope = scopeSchema.parse(scope);
     return this.database.tenantTransaction(scope.tenantId, async (tx) => {
       await this.bind(tx, scope);
-      return fn(tx);
+      return fn(tx, scope);
     });
   }
   async create(
@@ -145,11 +144,11 @@ export class InterviewWorkspaceRepository {
       answer?: InterviewDraft["answer"];
     },
   ): Promise<WorkspaceDraftRecord> {
-    originSchema.parse(origin);
+    origin = originSchema.parse(origin);
     if (origin.artifactRevision !== 0)
       throw new WorkspaceError("revision-conflict");
     const value = interviewDraftSchema.parse(initial);
-    return this.transaction(scope, async (tx) => {
+    return this.transaction(scope, async (tx, scope) => {
       const [row] = await tx.query(
         "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
         [
@@ -167,9 +166,9 @@ export class InterviewWorkspaceRepository {
     workspaceId: string,
     artifactId: string,
   ): Promise<WorkspaceDraftRecord> {
-    id.parse(workspaceId);
-    id.parse(artifactId);
-    return this.transaction(scope, async (tx) => {
+    workspaceId = id.parse(workspaceId);
+    artifactId = id.parse(artifactId);
+    return this.transaction(scope, async (tx, scope) => {
       const [row] = await tx.query(
         `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5`,
         [...values(scope), workspaceId, artifactId],
@@ -183,7 +182,7 @@ export class InterviewWorkspaceRepository {
     origin: WorkspaceOrigin,
     patch: InterviewDraftPatch,
   ): Promise<WorkspaceDraftRecord> {
-    return this.transaction(scope, (tx) =>
+    return this.transaction(scope, (tx, scope) =>
       this.editTransaction(tx, scope, origin, patch),
     );
   }
@@ -195,8 +194,9 @@ export class InterviewWorkspaceRepository {
     origin: WorkspaceOrigin,
     patch: InterviewDraftPatch,
   ): Promise<WorkspaceDraftRecord> {
+    scope = scopeSchema.parse(scope);
     await this.bind(tx, scope);
-    originSchema.parse(origin);
+    origin = originSchema.parse(origin);
     const validated = interviewDraftPatchSchema.parse(patch);
     const [row] = await tx.query(
       `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
@@ -226,8 +226,8 @@ export class InterviewWorkspaceRepository {
     scope: WorkspaceScope,
     origin: WorkspaceOrigin,
   ): Promise<AnswerRevisionRecord> {
-    originSchema.parse(origin);
-    return this.transaction(scope, async (tx) => {
+    origin = originSchema.parse(origin);
+    return this.transaction(scope, async (tx, scope) => {
       const [row] = await tx.query(
         `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
         [...values(scope), origin.workspaceId, origin.artifactId],
@@ -271,10 +271,10 @@ export class InterviewWorkspaceRepository {
     artifactId: string,
     savedRevision: number,
   ): Promise<AnswerRevisionRecord> {
-    id.parse(workspaceId);
-    id.parse(artifactId);
+    workspaceId = id.parse(workspaceId);
+    artifactId = id.parse(artifactId);
     revision.parse(savedRevision);
-    return this.transaction(scope, async (tx) => {
+    return this.transaction(scope, async (tx, scope) => {
       const [row] = await tx.query(
         `SELECT * FROM interview.assistant_answer_revisions WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND saved_revision=$6`,
         [...values(scope), workspaceId, artifactId, savedRevision],
@@ -293,7 +293,7 @@ export class InterviewWorkspaceRepository {
       validated.sha256
     )
       throw new WorkspaceError("evidence-hash-conflict");
-    await this.transaction(scope, async (tx) => {
+    await this.transaction(scope, async (tx, scope) => {
       await tx.query(
         "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
         [
@@ -315,9 +315,9 @@ export class InterviewWorkspaceRepository {
     evidenceId: string,
     evidenceRevision: number,
   ): Promise<InterviewEvidence> {
-    id.parse(evidenceId);
+    evidenceId = id.parse(evidenceId);
     revision.parse(evidenceRevision);
-    return this.transaction(scope, async (tx) => {
+    return this.transaction(scope, async (tx, scope) => {
       const [row] = await tx.query(
         `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision=$5`,
         [...values(scope), evidenceId, evidenceRevision],
@@ -336,7 +336,7 @@ export class InterviewWorkspaceRepository {
   ): Promise<readonly InterviewEvidence[]> {
     z.string().max(2048).trim().min(1).parse(query);
     z.number().int().min(1).max(100).parse(limit);
-    return this.transaction(scope, async (tx) => {
+    return this.transaction(scope, async (tx, scope) => {
       const rows = await tx.query(
         `SELECT * FROM interview.assistant_evidence e WHERE ${where} AND $2=ANY(audience) AND to_tsvector('english',text) @@ plainto_tsquery('english',$4) AND NOT EXISTS (SELECT 1 FROM interview.assistant_evidence newer WHERE (newer.tenant_id,newer.actor_id,newer.product_id,newer.id)=(e.tenant_id,e.actor_id,e.product_id,e.id) AND newer.revision>e.revision) ORDER BY id LIMIT $5`,
         [...values(scope), query, limit],

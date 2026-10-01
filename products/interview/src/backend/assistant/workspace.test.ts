@@ -189,3 +189,81 @@ it("retains immutable evidence kind revision hash classification and actor audie
     pg.admin.query("UPDATE interview.assistant_evidence SET text='altered'"),
   ).rejects.toMatchObject({ code: "55000" });
 });
+it("round-trips padded scope origin and evidence identifiers without rewriting source text", async () => {
+  const padded = {
+    tenantId: " canonical-tenant ",
+    actorId: " canonical-actor ",
+    productId: " interview ",
+  };
+  const canonical = {
+    tenantId: "canonical-tenant",
+    actorId: "canonical-actor",
+    productId: "interview",
+  };
+  const created = await repo.create(
+    padded,
+    {
+      workspaceId: " canonical-workspace ",
+      artifactId: " canonical-artifact ",
+      artifactRevision: 0,
+    },
+    { question: "Canonical question", notes: " Exact notes " },
+  );
+  expect(created.origin).toEqual({
+    workspaceId: "canonical-workspace",
+    artifactId: "canonical-artifact",
+    artifactRevision: 0,
+  });
+  expect(
+    (
+      await repo.read(
+        canonical,
+        created.origin.workspaceId,
+        created.origin.artifactId,
+      )
+    ).value.notes,
+  ).toBe(" Exact notes ");
+  const edited = await repo.edit(padded, created.origin, {
+    answer: {
+      title: "Canonical",
+      language: "typescript",
+      answerMarkdown: "Canonical answer",
+      code: " Exact code ",
+      usageCode: "",
+      testCode: "",
+    },
+  });
+  const saved = await repo.save(canonical, {
+    ...edited.origin,
+    workspaceId: " canonical-workspace ",
+    artifactId: " canonical-artifact ",
+  });
+  expect(
+    (
+      await repo.readAnswerRevision(
+        padded,
+        " canonical-workspace ",
+        " canonical-artifact ",
+        saved.savedRevision,
+      )
+    ).value.answer?.code,
+  ).toBe(" Exact code ");
+  const text = " Exact evidence text ";
+  const evidence = {
+    id: " canonical-evidence ",
+    revision: 1,
+    sha256: createHash("sha256").update(text).digest("hex"),
+    locator: "candidate://canonical",
+    text,
+    sourceKind: "candidate" as const,
+    classification: "internal" as const,
+    audience: [" canonical-actor "],
+  };
+  await repo.putEvidence(padded, evidence);
+  expect(await repo.readEvidence(canonical, " canonical-evidence ", 1)).toEqual(
+    { ...evidence, id: "canonical-evidence", audience: ["canonical-actor"] },
+  );
+  expect((await repo.searchEvidence(padded, "evidence", 10))[0]?.text).toBe(
+    text,
+  );
+});
