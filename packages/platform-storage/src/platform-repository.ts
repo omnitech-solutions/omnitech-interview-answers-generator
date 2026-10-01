@@ -4,9 +4,8 @@ import type {
   PlatformContext,
   UserPreferences,
 } from "@omnitech/platform-contracts";
-
-import type { DatabaseClient, PlatformDatabase } from "./database.js";
 import type { EncryptedValue } from "./connected-account-vault.js";
+import type { DatabaseClient, PlatformDatabase } from "./database.js";
 
 type ContextRow = {
   user_id: string;
@@ -19,6 +18,7 @@ type ContextRow = {
   role: "owner" | "admin" | "member";
   theme: "system" | "light" | "dark";
   locale: string;
+  ai_profile_id: string | null;
 };
 
 type InstallationRow = {
@@ -75,7 +75,7 @@ export class PlatformRepository {
       `SELECT
          u.id AS user_id, u.email, u.display_name, u.avatar_url,
          t.id AS tenant_id, t.slug AS tenant_slug, t.name AS tenant_name,
-         m.role, p.theme, p.locale
+         m.role, p.theme, p.locale, p.ai_profile_id
        FROM platform.users u
        JOIN platform.tenant_memberships m ON m.user_id = u.id
        JOIN platform.tenants t ON t.id = m.tenant_id
@@ -106,6 +106,9 @@ export class PlatformRepository {
       preferences: {
         theme: row.theme ?? "system",
         locale: row.locale ?? "en",
+        ...(row.ai_profile_id === null
+          ? {}
+          : { aiProfileId: row.ai_profile_id }),
       },
       permissions: rolePermissions(row.role),
       products,
@@ -138,13 +141,19 @@ export class PlatformRepository {
     preferences: UserPreferences,
   ): Promise<void> {
     await this.database.query(
-      `INSERT INTO platform.user_preferences (user_id, theme, locale)
-       VALUES ($1, $2, $3)
+      `INSERT INTO platform.user_preferences (user_id, theme, locale, ai_profile_id)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id) DO UPDATE SET
          theme = EXCLUDED.theme,
          locale = EXCLUDED.locale,
+         ai_profile_id = EXCLUDED.ai_profile_id,
          updated_at = now()`,
-      [userId, preferences.theme, preferences.locale],
+      [
+        userId,
+        preferences.theme,
+        preferences.locale,
+        preferences.aiProfileId ?? null,
+      ],
     );
   }
 

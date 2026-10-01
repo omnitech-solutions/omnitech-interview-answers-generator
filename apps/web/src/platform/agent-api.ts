@@ -87,6 +87,11 @@ function profiles(): ReadonlyMap<string, AgentProfile> {
       maximumOutputBytes: 4_000_000,
       additionalDirectories: [],
       webSearch: false,
+      outputSchema: {
+        type: "object",
+        required: ["sourceXml"],
+        properties: { sourceXml: { type: "string" } },
+      },
     },
   ];
   return new Map(values.map((profile) => [profile.id, profile]));
@@ -186,6 +191,30 @@ export function createAgentApi() {
     );
   });
 
+  api.get("/platform/v1/agent-jobs/:id", async (context) => {
+    const tenantSlug = context.req.query("tenant") ?? "";
+    const platformContext = await resolvePlatformContext(tenantSlug);
+    if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
+    const job = await service.get(
+      platformContext.tenant.id,
+      context.req.param("id"),
+    );
+    if (!job) return context.json({ error: "Agent job was not found." }, 404);
+    let result: unknown;
+    if (job.resultReference && payloads) {
+      try {
+        result = JSON.parse(await payloads.load(job.resultReference));
+      } catch {
+        result = undefined;
+      }
+    }
+    return context.json({
+      id: job.id,
+      status: job.status,
+      ...(job.resultReference && result !== undefined ? { result } : {}),
+    });
+  });
+
   api.delete("/platform/v1/agent-jobs/:id", async (context) => {
     const platformContext = await resolvePlatformContext(
       context.req.query("tenant") ?? "",
@@ -193,6 +222,40 @@ export function createAgentApi() {
     if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
     await service.cancel(platformContext.tenant.id, context.req.param("id"));
     return context.body(null, 204);
+  });
+
+  api.post("/platform/v1/agent-jobs/:id/resume", async (context) => {
+    const tenantSlug = context.req.query("tenant") ?? "";
+    const platformContext = await resolvePlatformContext(tenantSlug);
+    if (!platformContext || !payloads) {
+      return context.json({ error: "Unauthorized" }, 401);
+    }
+    try {
+      const input = z
+        .object({ prompt: z.string().trim().min(1).max(500_000) })
+        .parse(await context.req.json());
+      const promptReference = await payloads.save(
+        platformContext.tenant.id,
+        input.prompt,
+      );
+      await service.resume(
+        platformContext.tenant.id,
+        context.req.param("id"),
+        promptReference,
+      );
+      return context.json({ status: "queued" }, 202);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return context.json({ error: "Invalid resume prompt." }, 400);
+      }
+      return context.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Unable to resume job.",
+        },
+        409,
+      );
+    }
   });
 
   return api;

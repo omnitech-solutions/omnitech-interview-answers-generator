@@ -131,6 +131,24 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     return (result.rowCount ?? 0) === 1;
   }
 
+  async setResultReference(jobId: string, reference: string): Promise<void> {
+    await this.database.query(
+      `UPDATE ai.agent_jobs
+       SET result_reference = $2, updated_at = now()
+       WHERE id = $1`,
+      [jobId, reference],
+    );
+  }
+
+  async setSessionId(jobId: string, sessionId: string): Promise<void> {
+    await this.database.query(
+      `UPDATE ai.agent_jobs
+       SET session_id = $2, updated_at = now()
+       WHERE id = $1`,
+      [jobId, sessionId],
+    );
+  }
+
   async appendEvent(
     jobId: string,
     event: AgentEvent,
@@ -196,6 +214,25 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
       return (result.rowCount ?? 0) === 1;
     });
   }
+
+  async requestResume(
+    tenantId: string,
+    jobId: string,
+    promptReference: string,
+  ): Promise<boolean> {
+    return this.database.tenantTransaction(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE ai.agent_jobs SET
+           status = 'queued', prompt_reference = $3,
+           result_reference = NULL, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2
+           AND status IN ('awaiting-input', 'failed', 'cancelled')
+           AND session_id IS NOT NULL`,
+        [tenantId, jobId, promptReference],
+      );
+      return (result.rowCount ?? 0) === 1;
+    });
+  }
 }
 
 export class AgentPayloadStore {
@@ -227,13 +264,20 @@ export class AgentPayloadStore {
 
   async load(reference: string): Promise<string> {
     const result = await this.database.query<{ ciphertext: unknown }>(
-      `DELETE FROM ai.agent_job_payloads
+      `SELECT ciphertext FROM ai.agent_job_payloads
        WHERE reference = $1 AND expires_at > now()
-       RETURNING ciphertext`,
+       LIMIT 1`,
       [reference],
     );
     const ciphertext = result.rows[0]?.ciphertext;
     if (!ciphertext) throw new Error("Agent job payload is unavailable.");
     return this.vault.decrypt(ciphertext);
+  }
+
+  async remove(reference: string): Promise<void> {
+    await this.database.query(
+      `DELETE FROM ai.agent_job_payloads WHERE reference = $1`,
+      [reference],
+    );
   }
 }

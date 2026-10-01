@@ -11,6 +11,7 @@ export interface PlatformApiServices {
     preferences: {
       theme: "system" | "light" | "dark";
       locale: string;
+      aiProfileId?: string | null | undefined;
     },
   ): Promise<void>;
 }
@@ -73,7 +74,7 @@ export function createPlatformApi(services: PlatformApiServices) {
         {
           error: {
             code: "invalid_preferences",
-            message: "Theme and locale are required.",
+            message: "Theme, locale, and a valid AI profile are required.",
           },
         },
         400,

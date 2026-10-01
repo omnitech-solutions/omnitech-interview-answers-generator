@@ -11,6 +11,10 @@ try {
     database,
     new URL("../migrations/0002_ai_presentation.sql", import.meta.url),
   );
+  await migrateDatabase(
+    database,
+    new URL("../migrations/0003_ai_profile_preference.sql", import.meta.url),
+  );
 } finally {
   await database.close();
 }

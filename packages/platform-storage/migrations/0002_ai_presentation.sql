@@ -194,9 +194,17 @@ CREATE TABLE IF NOT EXISTS presentation.themes (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-ALTER TABLE presentation.presentations
-  ADD CONSTRAINT presentations_theme_fk
-  FOREIGN KEY (theme_id) REFERENCES presentation.themes(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  ALTER TABLE presentation.presentations
+    ADD CONSTRAINT presentations_theme_fk
+    FOREIGN KEY (theme_id) REFERENCES presentation.themes(id)
+    ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS presentation_theme_source_idx
+  ON presentation.themes (tenant_id, source_import_id)
+  WHERE source_import_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS presentation.theme_favorites (
   tenant_id uuid NOT NULL REFERENCES platform.tenants(id) ON DELETE CASCADE,
@@ -346,6 +354,12 @@ ALTER TABLE presentation.recordings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentation.exports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentation.generation_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE presentation.agent_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.theme_favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.theme_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.font_pairs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.document_favorites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.import_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE presentation.import_ledger ENABLE ROW LEVEL SECURITY;
 
 DO $policies$
 DECLARE
@@ -368,6 +382,11 @@ BEGIN
       ('presentation', 'exports'),
       ('presentation', 'generation_sessions'),
       ('presentation', 'agent_conversations')
+      ,('presentation', 'theme_favorites')
+      ,('presentation', 'theme_likes')
+      ,('presentation', 'font_pairs')
+      ,('presentation', 'document_favorites')
+      ,('presentation', 'import_runs')
     ) AS values_table(schema_name, table_name)
   LOOP
     EXECUTE format(

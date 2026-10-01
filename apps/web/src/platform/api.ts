@@ -3,12 +3,22 @@ import { getPlatformDatabase } from "@omnitech/platform-storage";
 import { createInterviewApi } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
-
-import { resolvePlatformContext } from "./context";
 import { createAgentApi } from "./agent-api";
+import { createPlatformAiGateway } from "./ai";
+import { resolvePlatformContext } from "./context";
+
+const localDatabaseUrl =
+  "postgresql://omnitech:omnitech@127.0.0.1:5432/omnitech";
+if (process.env["NODE_ENV"] !== "production" && !process.env["DATABASE_URL"]) {
+  process.env["DATABASE_URL"] = localDatabaseUrl;
+}
 
 export function createApplicationApi() {
   const api = new Hono();
+  const ai =
+    process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production"
+      ? createPlatformAiGateway()
+      : undefined;
   api.route(
     "/",
     createPlatformApi({
@@ -25,14 +35,30 @@ export function createApplicationApi() {
       },
     }),
   );
+  api.get("/api/platform/v1/ai-targets", async (request) => {
+    const context = await resolvePlatformContext(
+      request.req.query("tenant") ?? "",
+    );
+    if (!context) return request.json({ error: "Context not found." }, 404);
+    if (!ai) return request.json({ error: "AI is not configured." }, 503);
+    return request.json(
+      await ai.listAvailableTargets({
+        tenantId: context.tenant.id,
+        userId: context.user.id,
+        productId: "omnitech.platform",
+        permissions: context.permissions,
+      }),
+    );
+  });
   api.route("/", createInterviewApi());
-  if (process.env["DATABASE_URL"]) {
-    api.route("/", createAgentApi());
+  if (process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production") {
+    api.route("/api", createAgentApi());
     api.route(
-      "/",
+      "/api",
       createPresentationApi({
         database: getPlatformDatabase(),
         resolveContext: resolvePlatformContext,
+        ...(ai === undefined ? {} : { ai }),
       }),
     );
   }

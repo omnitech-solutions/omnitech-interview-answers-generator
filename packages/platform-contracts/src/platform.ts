@@ -3,6 +3,7 @@ import { z } from "zod";
 export const userPreferencesSchema = z.object({
   theme: z.enum(["system", "light", "dark"]),
   locale: z.string().trim().min(2),
+  aiProfileId: z.string().trim().min(1).nullable().optional(),
 });
 
 export interface PlatformUser {

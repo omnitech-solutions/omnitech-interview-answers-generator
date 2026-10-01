@@ -1,5 +1,6 @@
 "use client";
 
+import type { AiTargetSummary } from "@omnitech/ai-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,8 +15,33 @@ export function PlatformShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const isPresentationRoute = pathname.includes("/p/presentation");
   const [theme, setTheme] = useState(context.preferences.theme);
   const [locale, setLocale] = useState(context.preferences.locale);
+  const [aiProfileId, setAiProfileId] = useState(
+    context.preferences.aiProfileId ?? "",
+  );
+  const [aiTargets, setAiTargets] = useState<AiTargetSummary[]>([]);
+
+  useEffect(() => {
+    void fetch(
+      `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(context.tenant.slug)}`,
+    )
+      .then((response) => (response.ok ? response.json() : []))
+      .then((targets: AiTargetSummary[]) => {
+        const languageTargets = targets.filter(
+          (target) =>
+            target.kind === "language" && target.family === "direct-model",
+        );
+        setAiTargets(languageTargets);
+        const selected =
+          context.preferences.aiProfileId ?? languageTargets[0]?.id ?? "";
+        setAiProfileId((current) => current || selected);
+        if (selected)
+          window.localStorage.setItem("platform.aiProfileId", selected);
+      })
+      .catch(() => undefined);
+  }, [context.preferences.aiProfileId, context.tenant.slug]);
 
   useEffect(() => {
     const resolved =
@@ -34,16 +60,37 @@ export function PlatformShell({
   async function savePreferences(
     nextTheme: "system" | "light" | "dark",
     nextLocale: string,
+    nextAiProfileId = aiProfileId,
   ) {
     await fetch(
       `/api/platform/v1/preferences?tenant=${encodeURIComponent(context.tenant.slug)}`,
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ theme: nextTheme, locale: nextLocale }),
+        body: JSON.stringify({
+          theme: nextTheme,
+          locale: nextLocale,
+          aiProfileId: nextAiProfileId || null,
+        }),
       },
     );
   }
+
+  useEffect(() => {
+    function onAiProfileChange(event: Event) {
+      const profileId = (event as CustomEvent<{ profileId?: unknown }>).detail
+        ?.profileId;
+      if (typeof profileId !== "string" || profileId.length === 0) return;
+      setAiProfileId(profileId);
+      void savePreferences(theme, locale, profileId);
+    }
+    window.addEventListener("platform-ai-profile-change", onAiProfileChange);
+    return () =>
+      window.removeEventListener(
+        "platform-ai-profile-change",
+        onAiProfileChange,
+      );
+  }, [locale, theme]);
 
   const routes = context.products.flatMap((product) =>
     Object.entries(product.navigation.routes)
@@ -56,7 +103,9 @@ export function PlatformShell({
   );
 
   return (
-    <div className="platform-frame">
+    <div
+      className={`platform-frame ${isPresentationRoute ? "platform-frame-presentation" : ""}`}
+    >
       <header className="platform-header">
         <Link className="platform-brand" href={`/t/${context.tenant.slug}`}>
           <span aria-hidden="true" className="platform-brand-mark">
@@ -101,6 +150,30 @@ export function PlatformShell({
               <option value="dark">Dark</option>
             </select>
           </label>
+          {aiTargets.length > 0 ? (
+            <label>
+              <span className="platform-visually-hidden">AI model</span>
+              <select
+                aria-label="AI model"
+                onChange={(event) => {
+                  const nextProfileId = event.target.value;
+                  setAiProfileId(nextProfileId);
+                  window.localStorage.setItem(
+                    "platform.aiProfileId",
+                    nextProfileId,
+                  );
+                  void savePreferences(theme, locale, nextProfileId);
+                }}
+                value={aiProfileId}
+              >
+                {aiTargets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.label} · {target.modelId ?? target.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             <span className="platform-visually-hidden">Language</span>
             <select
