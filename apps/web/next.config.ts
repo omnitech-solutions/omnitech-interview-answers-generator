@@ -3,6 +3,13 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   distDir: process.env["NEXT_DIST_DIR"] ?? ".next",
   serverExternalPackages: ["esbuild"],
+  // The open Playground polls its control channel twice a second; logging each
+  // poll buries every other request in the terminal.
+  logging: {
+    incomingRequests: {
+      ignore: [/^\/api\/v1\/playground-control(?:[/?]|$)/],
+    },
+  },
   transpilePackages: [
     "@oc-tech/omni-ui-components",
     "@omnitech/platform-api",

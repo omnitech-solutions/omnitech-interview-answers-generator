@@ -697,13 +697,19 @@ export function Workspace({
     }
 
     void applyExternalControl();
+    // A hidden tab has nobody watching it; resume with an immediate poll.
     const interval = window.setInterval(() => {
-      void applyExternalControl();
+      if (!document.hidden) void applyExternalControl();
     }, 500);
+    const resume = () => {
+      if (!document.hidden) void applyExternalControl();
+    };
+    document.addEventListener("visibilitychange", resume);
 
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", resume);
     };
   }, []);
 
