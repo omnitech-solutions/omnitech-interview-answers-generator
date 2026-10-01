@@ -1,9 +1,9 @@
 "use client";
 
 import type { ProductPageProps } from "@omnitech/platform-contracts";
-import { AssistantPanel } from "@omni-assistant/react";
-import type { AssistantClient } from "@omni-assistant/sdk";
-import type { Origin } from "@omni-assistant/contracts";
+import { AssistantPanel } from "@omnitech-assistant/react";
+import type { AssistantClient } from "@omnitech-assistant/sdk";
+import type { Origin } from "@omnitech-assistant/contracts";
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
 import {

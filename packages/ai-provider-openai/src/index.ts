@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import {
   createOpenAIModelPort,
   createLmStudioModelPort,
-} from "@omni-assistant/providers";
+} from "@omnitech-assistant/providers";
 import type {
   AiEvent,
   AiExecution,

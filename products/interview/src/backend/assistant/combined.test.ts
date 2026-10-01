@@ -4,18 +4,18 @@ import type {
   DatabasePort,
   ModelInput,
   Proposal,
-} from "@omni-assistant/contracts";
+} from "@omnitech-assistant/contracts";
 import {
   type CoreDependencies,
   createAssistantApp,
   createProposalService,
   createRunExecutor,
-} from "@omni-assistant/server";
+} from "@omnitech-assistant/server";
 import {
   assistantMigrationUrl,
   PgBossRunQueue,
   RunRepository,
-} from "@omni-assistant/storage-postgres";
+} from "@omnitech-assistant/storage-postgres";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createInterviewAdapter, interviewPatchJsonSchema } from "./adapter.js";
 import { interviewRunVersions } from "./prompt.js";

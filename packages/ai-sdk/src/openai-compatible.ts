@@ -3,7 +3,7 @@ import {
   loopbackChatURL,
   readOpenAIChunks,
   requestLmStudio,
-} from "@omni-assistant/providers";
+} from "@omnitech-assistant/providers";
 import { AiSdkError } from "./errors.js";
 import type {
   AiGenerateInput,

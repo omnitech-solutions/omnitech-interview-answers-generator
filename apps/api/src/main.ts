@@ -12,19 +12,19 @@ import {
   type Scope,
   type ModelPort,
   type ModelInput,
-} from "@omni-assistant/contracts";
+} from "@omnitech-assistant/contracts";
 import {
   createAssistantApp,
   createAssistantWorker,
   createAttachmentService,
   ApiError,
   type CoreDependencies,
-} from "@omni-assistant/server";
+} from "@omnitech-assistant/server";
 import {
   RunRepository,
   PgBossRunQueue,
   assistantMigrationUrl,
-} from "@omni-assistant/storage-postgres";
+} from "@omnitech-assistant/storage-postgres";
 import {
   createInterviewAdapter,
   InterviewWorkspaceRepository,
@@ -42,7 +42,7 @@ import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
 // a reviewed session adapter; a missing adapter never falls back to this identity.
 if (
   process.env["NODE_ENV"] === "production" ||
-  process.env["OMNI_ASSISTANT_LOCAL_DEV"] !== "1"
+  process.env["OMNITECH_ASSISTANT_LOCAL_DEV"] !== "1"
 )
   throw new Error("Explicit non-production loopback launcher required");
 const dbPort = Number(process.env["ASSISTANT_PG_PORT"]);

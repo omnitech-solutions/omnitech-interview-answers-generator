@@ -3,7 +3,7 @@ import {
   jsonValueSchema,
   type ProductErrorStatus,
   ProductOperationError,
-} from "@omni-assistant/contracts";
+} from "@omnitech-assistant/contracts";
 import {
   generatedAnswerSchema,
   type InterviewProvenance,

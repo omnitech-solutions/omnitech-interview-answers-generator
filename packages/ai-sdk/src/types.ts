@@ -1,4 +1,4 @@
-import type { JsonSchema } from "@omni-assistant/contracts";
+import type { JsonSchema } from "@omnitech-assistant/contracts";
 import type { ZodType } from "zod";
 
 export type AiRole = "system" | "user" | "assistant";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Proposal } from "@omni-assistant/contracts";
+import type { Proposal } from "@omnitech-assistant/contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import * as implementation from "./adapter.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";

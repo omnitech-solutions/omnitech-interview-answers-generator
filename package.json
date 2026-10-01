@@ -44,12 +44,12 @@
   },
   "pnpm": {
     "overrides": {
-      "@omni-assistant/contracts": "file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
-      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
-      "@omni-assistant/server": "file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
-      "@omni-assistant/storage-postgres": "file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz",
-      "@omni-assistant/sdk": "file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz",
-      "@omni-assistant/react": "file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz"
+      "@omnitech-assistant/contracts": "file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz",
+      "@omnitech-assistant/providers": "file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz",
+      "@omnitech-assistant/server": "file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz",
+      "@omnitech-assistant/storage-postgres": "file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
+      "@omnitech-assistant/sdk": "file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
+      "@omnitech-assistant/react": "file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz"
     }
   }
 }

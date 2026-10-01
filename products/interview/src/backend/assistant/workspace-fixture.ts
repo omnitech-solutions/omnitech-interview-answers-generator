@@ -33,7 +33,7 @@ const bin = "/opt/homebrew/opt/postgresql@15/bin";
 // This fixture owns its foreground postgres PID and its mkdtemp directory only.
 // Readiness has a new bounded 10s budget; it changes no existing product policy.
 export async function disposablePostgres() {
-  const root = await mkdtemp(`${tmpdir()}/omni-assistant-pg-`);
+  const root = await mkdtemp(`${tmpdir()}/omnitech-assistant-pg-`);
   const server = createServer();
   server.listen(0, "127.0.0.1");
   await once(server, "listening");

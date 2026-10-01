@@ -49,7 +49,7 @@ async function ensureLmStudioModel(id){
 let mode=previous?.mode==='lm-studio'?'lm-studio':'fixture',modelId=mode==='lm-studio'?previous.modelId:'deterministic-local-fixture',api;
 const state=()=>({pgRoot,pgPort,postgresPid:postgres.pid,apiPid:api?.pid,launcherPid:process.pid,frontendPid:frontend?.pid,mode,modelId,url:'http://127.0.0.1:5175/t/local/p/interview'});
 async function saveState(){await writeFile(resolve(stateDirectory,'state.json'),JSON.stringify(state(),null,2));}
-function startApi(){api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:root,env:{...process.env,NODE_ENV:'development',OMNI_ASSISTANT_LOCAL_DEV:'1',ASSISTANT_PG_PORT:String(pgPort),ASSISTANT_API_PORT:'8791',ASSISTANT_MODEL_MODE:mode,ASSISTANT_MODEL_ID:modelId},stdio:['ignore','pipe','pipe']});api.stdout.pipe(process.stdout);api.stderr.pipe(process.stderr);return api;}
+function startApi(){api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:root,env:{...process.env,NODE_ENV:'development',OMNITECH_ASSISTANT_LOCAL_DEV:'1',ASSISTANT_PG_PORT:String(pgPort),ASSISTANT_API_PORT:'8791',ASSISTANT_MODEL_MODE:mode,ASSISTANT_MODEL_ID:modelId},stdio:['ignore','pipe','pipe']});api.stdout.pipe(process.stdout);api.stderr.pipe(process.stderr);return api;}
 if(mode==='lm-studio')await ensureLmStudioModel(modelId);
 let frontend;
 function startFrontend(force=false){frontend=spawn('pnpm',['--filter','@omnitech/assistant-frontend','dev','--port','5175',...(force?['--force']:[])],{cwd:root,env:{...process.env,ASSISTANT_API_ORIGIN:'http://127.0.0.1:8791'},stdio:['ignore','pipe','pipe']});frontend.stdout.pipe(process.stdout);frontend.stderr.pipe(process.stderr);return frontend;}
@@ -59,9 +59,9 @@ let stopping=false;
 async function stopChild(child){if(!child||child.exitCode!==null)return;const exited=once(child,'exit');child.kill('SIGTERM');await exited;}
 async function close(){if(stopping)return;stopping=true;await stopChild(frontend);await stopChild(api);await stopChild(postgres);process.exit(0);}
 process.once('SIGINT',()=>void close());process.once('SIGTERM',()=>void close());
-// Live omni-assistant: a change in its sources is built, copied into the
-// installed @omni-assistant/* packages, and the affected process restarts.
-// ASSISTANT_WATCH=0 turns this off; OMNI_ASSISTANT_SRC points at another checkout.
+// Live omnitech-assistant: a change in its sources is built, copied into the
+// installed @omnitech-assistant/* packages, and the affected process restarts.
+// ASSISTANT_WATCH=0 turns this off; OMNITECH_ASSISTANT_SRC points at another checkout.
 let syncing=false,resyncAgain=false,debounce,changing=false;
 async function resync(){
  if(stopping)return;

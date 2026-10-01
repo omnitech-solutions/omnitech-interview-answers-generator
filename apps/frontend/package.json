@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@omnitech/product-interview": "workspace:*",
-    "@omni-assistant/sdk": "file:../../vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz",
+    "@omnitech-assistant/sdk": "file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

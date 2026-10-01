@@ -57,9 +57,9 @@
     "remark-gfm": "^4.0.1",
     "shiki": "^4.3.1",
     "zod": "catalog:",
-    "@omni-assistant/contracts": "file:../../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
-    "@omni-assistant/sdk": "file:../../../vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz",
-    "@omni-assistant/react": "file:../../../vendor/omni-assistant/omni-assistant-react-0.1.0.tgz"
+    "@omnitech-assistant/contracts": "file:../../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz",
+    "@omnitech-assistant/sdk": "file:../../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
+    "@omnitech-assistant/react": "file:../../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",
@@ -71,7 +71,7 @@
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "@omni-assistant/server": "file:../../../vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
-    "@omni-assistant/storage-postgres": "file:../../../vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz"
+    "@omnitech-assistant/server": "file:../../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz",
+    "@omnitech-assistant/storage-postgres": "file:../../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz"
   }
 }

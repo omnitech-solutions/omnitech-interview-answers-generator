@@ -35,12 +35,12 @@ catalogs:
       version: 4.4.3
 
 overrides:
-  '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-  '@omni-assistant/providers': file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz
-  '@omni-assistant/server': file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz
-  '@omni-assistant/storage-postgres': file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
-  '@omni-assistant/sdk': file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
-  '@omni-assistant/react': file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz
+  '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+  '@omnitech-assistant/providers': file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
+  '@omnitech-assistant/server': file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+  '@omnitech-assistant/storage-postgres': file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+  '@omnitech-assistant/sdk': file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
+  '@omnitech-assistant/react': file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
 
 importers:
 
@@ -104,18 +104,18 @@ importers:
       '@hono/node-server':
         specifier: 2.1.3
         version: 2.1.3(hono@4.13.12)
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/providers':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
-      '@omni-assistant/server':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-server-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz
-      '@omni-assistant/storage-postgres':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/providers':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
+      '@omnitech-assistant/server':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+      '@omnitech-assistant/storage-postgres':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
       '@omnitech/ai-provider-openai':
         specifier: workspace:*
         version: link:../../packages/ai-provider-openai
@@ -150,9 +150,9 @@ importers:
 
   apps/frontend:
     dependencies:
-      '@omni-assistant/sdk':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
+      '@omnitech-assistant/sdk':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
       '@omnitech/product-interview':
         specifier: workspace:*
         version: link:../../products/interview
@@ -424,9 +424,9 @@ importers:
 
   packages/ai-contracts:
     dependencies:
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -466,12 +466,12 @@ importers:
 
   packages/ai-provider-openai:
     dependencies:
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/providers':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/providers':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../ai-contracts
@@ -494,9 +494,9 @@ importers:
 
   packages/ai-runtime:
     dependencies:
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../ai-contracts
@@ -510,12 +510,12 @@ importers:
 
   packages/ai-sdk:
     dependencies:
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/providers':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/providers':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
       openai:
         specifier: 7.25.0
         version: 7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.4.3)
@@ -827,15 +827,15 @@ importers:
       '@oc-tech/omni-ui-components':
         specifier: link:../../../omni-ui-components/packages/core
         version: link:../../../omni-ui-components/packages/core
-      '@omni-assistant/contracts':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/react':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-react-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz(react@19.2.8)
-      '@omni-assistant/sdk':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
+      '@omnitech-assistant/contracts':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/react':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(react@19.2.8)
+      '@omnitech-assistant/sdk':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
       '@omnitech/ai-sdk':
         specifier: workspace:*
         version: link:../../packages/ai-sdk
@@ -909,12 +909,12 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
-      '@omni-assistant/server':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-server-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz
-      '@omni-assistant/storage-postgres':
-        specifier: file:../../vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
-        version: file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
+      '@omnitech-assistant/server':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+      '@omnitech-assistant/storage-postgres':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
       '@testing-library/jest-dom':
         specifier: ^7.0.0
         version: 7.0.0(@testing-library/dom@10.4.1)
@@ -2073,35 +2073,35 @@ packages:
   '@octokit/types@16.0.0':
     resolution: {integrity: sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg==}
 
-  '@omni-assistant/contracts@file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz':
-    resolution: {integrity: sha512-lMPZvECMw2CpspUknkTdsiaCh6HBYz2Cd4LlR+FfRkfzfebYRHxdxEg7JW5h1Wd2rIV858DcYKbY8YTSwthbcg==, tarball: file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz}
+  '@omnitech-assistant/contracts@file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz':
+    resolution: {integrity: sha512-mc1fhZSojY+zjLS204HE2qz7BCZx3LMOGCICMU2xfd1mmvYTD1+Qi99T1aO2Hv0Ic4+rK8/6saLxOHNKVJKRkg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
-  '@omni-assistant/providers@file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz':
-    resolution: {integrity: sha512-Q05RiDF3JWoBFpLDhWsIcjinxxNP5nhQlvb36ip+qDJX/J0LaVkzv194CuhrqnVwfZmq0+MdChLM0Qt6BuXy/w==, tarball: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz}
+  '@omnitech-assistant/providers@file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz':
+    resolution: {integrity: sha512-I4CWH3DLoM/A+pqs/oPHGhl30GiC0vAOZ7QpHfquuEzK9NtC11iSq/iWT7PXuKY72EvdhCVpkvxrV60m65sVlQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
-  '@omni-assistant/react@file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz':
-    resolution: {integrity: sha512-Pdbii+27aco2ie6K1wOTTb+MHhg0dlpG0SCTSyFFAa6YDUNQSPa0T0Tm0MXlP/IMDxyff/rLCfeh2Zot855ndw==, tarball: file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz}
+  '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz':
+    resolution: {integrity: sha512-qmBn+QnxeBX08LJXqzkGalVw556JQpCLKwFs5UIORqRrvem0UM23gVuJ0heX42hLSnYN+lWtKx6zQwg+08QSVw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
 
-  '@omni-assistant/sdk@file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz':
-    resolution: {integrity: sha512-YGAWqQBOBILRMLDs7gLh1ktjI6nPTk2fn6LxQ7i8wURypOary4K8U5px2zgh8LFhWZ38F45XPxjHKkMGg2lcYg==, tarball: file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz}
+  '@omnitech-assistant/sdk@file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz':
+    resolution: {integrity: sha512-Qs63PXkEb4ZKQZrvWD+zwkyga+BVzqCnipPqxbUCaVveWAhAiVHfADLoVQseJg0z3OuQMx0LtUnEpmXXsPNcag==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
-  '@omni-assistant/server@file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz':
-    resolution: {integrity: sha512-6bZV4pwD7mxahPj9OmthZGnjo4PK853PENGYf/ocU0srW0vKKTxGhynpUs9TA5Nki379uquER31KwxoMOY1z7g==, tarball: file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz}
+  '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
+    resolution: {integrity: sha512-ml0L1jvH7BERDipGJL9PuOOpXSrw8EUzjTacQiNBeW4Avb5ooW4fCmEbxgZuypXAgpMYgxkf/qSBerC7ntLlOg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
-  '@omni-assistant/storage-postgres@file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz':
-    resolution: {integrity: sha512-PnLlir2SYX/O1WgqjatWPm20yyKjTVG3lMQYVsuFvWGPTxohL3wjISDabGno5Res4ZCBYgdxWl/h3NPPMASSoQ==, tarball: file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz}
+  '@omnitech-assistant/storage-postgres@file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz':
+    resolution: {integrity: sha512-kL2bXzBQHkVbdUohC0gpDweHQvHdZ9pf1WsrsDi2V+1lmsaBxAaIlM6VP1powBHHolO28b5lIcG90fPWZwnxMA==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
@@ -6159,14 +6159,14 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 27.0.0
 
-  '@omni-assistant/contracts@file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz':
+  '@omnitech-assistant/contracts@file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz':
     dependencies:
       zod: 4.6.5
 
-  '@omni-assistant/providers@file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)':
+  '@omnitech-assistant/providers@file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)':
     dependencies:
       '@anthropic-ai/sdk': 0.131.0(zod@4.6.5)
-      '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       ajv: 8.20.0
       openai: 7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.6.5)
       zod: 4.6.5
@@ -6177,21 +6177,21 @@ snapshots:
       - undici
       - ws
 
-  '@omni-assistant/react@file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz(react@19.2.8)':
+  '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(react@19.2.8)':
     dependencies:
-      '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/sdk': file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/sdk': file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
       react: 19.2.8
 
-  '@omni-assistant/sdk@file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz':
+  '@omnitech-assistant/sdk@file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz':
     dependencies:
-      '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       zod: 4.6.5
 
-  '@omni-assistant/server@file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz':
+  '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
     dependencies:
-      '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
-      '@omni-assistant/storage-postgres': file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/storage-postgres': file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
       '@opentelemetry/api': 1.9.1
       ajv: 8.20.0
       hono: 4.13.12
@@ -6200,9 +6200,9 @@ snapshots:
     transitivePeerDependencies:
       - pg-native
 
-  '@omni-assistant/storage-postgres@file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz':
+  '@omnitech-assistant/storage-postgres@file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz':
     dependencies:
-      '@omni-assistant/contracts': file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       pg: 8.23.1
       pg-boss: 12.35.1
     transitivePeerDependencies:

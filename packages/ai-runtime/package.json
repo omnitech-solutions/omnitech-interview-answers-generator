@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@omnitech/ai-contracts": "workspace:*",
-    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz"
+    "@omnitech-assistant/contracts": "file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz"
   },
   "devDependencies": {
     "typescript": "catalog:",

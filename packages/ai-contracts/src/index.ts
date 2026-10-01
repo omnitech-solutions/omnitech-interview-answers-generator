@@ -1,4 +1,4 @@
-import type { ModelInput, ModelPart } from "@omni-assistant/contracts";
+import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
 export type AiExecutionFamily = "direct-model" | "workflow" | "agent-runtime";
 export type AiModelKind = "language" | "embedding" | "image" | "multimodal";
 export type AiTaskType =

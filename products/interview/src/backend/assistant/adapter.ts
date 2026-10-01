@@ -13,7 +13,7 @@ import {
   receiptSchema,
   type Scope,
   type Transaction,
-} from "@omni-assistant/contracts";
+} from "@omnitech-assistant/contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import {
   type InterviewProvenance,

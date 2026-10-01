@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace } from "@omnitech/product-interview/frontend";
-import { createAssistantClient } from "@omni-assistant/sdk";
+import { createAssistantClient } from "@omnitech-assistant/sdk";
 import "../../web/app/styles.css";
 import "./style.css";
 function App() {

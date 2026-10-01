@@ -1,5 +1,5 @@
-import { scopeSchema } from "@omni-assistant/contracts";
-import type { ModelPort, Scope } from "@omni-assistant/contracts";
+import { scopeSchema } from "@omnitech-assistant/contracts";
+import type { ModelPort, Scope } from "@omnitech-assistant/contracts";
 import type {
   AiAccessContext,
   AiEvent,
