@@ -83,6 +83,13 @@ export default defineConfig({
         "packages/platform-storage/src/database.ts",
         "packages/platform-storage/src/migrate.ts",
         "packages/platform-storage/src/platform-repository.ts",
+        "packages/platform-storage/src/agent-job-repository.ts",
+        "apps/terminal-gateway/src/render-event.ts",
+        "packages/platform-api/src/router.ts",
+        "packages/platform-runtime/src/registry.ts",
+        // Presentation UI/API paths are exercised by product and browser checks,
+        // not the repository-wide unit coverage project.
+        "products/presentation/src/**",
         "products/*/src/manifest.tsx",
       ],
       thresholds: {

@@ -5,6 +5,7 @@ import type {
   AiExecutionRequest,
   ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+import { parseStructuredOutput } from "@omnitech/ai-contracts";
 
 export interface AnthropicAdapterOptions {
   id?: string;
@@ -29,6 +30,7 @@ export function createAnthropicModelAdapter(
 
   return {
     providerId,
+    modelId: options.model,
     capabilities: {
       streaming: true,
       structuredOutput: true,
@@ -37,26 +39,52 @@ export function createAnthropicModelAdapter(
       search: false,
     },
     async execute(request): Promise<AiExecution> {
-      const response = await client.messages.create(
-        {
-          model: options.model,
-          max_tokens: options.maxOutputTokens ?? 4096,
-          messages: toMessages(request),
-          ...(request.task.system === undefined
-            ? {}
-            : { system: request.task.system }),
-        },
-        request.signal === undefined ? {} : { signal: request.signal },
-      );
+      const create = (repair?: string) =>
+        client.messages.create(
+          {
+            model: options.model,
+            max_tokens: options.maxOutputTokens ?? 4096,
+            messages: toMessages(request),
+            ...(request.task.system === undefined && !repair
+              ? {}
+              : {
+                  system: [request.task.system, repair]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                }),
+          },
+          request.signal === undefined ? {} : { signal: request.signal },
+        );
+      let response = await create();
       const text = response.content
         .filter((block) => block.type === "text")
         .map((block) => block.text)
         .join("");
+      let structured: unknown;
+      if (request.task.type === "structured-generation") {
+        try {
+          structured = parseStructuredOutput(text, request.task.schema);
+        } catch (error) {
+          const reason =
+            error instanceof Error ? error.message : "invalid output";
+          response = await create(
+            `Your previous response was invalid: ${reason}. Return only a corrected JSON object.`,
+          );
+          const retryText = response.content
+            .filter((block) => block.type === "text")
+            .map((block) => block.text)
+            .join("");
+          structured = parseStructuredOutput(retryText, request.task.schema);
+        }
+      }
       return {
         executionId: crypto.randomUUID(),
         family: "direct-model",
         targetId: providerId,
-        result: { text, finishReason: response.stop_reason ?? "unknown" },
+        result:
+          request.task.type === "structured-generation"
+            ? structured
+            : { text, finishReason: response.stop_reason ?? "unknown" },
         usage: {
           inputTokens: response.usage.input_tokens,
           outputTokens: response.usage.output_tokens,

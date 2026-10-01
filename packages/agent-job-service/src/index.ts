@@ -38,6 +38,8 @@ export interface CreateAgentJob {
 export interface AgentJobRepository {
   create(input: CreateAgentJob): Promise<AgentJob>;
   get(tenantId: string, jobId: string): Promise<AgentJob | undefined>;
+  setResultReference(jobId: string, reference: string): Promise<void>;
+  setSessionId(jobId: string, sessionId: string): Promise<void>;
   claim(workerId: string, leaseMs: number): Promise<AgentJob | undefined>;
   transition(
     jobId: string,
@@ -47,6 +49,11 @@ export interface AgentJobRepository {
   appendEvent(jobId: string, event: AgentEvent): Promise<PersistedAgentEvent>;
   eventsAfter(jobId: string, sequence: number): Promise<PersistedAgentEvent[]>;
   requestCancellation(tenantId: string, jobId: string): Promise<boolean>;
+  requestResume(
+    tenantId: string,
+    jobId: string,
+    promptReference: string,
+  ): Promise<boolean>;
 }
 
 export class AgentJobService {
@@ -56,9 +63,25 @@ export class AgentJobService {
     return this.repository.create(input);
   }
 
+  get(tenantId: string, jobId: string): Promise<AgentJob | undefined> {
+    return this.repository.get(tenantId, jobId);
+  }
+
   async cancel(tenantId: string, jobId: string): Promise<void> {
     if (!(await this.repository.requestCancellation(tenantId, jobId))) {
       throw new Error("Agent job was not found or cannot be cancelled.");
+    }
+  }
+
+  async resume(
+    tenantId: string,
+    jobId: string,
+    promptReference: string,
+  ): Promise<void> {
+    if (
+      !(await this.repository.requestResume(tenantId, jobId, promptReference))
+    ) {
+      throw new Error("Agent job was not found or cannot be resumed.");
     }
   }
 

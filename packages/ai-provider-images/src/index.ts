@@ -33,6 +33,8 @@ export interface ImageAdapterOptions {
 }
 
 function assertSafeProviderUrl(value: string): void {
+  if (/^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value))
+    return;
   const url = new URL(value);
   if (!["https:", "http:"].includes(url.protocol)) {
     throw new Error("Image providers must return an HTTP(S) URL.");
@@ -40,7 +42,7 @@ function assertSafeProviderUrl(value: string): void {
   if (
     url.hostname === "localhost" ||
     url.hostname === "127.0.0.1" ||
-    url.hostname === "::1"
+    url.hostname === "[::1]"
   ) {
     throw new Error("Remote image providers cannot return loopback URLs.");
   }
@@ -62,7 +64,7 @@ export function createImageProviderAdapter(
       assetReference: asset.reference,
       mimeType: asset.mimeType,
       providerId: options.id,
-      modelId: options.model,
+      modelId: request.task.image?.modelId ?? options.model,
       provenance: payload.metadata ?? {},
       ...(asset.width === undefined ? {} : { width: asset.width }),
       ...(asset.height === undefined ? {} : { height: asset.height }),
@@ -112,12 +114,17 @@ export function createFakeImageProvider(
     aspectRatios: ["1:1", "16:9", "9:16"],
     supportsEditing: true,
     async generate(request, mode) {
+      const label = `${mode}:${request.task.prompt}`
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .slice(0, 200);
       const encoded = encodeURIComponent(
-        `${mode}:${request.task.prompt}`.slice(0, 200),
+        `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#312e81"/><stop offset="1" stop-color="#0f766e"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><text x="64" y="480" fill="white" font-family="sans-serif" font-size="42">${label}</text></svg>`,
       );
       return {
-        url: `https://fake.invalid/${encoded}.png`,
-        mimeType: "image/png",
+        url: `data:image/svg+xml,${encoded}`,
+        mimeType: "image/svg+xml",
         width: 1024,
         height: 1024,
         metadata: { deterministic: true },

@@ -15,7 +15,16 @@ description: Reusable package and SDK boundaries
   access.
 - `products/*` own complete product verticals: manifest, frontend, backend,
   services, and tests.
-- `ai-sdk` knows providers and AI transport, never interview semantics.
+- `ai-contracts` owns provider-neutral execution, model, image, workflow, and
+  event contracts.
+- `ai-runtime` owns profile resolution, authorization, and adapter delegation.
+- `ai-provider-*` packages own provider SDKs and request translation.
+- `ai-workflow-*` packages own LangChain and LangGraph integration.
+- `agent-runtime-*` packages own Codex and Claude SDK translation.
+- `agent-job-service` owns the durable job lifecycle; `agent-worker` owns
+  isolated execution.
+- `ai-sdk` remains a compatibility facade for migrated consumers and never
+  owns product semantics.
 - `interview-contracts` owns schemas, language routing, and answer workflows.
 - `interview-storage` owns persistence interfaces and adapters.
 - `code-runner` owns execution isolation.

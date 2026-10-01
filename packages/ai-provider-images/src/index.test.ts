@@ -44,3 +44,28 @@ describe("image provider boundary", () => {
     expect(result.assetReference).toContain("generate%3Amountain");
   });
 });
+
+it("accepts inline PNG output from OpenAI before persistence", async () => {
+  const inline = "data:image/png;base64,aGVsbG8=";
+  const adapter = createImageProviderAdapter({
+    id: "openai-image",
+    model: "test",
+    aspectRatios: ["1:1"],
+    generate: async () => ({ url: inline }),
+    persist: async (payload) => ({
+      reference: payload.url,
+      mimeType: "image/png",
+    }),
+  });
+  await expect(
+    adapter.generate({
+      context: {
+        tenantId: "tenant",
+        userId: "user",
+        productId: "product",
+        permissions: [],
+      },
+      task: { type: "image-generation", prompt: "test" },
+    }),
+  ).resolves.toMatchObject({ assetReference: inline });
+});
