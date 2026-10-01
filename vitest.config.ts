@@ -71,6 +71,8 @@ export default defineConfig({
         "**/*.test.{ts,tsx}",
         "**/*.d.ts",
         "**/benchmark.ts",
+        // Disposable PostgreSQL for tests; it is test infrastructure, not product code.
+        "products/interview/src/backend/assistant/workspace-fixture.ts",
         "packages/interview-rulesync-codex/src/cli.ts",
         "**/dist/**",
         "**/index.ts",
