@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -179,7 +179,7 @@ async function renderSettled({ openInspector = true } = {}) {
   render(<Workspace />);
   await waitFor(() => expect(fetch).toHaveBeenCalled());
   if (openInspector) {
-    screen.queryByRole("button", { name: "Show inspector" })?.click();
+    fireEvent.click(screen.getByRole("button", { name: "Show inspector" }));
     await waitFor(() =>
       expect(screen.getByRole("dialog", { name: "Inspector" })).toBeVisible(),
     );
