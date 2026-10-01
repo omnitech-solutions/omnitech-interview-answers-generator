@@ -4,6 +4,7 @@ import type {
   Slide,
   TenantContext,
 } from "../domain/index.js";
+import { exportPresentation } from "../export/index.js";
 import { PresentationRepository } from "../repositories/index.js";
 
 export class PresentationService {
@@ -15,6 +16,10 @@ export class PresentationService {
 
   get(context: TenantContext, id: string) {
     return this.repository.get(context, id);
+  }
+
+  getShared(token: string) {
+    return this.repository.getShared(token);
   }
 
   create(context: TenantContext, input: CreatePresentationInput) {
@@ -36,12 +41,38 @@ export class PresentationService {
     return this.repository.saveSlide(context, documentId, slide);
   }
 
+  deleteSlide(context: TenantContext, documentId: string, slideId: string) {
+    return this.repository.deleteSlide(context, documentId, slideId);
+  }
+
+  moveSlide(
+    context: TenantContext,
+    documentId: string,
+    slideId: string,
+    position: number,
+  ) {
+    return this.repository.moveSlide(context, documentId, slideId, position);
+  }
+
   listThemes(context: TenantContext) {
     return this.repository.listThemes(context);
   }
 
   listImages(context: TenantContext) {
     return this.repository.listImages(context);
+  }
+
+  recordGeneratedImage(
+    context: TenantContext,
+    input: {
+      assetReference: string;
+      promptReference: string;
+      providerId: string;
+      modelId: string;
+      metadata: Readonly<Record<string, unknown>>;
+    },
+  ) {
+    return this.repository.recordGeneratedImage(context, input);
   }
 
   delete(context: TenantContext, id: string) {
@@ -62,6 +93,18 @@ export class PresentationService {
       name: string;
       description: string;
       definition: Readonly<Record<string, unknown>>;
+    },
+  ) {
+    return this.repository.createTheme(context, input);
+  }
+
+  importTheme(
+    context: TenantContext,
+    input: {
+      name: string;
+      description: string;
+      definition: Readonly<Record<string, unknown>>;
+      sourceImportId?: string;
     },
   ) {
     return this.repository.createTheme(context, input);
@@ -103,6 +146,25 @@ export class PresentationService {
     );
   }
 
+  async export(
+    context: TenantContext,
+    documentId: string,
+    format: "pptx" | "pdf",
+    idempotencyKey: string,
+  ) {
+    const exportId = await this.repository.requestExport(
+      context,
+      documentId,
+      format,
+      idempotencyKey,
+    );
+    const document = await this.repository.get(context, documentId);
+    if (!document) throw new Error("Presentation not found.");
+    const assetReference = await exportPresentation(document, format);
+    await this.repository.completeExport(context, exportId, assetReference);
+    return { id: exportId, assetReference };
+  }
+
   saveRecording(
     context: TenantContext,
     documentId: string,
@@ -115,5 +177,9 @@ export class PresentationService {
       assetReference,
       metadata,
     );
+  }
+
+  listRecordings(context: TenantContext, documentId: string) {
+    return this.repository.listRecordings(context, documentId);
   }
 }

@@ -46,10 +46,23 @@ export interface GeneratedImage {
   createdAt: string;
 }
 
+export interface PresentationRecording {
+  id: string;
+  assetReference: string;
+  metadata: Readonly<Record<string, unknown>>;
+  createdAt: string;
+}
+
+export interface PresentationShare {
+  id: string;
+  token: string;
+}
+
 export interface CreatePresentationInput {
   title: string;
   outline?: readonly string[];
   themeId?: string;
+  settings?: Readonly<Record<string, unknown>>;
   idempotencyKey: string;
 }
 
