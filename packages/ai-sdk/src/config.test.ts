@@ -13,7 +13,11 @@ vi.mock("./openai-compatible.js", () => ({
   createOpenAiCompatibleProvider,
 }));
 
-const { createAiClientFromEnv } = await import("./config.js");
+const {
+  createAiClientFromEnv,
+  resolveDefaultLanguageModel,
+  resolveLanguageModels,
+} = await import("./config.js");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -78,6 +82,74 @@ describe("createAiClientFromEnv", () => {
         apiKey: "secret",
         timeoutMs: 5000,
       }),
+    );
+  });
+});
+
+describe("resolveLanguageModels", () => {
+  it("is the single place every consumer reads its model settings from", () => {
+    const environment = {
+      AI_BASE_URL: "http://localhost:1234/v1",
+      AI_MODEL: "qwen",
+      AI_API_KEY: "key",
+      AI_TIMEOUT_MS: "9000",
+    };
+    const [resolved] = resolveLanguageModels(environment);
+    expect(resolved).toEqual({
+      id: "lm-studio",
+      label: "LM Studio",
+      baseUrl: "http://localhost:1234/v1",
+      model: "qwen",
+      apiKey: "key",
+      timeoutMs: 9000,
+    });
+    // The client built from the same environment uses exactly those settings.
+    createAiClientFromEnv(environment);
+    expect(createOpenAiCompatibleProvider).toHaveBeenCalledWith({
+      id: resolved?.id,
+      label: resolved?.label,
+      baseUrl: resolved?.baseUrl,
+      model: resolved?.model,
+      apiKey: resolved?.apiKey,
+      timeoutMs: resolved?.timeoutMs,
+    });
+  });
+
+  it("orders endpoints AI_*, OpenAI, LM Studio and lets a default override the order", () => {
+    const environment = {
+      LM_STUDIO_MODEL: "qwen",
+      OPENAI_MODEL: "gpt-5-mini",
+    };
+    expect(resolveLanguageModels(environment).map(({ id }) => id)).toEqual([
+      "openai",
+      "lm-studio",
+    ]);
+    expect(resolveDefaultLanguageModel(environment).id).toBe("openai");
+    expect(
+      resolveDefaultLanguageModel({
+        ...environment,
+        AI_DEFAULT_PROVIDER_ID: "lm-studio",
+      }).id,
+    ).toBe("lm-studio");
+    expect(
+      resolveDefaultLanguageModel({
+        ...environment,
+        AI_DEFAULT_PROVIDER_ID: "nope",
+      }).id,
+    ).toBe("openai");
+  });
+
+  it("uses the default OpenAI model when only a key is set, and nothing otherwise", () => {
+    expect(resolveLanguageModels({ OPENAI_API_KEY: "k" })).toMatchObject([
+      {
+        id: "openai",
+        model: "gpt-5-mini",
+        baseUrl: "https://api.openai.com/v1",
+      },
+    ]);
+    expect(resolveLanguageModels({})).toEqual([]);
+    expect(() => resolveDefaultLanguageModel({})).toThrow(
+      "Configure AI_BASE_URL and AI_MODEL",
     );
   });
 });

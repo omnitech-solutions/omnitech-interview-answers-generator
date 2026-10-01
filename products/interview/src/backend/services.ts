@@ -20,7 +20,7 @@ import {
   JsonExplanationRepository,
   JsonLibraryRepository,
 } from "@omnitech/interview-storage";
-import { LibraryService } from "./library-service";
+import { LibraryService } from "./library-service.js";
 
 const dataDirectory =
   process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data");

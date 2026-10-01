@@ -13,6 +13,7 @@ import {
   createTogetherImageProvider,
 } from "@omnitech/ai-provider-images";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
+import { AiSdkError, resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
 import {
   type AgentExecutionPort,
   type AiProfile,
@@ -138,36 +139,27 @@ async function readImageResponse(response: Response, provider: string) {
 
 export function createPlatformAiGateway() {
   const modelAdapters = [];
-  const defaultBaseUrl =
-    process.env["OPENAI_BASE_URL"] ?? "https://api.openai.com/v1";
-  const languageTargetId = process.env["OPENAI_API_KEY"]
-    ? "openai"
-    : process.env["LM_STUDIO_BASE_URL"]
-      ? "lm-studio"
-      : "local";
-  if (languageTargetId === "openai") {
+  // The same model settings the interview API and the assistant use.
+  const language = (() => {
+    try {
+      return resolveDefaultLanguageModel();
+    } catch (error) {
+      // Nothing configured: the gateway falls back to the local draft model.
+      if (error instanceof AiSdkError && error.code === "configuration")
+        return null;
+      throw error;
+    }
+  })();
+  const languageTargetId = language?.id ?? "local";
+  if (language) {
     modelAdapters.push(
       createOpenAiModelAdapter({
-        id: "openai",
-        label: "OpenAI",
-        model: process.env["OPENAI_MODEL"] ?? "gpt-5-mini",
-        baseUrl: defaultBaseUrl,
-        ...(process.env["OPENAI_API_KEY"]
-          ? { apiKey: process.env["OPENAI_API_KEY"] }
-          : {}),
-      }),
-    );
-  } else if (languageTargetId === "lm-studio") {
-    modelAdapters.push(
-      createOpenAiModelAdapter({
-        id: "lm-studio",
-        label: "LM Studio",
-        model: process.env["LM_STUDIO_MODEL"] ?? "local-model",
-        baseUrl:
-          process.env["LM_STUDIO_BASE_URL"] ?? "http://127.0.0.1:1234/v1",
-        ...(process.env["LM_STUDIO_API_KEY"]
-          ? { apiKey: process.env["LM_STUDIO_API_KEY"] }
-          : {}),
+        id: language.id,
+        label: language.label,
+        model: language.model,
+        baseUrl: language.baseUrl,
+        timeoutMs: language.timeoutMs,
+        ...(language.apiKey ? { apiKey: language.apiKey } : {}),
       }),
     );
   } else {

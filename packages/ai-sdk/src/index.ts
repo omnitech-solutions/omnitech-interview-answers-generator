@@ -1,5 +1,10 @@
 export { createAiClient } from "./client.js";
-export { createAiClientFromEnv } from "./config.js";
+export {
+  createAiClientFromEnv,
+  type ResolvedLanguageModel,
+  resolveDefaultLanguageModel,
+  resolveLanguageModels,
+} from "./config.js";
 export { AiSdkError, type AiSdkErrorCode } from "./errors.js";
 export { createOpenAiCompatibleProvider } from "./openai-compatible.js";
 export type {

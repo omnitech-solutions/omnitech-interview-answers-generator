@@ -32,7 +32,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("esbuild", () => ({ build: mocks.build }));
-vi.mock("@omnitech/ai-sdk", () => ({
+vi.mock("@omnitech/ai-sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@omnitech/ai-sdk")>()),
   createAiClientFromEnv: mocks.createAiClientFromEnv,
 }));
 vi.mock("./services", () => ({
@@ -74,6 +75,7 @@ vi.mock("./services", () => ({
   },
 }));
 
+import { AiSdkError } from "@omnitech/ai-sdk";
 import { createApi } from "./api";
 
 const generatedAnswer = {
@@ -366,6 +368,50 @@ describe("web API", () => {
         })
       ).status,
     ).toBe(200);
+  });
+
+  it("tells the user when no AI model is configured, without exposing provider errors", async () => {
+    const app = createApi();
+    mocks.generateInterviewAnswer.mockRejectedValueOnce(
+      new AiSdkError(
+        "configuration",
+        "Configure AI_BASE_URL and AI_MODEL, OPENAI_MODEL, or LM_STUDIO_MODEL.",
+      ),
+    );
+    const answer = await app.request(
+      "http://localhost/api/v1/generate",
+      jsonRequest("POST", { question: "Build a counter", language: "react" }),
+    );
+    expect(answer.status).toBe(503);
+    expect(await responseJson(answer)).toMatchObject({
+      error: {
+        code: "ai_not_configured",
+        message:
+          "Configure AI_BASE_URL and AI_MODEL, OPENAI_MODEL, or LM_STUDIO_MODEL.",
+      },
+    });
+    mocks.generateExplanation.mockRejectedValueOnce(
+      new AiSdkError("configuration", "Configure LM_STUDIO_MODEL."),
+    );
+    const explanation = await app.request(
+      "http://localhost/api/v1/explain",
+      jsonRequest("POST", { topic: "React" }),
+    );
+    expect(explanation.status).toBe(503);
+    expect(await responseJson(explanation)).toMatchObject({
+      error: { code: "ai_not_configured" },
+    });
+    // Any other failure still reveals nothing about the provider.
+    mocks.generateInterviewAnswer.mockRejectedValueOnce(
+      new AiSdkError("provider_failure", "key sk-secret rejected"),
+    );
+    const other = await app.request(
+      "http://localhost/api/v1/generate",
+      jsonRequest("POST", { question: "Build a counter", language: "react" }),
+    );
+    expect(JSON.stringify(await responseJson(other))).not.toContain(
+      "sk-secret",
+    );
   });
 
   it("validates explanation requests and maps provider failures", async () => {

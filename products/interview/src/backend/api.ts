@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { createAiClientFromEnv } from "@omnitech/ai-sdk";
+import { AiSdkError, createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
   explanationRequestSchema,
   generateRequestSchema,
@@ -25,8 +25,8 @@ import {
 import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
-import { LibraryIndexUnavailableError } from "./library-service";
-import { playgroundControlStore } from "./workspace-control";
+import { LibraryIndexUnavailableError } from "./library-service.js";
+import { playgroundControlStore } from "./workspace-control.js";
 import {
   answerRepository,
   codeRunner,
@@ -35,7 +35,7 @@ import {
   generateInterviewAnswer,
   libraryRepository,
   libraryService,
-} from "./services";
+} from "./services.js";
 
 type ApiEnvironment = {
   Variables: {
@@ -121,6 +121,19 @@ async function authenticate(context: Context<ApiEnvironment>, next: Next) {
     );
   }
   await next();
+}
+
+// A missing model is the user's to fix, so say how. Every other provider failure
+// stays generic: provider messages can carry endpoints, keys or prompts.
+function generationFailure(context: Context, error: unknown, what: string) {
+  if (error instanceof AiSdkError && error.code === "configuration")
+    return apiError(context, 503, "ai_not_configured", error.message);
+  return apiError(
+    context,
+    503,
+    "generation_failed",
+    `The configured AI provider could not generate ${what}.`,
+  );
 }
 
 export function createApi() {
@@ -425,12 +438,7 @@ console.log(solve([1, 2, 3]));`,
         requestId: context.get("requestId"),
         error: error instanceof Error ? error.message : String(error),
       });
-      return apiError(
-        context,
-        503,
-        "generation_failed",
-        "The configured AI provider could not generate an answer.",
-      );
+      return generationFailure(context, error, "an answer");
     }
   });
 
@@ -452,12 +460,7 @@ console.log(solve([1, 2, 3]));`,
         requestId: context.get("requestId"),
         error: error instanceof Error ? error.message : String(error),
       });
-      return apiError(
-        context,
-        503,
-        "generation_failed",
-        "The configured AI provider could not generate an explanation.",
-      );
+      return generationFailure(context, error, "an explanation");
     }
   });
 
