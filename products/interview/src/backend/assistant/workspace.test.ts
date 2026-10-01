@@ -15,6 +15,12 @@ beforeAll(async () => {
       import.meta.url,
     ),
   );
+  await pg.migrate(
+    new URL(
+      "../../../../../packages/platform-storage/migrations/0005_assistant_provenance.sql",
+      import.meta.url,
+    ),
+  );
   repo = new workspace.InterviewWorkspaceRepository(pg.database);
 });
 afterAll(async () => {

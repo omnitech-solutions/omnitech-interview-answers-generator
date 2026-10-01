@@ -1,5 +1,15 @@
-import { createHash } from "node:crypto";
-import { generatedAnswerSchema } from "@omnitech/interview-contracts";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  jsonValueSchema,
+  type ProductErrorStatus,
+  ProductOperationError,
+} from "@omni-assistant/contracts";
+import {
+  generatedAnswerSchema,
+  type InterviewProvenance,
+  interviewMetricSchema,
+  interviewProvenanceSchema,
+} from "@omnitech/interview-contracts";
 import { z } from "zod";
 
 // Structural host ports: compatible with the portable package's built exports,
@@ -58,6 +68,7 @@ const evidenceSchema = z.strictObject({
   sourceKind: z.enum(["candidate", "technical-reference"]),
   classification: z.enum(["public", "internal", "confidential", "restricted"]),
   audience: z.array(id).min(1).max(64),
+  metrics: z.array(interviewMetricSchema).max(128).optional(),
 });
 export type WorkspaceScope = Readonly<z.infer<typeof scopeSchema>>;
 export type WorkspaceOrigin = Readonly<z.infer<typeof originSchema>>;
@@ -74,6 +85,7 @@ export type WorkspaceDraftRecord = Readonly<{
   origin: WorkspaceOrigin;
   value: InterviewDraft;
   updatedAt: string;
+  provenance: InterviewProvenance | null;
 }>;
 export type AnswerRevisionRecord = Readonly<{
   workspaceId: string;
@@ -82,10 +94,27 @@ export type AnswerRevisionRecord = Readonly<{
   draftRevision: number;
   value: InterviewDraft;
   createdAt: string;
+  provenance: InterviewProvenance | null;
 }>;
-export class WorkspaceError extends Error {
-  constructor(readonly code: string) {
-    super(code);
+export class WorkspaceError extends ProductOperationError {
+  constructor(code: string) {
+    const status: ProductErrorStatus =
+      code === "not-found"
+        ? 404
+        : code === "evidence-forbidden"
+          ? 403
+          : code === "runner-unavailable"
+            ? 501
+            : [
+                  "revision-conflict",
+                  "idempotency-conflict",
+                  "effect-interrupted",
+                  "effect-conflict",
+                  "evidence-revision-conflict",
+                ].includes(code)
+              ? 409
+              : 400;
+    super(code, status);
   }
 }
 const where = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
@@ -104,6 +133,9 @@ const draft = (row: Record<string, unknown>): WorkspaceDraftRecord => ({
   }),
   value: interviewDraftSchema.parse(row["value"]),
   updatedAt: timestamp(row["updated_at"]),
+  provenance: row["provenance"]
+    ? interviewProvenanceSchema.parse(row["provenance"])
+    : null,
 });
 const source = (row: Record<string, unknown>): InterviewEvidence =>
   evidenceSchema.parse({
@@ -115,8 +147,25 @@ const source = (row: Record<string, unknown>): InterviewEvidence =>
     sourceKind: row["source_kind"],
     classification: row["classification"],
     audience: row["audience"],
+    ...(Array.isArray(row["metrics"]) && row["metrics"].length
+      ? { metrics: row["metrics"] }
+      : {}),
   });
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value))
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  if (value && typeof value === "object")
+    return (
+      "{" +
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => JSON.stringify(key) + ":" + canonicalJson(item))
+        .join(",") +
+      "}"
+    );
+  return JSON.stringify(value);
+}
 export class InterviewWorkspaceRepository {
   constructor(private readonly database: WorkspaceDatabasePort) {}
   private async bind(tx: WorkspaceTransaction, scope: WorkspaceScope) {
@@ -125,7 +174,7 @@ export class InterviewWorkspaceRepository {
       [scope.actorId, scope.productId],
     );
   }
-  private transaction<T>(
+  transaction<T>(
     scope: WorkspaceScope,
     fn: (tx: WorkspaceTransaction, scope: WorkspaceScope) => Promise<T>,
   ): Promise<T> {
@@ -168,15 +217,29 @@ export class InterviewWorkspaceRepository {
   ): Promise<WorkspaceDraftRecord> {
     workspaceId = id.parse(workspaceId);
     artifactId = id.parse(artifactId);
-    return this.transaction(scope, async (tx, scope) => {
-      const [row] = await tx.query(
-        `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5`,
-        [...values(scope), workspaceId, artifactId],
-      );
-      if (!row) throw new WorkspaceError("not-found");
-      return draft(row);
-    });
+    return this.transaction(scope, (tx, scope) =>
+      this.readTransaction(tx, scope, workspaceId, artifactId),
+    );
   }
+  async readTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    workspaceId: string,
+    artifactId: string,
+    lock = false,
+  ): Promise<WorkspaceDraftRecord> {
+    scope = scopeSchema.parse(scope);
+    workspaceId = id.parse(workspaceId);
+    artifactId = id.parse(artifactId);
+    await this.bind(tx, scope);
+    const [row] = await tx.query(
+      `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5${lock ? " FOR UPDATE" : ""}`,
+      [...values(scope), workspaceId, artifactId],
+    );
+    if (!row) throw new WorkspaceError("not-found");
+    return draft(row);
+  }
+
   async edit(
     scope: WorkspaceScope,
     origin: WorkspaceOrigin,
@@ -210,13 +273,14 @@ export class InterviewWorkspaceRepository {
       ...validated,
     });
     const [updated] = await tx.query(
-      `UPDATE interview.assistant_drafts SET value=$7::jsonb,revision=revision+1,updated_at=now() WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING *`,
+      `UPDATE interview.assistant_drafts SET value=$7::jsonb,revision=revision+1,updated_at=now(),provenance=CASE WHEN $8::boolean THEN NULL WHEN provenance IS NOT NULL THEN jsonb_set(provenance,'{draftRevision}',to_jsonb(revision+1)) ELSE NULL END WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING *`,
       [
         ...values(scope),
         origin.workspaceId,
         origin.artifactId,
         origin.artifactRevision,
         JSON.stringify(value),
+        validated.answer !== undefined || validated.question !== undefined,
       ],
     );
     if (!updated) throw new WorkspaceError("revision-conflict");
@@ -225,35 +289,62 @@ export class InterviewWorkspaceRepository {
   async save(
     scope: WorkspaceScope,
     origin: WorkspaceOrigin,
+    requestId: string = randomUUID(),
   ): Promise<AnswerRevisionRecord> {
+    return this.transaction(scope, (tx, scope) =>
+      this.saveTransaction(tx, scope, origin, requestId),
+    );
+  }
+  async saveTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    origin: WorkspaceOrigin,
+    requestId: string,
+  ): Promise<AnswerRevisionRecord> {
+    scope = scopeSchema.parse(scope);
     origin = originSchema.parse(origin);
-    return this.transaction(scope, async (tx, scope) => {
-      const [row] = await tx.query(
-        `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
-        [...values(scope), origin.workspaceId, origin.artifactId],
-      );
-      if (!row) throw new WorkspaceError("not-found");
-      if (Number(row["revision"]) !== origin.artifactRevision)
-        throw new WorkspaceError("revision-conflict");
-      const value = interviewDraftSchema.parse(row["value"]);
-      if (!value.answer) throw new WorkspaceError("answer-required");
-      const [counter] = await tx.query(
-        `UPDATE interview.assistant_drafts SET saved_revision=saved_revision+1 WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING saved_revision`,
-        [...values(scope), origin.workspaceId, origin.artifactId],
-      );
-      const [saved] = await tx.query(
-        "INSERT INTO interview.assistant_answer_revisions (tenant_id,actor_id,product_id,workspace_id,artifact_id,saved_revision,draft_revision,value) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING *",
-        [
-          ...values(scope),
-          origin.workspaceId,
-          origin.artifactId,
-          counter!["saved_revision"],
-          origin.artifactRevision,
-          JSON.stringify(value),
-        ],
-      );
-      return this.answerRevision(saved!);
-    });
+    requestId = id.parse(requestId);
+    await this.bind(tx, scope);
+    const effect = await this.beginEffectTransaction(
+      tx,
+      scope,
+      "save",
+      requestId,
+      origin,
+    );
+    if (!effect.fresh) {
+      if (effect.state !== "completed")
+        throw new WorkspaceError("effect-interrupted");
+      return effect.result as AnswerRevisionRecord;
+    }
+    const [row] = await tx.query(
+      `SELECT * FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
+      [...values(scope), origin.workspaceId, origin.artifactId],
+    );
+    if (!row) throw new WorkspaceError("not-found");
+    if (Number(row["revision"]) !== origin.artifactRevision)
+      throw new WorkspaceError("revision-conflict");
+    const value = interviewDraftSchema.parse(row["value"]);
+    if (!value.answer) throw new WorkspaceError("answer-required");
+    const [counter] = await tx.query(
+      `UPDATE interview.assistant_drafts SET saved_revision=saved_revision+1 WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING saved_revision`,
+      [...values(scope), origin.workspaceId, origin.artifactId],
+    );
+    const [saved] = await tx.query(
+      "INSERT INTO interview.assistant_answer_revisions (tenant_id,actor_id,product_id,workspace_id,artifact_id,saved_revision,draft_revision,value,provenance) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb) RETURNING *",
+      [
+        ...values(scope),
+        origin.workspaceId,
+        origin.artifactId,
+        counter!["saved_revision"],
+        origin.artifactRevision,
+        JSON.stringify(value),
+        JSON.stringify(row["provenance"] ?? null),
+      ],
+    );
+    const result = this.answerRevision(saved!);
+    await this.completeEffectTransaction(tx, scope, "save", requestId, result);
+    return result;
   }
   private answerRevision(row: Record<string, unknown>): AnswerRevisionRecord {
     return {
@@ -263,6 +354,9 @@ export class InterviewWorkspaceRepository {
       draftRevision: Number(row["draft_revision"]),
       value: interviewDraftSchema.parse(row["value"]),
       createdAt: timestamp(row["created_at"]),
+      provenance: row["provenance"]
+        ? interviewProvenanceSchema.parse(row["provenance"])
+        : null,
     };
   }
   async readAnswerRevision(
@@ -294,8 +388,9 @@ export class InterviewWorkspaceRepository {
     )
       throw new WorkspaceError("evidence-hash-conflict");
     await this.transaction(scope, async (tx, scope) => {
+      await this.lockEvidence(tx, scope, validated.id);
       await tx.query(
-        "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience,metrics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
         [
           ...values(scope),
           validated.id,
@@ -306,6 +401,7 @@ export class InterviewWorkspaceRepository {
           validated.sourceKind,
           validated.classification,
           validated.audience,
+          JSON.stringify(validated.metrics ?? []),
         ],
       );
     });
@@ -317,16 +413,198 @@ export class InterviewWorkspaceRepository {
   ): Promise<InterviewEvidence> {
     evidenceId = id.parse(evidenceId);
     revision.parse(evidenceRevision);
-    return this.transaction(scope, async (tx, scope) => {
-      const [row] = await tx.query(
-        `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision=$5`,
-        [...values(scope), evidenceId, evidenceRevision],
+    return this.transaction(scope, (tx, scope) =>
+      this.readEvidenceTransaction(tx, scope, evidenceId, evidenceRevision),
+    );
+  }
+  private async lockEvidence(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    evidenceId: string,
+  ): Promise<void> {
+    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+      JSON.stringify([...values(scope), "evidence", evidenceId]),
+    ]);
+  }
+  async readEvidenceTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    evidenceId: string,
+    evidenceRevision: number,
+    currentOnly = true,
+  ): Promise<InterviewEvidence> {
+    scope = scopeSchema.parse(scope);
+    evidenceId = id.parse(evidenceId);
+    revision.parse(evidenceRevision);
+    await this.bind(tx, scope);
+    await this.lockEvidence(tx, scope, evidenceId);
+    const [row] = await tx.query(
+      `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision=$5`,
+      [...values(scope), evidenceId, evidenceRevision],
+    );
+    if (!row) throw new WorkspaceError("not-found");
+    const evidence = source(row);
+    if (!evidence.audience.includes(scope.actorId))
+      throw new WorkspaceError("evidence-forbidden");
+    const newer = await tx.query(
+      `SELECT revision FROM interview.assistant_evidence WHERE ${where} AND id=$4 AND revision>$5 LIMIT 1`,
+      [...values(scope), evidenceId, evidenceRevision],
+    );
+    if (currentOnly && newer.length)
+      throw new WorkspaceError("evidence-revision-conflict");
+    return evidence;
+  }
+  async latestEvidenceTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    evidenceId: string,
+  ): Promise<InterviewEvidence> {
+    scope = scopeSchema.parse(scope);
+    evidenceId = id.parse(evidenceId);
+    await this.bind(tx, scope);
+    await this.lockEvidence(tx, scope, evidenceId);
+    const [row] = await tx.query(
+      `SELECT * FROM interview.assistant_evidence WHERE ${where} AND id=$4 ORDER BY revision DESC LIMIT 1`,
+      [...values(scope), evidenceId],
+    );
+    if (!row) throw new WorkspaceError("not-found");
+    const evidence = source(row);
+    if (!evidence.audience.includes(scope.actorId))
+      throw new WorkspaceError("evidence-forbidden");
+    return evidence;
+  }
+  async evidenceTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    query?: string,
+  ): Promise<readonly InterviewEvidence[]> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
+    const rows = await tx.query(
+      `SELECT * FROM interview.assistant_evidence e WHERE ${where} AND $2=ANY(audience) AND ($4::text IS NULL OR to_tsvector('english',text) @@ plainto_tsquery('english',$4)) AND NOT EXISTS (SELECT 1 FROM interview.assistant_evidence newer WHERE (newer.tenant_id,newer.actor_id,newer.product_id,newer.id)=(e.tenant_id,e.actor_id,e.product_id,e.id) AND newer.revision>e.revision) ORDER BY id LIMIT 64`,
+      [...values(scope), query ?? null],
+    );
+    return rows.map(source);
+  }
+  async setProvenanceTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    origin: WorkspaceOrigin,
+    provenance: InterviewProvenance,
+  ): Promise<void> {
+    scope = scopeSchema.parse(scope);
+    origin = originSchema.parse(origin);
+    provenance = interviewProvenanceSchema.parse(provenance);
+    await this.bind(tx, scope);
+    if (provenance.draftRevision !== origin.artifactRevision)
+      throw new WorkspaceError("revision-conflict");
+    const rows = await tx.query(
+      `UPDATE interview.assistant_drafts SET provenance=$7::jsonb WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING revision`,
+      [
+        ...values(scope),
+        origin.workspaceId,
+        origin.artifactId,
+        origin.artifactRevision,
+        JSON.stringify(provenance),
+      ],
+    );
+    if (!rows.length) throw new WorkspaceError("revision-conflict");
+  }
+  async beginEffectTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    operation: "save" | "run-code",
+    requestId: string,
+    payload: unknown,
+  ) {
+    scope = scopeSchema.parse(scope);
+    requestId = id.parse(requestId);
+    await this.bind(tx, scope);
+    jsonValueSchema.parse(payload);
+    const encoded = canonicalJson(payload);
+    const fingerprint = createHash("sha256").update(encoded).digest("hex");
+    const existing = await this.readEffectTransaction(
+      tx,
+      scope,
+      operation,
+      requestId,
+    );
+    if (existing) {
+      if (existing.fingerprint !== fingerprint)
+        throw new WorkspaceError("idempotency-conflict");
+      return { fresh: false, ...existing };
+    }
+    const receiptId = randomUUID();
+    await tx.query(
+      "INSERT INTO interview.assistant_effect_receipts(tenant_id,actor_id,product_id,operation,request_id,id,fingerprint,payload,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'started')",
+      [...values(scope), operation, requestId, receiptId, fingerprint, encoded],
+    );
+    return {
+      fresh: true,
+      id: receiptId,
+      state: "started",
+      result: null,
+      payload,
+    };
+  }
+  async readEffectTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    operation: "save" | "run-code",
+    requestId: string,
+  ) {
+    scope = scopeSchema.parse(scope);
+    requestId = id.parse(requestId);
+    await this.bind(tx, scope);
+    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+      JSON.stringify([...values(scope), operation, requestId]),
+    ]);
+    const [row] = await tx.query(
+      `SELECT * FROM interview.assistant_effect_receipts WHERE ${where} AND operation=$4 AND request_id=$5 FOR UPDATE`,
+      [...values(scope), operation, requestId],
+    );
+    if (!row) return null;
+    jsonValueSchema.parse(row["payload"]);
+    const fingerprint = createHash("sha256")
+      .update(canonicalJson(row["payload"]))
+      .digest("hex");
+    if (fingerprint !== row["fingerprint"])
+      throw new WorkspaceError("effect-fingerprint-conflict");
+    return {
+      id: String(row["id"]),
+      state: String(row["state"]),
+      result: row["result"],
+      payload: row["payload"],
+      fingerprint,
+    };
+  }
+  async completeEffectTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    operation: "save" | "run-code",
+    requestId: string,
+    result: unknown,
+  ): Promise<void> {
+    scope = scopeSchema.parse(scope);
+    requestId = id.parse(requestId);
+    await this.bind(tx, scope);
+    jsonValueSchema.parse(result);
+    const rows = await tx.query(
+      `UPDATE interview.assistant_effect_receipts SET state='completed',result=$6::jsonb,updated_at=now() WHERE ${where} AND operation=$4 AND request_id=$5 AND state='started' RETURNING id`,
+      [...values(scope), operation, requestId, JSON.stringify(result)],
+    );
+    if (!rows.length) throw new WorkspaceError("effect-conflict");
+  }
+  async interruptEffect(
+    scope: WorkspaceScope,
+    requestId: string,
+  ): Promise<void> {
+    requestId = id.parse(requestId);
+    await this.transaction(scope, async (tx, scope) => {
+      await tx.query(
+        `UPDATE interview.assistant_effect_receipts SET state='interrupted',updated_at=now() WHERE ${where} AND operation='run-code' AND request_id=$4 AND state='started'`,
+        [...values(scope), requestId],
       );
-      if (!row) throw new WorkspaceError("not-found");
-      const evidence = source(row);
-      if (!evidence.audience.includes(scope.actorId))
-        throw new WorkspaceError("evidence-forbidden");
-      return evidence;
     });
   }
   async searchEvidence(

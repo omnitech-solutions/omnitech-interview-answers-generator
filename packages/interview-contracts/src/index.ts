@@ -1,9 +1,17 @@
+export {
+  type InterviewClaim,
+  type InterviewProvenance,
+  interviewClaimSchema,
+  interviewClaimsSchema,
+  interviewMetricSchema,
+  interviewProvenanceSchema,
+} from "./assistant.js";
 export { routeQuestion } from "./routing.js";
 export type {
   ApiError,
   ExplanationRequest,
-  GeneratedExplanation,
   GeneratedAnswer,
+  GeneratedExplanation,
   GenerateRequest,
   Language,
   LanguageSelection,
@@ -22,9 +30,9 @@ export type {
   RunRequest,
   RunResult,
   SaveAnswerRequest,
-  SaveExplanationRequest,
   SavedAnswer,
   SavedExplanation,
+  SaveExplanationRequest,
   SyntaxCheckRequest,
 } from "./schemas.js";
 export {
@@ -50,9 +58,9 @@ export {
   runRequestSchema,
   runResultSchema,
   saveAnswerRequestSchema,
-  saveExplanationRequestSchema,
   savedAnswerSchema,
   savedExplanationSchema,
+  saveExplanationRequestSchema,
   syntaxCheckRequestSchema,
 } from "./schemas.js";
 export {

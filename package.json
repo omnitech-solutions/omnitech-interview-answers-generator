@@ -38,7 +38,9 @@
     ],
     "overrides": {
       "@omni-assistant/contracts": "file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
-      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz"
+      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
+      "@omni-assistant/server": "file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
+      "@omni-assistant/storage-postgres": "file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz"
     }
   },
   "devDependencies": {
