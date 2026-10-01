@@ -41,6 +41,28 @@ export async function permitted(
   )
     throw new WorkspaceError("reference-unverified");
 }
+// Complete numeric/unit tokens, including signs, decimals and grouped values.
+// Malformed numeric forms are retained with NaN, never accepted as a suffix.
+function metricTokens(text: string, extraUnits: readonly string[]) {
+  const units = [
+    ...new Set(["%", "percent", "ms", "users", "requests", ...extraUnits]),
+  ]
+    .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
+    .map((unit) => unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const token = new RegExp(
+    String.raw`(?<![\p{L}\p{N}_.+,-])([+-]?(?:\d[\d.,]*|\.\d+)(?:[eE][+-]?\d+)?)\s*(${units.join("|")})(?![\p{L}\p{N}_])`,
+    "gu",
+  );
+  return [...text.matchAll(token)].map((match) => ({
+    value:
+      /^[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(
+        match[1]!,
+      )
+        ? Number(match[1]!.replaceAll(",", ""))
+        : Number.NaN,
+    unit: match[2]!,
+  }));
+}
 // Bounded structural checks, not a general truth/entailment detector. A trusted
 // ingestion action supplies candidate metrics; no model-minted verification.
 export function validateClaims(
@@ -49,10 +71,16 @@ export function validateClaims(
   sources: ReadonlyMap<string, InterviewEvidence>,
 ): void {
   if (!claims.length) throw new WorkspaceError("missing-citation");
+  const units = [
+    ...[...sources.values()].flatMap(
+      (source) => source.metrics?.map((metric) => metric.unit) ?? [],
+    ),
+    ...claims.flatMap((claim) => (claim.metric ? [claim.metric.unit] : [])),
+  ];
   for (const claim of claims) {
     if (
       claim.kind === "candidate-fact" &&
-      /\b\d+(?:\.\d+)?\s*(?:%|percent|ms|users|requests)/.test(claim.text)
+      metricTokens(claim.text, units).length > 0
     )
       throw new WorkspaceError("unsupported-metric");
     if (claim.kind === "technical" && /\b(?:I|my|we|our)\b/i.test(claim.text))
@@ -81,10 +109,14 @@ export function validateClaims(
           )
         )
           throw new WorkspaceError("unsupported-metric");
-        const literal = `${claim.metric.value}${claim.metric.unit}`;
+        const generated = metricTokens(claim.text, units);
+        const matches = (token: { value: number; unit: string }) =>
+          token.value === claim.metric!.value &&
+          token.unit === claim.metric!.unit;
         if (
-          !claim.text.replace(/\s+/g, "").includes(literal) ||
-          !citation.quote.replace(/\s+/g, "").includes(literal)
+          !generated.length ||
+          !generated.every(matches) ||
+          !metricTokens(citation.quote, units).some(matches)
         )
           throw new WorkspaceError("unsupported-metric");
       } else if (claim.metric) throw new WorkspaceError("claim-kind-conflict");
@@ -110,22 +142,17 @@ export function validateClaims(
   }
   // Explicit numeric coverage prevents leaving a metric out of the structured
   // claim list. This checks literal coverage, not the truth of surrounding prose.
-  for (const field of [
-    "answerMarkdown",
-    "code",
-    "usageCode",
-    "testCode",
-  ] as const) {
-    if (field !== "answerMarkdown") continue;
-    for (const match of answer[field].matchAll(
-      /\b\d+(?:\.\d+)?\s*(?:%|percent|ms|users|requests)/g,
-    )) {
-      if (
-        !claims.some(
-          (claim) => claim.field === field && claim.text.includes(match[0]),
-        )
+  for (const token of metricTokens(answer.answerMarkdown, units)) {
+    if (
+      !claims.some(
+        (claim) =>
+          claim.field === "answerMarkdown" &&
+          metricTokens(claim.text, units).some(
+            (covered) =>
+              covered.value === token.value && covered.unit === token.unit,
+          ),
       )
-        throw new WorkspaceError("missing-citation");
-    }
+    )
+      throw new WorkspaceError("missing-citation");
   }
 }

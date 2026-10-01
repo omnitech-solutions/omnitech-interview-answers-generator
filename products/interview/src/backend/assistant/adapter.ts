@@ -56,6 +56,13 @@ export const interviewPatchJsonSchema = wire(
 export interface InterviewAdapterOptions extends Partial<EvidenceAuthority> {
   runner?: Pick<CodeRunner, "runAll">;
 }
+// Exact strings have an explicit total order, including canonically equivalent
+// Unicode IDs. Locale collation can compare distinct lock keys as equal.
+const citedSources = (proposal: Proposal) =>
+  [...proposal.evidence].sort(
+    (a, b) =>
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) || a.revision - b.revision,
+  );
 export function createInterviewAdapter(
   database: DatabasePort,
   options: InterviewAdapterOptions = {},
@@ -100,19 +107,10 @@ export function createInterviewAdapter(
     const parsedPatch = interviewProposalPatchSchema.safeParse(proposal.patch);
     if (!parsedPatch.success) throw new WorkspaceError("proposal-invalid");
     const patch = parsedPatch.data;
-    const current = await workspace.readTransaction(
-      tx,
-      scope,
-      proposal.origin.workspaceId,
-      proposal.origin.artifactId,
-      true,
-    );
-    if (current.origin.artifactRevision !== proposal.origin.artifactRevision)
-      throw new WorkspaceError("revision-conflict");
     const sources = new Map<string, InterviewEvidence>();
-    for (const cited of [...proposal.evidence].sort(
-      (a, b) => a.id.localeCompare(b.id) || a.revision - b.revision,
-    )) {
+    // Source locks precede the draft everywhere: standalone validation,
+    // preview/replay authorization and acceptance share the same order.
+    for (const cited of citedSources(proposal)) {
       const source = await workspace.readEvidenceTransaction(
         tx,
         scope,
@@ -124,6 +122,15 @@ export function createInterviewAdapter(
         throw new WorkspaceError("evidence-lineage-conflict");
       sources.set(`${source.id}:${source.revision}`, source);
     }
+    const current = await workspace.readTransaction(
+      tx,
+      scope,
+      proposal.origin.workspaceId,
+      proposal.origin.artifactId,
+      true,
+    );
+    if (current.origin.artifactRevision !== proposal.origin.artifactRevision)
+      throw new WorkspaceError("revision-conflict");
     if (patch.answer) {
       validateClaims(patch.answer, patch.claims ?? [], sources);
     } else if (patch.claims?.length)
@@ -197,9 +204,7 @@ export function createInterviewAdapter(
     },
     authorizeProposal: async (tx, scope, raw) => {
       const proposal = proposalSchema.parse(raw);
-      for (const cited of [...proposal.evidence].sort(
-        (a, b) => a.id.localeCompare(b.id) || a.revision - b.revision,
-      )) {
+      for (const cited of citedSources(proposal)) {
         const head = await workspace.latestEvidenceTransaction(
           tx,
           scope,

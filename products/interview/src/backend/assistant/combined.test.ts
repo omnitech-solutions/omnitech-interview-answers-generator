@@ -518,3 +518,154 @@ it("uses current source classification/audience for replay while later allowed r
       .artifactRevision,
   ).toBe(1);
 });
+
+// Pause after validation's first actual product lock. Acceptance must reach that
+// same lock before releasing validation: this forces the production inversion
+// when present, without sleeps, stress loops, simulated locks or effect retries.
+for (const [caseName, sourceIds] of [
+  ["draft-source", ["lock-source"]],
+  ["unicode-reversed", ["é", "e\u0301"]],
+] as const) {
+  it(`avoids real validation/acceptance deadlock with ${caseName} lock ordering`, async () => {
+    const id = `interleave-${caseName}`;
+    const bound = { ...origin, artifactId: id };
+    const refs = sourceIds.map((id) => ({ ...source, id }));
+    for (const ref of refs)
+      await workspace.putEvidence(scope, {
+        ...ref,
+        sourceKind: "candidate",
+        metrics: [{ value: 40, unit: "%" }],
+      });
+    await workspace.create(scope, bound, {
+      question: "Synthetic lock ordering",
+    });
+    const thread = await repo.createThread(scope, { title: id, origin: bound });
+    const run = await repo.createRun(
+      scope,
+      {
+        threadId: thread.id,
+        origin: bound,
+        prompt: "Fixture",
+        profileId: "deterministic",
+        attachmentIds: [],
+      },
+      id,
+    );
+    const p: Proposal = {
+      id,
+      origin: bound,
+      patch: {
+        ...patch,
+        claims: [
+          {
+            ...patch.claims[0]!,
+            citations: [{ ...patch.claims[0]!.citations[0]!, id: refs[0]!.id }],
+          },
+        ],
+      } as never,
+      evidence: refs,
+    };
+    await repo.storeProposal(scope, run.id, p);
+    await repo.settleRun(scope, run.id, "cancelled");
+    let heldIdentity: string | undefined;
+    let heldReady: () => void = () => {},
+      resume: () => void = () => {};
+    const ready = new Promise<void>((resolve) => {
+      heldReady = resolve;
+    });
+    const release = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const lockOrder: Record<string, string[]> = {
+      validation: [],
+      acceptance: [],
+    };
+    const database = (role: "validation" | "acceptance"): DatabasePort => ({
+      tenantTransaction: (tenant, fn) =>
+        pg.database.tenantTransaction(tenant, (tx) =>
+          fn({
+            query: async (sql, values) => {
+              const sourceLock = sql.startsWith("SELECT pg_advisory_xact_lock");
+              const draftLock =
+                sql.startsWith("SELECT * FROM interview.assistant_drafts") &&
+                sql.endsWith("FOR UPDATE");
+              const identity = sourceLock
+                ? `source:${String(values?.[0])}`
+                : draftLock
+                  ? `draft:${JSON.stringify(values)}`
+                  : undefined;
+              const pending = tx.query(sql, values);
+              if (role === "acceptance" && identity === heldIdentity) resume();
+              const rows = await pending;
+              if (sourceLock) {
+                const key = JSON.parse(String(values?.[0])) as string[];
+                lockOrder[role]!.push(key[key.length - 1]!);
+              }
+              if (
+                role === "validation" &&
+                identity &&
+                heldIdentity === undefined
+              ) {
+                heldIdentity = identity;
+                heldReady();
+                await release;
+              }
+              return rows;
+            },
+          }),
+        ),
+    });
+    const trusted = { authorizeEvidence: async () => true };
+    const validationAdapter = createInterviewAdapter(
+      database("validation"),
+      trusted,
+    );
+    const acceptanceDatabase = database("acceptance");
+    const acceptanceRepo = new RunRepository(
+      acceptanceDatabase,
+      pg.worker,
+      queue,
+      interviewRunVersions("deterministic"),
+    );
+    const service = createProposalService({
+      ...deps,
+      database: acceptanceDatabase,
+      repository: acceptanceRepo,
+      products: new Map([
+        ["interview", createInterviewAdapter(acceptanceDatabase, trusted)],
+      ]),
+    });
+    const start = performance.now();
+    const validation = validationAdapter.validateProposal(scope, {
+      ...p,
+      evidence: [...refs].reverse(),
+    });
+    await ready;
+    const acceptance = service.apply(scope, id);
+    const outcomes = await Promise.allSettled([validation, acceptance]);
+    process.stdout.write(
+      JSON.stringify({
+        interleaving: caseName,
+        durationMs: Number((performance.now() - start).toFixed(3)),
+        outcomes: outcomes.map((r) =>
+          r.status === "fulfilled"
+            ? { status: r.status }
+            : { status: r.status, code: (r.reason as { code?: string }).code },
+        ),
+        firstHeld: heldIdentity,
+        lockOrder,
+      }) + "\n",
+    );
+    expect(outcomes.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    const expected = [...sourceIds].sort(); // Exact UTF-16 strings, no locale equivalence.
+    for (const role of ["validation", "acceptance"] as const)
+      expect([...new Set(lockOrder[role])]).toEqual(expected);
+    expect((await workspace.read(scope, "w", id)).origin.artifactRevision).toBe(
+      1,
+    );
+    expect((await repo.getProposal(scope, id)).receipt).toEqual({
+      proposalId: id,
+      artifactRevision: 1,
+    });
+  });
+}
