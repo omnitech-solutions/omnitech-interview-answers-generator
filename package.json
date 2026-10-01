@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "pnpm --parallel --filter @omnitech/interview-web --filter @omnitech/terminal-gateway run dev",
+    "dev": "node --env-file-if-exists=apps/web/.env.local scripts/dev.mjs",
     "terminal:dev": "pnpm --filter @omnitech/terminal-gateway dev",
     "terminal:build": "pnpm --filter @omnitech/terminal-gateway build",
     "format": "biome format . --error-on-warnings",

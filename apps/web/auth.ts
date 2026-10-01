@@ -3,10 +3,27 @@ import {
   PlatformRepository,
 } from "@omnitech/platform-storage";
 import NextAuth from "next-auth";
+import type { Provider } from "next-auth/providers";
+import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import LinkedIn from "next-auth/providers/linkedin";
 
-const providers = [];
+const providers: Provider[] = [
+  ...(process.env["FAKE_AUTH_ENABLED"] === "true"
+    ? [
+        Credentials({
+          id: "local",
+          name: "Local development",
+          credentials: {},
+          authorize: async () => ({
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "Local User",
+            email: "local@omnitech.test",
+          }),
+        }),
+      ]
+    : []),
+];
 const authSecret =
   process.env["AUTH_SECRET"] ??
   (process.env["NODE_ENV"] === "production"
@@ -34,6 +51,12 @@ if (process.env["AUTH_LINKEDIN_ID"] && process.env["AUTH_LINKEDIN_SECRET"]) {
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers,
   ...(authSecret ? { secret: authSecret } : {}),
+  ...(process.env["NODE_ENV"] === "production"
+    ? {}
+    : {
+        // Ignore cookies minted by an older local secret after a dev reset.
+        cookies: { sessionToken: { name: "omnitech-dev.session-token.v2" } },
+      }),
   trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/sign-in" },

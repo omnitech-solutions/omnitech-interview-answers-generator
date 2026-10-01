@@ -23,6 +23,16 @@ export default function SignInPage() {
         >
           <button type="submit">Continue with LinkedIn</button>
         </form>
+        {process.env["FAKE_AUTH_ENABLED"] === "true" ? (
+          <form
+            action={async () => {
+              "use server";
+              await signIn("local", { redirectTo: "/t/local" });
+            }}
+          >
+            <button type="submit">Continue as local user</button>
+          </form>
+        ) : null}
       </section>
     </main>
   );
