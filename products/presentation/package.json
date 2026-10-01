@@ -33,6 +33,9 @@
     "@omnitech/platform-contracts": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
     "hono": "^4.12.8",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pptxgenjs": "^4.0.1",
     "react": "catalog:",
     "react-dom": "catalog:",
     "zod": "catalog:"
