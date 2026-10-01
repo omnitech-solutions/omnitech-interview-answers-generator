@@ -479,6 +479,9 @@ export function MarkdownContent({
       );
     };
   const components: Components = {
+    img: ({ alt }) => (
+      <span role="note">Image omitted: {alt || "external resource"}</span>
+    ),
     code: MarkdownCode,
     pre: MarkdownPre,
     h1: heading("h1"),

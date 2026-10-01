@@ -1,5 +1,9 @@
 "use client";
 
+import type { ProductPageProps } from "@omnitech/platform-contracts";
+import { AssistantPanel } from "@omni-assistant/react";
+import type { AssistantClient } from "@omni-assistant/sdk";
+import type { Origin } from "@omni-assistant/contracts";
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
 import {
@@ -281,7 +285,19 @@ function syntaxLineNumber(raw: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-export function Workspace() {
+export interface WorkspaceAssistant {
+  client: AssistantClient;
+  profileId: string;
+  workspaceId: string;
+  artifactId: string;
+}
+interface CanonicalDraft {
+  origin: Origin;
+  value: { question: string; notes: string; answer: GeneratedAnswer | null };
+}
+export function Workspace({
+  assistant,
+}: { assistant?: WorkspaceAssistant } & Partial<ProductPageProps> = {}) {
   const [activeView, setActiveView] = useState<
     "playground" | "concept-lab" | "mock-interview"
   >("playground");
@@ -337,6 +353,91 @@ export function Workspace() {
   const [syntaxMessage, setSyntaxMessage] = useState("");
   const [exampleId, setExampleId] = useState("");
   const [questionTab, setQuestionTab] = useState<QuestionTab>("input");
+  const [assistantOrigin, setAssistantOrigin] = useState<Origin>();
+  const originRef = useRef<Origin | undefined>(undefined);
+  const canonicalValue = useRef<string>("");
+  const workingValue = useRef({ question, notes, answer: answer ?? null });
+  workingValue.current = { question, notes, answer: answer ?? null };
+  const workspacePath = assistant
+    ? `/api/interview/workspaces/${encodeURIComponent(assistant.workspaceId)}/artifacts/${encodeURIComponent(assistant.artifactId)}`
+    : "";
+  const flushPending = useRef<Promise<Origin> | null>(null);
+  const effectKeys = useRef<
+    Record<string, { fingerprint: string; id: string }>
+  >({});
+  function effectKey(kind: string, origin: Origin) {
+    const fingerprint = JSON.stringify(origin);
+    const prior = effectKeys.current[kind];
+    if (prior?.fingerprint === fingerprint) return prior.id;
+    const id = crypto.randomUUID();
+    effectKeys.current[kind] = { fingerprint, id };
+    return id;
+  }
+  async function workspaceRequest<T>(
+    suffix: string,
+    init?: RequestInit,
+  ): Promise<T> {
+    const response = await fetch(workspacePath + suffix, {
+      ...init,
+      headers: { "content-type": "application/json", ...init?.headers },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.code ?? "workspace-request-failed");
+    return body as T;
+  }
+  function hydrateCanonical(record: CanonicalDraft) {
+    originRef.current = record.origin;
+    setAssistantOrigin(record.origin);
+    canonicalValue.current = JSON.stringify(record.value);
+    workingValue.current = record.value;
+    setQuestion(record.value.question);
+    setNotes(record.value.notes);
+    setAnswer(normalizeAnswer(record.value.answer ?? undefined));
+  }
+  async function flushDraft(): Promise<Origin> {
+    if (flushPending.current) return flushPending.current;
+    if (!originRef.current) throw new Error("workspace-not-ready");
+    const captured = { ...workingValue.current },
+      expected = originRef.current;
+    if (JSON.stringify(captured) === canonicalValue.current) return expected;
+    const operation = (async () => {
+      const record = await workspaceRequest<CanonicalDraft>("", {
+        method: "PATCH",
+        body: JSON.stringify({ origin: expected, patch: captured }),
+      });
+      originRef.current = record.origin;
+      setAssistantOrigin(record.origin);
+      canonicalValue.current = JSON.stringify(record.value);
+      if (JSON.stringify(workingValue.current) !== JSON.stringify(captured))
+        throw new Error(
+          "New local edits arrived; submit them before continuing.",
+        );
+      return record.origin;
+    })();
+    flushPending.current = operation;
+    try {
+      return await operation;
+    } finally {
+      flushPending.current = null;
+    }
+  }
+  useEffect(() => {
+    if (!assistant) return;
+    let active = true;
+    void workspaceRequest<CanonicalDraft>("")
+      .then((record) => {
+        if (active) hydrateCanonical(record);
+      })
+      .catch((error) => {
+        if (active)
+          setStatus(
+            error instanceof Error ? error.message : "workspace-load-failed",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [workspacePath]);
   const localEdits = useRef(false);
   const draftHydrated = useRef(false);
   const syntaxRequestId = useRef(0);
@@ -363,9 +464,15 @@ export function Workspace() {
   }
 
   const loadSaved = useCallback(async () => {
-    setSavedAnswers(await api<SavedAnswer[]>("/answers"));
+    setSavedAnswers(
+      await api<SavedAnswer[]>(
+        assistant
+          ? `/answers?artifact=${encodeURIComponent(assistant.artifactId)}`
+          : "/answers",
+      ),
+    );
     setSavedPage(0);
-  }, []);
+  }, [assistant?.artifactId]);
 
   const savedPageSize = 5;
   const savedPageCount = Math.max(
@@ -425,7 +532,7 @@ export function Workspace() {
   }, []);
 
   useEffect(() => {
-    if (answer?.language !== "react" || !answer.code.trim()) {
+    if (assistant || answer?.language !== "react" || !answer.code.trim()) {
       setPreview("");
       setPreviewState("idle");
       setPreviewError("");
@@ -459,6 +566,7 @@ export function Workspace() {
   }, [answer?.code, answer?.language]);
 
   useEffect(() => {
+    if (assistant) return;
     const storedDraft = window.localStorage.getItem(DRAFT_STORAGE_KEY);
     if (storedDraft) {
       try {
@@ -500,7 +608,7 @@ export function Workspace() {
   }, []);
 
   useEffect(() => {
-    if (!draftHydrated.current) return;
+    if (assistant || !draftHydrated.current) return;
     window.localStorage.setItem(
       DRAFT_STORAGE_KEY,
       JSON.stringify({
@@ -532,6 +640,7 @@ export function Workspace() {
   }
 
   useEffect(() => {
+    if (assistant) return;
     let active = true;
 
     async function applyExternalControl() {
@@ -654,6 +763,10 @@ export function Workspace() {
   }
 
   async function generate(mode: "new" | "refine" = "new") {
+    if (assistant) {
+      setStatus("Use the interview assistant to generate a reviewed proposal.");
+      return;
+    }
     localEdits.current = true;
     const refinement = mode === "refine" ? refinementRequest.trim() : "";
     if (
@@ -727,6 +840,20 @@ export function Workspace() {
     if (!answer) return;
     setBusy(true);
     try {
+      if (assistant) {
+        const origin = await flushDraft();
+        await workspaceRequest("/save", {
+          method: "POST",
+          body: JSON.stringify({
+            origin,
+            requestId: effectKey("save", origin),
+          }),
+        });
+        delete effectKeys.current["save"];
+        await loadSaved();
+        setStatus("Saved immutable answer version.");
+        return;
+      }
       const saved = await api<SavedAnswer>("/answers", {
         method: "POST",
         body: JSON.stringify({
@@ -748,6 +875,37 @@ export function Workspace() {
 
   async function run() {
     if (!answer?.code) return;
+    if (assistant) {
+      setBusy(true);
+      setInspectorOpen(true);
+      setPanel("output");
+      setOutputTab("tests");
+      try {
+        const origin = await flushDraft();
+        const result = await workspaceRequest<{ execution: RunResult }>(
+          "/run-code",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              origin,
+              requestId: effectKey("run-code", origin),
+            }),
+          },
+        );
+        delete effectKeys.current["run-code"];
+        setOutput({ tests: result.execution });
+        setStatus(
+          result.execution.exitCode === 0 && !result.execution.timedOut
+            ? "Tests passed"
+            : "Tests failed",
+        );
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "code-run-failed");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     setPanel("output");
     setInspectorOpen(true);
@@ -861,6 +1019,10 @@ export function Workspace() {
   }
 
   async function newPlayground() {
+    if (assistant) {
+      setStatus("Choose a new question using the question selector.");
+      return;
+    }
     localEdits.current = false;
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
     setQuestion("");
@@ -905,6 +1067,11 @@ export function Workspace() {
   }
 
   async function checkSyntax(tab: EditorTab) {
+    if (assistant) {
+      setSyntaxState("unavailable");
+      setSyntaxMessage("Run tests explicitly to validate the canonical draft.");
+      return;
+    }
     if (!answer) return;
     const source =
       tab === "solution"
@@ -1021,7 +1188,7 @@ export function Workspace() {
                   onClick={save}
                   disabled={busy || !answer}
                 >
-                  Save
+                  {assistant ? "Save answer" : "Save"}
                 </Button>
                 <span className="toolbar-divider" aria-hidden="true" />
                 <Button
@@ -1037,19 +1204,21 @@ export function Workspace() {
                   >
                     <path d="M8 5.5v13l10-6.5z" />
                   </svg>
-                  Run All
+                  {assistant ? "Run tests" : "Run All"}
                 </Button>
                 <span className="toolbar-divider" aria-hidden="true" />
-                <TerminalToggleButton
-                  open={terminalOpen}
-                  onToggle={() => {
-                    setTerminalOpen((current) => {
-                      const nextOpen = !current;
-                      if (nextOpen) setInspectorOpen(true);
-                      return nextOpen;
-                    });
-                  }}
-                />
+                {!assistant && (
+                  <TerminalToggleButton
+                    open={terminalOpen}
+                    onToggle={() => {
+                      setTerminalOpen((current) => {
+                        const nextOpen = !current;
+                        if (nextOpen) setInspectorOpen(true);
+                        return nextOpen;
+                      });
+                    }}
+                  />
+                )}
                 <ThemeToggle theme={theme} onClick={toggleTheme} />
                 <InspectorToggleButton
                   open={inspectorOpen}
@@ -1063,16 +1232,18 @@ export function Workspace() {
                   ref={setConceptToolbarTarget}
                 />
                 <span className="toolbar-divider" aria-hidden="true" />
-                <TerminalToggleButton
-                  open={terminalOpen}
-                  onToggle={() => {
-                    setTerminalOpen((current) => {
-                      const nextOpen = !current;
-                      if (nextOpen) setInspectorOpen(true);
-                      return nextOpen;
-                    });
-                  }}
-                />
+                {!assistant && (
+                  <TerminalToggleButton
+                    open={terminalOpen}
+                    onToggle={() => {
+                      setTerminalOpen((current) => {
+                        const nextOpen = !current;
+                        if (nextOpen) setInspectorOpen(true);
+                        return nextOpen;
+                      });
+                    }}
+                  />
+                )}
                 <ThemeToggle theme={theme} onClick={toggleTheme} />
                 <InspectorToggleButton
                   open={inspectorOpen}
@@ -1084,6 +1255,70 @@ export function Workspace() {
             )}
           </header>
 
+          {assistant && assistantOrigin && (
+            <section className="assistant-workspace-dock">
+              <button
+                type="button"
+                onClick={() =>
+                  void workspaceRequest<CanonicalDraft>("")
+                    .then(hydrateCanonical)
+                    .catch((error) => setStatus(error.message))
+                }
+              >
+                Reload canonical draft
+              </button>
+              <AssistantPanel
+                client={assistant.client}
+                origin={assistantOrigin}
+                profileId={assistant.profileId}
+                prepareSend={flushDraft}
+                beforeApply={async () => {
+                  await flushDraft();
+                }}
+                slots={{
+                  message: (text, role) =>
+                    role === "assistant" ? (
+                      <MarkdownContent>{text}</MarkdownContent>
+                    ) : (
+                      <p style={{ whiteSpace: "pre-wrap" }}>{text}</p>
+                    ),
+                  proposal: (record) => (
+                    <div>
+                      <p>
+                        {String(
+                          (
+                            record.proposal.patch["answer"] as Record<
+                              string,
+                              unknown
+                            >
+                          )?.["title"] ?? "Proposed answer",
+                        )}
+                      </p>
+                      <pre>
+                        {JSON.stringify(record.proposal.patch, null, 2)}
+                      </pre>
+                    </div>
+                  ),
+                }}
+                onApplied={async (_receipt, captured) => {
+                  const snapshot = JSON.stringify(workingValue.current),
+                    record = await workspaceRequest<CanonicalDraft>("");
+                  if (
+                    originRef.current?.workspaceId !== captured.workspaceId ||
+                    originRef.current?.artifactId !== captured.artifactId ||
+                    JSON.stringify(workingValue.current) !== snapshot
+                  ) {
+                    setStatus(
+                      "Proposal accepted; local edits preserved. Reload canonical draft explicitly to review.",
+                    );
+                    return;
+                  }
+                  hydrateCanonical(record);
+                  setStatus("Reviewed proposal applied to draft. Not saved.");
+                }}
+              />
+            </section>
+          )}
           {navigationOpen ? (
             <StudioNavigation
               active={activeView}
@@ -1158,25 +1393,27 @@ export function Workspace() {
                     </div>
                     {questionTab === "input" ? (
                       <div className="playground-question-entry">
-                        <label className="playground-provider-field">
-                          <span>Answer provider</span>
-                          <select
-                            aria-label="Answer provider"
-                            value={answerProvider}
-                            onChange={(event) =>
-                              setAnswerProvider(
-                                event.target.value as AnswerProvider,
-                              )
-                            }
-                          >
-                            <option value="">Choose a provider…</option>
-                            {executionTargets.map((target) => (
-                              <option key={target.id} value={target.id}>
-                                {target.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        {!assistant && (
+                          <label className="playground-provider-field">
+                            <span>Answer provider</span>
+                            <select
+                              aria-label="Answer provider"
+                              value={answerProvider}
+                              onChange={(event) =>
+                                setAnswerProvider(
+                                  event.target.value as AnswerProvider,
+                                )
+                              }
+                            >
+                              <option value="">Choose a provider…</option>
+                              {executionTargets.map((target) => (
+                                <option key={target.id} value={target.id}>
+                                  {target.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
                         <StudioTextarea
                           label="Interview question"
                           aria-label="Interview question"
@@ -1188,14 +1425,18 @@ export function Workspace() {
                             setQuestion(nextQuestion);
                           }}
                         />
-                        <Button
-                          className="generate-button playground-generate-button"
-                          onClick={() => void generate("new")}
-                          disabled={busy || !question.trim() || !answerProvider}
-                        >
-                          {busy ? "Working…" : "Generate"}
-                        </Button>
-                        {answer ? (
+                        {!assistant && (
+                          <Button
+                            className="generate-button playground-generate-button"
+                            onClick={() => void generate("new")}
+                            disabled={
+                              busy || !question.trim() || !answerProvider
+                            }
+                          >
+                            {busy ? "Working…" : "Generate"}
+                          </Button>
+                        )}
+                        {answer && !assistant ? (
                           <label className="playground-refinement-field">
                             <span>What should be fixed or expanded?</span>
                             <textarea
@@ -1636,11 +1877,13 @@ export function Workspace() {
                         </div>
                       ) : null}
                     </div>
-                    <TerminalDock
-                      open={terminalOpen}
-                      onClose={() => setTerminalOpen(false)}
-                      sessionName={playgroundTerminalSession}
-                    />
+                    {!assistant && (
+                      <TerminalDock
+                        open={terminalOpen}
+                        onClose={() => setTerminalOpen(false)}
+                        sessionName={playgroundTerminalSession}
+                      />
+                    )}
                   </>
                 </StudioInspector>
                 <p className="status workspace-status" role="status">

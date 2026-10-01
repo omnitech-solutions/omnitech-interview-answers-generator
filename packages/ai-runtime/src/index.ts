@@ -1,3 +1,5 @@
+import { scopeSchema } from "@omni-assistant/contracts";
+import type { ModelPort, Scope } from "@omni-assistant/contracts";
 import type {
   AiAccessContext,
   AiEvent,
@@ -6,6 +8,7 @@ import type {
   AiExecutionRequest,
   AiResumeRequest,
   AiTargetSummary,
+  AiStructuredChatRequest,
   ImageProviderAdapter,
   ModelProviderAdapter,
   WorkflowEngine,
@@ -94,6 +97,23 @@ export function createAiExecutionGateway(
   }
 
   return {
+    async *streamStructured(request: AiStructuredChatRequest) {
+      request.signal?.throwIfAborted();
+      const profile = await resolve({
+        context: request.context,
+        profileId: request.profileId,
+        task: { type: "structured-chat", prompt: "" },
+      });
+      if (profile.family !== "direct-model")
+        throw new Error("The profile cannot execute structured chat.");
+      const adapter = models.get(profile.targetId);
+      if (!adapter?.streamStructured)
+        throw new Error(
+          "The configured provider cannot stream structured chat.",
+        );
+      request.signal?.throwIfAborted();
+      yield* adapter.streamStructured(request);
+    },
     async execute<T>(request: AiExecutionRequest) {
       const profile = await resolve(request);
       let execution: AiExecution;
@@ -146,9 +166,11 @@ export function createAiExecutionGateway(
       for (const profile of profiles.values()) {
         if (!profile.enabled || !(await options.authorize(context, profile)))
           continue;
+        const modelId = models.get(profile.targetId)?.modelId;
         visible.push({
           id: profile.id,
           label: profile.label,
+          ...(modelId === undefined ? {} : { modelId }),
           family: profile.family,
           kind: profile.taskTypes.some((type) => type.startsWith("image-"))
             ? "image"
@@ -157,6 +179,27 @@ export function createAiExecutionGateway(
         });
       }
       return visible;
+    },
+  };
+}
+
+/** Connect the portable port only through the host's authorization boundary. */
+export function createGatewayModelPort(
+  gateway: AiExecutionGateway,
+  permissions: (scope: Scope) => Promise<readonly string[]>,
+): ModelPort {
+  return {
+    async *stream(scope, input, signal) {
+      scopeSchema.parse(scope);
+      signal.throwIfAborted();
+      const context = {
+        tenantId: scope.tenantId,
+        userId: scope.actorId,
+        productId: scope.productId,
+        permissions: await permissions(scope),
+      };
+      signal.throwIfAborted();
+      yield* gateway.streamStructured({ ...input, context, signal });
     },
   };
 }

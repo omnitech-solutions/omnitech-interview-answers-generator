@@ -3,6 +3,7 @@ import {
   type DatabasePort,
   evidenceListSchema,
   idSchema,
+  type JsonValue,
   jsonValueSchema,
   originSchema,
   type ProductAdapter,
@@ -17,6 +18,7 @@ import type { CodeRunner } from "@omnitech/code-runner";
 import {
   type InterviewProvenance,
   interviewClaimsSchema,
+  interviewMetricSchema,
   runResultSchema,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
@@ -42,6 +44,42 @@ export const interviewProposalPatchSchema = interviewDraftPatchSchema
       patch.answer !== undefined,
     "Empty patch",
   );
+// What the model is asked for. A claim names the source and the supporting
+// passage; revision, hash, claim kind and the exact quote are derived below, so
+// the model never hand-copies bookkeeping.
+const draftClaimSchema = z.strictObject({
+  field: z.enum(["answerMarkdown", "code", "usageCode", "testCode"]),
+  text: z.string().min(1).max(32_000),
+  source: z.string().min(1).max(256),
+  quote: z.string().min(1).max(32_000),
+  metric: interviewMetricSchema.optional(),
+});
+// Models often put `claims` inside `answer`; both places are read, and the
+// stored patch always has them beside it.
+const draftClaimsSchema = z.array(draftClaimSchema).max(64).optional();
+export const interviewModelDraftSchema = interviewDraftPatchSchema.extend({
+  answer: interviewDraftPatchSchema.shape.answer
+    .unwrap()
+    .unwrap()
+    .extend({ claims: draftClaimsSchema })
+    .nullable()
+    .optional(),
+  claims: draftClaimsSchema,
+});
+// Finds the real passage a model's quote refers to, tolerating case and runs of
+// whitespace; the returned text is always a substring of the source.
+function locateQuote(text: string, quote: string): string | undefined {
+  if (text.includes(quote)) return quote;
+  const words = quote.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return undefined;
+  const pattern = new RegExp(
+    words
+      .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("\\s+"),
+    "i",
+  );
+  return pattern.exec(text)?.[0];
+}
 const wire = (schema: {
   toJSONSchema(options: { unrepresentable: "any" }): unknown;
 }) =>
@@ -53,6 +91,7 @@ export const interviewPatchJsonSchema = wire(
     claims: interviewClaimsSchema.optional(),
   }),
 );
+export const interviewModelDraftJsonSchema = wire(interviewModelDraftSchema);
 export interface InterviewAdapterOptions extends Partial<EvidenceAuthority> {
   runner?: Pick<CodeRunner, "runAll">;
 }
@@ -131,6 +170,13 @@ export function createInterviewAdapter(
     );
     if (current.origin.artifactRevision !== proposal.origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
+    // A proposal that changes nothing is not worth a review; the model is told.
+    const unchanged = (["question", "notes", "answer"] as const).every(
+      (key) =>
+        patch[key] === undefined ||
+        JSON.stringify(patch[key]) === JSON.stringify(current.value[key]),
+    );
+    if (unchanged) throw new WorkspaceError("no-change");
     if (patch.answer) {
       validateClaims(patch.answer, patch.claims ?? [], sources);
     } else if (patch.claims?.length)
@@ -138,6 +184,76 @@ export function createInterviewAdapter(
     return { proposal, patch, sources };
   };
   return {
+    draftSchema: interviewModelDraftJsonSchema,
+    buildProposal: async (scope, _origin, raw) => {
+      const parsed = interviewModelDraftSchema.safeParse(raw);
+      if (!parsed.success) throw new WorkspaceError("proposal-invalid");
+      const {
+        claims: besideClaims = [],
+        answer: draftAnswer,
+        ...rest
+      } = parsed.data;
+      const { claims: insideClaims = [], ...answerFields } = draftAnswer ?? {};
+      const patch = {
+        ...rest,
+        ...(draftAnswer === undefined
+          ? {}
+          : { answer: draftAnswer === null ? null : answerFields }),
+      };
+      const seen = new Set<string>();
+      const draftClaims = [...besideClaims, ...insideClaims].filter((claim) => {
+        const key = JSON.stringify(claim);
+        return seen.has(key) ? false : (seen.add(key), true);
+      });
+      const available = await workspace.transaction(scope, (tx, current) =>
+        visible(tx, current),
+      );
+      const used = new Map<string, InterviewEvidence>();
+      const claims = draftClaims.map((claim) => {
+        const source = available.find((item) => item.id === claim.source);
+        if (!source)
+          throw new WorkspaceError(
+            "evidence-unavailable",
+            `Cite only these evidence ids: ${available.map((item) => item.id).join(", ") || "(none provided)"}.`,
+          );
+        const quote = locateQuote(source.text, claim.quote);
+        if (quote === undefined)
+          throw new WorkspaceError(
+            "citation-quote-conflict",
+            `Quote not found in "${source.id}". Copy a passage from its text: «${source.text.slice(0, 360)}»`,
+          );
+        used.set(source.id, source);
+        return {
+          kind:
+            source.sourceKind === "technical-reference"
+              ? ("technical" as const)
+              : claim.metric
+                ? ("candidate-metric" as const)
+                : ("candidate-fact" as const),
+          field: claim.field,
+          text: claim.text,
+          ...(claim.metric ? { metric: claim.metric } : {}),
+          citations: [
+            {
+              id: source.id,
+              revision: source.revision,
+              sha256: source.sha256,
+              quote,
+            },
+          ],
+        };
+      });
+      return {
+        patch: jsonValueSchema.parse({
+          ...patch,
+          ...(claims.length ? { claims } : {}),
+        }) as Record<string, JsonValue>,
+        evidenceRefs: [...used.values()].map((source) => ({
+          id: source.id,
+          revision: source.revision,
+        })),
+      };
+    },
     descriptor: {
       id: "interview",
       version: interviewAdapterVersion,
@@ -176,8 +292,12 @@ export function createInterviewAdapter(
         const sources = await visible(tx, scope);
         return {
           origin: current.origin,
+          instructions: interviewPrompt.instructions,
           context: jsonValueSchema.parse({
-            prompt: interviewPrompt,
+            prompt: {
+              version: interviewPrompt.version,
+              taskProfile: interviewPrompt.taskProfile,
+            },
             question: current.value.question,
             notes: current.value.notes,
             answer: current.value.answer,

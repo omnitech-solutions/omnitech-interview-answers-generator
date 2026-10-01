@@ -8,7 +8,9 @@ import { Terminal } from "@xterm/xterm";
 import { type JSX, useEffect, useRef } from "react";
 
 const gatewayUrl =
-  process.env["NEXT_PUBLIC_TERMINAL_GATEWAY_URL"] ??
+  (typeof process === "undefined"
+    ? undefined
+    : process.env["NEXT_PUBLIC_TERMINAL_GATEWAY_URL"]) ??
   "ws://localhost:3001/terminal";
 
 export function BrowserTerminal({

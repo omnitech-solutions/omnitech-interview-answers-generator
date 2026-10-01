@@ -6,6 +6,7 @@
       "!**/node_modules",
       "!**/.next",
       "!**/.data",
+      "!.assistant-local",
       "!**/dist",
       "!**/.turbo",
       "!coverage",

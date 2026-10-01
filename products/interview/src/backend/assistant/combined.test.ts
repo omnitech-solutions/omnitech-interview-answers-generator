@@ -60,6 +60,19 @@ const patch = {
     },
   ],
 };
+// What the model sends; the adapter derives revision, hash and kind.
+const draft = {
+  answer,
+  claims: [
+    {
+      field: "answerMarkdown",
+      text,
+      source: source.id,
+      quote: text,
+      metric: { value: 40, unit: "%" },
+    },
+  ],
+};
 let pg: Awaited<ReturnType<typeof disposablePostgres>>,
   queue: PgBossRunQueue,
   repo: RunRepository,
@@ -146,14 +159,18 @@ beforeAll(async () => {
     model: {
       stream: async function* (_s, input) {
         modelInputs.push(input);
-        yield {
-          type: "text",
-          text: JSON.stringify({
-            reply: "Review this supported synthetic example.",
-            proposedPatch: patch,
-            evidenceRefs: [{ id: source.id, revision: 1 }],
-          }),
-        };
+        if (input.messages.at(-1)?.role === "tool")
+          yield {
+            type: "text",
+            text: "Review this supported synthetic example.",
+          };
+        else
+          yield {
+            type: "tool-call",
+            id: `call-${modelInputs.length}`,
+            name: "proposePatch",
+            input: draft,
+          };
       },
     },
   };
@@ -367,7 +384,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
   );
   expect((await repo.getRun(scope, run.id)).status).toBe("completed");
   const serialized = JSON.stringify(modelInputs[0]);
-  expect(serialized).toContain("interview-grounding-1");
+  expect(serialized).toContain("interview-grounding-2");
   expect(serialized).toContain("software-interview-preparation");
   expect(serialized).toContain("PROBLEM, STRATEGY, COMPLEXITY");
   expect(serialized).toContain("Serialized question");
@@ -380,7 +397,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
     ])
   ).rows[0]!;
   expect((saved["versions"] as { prompt: string }).prompt).toBe(
-    "interview-grounding-1",
+    "interview-grounding-2",
   );
   expect(
     (await repo.readThread(scope, thread.id)).messages.filter(

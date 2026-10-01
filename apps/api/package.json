@@ -1,0 +1,30 @@
+{
+  "name": "@omnitech/assistant-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.3",
+    "hono": "4.13.12",
+    "zod": "catalog:",
+    "pg": "8.23.1",
+    "@omnitech/product-interview": "workspace:*",
+    "@omnitech/code-runner": "workspace:*",
+    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+    "@omni-assistant/providers": "file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
+    "@omni-assistant/server": "file:../../vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
+    "@omni-assistant/storage-postgres": "file:../../vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz",
+    "@omnitech/ai-runtime": "workspace:*",
+    "@omnitech/ai-provider-openai": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "8.23.1"
+  }
+}

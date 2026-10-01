@@ -30,18 +30,8 @@
     "hooks:install": "lefthook install",
     "hooks:run:pre-commit": "lefthook run pre-commit",
     "hooks:run:pre-push": "lefthook run pre-push",
-    "prepare": "lefthook install"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "node-pty"
-    ],
-    "overrides": {
-      "@omni-assistant/contracts": "file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
-      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
-      "@omni-assistant/server": "file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
-      "@omni-assistant/storage-postgres": "file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz"
-    }
+    "prepare": "lefthook install",
+    "assistant:dev": "node scripts/assistant-dev.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",
@@ -51,5 +41,15 @@
     "turbo": "^2.9.6",
     "typescript": "^5.9.3",
     "vitest": "^4.1.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "@omni-assistant/contracts": "file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
+      "@omni-assistant/server": "file:vendor/omni-assistant/omni-assistant-server-0.1.0.tgz",
+      "@omni-assistant/storage-postgres": "file:vendor/omni-assistant/omni-assistant-storage-postgres-0.1.0.tgz",
+      "@omni-assistant/sdk": "file:vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz",
+      "@omni-assistant/react": "file:vendor/omni-assistant/omni-assistant-react-0.1.0.tgz"
+    }
   }
 }

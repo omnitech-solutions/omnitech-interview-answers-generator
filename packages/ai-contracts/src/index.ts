@@ -1,9 +1,11 @@
+import type { ModelInput, ModelPart } from "@omni-assistant/contracts";
 export type AiExecutionFamily = "direct-model" | "workflow" | "agent-runtime";
 export type AiModelKind = "language" | "embedding" | "image" | "multimodal";
 export type AiTaskType =
   | "text-generation"
   | "structured-generation"
   | "streaming-chat"
+  | "structured-chat"
   | "image-generation"
   | "image-editing"
   | "retrieval"
@@ -57,6 +59,7 @@ export interface AiTask {
   }[];
   schema?: Readonly<Record<string, unknown>>;
   image?: {
+    modelId?: string;
     negativePrompt?: string;
     aspectRatio?: string;
     width?: number;
@@ -132,13 +135,21 @@ export interface ImageCapabilities {
 export interface AiTargetSummary {
   id: string;
   label: string;
+  modelId?: string;
   family: AiExecutionFamily;
   kind: AiModelKind;
   capabilities: readonly string[];
 }
 
+export interface AiStructuredChatRequest extends ModelInput {
+  context: AiAccessContext;
+  signal?: AbortSignal;
+}
+
 export interface ModelProviderAdapter {
   readonly providerId: string;
+  streamStructured?(request: AiStructuredChatRequest): AsyncIterable<ModelPart>;
+  readonly modelId?: string;
   readonly capabilities: ModelCapabilities;
   execute(request: AiExecutionRequest): Promise<AiExecution>;
   stream(request: AiExecutionRequest): AsyncIterable<AiEvent>;
@@ -169,9 +180,78 @@ export interface WorkflowEngine {
 }
 
 export interface AiExecutionGateway {
+  streamStructured(request: AiStructuredChatRequest): AsyncIterable<ModelPart>;
   execute<T = unknown>(request: AiExecutionRequest): Promise<AiExecution<T>>;
   stream<T = unknown>(request: AiExecutionRequest): AsyncIterable<AiEvent<T>>;
   cancel(executionId: string): Promise<void>;
   resume<T = unknown>(request: AiResumeRequest): AsyncIterable<AiEvent<T>>;
   listAvailableTargets(context: AiAccessContext): Promise<AiTargetSummary[]>;
+}
+
+/** Validate the portable JSON-schema subset used at the provider boundary. */
+export function validateStructuredOutput(
+  value: unknown,
+  schema: Readonly<Record<string, unknown>>,
+  path = "$",
+): string | undefined {
+  const type = schema["type"];
+  if (type === "object") {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return `${path} must be an object`;
+    }
+    const record = value as Record<string, unknown>;
+    const required = Array.isArray(schema["required"])
+      ? schema["required"]
+      : [];
+    for (const key of required) {
+      if (typeof key === "string" && !(key in record)) {
+        return `${path}.${key} is required`;
+      }
+    }
+    const properties =
+      typeof schema["properties"] === "object" && schema["properties"] !== null
+        ? (schema["properties"] as Record<string, unknown>)
+        : {};
+    for (const [key, childSchema] of Object.entries(properties)) {
+      if (key in record && typeof childSchema === "object" && childSchema) {
+        const error = validateStructuredOutput(
+          record[key],
+          childSchema as Readonly<Record<string, unknown>>,
+          `${path}.${key}`,
+        );
+        if (error) return error;
+      }
+    }
+  } else if (type === "array") {
+    if (!Array.isArray(value)) return `${path} must be an array`;
+    if (typeof schema["items"] === "object" && schema["items"] !== null) {
+      for (const [index, item] of value.entries()) {
+        const error = validateStructuredOutput(
+          item,
+          schema["items"] as Readonly<Record<string, unknown>>,
+          `${path}[${index}]`,
+        );
+        if (error) return error;
+      }
+    }
+  } else if (
+    (type === "string" && typeof value !== "string") ||
+    (type === "number" && typeof value !== "number") ||
+    (type === "boolean" && typeof value !== "boolean")
+  ) {
+    return `${path} must be a ${type}`;
+  }
+  return undefined;
+}
+
+export function parseStructuredOutput(
+  text: string,
+  schema?: Readonly<Record<string, unknown>>,
+): unknown {
+  const value = JSON.parse(text) as unknown;
+  if (schema) {
+    const error = validateStructuredOutput(value, schema);
+    if (error) throw new Error(`Structured output validation failed: ${error}`);
+  }
+  return value;
 }

@@ -96,8 +96,27 @@ export type AnswerRevisionRecord = Readonly<{
   createdAt: string;
   provenance: InterviewProvenance | null;
 }>;
+// Advice the model sees when a proposal is refused, so it can fix the next one.
+const refusalHints: Readonly<Record<string, string>> = {
+  "missing-citation":
+    'Add a top-level `claims` list beside `answer` in the arguments. Each claim is {"field":"answerMarkdown","text":"<exact words from that answer field>","source":"<evidence id>","quote":"<passage from that evidence that supports the text>"}. You do not supply hashes or revisions.',
+  "citation-quote-conflict":
+    "Each citation quote must be copied exactly, character for character, from that evidence's text.",
+  "evidence-hash-conflict":
+    "Copy each citation's sha256 exactly from the evidence you were given.",
+  "claim-text-conflict":
+    "Each claim's text must appear exactly in the answer field it names.",
+  "claim-answer-required":
+    "Claims describe an answer; include the answer in the same patch.",
+  "unsupported-metric":
+    "Do not state numbers or metrics that are not in the provided candidate evidence.",
+  "candidate-fact-conflict":
+    "Facts about the candidate need candidate evidence; remove them or mark them uncertain.",
+  "no-change":
+    "The proposal equals the current draft. Tell the user nothing needs to change.",
+};
 export class WorkspaceError extends ProductOperationError {
-  constructor(code: string) {
+  constructor(code: string, hint?: string) {
     const status: ProductErrorStatus =
       code === "not-found"
         ? 404
@@ -114,7 +133,7 @@ export class WorkspaceError extends ProductOperationError {
                 ].includes(code)
               ? 409
               : 400;
-    super(code, status);
+    super(code, status, hint ?? refusalHints[code]);
   }
 }
 const where = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
@@ -377,34 +396,56 @@ export class InterviewWorkspaceRepository {
       return this.answerRevision(row);
     });
   }
+  async listAnswerRevisions(
+    scope: WorkspaceScope,
+    workspaceId: string,
+    artifactId: string,
+  ): Promise<readonly AnswerRevisionRecord[]> {
+    return this.transaction(scope, async (tx, scope) => {
+      const rows = await tx.query(
+        `SELECT * FROM interview.assistant_answer_revisions WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 ORDER BY saved_revision DESC LIMIT 100`,
+        [...values(scope), id.parse(workspaceId), id.parse(artifactId)],
+      );
+      return rows.map((row) => this.answerRevision(row));
+    });
+  }
   async putEvidence(
     scope: WorkspaceScope,
     evidence: InterviewEvidence,
   ): Promise<void> {
+    await this.transaction(scope, (tx, scope) =>
+      this.putEvidenceTransaction(tx, scope, evidence),
+    );
+  }
+  async putEvidenceTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    evidence: InterviewEvidence,
+  ): Promise<void> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
     const validated = evidenceSchema.parse(evidence);
     if (
       createHash("sha256").update(validated.text).digest("hex") !==
       validated.sha256
     )
       throw new WorkspaceError("evidence-hash-conflict");
-    await this.transaction(scope, async (tx, scope) => {
-      await this.lockEvidence(tx, scope, validated.id);
-      await tx.query(
-        "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience,metrics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
-        [
-          ...values(scope),
-          validated.id,
-          validated.revision,
-          validated.sha256,
-          validated.locator,
-          validated.text,
-          validated.sourceKind,
-          validated.classification,
-          validated.audience,
-          JSON.stringify(validated.metrics ?? []),
-        ],
-      );
-    });
+    await this.lockEvidence(tx, scope, validated.id);
+    await tx.query(
+      "INSERT INTO interview.assistant_evidence (tenant_id,actor_id,product_id,id,revision,sha256,locator,text,source_kind,classification,audience,metrics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
+      [
+        ...values(scope),
+        validated.id,
+        validated.revision,
+        validated.sha256,
+        validated.locator,
+        validated.text,
+        validated.sourceKind,
+        validated.classification,
+        validated.audience,
+        JSON.stringify(validated.metrics ?? []),
+      ],
+    );
   }
   async readEvidence(
     scope: WorkspaceScope,

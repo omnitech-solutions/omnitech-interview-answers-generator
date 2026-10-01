@@ -15,6 +15,10 @@
     "./manifest": {
       "types": "./dist/manifest.d.ts",
       "import": "./dist/manifest.js"
+    },
+    "./assistant": {
+      "types": "./dist/backend/assistant-entry.d.ts",
+      "import": "./dist/backend/assistant-entry.js"
     }
   },
   "scripts": {
@@ -53,7 +57,9 @@
     "remark-gfm": "^4.0.1",
     "shiki": "^4.3.1",
     "zod": "catalog:",
-    "@omni-assistant/contracts": "file:../../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz"
+    "@omni-assistant/contracts": "file:../../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+    "@omni-assistant/sdk": "file:../../../vendor/omni-assistant/omni-assistant-sdk-0.1.0.tgz",
+    "@omni-assistant/react": "file:../../../vendor/omni-assistant/omni-assistant-react-0.1.0.tgz"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",

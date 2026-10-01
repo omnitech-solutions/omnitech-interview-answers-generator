@@ -347,3 +347,181 @@ it("supports exact candidate facts and explicitly verified technical fixture ref
       .validateProposal(scope, technicalProposal),
   ).rejects.toMatchObject({ code: "reference-unverified" });
 });
+
+// The model supplies content and says which source supports it; the product
+// derives revisions, hashes, claim kinds and exact quotes.
+const technicalNote = {
+  id: "technical-note",
+  revision: 1,
+  text: "Optimistic concurrency compares an expected revision before writing.\nUse a pure function and test stale revisions.",
+  sha256: digest(
+    "Optimistic concurrency compares an expected revision before writing.\nUse a pure function and test stale revisions.",
+  ),
+  locator: "local://reference",
+  sourceKind: "technical-reference" as const,
+  classification: "public" as const,
+  audience: ["alice"],
+};
+const technicalAnswer = {
+  ...answer,
+  answerMarkdown: "Compare the expected revision before writing.",
+};
+const draftClaim = {
+  field: "answerMarkdown",
+  text: "Compare the expected revision before writing.",
+  source: "technical-note",
+  quote: "compares an expected revision before writing",
+};
+// Earlier tests in this file bump the shared draft and rewrite shared sources,
+// so these use their own artifact and their own candidate source.
+const builtOrigin = { ...origin, artifactId: "built" };
+const candidateNote = {
+  ...source,
+  id: "built-candidate",
+  text: "I cut p95 latency by 40% last quarter.",
+  sha256: digest("I cut p95 latency by 40% last quarter."),
+  locator: "candidate://built",
+};
+const builtProposal = (patch: Record<string, unknown>, evidence: unknown[]) =>
+  ({ ...proposal(patch, evidence), origin: builtOrigin }) as Proposal;
+async function ensureReference() {
+  allowed = true;
+  technical = true;
+  await workspace
+    .read(scope, builtOrigin.workspaceId, builtOrigin.artifactId)
+    .catch(() =>
+      workspace.create(scope, builtOrigin, {
+        question: "Describe a synthetic improvement",
+        notes: "",
+      }),
+    );
+  await workspace
+    .readEvidence(scope, candidateNote.id, 1)
+    .catch(() => workspace.putEvidence(scope, candidateNote));
+  await workspace
+    .readEvidence(scope, technicalNote.id, 1)
+    .catch(() => workspace.putEvidence(scope, technicalNote));
+}
+it("derives revision, hash, kind and citation from a source id and quote, and the result passes validation", async () => {
+  await ensureReference();
+  const built = await adapter().buildProposal!(scope, origin, {
+    answer: technicalAnswer,
+    claims: [draftClaim],
+  });
+  expect(built.evidenceRefs).toEqual([{ id: "technical-note", revision: 1 }]);
+  expect(built.patch["claims"]).toEqual([
+    {
+      kind: "technical",
+      field: "answerMarkdown",
+      text: draftClaim.text,
+      citations: [
+        {
+          id: "technical-note",
+          revision: 1,
+          sha256: technicalNote.sha256,
+          quote: draftClaim.quote,
+        },
+      ],
+    },
+  ]);
+  // The derived patch is accepted by the same validator that checks any proposal.
+  await adapter().validateProposal(
+    scope,
+    builtProposal(built.patch as Record<string, unknown>, [technicalNote]),
+  );
+});
+it("locates the real passage when the model's quote differs in case or whitespace", async () => {
+  await ensureReference();
+  const built = await adapter().buildProposal!(scope, origin, {
+    answer: technicalAnswer,
+    claims: [
+      {
+        ...draftClaim,
+        quote: "Use A PURE   function and test stale revisions",
+      },
+    ],
+  });
+  const claims = built.patch["claims"] as { citations: { quote: string }[] }[];
+  expect(claims[0]?.citations[0]?.quote).toBe(
+    "Use a pure function and test stale revisions",
+  );
+});
+it("derives candidate-metric claims from the model's metric", async () => {
+  await ensureReference();
+  const candidateAnswer = { ...answer, answerMarkdown: candidateNote.text };
+  const built = await adapter().buildProposal!(scope, origin, {
+    answer: candidateAnswer,
+    claims: [
+      {
+        field: "answerMarkdown",
+        text: candidateNote.text,
+        source: candidateNote.id,
+        quote: candidateNote.text,
+        metric: { value: 40, unit: "%" },
+      },
+    ],
+  });
+  expect((built.patch["claims"] as { kind: string }[])[0]?.kind).toBe(
+    "candidate-metric",
+  );
+  await adapter().validateProposal(
+    scope,
+    builtProposal(built.patch as Record<string, unknown>, [candidateNote]),
+  );
+});
+it("refuses a quote that is not in the source and shows the model the real text", async () => {
+  await ensureReference();
+  await expect(
+    adapter().buildProposal!(scope, origin, {
+      answer: technicalAnswer,
+      claims: [{ ...draftClaim, quote: "caches every write forever" }],
+    }),
+  ).rejects.toMatchObject({
+    code: "citation-quote-conflict",
+    hint: expect.stringContaining("Optimistic concurrency compares"),
+  });
+});
+it("refuses an unknown source and lists the sources it may cite", async () => {
+  await ensureReference();
+  await expect(
+    adapter().buildProposal!(scope, origin, {
+      answer: technicalAnswer,
+      claims: [{ ...draftClaim, source: "made-up" }],
+    }),
+  ).rejects.toMatchObject({
+    code: "evidence-unavailable",
+    hint: expect.stringContaining("technical-note"),
+  });
+});
+it("passes a draft without claims through so validation can ask for them", async () => {
+  await ensureReference();
+  const built = await adapter().buildProposal!(scope, origin, {
+    answer: technicalAnswer,
+  });
+  expect(built.evidenceRefs).toEqual([]);
+  expect(built.patch["claims"]).toBeUndefined();
+  await expect(
+    adapter().validateProposal(
+      scope,
+      builtProposal(built.patch as Record<string, unknown>, []),
+    ),
+  ).rejects.toMatchObject({ code: "missing-citation" });
+});
+it("accepts claims placed inside the answer as well as beside it", async () => {
+  await ensureReference();
+  const nested = await adapter().buildProposal!(scope, origin, {
+    answer: { ...technicalAnswer, claims: [draftClaim] },
+  });
+  const beside = await adapter().buildProposal!(scope, origin, {
+    answer: technicalAnswer,
+    claims: [draftClaim],
+  });
+  expect(nested).toEqual(beside);
+  expect(nested.patch["answer"]).toEqual(technicalAnswer);
+  // The same claim in both places is stated once.
+  const both = await adapter().buildProposal!(scope, origin, {
+    answer: { ...technicalAnswer, claims: [draftClaim] },
+    claims: [draftClaim],
+  });
+  expect((both.patch["claims"] as unknown[]).length).toBe(1);
+});
