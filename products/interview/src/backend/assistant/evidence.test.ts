@@ -39,6 +39,10 @@ function check(generated: string, quoted: string, value: number, unit = "%") {
   );
 }
 it.each([
+  ["I improved latency by 40%,80%.", "I improved latency by 40%.", 40],
+  ["I improved latency by 40%,80ms.", "I improved latency by 40%.", 40],
+  ["I improved latency by 1,040%.", "I improved latency by 40%.", 40],
+  ["I improved latency by 1,40%.", "I improved latency by 40%.", 40],
   ["I improved latency by 140%.", "I improved latency by 40%.", 40],
   ["I improved latency by -40%.", "I improved latency by 40%.", 40],
   ["I improved latency by 140.5%.", "I improved latency by 40.5%.", 40.5],

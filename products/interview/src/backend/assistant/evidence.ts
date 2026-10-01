@@ -50,7 +50,7 @@ function metricTokens(text: string, extraUnits: readonly string[]) {
     .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
     .map((unit) => unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const token = new RegExp(
-    String.raw`(?<![\p{L}\p{N}_.+,-])([+-]?(?:\d[\d.,]*|\.\d+)(?:[eE][+-]?\d+)?)\s*(${units.join("|")})(?![\p{L}\p{N}_])`,
+    String.raw`(?<![\p{L}\p{N}_.+-])([+-]?(?:\d[\d.,]*|\.\d+)(?:[eE][+-]?\d+)?)\s*(${units.join("|")})(?![\p{L}\p{N}_])`,
     "gu",
   );
   return [...text.matchAll(token)].map((match) => ({
