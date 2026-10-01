@@ -86,6 +86,18 @@ Open <http://127.0.0.1:3000>. The development command starts both the Next.js
 web app and the terminal gateway. The gateway listens at
 `ws://127.0.0.1:3001/terminal` by default.
 
+Stop everything the development commands started (web app, terminal gateway,
+agent worker, and the assistant stack below) with:
+
+```bash
+pnpm dev:stop
+```
+
+It asks each launcher to shut down cleanly, then stops anything from this
+repository that still holds ports 3000, 3001, 5175 or 8791. Other programs on
+those ports are reported and left running. It is safe to run when nothing is
+up.
+
 Open <http://127.0.0.1:3000/library> for the interview reference Library.
 Library source records are stored in `INTERVIEW_DATA_DIR/library.json`; the
 derived search index is disposable and rebuilt automatically.
@@ -110,7 +122,16 @@ testing, not realistic interview answers.
 
 ## Configuration
 
-The web server reads the following variables from `apps/web/.env.local`:
+The web server reads the following variables from `apps/web/.env.local`.
+
+**One model configuration serves the whole application.** The interview API,
+the platform AI gateway and the assistant (`pnpm assistant:dev`) all resolve
+their model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below
+through `@omnitech/ai-sdk`, so changing a value changes it everywhere. When
+none is set, the development launchers (`pnpm dev`, `pnpm assistant:dev`) use
+the model LM Studio already has loaded and say so on start. The assistant also
+sizes its history and output limits from the model's loaded context window, and
+`pnpm assistant:dev` loads its LM Studio model with a 32,768-token window.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |

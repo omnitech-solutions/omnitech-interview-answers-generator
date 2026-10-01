@@ -31,7 +31,8 @@
     "hooks:run:pre-commit": "lefthook run pre-commit",
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
-    "assistant:dev": "node scripts/assistant-dev.mjs"
+    "assistant:dev": "node scripts/assistant-dev.mjs",
+    "dev:stop": "node scripts/dev-stop.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",

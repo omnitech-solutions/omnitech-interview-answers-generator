@@ -7,6 +7,7 @@ import {resolve,basename} from 'node:path';
 import readline from 'node:readline';
 import {existsSync,watch} from 'node:fs';
 import {syncAssistant,source as assistantSource} from './assistant-sync.mjs';
+import {defaultLocalModelEnvironment,lmStudioOrigin} from './local-model.mjs';
 const root=resolve(import.meta.dirname,'..'),bin='/opt/homebrew/opt/postgresql@15/bin';
 if(process.env.NODE_ENV==='production')throw Error('Development launcher cannot run in production');
 async function unusedPort(){const server=createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port;}
@@ -37,7 +38,7 @@ const lms=resolve(process.env.HOME??'','.lmstudio/bin/lms');
 async function ensureLmStudioModel(id){
  const wanted=Number(process.env.ASSISTANT_CONTEXT_TOKENS??32768),ttl=String(process.env.ASSISTANT_MODEL_TTL_SECONDS??14400);
  try{
-  const listing=await (await fetch('http://127.0.0.1:1234/api/v0/models',{signal:AbortSignal.timeout(3000)})).json();
+  const listing=await (await fetch(`${lmStudioOrigin()}/api/v0/models`,{signal:AbortSignal.timeout(3000)})).json();
   const loaded=listing.data?.find(item=>item.id===id&&item.state==='loaded');
   if(loaded?.loaded_context_length>=wanted)return;
   if(!existsSync(lms)){console.error(`LM Studio CLI not found at ${lms}; load ${id} with a context of at least ${wanted} tokens yourself.`);return;}
@@ -46,11 +47,19 @@ async function ensureLmStudioModel(id){
   execFileSync(lms,['load',id,'--identifier',id,'--context-length',String(wanted),'--ttl',ttl,'-y'],{stdio:'pipe'});
  }catch(error){console.error(`Could not prepare ${id} in LM Studio: ${error.message}`);}
 }
-let mode=previous?.mode==='lm-studio'?'lm-studio':'fixture',modelId=mode==='lm-studio'?previous.modelId:'deterministic-local-fixture',api;
+// The model comes from the same settings the main app uses (AI_*, OPENAI_*,
+// LM_STUDIO_*); LM Studio's loaded model fills in when none is set. `model <id>`
+// overrides it for this session. The fixture must be asked for.
+const modelEnv=await defaultLocalModelEnvironment();
+let override;
+const effectiveEnv=()=>({...process.env,...modelEnv,...(override?{AI_BASE_URL:`${lmStudioOrigin()}/v1`,AI_MODEL:override}:{})});
+const lmStudioModel=()=>override??(!effectiveEnv().AI_MODEL&&!effectiveEnv().OPENAI_MODEL&&!effectiveEnv().OPENAI_API_KEY?effectiveEnv().LM_STUDIO_MODEL:undefined);
+const describeModel=()=>override??effectiveEnv().AI_MODEL??effectiveEnv().OPENAI_MODEL??effectiveEnv().LM_STUDIO_MODEL??'(not configured)';
+let mode=previous?.mode==='fixture'||process.env.ASSISTANT_MODEL_MODE==='fixture'?'fixture':'live',modelId=mode==='fixture'?'deterministic-local-fixture':describeModel(),api;
 const state=()=>({pgRoot,pgPort,postgresPid:postgres.pid,apiPid:api?.pid,launcherPid:process.pid,frontendPid:frontend?.pid,mode,modelId,url:'http://127.0.0.1:5175/t/local/p/interview'});
 async function saveState(){await writeFile(resolve(stateDirectory,'state.json'),JSON.stringify(state(),null,2));}
-function startApi(){api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:root,env:{...process.env,NODE_ENV:'development',OMNITECH_ASSISTANT_LOCAL_DEV:'1',ASSISTANT_PG_PORT:String(pgPort),ASSISTANT_API_PORT:'8791',ASSISTANT_MODEL_MODE:mode,ASSISTANT_MODEL_ID:modelId},stdio:['ignore','pipe','pipe']});api.stdout.pipe(process.stdout);api.stderr.pipe(process.stderr);return api;}
-if(mode==='lm-studio')await ensureLmStudioModel(modelId);
+function startApi(){api=spawn(process.execPath,['apps/api/dist/main.js'],{cwd:root,env:{...effectiveEnv(),NODE_ENV:'development',OMNITECH_ASSISTANT_LOCAL_DEV:'1',ASSISTANT_PG_PORT:String(pgPort),ASSISTANT_API_PORT:'8791',ASSISTANT_MODEL_MODE:mode},stdio:['ignore','pipe','pipe']});api.stdout.pipe(process.stdout);api.stderr.pipe(process.stderr);return api;}
+if(mode==='live'&&lmStudioModel())await ensureLmStudioModel(lmStudioModel());
 let frontend;
 function startFrontend(force=false){frontend=spawn('pnpm',['--filter','@omnitech/assistant-frontend','dev','--port','5175',...(force?['--force']:[])],{cwd:root,env:{...process.env,ASSISTANT_API_ORIGIN:'http://127.0.0.1:8791'},stdio:['ignore','pipe','pipe']});frontend.stdout.pipe(process.stdout);frontend.stderr.pipe(process.stderr);return frontend;}
 startApi();startFrontend();
@@ -100,9 +109,10 @@ for(const dir of ['apps/api/dist','products/interview/dist/backend','packages/ai
 const lines=readline.createInterface({input:process.stdin});
 lines.on('line',async line=>{if(changing)return;changing=true;try{
  if(line==='stop'){await close();return;}
- if(line.startsWith('model lm-studio ')){modelId=line.slice('model lm-studio '.length).trim();if(!modelId||modelId.length>256)throw Error('Valid observed model ID required');mode='lm-studio';await ensureLmStudioModel(modelId);}
+ if(line.startsWith('model lm-studio ')){const id=line.slice('model lm-studio '.length).trim();if(!id||id.length>256)throw Error('Valid observed model ID required');override=id;mode='live';modelId=id;await ensureLmStudioModel(id);}
  else if(line==='model fixture'){mode='fixture';modelId='deterministic-local-fixture';}
+ else if(line==='model default'){override=undefined;mode='live';modelId=describeModel();if(lmStudioModel())await ensureLmStudioModel(lmStudioModel());}
  else if(line==='sync'){await resync();return;}
- else if(line!=='restart-api'){console.log('Commands: restart-api | sync | model lm-studio MODEL_ID | model fixture | stop');return;}
+ else if(line!=='restart-api'){console.log('Commands: restart-api | sync | model lm-studio MODEL_ID | model default | model fixture | stop');return;}
  await stopChild(api);startApi();await saveState();console.log(JSON.stringify({restarted:true,...state()}));
  }catch(error){console.error(error.message);}finally{changing=false;}});

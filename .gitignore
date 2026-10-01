@@ -39,3 +39,7 @@ rulesync-gh.lock.yaml
 
 # Rulesync's canonical source stays committed; only its local cache is ignored.
 .rulesync/.installed/
+
+# State of the local development launchers.
+/.dev-local/
+/.assistant-local/

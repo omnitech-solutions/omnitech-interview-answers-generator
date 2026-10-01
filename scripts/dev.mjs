@@ -1,7 +1,10 @@
 import { spawn, spawnSync } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { defaultLocalModelEnvironment } from "./local-model.mjs";
 
 const localEnvironment = {
   ...process.env,
+  ...(await defaultLocalModelEnvironment()),
   NODE_ENV: process.env.NODE_ENV ?? "development",
   FAKE_AUTH_ENABLED: process.env.FAKE_AUTH_ENABLED ?? "true",
   NEXT_PUBLIC_FAKE_AUTH_ENABLED:
@@ -56,6 +59,16 @@ const child = spawn(
   ],
   { env: localEnvironment, stdio: "inherit" },
 );
+
+// `pnpm dev:stop` finds this launcher through its recorded pid.
+const stateFile = new URL("../.dev-local/state.json", import.meta.url);
+mkdirSync(new URL("../.dev-local/", import.meta.url), { recursive: true });
+writeFileSync(
+  stateFile,
+  JSON.stringify({ launcherPid: process.pid, childPid: child.pid }, null, 2),
+);
+const forgetState = () => rmSync(stateFile, { force: true });
+process.once("exit", forgetState);
 
 const forwardSignal = (signal) => child.kill(signal);
 process.once("SIGINT", () => forwardSignal("SIGINT"));
