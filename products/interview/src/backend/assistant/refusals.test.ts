@@ -51,7 +51,7 @@ const generic = (item: typeof reference | typeof candidate) => {
 };
 const answer = (answerMarkdown: string) => ({
   title: "Example",
-  language: "typescript",
+  language: "typescript" as const,
   answerMarkdown,
   code: "",
   usageCode: "",
@@ -106,14 +106,15 @@ beforeAll(async () => {
   workspace = new InterviewWorkspaceRepository(pg.database);
   await workspace.putEvidence(scope, reference);
   await workspace.putEvidence(scope, candidate);
-  for (const id of ["blank", "with-answer"])
-    await workspace.create(scope, originFor(id), {
-      question: "Same question",
-      notes: "",
-      ...(id === "with-answer"
-        ? { answer: answer("Compare the expected revision.") }
-        : {}),
-    });
+  await workspace.create(scope, originFor("blank"), {
+    question: "Same question",
+    notes: "",
+  });
+  await workspace.create(scope, originFor("with-answer"), {
+    question: "Same question",
+    notes: "",
+    answer: answer("Compare the expected revision."),
+  });
 });
 afterAll(async () => {
   await pg?.close();
