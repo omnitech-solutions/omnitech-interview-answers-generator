@@ -19,7 +19,11 @@
   },
   "dependencies": {
     "@omnitech/ai-contracts": "workspace:*",
-    "@omnitech/ai-sdk": "workspace:*"
+    "@omnitech/ai-sdk": "workspace:*",
+    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+    "@omni-assistant/providers": "file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
+    "openai": "7.25.0",
+    "ajv": "8.20.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

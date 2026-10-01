@@ -1,3 +1,4 @@
+import type { JsonSchema } from "@omni-assistant/contracts";
 import type { ZodType } from "zod";
 
 export type AiRole = "system" | "user" | "assistant";
@@ -20,6 +21,7 @@ export interface AiProviderSummary {
 }
 
 export interface AiGenerateInput {
+  responseSchema?: JsonSchema;
   maxOutputTokens?: number;
   messages?: AiMessage[];
   prompt?: string;

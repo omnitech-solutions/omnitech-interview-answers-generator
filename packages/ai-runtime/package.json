@@ -18,7 +18,8 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
-    "@omnitech/ai-contracts": "workspace:*"
+    "@omnitech/ai-contracts": "workspace:*",
+    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz"
   },
   "devDependencies": {
     "typescript": "catalog:",

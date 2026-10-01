@@ -21,9 +21,10 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^1.0.19",
-    "ai": "^6.0.73",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+    "@omni-assistant/providers": "file:../../vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz",
+    "openai": "7.25.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

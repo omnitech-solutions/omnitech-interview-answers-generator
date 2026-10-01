@@ -1,6 +1,9 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText, streamText } from "ai";
-
+import OpenAI from "openai";
+import {
+  loopbackChatURL,
+  readOpenAIChunks,
+  requestLmStudio,
+} from "@omni-assistant/providers";
 import { AiSdkError } from "./errors.js";
 import type {
   AiGenerateInput,
@@ -8,110 +11,198 @@ import type {
   AiStreamEvent,
   OpenAiCompatibleProviderOptions,
 } from "./types.js";
-
-function toModelInput(
-  input: AiGenerateInput,
-  model: ReturnType<ReturnType<typeof createOpenAICompatible>>,
+function messages(input: AiGenerateInput) {
+  return [
+    ...(input.system === undefined
+      ? []
+      : [{ role: "system" as const, content: input.system }]),
+    ...(input.prompt !== undefined
+      ? [{ role: "user" as const, content: input.prompt }]
+      : (input.messages ?? [{ role: "user" as const, content: "" }])),
+  ];
+}
+function normalizeUsage(
+  usage:
+    | {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      }
+    | null
+    | undefined,
 ) {
-  const prompt =
-    input.prompt ??
-    input.messages
-      ?.map((message) => `${message.role.toUpperCase()}: ${message.content}`)
-      .join("\n\n") ??
-    "";
-
   return {
-    model,
-    prompt,
-    ...(input.system === undefined ? {} : { system: input.system }),
-    ...(input.temperature === undefined
+    ...(usage?.prompt_tokens === undefined
       ? {}
-      : { temperature: input.temperature }),
-    ...(input.maxOutputTokens === undefined
+      : { inputTokens: usage.prompt_tokens }),
+    ...(usage?.completion_tokens === undefined
       ? {}
-      : { maxOutputTokens: input.maxOutputTokens }),
-    ...(input.signal === undefined ? {} : { abortSignal: input.signal }),
+      : { outputTokens: usage.completion_tokens }),
+    ...(usage?.total_tokens === undefined
+      ? {}
+      : { totalTokens: usage.total_tokens }),
   };
 }
-
-function normalizeUsage(usage: {
-  inputTokens: number | undefined;
-  outputTokens: number | undefined;
-  totalTokens: number | undefined;
-}) {
-  return {
-    ...(usage.inputTokens === undefined
-      ? {}
-      : { inputTokens: usage.inputTokens }),
-    ...(usage.outputTokens === undefined
-      ? {}
-      : { outputTokens: usage.outputTokens }),
-    ...(usage.totalTokens === undefined
-      ? {}
-      : { totalTokens: usage.totalTokens }),
-  };
-}
-
 export function createOpenAiCompatibleProvider(
   options: OpenAiCompatibleProviderOptions,
 ): AiProvider {
-  const provider = createOpenAICompatible({
-    name: options.id,
-    baseURL: options.baseUrl.replace(/\/$/, ""),
-    apiKey: options.apiKey ?? "",
-    ...(options.headers === undefined ? {} : { headers: options.headers }),
-  });
-  const model = provider(options.model);
-
-  return {
-    summary: {
-      id: options.id,
-      label: options.label,
+  const anonymous = !options.apiKey;
+  if (anonymous) {
+    loopbackChatURL(options.baseUrl);
+    if (
+      Object.keys(options.headers ?? {}).some((k) =>
+        /^(authorization|proxy-authorization|x-api-key)$/i.test(k),
+      )
+    )
+      throw new Error("Anonymous providers cannot contain credential headers");
+  }
+  const client = anonymous
+    ? undefined
+    : new OpenAI({
+        apiKey: options.apiKey!,
+        baseURL: options.baseUrl.replace(/\/$/, ""),
+        timeout: options.timeoutMs ?? 120_000,
+        maxRetries: 2,
+        logLevel: "off",
+        ...(options.headers === undefined
+          ? {}
+          : { defaultHeaders: options.headers }),
+      });
+  function signal(input: AiGenerateInput) {
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? 120_000);
+    return input.signal ? AbortSignal.any([input.signal, timeout]) : timeout;
+  }
+  function body(input: AiGenerateInput) {
+    return {
       model: options.model,
-    },
-    async generateText(input) {
-      try {
-        const timeout = AbortSignal.timeout(options.timeoutMs ?? 120_000);
-        const signal = input.signal
-          ? AbortSignal.any([input.signal, timeout])
-          : timeout;
-        const result = await generateText(
-          toModelInput({ ...input, signal }, model),
-        );
-
-        return {
-          finishReason: String(result.finishReason),
-          providerId: options.id,
-          text: result.text,
-          usage: normalizeUsage(result.usage),
-        };
-      } catch (error) {
-        if (input.signal?.aborted) {
-          throw new AiSdkError(
-            "aborted",
-            "The AI request was cancelled.",
-            error,
-          );
-        }
-        throw new AiSdkError(
+      messages: messages(input),
+      ...(input.responseSchema === undefined
+        ? {}
+        : {
+            response_format: {
+              type: "json_schema" as const,
+              json_schema: {
+                name: "structured_output",
+                strict: true,
+                schema: input.responseSchema as Record<string, unknown>,
+              },
+            },
+          }),
+      ...(input.temperature === undefined
+        ? {}
+        : { temperature: input.temperature }),
+      ...(input.maxOutputTokens === undefined
+        ? {}
+        : { max_tokens: input.maxOutputTokens }),
+    };
+  }
+  function failure(error: unknown, input: AiGenerateInput) {
+    return input.signal?.aborted
+      ? new AiSdkError("aborted", "The AI request was cancelled.", error)
+      : new AiSdkError(
           "provider_failure",
           `AI provider "${options.id}" failed.`,
           error,
         );
+  }
+  async function localRequest(
+    input: AiGenerateInput,
+    stream: boolean,
+    abort: AbortSignal,
+  ) {
+    // Preserve the compatibility facade's bounded two retries before any streaming effects.
+    let last: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await requestLmStudio(
+          {
+            baseURL: options.baseUrl,
+            timeoutMs: options.timeoutMs ?? 120_000,
+            ...(options.headers === undefined
+              ? {}
+              : { headers: options.headers }),
+          },
+          {
+            ...body(input),
+            stream,
+            ...(stream ? { stream_options: { include_usage: true } } : {}),
+          },
+          abort,
+        );
+      } catch (error) {
+        last = error;
+        abort.throwIfAborted();
+        if (
+          attempt === 2 ||
+          !(error instanceof Error) ||
+          !/HTTP (408|409|429|5\d\d)$/.test(error.message)
+        )
+          throw error;
+        await new Promise<void>((resolve, reject) => {
+          const stop = () => {
+            clearTimeout(timer);
+            reject(abort.reason);
+          };
+          const timer = setTimeout(
+            () => {
+              abort.removeEventListener("abort", stop);
+              resolve();
+            },
+            2000 * 2 ** attempt,
+          );
+          abort.addEventListener("abort", stop, { once: true });
+        });
+      }
+    }
+    throw last;
+  }
+  return {
+    summary: { id: options.id, label: options.label, model: options.model },
+    async generateText(input) {
+      try {
+        const abort = signal(input);
+        abort.throwIfAborted();
+        const result = client
+          ? await client.chat.completions.create(body(input), { signal: abort })
+          : ((await (
+              await localRequest(input, false, abort)
+            ).json()) as OpenAI.Chat.Completions.ChatCompletion);
+        const choice = result.choices[0];
+        if (!choice) throw new Error("Provider returned no completion");
+        return {
+          finishReason:
+            choice.finish_reason === "length"
+              ? "length"
+              : choice.finish_reason === "stop"
+                ? "stop"
+                : choice.finish_reason,
+          providerId: options.id,
+          text: choice.message.content ?? "",
+          usage: normalizeUsage(result.usage),
+        };
+      } catch (error) {
+        throw failure(error, input);
       }
     },
     async *streamText(input): AsyncIterable<AiStreamEvent> {
-      const timeout = AbortSignal.timeout(options.timeoutMs ?? 120_000);
-      const signal = input.signal
-        ? AbortSignal.any([input.signal, timeout])
-        : timeout;
-      const result = streamText(toModelInput({ ...input, signal }, model));
-
-      for await (const delta of result.textStream) {
-        yield { type: "text-delta", text: delta };
+      try {
+        const abort = signal(input);
+        abort.throwIfAborted();
+        const source = client
+          ? await client.chat.completions.create(
+              { ...body(input), stream: true },
+              { signal: abort },
+            )
+          : readOpenAIChunks(await localRequest(input, true, abort), abort);
+        for await (const chunk of source) {
+          abort.throwIfAborted();
+          const delta = chunk.choices[0]?.delta.content;
+          if (delta) yield { type: "text-delta", text: delta };
+        }
+        yield { type: "finish" };
+      } catch (error) {
+        throw failure(error, input);
       }
-
-      yield { type: "finish" };
     },
   };
 }

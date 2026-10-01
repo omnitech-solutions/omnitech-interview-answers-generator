@@ -35,7 +35,11 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "node-pty"
-    ]
+    ],
+    "overrides": {
+      "@omni-assistant/contracts": "file:vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz",
+      "@omni-assistant/providers": "file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",

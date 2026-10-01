@@ -20,5 +20,8 @@
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@omni-assistant/contracts": "file:../../vendor/omni-assistant/omni-assistant-contracts-0.1.0.tgz"
   }
 }
