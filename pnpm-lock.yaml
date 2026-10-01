@@ -1914,7 +1914,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omni-assistant/providers@file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz':
-    resolution: {integrity: sha512-ub6lKxs9h2nT/r4+vqTA7Q8zIfZof/8t+TlEGui/n1mLSW1+gQ29VT21iC7+JRVocy4jmzCipXy2gjF0bOchYA==, tarball: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz}
+    resolution: {integrity: sha512-/2eVs+awPmWHtArRm8TtfSFVBWP3/YQliJOQHUbp7zDkAXqqfDf+aATRBRkBJYb2vxZL6C4bfjmMiobYzsJfEQ==, tarball: file:vendor/omni-assistant/omni-assistant-providers-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
