@@ -122,6 +122,9 @@ importers:
       '@omnitech/ai-runtime':
         specifier: workspace:*
         version: link:../../packages/ai-runtime
+      '@omnitech/ai-sdk':
+        specifier: workspace:*
+        version: link:../../packages/ai-sdk
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
@@ -2084,7 +2087,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz':
-    resolution: {integrity: sha512-qmBn+QnxeBX08LJXqzkGalVw556JQpCLKwFs5UIORqRrvem0UM23gVuJ0heX42hLSnYN+lWtKx6zQwg+08QSVw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
+    resolution: {integrity: sha512-MT1/2G4MR4MUz2c7R/Y+NmtWiPNPUVOTUOPnvVyWbOMgoRyN//VpKDsphdazwq2yEOlatnDdMP/Lsq1RrGfOxg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     peerDependencies:
@@ -2096,7 +2099,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
-    resolution: {integrity: sha512-ml0L1jvH7BERDipGJL9PuOOpXSrw8EUzjTacQiNBeW4Avb5ooW4fCmEbxgZuypXAgpMYgxkf/qSBerC7ntLlOg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
+    resolution: {integrity: sha512-HIEFrDcrSDMaWTadVuz/pb+ZQZv2gbnjBDtJKK1uSsnPnc0kolGk/PKUevUQurSkF8Lr+zAS+dzn/DRPx+My+w==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
