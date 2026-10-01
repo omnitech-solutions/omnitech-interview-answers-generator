@@ -199,6 +199,7 @@ function installServer() {
         }
         return json(record());
       }
+      if (path === "/api/v1/generate") return json(proposedAnswer);
       if (path.startsWith("/api/assistant/v1/threads?"))
         return json([
           {
@@ -338,5 +339,34 @@ describe("Workspace with the assistant", () => {
         (call) => call.path === "/api/assistant/v1/proposals/p1/apply",
       ),
     ).toBe(true);
+  });
+  it("generates an answer with the main app's endpoint, and the assistant then sees it", async () => {
+    const { calls } = installServer();
+    renderAssistant();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Interview question")).toHaveValue(
+        "Question from the server",
+      ),
+    );
+    // No provider picker: the server's model settings decide.
+    expect(screen.queryByLabelText("Answer provider")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await screen.findByText("Draft generated. It has not been saved.");
+    const generate = calls.find((call) => call.path === "/api/v1/generate");
+    expect(generate?.body).toEqual({
+      question: "Question from the server",
+      language: "auto",
+    });
+    // Sending a message saves the generated answer so the assistant can read it.
+    fireEvent.change(screen.getByLabelText("Assistant message"), {
+      target: { value: "What is the time complexity?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === "PATCH")).toBe(true),
+    );
+    expect(calls.find((call) => call.method === "PATCH")?.body).toMatchObject({
+      patch: { answer: { title: "Optimistic concurrency" } },
+    });
   });
 });

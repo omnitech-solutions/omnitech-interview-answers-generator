@@ -73,8 +73,12 @@ export function validateClaims(
   answer: NonNullable<InterviewDraft["answer"]>,
   claims: readonly InterviewClaim[],
   sources: ReadonlyMap<string, InterviewEvidence>,
+  // False when the prose is as it was: nothing new was said, so nothing new
+  // needs a source. Claims that are given are still checked.
+  { proseChanged = true }: { proseChanged?: boolean } = {},
 ): void {
-  if (!claims.length) throw new WorkspaceError("missing-citation");
+  if (!claims.length && proseChanged)
+    throw new WorkspaceError("missing-citation");
   const units = [
     ...[...sources.values()].flatMap(
       (source) => source.metrics?.map((metric) => metric.unit) ?? [],
@@ -131,6 +135,7 @@ export function validateClaims(
         throw new WorkspaceError("candidate-fact-conflict");
     }
   }
+  if (!proseChanged) return;
   for (const personal of answer.answerMarkdown.matchAll(
     /\b(?:I|my|we|our)\b[^.!?\n]*(?:[.!?]|$)/gi,
   )) {

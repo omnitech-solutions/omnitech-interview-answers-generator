@@ -278,3 +278,79 @@ it("lists the saved versions of an artifact, newest first", async () => {
     "Compare the expected revision.",
   );
 });
+
+it("merges a partial answer into the current one and keeps every field it did not name", async () => {
+  const origin = (await workspace.read(scope, "w", "with-answer")).origin;
+  const built = await adapter().buildProposal!(scope, origin, {
+    answer: { testCode: "it('adds a test', () => {});" },
+  });
+  expect(built.patch["answer"]).toEqual({
+    ...answer("Compare the expected revision."),
+    testCode: "it('adds a test', () => {});",
+  });
+  expect(built.patch["claims"]).toBeUndefined();
+});
+
+it("asks for every field when there is no answer yet to merge into", async () => {
+  await expect(
+    adapter().buildProposal!(scope, originFor("blank"), {
+      answer: { testCode: "it('adds a test', () => {});" },
+    }),
+  ).rejects.toMatchObject({
+    code: "proposal-invalid",
+    hint: expect.stringContaining("title, language, answerMarkdown"),
+  });
+});
+
+it("accepts a change to code or tests without citations, but not a change to the prose", async () => {
+  const current = await workspace.read(scope, "w", "with-answer");
+  const base = current.value.answer!;
+  const at = current.origin;
+  const make = (patch: Record<string, unknown>) =>
+    ({ id: "p-edit", origin: at, patch, evidence: [] }) as unknown as Proposal;
+  // Tests only: nothing in the prose changes, so there is nothing to cite.
+  await adapter().validateProposal(
+    scope,
+    make({ answer: { ...base, testCode: "it('x', () => {});" } }),
+  );
+  // Prose changes still need a source behind them.
+  await expect(
+    adapter().validateProposal(
+      scope,
+      make({ answer: { ...base, answerMarkdown: "Something new." } }),
+    ),
+  ).rejects.toMatchObject({ code: "missing-citation" });
+});
+
+it("gives the model an outline of the tests and definitions, so lists of them are exact", async () => {
+  const outlined = originFor("outlined");
+  await workspace.create(scope, outlined, {
+    question: "Outline me",
+    notes: "",
+    answer: {
+      ...answer("Notes."),
+      code: "export class Cache {}\nfunction helper() {}\nconst unused = 1;",
+      testCode: [
+        "describe('Cache', () => {",
+        "  it('stores a value', () => {});",
+        '  it("evicts the oldest", () => {});',
+        "  test(`handles capacity 0`, () => {});",
+        "});",
+      ].join("\n"),
+    },
+  });
+  const context = (await adapter().getContext(scope, outlined)).context as {
+    outline: { suites: string[]; tests: string[]; definitions: string[] };
+  };
+  expect(context.outline).toEqual({
+    suites: ["Cache"],
+    tests: ["stores a value", "evicts the oldest", "handles capacity 0"],
+    definitions: ["Cache", "helper"],
+  });
+  // With no answer yet there is nothing to outline.
+  const blank = (await adapter().getContext(scope, originFor("blank")))
+    .context as {
+    outline: unknown;
+  };
+  expect(blank.outline).toEqual({ suites: [], tests: [], definitions: [] });
+});

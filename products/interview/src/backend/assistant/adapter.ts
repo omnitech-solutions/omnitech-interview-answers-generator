@@ -19,6 +19,7 @@ import {
   type InterviewProvenance,
   interviewClaimsSchema,
   interviewMetricSchema,
+  languageSchema,
   runResultSchema,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
@@ -57,15 +58,49 @@ const draftClaimSchema = z.strictObject({
 // Models often put `claims` inside `answer`; both places are read, and the
 // stored patch always has them beside it.
 const draftClaimsSchema = z.array(draftClaimSchema).max(64).optional();
-export const interviewModelDraftSchema = interviewDraftPatchSchema.extend({
-  answer: interviewDraftPatchSchema.shape.answer
-    .unwrap()
-    .unwrap()
-    .extend({ claims: draftClaimsSchema })
-    .nullable()
-    .optional(),
+// An edit names only the answer fields it changes; the rest come from the
+// current answer. No defaults here: a missing field must stay missing, or an
+// empty default would overwrite what is already there.
+const partialAnswerSchema = z.strictObject({
+  title: z.string().max(256).trim().min(1).optional(),
+  language: languageSchema.optional(),
+  answerMarkdown: z.string().max(100_000).trim().min(1).optional(),
+  code: z.string().max(100_000).optional(),
+  usageCode: z.string().max(100_000).optional(),
+  testCode: z.string().max(100_000).optional(),
   claims: draftClaimsSchema,
 });
+export const interviewModelDraftSchema = interviewDraftPatchSchema.extend({
+  answer: partialAnswerSchema.nullable().optional(),
+  claims: draftClaimsSchema,
+});
+const completeAnswerSchema = interviewDraftPatchSchema.shape.answer
+  .unwrap()
+  .unwrap();
+// What is in the answer's code and tests, listed exactly. Questions like "which
+// tests do I have?" are then answered from a list rather than from skimming code.
+const TEST_TITLE =
+  /\b(it|test|describe|specify|context)\s*\(?\s*(['"`])((?:\\.|(?!\2).)*)\2/g;
+const DEFINITION = /\b(?:class|function|def|interface)\s+([A-Za-z_$][\w$]*)/g;
+function outlineOf(answer: { code: string; testCode: string } | null) {
+  const unique = (items: string[]) => [...new Set(items)].slice(0, 60);
+  const titles = [...(answer?.testCode ?? "").matchAll(TEST_TITLE)];
+  return {
+    suites: unique(
+      titles
+        .filter((m) => m[1] === "describe" || m[1] === "context")
+        .map((m) => m[3]!),
+    ),
+    tests: unique(
+      titles
+        .filter((m) => !["describe", "context"].includes(m[1]!))
+        .map((m) => m[3]!),
+    ),
+    definitions: unique(
+      [...(answer?.code ?? "").matchAll(DEFINITION)].map((m) => m[1]!),
+    ),
+  };
+}
 // Finds the real passage a model's quote refers to, tolerating case and runs of
 // whitespace; the returned text is always a substring of the source.
 function locateQuote(text: string, quote: string): string | undefined {
@@ -178,14 +213,19 @@ export function createInterviewAdapter(
     );
     if (unchanged) throw new WorkspaceError("no-change");
     if (patch.answer) {
-      validateClaims(patch.answer, patch.claims ?? [], sources);
+      // Only new prose needs a source behind it; changing code or tests does not.
+      validateClaims(patch.answer, patch.claims ?? [], sources, {
+        proseChanged:
+          !current.value.answer ||
+          patch.answer.answerMarkdown !== current.value.answer.answerMarkdown,
+      });
     } else if (patch.claims?.length)
       throw new WorkspaceError("claim-answer-required");
     return { proposal, patch, sources };
   };
   return {
     draftSchema: interviewModelDraftJsonSchema,
-    buildProposal: async (scope, _origin, raw) => {
+    buildProposal: async (scope, origin, raw) => {
       const parsed = interviewModelDraftSchema.safeParse(raw);
       if (!parsed.success) throw new WorkspaceError("proposal-invalid");
       const {
@@ -194,11 +234,33 @@ export function createInterviewAdapter(
         ...rest
       } = parsed.data;
       const { claims: insideClaims = [], ...answerFields } = draftAnswer ?? {};
+      let mergedAnswer: z.infer<typeof completeAnswerSchema> | null | undefined;
+      if (draftAnswer === null) mergedAnswer = null;
+      else if (draftAnswer !== undefined) {
+        const existing = await workspace
+          .transaction(scope, (tx, current) =>
+            workspace.readTransaction(
+              tx,
+              current,
+              origin.workspaceId,
+              origin.artifactId,
+            ),
+          )
+          .then((record) => record.value.answer);
+        const complete = completeAnswerSchema.safeParse({
+          ...(existing ?? {}),
+          ...answerFields,
+        });
+        if (!complete.success)
+          throw new WorkspaceError(
+            "proposal-invalid",
+            "There is no answer to change yet. A new answer needs all of: title, language, answerMarkdown, code, usageCode, testCode.",
+          );
+        mergedAnswer = complete.data;
+      }
       const patch = {
         ...rest,
-        ...(draftAnswer === undefined
-          ? {}
-          : { answer: draftAnswer === null ? null : answerFields }),
+        ...(mergedAnswer === undefined ? {} : { answer: mergedAnswer }),
       };
       const seen = new Set<string>();
       const draftClaims = [...besideClaims, ...insideClaims].filter((claim) => {
@@ -301,6 +363,7 @@ export function createInterviewAdapter(
             question: current.value.question,
             notes: current.value.notes,
             answer: current.value.answer,
+            outline: outlineOf(current.value.answer),
             provenance: current.provenance,
             evidenceMetadata: sources.map((source) => ({
               id: source.id,

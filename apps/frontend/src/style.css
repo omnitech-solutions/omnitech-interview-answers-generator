@@ -1,1 +1,98 @@
-.assistant-app-nav{display:flex;gap:1rem;align-items:center;padding:.7rem;background:#172554;color:#fff;flex-wrap:wrap}.assistant-app-nav input{color:#111}.assistant-workspace-dock{position:fixed;right:1rem;bottom:1rem;width:min(440px,45vw);max-height:75vh;overflow:auto;z-index:20;background:var(--paper,#fff);border:1px solid var(--line,#bbb);border-radius:12px;box-shadow:0 6px 24px #0003;padding:1rem}.assistant-panel header{display:flex;justify-content:space-between;gap:.5rem}.assistant-panel h2{font-size:1.2rem}.assistant-panel textarea{width:100%;min-height:80px}.assistant-panel pre{white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12px}.assistant-panel article{padding:.6rem;border-bottom:1px solid #aaa5}.assistant-panel button{margin:.25rem;padding:.4rem;cursor:pointer}.assistant-panel [role=alert]{color:#b91c1c}.assistant-panel select{max-width:100%}@media(max-width:750px){.assistant-workspace-dock{position:relative;right:auto;bottom:auto;width:100%;max-height:none}}
+.assistant-app-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.7rem;
+  background: #172554;
+  color: #fff;
+  flex-wrap: wrap;
+}
+.assistant-app-nav input {
+  color: #111;
+}
+
+/* The assistant is a sidebar the page makes room for, not a window over it. */
+#root:has(.assistant-workspace-dock) {
+  padding-right: min(440px, 38vw);
+}
+.assistant-workspace-dock {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 38vw);
+  overflow: auto;
+  z-index: 20;
+  background: var(--paper, #fff);
+  border-left: 1px solid var(--line, #bbb);
+  box-shadow: -4px 0 18px #0002;
+  padding: 0.9rem 1rem;
+}
+.assistant-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.assistant-panel h2 {
+  font-size: 1.2rem;
+}
+.assistant-panel textarea {
+  width: 100%;
+  min-height: 80px;
+  box-sizing: border-box;
+}
+.assistant-panel pre {
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+}
+.assistant-panel select {
+  max-width: 100%;
+}
+.assistant-panel button {
+  margin: 0.25rem;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+.assistant-panel [role="alert"] {
+  color: #b91c1c;
+}
+.assistant-panel [aria-label="Conversation messages"] {
+  max-height: 46vh;
+  overflow: auto;
+  margin: 0.6rem 0;
+}
+.assistant-panel article {
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.4rem;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+.assistant-panel article[data-role="user"] {
+  background: #e0ecff;
+}
+.assistant-panel article > strong {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #475569;
+  margin-bottom: 0.2rem;
+}
+@media (max-width: 900px) {
+  #root:has(.assistant-workspace-dock) {
+    padding-right: 0;
+  }
+  .assistant-workspace-dock {
+    position: relative;
+    width: auto;
+    border-left: 0;
+    box-shadow: none;
+    border-top: 1px solid var(--line, #bbb);
+  }
+  .assistant-panel [aria-label="Conversation messages"] {
+    max-height: none;
+  }
+}

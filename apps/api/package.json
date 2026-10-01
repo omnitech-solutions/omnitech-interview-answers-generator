@@ -13,6 +13,7 @@
     "hono": "4.13.12",
     "zod": "catalog:",
     "pg": "8.23.1",
+    "@omnitech/ai-sdk": "workspace:*",
     "@omnitech/product-interview": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
     "@omnitech-assistant/contracts": "file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz",

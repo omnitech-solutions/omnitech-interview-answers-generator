@@ -755,29 +755,31 @@ export function Workspace({
   async function generateAnswer(
     questionValue: string,
     languageValue: LanguageSelection,
-    providerId: "openai" | "lm-studio",
+    providerId?: "openai" | "lm-studio",
   ): Promise<GeneratedAnswer> {
     const generated = await api<GeneratedAnswer>("/generate", {
       method: "POST",
       body: JSON.stringify({
         question: questionValue,
         language: languageValue,
-        providerId,
+        ...(providerId === undefined ? {} : { providerId }),
       }),
     });
     return normalizeAnswer(generated) as GeneratedAnswer;
   }
 
   async function generate(mode: "new" | "refine" = "new") {
-    if (assistant) {
-      setStatus("Use the interview assistant to generate a reviewed proposal.");
+    // With the assistant there is no provider picker: the server's model settings
+    // decide, and refinements go through the assistant's reviewed proposals.
+    if (assistant && mode === "refine") {
+      setStatus("Ask the assistant to change the answer.");
       return;
     }
     localEdits.current = true;
     const refinement = mode === "refine" ? refinementRequest.trim() : "";
     if (
       !question.trim() ||
-      !answerProvider ||
+      (!assistant && !answerProvider) ||
       (mode === "refine" && (!answer || !refinement))
     ) {
       setStatus(
@@ -788,18 +790,18 @@ export function Workspace({
       return;
     }
     if (mode === "new") setRefinementRequest("");
-    const target = executionTargets.find(
-      (candidate) => candidate.id === answerProvider,
-    );
-    if (!target) return;
+    const target = assistant
+      ? undefined
+      : executionTargets.find((candidate) => candidate.id === answerProvider);
+    if (!assistant && !target) return;
     setBusy(true);
     setStatus(
-      target.family === "agent-runtime"
+      target?.family === "agent-runtime"
         ? "Starting an isolated agent job…"
         : "Generating the simplest correct answer…",
     );
     try {
-      if (target.family === "agent-runtime") {
+      if (target?.family === "agent-runtime") {
         const job = await createAgentJob({
           profileId: target.profileId,
           prompt:
@@ -824,7 +826,7 @@ export function Workspace({
             )}\n\nRequested change:\n${refinement}\n\nReturn the complete revised answer.`
           : question;
       setAnswer(
-        await generateAnswer(generationQuestion, language, target.providerId),
+        await generateAnswer(generationQuestion, language, target?.providerId),
       );
       setRefinementRequest("");
       setExampleId("");
@@ -1431,17 +1433,17 @@ export function Workspace({
                             setQuestion(nextQuestion);
                           }}
                         />
-                        {!assistant && (
-                          <Button
-                            className="generate-button playground-generate-button"
-                            onClick={() => void generate("new")}
-                            disabled={
-                              busy || !question.trim() || !answerProvider
-                            }
-                          >
-                            {busy ? "Working…" : "Generate"}
-                          </Button>
-                        )}
+                        <Button
+                          className="generate-button playground-generate-button"
+                          onClick={() => void generate("new")}
+                          disabled={
+                            busy ||
+                            !question.trim() ||
+                            (!assistant && !answerProvider)
+                          }
+                        >
+                          {busy ? "Working…" : "Generate"}
+                        </Button>
                         {answer && !assistant ? (
                           <label className="playground-refinement-field">
                             <span>What should be fixed or expanded?</span>

@@ -33,11 +33,13 @@ import {
   interviewDraftPatchSchema,
 } from "@omnitech/product-interview/assistant";
 import { DockerCodeRunner } from "@omnitech/code-runner";
+import { createInterviewApi } from "@omnitech/product-interview/backend";
 import {
   createAiExecutionGateway,
   createGatewayModelPort,
 } from "@omnitech/ai-runtime";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
+import { resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
 // Explicit development-only composition. Production identity must be injected by
 // a reviewed session adapter; a missing adapter never falls back to this identity.
 if (
@@ -121,17 +123,25 @@ const scope: Scope = {
 };
 const workspace = new InterviewWorkspaceRepository(database),
   runner = new DockerCodeRunner();
-const mode = process.env["ASSISTANT_MODEL_MODE"] ?? "fixture";
-if (!["fixture", "lm-studio"].includes(mode))
-  throw new Error("Cloud models are disabled in local composition");
-const modelId =
-  process.env["ASSISTANT_MODEL_ID"] ?? "deterministic-local-fixture";
+// The assistant uses the same model settings as the rest of the app (AI_*,
+// OPENAI_* or LM_STUDIO_*, resolved by @omnitech/ai-sdk). The deterministic
+// fixture is only for tests that need a scripted model, and must be asked for.
+const fixture = process.env["ASSISTANT_MODEL_MODE"] === "fixture";
+const language = fixture ? null : resolveDefaultLanguageModel();
+const mode = fixture ? "fixture" : "live";
+const modelId = language?.model ?? "deterministic-local-fixture";
 const inputs: ModelInput[] = [];
-// The loaded context window decides how much history and output fit. LM Studio
-// reports it for a loaded model; an unloaded one gets a conservative default.
+// A local LM Studio model reports its loaded context window, which decides how
+// much history and output fit. A hosted or unloaded model gets a default.
+const localEndpoint =
+  language &&
+  /^(localhost|127\.0\.0\.1)$/.test(new URL(language.baseUrl).hostname)
+    ? new URL(language.baseUrl).origin
+    : undefined;
 async function loadedContextTokens(id: string): Promise<number | undefined> {
+  if (!localEndpoint) return undefined;
   try {
-    const response = await fetch("http://127.0.0.1:1234/api/v0/models", {
+    const response = await fetch(`${localEndpoint}/api/v0/models`, {
       signal: AbortSignal.timeout(2000),
     });
     const body = (await response.json()) as {
@@ -142,20 +152,30 @@ async function loadedContextTokens(id: string): Promise<number | undefined> {
     return undefined;
   }
 }
-const contextTokens =
-  mode === "lm-studio" ? await loadedContextTokens(modelId) : undefined;
+const contextTokens = localEndpoint
+  ? await loadedContextTokens(modelId)
+  : undefined;
 // Reserve a quarter of the window (at most 4000 tokens) for the model's output;
-// code and JSON average about 2.5 characters per token.
-const outputTokens = Math.min(4000, Math.floor((contextTokens ?? 8192) / 4));
+// code and JSON average about 2.5 characters per token. A hosted model has a
+// large window, so it keeps the executor's default budget.
+const outputTokens = Math.min(
+  8192,
+  Math.floor((contextTokens ?? (localEndpoint ? 8192 : 32768)) / 4),
+);
 const contextChars = Number(
   process.env["ASSISTANT_CONTEXT_CHARS"] ??
-    Math.floor(((contextTokens ?? 8192) - outputTokens) * 2.5),
+    (localEndpoint
+      ? Math.floor(((contextTokens ?? 8192) - outputTokens) * 2.5)
+      : 100_000),
 );
+const targetId = language?.id ?? "fixture";
 const localAdapter = createOpenAiModelAdapter({
-  id: "lm-studio",
-  label: "Local LM Studio",
+  id: targetId,
+  label: language?.label ?? "Deterministic fixture",
   model: modelId,
-  baseUrl: "http://127.0.0.1:1234/v1",
+  baseUrl: language?.baseUrl ?? "http://127.0.0.1:1234/v1",
+  ...(language?.apiKey ? { apiKey: language.apiKey } : {}),
+  ...(language ? { timeoutMs: language.timeoutMs } : {}),
   maxOutputTokens: outputTokens,
   // Low enough for factual answers and code, high enough to avoid parroting.
   temperature: 0.3,
@@ -166,7 +186,7 @@ const gateway = createAiExecutionGateway({
       id: "local-interview",
       label: "Local interview",
       family: "direct-model",
-      targetId: "lm-studio",
+      targetId,
       taskTypes: ["structured-chat"],
       enabled: true,
     },
@@ -220,7 +240,7 @@ const model: ModelPort = {
   async *stream(current, input, signal) {
     inputs.push(input);
     if (inputs.length > 10) inputs.shift();
-    if (mode === "lm-studio") {
+    if (mode === "live") {
       yield* native.stream(current, input, signal);
       return;
     }
@@ -317,7 +337,7 @@ const repository = new RunRepository(
   workerDatabase,
   queue,
   interviewRunVersions(
-    mode === "lm-studio" ? `${modelId}:plain-text-tools` : modelId,
+    mode === "live" ? `${modelId}:plain-text-tools` : modelId,
   ),
 );
 const core: CoreDependencies = {
@@ -501,6 +521,12 @@ app.get("/api/health", (c) =>
 );
 if (mode === "fixture")
   app.get("/api/test/model-inputs", (c) => c.json(inputs));
+// Generating an answer only computes and returns it; nothing is stored until the
+// user saves. These are the main app's own endpoints, so the editor behaves the
+// same here and uses the same model settings. Everything else stays refused.
+const interviewApi = createInterviewApi();
+for (const route of ["generate", "explain", "syntax-check"])
+  app.post(`/api/v1/${route}`, (c) => interviewApi.fetch(c.req.raw));
 app.all("/api/v1/*", (c) =>
   c.json(
     {
