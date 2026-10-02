@@ -18,9 +18,9 @@ export interface DisposablePostgres {
   stop(): Promise<void>;
 }
 
-// A throwaway cluster for one test file. The owner role bypasses nothing it
-// shouldn't: tables with FORCE ROW LEVEL SECURITY still apply to it.
-// fixture_member is NOSUPERUSER NOBYPASSRLS, like the application role.
+// A throwaway cluster for one test file.
+// fixture_owner is the bootstrap superuser (it bypasses row-level security even
+// under FORCE); fixture_member is NOSUPERUSER NOBYPASSRLS, like the application role.
 export async function startDisposablePostgres(): Promise<DisposablePostgres> {
   const root = await mkdtemp(`${tmpdir()}/omnitech-assistant-pg-`);
   const server = createServer();

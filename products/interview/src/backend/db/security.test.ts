@@ -18,6 +18,7 @@ import * as schema from "./schema.js";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;
+const extraPools: PlatformDatabase[] = [];
 const ids = { tenantA: "", tenantB: "", alice: "", bob: "", carol: "" };
 
 beforeAll(async () => {
@@ -55,6 +56,7 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => {
   await member?.close();
+  for (const extra of extraPools) await extra.close();
   await pg?.stop();
 });
 
@@ -153,17 +155,45 @@ describe("tenant isolation", () => {
   });
 
   it("6: a pooled connection does not keep the previous tenant", async () => {
-    await as(ids.tenantA, ids.alice, (db) => db.execute(sql`SELECT 1`));
-    const names = await as(ids.tenantB, ids.bob, async (db) =>
+    // A pool holding exactly one idle client forces both tenants through the
+    // same physical connection, so a leak could not hide behind pool size.
+    const single = createPlatformDatabase(pg.memberUrl);
+    extraPools.push(single);
+    await single.query("SELECT 1");
+    await seedCompany(ids.tenantA, ids.alice, "Acme6");
+    await seedCompany(ids.tenantB, ids.bob, "Beta6");
+    const asOn = <T>(
+      tenantId: string,
+      actorId: string,
+      work: (db: TenantDatabase) => Promise<T>,
+    ) => withTenant({ tenantId, actorId }, work, { database: single });
+    const namesA = await asOn(ids.tenantA, ids.alice, async (db) =>
       (await db.select().from(schema.companies)).map((c) => c.name),
     );
-    expect(names.every((n) => n.startsWith("Beta"))).toBe(true);
+    expect(namesA).toContain("Acme6");
+    const leftover = await single.query(
+      "SELECT nullif(current_setting('app.tenant_id', true), '') AS t",
+    );
+    expect(leftover.rows[0]?.["t"]).toBeNull();
+    const namesB = await asOn(ids.tenantB, ids.bob, async (db) =>
+      (await db.select().from(schema.companies)).map((c) => c.name),
+    );
+    expect(namesB).toContain("Beta6");
+    expect(namesB).not.toContain("Acme6");
   });
 
   it("7: forced row-level security binds the table owner", async () => {
     // The fixture owner is the cluster's bootstrap superuser, which bypasses
     // RLS unconditionally. FORCE only matters for a non-superuser owner, so
     // hand the table to one for the duration of the check.
+    await pg.owner.query(
+      `INSERT INTO interview.companies (tenant_id, name) VALUES ($1, 'Owned7')`,
+      [ids.tenantA],
+    );
+    const before = await pg.owner.query(
+      "SELECT count(*)::int AS n FROM interview.companies",
+    );
+    expect(before.rows[0]?.["n"]).toBeGreaterThan(0);
     const results = (await pg.owner.query(`
       CREATE ROLE rls_table_owner NOSUPERUSER NOBYPASSRLS;
       GRANT USAGE ON SCHEMA interview TO rls_table_owner;
@@ -188,10 +218,9 @@ describe("tenant isolation", () => {
 
 describe("practice", () => {
   it("8: shared exercises are readable but not writable by a tenant", async () => {
-    // Shared rows are seeded the way a maintainer migration must: the owner
-    // lifts FORCE for the insert, since no tenant may write a shared row.
+    // Shared rows are seeded by the owner. NO FORCE/FORCE documents the path
+    // for a non-superuser seeder; the superuser fixture owner bypasses RLS.
     await pg.owner.query(`
-      SELECT set_config('app.tenant_id', '', false);
       ALTER TABLE practice.exercises NO FORCE ROW LEVEL SECURITY;
       INSERT INTO practice.exercises (slug, title, prompt, prompt_key, kind, source_kind) VALUES ('two-sum', 'Two Sum', 'p', 'p', 'algorithm', 'original');
       ALTER TABLE practice.exercises FORCE ROW LEVEL SECURITY;`);
