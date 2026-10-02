@@ -12,7 +12,7 @@ import {
   tenants,
   users,
 } from "@omnitech/platform-storage/schema";
-import { is, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   check,
   foreignKey,
@@ -20,7 +20,7 @@ import {
   index,
   integer,
   pgPolicy,
-  PgTable,
+  type PgTable,
   pgSchema,
   primaryKey,
   text,
@@ -30,7 +30,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { interview } from "./legacy.js";
-import * as self from "./schema.js";
 
 const platform = { tenants, users };
 
@@ -361,15 +360,20 @@ export const exerciseAttempts = practice.table.withRLS(
   ],
 );
 
-// Every tenant-owned domain table (shared exercises excluded), derived from
-// this module's own exports so a new RLS table cannot be left off the list.
-// domainTables itself is skipped by name: it is still being initialised here.
-export const domainTables: readonly PgTable[] = Object.entries(self)
-  .filter(([name]) => name !== "domainTables")
-  .map(([, value]): unknown => value)
-  .filter(
-    (value: unknown): value is PgTable =>
-      is(value, PgTable) &&
-      getTableConfig(value).enableRLS &&
-      value !== exercises,
-  );
+const tables = {
+  companies,
+  people,
+  memberPeople,
+  candidacies,
+  interviews,
+  interviewParticipants,
+  briefingLinks,
+  exercises,
+  exerciseAttempts,
+};
+
+// Every tenant-owned table: RLS-enabled tables except the shared exercise
+// catalog. Catalog case 12 in security.test.ts catches a table left out here.
+export const domainTables: readonly PgTable[] = Object.values(tables).filter(
+  (table: PgTable) => getTableConfig(table).enableRLS && table !== exercises,
+);

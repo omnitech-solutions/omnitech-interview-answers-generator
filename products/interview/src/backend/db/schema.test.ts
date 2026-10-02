@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { expect, it } from "vitest";
@@ -48,3 +51,26 @@ it("enables RLS with a policy whose WITH CHECK equals its USING on every domain 
     ).toBe(true);
   }
 });
+
+const builtSchema = fileURLToPath(
+  new URL("../../../dist/backend/db/schema.js", import.meta.url),
+);
+
+// Native Node ESM (as the agent worker loads it) must evaluate the module.
+it.skipIf(!existsSync(builtSchema))(
+  "loads the built schema under native Node ESM",
+  () => {
+    const output = execFileSync(
+      "node",
+      [
+        "--input-type=module",
+        "-e",
+        "import(process.argv[1]).then(m => process.stdout.write(String(m.domainTables.length)))",
+        "--",
+        builtSchema,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(output).toBe("8");
+  },
+);
