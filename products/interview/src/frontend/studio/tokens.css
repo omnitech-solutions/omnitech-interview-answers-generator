@@ -92,6 +92,7 @@ body,
   overflow: hidden;
 }
 .studio-frame {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -434,6 +435,41 @@ body,
 .studio-header-slot .topbar-embedded .toolbar {
   gap: 8px;
   flex-wrap: nowrap;
+}
+
+/* Drag handle on the assistant dock's left edge (the host's right edge). */
+.studio-dock-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.studio-dock-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.studio-dock-resizer:hover::after,
+.studio-dock-resizer:focus-visible::after,
+.studio-dock-resizer.active::after {
+  background: var(--accent);
+}
+.studio-dock-resizer:focus-visible {
+  outline: none;
+}
+/* While dragging, the cursor stays a resize cursor and text is not selected. */
+.studio-frame:has(.studio-dock-resizer.active) {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* ── Pages (Home and interim views) ────────────────────────────────────── */

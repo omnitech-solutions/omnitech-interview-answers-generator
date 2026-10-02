@@ -400,6 +400,49 @@ describe("Studio shell", () => {
     expect(screen.getByText(/Library at/)).toBeVisible();
   });
 
+  it("resizes the assistant dock by dragging or with the keyboard, and remembers it", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1600,
+    });
+    host.state = { ...host.state, open: true };
+    await renderStudio();
+    const handle = screen.getByRole("separator", { name: "Resize assistant" });
+    expect(host.config.layout?.width).toBe(400);
+    expect(handle).toHaveAttribute("aria-valuenow", "400");
+
+    // Dragging left widens the dock; it never squeezes the main view below 480px.
+    fireEvent.pointerDown(handle, { clientX: 1200, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 1000, pointerId: 1 });
+    expect(host.config.layout?.width).toBe(600);
+    fireEvent.pointerMove(handle, { clientX: 100, pointerId: 1 });
+    expect(host.config.layout?.width).toBe(1600 - 480);
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 1300, pointerId: 1 });
+    expect(host.config.layout?.width).toBe(1600 - 480);
+    expect(
+      window.localStorage.getItem("interview-studio.assistant-width"),
+    ).toBe(String(1600 - 480));
+
+    fireEvent.keyDown(handle, { key: "Home" });
+    expect(host.config.layout?.width).toBe(320);
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(host.config.layout?.width).toBe(336);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(host.config.layout?.width).toBe(320);
+    fireEvent.keyDown(handle, { key: "End" });
+    expect(host.config.layout?.width).toBe(1600 - 480);
+    fireEvent.doubleClick(handle);
+    expect(host.config.layout?.width).toBe(400);
+  });
+
+  it("starts from the remembered dock width and hides the handle while closed", async () => {
+    window.localStorage.setItem("interview-studio.assistant-width", "520");
+    await renderStudio();
+    expect(host.config.layout?.width).toBe(520);
+    expect(screen.queryByRole("separator")).toBeNull();
+  });
+
   it("uses an icon rail when the window is narrow", async () => {
     const width = window.innerWidth;
     Object.defineProperty(window, "innerWidth", {

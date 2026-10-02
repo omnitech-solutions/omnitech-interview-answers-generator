@@ -22,6 +22,7 @@ import {
 import { useStudioTheme } from "../studio-shell";
 import type { WorkspaceAssistant } from "../workspace";
 import { CommandPalette, type PaletteItem } from "./command-palette";
+import { DockResizer, useDockWidth } from "./dock-resizer";
 import { available, type StudioActions } from "./config/commands";
 import { viewById } from "./config/views";
 import {
@@ -70,6 +71,7 @@ export function Studio({ assistant }: StudioProps) {
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const preparationDirty = useRef(false);
+  const dock = useDockWidth();
 
   // [GUARD] Unsaved interview preparation is never discarded silently.
   const mayLeave = useCallback(
@@ -125,7 +127,7 @@ export function Studio({ assistant }: StudioProps) {
     prompts: assistantPrompts,
     surfaces: assistantSurfaces,
     theme,
-    layout: { mode: "panel", open: false, width: 400 },
+    layout: { mode: "panel", open: false, width: dock.width },
     // ⌘K belongs to the studio palette.
     shortcuts: { search: "mod+shift+k" },
     host: {
@@ -171,6 +173,7 @@ export function Studio({ assistant }: StudioProps) {
             leave={leave}
             runTests={() => binding.runTests?.()}
             toggleTheme={toggleTheme}
+            dock={dock}
             renderView={(actions) => (
               <ViewBoundary key={route.view}>
                 {viewById(route.view).render({
@@ -202,6 +205,7 @@ function StudioFrame({
   leave,
   runTests,
   toggleTheme,
+  dock,
   renderView,
 }: {
   route: ReturnType<typeof useStudioRoute>["route"];
@@ -213,6 +217,7 @@ function StudioFrame({
   leave(next: StudioNavigation): void;
   runTests(): void;
   toggleTheme(): void;
+  dock: ReturnType<typeof useDockWidth>;
   renderView(actions: StudioActions): ReactNode;
 }) {
   const host = useAssistantHost();
@@ -300,6 +305,7 @@ function StudioFrame({
         </header>
         <div className="studio-view">{renderView(actions)}</div>
       </main>
+      {host.open && <DockResizer width={dock.width} onResize={dock.resize} />}
       {paletteOpen && (
         <CommandPalette
           items={paletteItems}
