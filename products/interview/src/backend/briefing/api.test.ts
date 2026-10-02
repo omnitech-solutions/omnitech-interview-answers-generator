@@ -1248,66 +1248,153 @@ it("answers a question asked on the fly, redrafts it in place and caps the pack"
   });
 });
 
-it("prepares the briefing's sections under the fixed headings", async () => {
+it("prepares the briefing as grounded cards the person can tick off", async () => {
   const created = await request(
     "/api/interview/briefing/artifacts/prepared",
     "PUT",
-    { expectedRevision: 0, briefing },
+    {
+      expectedRevision: 0,
+      briefing: {
+        ...briefing,
+        context: { ...context, employerNotes: "Base salary is CAD $150–170K" },
+      },
+    },
   );
   const start = (await created.json()).origin.artifactRevision;
-  generated = {
-    sections: [
+  const cards = {
+    call: { summary: "Should we put you in front of Engineering?" },
+    agenda: [
+      { minutes: 5, topic: "Introductions" },
+      { minutes: 25, topic: "Background and motivation" },
+    ],
+    positioning: { steps: ["Hands-on technical leader"] },
+    fit: { strong: ["TypeScript"], watch: [] },
+    teams: [],
+    compensation: {
+      summary: "Published at CAD $150–170K",
+      advice: "Aim for the upper part of the range.",
+    },
+    stories: [
       {
-        heading: "What this call is",
-        markdown: "A recruiter screen for Engineer.",
-        citations: [],
-        gaps: [],
+        title: "Mentoring at Acme",
+        shape: "Problem → coaching → outcome",
+        covers: ["Leadership"],
+        roleId: "/roles/0",
       },
       {
-        heading: "Stories to reuse",
-        markdown: "Mentoring at Acme.",
-        citations: [
-          {
-            text: "Mentoring at Acme",
-            sourceKind: "candidate",
-            pointer: "/roles/0/proof_points/0",
-            quote: "Mentored engineers",
-          },
-        ],
-        gaps: [],
+        title: "A role that does not exist",
+        shape: "x",
+        covers: [],
+        roleId: "/roles/9",
       },
     ],
+    ask: [
+      {
+        title: "Ask in this call",
+        items: [{ question: "How does team matching work?", why: "Fit." }],
+      },
+    ],
+    watchOuts: [{ kind: "avoid", title: "Don’t bluff", detail: "Be honest." }],
+  };
+  generated = {
+    ...cards,
+    citations: [
+      {
+        text: "Mentoring at Acme",
+        sourceKind: "candidate",
+        pointer: "/roles/0/proof_points/0",
+        quote: "Mentored engineers",
+      },
+      {
+        text: "CAD $150–170K",
+        sourceKind: "employer-context",
+        pointer: "/context/employerNotes",
+        quote: "CAD $150–170K",
+      },
+      {
+        text: "Led a team of 40",
+        sourceKind: "candidate",
+        pointer: "/roles/0/proof_points/0",
+        quote: "Led a team of 40",
+      },
+    ],
+    gaps: [],
   };
   prompts.length = 0;
-  const prepared = await request(
+  const response = await request(
     "/api/interview/briefing/artifacts/prepared/prepare",
     "POST",
     { expectedRevision: start },
   );
-  expect(prepared.status).toBe(200);
-  const sections = (await prepared.json()).value.briefing.sections;
+  expect(response.status).toBe(200);
+  const record = await response.json();
+  const prepared = record.value.briefing.prepared;
+  expect(prepared.call.summary).toBe(
+    "Should we put you in front of Engineering?",
+  );
   expect(
-    sections.map((section: { heading: string }) => section.heading),
-  ).toEqual(["What this call is", "Stories to reuse"]);
-  expect(sections[1].evidenceRefs[0]).toMatchObject({
-    pointer: "/roles/0/proof_points/0",
-    quote: "Mentored engineers",
-  });
-  expect(prompts[0]!.system).toContain("Watch-outs");
+    prepared.evidenceRefs.map((ref: { pointer: string }) => ref.pointer),
+  ).toEqual(["/roles/0/proof_points/0", "/context/employerNotes"]);
+  // Agenda minutes are not claims; an unverified quote becomes a gap; a
+  // story from a role the matrix lacks keeps its story but not the role.
+  expect(prepared.gaps).toEqual([
+    "Could not verify “Led a team of 40” against your sources.",
+  ]);
+  expect(prepared.stories[0].roleId).toBe("/roles/0");
+  expect(prepared.stories[1].roleId).toBeUndefined();
+  expect(prompts[0]!.prompt).toContain('"roleId":"/roles/0"');
 
-  // A heading outside the briefing's shape gets one correction, then fails.
-  generated = {
-    sections: [
-      { heading: "Random notes", markdown: "x", citations: [], gaps: [] },
-    ],
-  };
+  // Ticking a question keeps the server's evidence; forged evidence is not
+  // accepted from the browser.
+  const ticked = await request(
+    "/api/interview/briefing/artifacts/prepared",
+    "PUT",
+    {
+      expectedRevision: record.origin.artifactRevision,
+      briefing: {
+        ...record.value.briefing,
+        prepared: {
+          ...prepared,
+          ask: [
+            {
+              ...prepared.ask[0],
+              items: [{ ...prepared.ask[0].items[0], asked: true }],
+            },
+          ],
+          evidenceRefs: [],
+        },
+      },
+    },
+  );
+  const tickedPrepared = (await ticked.json()).value.briefing.prepared;
+  expect(tickedPrepared.ask[0].items[0].asked).toBe(true);
+  expect(tickedPrepared.evidenceRefs).toHaveLength(2);
+
+  // A reply that misses the card shape gets one correction, then fails.
+  generated = { ...cards, call: {}, citations: [], gaps: [] };
   const invalid = await request(
     "/api/interview/briefing/artifacts/prepared/prepare",
     "POST",
-    { expectedRevision: start + 1 },
+    { expectedRevision: record.origin.artifactRevision + 1 },
   );
   expect(invalid.status).toBe(503);
   expect((await invalid.json()).error.message).toMatch(
-    /did not match the required format, even after one correction: sections\.0\.heading/,
+    /did not match the required format, even after one correction: call\.summary/,
   );
+});
+
+it("names the fields of a request the server does not accept", async () => {
+  const response = await request(
+    "/api/interview/briefing/artifacts/fields",
+    "PUT",
+    { expectedRevision: 0, briefing: { ...briefing, unknownField: "secret" } },
+  );
+  expect(response.status).toBe(400);
+  const { error } = await response.json();
+  expect(error.code).toBe("invalid-input");
+  expect(error.message).toMatch(
+    /^The request didn’t match what this server expects: briefing: /,
+  );
+  expect(error.message).toContain("restart the dev server");
+  expect(error.message).not.toContain("secret");
 });

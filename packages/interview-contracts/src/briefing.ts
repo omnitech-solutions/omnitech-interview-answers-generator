@@ -125,37 +125,93 @@ export const briefingQuestionSchema = z.strictObject({
   // The person reviewed this answer and is happy to use it.
   accepted: z.boolean().optional(),
 });
-// A prepared briefing's sections, in reading order. The Studio groups them
-// into tabs: the last three are Stories, Questions to ask and Watch-outs.
-export const BRIEFING_SECTION_HEADINGS = [
-  "What this call is",
-  "Likely shape",
-  "Your story, in order",
-  "Strong match with the posting",
-  "Be ready on",
-  "Compensation and logistics",
-  "After this call",
-  "Stories to reuse",
-  "Questions to ask",
-  "Watch-outs",
-] as const;
+const line = z.string().trim().min(1).max(2_000);
+const lines = z.array(line).max(20);
+// What a prepared briefing says about the call, card by card: the Studio
+// shows it as the pack's Overview, Stories, Ask them and Watch-outs tabs.
+export const briefingPreparedContentSchema = z.strictObject({
+  // What this call is: the question it answers, and what to expect.
+  call: z.strictObject({ summary: line, detail: line.optional() }),
+  agenda: z
+    .array(
+      z.strictObject({
+        minutes: z.number().int().min(1).max(240),
+        topic: line,
+      }),
+    )
+    .max(12),
+  interviewer: z
+    .strictObject({
+      note: line,
+      goodToAsk: lines,
+      saveForLater: line.optional(),
+    })
+    .optional(),
+  // The few positioning points to land, in order.
+  positioning: z.strictObject({ steps: lines, note: line.optional() }),
+  fit: z.strictObject({
+    strong: lines,
+    watch: z.array(z.strictObject({ topic: line, answer: line })).max(10),
+  }),
+  teams: z
+    .array(z.strictObject({ name: line, owns: lines, means: line }))
+    .max(6),
+  compensation: z.strictObject({ summary: line, advice: line }).optional(),
+  pipeline: z.strictObject({ stages: lines, later: lines }).optional(),
+  // Reusable stories, each from a matrix role.
+  stories: z
+    .array(
+      z.strictObject({
+        title: line,
+        shape: line,
+        covers: lines,
+        roleId: z
+          .string()
+          .regex(/^\/roles\/\d+$/)
+          .optional(),
+      }),
+    )
+    .max(6),
+  ask: z
+    .array(
+      z.strictObject({
+        title: line,
+        note: line.optional(),
+        items: z
+          .array(
+            z.strictObject({
+              question: line,
+              why: line,
+              // Ticked off by the person during the call.
+              asked: z.boolean().optional(),
+            }),
+          )
+          .max(8),
+      }),
+    )
+    .max(4),
+  watchOuts: z
+    .array(
+      z.strictObject({
+        kind: z.enum(["avoid", "caution"]),
+        title: line,
+        detail: line,
+        sayInstead: line.optional(),
+      }),
+    )
+    .max(8),
+});
+export const briefingPreparedSchema = briefingPreparedContentSchema.extend({
+  evidenceRefs: z.array(briefingEvidenceRefSchema).max(64),
+  gaps: z.array(text).max(32),
+});
 export const briefingDraftSchema = z.strictObject({
   kind: z.literal("non-technical-briefing"),
   title: word,
   context: briefingContextSchema,
-  // A prepared briefing for the call: agenda, positioning, stories, logistics
-  // and caveats, each section grounded in the matrix or employer material.
-  sections: z
-    .array(
-      z.strictObject({
-        heading: word,
-        markdown: text,
-        evidenceRefs: z.array(briefingEvidenceRefSchema).max(32),
-        gaps: z.array(text).max(32),
-      }),
-    )
-    .max(16)
-    .optional(),
+  // The prepared briefing for the call, grounded in the matrix and the
+  // employer material.
+  prepared: briefingPreparedSchema.optional(),
   // The questions the person expects, before their answers are drafted.
   expected: z.array(word).max(20).optional(),
   questions: z.array(briefingQuestionSchema).max(20),
@@ -168,7 +224,7 @@ export const briefingAskSchema = z.strictObject({
   // Redraft this answer in place instead of adding a new one.
   replaceId: id.optional(),
 });
-// Prepare (or refresh) the pack's full briefing sections.
+// Prepare (or refresh) the pack's full briefing.
 export const briefingPrepareSchema = z.strictObject({
   expectedRevision: revision,
   request: text.optional(),
@@ -275,7 +331,10 @@ export type BriefingProfileImport = z.infer<typeof briefingProfileImportSchema>;
 export type BriefingPut = z.infer<typeof briefingPutSchema>;
 export type BriefingAsk = z.infer<typeof briefingAskSchema>;
 export type BriefingPrepare = z.infer<typeof briefingPrepareSchema>;
-export type BriefingSection = NonNullable<BriefingDraft["sections"]>[number];
+export type BriefingPrepared = z.infer<typeof briefingPreparedSchema>;
+export type BriefingPreparedContent = z.infer<
+  typeof briefingPreparedContentSchema
+>;
 export type BriefingProposalRequest = z.infer<
   typeof briefingProposalRequestSchema
 >;

@@ -2,7 +2,6 @@ import type {
   BriefingContext,
   BriefingQuestion,
 } from "@omnitech/interview-contracts";
-import { BRIEFING_SECTION_HEADINGS } from "@omnitech/interview-contracts";
 import type { IconName } from "../../icon";
 
 // Behavioural briefings are driven by this data: the screens render it.
@@ -83,40 +82,18 @@ export function suggestedFor(stage: Stage, company: string): string[] {
   );
 }
 
-// The prepared briefing's sections, grouped into the pack's tabs.
-type Heading = (typeof BRIEFING_SECTION_HEADINGS)[number];
+// The pack's tabs: answers, then the prepared briefing's cards.
 export type PackTab = "overview" | "answers" | "stories" | "ask" | "watch";
 export const PACK_TABS: readonly {
   id: PackTab;
   label: string;
   icon: IconName;
-  headings?: readonly Heading[];
 }[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    icon: "lightbulb",
-    headings: BRIEFING_SECTION_HEADINGS.slice(0, 7),
-  },
+  { id: "overview", label: "Overview", icon: "lightbulb" },
   { id: "answers", label: "Answers", icon: "record_voice_over" },
-  {
-    id: "stories",
-    label: "Stories",
-    icon: "menu_book",
-    headings: ["Stories to reuse"],
-  },
-  {
-    id: "ask",
-    label: "Ask them",
-    icon: "help",
-    headings: ["Questions to ask"],
-  },
-  {
-    id: "watch",
-    label: "Watch-outs",
-    icon: "warning",
-    headings: ["Watch-outs"],
-  },
+  { id: "stories", label: "Stories", icon: "menu_book" },
+  { id: "ask", label: "Ask them", icon: "help" },
+  { id: "watch", label: "Watch-outs", icon: "warning" },
 ];
 
 // About 150 words a minute, spoken.

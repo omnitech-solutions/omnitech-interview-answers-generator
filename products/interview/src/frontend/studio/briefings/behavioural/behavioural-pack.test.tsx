@@ -70,6 +70,69 @@ function answer(question: string, id: string): BriefingQuestion {
   };
 }
 
+const prepared: NonNullable<BriefingDraft["prepared"]> = {
+  call: {
+    summary: "Should we put you in front of Engineering?",
+    detail: "A conversation, not an exam.",
+  },
+  agenda: [
+    { minutes: 5, topic: "Introductions" },
+    { minutes: 7, topic: "Career overview" },
+  ],
+  interviewer: {
+    note: "New to the company; expect a structured screen.",
+    goodToAsk: ["Team matching", "Timeline"],
+    saveForLater: "Save deep architecture questions for Engineering.",
+  },
+  positioning: {
+    steps: ["Hands-on technical leader", "TypeScript · Node · React"],
+    note: "Lead with the positioning, not years.",
+  },
+  fit: {
+    strong: ["TypeScript", "PostgreSQL"],
+    watch: [
+      { topic: "DORA metrics", answer: "Know the signals; don’t bluff." },
+    ],
+  },
+  teams: [
+    { name: "Payments", owns: ["Checkout"], means: "Retries and idempotency." },
+  ],
+  compensation: {
+    summary: "Compensation is published",
+    advice: "Aim for the upper part of the range.",
+  },
+  pipeline: {
+    stages: ["Recruiter", "Hiring manager"],
+    later: ["System design"],
+  },
+  stories: [
+    {
+      title: "Payments retries",
+      shape: "Problem → decision → outcome",
+      covers: ["A project you’re proud of"],
+      roleId: "/roles/0",
+    },
+  ],
+  ask: [
+    {
+      title: "Ask in this call",
+      note: "Four is plenty.",
+      items: [
+        { question: "How does team matching work?", why: "Core or Payments." },
+      ],
+    },
+  ],
+  watchOuts: [
+    {
+      kind: "caution",
+      title: "Don’t bluff DORA",
+      detail: "Be honest about how formally you measured it.",
+      sayInstead: "I know the signals well.",
+    },
+  ],
+  evidenceRefs: [],
+  gaps: ["Check the bonus wording."],
+};
 let pack: BriefingDraft | null;
 let revision: number;
 // What the pack sends; only the fields these tests read.
@@ -150,23 +213,7 @@ function installServer() {
         return Response.json(envelope());
       }
       if (path.endsWith("/prepare")) {
-        pack = {
-          ...pack!,
-          sections: [
-            {
-              heading: "What this call is",
-              markdown: "A recruiter qualification call.",
-              evidenceRefs: [],
-              gaps: [],
-            },
-            {
-              heading: "Questions to ask",
-              markdown: "How does team matching work?",
-              evidenceRefs: [],
-              gaps: [],
-            },
-          ],
-        };
+        pack = { ...pack!, prepared };
         revision += 1;
         return Response.json(envelope());
       }
@@ -378,14 +425,49 @@ describe("an open pack", () => {
     expect(screen.getByText("Principal Engineer · 2021–2024")).toBeVisible();
     expect(screen.getByText("TypeScript", { selector: "q" })).toBeVisible();
 
-    // The prepared briefing is split into tabs.
+    // The prepared briefing is shown as cards across its tabs.
     fireEvent.click(screen.getByRole("tab", { name: /Overview/ }));
     expect(
-      await screen.findByText("A recruiter qualification call."),
+      await screen.findByText("Should we put you in front of Engineering?"),
     ).toBeVisible();
-    expect(screen.queryByText("How does team matching work?")).toBeNull();
+    expect(screen.getByText("0–5")).toBeVisible();
+    expect(screen.getByText("Career overview")).toBeVisible();
+    expect(screen.getByText("Hands-on technical leader")).toBeVisible();
+    expect(
+      screen.getByText("TypeScript", { selector: ".bp-chip" }),
+    ).toBeVisible();
+    expect(screen.getByText("DORA metrics")).toBeVisible();
+    expect(screen.getByText("Payments")).toBeVisible();
+    expect(screen.getByText("Check the bonus wording.")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "See the salary answer" }),
+    );
+    expect(screen.getByRole("tab", { name: /Answers/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /Stories/ }));
+    expect(screen.getByText("Payments retries")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Role for Payments retries"), {
+      target: { value: "/roles/1" },
+    });
+    await waitFor(() =>
+      expect(pack!.prepared!.stories[0]!.roleId).toBe("/roles/1"),
+    );
+
     fireEvent.click(screen.getByRole("tab", { name: /Ask them/ }));
     expect(screen.getByText("How does team matching work?")).toBeVisible();
+    fireEvent.click(
+      screen.getByLabelText("Asked: How does team matching work?"),
+    );
+    await waitFor(() =>
+      expect(pack!.prepared!.ask[0]!.items[0]!.asked).toBe(true),
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /Watch-outs/ }));
+    expect(screen.getByText("Don’t bluff DORA")).toBeVisible();
+    expect(screen.getByText("I know the signals well.")).toBeVisible();
   });
 
   it("accepts, redrafts and answers a new question on the fly, then saves", async () => {

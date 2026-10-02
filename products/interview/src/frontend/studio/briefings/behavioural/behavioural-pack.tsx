@@ -13,7 +13,7 @@ import { AnswersTab, type PendingAnswer } from "./answers-tab";
 import { PACK_TABS, type PackTab, STAGES, suggestedFor } from "./config";
 import { defaultProfile } from "./matrix-picker";
 import { QuestionsCard } from "./questions-card";
-import { SectionsTab } from "./sections-tab";
+import { BriefingTab } from "./briefing-tabs";
 import {
   contextOf,
   emptySetup,
@@ -224,7 +224,7 @@ export function BehaviouralPack({
       }
     }
     onChanged();
-    if (!briefingRef.current?.sections?.length) await prepare();
+    if (!briefingRef.current?.prepared) await prepare();
   }
 
   async function prepare() {
@@ -316,6 +316,19 @@ export function BehaviouralPack({
     );
   }
 
+  function updatePrepared(prepared: NonNullable<BriefingDraft["prepared"]>) {
+    return write(async () =>
+      applied(
+        await client.editArtifact(artifactId!, {
+          expectedRevision: revision.current,
+          briefing: { ...briefingRef.current!, prepared },
+        }),
+      ),
+    ).catch((failure) =>
+      setError(failureOf(failure, "That change couldn’t be saved.")),
+    );
+  }
+
   async function redraft(id: string) {
     const answer = briefingRef.current?.questions.find(
       (item) => item.id === id,
@@ -383,7 +396,6 @@ export function BehaviouralPack({
   const drafting = pending.some((item) => item.state !== "failed");
   const answers = briefing?.questions ?? [];
   const accepted = answers.filter((answer) => answer.accepted).length;
-  const sections = briefing?.sections ?? [];
   const isSaved = briefing !== null && saved >= revision.current && !dirty;
   const showSetup = view === "setup" || editingSetup;
 
@@ -548,16 +560,22 @@ export function BehaviouralPack({
               </form>
             </>
           ) : (
-            <SectionsTab
+            <BriefingTab
               tab={tab}
-              sections={sections.filter((section) =>
-                PACK_TABS.find((item) => item.id === tab)?.headings?.some(
-                  (heading) => heading === section.heading,
-                ),
-              )}
+              prepared={briefing?.prepared}
+              context={briefing?.context}
+              matrix={matrix}
               preparing={preparing}
               error={prepareError}
               onPrepare={() => void prepare()}
+              onChange={(prepared) => void updatePrepared(prepared)}
+              onSeeAnswer={(pattern) => {
+                const match = answers.find((item) =>
+                  pattern.test(item.question),
+                );
+                setTab("answers");
+                if (match) setFocus(match.id);
+              }}
             />
           )}
         </>
