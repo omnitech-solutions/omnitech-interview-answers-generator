@@ -41,7 +41,7 @@
   justify-content: flex-start;
 }
 .ws-heading {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -50,7 +50,6 @@
 }
 /* Narrow headers keep the actions and drop the least useful labels first. */
 @media (max-width: 1280px) {
-  .studio-header:has(.ws-heading) .studio-sees,
   .ws-run kbd {
     display: none;
   }
@@ -58,6 +57,36 @@
 @media (max-width: 1100px) {
   .ws-title {
     display: none;
+  }
+}
+/* One header row in the Workspace: its own title and stepper replace the
+   view name and the "sees" note. */
+.studio-header:has(.ws-heading) .studio-header-title,
+.studio-header:has(.ws-heading) .studio-sees {
+  display: none;
+}
+.studio-header:has(.ws-heading) .studio-header-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ws-new-question,
+.studio-header .studio-button {
+  flex: none;
+  white-space: nowrap;
+}
+.ws-heading {
+  max-width: 32ch;
+}
+/* Without room for every stage label, only the current stage keeps its. */
+@media (max-width: 1360px) {
+  .ws-step:not([aria-current]) .ws-step-label {
+    display: none;
+  }
+  .ws-step:not([aria-current]) {
+    padding-right: 6px;
   }
 }
 .ws-title {
@@ -115,14 +144,13 @@
 
 /* Stepper */
 .ws-stepper {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  gap: 2px;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 .ws-step-wrap {
   display: flex;
@@ -131,7 +159,7 @@
   flex: none;
 }
 .ws-step-line {
-  width: 20px;
+  width: 10px;
   height: 1px;
   background: var(--border-strong);
 }
@@ -178,12 +206,42 @@
   color: #fff;
 }
 
-/* Two columns: the stage, then the code */
+/* Two columns, the stage then the code, with a draggable edge between
+   (the column width is set inline from the person's stored width). */
 .ws-split {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.4fr);
+}
+.ws-split-resizer {
+  width: 6px;
+  margin: 0 -3px;
+  position: relative;
+  z-index: 5;
+  cursor: col-resize;
+  touch-action: none;
+}
+.ws-split-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.ws-split-resizer:hover::after,
+.ws-split-resizer:focus-visible::after,
+.ws-split-resizer.active::after {
+  background: var(--accent);
+}
+.ws-split-resizer:focus-visible {
+  outline: none;
+}
+.ws-split:has(.ws-split-resizer.active) {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* Stage column */
@@ -325,6 +383,19 @@
   gap: 10px;
   padding: 7px 0;
   font-size: 13.5px;
+}
+/* The case's name above what covers it, so long test names wrap rather
+   than squeezing the name. */
+.ws-coverage-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.ws-coverage-text .ws-faint {
+  font-size: 12.5px;
 }
 .ws-coverage .ws-coverage-row {
   padding: 10px 12px;
@@ -708,6 +779,18 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+.ws-new-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 2px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.ws-new-status strong {
+  color: var(--text);
+  font-weight: 600;
 }
 .ws-new h1 {
   margin: 0;

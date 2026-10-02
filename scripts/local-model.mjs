@@ -31,16 +31,25 @@ export async function loadedLmStudioModel(env = process.env) {
   }
 }
 
+/** The coding model asked for when none is configured or loaded. */
+export const DEFAULT_LM_STUDIO_MODEL = "qwen/qwen3-coder-30b";
+
 /**
- * Environment to add when no model is configured: LM Studio's loaded model.
+ * Environment to add when no model is configured: LM Studio's loaded model,
+ * or the default coding model, which LM Studio loads on the first request
+ * (and `pnpm dev` loads up front when its CLI is installed). Either way the
+ * app always has a model, so starting LM Studio after `pnpm dev` works.
  * Any explicit setting wins, so this is empty when one exists.
  */
 export async function defaultLocalModelEnvironment(env = process.env) {
   if (modelConfigured(env)) return {};
-  const model = await loadedLmStudioModel(env);
-  if (!model) return {};
+  const loaded = await loadedLmStudioModel(env);
+  const model = loaded ?? DEFAULT_LM_STUDIO_MODEL;
   console.log(
-    `[dev] No AI model configured; using LM Studio's loaded model "${model}". Set LM_STUDIO_MODEL, OPENAI_MODEL or AI_BASE_URL and AI_MODEL to choose another.`,
+    loaded
+      ? `[dev] No AI model configured; using LM Studio's loaded model "${model}".`
+      : `[dev] No AI model configured or loaded; using "${model}" from LM Studio.`,
+    "Set LM_STUDIO_MODEL, OPENAI_MODEL or AI_BASE_URL and AI_MODEL to choose another.",
   );
   return { LM_STUDIO_MODEL: model };
 }

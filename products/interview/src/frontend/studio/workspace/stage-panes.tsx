@@ -200,10 +200,10 @@ function CoverageRow({
       <span className={`ws-tone-${look.tone}`}>
         <Icon name={look.icon} size={16} />
       </span>
-      <span className="ws-grow">
+      <span className="ws-coverage-text">
         <InlineText>{name}</InlineText>
+        <span className="ws-faint">{detail}</span>
       </span>
-      <span className="ws-faint">{detail}</span>
     </div>
   );
 }

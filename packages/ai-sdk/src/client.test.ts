@@ -76,6 +76,50 @@ describe("createAiClient", () => {
     ).resolves.toMatchObject({ object: { answer: 42 } });
   });
 
+  it("sends one correction turn with the failing fields, then accepts the fix", async () => {
+    const replies = ['{"answer":"forty-two"}', '{"answer":42}'];
+    const generateText = vi.fn(async () => ({
+      finishReason: "stop",
+      providerId: "fake",
+      text: replies.shift()!,
+      usage: { inputTokens: 10, outputTokens: 5 },
+    }));
+    const client = createAiClient({
+      providers: [{ ...providerWithText(), generateText }],
+    });
+
+    const result = await client.generateObject({
+      prompt: "answer",
+      schema: z.object({ answer: z.number() }),
+    });
+    expect(result.object).toEqual({ answer: 42 });
+    expect(result.usage).toEqual({ inputTokens: 20, outputTokens: 10 });
+    const correction = (
+      generateText.mock.calls[1] as unknown as [
+        { messages: { content: string }[] },
+      ]
+    )[0].messages;
+    expect(correction.map((message) => message.content)).toEqual([
+      "answer",
+      '{"answer":"forty-two"}',
+      expect.stringContaining("- answer: Invalid input: expected number"),
+    ]);
+  });
+
+  it("names the model and the failing fields when the correction fails too", async () => {
+    const client = createAiClient({
+      providers: [providerWithText('{"answer":"no"}')],
+    });
+    await expect(
+      client.generateObject({
+        prompt: "answer",
+        schema: z.object({ answer: z.number() }),
+      }),
+    ).rejects.toThrow(
+      /^Fake \(fake-1\) returned a reply that did not match the required format, even after one correction: answer: /,
+    );
+  });
+
   it.each([
     ["no object", "not json", "did not return a JSON object"],
     ["invalid JSON", "{broken}", "returned invalid JSON"],

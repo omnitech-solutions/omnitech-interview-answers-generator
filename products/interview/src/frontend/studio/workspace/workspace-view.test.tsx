@@ -178,6 +178,7 @@ function installServer(value: Record<string, unknown>) {
 let binding: StudioViewBinding;
 let slot: HTMLElement;
 const refreshLists = vi.fn();
+const newQuestion = vi.fn();
 function renderView() {
   slot = document.createElement("div");
   document.body.append(slot);
@@ -202,6 +203,7 @@ function renderView() {
           workspaceId: "interview",
           artifactId: "q1",
         }}
+        onNewQuestion={newQuestion}
       />
     </StudioContext.Provider>,
   );
@@ -272,6 +274,12 @@ describe("WorkspaceView: a new question", () => {
     expect(
       calls.find((call) => call.path === "/api/v1/generate")?.body,
     ).toEqual({ question: "Two sum", language: "auto" });
+    // The full flow: the drafted answer's tests run and the Test stage opens.
+    expect(await screen.findByText("1 / 2 passed · 1.2 s")).toBeVisible();
+    expect(
+      calls.filter((call) => call.path === `${base}/run-code`),
+    ).toHaveLength(1);
+    expect(step("Test")).toHaveAttribute("aria-current", "step");
   });
 
   it("starts from an example", async () => {
@@ -366,6 +374,10 @@ describe("WorkspaceView: a guided answer", () => {
   it("runs the tests, lists each result and goes to a failing line", async () => {
     const { header } = renderView();
     await screen.findByText(/Find two numbers/);
+    // Results are a one-line bar until there is something to read.
+    expect(screen.getByText("Not run yet · ⌘↵")).toBeVisible();
+    expect(screen.queryByText(/Tests haven’t run yet/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand results" }));
     expect(screen.getByText(/Tests haven’t run yet/)).toBeVisible();
     fireEvent.click(header.getByRole("button", { name: /Run tests/ }));
     expect(await screen.findByText("1 / 2 passed · 1.2 s")).toBeVisible();
@@ -472,6 +484,32 @@ describe("WorkspaceView: a guided answer", () => {
     );
   });
 
+  it("starts a new question from the header", async () => {
+    const { header } = renderView();
+    await screen.findByText(/Find two numbers/);
+    fireEvent.click(header.getByRole("button", { name: "New question" }));
+    expect(newQuestion).toHaveBeenCalledOnce();
+  });
+
+  it("resizes the question column and remembers its width", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+    });
+    renderView();
+    await screen.findByText(/Find two numbers/);
+    const handle = screen.getByRole("separator", { name: "Resize question" });
+    expect(handle).toHaveAttribute("aria-orientation", "vertical");
+    expect(handle).toHaveAttribute("aria-valuenow", "380");
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(handle).toHaveAttribute("aria-valuenow", "396");
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(handle).toHaveAttribute("aria-valuenow", "364");
+    expect(store.get("interview-studio.stage-width")).toBe("364");
+  });
+
   it("resizes the results panel and remembers its height", async () => {
     const store = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -481,6 +519,7 @@ describe("WorkspaceView: a guided answer", () => {
     renderView();
     await screen.findByText(/Find two numbers/);
     const results = () => screen.getByRole("region", { name: "Results" });
+    fireEvent.click(screen.getByRole("button", { name: "Expand results" }));
     const handle = screen.getByRole("separator", { name: "Resize results" });
     expect(results()).toHaveStyle({ height: "240px" });
     fireEvent.keyDown(handle, { key: "ArrowUp" });

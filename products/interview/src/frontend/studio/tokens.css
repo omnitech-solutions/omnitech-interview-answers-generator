@@ -145,6 +145,28 @@ body,
   background: var(--side);
   border-right: 1px solid var(--border);
 }
+.studio-collapse {
+  align-self: flex-end;
+  margin: -44px 10px 12px 0;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.studio-collapse:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.studio-frame.rail .studio-collapse {
+  align-self: center;
+  margin: 0 0 8px;
+}
 .studio-brand {
   display: flex;
   align-items: center;
@@ -354,15 +376,7 @@ body,
   display: flex;
   flex-direction: column;
 }
-/* The Workspace inspector docks inside the main column, under the header
-   and beside (not over) the assistant panel. */
-.studio-view .inspector-drawer {
-  position: absolute;
-  top: 56px;
-  bottom: 0;
-  height: auto;
-  max-width: 60%;
-}
+
 .studio-header {
   height: 56px;
   flex: none;
@@ -428,26 +442,6 @@ body,
 }
 .studio-assistant-toggle.open {
   background: var(--accent-soft);
-}
-
-/* A view's toolbar placed in the shell header (Workspace today). */
-.studio-header-slot .topbar-embedded {
-  position: static;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  backdrop-filter: none;
-  justify-content: flex-end;
-  gap: 8px;
-  min-width: 0;
-}
-.studio-header-slot .topbar-embedded .topbar-example {
-  display: none;
-}
-.studio-header-slot .topbar-embedded .toolbar {
-  gap: 8px;
-  flex-wrap: nowrap;
 }
 
 /* Drag handle on the assistant dock's left edge (the host's right edge). */

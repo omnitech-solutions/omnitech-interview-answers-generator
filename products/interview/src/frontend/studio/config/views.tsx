@@ -52,8 +52,12 @@ export const views: readonly ViewDefinition[] = [
     icon: "terminal",
     goKey: "W",
     assistantContext: "question, code, tests",
-    render: ({ assistant }) => (
-      <WorkspaceView key={assistant.artifactId} assistant={assistant} />
+    render: ({ assistant, actions }) => (
+      <WorkspaceView
+        key={assistant.artifactId}
+        assistant={assistant}
+        onNewQuestion={actions.newQuestion}
+      />
     ),
   },
   {

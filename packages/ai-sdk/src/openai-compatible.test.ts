@@ -120,9 +120,23 @@ describe("createOpenAiCompatibleProvider", () => {
     await expect(
       p.generateText({ prompt: "Q", signal: controller.signal }),
     ).rejects.toMatchObject({ code: "aborted" });
-    await expect(p.generateText({ prompt: "Q" })).rejects.toMatchObject({
-      code: "provider_failure",
+    const failure = await p
+      .generateText({ prompt: "Q" })
+      .catch((error) => error);
+    expect(failure).toMatchObject({ code: "provider_failure" });
+    // The kind of failure and the model, never the provider's own message.
+    expect(failure.message).toMatch(/\(.+\) failed: HTTP 400\.$/);
+    expect(failure.message).not.toContain('"failed"');
+  });
+
+  it("says when the provider does not answer in time", async () => {
+    const p = createOpenAiCompatibleProvider(options);
+    vi.stubGlobal("fetch", async () => {
+      throw new DOMException("timed out", "TimeoutError");
     });
+    await expect(p.generateText({ prompt: "Q" })).rejects.toThrow(
+      /failed: no reply within \d+ s\.$/,
+    );
   });
   it("streams text deltas followed by a finish event", async () => {
     const chunks = ["first", " second"].map((content) => ({

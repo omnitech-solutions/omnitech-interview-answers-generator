@@ -197,6 +197,7 @@ function isDockerDaemonUnavailable(stderr: string): boolean {
 
   return (
     normalized.includes("cannot connect to the docker daemon") ||
+    normalized.includes("failed to connect to the docker api") ||
     normalized.includes("is the docker daemon running") ||
     normalized.includes("error during connect")
   );

@@ -186,7 +186,7 @@ export async function generateExplanation(input: ExplanationRequest) {
   };
 }
 
-// What a model may return: a guide (preferred), or older-style Markdown.
+// What a model may return: a guide (preferred), or Markdown it wrote itself.
 const modelAnswerSchema = generatedAnswerSchema
   .extend({ answerMarkdown: z.string().trim().min(1).optional() })
   .refine(

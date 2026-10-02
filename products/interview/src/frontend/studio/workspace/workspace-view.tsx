@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 import type { ExampleTemplate } from "../../example-templates";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
+import { Resizer, useStoredSize } from "../resizer";
 import type { EditorFile } from "./assistant-change";
 import { CodePanel, type RunState, type SyntaxState } from "./code-panel";
 import { NewQuestion } from "./new-question";
@@ -113,8 +114,11 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 // with its code and test results beside it.
 export function WorkspaceView({
   assistant,
+  onNewQuestion,
 }: {
   assistant: WorkspaceAssistant;
+  // Starts another question (the header's New question button).
+  onNewQuestion?: () => void;
 }) {
   const studio = useStudio();
   const refreshLists = studio?.refreshLists;
@@ -135,6 +139,17 @@ export function WorkspaceView({
   const [preview, setPreview] = useState<ProposalRecord | null>(null);
   const [context, setContext] = useState<readonly string[]>([]);
   const [drafting, setDrafting] = useState(false);
+  // The question column's width is the person's: drag its edge.
+  const split = useRef<HTMLDivElement>(null);
+  const stageWidth = useStoredSize({
+    storageKey: "interview-studio.stage-width",
+    initial: 380,
+    min: 280,
+    max: () =>
+      (split.current?.getBoundingClientRect().width || window.innerWidth) - 360,
+  });
+  // A drafted answer runs its tests straight away.
+  const [testAfterDraft, setTestAfterDraft] = useState(false);
   const [draftError, setDraftError] = useState("");
   const [status, setStatus] = useState("");
   // A status is news, not state: it fades back to the save state.
@@ -155,7 +170,7 @@ export function WorkspaceView({
         kind: "error",
         message:
           error instanceof Error && error.message === "runner-unavailable"
-            ? "The code runner is unavailable."
+            ? "Docker isn’t running. Start Docker Desktop, then run the tests again."
             : "Tests could not run.",
       });
     }
@@ -187,6 +202,16 @@ export function WorkspaceView({
     onPreview: setPreview,
     onContextChange: (surfaces) => setContext(surfaces.map((item) => item.id)),
   };
+  // [STRATEGY] Draft → tests → the Test stage: the full flow in one step.
+  // Runs once the drafted answer is on screen; runTests saves it first.
+  useEffect(() => {
+    if (!testAfterDraft || !draft?.answer) return;
+    setTestAfterDraft(false);
+    update((current) => ({
+      progress: { ...(current.progress ?? START), stage: "test" },
+    }));
+    void runTests();
+  }, [testAfterDraft, draft?.answer, runTests, update]);
   const runLatest = useRef(runTests);
   runLatest.current = runTests;
   const bindView = studio?.bindView;
@@ -288,7 +313,10 @@ export function WorkspaceView({
               question,
               language: selected,
             })
-              .then((answer) => begin({ question, answer }))
+              .then((answer) => {
+                begin({ question, answer });
+                setTestAfterDraft(true);
+              })
               .catch((error: unknown) =>
                 setDraftError(
                   error instanceof Error ? error.message : "Drafting failed.",
@@ -312,10 +340,23 @@ export function WorkspaceView({
   const current = stageIndex(progress.stage);
   const stage = STAGES[current] ?? STAGES[0]!;
 
+  const newQuestion = onNewQuestion && (
+    <button
+      type="button"
+      className="studio-button ws-new-question"
+      title="New question (N)"
+      onClick={onNewQuestion}
+    >
+      <Icon name="add" />
+      New question
+    </button>
+  );
+
   return (
     <div className="ws">
       {header(
         <>
+          {newQuestion}
           <div className="ws-heading">
             <span className="ws-title">
               {answer?.title ?? firstLine(draft.question)}
@@ -326,6 +367,43 @@ export function WorkspaceView({
               </span>
             )}
           </div>
+          <nav className="ws-stepper" aria-label="Stages">
+            {STAGES.map((item, index) => {
+              const warn = item.id === "test" && failing;
+              const state =
+                index === current
+                  ? "current"
+                  : warn
+                    ? "warn"
+                    : index < current
+                      ? "done"
+                      : "todo";
+              return (
+                <div key={item.id} className="ws-step-wrap">
+                  {index > 0 && <span className="ws-step-line" />}
+                  <button
+                    type="button"
+                    className={`ws-step ${state}`}
+                    aria-current={index === current ? "step" : undefined}
+                    title={item.hint}
+                    onClick={() => setProgress(() => ({ stage: item.id }))}
+                  >
+                    <span className="ws-step-dot">
+                      {state === "warn" ? (
+                        <Icon name="priority_high" size={14} />
+                      ) : state === "done" ? (
+                        <Icon name="check" size={14} />
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    <span className="ws-step-label">{item.label}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </nav>
+          <span className="ws-spacer" />
           <span className={`ws-save ${canonical.saveState}`} role="status">
             <Icon
               name={canonical.saveState === "saved" ? "cloud_done" : "pending"}
@@ -361,44 +439,13 @@ export function WorkspaceView({
           </button>
         </>,
       )}
-      <nav className="ws-stepper" aria-label="Stages">
-        {STAGES.map((item, index) => {
-          const warn = item.id === "test" && failing;
-          const state =
-            index === current
-              ? "current"
-              : warn
-                ? "warn"
-                : index < current
-                  ? "done"
-                  : "todo";
-          return (
-            <div key={item.id} className="ws-step-wrap">
-              {index > 0 && <span className="ws-step-line" />}
-              <button
-                type="button"
-                className={`ws-step ${state}`}
-                aria-current={index === current ? "step" : undefined}
-                onClick={() => setProgress(() => ({ stage: item.id }))}
-              >
-                <span className="ws-step-dot">
-                  {state === "warn" ? (
-                    <Icon name="priority_high" size={14} />
-                  ) : state === "done" ? (
-                    <Icon name="check" size={14} />
-                  ) : (
-                    index + 1
-                  )}
-                </span>
-                {item.label}
-              </button>
-            </div>
-          );
-        })}
-        <span className="ws-spacer" />
-        <span className="ws-faint">{stage.hint}</span>
-      </nav>
-      <div className="ws-split">
+      <div
+        className="ws-split"
+        ref={split}
+        style={{
+          gridTemplateColumns: `${stageWidth.size}px auto minmax(0, 1fr)`,
+        }}
+      >
         <StagePane
           stage={stage.id}
           question={draft.question}
@@ -417,6 +464,15 @@ export function WorkspaceView({
             }))
           }
           onNotes={(notes) => update({ notes })}
+        />
+        <Resizer
+          label="Resize question"
+          stored={stageWidth}
+          grows="right"
+          sizeFromPointer={(event) =>
+            event.clientX - (split.current?.getBoundingClientRect().left ?? 0)
+          }
+          className="ws-split-resizer"
         />
         {answer ? (
           <CodePanel

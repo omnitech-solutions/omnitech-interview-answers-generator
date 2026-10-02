@@ -216,6 +216,31 @@ export function Studio({ assistant }: StudioProps) {
   );
 }
 
+const SIDEBAR_PINNED = "interview-studio.workspace-sidebar";
+
+// A remembered on/off preference; storage may be unavailable.
+function useStoredFlag(key: string) {
+  const [value, setValue] = useState(() => {
+    try {
+      return window.localStorage.getItem(key) === "open";
+    } catch {
+      return false;
+    }
+  });
+  const set = useCallback(
+    (next: boolean) => {
+      setValue(next);
+      try {
+        window.localStorage.setItem(key, next ? "open" : "rail");
+      } catch {
+        // The choice still applies until the page reloads.
+      }
+    },
+    [key],
+  );
+  return [value, set] as const;
+}
+
 // Inside AssistantRoot, so the assistant host (⌘J, open state) is reachable.
 function StudioFrame({
   route,
@@ -247,8 +272,14 @@ function StudioFrame({
   const host = useAssistantHost();
   const view = viewById(route.view);
   const width = useWindowWidth();
+  // The Workspace gives the room to the question and code: its sidebar is
+  // a rail unless the person pins it open (remembered in this browser).
+  const [sidebarPinned, setSidebarPinned] = useStoredFlag(SIDEBAR_PINNED);
+  const collapsible = route.view === "work";
   const rail =
-    width < RAIL_WIDTH || (host.open && width < RAIL_WIDTH_WITH_ASSISTANT);
+    width < RAIL_WIDTH ||
+    (host.open && width < RAIL_WIDTH_WITH_ASSISTANT) ||
+    (collapsible && !sidebarPinned);
   // [GUARD] A rehearsal starts with the assistant closed; strict mode keeps
   // it closed for the whole session.
   const { open: assistantOpen, toggle: toggleAssistant } = host;
@@ -333,6 +364,12 @@ function StudioFrame({
             setPaletteOpen(true);
           }}
           onToggleTheme={toggleTheme}
+          {...(collapsible
+            ? {
+                expanded: !rail,
+                onToggleExpanded: () => setSidebarPinned(!sidebarPinned),
+              }
+            : {})}
         />
       )}
       <main className="studio-main">

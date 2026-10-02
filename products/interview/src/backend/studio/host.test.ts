@@ -19,6 +19,7 @@ const alice: Scope = {
   productId: INTERVIEW_PRODUCT_ID,
 };
 const generate = vi.fn(async () => ({}));
+const runner = { runAll: vi.fn() };
 
 beforeAll(async () => {
   pg = await disposablePostgres();
@@ -57,7 +58,7 @@ beforeAll(async () => {
     model: { async *stream() {} },
     modelVersion: "test",
     generate,
-    runner: { runAll: vi.fn() },
+    runner,
     contextCharacters: 10_000,
     loadDefaultProfile: async () => null,
   });
@@ -163,6 +164,19 @@ describe("Interview Studio host", () => {
         })
       ).status,
     ).toBe(409);
+  });
+
+  it("says plainly when Docker is not running", async () => {
+    runner.runAll.mockRejectedValueOnce(
+      new Error("Docker daemon is unavailable."),
+    );
+    const record = await (await call(`${drafts}/q1`)).json();
+    const response = await call(`${drafts}/q1/run-code`, {
+      method: "POST",
+      body: { origin: record.origin, requestId: "run-docker-down" },
+    });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "runner-unavailable" });
   });
 
   it("serves the plan, briefs, rehearsals and briefing packs for the member", async () => {

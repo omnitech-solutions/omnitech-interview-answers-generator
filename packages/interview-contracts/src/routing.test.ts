@@ -153,4 +153,25 @@ describe("answer workflows", () => {
     expect(contract).toContain("entry-point function or component above");
     expect(contract).toContain("must never include example");
   });
+  it("takes the language a coding-test site declares over prose keywords", () => {
+    const pyramid = [
+      "We can render an ASCII art pyramid with N levels by printing rows of asterisks.",
+      "Can you write a program that generates this pyramid with a N value of 10 ?",
+      "• [execution time limit] 4 seconds (rb)",
+      "• [memory limit] 2g",
+    ].join("\n");
+    expect(routeQuestion(pyramid)).toMatchObject({
+      language: "ruby",
+      reasons: ["The question declares Ruby."],
+    });
+    expect(routeQuestion("main.php\nfunction solution($a) {}").language).toBe(
+      "php",
+    );
+    expect(
+      routeQuestion("[execution time limit] 4 seconds (ts)").language,
+    ).toBe("typescript");
+    expect(routeQuestion("Build App.tsx with a counter").language).toBe(
+      "react",
+    );
+  });
 });

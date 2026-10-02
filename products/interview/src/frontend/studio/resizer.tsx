@@ -63,20 +63,25 @@ export function Resizer({
 }: {
   label: string;
   stored: StoredSize;
-  grows: "left" | "up";
+  grows: "left" | "right" | "up";
   sizeFromPointer(event: PointerEvent): number;
   className: string;
 }) {
   const { size, resize, limits } = stored;
   const dragging = useRef(false);
   const [active, setActive] = useState(false);
-  const [bigger, smaller] =
-    grows === "left" ? ["ArrowLeft", "ArrowRight"] : ["ArrowUp", "ArrowDown"];
+  const [bigger, smaller] = (
+    {
+      left: ["ArrowLeft", "ArrowRight"],
+      right: ["ArrowRight", "ArrowLeft"],
+      up: ["ArrowUp", "ArrowDown"],
+    } as const
+  )[grows];
   return (
     <div
       role="separator"
       aria-label={label}
-      aria-orientation={grows === "left" ? "vertical" : "horizontal"}
+      aria-orientation={grows === "up" ? "horizontal" : "vertical"}
       aria-valuenow={size}
       aria-valuemin={limits.min}
       aria-valuemax={Math.max(limits.min, limits.max())}

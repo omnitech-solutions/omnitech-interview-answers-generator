@@ -302,6 +302,35 @@ describe("web API", () => {
     });
   });
 
+  it.each([
+    [
+      "invalid_output",
+      "invalid_model_output",
+      "LM Studio (qwen/qwen3-coder-30b) returned a reply that did not match the required format, even after one correction: guide.talkingPoints: Too big",
+    ],
+    [
+      "provider_failure",
+      "provider_failure",
+      "LM Studio (qwen/qwen3-coder-30b) failed: HTTP 404.",
+    ],
+  ] as const)(
+    "tells a technical reader what went wrong (%s)",
+    async (sdkCode, code, message) => {
+      const app = createApi();
+      mocks.generateInterviewAnswer.mockRejectedValueOnce(
+        new AiSdkError(sdkCode, message, undefined, message),
+      );
+      const failure = await app.request(
+        "http://localhost/api/v1/generate",
+        jsonRequest("POST", { question: "Build a counter", language: "ruby" }),
+      );
+      expect(failure.status).toBe(502);
+      expect(await responseJson(failure)).toMatchObject({
+        error: { code, message },
+      });
+    },
+  );
+
   it("rejects an invalid generation request before calling AI", async () => {
     const response = await createApi().request(
       "http://localhost/api/v1/generate",

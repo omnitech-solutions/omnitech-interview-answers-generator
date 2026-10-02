@@ -317,7 +317,17 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
     const scope = context.get("scope");
     const input = effectSchema.parse(await context.req.json());
     bound(context, input.origin);
-    const result = await product.runCode(scope, input, context.req.raw.signal);
+    // [GUARD] Tests run in Docker; say so plainly when it is not running.
+    const result = await product
+      .runCode(scope, input, context.req.raw.signal)
+      .catch((error: unknown) => {
+        if (
+          error instanceof Error &&
+          error.message === "Docker daemon is unavailable."
+        )
+          throw new ApiError("runner-unavailable", 503);
+        throw error;
+      });
     const effect = await workspace.transaction(scope, (tx) =>
       workspace.readEffectTransaction(tx, scope, "run-code", input.requestId),
     );

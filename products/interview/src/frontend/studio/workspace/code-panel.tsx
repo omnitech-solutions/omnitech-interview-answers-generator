@@ -1,7 +1,9 @@
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import {
   defaultHighlightStyle,
+  StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
 import { Decoration, EditorView } from "@codemirror/view";
@@ -46,7 +48,7 @@ function languageExtensions(language: Language) {
   if (language === "react")
     return [javascript({ jsx: true, typescript: true })];
   if (language === "typescript") return [javascript({ typescript: true })];
-  return [];
+  return [StreamLanguage.define(ruby)];
 }
 
 // Lines to mark: a failing test's line, or syntax problems.
@@ -67,8 +69,8 @@ function markedLines(lines: readonly number[], className: string) {
 
 function summary(run: RunState) {
   if (run.kind === "running") return "Running tests…";
-  if (run.kind === "error") return run.message;
-  if (run.kind === "idle") return "";
+  if (run.kind === "error") return "Couldn’t run";
+  if (run.kind === "idle") return "Not run yet · ⌘↵";
   const { result } = run;
   if (result.timedOut) return "Timed out";
   const seconds = `${(result.durationMs / 1000).toFixed(1)} s`;
@@ -118,7 +120,9 @@ export function CodePanel({
       160,
   });
   const [tab, setTab] = useState<PanelTab>("tests");
-  const [open, setOpen] = useState(true);
+  // [STRATEGY] Results stay a one-line bar until there is something to read;
+  // a run opens them.
+  const [open, setOpen] = useState(run.kind !== "idle");
   const [copied, setCopied] = useState(false);
   const names = FILE_NAMES[language];
   const change = previewedChange(preview, file);

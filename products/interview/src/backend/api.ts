@@ -45,7 +45,7 @@ type ApiEnvironment = {
 
 function apiError(
   context: Context<ApiEnvironment>,
-  status: 400 | 401 | 404 | 409 | 500 | 503,
+  status: 400 | 401 | 404 | 409 | 500 | 502 | 503,
   code: string,
   message: string,
   issues?: string[],
@@ -123,11 +123,19 @@ async function authenticate(context: Context<ApiEnvironment>, next: Next) {
   await next();
 }
 
-// A missing model is the user's to fix, so say how. Every other provider failure
-// stays generic: provider messages can carry endpoints, keys or prompts.
+// Generation failures say what happened, for a technical reader: a missing
+// model, the provider and model with the kind of failure, or which fields of
+// the reply broke the format. Only an error's `detail`, which the AI SDK
+// builds from safe parts, is shown; anything else gets the generic message.
 function generationFailure(context: Context, error: unknown, what: string) {
-  if (error instanceof AiSdkError && error.code === "configuration")
-    return apiError(context, 503, "ai_not_configured", error.message);
+  if (error instanceof AiSdkError) {
+    if (error.code === "configuration")
+      return apiError(context, 503, "ai_not_configured", error.message);
+    if (error.code === "invalid_output" && error.detail)
+      return apiError(context, 502, "invalid_model_output", error.detail);
+    if (error.code === "provider_failure" && error.detail)
+      return apiError(context, 502, "provider_failure", error.detail);
+  }
   return apiError(
     context,
     503,

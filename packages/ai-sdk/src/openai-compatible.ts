@@ -11,6 +11,41 @@ import type {
   AiStreamEvent,
   OpenAiCompatibleProviderOptions,
 } from "./types.js";
+// What went wrong, for a technical reader: the kind of failure and where, never
+// the provider's own message (which can echo the prompt or credentials).
+function failureKind(
+  error: unknown,
+  options: { baseUrl: string; timeoutMs?: number | undefined },
+): string {
+  // Wrapped errors (fetch, the OpenAI client) keep the cause underneath.
+  const chain: Record<string, unknown>[] = [];
+  for (
+    let current: unknown = error;
+    current && typeof current === "object" && chain.length < 5;
+    current = (current as { cause?: unknown }).cause
+  )
+    chain.push(current as Record<string, unknown>);
+  const status = chain.find((link) => typeof link["status"] === "number");
+  if (status) return `HTTP ${status["status"]}`;
+  if (
+    chain.some((link) =>
+      ["TimeoutError", "APIConnectionTimeoutError"].includes(
+        String(link["name"]),
+      ),
+    )
+  )
+    return `no reply within ${Math.round((options.timeoutMs ?? 120_000) / 1000)} s`;
+  if (
+    chain.some(
+      (link) =>
+        link["code"] === "ECONNREFUSED" ||
+        link["name"] === "APIConnectionError",
+    )
+  )
+    return `could not connect to ${new URL(options.baseUrl).origin}`;
+  return "unexpected error";
+}
+
 function messages(input: AiGenerateInput) {
   return [
     ...(input.system === undefined
@@ -99,11 +134,10 @@ export function createOpenAiCompatibleProvider(
   function failure(error: unknown, input: AiGenerateInput) {
     return input.signal?.aborted
       ? new AiSdkError("aborted", "The AI request was cancelled.", error)
-      : new AiSdkError(
-          "provider_failure",
-          `AI provider "${options.id}" failed.`,
-          error,
-        );
+      : (() => {
+          const detail = `${options.label ?? options.id} (${options.model}) failed: ${failureKind(error, options)}.`;
+          return new AiSdkError("provider_failure", detail, error, detail);
+        })();
   }
   async function localRequest(
     input: AiGenerateInput,

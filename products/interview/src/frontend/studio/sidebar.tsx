@@ -17,6 +17,8 @@ export function Sidebar({
   onOpenArtifact,
   onOpenPalette,
   onToggleTheme,
+  expanded,
+  onToggleExpanded,
 }: {
   view: ViewId;
   artifact: string;
@@ -26,6 +28,9 @@ export function Sidebar({
   onOpenArtifact(artifactId: string): void;
   onOpenPalette(): void;
   onToggleTheme(): void;
+  // Views that can fold the sidebar to a rail (the Workspace) pass these.
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 }) {
   return (
     <aside className="studio-sidebar" aria-label="Studio">
@@ -38,6 +43,17 @@ export function Sidebar({
           <div className="studio-brand-sub">Omnitech · Local</div>
         </div>
       </div>
+      {onToggleExpanded && (
+        <button
+          type="button"
+          className="studio-collapse"
+          aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+          title={expanded ? "Collapse sidebar" : "Expand sidebar"}
+          onClick={onToggleExpanded}
+        >
+          <Icon name={expanded ? "chevron_left" : "chevron_right"} />
+        </button>
+      )}
 
       <button type="button" className="studio-jump" onClick={onOpenPalette}>
         <Icon name="search" />

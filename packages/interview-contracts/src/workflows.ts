@@ -11,6 +11,20 @@ export interface AnswerWorkflowDefinition {
 const sharedContract = `
 You are producing an interview-ready answer for a live screen-sharing session.
 
+The question is often pasted from a coding-test site or read by OCR from a
+screenshot. Before answering, recover the intended problem silently:
+- Ignore editor and site chrome: file names (main.rb), line numbers, starter
+  stubs (def solu … end), "Syntax Tips", hello-world samples and console help.
+- Repair evident OCR errors from the surrounding meaning and the examples:
+  index typos (numbers[4] or numbers[1 + 1] meaning numbers[i], numbers[i + 1]),
+  mismatched brackets, "o" for 0, "S" for ≤, "10°" for 10⁹, "41" for "4]",
+  and missing comparison symbols that the examples make clear.
+- Keep the required entry point named by the stub (for example solution) and
+  take the expected outputs from the examples; when the prose and an example
+  disagree, the example wins.
+- Restate the cleaned problem in guide.understand.prompt and give the examples
+  with their exact, repaired inputs and outputs.
+
 Apply these rules:
 - Run the contract, edge-case, algorithm, and domain-naming analysis silently.
 - Extract essential requirements, constraints, required entry point/signature,
@@ -59,6 +73,9 @@ Apply these rules:
 - Make testCode execute the primary solution and cover the normal path,
   boundaries, and one failure-prone invariant. Use the language's normal test
   style when available.
+- usageCode and testCode each run in the same file as the primary solution,
+  appended after it: refer to its functions, classes and components directly
+  and never import or require them from another module.
 
 Return a JSON object with exactly:
 {

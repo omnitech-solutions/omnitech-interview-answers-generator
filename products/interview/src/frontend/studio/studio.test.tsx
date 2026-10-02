@@ -582,6 +582,27 @@ describe("Studio shell", () => {
     expect(screen.queryByRole("separator")).toBeNull();
   });
 
+  it("folds the sidebar to a rail in the Workspace until it is pinned open", async () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1600,
+    });
+    await renderStudio("/t/local/p/interview/work");
+    const frame = () => document.querySelector(".studio-frame");
+    expect(frame()).toHaveClass("rail");
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(frame()).not.toHaveClass("rail");
+    expect(
+      window.localStorage.getItem("interview-studio.workspace-sidebar"),
+    ).toBe("open");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(frame()).toHaveClass("rail");
+    // Other views keep the full sidebar and offer no toggle.
+    fireEvent.click(screen.getByRole("button", { name: /Home/ }));
+    expect(frame()).not.toHaveClass("rail");
+    expect(screen.queryByRole("button", { name: "Expand sidebar" })).toBeNull();
+  });
+
   it("uses an icon rail when the window is narrow", async () => {
     const width = window.innerWidth;
     Object.defineProperty(window, "innerWidth", {

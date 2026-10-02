@@ -1,5 +1,8 @@
-import type { LanguageSelection } from "@omnitech/interview-contracts";
-import { useState } from "react";
+import {
+  type LanguageSelection,
+  routeQuestion,
+} from "@omnitech/interview-contracts";
+import { useEffect, useState } from "react";
 import {
   type ExampleTemplate,
   exampleTemplates,
@@ -32,6 +35,11 @@ export function NewQuestion({
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<LanguageSelection>("auto");
   const ready = question.trim().length > 0 && !busy;
+  // [DOMAIN] Show which language the answer will be in, and why, before a
+  // minute of drafting goes into the wrong one.
+  const route = question.trim() ? routeQuestion(question, language) : undefined;
+  const target = route ? LANGUAGE_LABELS[route.language] : undefined;
+  const seconds = useElapsedSeconds(busy);
   return (
     <div className="studio-page">
       <div className="ws-new">
@@ -83,6 +91,19 @@ export function NewQuestion({
               {busy ? "Drafting…" : "Draft with assistant"}
             </button>
           </div>
+          {busy ? (
+            <p className="ws-new-status" role="status">
+              <span className="ws-spinner" />
+              Drafting a {target} answer · {seconds} s · a local model can take
+              a minute
+            </p>
+          ) : (
+            route && (
+              <p className="ws-new-status">
+                Answer in <strong>{target}</strong> · {route.reasons[0]}
+              </p>
+            )
+          )}
           {error && (
             <p className="ws-error" role="alert">
               {error}
@@ -111,4 +132,20 @@ export function NewQuestion({
       </div>
     </div>
   );
+}
+
+// Seconds since `running` became true; 0 while idle.
+function useElapsedSeconds(running: boolean) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    setSeconds(0);
+    if (!running) return;
+    const started = Date.now();
+    const timer = setInterval(
+      () => setSeconds(Math.round((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [running]);
+  return seconds;
 }
