@@ -55,7 +55,8 @@ export function createAssistantModels(
           {
             id: INTERVIEW_ASSISTANT_PROFILE,
             name: language?.model ?? "Draft model",
-            shortName: language?.label ?? "Default",
+            // The picker names the model itself; the provider heads its group.
+            shortName: language?.model.split("/").at(-1) ?? "Default",
             tags: localDefault ? ["default", "loaded"] : ["default"],
             vision: false,
             reasoning: false,

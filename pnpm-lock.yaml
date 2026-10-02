@@ -2342,7 +2342,7 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
-    resolution: {integrity: sha512-Dgf4E4wGkzgC+TsAv67FEeBokG2hsN16jvc3JJNNrqmF9hncuICRCaBofXew8gADZfJO14Q9niYAKqVrxodoVg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
+    resolution: {integrity: sha512-s8JboTQv2/Doe/fKBiefjt8ZYiw9fqObezI5HhJ92nop16rjkENVTxT1z/ACQop3/FafhZB+Z3G/2rMPNHB1FQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 

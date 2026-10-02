@@ -1,5 +1,6 @@
 "use client";
 
+import type { Origin } from "@omnitech-assistant/contracts";
 import {
   type AssistantConfig,
   AssistantRoot,
@@ -29,11 +30,24 @@ import {
 } from "./context";
 import { Icon } from "./icon";
 import { Sidebar } from "./sidebar";
+import { studioFetch } from "./studio-fetch";
 import { useShortcuts } from "./use-shortcuts";
 import { usePlaygroundControl } from "./use-playground-control";
 import { useStudioLists } from "./use-studio-lists";
 import { type StudioNavigation, useStudioRoute } from "./use-studio-route";
 import { ViewBoundary } from "./view-boundary";
+
+// [GUARD] With no view lending a draft, the shell never loaded one, so it
+// asks the server which revision the assistant would read instead of
+// claiming one. A turn is still rejected if the draft moves after this.
+async function currentOrigin(shell: Origin): Promise<Origin> {
+  const response = await studioFetch(
+    `/api/interview/workspaces/${encodeURIComponent(shell.workspaceId)}/artifacts/${encodeURIComponent(shell.artifactId)}`,
+  );
+  if (!response.ok) return shell;
+  const record = (await response.json()) as { origin?: Origin };
+  return record.origin ?? shell;
+}
 
 export type StudioProps = {
   // The assistant connection; the artifact comes from the URL.
@@ -179,7 +193,7 @@ export function Studio({ assistant }: StudioProps) {
       prepareSend: async () =>
         (await binding.hooks?.current.prepareSend?.()) ??
         binding.origin ??
-        config.origin,
+        currentOrigin(config.origin),
       beforeApply: async (record) => {
         await binding.hooks?.current.beforeApply?.(record);
       },

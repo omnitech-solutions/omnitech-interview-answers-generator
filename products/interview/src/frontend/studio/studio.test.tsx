@@ -153,6 +153,14 @@ function installServer() {
         patches.push(JSON.parse(String(init.body)));
         return Response.json({});
       }
+      if (path === "/api/interview/workspaces/interview/artifacts/q1")
+        return Response.json({
+          origin: {
+            workspaceId: "interview",
+            artifactId: "q1",
+            artifactRevision: 4,
+          },
+        });
       if (path.startsWith("/api/interview/workspaces/interview/artifacts"))
         return listFails
           ? new Response("{}", { status: 500 })
@@ -335,10 +343,11 @@ describe("Studio shell", () => {
     document.title = "";
     key("Enter", { metaKey: true });
     expect(document.title).toBe("");
-    // Without a bound view the assistant uses the shell's own origin.
+    // Without a bound view the assistant reads the server's current revision
+    // rather than claiming one the shell never loaded.
     await expect(host.config.host!.prepareSend!()).resolves.toMatchObject({
       artifactId: "q1",
-      artifactRevision: 0,
+      artifactRevision: 4,
     });
   });
 
