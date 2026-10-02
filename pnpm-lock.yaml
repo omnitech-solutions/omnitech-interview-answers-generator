@@ -31,8 +31,8 @@ catalogs:
       specifier: ^4.1.2
       version: 4.1.10
     zod:
-      specifier: ^4.3.6
-      version: 4.6.5
+      specifier: 4.4.3
+      version: 4.4.3
 
 overrides:
   '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
@@ -270,7 +270,7 @@ importers:
         version: 4.3.1
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^7.0.0
@@ -454,10 +454,10 @@ importers:
         version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
       openai:
         specifier: 7.25.0
-        version: 7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.6.5)
+        version: 7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.4.3)
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -524,7 +524,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5)
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
       pg:
         specifier: ^8.16.3
         version: 8.23.1
@@ -547,6 +547,9 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
 
   packages/interview-api-client:
     dependencies:
@@ -596,7 +599,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -696,7 +699,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
@@ -715,7 +718,7 @@ importers:
     dependencies:
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -759,13 +762,13 @@ importers:
         version: link:../platform-contracts
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5)
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
       pg:
         specifier: ^8.16.3
         version: 8.23.1
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -862,7 +865,7 @@ importers:
         version: 9.0.0
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5)
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
@@ -895,7 +898,7 @@ importers:
         version: 4.3.1
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@material-symbols/svg-400':
         specifier: 0.47.5
@@ -965,7 +968,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.4.3
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^7.0.0
@@ -9646,14 +9649,14 @@ snapshots:
       get-tsconfig: 4.14.3
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5):
+  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3):
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/pg': 8.20.0
       effect: 3.21.4
       pg: 8.23.1
       valibot: 1.4.2(typescript@5.9.3)
-      zod: 4.6.5
+      zod: 4.4.3
 
   dunder-proto@1.0.1:
     dependencies:
@@ -11015,6 +11018,12 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
+
+  openai@7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.4.3):
+    optionalDependencies:
+      undici: 7.28.0
+      ws: 8.21.1
+      zod: 4.4.3
 
   openai@7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.6.5):
     optionalDependencies:

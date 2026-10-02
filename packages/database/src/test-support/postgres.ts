@@ -64,7 +64,7 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
   const stop = async () => {
     await owner.close().catch(() => undefined);
     if (child.exitCode === null) {
-      child.kill("SIGINT");
+      child.kill("SIGTERM");
       await once(child, "exit");
     }
     await rm(root, { recursive: true, force: true });
