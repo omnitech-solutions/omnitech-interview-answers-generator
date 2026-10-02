@@ -169,3 +169,27 @@ it("rolls back only the failed nested savepoint", async () => {
   );
   expect(rows).toEqual([{ body: "outer" }]);
 });
+
+it("refuses a role that bypasses row-level security", async () => {
+  const owner = createPlatformDatabase(pg.ownerUrl);
+  try {
+    await expect(
+      withTenant(
+        { tenantId: A, actorId: actor },
+        (db) => db.execute(sql`SELECT 1`),
+        { database: owner },
+      ),
+    ).rejects.toThrow(
+      "withTenant: the database role bypasses row-level security (superuser or BYPASSRLS); connect as a NOSUPERUSER NOBYPASSRLS role",
+    );
+  } finally {
+    await owner.close();
+  }
+  await expect(
+    withTenant(
+      { tenantId: A, actorId: actor },
+      async (db) => (await db.execute(sql`SELECT 1 AS ok`)).rows,
+      opts(),
+    ),
+  ).resolves.toEqual([{ ok: 1 }]);
+});

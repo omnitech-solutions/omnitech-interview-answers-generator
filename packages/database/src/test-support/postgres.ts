@@ -20,7 +20,8 @@ export interface DisposablePostgres {
 
 // A throwaway cluster for one test file.
 // fixture_owner is the bootstrap superuser (it bypasses row-level security even
-// under FORCE); fixture_member is NOSUPERUSER NOBYPASSRLS, like the application role.
+// under FORCE); fixture_member is NOSUPERUSER NOBYPASSRLS, like the application
+// role must be.
 export async function startDisposablePostgres(): Promise<DisposablePostgres> {
   const root = await mkdtemp(`${tmpdir()}/omnitech-assistant-pg-`);
   const server = createServer();

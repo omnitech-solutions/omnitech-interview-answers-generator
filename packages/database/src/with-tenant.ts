@@ -29,7 +29,9 @@ export async function withTenant<T, R extends AnyRelations = EmptyRelations>(
     database?: PlatformDatabase;
   } = {},
 ): Promise<T> {
-  return withPoolClient(options.database ?? getPlatformDatabase(), (client) =>
+  const database = options.database ?? getPlatformDatabase();
+  await assertRowLevelSecurityApplies(database);
+  return withPoolClient(database, (client) =>
     drizzle({
       client,
       ...(options.relations ? { relations: options.relations } : {}),
@@ -41,4 +43,34 @@ export async function withTenant<T, R extends AnyRelations = EmptyRelations>(
       return work(tx);
     }),
   );
+}
+
+const roleChecks = new WeakMap<PlatformDatabase, Promise<void>>();
+
+// [GUARD] Superusers and BYPASSRLS roles skip every policy, even under FORCE,
+// so tenant isolation would silently vanish. Check the connected role once per
+// database and fail loudly instead.
+function assertRowLevelSecurityApplies(
+  database: PlatformDatabase,
+): Promise<void> {
+  let check = roleChecks.get(database);
+  if (!check) {
+    check = database
+      .query<{ bypass: boolean }>(
+        "select rolsuper or rolbypassrls as bypass from pg_roles where rolname = current_user",
+      )
+      .then((result) => {
+        if (result.rows[0]?.bypass)
+          throw new Error(
+            "withTenant: the database role bypasses row-level security (superuser or BYPASSRLS); connect as a NOSUPERUSER NOBYPASSRLS role",
+          );
+      })
+      .catch((error: unknown) => {
+        // A failed check is retried next time rather than cached.
+        roleChecks.delete(database);
+        throw error;
+      });
+    roleChecks.set(database, check);
+  }
+  return check;
 }
