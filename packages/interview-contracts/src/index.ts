@@ -63,6 +63,24 @@ export {
   type TestResult,
   testResultSchema,
 } from "./guide.js";
+export {
+  type InterviewPlan,
+  type InterviewPlanInput,
+  interviewPlanInputSchema,
+  interviewPlanSchema,
+  type PlanItem,
+  type PlanItemInput,
+  type PlanItemKind,
+  type PlanItemPatch,
+  type PlanItemStatus,
+  type PlanResponse,
+  planItemInputSchema,
+  planItemKindSchema,
+  planItemPatchSchema,
+  planItemSchema,
+  planItemStatusSchema,
+  planResponseSchema,
+} from "./plan.js";
 export { routeQuestion } from "./routing.js";
 export type {
   ApiError,

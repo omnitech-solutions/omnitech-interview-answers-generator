@@ -425,3 +425,42 @@ it("keeps stage progress on the draft and renders the answer's Markdown from its
     }),
   ).rejects.toThrow();
 });
+
+it("summarises each question's latest completed test run", async () => {
+  const runScope = { tenantId: "runs", actorId: "ana", productId: "interview" };
+  const at = (artifactId: string) => ({
+    workspaceId: "rw",
+    artifactId,
+    artifactRevision: 0,
+  });
+  await repo.create(runScope, at("ran"), { question: "Ran" });
+  await repo.create(runScope, at("never"), { question: "Never ran" });
+  const run = async (requestId: string, execution: unknown) =>
+    repo.transaction(runScope, async (tx, scope) => {
+      await repo.beginEffectTransaction(tx, scope, "run-code", requestId, {
+        origin: at("ran"),
+        codeFingerprint: requestId,
+      });
+      await repo.completeEffectTransaction(tx, scope, "run-code", requestId, {
+        receipt: {},
+        execution,
+      });
+    });
+  await run("first", { exitCode: 0, timedOut: false, stdout: "" });
+  await run("second", {
+    exitCode: 1,
+    timedOut: false,
+    tests: [{ status: "passed" }, { status: "failed" }, { status: "passed" }],
+  });
+  const listed = await repo.listDrafts(runScope, "rw");
+  expect(
+    listed.find((item) => item.artifactId === "ran")?.lastRun,
+  ).toMatchObject({
+    ok: false,
+    passed: 2,
+    total: 3,
+  });
+  expect(
+    listed.find((item) => item.artifactId === "never")?.lastRun,
+  ).toBeNull();
+});

@@ -14,6 +14,11 @@ import type {
 } from "@omnitech/interview-contracts";
 
 export { createBriefingClient } from "./briefing.js";
+export {
+  createPlanClient,
+  type PlanClient,
+  type PlanClientOptions,
+} from "./plan.js";
 export type {
   BriefingArtifact,
   BriefingArtifactSummary,

@@ -94,6 +94,14 @@ export type InterviewEvidence = Readonly<
     audience: readonly string[];
   }
 >;
+// The outcome of a question's latest test run. passed/total count tests when
+// the framework reported them; ok is whether the run as a whole passed.
+export type RunSummary = Readonly<{
+  ok: boolean;
+  passed: number | null;
+  total: number | null;
+  at: string;
+}>;
 export type DraftSummary = Readonly<{
   artifactId: string;
   title: string;
@@ -101,7 +109,26 @@ export type DraftSummary = Readonly<{
   language: string | null;
   revision: number;
   updatedAt: string;
+  lastRun: RunSummary | null;
 }>;
+
+function runSummary(execution: unknown, at: unknown): RunSummary | null {
+  const run = execution as {
+    exitCode?: number | null;
+    timedOut?: boolean;
+    tests?: { status?: string }[];
+  } | null;
+  if (!run || typeof run !== "object") return null;
+  const tests = Array.isArray(run.tests) ? run.tests : null;
+  return {
+    ok: run.exitCode === 0 && run.timedOut !== true,
+    passed: tests
+      ? tests.filter((test) => test.status === "passed").length
+      : null,
+    total: tests ? tests.length : null,
+    at: timestamp(at),
+  };
+}
 export type WorkspaceDraftRecord = Readonly<{
   origin: WorkspaceOrigin;
   value: InterviewDraft;
@@ -562,9 +589,21 @@ export class InterviewWorkspaceRepository {
     workspaceId: string,
   ): Promise<readonly DraftSummary[]> {
     return this.transaction(scope, async (tx, scope) => {
+      const workspace = id.parse(workspaceId);
       const rows = await tx.query(
         `SELECT artifact_id,revision,updated_at,value FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 ORDER BY updated_at DESC, artifact_id LIMIT 50`,
-        [...values(scope), id.parse(workspaceId)],
+        [...values(scope), workspace],
+      );
+      // [DOMAIN] The latest completed run per question, from its receipts.
+      const runs = await tx.query(
+        `SELECT DISTINCT ON (payload->'origin'->>'artifactId') payload->'origin'->>'artifactId' AS artifact_id, result->'execution' AS execution, updated_at FROM interview.assistant_effect_receipts WHERE ${where} AND operation='run-code' AND state='completed' AND payload->'origin'->>'workspaceId'=$4 ORDER BY payload->'origin'->>'artifactId', updated_at DESC`,
+        [...values(scope), workspace],
+      );
+      const lastRuns = new Map(
+        runs.map((run) => [
+          String(run["artifact_id"]),
+          runSummary(run["execution"], run["updated_at"]),
+        ]),
       );
       return rows.map((row) => {
         const value = row["value"] as InterviewDraft;
@@ -580,6 +619,7 @@ export class InterviewWorkspaceRepository {
           language: value.answer?.language ?? null,
           revision: Number(row["revision"]),
           updatedAt: timestamp(row["updated_at"]),
+          lastRun: lastRuns.get(String(row["artifact_id"])) ?? null,
         } as const;
       });
     });

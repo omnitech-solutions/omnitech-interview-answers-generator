@@ -6,7 +6,7 @@ import {
   type WorkspaceAssistant,
   WorkspaceView,
 } from "../workspace/workspace-view";
-import { HomeView } from "../home-view";
+import { HomeView } from "../home/home-view";
 import type { IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
 import type { StudioRoute, ViewId } from "../use-studio-route";

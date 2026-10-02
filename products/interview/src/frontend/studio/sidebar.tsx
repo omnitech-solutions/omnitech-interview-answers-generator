@@ -2,6 +2,7 @@ import { views } from "./config/views";
 import { Icon } from "./icon";
 import type { StudioTheme } from "./context";
 import type { StudioLists } from "./use-studio-lists";
+import { runStatus } from "./run-status";
 import { formatShortcut } from "./use-shortcuts";
 import type { ViewId } from "./use-studio-route";
 
@@ -88,7 +89,10 @@ export function Sidebar({
               title={question.title}
               onClick={() => onOpenArtifact(question.artifactId)}
             >
-              <span className="studio-dot" aria-hidden="true" />
+              <span
+                className={`studio-dot ${runStatus(question).tone}`}
+                aria-hidden="true"
+              />
               <span className="studio-recent-title">{question.title}</span>
             </button>
           ))

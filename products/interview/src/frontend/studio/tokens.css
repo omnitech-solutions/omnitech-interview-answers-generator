@@ -1,4 +1,5 @@
 @import "./workspace/workspace.css";
+@import "./home/home.css";
 
 /* Interview Studio design tokens and shell styles.
    Tokens are scoped to the host side of the assistant root (.oa-host) and to
@@ -265,8 +266,15 @@ body,
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--faint);
+  background: var(--accent);
   flex: none;
+}
+/* The question's last test run: passed, failing, or not run yet. */
+.studio-dot.good {
+  background: var(--green);
+}
+.studio-dot.warn {
+  background: var(--amber);
 }
 .studio-recent-note {
   padding: 6px 10px;

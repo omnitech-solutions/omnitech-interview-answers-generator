@@ -36,6 +36,7 @@ import {
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createBriefingApi,
+  createPlanApi,
   loadLocalDefaultProfile,
   createInterviewApi,
 } from "@omnitech/product-interview/backend";
@@ -102,6 +103,7 @@ for (const file of [
   "0005_assistant_provenance.sql",
   "0006_interview_briefings.sql",
   "0007_assistant_reverts.sql",
+  "0008_interview_plans.sql",
 ])
   await admin.query(
     await readFile(
@@ -114,7 +116,7 @@ for (const file of [
   );
 await admin.query(assistantGrants("fixture_member"));
 await admin.query(
-  "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member",
+  "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member; GRANT DELETE ON interview.interview_plan_items TO fixture_member",
 );
 const queue = new PgBossRunQueue({
   ...config,
@@ -429,6 +431,15 @@ app.route(
     allowedOrigins: new Set(["http://127.0.0.1:5175"]),
   }),
 );
+// Home's interview and prep plan; items report on the questions they link to.
+const planApi = createPlanApi({
+  database,
+  questionsWorkspace: "interview",
+  allowedOrigins: ["http://127.0.0.1:5175"],
+  resolveScope: async () => ((await readable(scope)) ? scope : null),
+});
+app.all("/api/interview/plan", (context) => planApi.fetch(context.req.raw));
+app.all("/api/interview/plan/*", (context) => planApi.fetch(context.req.raw));
 const briefingApi = createBriefingApi({
   database,
   loadDefaultProfile: () => loadLocalDefaultProfile(),

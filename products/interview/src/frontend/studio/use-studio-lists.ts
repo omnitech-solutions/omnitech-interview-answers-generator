@@ -7,6 +7,13 @@ export type QuestionSummary = {
   kind: "coding" | "briefing";
   language: string | null;
   updatedAt: string;
+  // The latest test run, if any (see the drafts listing).
+  lastRun?: {
+    ok: boolean;
+    passed: number | null;
+    total: number | null;
+    at: string;
+  } | null;
 };
 export type BriefingSummary = { id: string; title: string; updatedAt: string };
 export type StudioLists = {
