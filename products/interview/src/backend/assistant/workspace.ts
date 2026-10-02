@@ -5,6 +5,8 @@ import {
   type InterviewProvenance,
   interviewMetricSchema,
   interviewProvenanceSchema,
+  reconcileAnswerGuide,
+  stageProgressSchema,
 } from "@omnitech/interview-contracts";
 import {
   jsonValueSchema,
@@ -54,6 +56,8 @@ export const interviewDraftSchema = z
     notes: z.string().max(100_000).default(""),
     answer: boundedAnswerSchema.nullable().default(null),
     briefing: briefingDraftSchema.nullable().optional(),
+    // Where the person is in the Workspace stages; never part of the answer.
+    progress: stageProgressSchema.optional(),
   })
   .refine(
     (value) => !(value.answer && value.briefing),
@@ -66,6 +70,7 @@ export const interviewDraftPatchSchema = z.strictObject({
   notes: z.string().max(100_000).optional(),
   answer: boundedAnswerSchema.nullable().optional(),
   briefing: briefingDraftSchema.nullable().optional(),
+  progress: stageProgressSchema.optional(),
 });
 const evidenceSchema = z.strictObject({
   id,
@@ -252,7 +257,10 @@ export class InterviewWorkspaceRepository {
     origin = originSchema.parse(origin);
     if (origin.artifactRevision !== 0)
       throw new WorkspaceError("revision-conflict");
-    const value = interviewDraftSchema.parse(initial);
+    const parsed = interviewDraftSchema.parse(initial);
+    const value = parsed.answer
+      ? { ...parsed, answer: reconcileAnswerGuide(parsed.answer) }
+      : parsed;
     const [row] = await tx.query(
       "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
       [
@@ -322,10 +330,15 @@ export class InterviewWorkspaceRepository {
     if (!row) throw new WorkspaceError("not-found");
     if (Number(row["revision"]) !== origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
-    const value = interviewDraftSchema.parse({
-      ...interviewDraftSchema.parse(row["value"]),
-      ...validated,
-    });
+    const current = interviewDraftSchema.parse(row["value"]);
+    const merged = interviewDraftSchema.parse({ ...current, ...validated });
+    // The answer's Markdown follows its guide; see reconcileAnswerGuide.
+    const value = merged.answer
+      ? {
+          ...merged,
+          answer: reconcileAnswerGuide(merged.answer, current.answer),
+        }
+      : merged;
     const [updated] = await tx.query(
       `UPDATE interview.assistant_drafts SET value=$7::jsonb,revision=revision+1,updated_at=now(),provenance=CASE WHEN $8::boolean THEN NULL WHEN provenance IS NOT NULL THEN jsonb_set(provenance,'{draftRevision}',to_jsonb(revision+1)) ELSE NULL END WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING *`,
       [

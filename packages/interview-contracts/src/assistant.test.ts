@@ -56,7 +56,7 @@ describe("interview claims", () => {
       proposalId: "p",
       draftRevision: 1,
       acceptedDraftRevision: 2,
-      promptVersion: "interview-grounding-2",
+      promptVersion: "interview-grounding-3",
       adapterVersion: "interview-1",
       claims: [claim],
       sources: [

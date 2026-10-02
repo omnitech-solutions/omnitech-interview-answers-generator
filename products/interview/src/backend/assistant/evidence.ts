@@ -4,7 +4,7 @@ import type {
   Scope,
   Transaction,
 } from "@omnitech-assistant/contracts";
-import type { InterviewClaim } from "@omnitech/interview-contracts";
+import { guideText, type InterviewClaim } from "@omnitech/interview-contracts";
 import {
   type InterviewDraft,
   type InterviewEvidence,
@@ -67,6 +67,28 @@ function metricTokens(text: string, extraUnits: readonly string[]) {
     unit: match[2]!,
   }));
 }
+type DraftAnswer = NonNullable<InterviewDraft["answer"]>;
+// The answer's prose: its Markdown plus the guide's spoken explanation, which
+// the Markdown does not repeat.
+export function answerProse(answer: DraftAnswer): string {
+  return [
+    answer.answerMarkdown,
+    ...(answer.guide?.explain ?? []).map(
+      (section) => `${section.heading}: ${section.body}`,
+    ),
+  ].join("\n");
+}
+const PROSE_FIELDS: readonly InterviewClaim["field"][] = [
+  "answerMarkdown",
+  "guide",
+];
+const fieldText = (answer: DraftAnswer, field: InterviewClaim["field"]) =>
+  field === "guide"
+    ? answer.guide
+      ? guideText(answer.guide)
+      : ""
+    : answer[field];
+
 // Bounded structural checks, not a general truth/entailment detector. A trusted
 // ingestion action supplies candidate metrics; no model-minted verification.
 export function validateClaims(
@@ -93,7 +115,7 @@ export function validateClaims(
       throw new WorkspaceError("unsupported-metric");
     if (claim.kind === "technical" && /\b(?:I|my|we|our)\b/i.test(claim.text))
       throw new WorkspaceError("source-kind-conflict");
-    if (!answer[claim.field].includes(claim.text))
+    if (!fieldText(answer, claim.field).includes(claim.text))
       throw new WorkspaceError("claim-text-conflict");
     for (const citation of claim.citations) {
       const source = sources.get(`${citation.id}:${citation.revision}`);
@@ -136,13 +158,13 @@ export function validateClaims(
     }
   }
   if (!proseChanged) return;
-  for (const personal of answer.answerMarkdown.matchAll(
+  for (const personal of answerProse(answer).matchAll(
     /\b(?:I|my|we|our)\b[^.!?\n]*(?:[.!?]|$)/gi,
   )) {
     if (
       !claims.some(
         (claim) =>
-          claim.field === "answerMarkdown" &&
+          PROSE_FIELDS.includes(claim.field) &&
           claim.kind !== "technical" &&
           claim.text.includes(personal[0]),
       )
@@ -151,11 +173,11 @@ export function validateClaims(
   }
   // Explicit numeric coverage prevents leaving a metric out of the structured
   // claim list. This checks literal coverage, not the truth of surrounding prose.
-  for (const token of metricTokens(answer.answerMarkdown, units)) {
+  for (const token of metricTokens(answerProse(answer), units)) {
     if (
       !claims.some(
         (claim) =>
-          claim.field === "answerMarkdown" &&
+          PROSE_FIELDS.includes(claim.field) &&
           metricTokens(claim.text, units).some(
             (covered) =>
               covered.value === token.value && covered.unit === token.unit,

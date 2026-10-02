@@ -46,6 +46,23 @@ export {
   type CandidateMatrix,
   candidateMatrixSchema,
 } from "./briefing.js";
+export {
+  type AnswerGuide,
+  answerGuideSchema,
+  type Diagnostic,
+  diagnosticSchema,
+  type EditorLocation,
+  editorLocationSchema,
+  guideText,
+  reconcileAnswerGuide,
+  renderGuideMarkdown,
+  type StageId,
+  type StageProgress,
+  stageIdSchema,
+  stageProgressSchema,
+  type TestResult,
+  testResultSchema,
+} from "./guide.js";
 export { routeQuestion } from "./routing.js";
 export type {
   ApiError,

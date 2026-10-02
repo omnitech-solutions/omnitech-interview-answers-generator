@@ -20,7 +20,7 @@ import {
   assistantSurfaces,
 } from "../assistant-config";
 import { useStudioTheme } from "../studio-shell";
-import type { WorkspaceAssistant } from "../workspace";
+import type { WorkspaceAssistant } from "./workspace/workspace-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { DockResizer, useDockWidth } from "./dock-resizer";
 import { available, type StudioActions } from "./config/commands";

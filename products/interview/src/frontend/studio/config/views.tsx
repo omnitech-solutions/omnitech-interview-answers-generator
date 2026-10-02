@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 import { InterviewPreparation } from "../../interview-preparation";
 import { Library } from "../../library";
 import { MockInterview } from "../../mock-interview";
-import { Workspace, type WorkspaceAssistant } from "../../workspace";
+import {
+  type WorkspaceAssistant,
+  WorkspaceView,
+} from "../workspace/workspace-view";
 import { HomeView } from "../home-view";
 import type { IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
@@ -46,13 +49,8 @@ export const views: readonly ViewDefinition[] = [
     icon: "terminal",
     goKey: "W",
     assistantContext: "question, code, tests",
-    render: ({ assistant, onDirtyChange }) => (
-      <Workspace
-        key={assistant.artifactId}
-        chrome="embedded"
-        assistant={assistant}
-        onPreparationDirtyChange={onDirtyChange}
-      />
+    render: ({ assistant }) => (
+      <WorkspaceView key={assistant.artifactId} assistant={assistant} />
     ),
   },
   {

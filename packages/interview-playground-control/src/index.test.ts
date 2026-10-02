@@ -297,3 +297,27 @@ describe("createPlaygroundControlClient", () => {
     });
   });
 });
+
+describe("answer guides", () => {
+  const answer = {
+    title: "T",
+    language: "typescript",
+    answerMarkdown: "## Question",
+    code: "x",
+    usageCode: "",
+    testCode: "t",
+  };
+  it("passes a guide through and rejects one that is not an object", () => {
+    const guide = { version: 1 };
+    expect(
+      parsePlaygroundPatch({ answer: { ...answer, guide } }).answer,
+    ).toEqual({
+      ...answer,
+      guide,
+    });
+    expect(parsePlaygroundPatch({ answer }).answer).toEqual(answer);
+    expect(() =>
+      parsePlaygroundPatch({ answer: { ...answer, guide: "x" } }),
+    ).toThrow('Playground answer "guide" must be an object.');
+  });
+});

@@ -31,6 +31,9 @@ export interface PlaygroundAnswer {
   code: string;
   usageCode: string;
   testCode: string;
+  // The structured guide behind answerMarkdown; validated where it is stored
+  // or shown (see @omnitech/interview-contracts answerGuideSchema).
+  guide?: Record<string, unknown>;
 }
 
 export interface PlaygroundValue {
@@ -149,7 +152,16 @@ function parseAnswer(value: unknown): PlaygroundAnswer | null {
     code: requireString(value, "code"),
     usageCode: optionalString(value, "usageCode"),
     testCode: requireString(value, "testCode"),
+    ...parseGuide(value["guide"]),
   };
+}
+
+function parseGuide(value: unknown): { guide?: Record<string, unknown> } {
+  if (value === undefined) return {};
+  if (!isRecord(value)) {
+    throw new TypeError('Playground answer "guide" must be an object.');
+  }
+  return { guide: value };
 }
 
 export function parsePlaygroundExplanation(

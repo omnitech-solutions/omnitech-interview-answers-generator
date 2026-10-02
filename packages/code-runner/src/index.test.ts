@@ -10,6 +10,10 @@ const fsMocks = vi.hoisted(() => ({
   mkdtemp: vi.fn().mockResolvedValue("/tmp/interview-answer-run-test"),
   rm: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  chmod: vi.fn().mockResolvedValue(undefined),
+  // No report by default: the run falls back to its plain output.
+  readFile: vi.fn().mockRejectedValue(new Error("ENOENT")),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -529,5 +533,84 @@ describe("DockerCodeRunner", () => {
     await expect(resultPromise).resolves.toEqual(
       expect.objectContaining({ exitCode: 0, timedOut: false }),
     );
+  });
+});
+
+describe("DockerCodeRunner per-test results", () => {
+  it("reads the framework's report from the one writable mount", async () => {
+    vi.useFakeTimers();
+    const child = createChildProcess();
+    fsMocks.readFile.mockResolvedValueOnce(
+      JSON.stringify({
+        testResults: [
+          {
+            assertionResults: [
+              {
+                ancestorTitles: [],
+                title: "adds",
+                status: "passed",
+                duration: 1,
+                location: { line: 3 },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    const runner = new DockerCodeRunner();
+    const resultPromise = runner.runAll({
+      language: "typescript",
+      code: "solution",
+      usageCode: "",
+      testCode: "tests",
+      stdin: "",
+    });
+    await vi.waitFor(() => expect(childProcessMocks.spawn).toHaveBeenCalled());
+    const [, dockerArguments] = childProcessMocks.spawn.mock.calls[0] as [
+      string,
+      string[],
+    ];
+    expect(dockerArguments).toContain(
+      "/tmp/interview-answer-run-test/out:/out:rw",
+    );
+    expect(dockerArguments).toEqual(
+      expect.arrayContaining(["--outputFile.json", "/out/report.json"]),
+    );
+    expect(fsMocks.chmod).toHaveBeenCalledWith(
+      "/tmp/interview-answer-run-test/out",
+      0o777,
+    );
+    // Test runs get longer than the plain 5s budget.
+    vi.advanceTimersByTime(6_000);
+    expect(child.kill).not.toHaveBeenCalled();
+    child.emit("close", 0);
+    await expect(resultPromise).resolves.toMatchObject({
+      tests: [
+        {
+          name: "adds",
+          status: "passed",
+          location: { editor: "tests", line: 1 },
+        },
+      ],
+    });
+    expect(fsMocks.readFile).toHaveBeenCalledWith(
+      "/tmp/interview-answer-run-test/out/report.json",
+      "utf8",
+    );
+  });
+
+  it("places syntax problems from the checker's output", async () => {
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner();
+    const resultPromise = runner.checkSyntax({
+      language: "typescript",
+      code: "const a = ;",
+    });
+    await vi.waitFor(() => expect(childProcessMocks.spawn).toHaveBeenCalled());
+    child.stderr.emit("data", Buffer.from("1:11: Expression expected.\n"));
+    child.emit("close", 1);
+    await expect(resultPromise).resolves.toMatchObject({
+      diagnostics: [{ line: 1, column: 11, message: "Expression expected." }],
+    });
   });
 });

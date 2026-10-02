@@ -16,14 +16,19 @@ import {
 } from "@omnitech-assistant/contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import {
+  answerGuideSchema,
+  guideText,
   type InterviewProvenance,
   interviewClaimsSchema,
   interviewMetricSchema,
   languageSchema,
+  reconcileAnswerGuide,
+  renderGuideMarkdown,
   runResultSchema,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
 import {
+  answerProse,
   type EvidenceAuthority,
   genericEvidence,
   permitted,
@@ -50,7 +55,7 @@ export const interviewProposalPatchSchema = interviewDraftPatchSchema
 // passage; revision, hash, claim kind and the exact quote are derived below, so
 // the model never hand-copies bookkeeping.
 const draftClaimSchema = z.strictObject({
-  field: z.enum(["answerMarkdown", "code", "usageCode", "testCode"]),
+  field: z.enum(["answerMarkdown", "code", "usageCode", "testCode", "guide"]),
   text: z.string().min(1).max(32_000),
   source: z.string().min(1).max(256),
   quote: z.string().min(1).max(32_000),
@@ -69,6 +74,8 @@ const partialAnswerSchema = z.strictObject({
   code: z.string().max(100_000).optional(),
   usageCode: z.string().max(100_000).optional(),
   testCode: z.string().max(100_000).optional(),
+  // The structured answer; answerMarkdown is rendered from it.
+  guide: answerGuideSchema.optional(),
   claims: draftClaimsSchema,
 });
 export const interviewModelDraftSchema = interviewDraftPatchSchema.extend({
@@ -223,7 +230,7 @@ export function createInterviewAdapter(
       validateClaims(patch.answer, patch.claims ?? [], sources, {
         proseChanged:
           !current.value.answer ||
-          patch.answer.answerMarkdown !== current.value.answer.answerMarkdown,
+          answerProse(patch.answer) !== answerProse(current.value.answer),
       });
     } else if (patch.claims?.length)
       throw new WorkspaceError("claim-answer-required");
@@ -253,16 +260,20 @@ export function createInterviewAdapter(
             ),
           )
           .then((record) => record.value.answer);
+        // A guide renders the Markdown, so a guided answer need not send it.
         const complete = completeAnswerSchema.safeParse({
+          ...(answerFields.guide
+            ? { answerMarkdown: renderGuideMarkdown(answerFields.guide) }
+            : {}),
           ...(existing ?? {}),
           ...answerFields,
         });
         if (!complete.success)
           throw new WorkspaceError(
             "proposal-invalid",
-            "There is no answer to change yet. A new answer needs all of: title, language, answerMarkdown, code, usageCode, testCode.",
+            "There is no answer to change yet. A new answer needs all of: title, language, guide (or answerMarkdown), code, usageCode, testCode.",
           );
-        mergedAnswer = complete.data;
+        mergedAnswer = reconcileAnswerGuide(complete.data, existing);
       }
       const patch = {
         ...rest,
@@ -587,6 +598,7 @@ const SURFACES = [
   { id: "question", label: "Question", icon: "quiz" },
   { id: "title", label: "Title", icon: "title" },
   { id: "answerMarkdown", label: "Answer", icon: "notes" },
+  { id: "guide", label: "Guide", icon: "checklist" },
   { id: "code", label: "Main Solution", icon: "code" },
   { id: "usageCode", label: "Usage / Output", icon: "terminal" },
   { id: "testCode", label: "Tests", icon: "science" },
@@ -635,6 +647,14 @@ export function describeChanges(current: Draft, patch: ProposalPatch) {
                 : language,
         };
     }
+  // A guide is reviewed as one readable surface; the Markdown rendered from
+  // it is not a separate change to pick.
+  if (patch.answer) {
+    const before = current.answer?.guide ? guideText(current.answer.guide) : "";
+    const after = patch.answer.guide ? guideText(patch.answer.guide) : "";
+    if (before !== after) pairs["guide"] = { before, after, language: "text" };
+    if (patch.answer.guide) delete pairs["answerMarkdown"];
+  }
   return SURFACES.filter((surface) => pairs[surface.id]).map((surface) => {
     const pair = pairs[surface.id]!;
     const added = Math.max(0, lineCount(pair.after) - lineCount(pair.before));
@@ -664,17 +684,25 @@ export function pickSurfaces(
 ): ProposalPatch {
   const picked = new Set(surfaces);
   const fields = ANSWER_FIELDS.filter((field) => picked.has(field));
+  // The guide carries the Markdown rendered from it.
+  const guide = picked.has("guide");
   let answer: ProposalPatch["answer"];
-  if (patch.answer && fields.length)
+  if (patch.answer && (fields.length || guide)) {
+    const proposed = patch.answer;
     answer = current.answer
       ? {
           ...current.answer,
           ...Object.fromEntries(
-            fields.map((field: AnswerField) => [field, patch.answer![field]]),
+            fields.map((field: AnswerField) => [field, proposed[field]]),
           ),
-          ...(picked.has("code") ? { language: patch.answer.language } : {}),
+          ...(picked.has("code") ? { language: proposed.language } : {}),
+          ...(guide
+            ? { guide: proposed.guide, answerMarkdown: proposed.answerMarkdown }
+            : {}),
         }
-      : patch.answer;
+      : proposed;
+    if (!answer.guide) delete answer.guide;
+  }
   const next = {
     ...(picked.has("question") && patch.question !== undefined
       ? { question: patch.question }
@@ -683,7 +711,7 @@ export function pickSurfaces(
       ? { notes: patch.notes }
       : {}),
     ...(answer ? { answer } : {}),
-    ...(answer && picked.has("answerMarkdown") && patch.claims
+    ...(answer && (picked.has("answerMarkdown") || guide) && patch.claims
       ? { claims: patch.claims }
       : {}),
   };

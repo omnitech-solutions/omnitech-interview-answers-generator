@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,7 +15,16 @@ import type {
   RunRequest,
   RunResult,
   SyntaxCheckRequest,
+  TestResult,
 } from "@omnitech/interview-contracts";
+import {
+  parseDiagnostics,
+  parseJunitReport,
+  parseRspecReport,
+  parseVitestReport,
+  type SourceMap,
+  testSourceMap,
+} from "./reports.js";
 
 export interface CodeRunner {
   run(input: RunRequest): Promise<RunResult>;
@@ -20,7 +36,17 @@ export interface DockerCodeRunnerOptions {
   dockerBinary?: string;
   maxOutputBytes?: number;
   timeoutMs?: number;
+  // Test runs start a framework (Vitest with jsdom, RSpec, Pest), so they get
+  // a longer budget than a plain run.
+  testTimeoutMs?: number;
 }
+
+// Each framework also writes a structured report to /out for per-test results.
+type ReportParser = (
+  report: string,
+  filename: string,
+  map: SourceMap,
+) => TestResult[];
 
 const runtimes = {
   php: {
@@ -57,8 +83,11 @@ const testRuntimes = {
       "--do-not-cache-result",
       "--configuration",
       "/runner/phpunit.xml",
+      "--log-junit",
+      "/out/report.xml",
       "/workspace/SolutionTest.php",
     ],
+    report: { file: "report.xml", parse: parseJunitReport as ReportParser },
   },
   react: {
     image: "omnitech/vitest-runner:latest",
@@ -71,8 +100,14 @@ const testRuntimes = {
       "jsdom",
       "--reporter",
       "verbose",
+      "--reporter",
+      "json",
+      "--outputFile.json",
+      "/out/report.json",
+      "--includeTaskLocation",
       "/workspace/solution.test.tsx",
     ],
+    report: { file: "report.json", parse: parseVitestReport as ReportParser },
   },
   ruby: {
     image: "omnitech/rspec-runner:latest",
@@ -82,8 +117,13 @@ const testRuntimes = {
       "rspec",
       "--format",
       "documentation",
+      "--format",
+      "json",
+      "--out",
+      "/out/report.json",
       "/workspace/solution_spec.rb",
     ],
+    report: { file: "report.json", parse: parseRspecReport as ReportParser },
   },
   typescript: {
     image: "omnitech/vitest-runner:latest",
@@ -96,8 +136,14 @@ const testRuntimes = {
       "node",
       "--reporter",
       "verbose",
+      "--reporter",
+      "json",
+      "--outputFile.json",
+      "/out/report.json",
+      "--includeTaskLocation",
       "/workspace/solution.test.ts",
     ],
+    report: { file: "report.json", parse: parseVitestReport as ReportParser },
   },
 } as const;
 
@@ -131,7 +177,7 @@ const syntaxRuntimes = {
       "node",
       "--input-type=module",
       "-e",
-      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.ts'; const source = readFileSync(file, 'utf8'); const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS; const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, kind); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\\n')); process.exitCode = 1; }",
+      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.ts'; const source = readFileSync(file, 'utf8'); const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS; const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, kind); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) { const at = parsed.getLineAndCharacterOfPosition(diagnostic.start ?? 0); console.error((at.line + 1) + ':' + (at.character + 1) + ': ' + ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')); } process.exitCode = 1; }",
     ],
   },
   react: {
@@ -141,7 +187,7 @@ const syntaxRuntimes = {
       "node",
       "--input-type=module",
       "-e",
-      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.tsx'; const source = readFileSync(file, 'utf8'); const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) console.error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\\n')); process.exitCode = 1; }",
+      "import ts from '/runner/node_modules/typescript/lib/typescript.js'; import { readFileSync } from 'node:fs'; const file = '/workspace/solution.tsx'; const source = readFileSync(file, 'utf8'); const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX); const diagnostics = parsed.parseDiagnostics; if (diagnostics.length) { for (const diagnostic of diagnostics) { const at = parsed.getLineAndCharacterOfPosition(diagnostic.start ?? 0); console.error((at.line + 1) + ':' + (at.character + 1) + ': ' + ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')); } process.exitCode = 1; }",
     ],
   },
 } as const;
@@ -223,7 +269,13 @@ export class DockerCodeRunner implements CodeRunner {
     ];
 
     try {
-      return await this.execute(dockerArguments, "", performance.now());
+      const result = await this.execute(dockerArguments, "", performance.now());
+      const diagnostics = parseDiagnostics(
+        input.language,
+        `${result.stderr}\n${result.stdout}`,
+        input.code,
+      );
+      return diagnostics.length ? { ...result, diagnostics } : result;
     } finally {
       await rm(temporaryDirectory, { recursive: true, force: true });
     }
@@ -255,6 +307,10 @@ export class DockerCodeRunner implements CodeRunner {
             .filter((section) => section.trim())
             .join("\n\n");
     await writeFile(sourcePath, source, { mode: 0o600 });
+    // The only writable mount: the framework's report, read back below.
+    const outputDirectory = join(temporaryDirectory, "out");
+    await mkdir(outputDirectory);
+    await chmod(outputDirectory, 0o777);
 
     const dockerArguments = [
       "run",
@@ -278,16 +334,26 @@ export class DockerCodeRunner implements CodeRunner {
       ...runtime.dockerArguments,
       "--volume",
       `${sourcePath}:/workspace/${runtime.filename}:ro`,
+      "--volume",
+      `${outputDirectory}:/out:rw`,
       runtime.image,
       ...runtime.command,
     ];
 
     try {
-      const result = await this.execute(
+      const executed = await this.execute(
         dockerArguments,
         input.stdin,
         performance.now(),
+        this.options.testTimeoutMs ?? 20_000,
       );
+      const tests = await this.readReport(
+        join(outputDirectory, runtime.report.file),
+        runtime.report.parse,
+        runtime.filename,
+        testSourceMap({ ...input, strip: stripPhpTags }),
+      );
+      const result = tests ? { ...executed, tests } : executed;
       if (
         result.exitCode === 0 &&
         /\bNo tests found\b/i.test(`${result.stdout}\n${result.stderr}`)
@@ -309,10 +375,27 @@ export class DockerCodeRunner implements CodeRunner {
     }
   }
 
+  // A missing or unreadable report (timeout, compile error) leaves the run
+  // without per-test results; its output still explains what happened.
+  private async readReport(
+    path: string,
+    parse: ReportParser,
+    filename: string,
+    map: SourceMap,
+  ): Promise<TestResult[] | undefined> {
+    try {
+      const tests = parse(await readFile(path, "utf8"), filename, map);
+      return tests.length ? tests : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private execute(
     dockerArguments: string[],
     stdin: string,
     startedAt: number,
+    timeoutMs = this.options.timeoutMs ?? 5_000,
   ): Promise<RunResult> {
     return new Promise((resolve, reject) => {
       const maximumOutput = this.options.maxOutputBytes ?? 64_000;
@@ -340,7 +423,7 @@ export class DockerCodeRunner implements CodeRunner {
       const timer = setTimeout(() => {
         timedOut = true;
         child.kill("SIGKILL");
-      }, this.options.timeoutMs ?? 5_000);
+      }, timeoutMs);
 
       child.on("close", (exitCode) => {
         clearTimeout(timer);

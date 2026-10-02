@@ -1,0 +1,891 @@
+/* Workspace view (redesign sub-project 2). Uses the studio tokens. */
+
+.ws {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ws-spacer {
+  flex: 1;
+}
+.ws-grow {
+  flex: 1;
+  min-width: 0;
+}
+.ws-faint {
+  font-size: 12px;
+  color: var(--faint);
+}
+.ws-muted {
+  color: var(--muted);
+  font-size: 13.5px;
+  margin: 0;
+}
+.ws-mono,
+.ws-big-mono {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+}
+.ws-big-mono {
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.ws-loading {
+  padding: 40px;
+  color: var(--muted);
+}
+
+/* Header contents (in the shell's header slot) */
+.studio-header-slot:has(.ws-heading, .ws-title) {
+  justify-content: flex-start;
+}
+.ws-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+/* Narrow headers keep the actions and drop the least useful labels first. */
+@media (max-width: 1280px) {
+  .studio-header:has(.ws-heading) .studio-sees,
+  .ws-run kbd {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .ws-title {
+    display: none;
+  }
+}
+.ws-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+.ws-pill {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.ws-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ws-save.saved .studio-icon {
+  color: var(--green);
+}
+.ws-save.conflict,
+.ws-save.error {
+  color: var(--red);
+}
+.ws-run {
+  border: 0;
+  background: var(--green);
+  color: #fff;
+}
+.ws-run:hover {
+  background: var(--green);
+  filter: brightness(1.06);
+}
+.ws-run:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ws-run kbd {
+  color: inherit;
+  opacity: 0.8;
+  margin-left: 4px;
+}
+
+/* Stepper */
+.ws-stepper {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+}
+.ws-step-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.ws-step-line {
+  width: 20px;
+  height: 1px;
+  background: var(--border-strong);
+}
+.ws-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 6px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ws-step.current {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.ws-step-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--subtle);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ws-step.current .ws-step-dot {
+  background: var(--accent);
+  color: #fff;
+}
+.ws-step.done .ws-step-dot {
+  background: var(--green);
+  color: #fff;
+}
+.ws-step.warn .ws-step-dot {
+  background: var(--amber);
+  color: #fff;
+}
+
+/* Two columns: the stage, then the code */
+.ws-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.4fr);
+}
+
+/* Stage column */
+.ws-stage {
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 20px 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 14px;
+}
+.ws-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.ws-prompt {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.ws-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ws-block-title {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.ws-example {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12.5px;
+  background: var(--subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.ws-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ws-stage code {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--subtle);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.ws-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--subtle);
+}
+.ws-callout-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.ws-callout-head > span:nth-child(2) {
+  flex: 1;
+}
+.ws-callout-head .studio-icon {
+  color: var(--accent);
+  font-size: 17px;
+}
+.ws-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13.5px;
+}
+.ws-box {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--on-accent);
+}
+.ws-check.done .ws-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.ws-check.done > span:last-child {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.ws-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.55;
+}
+.ws-complexity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ws-complexity > div {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.ws-coverage {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ws-coverage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 13.5px;
+}
+.ws-coverage .ws-coverage-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ws-coverage .ws-coverage-row:last-child {
+  border-bottom: 0;
+}
+.ws-tone-green {
+  color: var(--green);
+}
+.ws-tone-red {
+  color: var(--red);
+}
+.ws-tone-amber {
+  color: var(--amber);
+}
+.ws-tone-muted {
+  color: var(--muted);
+}
+.ws-tone-green,
+.ws-tone-red,
+.ws-tone-amber,
+.ws-tone-muted {
+  display: inline-flex;
+}
+.ws-scratchpad {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--app);
+  outline: 0;
+  resize: vertical;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.ws-tip {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--subtle);
+  font-size: 13px;
+  color: var(--muted);
+}
+.ws-tip .studio-icon {
+  color: var(--accent);
+  font-size: 17px;
+}
+.ws-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.6;
+}
+.ws-practice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.ws-practice-button {
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+.ws-practice-button.running {
+  background: var(--red);
+}
+.ws-meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--subtle);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.ws-meter > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.ws-stage-nav {
+  display: flex;
+  gap: 8px;
+  padding-top: 6px;
+  margin-top: auto;
+}
+.ws-next {
+  border: 0;
+  background: var(--text);
+  color: var(--app);
+}
+.ws-next:hover {
+  background: var(--text);
+  opacity: 0.9;
+}
+
+/* Code column (always dark, as in the design) */
+.ws-code {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--code-bg);
+  color: oklch(0.9 0.008 260);
+}
+.ws-code-empty {
+  align-items: center;
+  justify-content: center;
+  color: oklch(0.7 0.015 260);
+}
+.ws-files {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--code-border);
+}
+.ws-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: oklch(0.7 0.015 260);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ws-file[aria-selected="true"] {
+  background: oklch(0.3 0.02 260);
+  color: oklch(0.95 0.005 260);
+}
+.ws-code-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: oklch(0.72 0.015 260);
+  cursor: pointer;
+}
+.ws-code-icon:hover {
+  background: oklch(0.3 0.02 260);
+}
+.ws-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.ws-editor > div,
+.ws-editor .cm-theme-dark {
+  height: 100%;
+}
+.ws-editor .cm-editor {
+  height: 100%;
+  background: var(--code-bg);
+  font-size: 12.5px;
+}
+.ws-editor .cm-gutters {
+  background: var(--code-bg);
+  border-right: 0;
+}
+.ws-editor .cm-focus-line {
+  background: oklch(0.6 0.17 25 / 0.2);
+}
+.ws-code .assistant-change-banner {
+  margin: 8px 8px 0;
+}
+.ws-code .assistant-preview-code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Results panel under the code */
+.ws-panel {
+  flex: none;
+  max-height: 42%;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--code-border);
+  background: oklch(0.18 0.016 260);
+  color: oklch(0.88 0.01 260);
+}
+.ws-panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 8px;
+  flex: none;
+}
+.ws-panel-tabs {
+  display: flex;
+  gap: 2px;
+}
+.ws-panel-tab {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: oklch(0.7 0.015 260);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ws-panel-tab[aria-selected="true"] {
+  background: oklch(0.28 0.02 260);
+  color: oklch(0.95 0.005 260);
+}
+.ws-badge {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: oklch(0.57 0.2 25);
+  color: #fff;
+}
+.ws-panel-summary {
+  font-size: 12px;
+  color: oklch(0.7 0.015 260);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.ws-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid oklch(0.4 0.02 260);
+  border-top-color: oklch(0.8 0.1 258);
+  border-radius: 50%;
+  display: inline-block;
+  animation: ws-spin 0.8s linear infinite;
+}
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ws-panel-body {
+  overflow: auto;
+  padding: 0 8px 10px;
+  font-size: 13px;
+}
+.ws-panel-note {
+  margin: 0;
+  padding: 14px 8px;
+  color: oklch(0.7 0.015 260);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-panel-note kbd {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+}
+.ws-output {
+  margin: 0;
+  padding: 8px;
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: oklch(0.82 0.01 260);
+}
+.ws-tests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-test {
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+.ws-test-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-test.passed .studio-icon {
+  color: oklch(0.75 0.14 150);
+}
+.ws-test.failed .studio-icon {
+  color: oklch(0.72 0.16 25);
+}
+.ws-test.skipped .studio-icon {
+  color: oklch(0.6 0.015 260);
+}
+.ws-test-name {
+  flex: 1;
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12.5px;
+}
+.ws-test-ms {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 11.5px;
+  color: oklch(0.6 0.015 260);
+}
+.ws-test-error {
+  margin: 6px 0 2px 24px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: oklch(0.3 0.08 25 / 0.45);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: oklch(0.9 0.04 25);
+}
+.ws-test-action {
+  margin: 4px 0 0 24px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid oklch(1 0 0 / 0.15);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* New question */
+.ws-new {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.ws-new h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.ws-new p {
+  margin: 0;
+  color: var(--muted);
+}
+.ws-new-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ws-new-card textarea {
+  border: 0;
+  outline: 0;
+  resize: vertical;
+  background: transparent;
+  font-size: 14.5px;
+  line-height: 1.55;
+  padding: 4px 6px;
+}
+.ws-new-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ws-new-actions select {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12px;
+}
+.ws-new .studio-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ws-error {
+  color: var(--red) !important;
+  font-size: 13px;
+}
+.ws-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ws-example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.ws-example-card {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.ws-example-card:hover {
+  background: var(--subtle);
+}
+.ws-example-card .ws-mono {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Versions menu */
+.ws-versions {
+  position: relative;
+}
+.ws-versions-menu {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 60;
+  width: 300px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--pop);
+}
+.ws-versions-save,
+.ws-versions-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ws-versions-save {
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: 8px 8px 0 0;
+  margin-bottom: 4px;
+}
+.ws-versions-item span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-versions-save:hover,
+.ws-versions-item:hover {
+  background: var(--hover);
+}
+.ws-versions-note {
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Assistant changes shown in the code panel (moved from the host). */
+.assistant-in-context {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.assistant-change-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  font-size: 12.5px;
+}
+.assistant-change-banner .oa-icon {
+  font-size: 16px;
+}
+.assistant-change-banner span {
+  flex: 1;
+}
+.assistant-change-banner.preview {
+  background: oklch(0.35 0.07 258 / 0.6);
+  color: oklch(0.95 0.02 258);
+}
+.assistant-change-banner.applied {
+  background: oklch(0.35 0.07 152 / 0.55);
+  color: oklch(0.95 0.03 152);
+}
+.assistant-change-banner button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid oklch(1 0 0 / 0.25);
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.assistant-change-banner button.primary {
+  border: 0;
+  background: oklch(0.95 0.02 258);
+  color: oklch(0.25 0.05 258);
+  font-weight: 600;
+}
+.assistant-preview-code {
+  background: oklch(0.2 0.018 260);
+  color: oklch(0.9 0.008 260);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  padding: 10px 0;
+  max-height: 430px;
+  overflow: auto;
+}
+.assistant-preview-line {
+  display: flex;
+  padding-right: 14px;
+  white-space: pre;
+}
+.assistant-preview-line.added {
+  background: oklch(0.6 0.13 150 / 0.2);
+}
+.assistant-preview-line.removed {
+  background: oklch(0.6 0.17 25 / 0.22);
+  text-decoration: line-through;
+}
+.assistant-preview-number {
+  width: 44px;
+  text-align: right;
+  padding-right: 14px;
+  color: oklch(0.5 0.02 260);
+  flex: none;
+  user-select: none;
+}

@@ -25,17 +25,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import type { PlaygroundSnapshot } from "@omnitech/interview-playground-control";
 import type { ProductPageProps } from "@omnitech/platform-contracts";
-import type { Origin } from "@omnitech-assistant/contracts";
-import {
-  type AssistantConfig,
-  AssistantRoot,
-  type HostHooks,
-  Icon,
-  useAssistantHost,
-} from "@omnitech-assistant/react";
-import type { AssistantClient, ProposalRecord } from "@omnitech-assistant/sdk";
 import CodeMirror from "@uiw/react-codemirror";
-import { diffLines } from "diff";
 import React, {
   useCallback,
   useEffect,
@@ -43,23 +33,16 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
-import { useStudio } from "./studio/context";
 import {
   createAgentJob,
   type ExecutionTarget,
   executionTargets,
 } from "./agent-jobs";
-import {
-  assistantFeatures,
-  assistantPrompts,
-  assistantStarters,
-  assistantSurfaces,
-} from "./assistant-config";
 import { type ConceptDraft, ConceptLab } from "./concept-lab";
 import { formatTimestamp } from "./format-timestamp";
 import { InterviewPreparation } from "./interview-preparation";
 import { MarkdownContent } from "./markdown-content";
+import { exampleTemplates as preparedExampleTemplates } from "./example-templates";
 import { MockInterview } from "./mock-interview";
 import { StudioTextarea } from "./studio-controls";
 import { InspectorToggleButton, StudioInspector } from "./studio-inspector";
@@ -89,14 +72,6 @@ interface ExecutionOutput {
   tests?: RunResult;
 }
 
-interface ExampleTemplate {
-  id: string;
-  label: string;
-  language: Language;
-  question: string;
-  answer: GeneratedAnswer;
-}
-
 const panels: Array<{ id: InspectorPanel; label: string }> = [
   { id: "notes", label: "Notes" },
   { id: "output", label: "Output" },
@@ -116,98 +91,6 @@ const languages: Array<{ id: LanguageSelection; label: string }> = [
   { id: "typescript", label: "TypeScript" },
   { id: "ruby", label: "Ruby" },
 ];
-
-const exampleTemplates: ExampleTemplate[] = [
-  {
-    id: "php-log-window",
-    label: "PHP · Aggregate log events by sliding window",
-    language: "php",
-    question:
-      "# Maximum Events in a Time Window\n\nGiven a sorted integer array `timestamps` and an integer `window`, return the maximum number of events whose timestamps fit inside any inclusive interval of length `window`.\n\n## Examples\n\n- `timestamps = [1, 2, 3, 8, 9], window = 2` → `3`\n- `timestamps = [4, 4, 5, 10], window = 0` → `2`\n\n## Constraints\n\n- `1 <= timestamps.length <= 100000`\n- `0 <= timestamps[i] <= 10^9`\n- `0 <= window <= 10^9`\n- `timestamps` is sorted in non-decreasing order.\n\n## Follow-up\n\nExplain the two-pointer invariant and provide Pest tests for duplicates, boundary timestamps, and a single event.",
-    answer: {
-      title: "Maximum Events in a Time Window",
-      language: "php",
-      answerMarkdown:
-        "## Approach\n\n- Maintain a **left pointer** and expand the right pointer across the sorted timestamps.\n- Move `left` forward while the inclusive window exceeds `window`.\n- Track the largest valid window size.\n\n## Complexity\n\n- **Time:** `O(n)`\n- **Space:** `O(1)`\n\n## Talking points\n\n- Sorting is already guaranteed, so each pointer moves only forward.\n- Duplicate timestamps naturally remain in the same window.\n- The boundary is inclusive: `timestamps[right] - timestamps[left] <= window`.",
-      code: "<?php\n\nfunction solution(array $timestamps, int $window): int\n{\n    $left = 0;\n    $best = 0;\n\n    foreach ($timestamps as $right => $timestamp) {\n        while ($timestamp - $timestamps[$left] > $window) {\n            $left++;\n        }\n\n        $best = max($best, $right - $left + 1);\n    }\n\n    return $best;\n}\n",
-      usageCode:
-        "echo solution([1, 2, 3, 8, 9], 2), PHP_EOL;\necho solution([4, 4, 5, 10], 0), PHP_EOL;",
-      testCode:
-        "it('counts events on the inclusive boundary', function () {\n    expect(solution([1, 2, 3, 8, 9], 2))->toBe(3);\n});\n\nit('keeps duplicate timestamps together', function () {\n    expect(solution([4, 4, 5, 10], 0))->toBe(2);\n});\n\nit('handles one event', function () {\n    expect(solution([42], 0))->toBe(1);\n});",
-    },
-  },
-  {
-    id: "react-search-panel",
-    label: "React · Debounced accessible search panel",
-    language: "react",
-    question:
-      "# Accessible Debounced Search\n\nBuild a React component `SearchBox` that accepts an async `search(query)` prop and renders a labelled search input plus a result list. Debounce requests by 300ms, ignore stale responses, expose loading and error states, and allow keyboard users to reach every result.\n\n## Examples\n\n- Typing `ca` then `cat` should only display the latest `cat` results.\n- A rejected request should show an actionable error message.\n\n## Constraints\n\n- Do not mutate the results array.\n- Do not update state after an obsolete request resolves.\n- The input must have an accessible label and results must use list semantics.\n\n## Follow-up\n\nExplain the cancellation/staleness invariant and provide Vitest + React Testing Library tests for success, stale responses, loading, errors, and keyboard access.",
-    answer: {
-      title: "Accessible Debounced Search",
-      language: "react",
-      answerMarkdown:
-        "## Approach\n\n- Keep the query, results, loading, and error state together.\n- Debounce the request effect and cancel its timer during cleanup.\n- Use a request id so an older response cannot overwrite newer results.\n- Render semantic `ul`/`li` results with keyboard-focusable links.\n\n## Complexity\n\n- **Time:** `O(r)` to render `r` results.\n- **Space:** `O(r)` for the current result list.\n\n## Talking points\n\n- Cleanup prevents unnecessary requests.\n- The request id protects against out-of-order responses.\n- Labels and list semantics make the component usable with assistive technology.",
-      code: 'import { useEffect, useRef, useState } from \'react\';\n\ntype SearchBoxProps = {\n  search: (query: string) => Promise<string[]>;\n};\n\nexport function SearchBox({ search }: SearchBoxProps) {\n  const [query, setQuery] = useState(\'\');\n  const [results, setResults] = useState<string[]>([]);\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState(\'\');\n  const requestId = useRef(0);\n\n  useEffect(() => {\n    if (!query.trim()) {\n      setResults([]);\n      setLoading(false);\n      return;\n    }\n\n    const id = ++requestId.current;\n    const timer = window.setTimeout(async () => {\n      setLoading(true);\n      setError(\'\');\n      try {\n        const nextResults = await search(query);\n        if (id === requestId.current) setResults(nextResults);\n      } catch {\n        if (id === requestId.current) setError(\'Search failed. Try again.\');\n      } finally {\n        if (id === requestId.current) setLoading(false);\n      }\n    }, 300);\n\n    return () => window.clearTimeout(timer);\n  }, [query, search]);\n\n  return (\n    <section aria-labelledby="search-heading">\n      <h2 id="search-heading">Search</h2>\n      <label htmlFor="search-input">Search results</label>\n      <input id="search-input" value={query} onChange={(event) => setQuery(event.target.value)} />\n      {loading && <p role="status">Loading…</p>}\n      {error && <p role="alert">{error}</p>}\n      <ul aria-label="Search results">\n        {results.map((result) => <li key={result}><a href={`/items/${result}`}>{result}</a></li>)}\n      </ul>\n    </section>\n  );\n}',
-      usageCode:
-        "<SearchBox search={async (query) => [`${query}-one`, `${query}-two`]} />",
-      testCode:
-        "import { cleanup, render, screen } from '@testing-library/react';\nimport userEvent from '@testing-library/user-event';\nimport { afterEach, describe, expect, it, vi } from 'vitest';\nimport { SearchBox } from './SearchBox';\n\nafterEach(cleanup);\n\ndescribe('SearchBox', () => {\n  it('renders results and exposes them as links', async () => {\n    const search = vi.fn().mockResolvedValue(['cat']);\n    render(<SearchBox search={search} />);\n    await userEvent.type(screen.getByLabelText('Search query'), 'cat');\n    const result = await screen.findByRole('link', { name: 'cat' });\n    expect(result.getAttribute('href')).toBe('/items/cat');\n  });\n\n  it('reports rejected searches', async () => {\n    const search = vi.fn().mockRejectedValue(new Error('offline'));\n    render(<SearchBox search={search} />);\n    await userEvent.type(screen.getByLabelText('Search query'), 'cat');\n    const error = await screen.findByRole('alert');\n    expect(error.textContent).toContain('Search failed');\n  });\n});",
-    },
-  },
-  {
-    id: "typescript-dependency-order",
-    label: "TypeScript · Dependency-aware task ordering",
-    language: "typescript",
-    question:
-      "# Dependency Order\n\nGiven task names and directed dependency pairs `[task, dependency]`, return a deterministic order in which every dependency appears before its task. If a cycle exists, return the names that cannot be scheduled.\n\n## Examples\n\n- `tasks = ['build', 'test', 'deploy']`, `dependencies = [['test', 'build'], ['deploy', 'test']]` → `['build', 'test', 'deploy']`\n- A cycle `a -> b -> a` returns `['a', 'b']` as unscheduled tasks.\n\n## Constraints\n\n- `1 <= tasks.length <= 100000`\n- Task names are unique strings.\n- Duplicate dependency pairs may appear.\n- The result must be deterministic.\n\n## Follow-up\n\nUse Kahn's algorithm with an adjacency map and include Vitest tests for branching, disconnected tasks, duplicate edges, and cycles.",
-    answer: {
-      title: "Deterministic Dependency Order",
-      language: "typescript",
-      answerMarkdown:
-        "## Approach\n\n- Build an adjacency map and indegree count for every task.\n- Seed a sorted queue with tasks whose indegree is zero.\n- Remove the smallest available task, then unlock its dependants.\n- Any task not emitted belongs to a dependency cycle.\n\n## Complexity\n\n- **Time:** `O((V + E) log V)` because the ready queue stays deterministic.\n- **Space:** `O(V + E)`.\n\n## Talking points\n\n- Indegree captures exactly how many prerequisites remain.\n- Sorting the ready queue makes equal-valid answers predictable.\n- Unemitted nodes are the cycle remainder, not arbitrary failures.",
-      code: "export type Dependency = readonly [task: string, dependency: string];\nexport type OrderResult = { order: string[]; cycle: string[] };\n\nexport function solution(tasks: string[], dependencies: readonly Dependency[]): OrderResult {\n  const edges = new Map<string, Set<string>>();\n  const indegree = new Map(tasks.map((task) => [task, 0]));\n\n  for (const [task, dependency] of dependencies) {\n    const dependants = edges.get(dependency) ?? new Set<string>();\n    if (!dependants.has(task)) {\n      dependants.add(task);\n      edges.set(dependency, dependants);\n      indegree.set(task, (indegree.get(task) ?? 0) + 1);\n    }\n  }\n\n  const ready = tasks.filter((task) => indegree.get(task) === 0).sort();\n  const order: string[] = [];\n  while (ready.length > 0) {\n    const current = ready.shift() as string;\n    order.push(current);\n    for (const dependant of edges.get(current) ?? []) {\n      const next = (indegree.get(dependant) ?? 0) - 1;\n      indegree.set(dependant, next);\n      if (next === 0) insertSorted(ready, dependant);\n    }\n  }\n\n  return { order, cycle: tasks.filter((task) => !order.includes(task)).sort() };\n}\n\nfunction insertSorted(values: string[], value: string): void {\n  const index = values.findIndex((candidate) => candidate > value);\n  values.splice(index === -1 ? values.length : index, 0, value);\n}",
-      usageCode:
-        "console.log(solution(['build', 'test', 'deploy'], [['test', 'build'], ['deploy', 'test']]));",
-      testCode:
-        "import { describe, expect, it } from 'vitest';\nimport { solution } from './solution';\n\ndescribe('solution', () => {\n  it('orders branching dependencies deterministically', () => {\n    expect(solution(['deploy', 'test', 'build'], [['deploy', 'test'], ['test', 'build']])).toEqual({ order: ['build', 'test', 'deploy'], cycle: [] });\n  });\n\n  it('reports cycle members', () => {\n    expect(solution(['a', 'b'], [['a', 'b'], ['b', 'a']]).cycle).toEqual(['a', 'b']);\n  });\n});",
-    },
-  },
-  {
-    id: "ruby-rate-limiter",
-    label: "Ruby · Sliding-window rate limiter",
-    language: "ruby",
-    question:
-      "# Sliding-Window Rate Limiter\n\nGiven sorted request timestamps, a maximum number of requests `limit`, and an inclusive window size `window`, return a Boolean array indicating which requests are allowed. A request is allowed when fewer than `limit` previously allowed requests are inside its window.\n\n## Examples\n\n- `timestamps = [0, 1, 2, 10], limit = 2, window = 2` → `[true, true, false, true]`\n- `timestamps = [], limit = 3, window = 10` → `[]`\n\n## Constraints\n\n- `0 <= timestamps.length <= 100000`\n- `1 <= limit <= 100000`\n- `0 <= timestamps[i] <= 10^9`\n- Timestamps are sorted in non-decreasing order.\n\n## Follow-up\n\nExplain why rejected requests do not consume capacity and include RSpec tests for bursts, exact boundaries, and empty input.",
-    answer: {
-      title: "Sliding-Window Rate Limiter",
-      language: "ruby",
-      answerMarkdown:
-        "## Approach\n\n- Keep a queue of timestamps for allowed requests only.\n- Remove allowed timestamps older than the inclusive window.\n- Allow the current request when the queue has capacity; otherwise reject it.\n\n## Complexity\n\n- **Time:** `O(n)` amortized because each timestamp is added and removed once.\n- **Space:** `O(limit)` for the active window.\n\n## Talking points\n\n- Rejected requests do not enter the queue, so they do not consume capacity.\n- The comparison is inclusive: timestamps at `current - window` remain valid.\n- A queue models the active window without rescanning old requests.",
-      code: "def solution(timestamps, limit, window)\n  allowed_timestamps = []\n\n  timestamps.map do |timestamp|\n    allowed_timestamps.shift while allowed_timestamps.any? && timestamp - allowed_timestamps.first > window\n\n    if allowed_timestamps.length < limit\n      allowed_timestamps << timestamp\n      true\n    else\n      false\n    end\n  end\nend",
-      usageCode: "p solution([0, 1, 2, 10], 2, 2)\np solution([], 3, 10)",
-      testCode:
-        "require 'rspec/autorun'\n\nRSpec.describe '#solution' do\n  it 'rejects only requests beyond the burst capacity' do\n    expect(solution([0, 1, 2, 10], 2, 2)).to eq([true, true, false, true])\n  end\n\n  it 'keeps an exact boundary timestamp in the window' do\n    expect(solution([0, 2], 1, 2)).to eq([true, false])\n  end\n\n  it 'handles empty input' do\n    expect(solution([], 3, 10)).to eq([])\n  end\nend",
-    },
-  },
-];
-
-const preparedExampleTemplates = exampleTemplates.map((template) => {
-  if (template.id !== "react-search-panel") return template;
-  return {
-    ...template,
-    answer: {
-      ...template.answer,
-      code: template.answer.code.replace(
-        '<label htmlFor="search-input">Search results</label>',
-        '<label htmlFor="search-input">Search query</label>',
-      ),
-      testCode: template.answer.testCode.replaceAll(
-        "getByLabelText('Search results')",
-        "getByLabelText('Search query')",
-      ),
-    },
-  };
-});
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
@@ -300,29 +183,11 @@ function syntaxLineNumber(raw: string): number | undefined {
   return match ? Number(match[1]) : undefined;
 }
 
-export interface WorkspaceAssistant {
-  client: AssistantClient;
-  profileId: string;
-  workspaceId: string;
-  artifactId: string;
-}
-interface CanonicalDraft {
-  origin: Origin;
-  value: { question: string; notes: string; answer: GeneratedAnswer | null };
-}
 export function Workspace({
-  assistant,
   onPreparationDirtyChange,
-  chrome = "standalone",
 }: {
-  assistant?: WorkspaceAssistant;
   onPreparationDirtyChange?: (dirty: boolean) => void;
-  // Inside the studio shell: no own header, theme or assistant root; the
-  // toolbar goes into the shell header and the assistant hooks are lent to it.
-  chrome?: "standalone" | "embedded";
 } & Partial<ProductPageProps> = {}) {
-  const studio = useStudio();
-  const embedded = chrome === "embedded" && studio !== null;
   const [activeView, setActiveView] = useState<
     "playground" | "concept-lab" | "mock-interview" | "interview-preparation"
   >("playground");
@@ -389,128 +254,6 @@ export function Workspace({
   const [syntaxMessage, setSyntaxMessage] = useState("");
   const [exampleId, setExampleId] = useState("");
   const [questionTab, setQuestionTab] = useState<QuestionTab>("input");
-  const [assistantOrigin, setAssistantOrigin] = useState<Origin>();
-  const [assistantFocus, setAssistantFocus] = useState<readonly string[]>([]);
-  const [assistantPreview, setAssistantPreview] =
-    useState<ProposalRecord | null>(null);
-  const assistantHooks = useRef<HostHooks>({});
-  const runTests = useRef<() => void>(() => undefined);
-  const bindView = studio?.bindView;
-  // Lend the studio shell this draft while it is open: the docked assistant
-  // reads and proposes against it, and ⌘↵ runs its tests.
-  useEffect(() => {
-    if (!embedded || !assistant || !bindView) return;
-    return bindView({
-      origin: assistantOrigin,
-      hooks: assistantHooks,
-      runTests: () => runTests.current(),
-    });
-  }, [embedded, assistant, bindView, assistantOrigin]);
-  const originRef = useRef<Origin | undefined>(undefined);
-  const canonicalValue = useRef<string>("");
-  const workingValue = useRef({ question, notes, answer: answer ?? null });
-  workingValue.current = { question, notes, answer: answer ?? null };
-  const workspacePath = assistant
-    ? `/api/interview/workspaces/${encodeURIComponent(assistant.workspaceId)}/artifacts/${encodeURIComponent(assistant.artifactId)}`
-    : "";
-  const flushPending = useRef<Promise<Origin> | null>(null);
-  const effectKeys = useRef<
-    Record<string, { fingerprint: string; id: string }>
-  >({});
-  function effectKey(kind: string, origin: Origin) {
-    const fingerprint = JSON.stringify(origin);
-    const prior = effectKeys.current[kind];
-    if (prior?.fingerprint === fingerprint) return prior.id;
-    const id = crypto.randomUUID();
-    effectKeys.current[kind] = { fingerprint, id };
-    return id;
-  }
-  async function workspaceRequest<T>(
-    suffix: string,
-    init?: RequestInit,
-  ): Promise<T> {
-    const response = await fetch(workspacePath + suffix, {
-      ...init,
-      headers: { "content-type": "application/json", ...init?.headers },
-    });
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.code ?? "workspace-request-failed");
-    return body as T;
-  }
-  function hydrateCanonical(record: CanonicalDraft) {
-    originRef.current = record.origin;
-    setAssistantOrigin(record.origin);
-    canonicalValue.current = JSON.stringify(record.value);
-    workingValue.current = record.value;
-    setQuestion(record.value.question);
-    setNotes(record.value.notes);
-    setAnswer(normalizeAnswer(record.value.answer ?? undefined));
-  }
-  // After the assistant changes the draft, show the stored version, unless the
-  // person edited meanwhile: their edits are never overwritten.
-  async function reloadAfterAssistant(captured: Origin, message: string) {
-    const snapshot = JSON.stringify(workingValue.current),
-      record = await workspaceRequest<CanonicalDraft>("");
-    if (
-      originRef.current?.workspaceId !== captured.workspaceId ||
-      originRef.current?.artifactId !== captured.artifactId ||
-      JSON.stringify(workingValue.current) !== snapshot
-    ) {
-      setStatus(
-        "Assistant change stored; your local edits were kept. Reload to see it.",
-      );
-      return;
-    }
-    hydrateCanonical(record);
-    setStatus(message);
-  }
-  async function flushDraft(): Promise<Origin> {
-    if (flushPending.current) return flushPending.current;
-    if (!originRef.current) throw new Error("workspace-not-ready");
-    const captured = { ...workingValue.current },
-      expected = originRef.current;
-    if (JSON.stringify(captured) === canonicalValue.current) return expected;
-    const operation = (async () => {
-      const record = await workspaceRequest<CanonicalDraft>("", {
-        method: "PATCH",
-        body: JSON.stringify({ origin: expected, patch: captured }),
-      });
-      originRef.current = record.origin;
-      setAssistantOrigin(record.origin);
-      canonicalValue.current = JSON.stringify(record.value);
-      if (JSON.stringify(workingValue.current) !== JSON.stringify(captured))
-        throw new Error(
-          "New local edits arrived; submit them before continuing.",
-        );
-      return record.origin;
-    })();
-    flushPending.current = operation;
-    try {
-      return await operation;
-    } finally {
-      flushPending.current = null;
-    }
-  }
-  useEffect(() => {
-    if (!assistant) return;
-    let active = true;
-    void workspaceRequest<CanonicalDraft>("")
-      .then((record) => {
-        if (!active) return;
-        hydrateCanonical(record);
-        // A new question exists once it is first read; list it.
-        studio?.refreshLists();
-      })
-      .catch((error) => {
-        if (active)
-          setStatus(
-            error instanceof Error ? error.message : "workspace-load-failed",
-          );
-      });
-    return () => {
-      active = false;
-    };
-  }, [workspacePath]);
   const localEdits = useRef(false);
   const draftHydrated = useRef(false);
   const syntaxRequestId = useRef(0);
@@ -553,15 +296,9 @@ export function Workspace({
   }
 
   const loadSaved = useCallback(async () => {
-    setSavedAnswers(
-      await api<SavedAnswer[]>(
-        assistant
-          ? `/answers?artifact=${encodeURIComponent(assistant.artifactId)}`
-          : "/answers",
-      ),
-    );
+    setSavedAnswers(await api<SavedAnswer[]>("/answers"));
     setSavedPage(0);
-  }, [assistant?.artifactId]);
+  }, []);
 
   const savedPageSize = 5;
   const savedPageCount = Math.max(
@@ -621,7 +358,7 @@ export function Workspace({
   }, []);
 
   useEffect(() => {
-    if (assistant || answer?.language !== "react" || !answer.code.trim()) {
+    if (answer?.language !== "react" || !answer.code.trim()) {
       setPreview("");
       setPreviewState("idle");
       setPreviewError("");
@@ -655,7 +392,6 @@ export function Workspace({
   }, [answer?.code, answer?.language]);
 
   useEffect(() => {
-    if (assistant) return;
     const storedDraft = window.localStorage.getItem(DRAFT_STORAGE_KEY);
     if (storedDraft) {
       try {
@@ -697,7 +433,7 @@ export function Workspace({
   }, []);
 
   useEffect(() => {
-    if (assistant || !draftHydrated.current) return;
+    if (!draftHydrated.current) return;
     window.localStorage.setItem(
       DRAFT_STORAGE_KEY,
       JSON.stringify({
@@ -729,7 +465,6 @@ export function Workspace({
   }
 
   useEffect(() => {
-    if (assistant) return;
     let active = true;
 
     async function applyExternalControl() {
@@ -860,17 +595,11 @@ export function Workspace({
   }
 
   async function generate(mode: "new" | "refine" = "new") {
-    // With the assistant there is no provider picker: the server's model settings
-    // decide, and refinements go through the assistant's reviewed proposals.
-    if (assistant && mode === "refine") {
-      setStatus("Ask the assistant to change the answer.");
-      return;
-    }
     localEdits.current = true;
     const refinement = mode === "refine" ? refinementRequest.trim() : "";
     if (
       !question.trim() ||
-      (!assistant && !answerProvider) ||
+      !answerProvider ||
       (mode === "refine" && (!answer || !refinement))
     ) {
       setStatus(
@@ -881,18 +610,18 @@ export function Workspace({
       return;
     }
     if (mode === "new") setRefinementRequest("");
-    const target = assistant
-      ? undefined
-      : executionTargets.find((candidate) => candidate.id === answerProvider);
-    if (!assistant && !target) return;
+    const target = executionTargets.find(
+      (candidate) => candidate.id === answerProvider,
+    );
+    if (!target) return;
     setBusy(true);
     setStatus(
-      target?.family === "agent-runtime"
+      target.family === "agent-runtime"
         ? "Starting an isolated agent job…"
         : "Generating the simplest correct answer…",
     );
     try {
-      if (target?.family === "agent-runtime") {
+      if (target.family === "agent-runtime") {
         const job = await createAgentJob({
           profileId: target.profileId,
           prompt:
@@ -917,7 +646,7 @@ export function Workspace({
             )}\n\nRequested change:\n${refinement}\n\nReturn the complete revised answer.`
           : question;
       setAnswer(
-        await generateAnswer(generationQuestion, language, target?.providerId),
+        await generateAnswer(generationQuestion, language, target.providerId),
       );
       setRefinementRequest("");
       setExampleId("");
@@ -939,21 +668,6 @@ export function Workspace({
     if (!answer) return;
     setBusy(true);
     try {
-      if (assistant) {
-        const origin = await flushDraft();
-        await workspaceRequest("/save", {
-          method: "POST",
-          body: JSON.stringify({
-            origin,
-            requestId: effectKey("save", origin),
-          }),
-        });
-        delete effectKeys.current["save"];
-        await loadSaved();
-        studio?.refreshLists();
-        setStatus("Saved immutable answer version.");
-        return;
-      }
       const saved = await api<SavedAnswer>("/answers", {
         method: "POST",
         body: JSON.stringify({
@@ -975,37 +689,6 @@ export function Workspace({
 
   async function run() {
     if (!answer?.code) return;
-    if (assistant) {
-      setBusy(true);
-      setInspectorOpen(true);
-      setPanel("output");
-      setOutputTab("tests");
-      try {
-        const origin = await flushDraft();
-        const result = await workspaceRequest<{ execution: RunResult }>(
-          "/run-code",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              origin,
-              requestId: effectKey("run-code", origin),
-            }),
-          },
-        );
-        delete effectKeys.current["run-code"];
-        setOutput({ tests: result.execution });
-        setStatus(
-          result.execution.exitCode === 0 && !result.execution.timedOut
-            ? "Tests passed"
-            : "Tests failed",
-        );
-      } catch (error) {
-        setStatus(error instanceof Error ? error.message : "code-run-failed");
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
     setBusy(true);
     setPanel("output");
     setInspectorOpen(true);
@@ -1119,10 +802,6 @@ export function Workspace({
   }
 
   async function newPlayground() {
-    if (assistant) {
-      setStatus("Choose a new question using the question selector.");
-      return;
-    }
     localEdits.current = false;
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
     setQuestion("");
@@ -1167,11 +846,6 @@ export function Workspace({
   }
 
   async function checkSyntax(tab: EditorTab) {
-    if (assistant) {
-      setSyntaxState("unavailable");
-      setSyntaxMessage("Run tests explicitly to validate the canonical draft.");
-      return;
-    }
     if (!answer) return;
     const source =
       tab === "solution"
@@ -1224,318 +898,136 @@ export function Workspace({
     );
   }
 
-  // What this draft needs from the assistant, whether it is hosted here or by
-  // the studio shell. Read through a ref so the latest closures always run.
-  assistantHooks.current = {
-    prepareSend: flushDraft,
-    beforeApply: async () => {
-      await flushDraft();
-    },
-    onApplied: async (_receipt, captured) => {
-      await reloadAfterAssistant(
-        captured,
-        "Assistant change applied. Not saved.",
-      );
-    },
-    onReverted: async (record) => {
-      await reloadAfterAssistant(
-        record.proposal.origin,
-        "Assistant change undone.",
-      );
-    },
-    onPreview: setAssistantPreview,
-    onContextChange: (surfaces) =>
-      setAssistantFocus(surfaces.map((item) => item.id)),
-  };
-  runTests.current = () => void run();
-
   const page = (
     <ConfigProvider theme={{ mode: theme }}>
       <App>
         <main className="studio">
-          {embedded ? (
-            studio.headerSlot &&
-            createPortal(
-              <div className="topbar topbar-embedded">
-                {!embedded && (
-                  <>
-                    <NavigationToggle
-                      open={navigationOpen}
-                      onClick={() => setNavigationOpen((open) => !open)}
-                    />
-                    <StudioBrand />
-                  </>
-                )}
-                {activeView === "playground" ? (
-                  <label className="topbar-example">
-                    <span>Example template</span>
-                    <select
-                      aria-label="Example template"
-                      value={exampleId}
-                      onChange={(event) => selectExample(event.target.value)}
-                    >
-                      <option value="">Choose a realistic example…</option>
-                      {preparedExampleTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : (
-                  <div className="topbar-view-title">
-                    {activeView === "interview-preparation"
-                      ? "Interview preparation"
-                      : activeView === "concept-lab"
-                        ? "Briefing"
-                        : "Rehearsal"}
-                  </div>
-                )}
-                {activeView === "playground" ? (
-                  <div className="toolbar">
-                    <label>
-                      <span>Language</span>
-                      <select
-                        value={language}
-                        onChange={(event) =>
-                          setLanguage(event.target.value as LanguageSelection)
-                        }
-                      >
-                        {languages.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Button
-                      variant="outline"
-                      onClick={() => void newPlayground()}
-                      disabled={busy}
-                    >
-                      New
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={save}
-                      disabled={busy || !answer}
-                    >
-                      {assistant ? "Save answer" : "Save"}
-                    </Button>
-                    <span className="toolbar-divider" aria-hidden="true" />
-                    <Button
-                      className="run-button"
-                      variant="outline"
-                      onClick={() => void run()}
-                      disabled={busy || !answer}
-                    >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M8 5.5v13l10-6.5z" />
-                      </svg>
-                      {assistant ? "Run tests" : "Run All"}
-                    </Button>
-                    <span className="toolbar-divider" aria-hidden="true" />
-                    {!assistant && (
-                      <TerminalToggleButton
-                        open={terminalOpen}
-                        onToggle={() => {
-                          setTerminalOpen((current) => {
-                            const nextOpen = !current;
-                            if (nextOpen) setInspectorOpen(true);
-                            return nextOpen;
-                          });
-                        }}
-                      />
-                    )}
-                    {!embedded && (
-                      <ThemeToggle theme={theme} onClick={toggleTheme} />
-                    )}
-                    {assistant && !embedded && <AssistantToggle />}
-                    <InspectorToggleButton
-                      open={inspectorOpen}
-                      onToggle={toggleInspector}
-                    />
-                  </div>
-                ) : activeView === "concept-lab" ? (
-                  <div className="toolbar concept-toolbar">
-                    <div
-                      className="concept-toolbar-actions"
-                      ref={setConceptToolbarTarget}
-                    />
-                    <span className="toolbar-divider" aria-hidden="true" />
-                    {!assistant && (
-                      <TerminalToggleButton
-                        open={terminalOpen}
-                        onToggle={() => {
-                          setTerminalOpen((current) => {
-                            const nextOpen = !current;
-                            if (nextOpen) setInspectorOpen(true);
-                            return nextOpen;
-                          });
-                        }}
-                      />
-                    )}
-                    {!embedded && (
-                      <ThemeToggle theme={theme} onClick={toggleTheme} />
-                    )}
-                    {assistant && !embedded && <AssistantToggle />}
-                    <InspectorToggleButton
-                      open={inspectorOpen}
-                      onToggle={toggleInspector}
-                    />
-                  </div>
-                ) : (
-                  <div />
-                )}
-              </div>,
-              studio.headerSlot,
-            )
-          ) : (
-            <header
-              className={`topbar ${
-                activeView !== "playground" ? "topbar-concept" : ""
-              }`}
-            >
-              {!embedded && (
-                <>
-                  <NavigationToggle
-                    open={navigationOpen}
-                    onClick={() => setNavigationOpen((open) => !open)}
-                  />
-                  <StudioBrand />
-                </>
-              )}
-              {activeView === "playground" ? (
-                <label className="topbar-example">
-                  <span>Example template</span>
+          <header
+            className={`topbar ${
+              activeView !== "playground" ? "topbar-concept" : ""
+            }`}
+          >
+            <NavigationToggle
+              open={navigationOpen}
+              onClick={() => setNavigationOpen((open) => !open)}
+            />
+            <StudioBrand />
+            {activeView === "playground" ? (
+              <label className="topbar-example">
+                <span>Example template</span>
+                <select
+                  aria-label="Example template"
+                  value={exampleId}
+                  onChange={(event) => selectExample(event.target.value)}
+                >
+                  <option value="">Choose a realistic example…</option>
+                  {preparedExampleTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="topbar-view-title">
+                {activeView === "interview-preparation"
+                  ? "Interview preparation"
+                  : activeView === "concept-lab"
+                    ? "Briefing"
+                    : "Rehearsal"}
+              </div>
+            )}
+            {activeView === "playground" ? (
+              <div className="toolbar">
+                <label>
+                  <span>Language</span>
                   <select
-                    aria-label="Example template"
-                    value={exampleId}
-                    onChange={(event) => selectExample(event.target.value)}
+                    value={language}
+                    onChange={(event) =>
+                      setLanguage(event.target.value as LanguageSelection)
+                    }
                   >
-                    <option value="">Choose a realistic example…</option>
-                    {preparedExampleTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.label}
+                    {languages.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
                       </option>
                     ))}
                   </select>
                 </label>
-              ) : (
-                <div className="topbar-view-title">
-                  {activeView === "interview-preparation"
-                    ? "Interview preparation"
-                    : activeView === "concept-lab"
-                      ? "Briefing"
-                      : "Rehearsal"}
-                </div>
-              )}
-              {activeView === "playground" ? (
-                <div className="toolbar">
-                  <label>
-                    <span>Language</span>
-                    <select
-                      value={language}
-                      onChange={(event) =>
-                        setLanguage(event.target.value as LanguageSelection)
-                      }
-                    >
-                      {languages.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Button
-                    variant="outline"
-                    onClick={() => void newPlayground()}
-                    disabled={busy}
+                <Button
+                  variant="outline"
+                  onClick={() => void newPlayground()}
+                  disabled={busy}
+                >
+                  New
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={save}
+                  disabled={busy || !answer}
+                >
+                  Save
+                </Button>
+                <span className="toolbar-divider" aria-hidden="true" />
+                <Button
+                  className="run-button"
+                  variant="outline"
+                  onClick={() => void run()}
+                  disabled={busy || !answer}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
                   >
-                    New
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={save}
-                    disabled={busy || !answer}
-                  >
-                    {assistant ? "Save answer" : "Save"}
-                  </Button>
-                  <span className="toolbar-divider" aria-hidden="true" />
-                  <Button
-                    className="run-button"
-                    variant="outline"
-                    onClick={() => void run()}
-                    disabled={busy || !answer}
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M8 5.5v13l10-6.5z" />
-                    </svg>
-                    {assistant ? "Run tests" : "Run All"}
-                  </Button>
-                  <span className="toolbar-divider" aria-hidden="true" />
-                  {!assistant && (
-                    <TerminalToggleButton
-                      open={terminalOpen}
-                      onToggle={() => {
-                        setTerminalOpen((current) => {
-                          const nextOpen = !current;
-                          if (nextOpen) setInspectorOpen(true);
-                          return nextOpen;
-                        });
-                      }}
-                    />
-                  )}
-                  {!embedded && (
-                    <ThemeToggle theme={theme} onClick={toggleTheme} />
-                  )}
-                  {assistant && !embedded && <AssistantToggle />}
-                  <InspectorToggleButton
-                    open={inspectorOpen}
-                    onToggle={toggleInspector}
-                  />
-                </div>
-              ) : activeView === "concept-lab" ? (
-                <div className="toolbar concept-toolbar">
-                  <div
-                    className="concept-toolbar-actions"
-                    ref={setConceptToolbarTarget}
-                  />
-                  <span className="toolbar-divider" aria-hidden="true" />
-                  {!assistant && (
-                    <TerminalToggleButton
-                      open={terminalOpen}
-                      onToggle={() => {
-                        setTerminalOpen((current) => {
-                          const nextOpen = !current;
-                          if (nextOpen) setInspectorOpen(true);
-                          return nextOpen;
-                        });
-                      }}
-                    />
-                  )}
-                  {!embedded && (
-                    <ThemeToggle theme={theme} onClick={toggleTheme} />
-                  )}
-                  {assistant && !embedded && <AssistantToggle />}
-                  <InspectorToggleButton
-                    open={inspectorOpen}
-                    onToggle={toggleInspector}
-                  />
-                </div>
-              ) : (
-                <div />
-              )}
-            </header>
-          )}
+                    <path d="M8 5.5v13l10-6.5z" />
+                  </svg>
+                  Run All
+                </Button>
+                <span className="toolbar-divider" aria-hidden="true" />
+                <TerminalToggleButton
+                  open={terminalOpen}
+                  onToggle={() => {
+                    setTerminalOpen((current) => {
+                      const nextOpen = !current;
+                      if (nextOpen) setInspectorOpen(true);
+                      return nextOpen;
+                    });
+                  }}
+                />
+                <ThemeToggle theme={theme} onClick={toggleTheme} />
+                <InspectorToggleButton
+                  open={inspectorOpen}
+                  onToggle={toggleInspector}
+                />
+              </div>
+            ) : activeView === "concept-lab" ? (
+              <div className="toolbar concept-toolbar">
+                <div
+                  className="concept-toolbar-actions"
+                  ref={setConceptToolbarTarget}
+                />
+                <span className="toolbar-divider" aria-hidden="true" />
+                <TerminalToggleButton
+                  open={terminalOpen}
+                  onToggle={() => {
+                    setTerminalOpen((current) => {
+                      const nextOpen = !current;
+                      if (nextOpen) setInspectorOpen(true);
+                      return nextOpen;
+                    });
+                  }}
+                />
+                <ThemeToggle theme={theme} onClick={toggleTheme} />
+                <InspectorToggleButton
+                  open={inspectorOpen}
+                  onToggle={toggleInspector}
+                />
+              </div>
+            ) : (
+              <div />
+            )}
+          </header>
 
           {navigationOpen ? (
             <StudioNavigation
@@ -1572,7 +1064,7 @@ export function Workspace({
           )}
           {activeView === "interview-preparation" ? (
             <InterviewPreparation
-              artifactId={assistant?.artifactId ?? "preparation"}
+              artifactId="preparation"
               onDirtyChange={preparationChanged}
             />
           ) : activeView === "concept-lab" ? (
@@ -1607,19 +1099,12 @@ export function Workspace({
             >
               <section className="workspace">
                 <div className="main-column">
-                  <Card
-                    className={`card question-card${assistantFocus.includes("question") ? " assistant-in-context" : ""}`}
-                  >
+                  <Card className="card question-card">
                     <div className="section-heading">
                       <div>
                         <span className="step">01</span>
                         <h2>Question</h2>
                       </div>
-                      {assistantFocus.includes("question") && (
-                        <span className="assistant-context-badge">
-                          In assistant context
-                        </span>
-                      )}
                       <span className="save-state">
                         {savedId ? "Saved" : "Workspace · unsaved"}
                       </span>
@@ -1648,27 +1133,25 @@ export function Workspace({
                     </div>
                     {questionTab === "input" ? (
                       <div className="playground-question-entry">
-                        {!assistant && (
-                          <label className="playground-provider-field">
-                            <span>Answer provider</span>
-                            <select
-                              aria-label="Answer provider"
-                              value={answerProvider}
-                              onChange={(event) =>
-                                setAnswerProvider(
-                                  event.target.value as AnswerProvider,
-                                )
-                              }
-                            >
-                              <option value="">Choose a provider…</option>
-                              {executionTargets.map((target) => (
-                                <option key={target.id} value={target.id}>
-                                  {target.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
+                        <label className="playground-provider-field">
+                          <span>Answer provider</span>
+                          <select
+                            aria-label="Answer provider"
+                            value={answerProvider}
+                            onChange={(event) =>
+                              setAnswerProvider(
+                                event.target.value as AnswerProvider,
+                              )
+                            }
+                          >
+                            <option value="">Choose a provider…</option>
+                            {executionTargets.map((target) => (
+                              <option key={target.id} value={target.id}>
+                                {target.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                         <StudioTextarea
                           label="Interview question"
                           aria-label="Interview question"
@@ -1683,15 +1166,11 @@ export function Workspace({
                         <Button
                           className="generate-button playground-generate-button"
                           onClick={() => void generate("new")}
-                          disabled={
-                            busy ||
-                            !question.trim() ||
-                            (!assistant && !answerProvider)
-                          }
+                          disabled={busy || !question.trim() || !answerProvider}
                         >
                           {busy ? "Working…" : "Generate"}
                         </Button>
-                        {answer && !assistant ? (
+                        {answer ? (
                           <label className="playground-refinement-field">
                             <span>What should be fixed or expanded?</span>
                             <textarea
@@ -1752,15 +1231,7 @@ export function Workspace({
                             {answer.answerMarkdown}
                           </MarkdownContent>
                         </article>
-                        <div
-                          className={`editor-shell${
-                            assistantFocus.some((id) =>
-                              ["code", "usageCode", "testCode"].includes(id),
-                            ) || assistantPreview
-                              ? " assistant-in-context"
-                              : ""
-                          }`}
-                        >
+                        <div className="editor-shell">
                           <div
                             className="editor-tabs"
                             role="tablist"
@@ -1783,22 +1254,7 @@ export function Workspace({
                               </button>
                             ))}
                           </div>
-                          {assistant && <AssistantChangeBanner />}
-                          {assistantPreview &&
-                          previewedChange(assistantPreview, editorTab) ? (
-                            <PreviewedCode
-                              change={
-                                previewedChange(assistantPreview, editorTab)!
-                              }
-                            />
-                          ) : null}
-                          <div
-                            className="editable-code-shell"
-                            hidden={Boolean(
-                              assistantPreview &&
-                                previewedChange(assistantPreview, editorTab),
-                            )}
-                          >
+                          <div className="editable-code-shell">
                             <CodeMirror
                               value={editorValue}
                               height="430px"
@@ -2155,13 +1611,11 @@ export function Workspace({
                         </div>
                       ) : null}
                     </div>
-                    {!assistant && (
-                      <TerminalDock
-                        open={terminalOpen}
-                        onClose={() => setTerminalOpen(false)}
-                        sessionName={playgroundTerminalSession}
-                      />
-                    )}
+                    <TerminalDock
+                      open={terminalOpen}
+                      onClose={() => setTerminalOpen(false)}
+                      sessionName={playgroundTerminalSession}
+                    />
                   </>
                 </StudioInspector>
                 <p className="status workspace-status" role="status">
@@ -2174,130 +1628,5 @@ export function Workspace({
       </App>
     </ConfigProvider>
   );
-  if (!assistant || embedded) return page;
-  const assistantConfig: AssistantConfig = {
-    client: assistant.client,
-    origin: assistantOrigin ?? {
-      workspaceId: assistant.workspaceId,
-      artifactId: assistant.artifactId,
-      artifactRevision: 0,
-    },
-    profileId: assistant.profileId,
-    product: {
-      name: "Interview Studio",
-      description:
-        "I can read and edit the Question, Main Solution and Tests in Interview Studio. Changes are always proposed first — nothing is applied without you.",
-    },
-    features: assistantFeatures,
-    starters: assistantStarters,
-    prompts: assistantPrompts,
-    surfaces: assistantSurfaces,
-    theme,
-    host: {
-      ...assistantHooks.current,
-      onThemeChange: (next) => {
-        if (next !== theme) toggleTheme();
-      },
-    },
-  };
-  return (
-    <div className="assistant-shell">
-      <AssistantRoot config={assistantConfig}>{page}</AssistantRoot>
-    </div>
-  );
-}
-
-// The editor tab a proposal surface is shown in.
-const EDITOR_SURFACE: Record<EditorTab, string> = {
-  solution: "code",
-  usage: "usageCode",
-  tests: "testCode",
-};
-function previewedChange(record: ProposalRecord, tab: EditorTab) {
-  return record.changes?.find((change) => change.id === EDITOR_SURFACE[tab]);
-}
-
-// What the code panel shows while a proposed change is previewed: the new
-// version with added and removed lines marked. Nothing is applied.
-function PreviewedCode({
-  change,
-}: {
-  change: NonNullable<ReturnType<typeof previewedChange>>;
-}) {
-  const rows = diffLines(change.before, change.after).flatMap((part) =>
-    part.value
-      .replace(/\n$/, "")
-      .split("\n")
-      .map((text) => ({
-        text,
-        kind: part.added ? "added" : part.removed ? "removed" : "same",
-      })),
-  );
-  let line = 0;
-  return (
-    <div className="assistant-preview-code" aria-label="Previewed change">
-      {rows.map((row, index) => (
-        <div key={index} className={`assistant-preview-line ${row.kind}`}>
-          <span className="assistant-preview-number">
-            {row.kind === "removed" ? "" : ++line}
-          </span>
-          <span>{row.text || " "}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Shows, above the code, a change being previewed or the one just applied.
-function AssistantChangeBanner() {
-  const host = useAssistantHost();
-  if (host.preview)
-    return (
-      <div className="assistant-change-banner preview" role="status">
-        <Icon name="visibility" />
-        <span>Previewing assistant change — not applied</span>
-        <button type="button" onClick={host.discardPreview}>
-          Discard
-        </button>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => void host.applyPreview()}
-        >
-          Apply
-        </button>
-      </div>
-    );
-  if (host.applied) {
-    const count = host.applied.changes?.length ?? 0;
-    return (
-      <div className="assistant-change-banner applied" role="status">
-        <Icon name="check_circle" />
-        <span>
-          Updated by assistant
-          {count ? ` · ${count} surface${count === 1 ? "" : "s"} changed` : ""}
-        </span>
-        <button type="button" onClick={() => void host.undoApplied()}>
-          Undo
-        </button>
-      </div>
-    );
-  }
-  return null;
-}
-
-function AssistantToggle() {
-  const host = useAssistantHost();
-  return (
-    <button
-      type="button"
-      className={`assistant-toggle${host.open ? " open" : ""}`}
-      title={`Assistant (${host.shortcut})`}
-      aria-pressed={host.open}
-      onClick={host.toggle}
-    >
-      <Icon name="auto_awesome" />
-      Assistant
-    </button>
-  );
+  return page;
 }

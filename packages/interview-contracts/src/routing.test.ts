@@ -145,6 +145,11 @@ describe("answer workflows", () => {
     expect(contract).toContain("## Complexity");
     expect(contract).toContain("## Talking");
     expect(contract).toContain("Bold key domain terms");
+    // The model writes a guide; the Markdown headings are rendered from it.
+    expect(contract).toContain('"guide"');
+    expect(contract).toContain("do not write answerMarkdown yourself");
+    expect(contract).toContain("exact title of the test in testCode");
+    expect(contract).not.toContain('"answerMarkdown"');
     expect(contract).toContain("entry-point function or component above");
     expect(contract).toContain("must never include example");
   });

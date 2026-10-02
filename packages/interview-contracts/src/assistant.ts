@@ -8,7 +8,7 @@ export const interviewMetricSchema = z.strictObject({
 });
 export const interviewClaimSchema = z.strictObject({
   kind: z.enum(["candidate-fact", "candidate-metric", "technical"]),
-  field: z.enum(["answerMarkdown", "code", "usageCode", "testCode"]),
+  field: z.enum(["answerMarkdown", "code", "usageCode", "testCode", "guide"]),
   text: z.string().min(1).max(32000),
   metric: interviewMetricSchema.optional(),
   citations: z

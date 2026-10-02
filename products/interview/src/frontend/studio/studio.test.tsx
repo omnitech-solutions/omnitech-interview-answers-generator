@@ -38,8 +38,8 @@ vi.mock("@omnitech-assistant/react", () => ({
 
 // Views are stand-ins: the shell's job is routing, binding and chrome.
 const views = vi.hoisted(() => ({ throwLibrary: false }));
-vi.mock("../workspace", () => ({
-  Workspace: ({ assistant }: { assistant: { artifactId: string } }) => {
+vi.mock("./workspace/workspace-view", () => ({
+  WorkspaceView: ({ assistant }: { assistant: { artifactId: string } }) => {
     const studio = useStudio();
     const hooks = useRef({
       prepareSend: vi.fn(async () => ({

@@ -363,3 +363,65 @@ it("lists only this actor's drafts in a workspace, newest first, titled by the q
     `${"x".repeat(79)}…`,
   );
 });
+
+it("keeps stage progress on the draft and renders the answer's Markdown from its guide", async () => {
+  const progressScope = {
+    tenantId: "guide",
+    actorId: "ana",
+    productId: "interview",
+  };
+  const at = { workspaceId: "gw", artifactId: "g1", artifactRevision: 0 };
+  const guide = {
+    version: 1 as const,
+    understand: {
+      prompt: "Count.",
+      examples: [],
+      constraints: [],
+      clarify: ["Zero?"],
+    },
+    plan: { steps: ["Add one."], complexity: { time: "O(1)", space: "O(1)" } },
+    edgeCases: [],
+    explain: [{ heading: "Idea", body: "Add one." }],
+    talkingPoints: ["a", "b", "c"],
+  };
+  const answer = {
+    title: "Counter",
+    language: "typescript" as const,
+    answerMarkdown: "written by a client",
+    code: "x",
+    usageCode: "",
+    testCode: "",
+    guide,
+  };
+  const created = await repo.create(progressScope, at, {
+    question: "Count",
+    answer,
+  });
+  expect(created.value.answer?.answerMarkdown).toContain("## Question");
+  expect(created.value.answer?.answerMarkdown).not.toContain(
+    "written by a client",
+  );
+
+  const progressed = await repo.edit(progressScope, created.origin, {
+    progress: { stage: "plan", clarified: [0] },
+  });
+  expect(progressed.value.progress).toEqual({ stage: "plan", clarified: [0] });
+  // Progress is not an answer change: it keeps the answer as it was.
+  expect(progressed.value.answer).toEqual(created.value.answer);
+
+  // Editing only the Markdown (a client that does not know guides) drops it.
+  const edited = await repo.edit(progressScope, progressed.origin, {
+    answer: {
+      ...progressed.value.answer!,
+      answerMarkdown: "## Question\nMine",
+    },
+  });
+  expect(edited.value.answer?.guide).toBeUndefined();
+  expect(edited.value.answer?.answerMarkdown).toBe("## Question\nMine");
+  expect(edited.value.progress).toEqual({ stage: "plan", clarified: [0] });
+  await expect(
+    repo.edit(progressScope, edited.origin, {
+      progress: { stage: "later" } as never,
+    }),
+  ).rejects.toThrow();
+});

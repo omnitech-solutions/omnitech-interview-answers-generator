@@ -119,3 +119,60 @@ describe("pickSurfaces", () => {
     ).toThrow(invalid);
   });
 });
+
+describe("the guide as one reviewable surface", () => {
+  const guide = {
+    version: 1 as const,
+    understand: {
+      prompt: "Two sum.",
+      examples: [],
+      constraints: [],
+      clarify: [],
+    },
+    plan: {
+      steps: ["Hash seen values."],
+      complexity: { time: "O(n)", space: "O(n)" },
+    },
+    edgeCases: [{ name: "No pair", test: "returns null" }],
+    explain: [{ heading: "Idea", body: "One pass." }],
+    talkingPoints: ["a", "b", "c"],
+  };
+  const guided = { ...current, answer: { ...answer, guide } } as Draft;
+  const next = {
+    ...guide,
+    plan: { ...guide.plan, steps: ["Hash seen values.", "Return early."] },
+  };
+  const patch = {
+    answer: { ...answer, guide: next, answerMarkdown: "rendered", code: "new" },
+    claims,
+  } as Patch;
+
+  it("shows a guide change once, not again as its Markdown", () => {
+    const changes = describeChanges(guided, patch);
+    expect(changes.map((change) => change.id)).toEqual(["guide", "code"]);
+    const change = changes.find((c) => c.id === "guide")!;
+    expect(change.after).toContain("Step 2: Return early.");
+    expect(change.language).toBe("text");
+    // Removing a guide is a change too.
+    expect(
+      describeChanges(guided, { answer: { ...answer } } as Patch).map(
+        (c) => c.id,
+      ),
+    ).toContain("guide");
+  });
+
+  it("takes the guide with its Markdown and claims, and leaves it when not picked", () => {
+    expect(pickSurfaces(patch, guided, ["guide"])).toEqual({
+      answer: { ...answer, guide: next, answerMarkdown: "rendered" },
+      claims,
+    });
+    const codeOnly = pickSurfaces(patch, guided, ["code"]);
+    expect(codeOnly.answer?.guide).toEqual(guide);
+    expect(codeOnly.answer?.code).toBe("new");
+    expect(codeOnly).not.toHaveProperty("claims");
+    const removal = pickSurfaces({ answer: { ...answer } } as Patch, guided, [
+      "guide",
+    ]);
+    expect(removal.answer).not.toHaveProperty("guide");
+  });
+});

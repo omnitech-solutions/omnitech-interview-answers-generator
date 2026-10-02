@@ -36,12 +36,20 @@ Apply these rules:
   for algorithm/data-structure choices, and [SAFETY] for boundary protection or
   language traps. Comments explain decisions only and must never include example
   inputs, outputs, or I/O traces. Never narrate trivial syntax.
-- Write answerMarkdown as Markdown with concise point-form sections in this
-  order: ## Question, ## Approach, ## Complexity, ## Edge cases, and ## Talking
-  points. Turn the question into bullets for the goal, inputs, outputs, and
-  constraints. Bold key domain terms, invariants, trade-offs, and complexity
-  notation so they are easy to use as interview talking points. The Playground
-  renders answerMarkdown as Markdown.
+- Write the explanation as a structured guide that walks the candidate through
+  Understand, Plan, Code, Test and Explain. The system renders the answer's
+  Markdown (## Question, ## Approach, ## Complexity, ## Edge cases, ## Talking
+  points) from it, so do not write answerMarkdown yourself. Keep every item
+  short enough to say aloud. Bold key domain terms, invariants, trade-offs and
+  complexity notation inside guide text with **double asterisks**; the
+  Workspace and the rendered Markdown both show them.
+- In the guide, restate the problem in one or two sentences, give one to three
+  input → output examples, list the constraints, and list two to five
+  clarifying questions worth asking before coding. Give the approach as two to
+  six steps and the time and space complexity in Big-O. List the edge cases and
+  name, for each, the exact title of the test in testCode that covers it.
+  Explain the solution in three to five short spoken sections (the problem,
+  the approach, the trade-offs) and give exactly three talking points.
 - Preserve the exact required entry-point name and signature.
 - Keep the primary solution, executable usage, and focused tests separate.
 - Make usageCode print representative input/output without redefining the
@@ -56,7 +64,22 @@ Return a JSON object with exactly:
 {
   "title": "short descriptive title",
   "language": "php | react | typescript | ruby",
-  "answerMarkdown": "concise approach, invariant, edge cases, and complexity in Markdown",
+  "guide": {
+    "version": 1,
+    "understand": {
+      "prompt": "the problem restated in one or two sentences",
+      "examples": [{ "input": "call or input", "output": "result", "note": "optional" }],
+      "constraints": ["constraint"],
+      "clarify": ["question to ask before coding"]
+    },
+    "plan": {
+      "steps": ["approach step"],
+      "complexity": { "time": "O(n)", "space": "O(1)", "note": "optional" }
+    },
+    "edgeCases": [{ "name": "edge case", "test": "exact test title in testCode" }],
+    "explain": [{ "heading": "The problem", "body": "one or two spoken sentences" }],
+    "talkingPoints": ["point", "point", "point"]
+  },
   "code": "complete primary solution only",
   "usageCode": "executable representative usage that prints normal output",
   "testCode": "complete focused executable tests only"

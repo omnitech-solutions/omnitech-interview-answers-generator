@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  answerGuideSchema,
+  diagnosticSchema,
+  testResultSchema,
+} from "./guide.js";
 
 export const languageSchema = z.enum(["php", "react", "typescript", "ruby"]);
 export const languageSelectionSchema = z.enum([
@@ -27,6 +32,8 @@ export const generatedAnswerSchema = z.object({
   code: z.string(),
   usageCode: z.string().default(""),
   testCode: z.string().default(""),
+  // Optional and never defaulted: answers without a guide read back unchanged.
+  guide: answerGuideSchema.optional(),
 });
 
 export const generateRequestSchema = routeRequestSchema.extend({
@@ -95,6 +102,10 @@ export const runResultSchema = z.object({
   exitCode: z.number().int().nullable(),
   durationMs: z.number().nonnegative(),
   timedOut: z.boolean(),
+  // Present when the test framework's report could be read.
+  tests: z.array(testResultSchema).optional(),
+  // Present when the syntax checker can place its problems.
+  diagnostics: z.array(diagnosticSchema).optional(),
 });
 
 export const libraryContentTypeSchema = z.enum([

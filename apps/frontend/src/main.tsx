@@ -6,6 +6,5 @@ import "@omnitech-assistant/react/styles.css";
 import "../../web/app/styles.css";
 import "@omnitech/product-interview/studio.css";
 import { App } from "./app.js";
-import "./style.css";
 
 createRoot(document.getElementById("root")!).render(<App />);

@@ -385,7 +385,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
   );
   expect((await repo.getRun(scope, run.id)).status).toBe("completed");
   const serialized = JSON.stringify(modelInputs[0]);
-  expect(serialized).toContain("interview-grounding-2");
+  expect(serialized).toContain("interview-grounding-3");
   expect(serialized).toContain("software-interview-preparation");
   expect(serialized).toContain("PROBLEM, STRATEGY, COMPLEXITY");
   expect(serialized).toContain("Serialized question");
@@ -398,7 +398,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
     ])
   ).rows[0]!;
   expect((saved["versions"] as { prompt: string }).prompt).toBe(
-    "interview-grounding-2",
+    "interview-grounding-3",
   );
   expect(
     (await repo.readThread(scope, thread.id)).messages.filter(

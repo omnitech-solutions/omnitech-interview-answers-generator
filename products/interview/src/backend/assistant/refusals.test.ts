@@ -299,7 +299,7 @@ it("asks for every field when there is no answer yet to merge into", async () =>
     }),
   ).rejects.toMatchObject({
     code: "proposal-invalid",
-    hint: expect.stringContaining("title, language, answerMarkdown"),
+    hint: expect.stringContaining("title, language, guide (or answerMarkdown)"),
   });
 });
 

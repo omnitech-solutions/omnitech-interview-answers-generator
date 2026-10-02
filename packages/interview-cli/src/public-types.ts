@@ -1,3 +1,5 @@
+import type { AnswerGuide } from "@omnitech/interview-contracts";
+
 export type InterviewLanguage = "php" | "react" | "typescript" | "ruby";
 export type InterviewLanguageSelection = InterviewLanguage | "auto";
 
@@ -8,6 +10,9 @@ export interface GeneratedInterviewAnswer {
   testCode: string;
   title: string;
   usageCode: string;
+  // The structured guide the Workspace stages show; answerMarkdown is
+  // rendered from it.
+  guide?: AnswerGuide | undefined;
 }
 
 export interface SavedInterviewAnswer extends GeneratedInterviewAnswer {

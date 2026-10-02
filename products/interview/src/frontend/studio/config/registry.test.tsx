@@ -4,7 +4,7 @@ import { parseRoute, routeHref, VIEW_IDS } from "../use-studio-route";
 import { available, commands, type StudioActions } from "./commands";
 import { views } from "./views";
 
-vi.mock("../../workspace", () => ({ Workspace: () => null }));
+vi.mock("../workspace/workspace-view", () => ({ WorkspaceView: () => null }));
 vi.mock("../../interview-preparation", () => ({
   InterviewPreparation: () => null,
 }));

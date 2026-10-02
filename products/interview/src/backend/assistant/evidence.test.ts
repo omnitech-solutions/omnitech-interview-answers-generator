@@ -76,3 +76,58 @@ it.each([
     expect(() => check(generated, quoted, value)).not.toThrow();
   },
 );
+
+it("checks the guide's spoken prose like the Markdown", () => {
+  const quoted = "I led the migration to optimistic locking.";
+  const source: InterviewEvidence = {
+    id: "story",
+    revision: 1,
+    sha256: createHash("sha256").update(quoted).digest("hex"),
+    text: quoted,
+    locator: "candidate://synthetic",
+    classification: "public",
+    audience: ["alice"],
+    sourceKind: "candidate",
+  };
+  const guide = {
+    version: 1 as const,
+    understand: {
+      prompt: "Locking.",
+      examples: [],
+      constraints: [],
+      clarify: [],
+    },
+    plan: {
+      steps: ["Compare revisions."],
+      complexity: { time: "O(1)", space: "O(1)" },
+    },
+    edgeCases: [],
+    explain: [{ heading: "Story", body: quoted }],
+    talkingPoints: ["a", "b", "c"],
+  };
+  const answer = {
+    title: "Locking",
+    language: "typescript" as const,
+    answerMarkdown: "## Question",
+    code: "",
+    usageCode: "",
+    testCode: "",
+    guide,
+  };
+  const sources = new Map([["story:1", source]]);
+  // A personal statement in the explanation needs a source behind it…
+  expect(() => validateClaims(answer, [], sources)).toThrow();
+  // …and a claim on the guide is matched against the guide's text.
+  const claim: InterviewClaim = {
+    kind: "candidate-fact",
+    field: "guide",
+    text: quoted,
+    citations: [
+      { id: "story", revision: 1, sha256: source.sha256, quote: quoted },
+    ],
+  };
+  expect(() => validateClaims(answer, [claim], sources)).not.toThrow();
+  expect(() =>
+    validateClaims({ ...answer, guide: undefined }, [claim], sources),
+  ).toThrow(expect.objectContaining({ code: "claim-text-conflict" }));
+});

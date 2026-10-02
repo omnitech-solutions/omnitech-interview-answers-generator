@@ -5,12 +5,15 @@ import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   type ExplanationRequest,
+  type GeneratedAnswer,
   type GenerateRequest,
   generatedAnswerSchema,
   generatedExplanationSchema,
   getWorkflow,
+  reconcileAnswerGuide,
   routeQuestion,
 } from "@omnitech/interview-contracts";
+import { z } from "zod";
 import {
   interviewLibrarySeed,
   OramaLibrarySearchIndex,
@@ -183,13 +186,24 @@ export async function generateExplanation(input: ExplanationRequest) {
   };
 }
 
-export async function generateInterviewAnswer(input: GenerateRequest) {
+// What a model may return: a guide (preferred), or older-style Markdown.
+const modelAnswerSchema = generatedAnswerSchema
+  .extend({ answerMarkdown: z.string().trim().min(1).optional() })
+  .refine(
+    (answer) =>
+      answer.guide !== undefined || answer.answerMarkdown !== undefined,
+    "An answer needs a guide or answerMarkdown.",
+  );
+
+export async function generateInterviewAnswer(
+  input: GenerateRequest,
+): Promise<GeneratedAnswer> {
   const routing = routeQuestion(input.question, input.language);
   const workflow = getWorkflow(routing.language);
   const client = createAiClientFromEnv();
   const result = await client.generateObject({
     ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
-    schema: generatedAnswerSchema,
+    schema: modelAnswerSchema,
     system: workflow.systemPrompt,
     prompt: [
       `Target language: ${workflow.label}`,
@@ -198,10 +212,15 @@ export async function generateInterviewAnswer(input: GenerateRequest) {
       input.question,
     ].join("\n"),
     temperature: 0.2,
-    maxOutputTokens: 8_000,
+    maxOutputTokens: 12_000,
   });
 
   // Routing is authoritative. This prevents a model typo from switching the
   // execution language after the user has made an explicit selection.
-  return { ...result.object, language: routing.language };
+  // A guide renders the Markdown that every other reader of the answer uses.
+  return reconcileAnswerGuide({
+    ...result.object,
+    answerMarkdown: result.object.answerMarkdown ?? "",
+    language: routing.language,
+  });
 }

@@ -95,7 +95,7 @@ describe("generateInterviewAnswer", () => {
         prompt: expect.stringContaining("Build an accessible React counter."),
         schema: expect.any(Object),
         temperature: 0.2,
-        maxOutputTokens: 8_000,
+        maxOutputTokens: 12_000,
       }),
     );
   });
@@ -153,5 +153,67 @@ describe("generateInterviewAnswer", () => {
     await expect(generateExplanation({ topic: "Queues" })).rejects.toThrow(
       "required code example",
     );
+  });
+});
+
+describe("generateInterviewAnswer with a guide", () => {
+  const guide = {
+    version: 1,
+    understand: {
+      prompt: "Count clicks.",
+      examples: [],
+      constraints: [],
+      clarify: ["Start at zero?"],
+    },
+    plan: {
+      steps: ["Keep **state**."],
+      complexity: { time: "O(1)", space: "O(1)" },
+    },
+    edgeCases: [{ name: "Rapid clicks", test: "counts every click" }],
+    explain: [{ heading: "The idea", body: "State drives the render." }],
+    talkingPoints: ["One", "Two", "Three"],
+  };
+
+  it("renders the answer's Markdown from the model's guide", async () => {
+    generateObject.mockResolvedValueOnce({
+      object: {
+        title: "Counter",
+        language: "react",
+        guide,
+        code: "export function App() {}",
+        usageCode: "",
+        testCode: "it('counts every click')",
+      },
+    });
+    const answer = await generateInterviewAnswer({
+      question: "Build a React counter.",
+      language: "react",
+    });
+    expect(answer.guide).toEqual(guide);
+    expect(answer.answerMarkdown).toContain("## Question");
+    expect(answer.answerMarkdown).toContain("1. Keep **state**.");
+    expect(answer.answerMarkdown).toContain(
+      "- **Rapid clicks** — covered by `counts every click`",
+    );
+  });
+
+  it("accepts older-style Markdown and refuses an answer with neither", async () => {
+    const { schema } = generateObject.mock.calls.at(-1)?.[0] ?? {};
+    await generateInterviewAnswer({ question: "Q", language: "react" });
+    const used = generateObject.mock.calls.at(-1)![0].schema as {
+      safeParse(value: unknown): { success: boolean };
+    };
+    expect(schema ?? used).toBeDefined();
+    const base = {
+      title: "T",
+      language: "react",
+      code: "x",
+      usageCode: "",
+      testCode: "",
+    };
+    expect(
+      used.safeParse({ ...base, answerMarkdown: "## Question" }).success,
+    ).toBe(true);
+    expect(used.safeParse(base).success).toBe(false);
   });
 });
