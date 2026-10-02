@@ -10,6 +10,17 @@ export interface ClaudeRuntimeOptions {
   environment?: Readonly<Record<string, string>>;
 }
 
+// Text as the model writes it (partial messages); the finished message then
+// repeats it, so a run that streamed does not forward the whole text again.
+function streamedText(message: SDKMessage): string | undefined {
+  if (message.type !== "stream_event") return undefined;
+  const event = message.event;
+  return event.type === "content_block_delta" &&
+    event.delta.type === "text_delta"
+    ? event.delta.text
+    : undefined;
+}
+
 function assistantText(message: SDKMessage): string[] {
   if (message.type !== "assistant") return [];
   return message.message.content.flatMap((block) =>
@@ -29,6 +40,7 @@ export function createClaudeRuntimeAdapter(
     const controller = new AbortController();
     controllers.set(request.runId, controller);
     let sessionId = resume;
+    let streamed = false;
     try {
       const stream = query({
         prompt: request.prompt,
@@ -68,9 +80,15 @@ export function createClaudeRuntimeAdapter(
       });
       for await (const message of stream) {
         sessionId = message.session_id;
-        for (const text of assistantText(message)) {
-          yield { type: "text-delta", text };
+        const delta = streamedText(message);
+        if (delta) {
+          streamed = true;
+          yield { type: "text-delta", text: delta };
         }
+        if (!streamed)
+          for (const text of assistantText(message)) {
+            yield { type: "text-delta", text };
+          }
         if (message.type === "result") {
           if (message.subtype === "success") {
             yield {

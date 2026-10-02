@@ -105,34 +105,42 @@ afterAll(async () => {
 });
 
 describe("the assistant on a behavioural pack", () => {
-  it("sees the interview, matrix roles, answers and their evidence", async () => {
+  it("sees the employer's material apart from the person's own roles and answers", async () => {
     const context = await adapter().getContext(scope, origin);
     expect(context.instructions?.join(" ")).toContain("briefingAnswers");
     expect(context.context).toMatchObject({
       kind: "behavioural-briefing-pack",
       title: "Acme · Tech Lead",
-      interview: { company: "Acme", interviewer: "Sam" },
-      matrixRoles: [
-        {
-          roleId: "/roles/0",
-          company: "Relay",
-          title: "Principal Engineer",
-          period: "2021–2024",
-        },
-      ],
-      expectedQuestions: ["Tell me about yourself.", "Why Acme?"],
-      answers: [
-        {
-          id: "q1",
-          accepted: true,
-          evidence: [
-            { pointer: "/roles/0/proof_points/0", quote: "Mentored engineers" },
-          ],
-        },
-        { id: "q2" },
-      ],
+      employer: { company: "Acme", interviewer: "Sam" },
+      you: {
+        matrixRoles: [
+          {
+            roleId: "/roles/0",
+            company: "Relay",
+            title: "Principal Engineer",
+            period: "2021–2024",
+          },
+        ],
+        expectedQuestions: ["Tell me about yourself.", "Why Acme?"],
+        answers: [
+          {
+            id: "q1",
+            accepted: true,
+            evidence: [
+              {
+                pointer: "/roles/0/proof_points/0",
+                quote: "Mentored engineers",
+              },
+            ],
+          },
+          { id: "q2" },
+        ],
+      },
       preparedBriefing: null,
     });
+    const { employer } = context.context as { employer: object };
+    expect(employer).not.toHaveProperty("profile");
+    expect(employer).not.toHaveProperty("request");
     expect(context.evidence).toEqual([]);
   });
 

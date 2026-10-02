@@ -25,6 +25,10 @@ import {
   setupOf,
 } from "./setup-card";
 
+// The server refused a write made from an older revision of the pack.
+const isRevisionConflict = (failure: unknown) =>
+  (failure as { details?: { error?: { code?: unknown } } } | null)?.details
+    ?.error?.code === "revision-conflict";
 const failureOf = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
@@ -86,11 +90,24 @@ export function BehaviouralPack({
     setPackRevision(artifact.origin.artifactRevision);
     return artifact;
   }, []);
-  const write = useCallback(<T,>(step: () => Promise<T>): Promise<T> => {
-    const next = queue.current.then(step, step);
-    queue.current = next.catch(() => undefined);
-    return next;
-  }, []);
+  const write = useCallback(
+    <T,>(step: () => Promise<T>): Promise<T> => {
+      // [GUARD] Another tab, or an assistant change you applied, moved the
+      // pack on: load the newest revision and make the change once more on
+      // top of it, instead of failing every write until a reload.
+      const attempt = () =>
+        step().catch(async (failure: unknown) => {
+          if (!isRevisionConflict(failure) || artifactId === null)
+            throw failure;
+          applied(await client.getArtifact(artifactId));
+          return step();
+        });
+      const next = queue.current.then(attempt, attempt);
+      queue.current = next.catch(() => undefined);
+      return next;
+    },
+    [applied, artifactId, client],
+  );
 
   // Load the matrices, then the pack (or the default matrix for a new one).
   useEffect(() => {

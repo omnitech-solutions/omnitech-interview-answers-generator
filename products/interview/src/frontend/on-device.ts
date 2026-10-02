@@ -27,3 +27,14 @@ export function createOnDeviceProfile(
     catalog: createOnDeviceModelCatalog({ models }),
   };
 }
+
+// Named here so the browser bundle can read them as literal
+// process.env.NEXT_PUBLIC_* properties, which Next.js inlines at build time.
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256?: string;
+      NEXT_PUBLIC_ON_DEVICE_MODEL_URL?: string;
+    }
+  }
+}

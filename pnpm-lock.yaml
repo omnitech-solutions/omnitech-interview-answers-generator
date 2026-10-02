@@ -151,9 +151,15 @@ importers:
       '@omnitech-assistant/contracts':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/providers':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
       '@omnitech-assistant/react':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(@types/react@19.3.0)(react@19.3.0)
+      '@omnitech-assistant/server':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz(@cfworker/json-schema@4.1.1)
       '@omnitech-assistant/storage-postgres':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
@@ -311,7 +317,7 @@ importers:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.220
-        version: 0.3.220(@anthropic-ai/sdk@0.131.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(zod@4.6.5)
+        version: 0.3.220(@anthropic-ai/sdk@0.131.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(zod@4.6.5)
       '@omnitech/agent-runtime-contracts':
         specifier: workspace:*
         version: link:../agent-runtime-contracts
@@ -853,7 +859,7 @@ importers:
         version: 0.47.5
       '@omnitech-assistant/server':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz(@cfworker/json-schema@4.1.1)
       '@omnitech-assistant/storage-postgres':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
@@ -1884,6 +1890,16 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
+  '@modelcontextprotocol/sdk@1.31.0':
+    resolution: {integrity: sha512-UvTMgnNlnIBO/22ob2RcVGDlcvOslQs8T59+FTGdA0L27a39fdGF/EDETNtDVK4DZGpwomlsYpRdA8UXcVL/pw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
+
   '@msgpack/msgpack@3.1.3':
     resolution: {integrity: sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA==}
     engines: {node: '>= 18'}
@@ -2090,7 +2106,7 @@ packages:
     resolution: {integrity: sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg==}
 
   '@omnitech-assistant/contracts@file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz':
-    resolution: {integrity: sha512-LnoU/SbR2GxFW4GfG9ztm4aEs18NXSZ333t5zEmx6eO8zeHcpT8ex/jfmuKCSFiFw4ovfGg5pS3v8nlG1aS2qw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz}
+    resolution: {integrity: sha512-OkGFXi3ZXGPFfex6EcGJ55ZgEUymbAEH37RFgySSSrSaI423FWF7HORjGEX5RvX9DsQNBNXM51xiiyFrv2/61w==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
@@ -2100,34 +2116,34 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/providers@file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz':
-    resolution: {integrity: sha512-I4CWH3DLoM/A+pqs/oPHGhl30GiC0vAOZ7QpHfquuEzK9NtC11iSq/iWT7PXuKY72EvdhCVpkvxrV60m65sVlQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz}
+    resolution: {integrity: sha512-//BxzrEKXNtYKjgdxVdbvWjOYzlcCNEgE8w5guqrZ0VZZKEo5Gvav/54BKOmfFDG0A4fhl2+l+ayFGXgFFqkEw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz':
-    resolution: {integrity: sha512-Fz7tF36TZi5FrWSe0pnnxr9GSQWtY4PbPnIoM3TOBkxIADTIsxP8H8pcP0cTJRJVof2SyrMZdzFcX+1xR4IpJg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
+    resolution: {integrity: sha512-2ExTN9PoXILHKBcxGRZE7q6Ybxzwj0UKoqFW5JpPy7nPXziNVtlTRqa3wpKMcRBzz6fVExoMJcB5OHC9Hs6hoA==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
 
   '@omnitech-assistant/sdk@file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz':
-    resolution: {integrity: sha512-CkhCsdmU1WrCE7eHcjU7FQU/Qa5G8MzufBSTKns6yr3hJLZ82N+lvB5OUOUo4gI0F3JzulsBu9dpHejvNE8klg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz}
+    resolution: {integrity: sha512-WEiHFwayHTOAEEU2eX+91DY9ZTHkQti0dbTnCHPbwr2UG3df74MA5bf5XOxbdjDUGp9lWJEjzoPqZdNtJFtqzQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
-    resolution: {integrity: sha512-3PE1pFXKBCIOGgREO1VCgshmXTAFHOTpBYHnqaVSa/chaXm2zq+8n/sbzHa9CPZLZFBHc7ZbVgfXu3ly9pVnzQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
+    resolution: {integrity: sha512-Dgf4E4wGkzgC+TsAv67FEeBokG2hsN16jvc3JJNNrqmF9hncuICRCaBofXew8gADZfJO14Q9niYAKqVrxodoVg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/storage-postgres@file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz':
-    resolution: {integrity: sha512-46vUO/0mLRM1bD5XNqsYf1F2rJWwzCzQGzHPTBH8+ADBMI9yAe0OAhphuFm2BVN1+bcFtmmiMg79+j3OQv1YIw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
+    resolution: {integrity: sha512-75OPYxs/8DqZ9SLQzuXrK43E2fWoV4+L+IeGHyqVJi8xGzaKa9/Uh+ltdEzHmnfX1Phhj2g9Fee8dER3zsh36Q==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech/local-assistant@file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz':
-    resolution: {integrity: sha512-DofNt+5rpxLIyhQGWI1zjwspCO07fOO9aLh7fwH6HFLoswmGSn3b8trEGCJF5deHVX8Y7bZuw0fNNN9pctx6QQ==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz}
+    resolution: {integrity: sha512-Uq2XGW/LRlDowB0PHeaYZr4uZ3FV+HtHMXc6Bv8SFLc1bUJGLJMJdLHif7wylvnWhWIQQSS5ZVkn+5rKuKWCbw==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz}
     version: 0.1.0
     peerDependencies:
       '@omnitech/local-audio': 0.1.0
@@ -2148,7 +2164,7 @@ packages:
         optional: true
 
   '@omnitech/local-inference@file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz':
-    resolution: {integrity: sha512-42wG0HKWjdeFO614CU3iFt5aq8oHo6eZz4YZ3SP3Fdp8aCFFE+XO9Sn1rSSeCLWxX1OiqP8NefOB7OMjQyFM0A==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz}
+    resolution: {integrity: sha512-77UFT9dRD0nU4rHGJP9+kqEEpQXpSFOlpJD8VZFdzCz58GY9BI1pTausfWVpJUTsaDiP/38q9Nso0HwRdTVWGQ==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz}
     version: 0.1.0
 
   '@openai/codex-sdk@0.145.0':
@@ -6307,10 +6323,10 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.220':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.220(@anthropic-ai/sdk@0.131.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(zod@4.6.5)':
+  '@anthropic-ai/claude-agent-sdk@0.3.220(@anthropic-ai/sdk@0.131.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))(zod@4.6.5)':
     dependencies:
       '@anthropic-ai/sdk': 0.131.0(zod@4.6.5)
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
+      '@modelcontextprotocol/sdk': 1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
       zod: 4.6.5
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.220
@@ -7063,6 +7079,30 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)':
+    dependencies:
+      '@hono/node-server': 1.19.15(hono@4.13.12)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.0
+      express: 5.2.1
+      express-rate-limit: 8.6.0(express@5.2.1)
+      hono: 4.13.12
+      jose: 6.2.4
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
+    optionalDependencies:
+      '@cfworker/json-schema': 4.1.1
+    transitivePeerDependencies:
+      - supports-color
+
   '@msgpack/msgpack@3.1.3': {}
 
   '@napi-rs/canvas-android-arm64@1.0.9':
@@ -7320,8 +7360,9 @@ snapshots:
       '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       zod: 4.6.5
 
-  '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
+  '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz(@cfworker/json-schema@4.1.1)':
     dependencies:
+      '@modelcontextprotocol/sdk': 1.31.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
       '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       '@omnitech-assistant/storage-postgres': file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
       '@opentelemetry/api': 1.9.1
@@ -7330,7 +7371,9 @@ snapshots:
       pdfjs-dist: 6.3.289
       zod: 4.6.5
     transitivePeerDependencies:
+      - '@cfworker/json-schema'
       - pg-native
+      - supports-color
 
   '@omnitech-assistant/storage-postgres@file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz':
     dependencies:

@@ -1,5 +1,4 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
-import { createGatewayModelPort } from "@omnitech/ai-runtime";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import { getPlatformDatabase } from "@omnitech/platform-storage";
 import {
@@ -13,9 +12,13 @@ import {
   type Scope,
   type Transaction,
 } from "@omnitech-assistant/contracts";
-import { PgBossRunQueue } from "@omnitech-assistant/storage-postgres";
+import {
+  PgBossRunQueue,
+  PostgresModelRelay,
+} from "@omnitech-assistant/storage-postgres";
 import { resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
 import { interviewAssistantBudget } from "./ai";
+import { createAssistantModels } from "./assistant-models";
 import { resolvePlatformContext } from "./context";
 
 // The Studio sends the tenant of the page it runs on; briefing pack links
@@ -25,9 +28,18 @@ const PERMISSIONS = ["interview.read", "interview.write"] as const;
 
 type InterviewStudio = ReturnType<typeof createInterviewStudio>;
 declare global {
-  // One studio per server process: the API route and the run worker share
-  // it, and development reloads must not open a second queue.
-  var interviewStudio: Promise<InterviewStudio> | undefined;
+  // One run queue per server process: development reloads must not open a
+  // second one.
+  var interviewRunQueue: Promise<PgBossRunQueue> | undefined;
+  // The current studio, shared by the API route and the run worker. It is
+  // rebuilt when a reload re-runs this module (a new `build`), which happens
+  // whenever this file, the product or anything else it imports changes.
+  var interviewStudio:
+    | {
+        build: (ai: AiExecutionGateway) => Promise<InterviewStudio>;
+        studio: Promise<InterviewStudio>;
+      }
+    | undefined;
 }
 
 const rowsOf = (client: {
@@ -42,12 +54,16 @@ const rowsOf = (client: {
 
 async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
   const platform = getPlatformDatabase();
-  const queue = new PgBossRunQueue({
-    connectionString: process.env["DATABASE_URL"]!,
-    supervise: false,
-    schedule: false,
-  });
-  await queue.start();
+  globalThis.interviewRunQueue ??= (async () => {
+    const queue = new PgBossRunQueue({
+      connectionString: process.env["DATABASE_URL"]!,
+      supervise: false,
+      schedule: false,
+    });
+    await queue.start();
+    return queue;
+  })();
+  const queue = await globalThis.interviewRunQueue;
   const language = (() => {
     try {
       return resolveDefaultLanguageModel();
@@ -56,11 +72,17 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
     }
   })();
 
+  const database = {
+    tenantTransaction: <T>(
+      tenantId: string,
+      fn: (tx: Transaction) => Promise<T>,
+    ) => platform.tenantTransaction(tenantId, (client) => fn(rowsOf(client))),
+  };
+  const relay = new PostgresModelRelay(database);
+  const assistantModels = createAssistantModels(ai, language, relay);
   return createInterviewStudio({
-    database: {
-      tenantTransaction: (tenantId, fn) =>
-        platform.tenantTransaction(tenantId, (client) => fn(rowsOf(client))),
-    },
+    database,
+    relay,
     workerDatabase: {
       transaction: (fn) =>
         platform.transaction(async (client) => {
@@ -89,7 +111,9 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
       );
       return result.rows.length > 0;
     },
-    model: createGatewayModelPort(ai, async () => PERMISSIONS),
+    // The model a turn runs on is the one picked in the assistant.
+    model: assistantModels.port,
+    models: assistantModels.catalog,
     modelVersion: `${language?.model ?? "local"}:plain-text-tools`,
     generate: async (input, scope: Scope) =>
       (
@@ -128,8 +152,9 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
 }
 
 export function getInterviewStudio(ai: AiExecutionGateway) {
-  globalThis.interviewStudio ??= build(ai);
-  return globalThis.interviewStudio;
+  if (globalThis.interviewStudio?.build !== build)
+    globalThis.interviewStudio = { build, studio: build(ai) };
+  return globalThis.interviewStudio.studio;
 }
 
 // Runs queued assistant turns in this server process until it stops.
@@ -137,7 +162,12 @@ export async function runInterviewWorker(
   ai: AiExecutionGateway,
   signal: AbortSignal,
 ) {
-  const { worker } = await getInterviewStudio(ai);
+  await getInterviewStudio(ai);
+  // [STRATEGY] The worker starts with the server and is never reloaded, so
+  // each tick takes the current studio rather than keeping the first one:
+  // after a reload, turns run on the product code the API route now uses.
+  const current = () =>
+    globalThis.interviewStudio?.studio ?? getInterviewStudio(ai);
   // Polls every 200 ms while idle; after a failure it waits 5 s, so a
   // persistent fault never spins.
   const idle = (ms = 200) =>
@@ -154,6 +184,7 @@ export async function runInterviewWorker(
     });
   while (!signal.aborted) {
     try {
+      const { worker } = await current();
       if (!(await worker.tick(signal))) await idle();
     } catch (error) {
       // A failed turn is recorded on its run; the worker reports only the

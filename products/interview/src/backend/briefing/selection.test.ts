@@ -18,10 +18,11 @@ it("prioritizes direct skill over domain matches and preserves source order on t
   expect(selected.map((entry) => entry.pointer)).toEqual([
     "/roles/1",
     "/roles/0",
+    "/roles/2",
   ]);
 });
 
-it("does not select unrelated roles or let a preferred story outrank a direct skill", () => {
+it("keeps every role, unrelated ones last, without letting a preferred story outrank a direct skill", () => {
   const matrix = {
     candidate: {},
     roles: [
@@ -34,13 +35,15 @@ it("does not select unrelated roles or let a preferred story outrank a direct sk
     selectCandidateFragments(matrix, "TypeScript", "delivery", [
       "/roles/0",
     ]).map((entry) => entry.pointer),
-  ).toEqual(["/roles/1", "/roles/0"]);
-  expect(selectCandidateFragments(matrix, "healthcare", "delivery")).toEqual(
-    [],
-  );
+  ).toEqual(["/roles/1", "/roles/0", "/roles/2"]);
+  expect(
+    selectCandidateFragments(matrix, "healthcare", "delivery").map(
+      (entry) => entry.pointer,
+    ),
+  ).toEqual(["/roles/0", "/roles/1", "/roles/2"]);
 });
 
-it("uses matching story guidance to select a primary and backup role without unrelated roles", () => {
+it("uses matching story guidance to rank a primary and backup role first", () => {
   const matrix = {
     candidate: {},
     roles: [
@@ -62,6 +65,5 @@ it("uses matching story guidance to select a primary and backup role without unr
       "How do you approach collaboration?",
       "collaboration",
     ).map((entry) => entry.pointer),
-  ).toEqual(["/roles/0", "/roles/1"]);
-  expect(selectCandidateFragments(matrix, "unrelated", "delivery")).toEqual([]);
+  ).toEqual(["/roles/0", "/roles/1", "/roles/2"]);
 });

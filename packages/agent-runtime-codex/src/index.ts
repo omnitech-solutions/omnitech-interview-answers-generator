@@ -107,6 +107,9 @@ export function createCodexRuntimeAdapter(
         webSearchMode: request.profile.webSearch ? "live" : "disabled",
         approvalPolicy: request.profile.approvalPolicy,
         additionalDirectories: Array.from(request.additionalDirectories),
+        // The worker runs each job in a fresh, isolated temporary directory,
+        // never a repository, so Codex's trusted-repository check cannot pass.
+        skipGitRepoCheck: true,
       };
       const thread = sessionId
         ? codex.resumeThread(sessionId, threadOptions)

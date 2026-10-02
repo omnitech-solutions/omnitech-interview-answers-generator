@@ -290,6 +290,30 @@ const unverified = (text: string) =>
 const NUMBER = /\d+(?:[.,]\d+)*(?:[%kKmMbB])?\+?/g;
 const RANGE =
   /\d+(?:[.,]\d+)*(?:%|[kKmMbB])?\s*(?:to|–|—|-)\s*\d+(?:[.,]\d+)*(?:%|[kKmMbB])?/gi;
+// [DOMAIN] Figures backed by the cited quotes, plus the metric values of
+// every role those quotes come from: a metric's number lives in its own
+// leaf, apart from the role's prose the answer usually quotes.
+function supportedFigures(
+  refs: readonly { pointer: string; quote: string }[],
+  sources: Source[],
+) {
+  const roles = new Set(
+    refs.flatMap((ref) => ref.pointer.match(/^\/roles\/\d+\//) ?? []),
+  );
+  const metrics = sources.filter((source) =>
+    [...roles].some(
+      (role) =>
+        source.pointer.startsWith(`${role}metrics/`) &&
+        source.pointer.endsWith("/value"),
+    ),
+  );
+  return new Set(
+    [
+      ...refs.map((ref) => ref.quote),
+      ...metrics.map((item) => item.text),
+    ].flatMap((text) => text.match(NUMBER) ?? []),
+  );
+}
 
 function validateQuestion(
   question: z.infer<typeof modelSchema>["questions"][number],
@@ -313,15 +337,15 @@ function validateQuestion(
   }
   if (!evidenceRefs.length && !gaps.length)
     gaps.push("No source was cited for this answer.");
-  // [SAFETY] A figure is only stated as fact when a cited quote contains it.
+  // [SAFETY] A figure is only stated as fact when a cited quote, or a
+  // metric of a cited role, contains it.
   for (const [field, body] of [
     ["answerMarkdown", question.answerMarkdown],
     ["talkingPoints", question.talkingPoints.join(" ")],
   ] as const) {
-    const quoted = new Set(
-      evidenceRefs
-        .filter((ref) => ref.field === field)
-        .flatMap((ref) => ref.quote.match(NUMBER) ?? []),
+    const quoted = supportedFigures(
+      evidenceRefs.filter((ref) => ref.field === field),
+      sources,
     );
     for (const figure of new Set(body.match(NUMBER) ?? []))
       if (!quoted.has(figure))
@@ -388,9 +412,7 @@ function validatePrepared(
     if (ref) evidenceRefs.push(ref);
     else gaps.push(unverified(citation.text));
   }
-  const quoted = new Set(
-    evidenceRefs.flatMap((ref) => ref.quote.match(NUMBER) ?? []),
-  );
+  const quoted = supportedFigures(evidenceRefs, sources);
   for (const figure of new Set(body.match(NUMBER) ?? []))
     if (!quoted.has(figure))
       gaps.push(

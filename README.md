@@ -102,7 +102,7 @@ the platform AI gateway and Interview Studio's assistant all resolve their
 model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below through
 `@omnitech/ai-sdk`, so changing a value changes it everywhere. When none is
 set, `pnpm dev` uses the model LM Studio already has loaded and says so on
-start, loading it with a 32,768-token window (`ASSISTANT_CONTEXT_TOKENS`) so
+start, loading it with a 65,536-token window (`ASSISTANT_CONTEXT_TOKENS`) so
 the assistant's history and output limits fit.
 
 | Variable | Purpose | Default |

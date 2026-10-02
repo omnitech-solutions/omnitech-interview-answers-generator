@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { assistantFeatures, questionAssistant } from "../assistant-config";
+import { createOnDeviceProfile } from "../on-device";
 import { useStudioTheme } from "./use-studio-theme";
 import type { WorkspaceAssistant } from "./workspace/workspace-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -59,6 +60,33 @@ const LEAVE_PREPARATION =
 
 // Interview Studio: sidebar, the current view, and the docked assistant.
 // Views, commands and shortcuts all come from config/.
+// The on-device (WebGPU) model, when this deployment pins one and the browser
+// has WebGPU. One manager per page, so the model downloads and loads once.
+// NEXT_PUBLIC_* values are read literally so Next.js inlines them.
+let onDevice: ReturnType<typeof createOnDeviceProfile> | undefined;
+function onDeviceModels(): AssistantConfig["localModels"] {
+  if (typeof window === "undefined") return undefined;
+  onDevice ??= createOnDeviceProfile({
+    NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256:
+      process.env.NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256,
+    NEXT_PUBLIC_ON_DEVICE_MODEL_URL:
+      process.env.NEXT_PUBLIC_ON_DEVICE_MODEL_URL,
+  });
+  const profile = onDevice;
+  if (!profile) return undefined;
+  return {
+    catalog: profile.catalog,
+    port: profile.port,
+    // Sending the first message is the user action that starts the download.
+    prepare: async () => {
+      if (!(await profile.models.load("chat")))
+        throw new Error(
+          "The on-device model could not be loaded in this browser.",
+        );
+    },
+  };
+}
+
 export function Studio({ assistant }: StudioProps) {
   const { theme, toggleTheme } = useStudioTheme();
   const { route, navigate } = useStudioRoute();
@@ -122,6 +150,7 @@ export function Studio({ assistant }: StudioProps) {
     [assistant, route.artifact],
   );
   const presenting = binding.assistant ?? questionAssistant;
+  const localModels = useMemo(onDeviceModels, []);
   // The assistant follows whichever view lent it a draft; hooks are read at
   // call time so the bound view stays in control of its own draft.
   const config: AssistantConfig = {
@@ -138,6 +167,7 @@ export function Studio({ assistant }: StudioProps) {
     },
     user: { name: "Local user", initials: "LU" },
     features: assistantFeatures,
+    ...(localModels ? { localModels } : {}),
     starters: presenting.starters,
     prompts: presenting.prompts,
     ...(presenting.surfaces ? { surfaces: presenting.surfaces } : {}),

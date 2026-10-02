@@ -10,16 +10,13 @@ const config: NextConfig = {
     "pg",
     "pg-boss",
     "@omnitech-assistant/contracts",
+    "@omnitech-assistant/providers",
     "@omnitech-assistant/server",
     "@omnitech-assistant/storage-postgres",
   ],
-  // The open Playground polls its control channel twice a second; logging each
-  // poll buries every other request in the terminal.
-  logging: {
-    incomingRequests: {
-      ignore: [/^\/api\/v1\/playground-control(?:[/?]|$)/],
-    },
-  },
+  // No line per request: the Studio and the Playground poll constantly, which
+  // buried every warning and error in an endless stream. Errors still print.
+  logging: { incomingRequests: false },
   transpilePackages: [
     "@omnitech/platform-api",
     "@omnitech/platform-contracts",
@@ -31,6 +28,12 @@ const config: NextConfig = {
   turbopack: {
     // Watch this repository only; shared UI ships as a vendored package.
     root: new URL("../..", import.meta.url).pathname,
+    // The on-device model's runtime lazily imports optional search and speech
+    // packages; the assistant only chats, so they resolve to an empty module.
+    resolveAlias: {
+      "@omnitech/local-search": "./src/platform/optional-module-stub.ts",
+      "@omnitech/local-audio": "./src/platform/optional-module-stub.ts",
+    },
   },
 };
 

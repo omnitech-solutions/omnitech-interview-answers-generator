@@ -31,7 +31,7 @@ Markdown code uses Shiki's core build (`frontend/shiki-highlighter.ts`) with a f
 
 The `interview-assistant` profile in `apps/web/src/platform/ai.ts` uses the application's model settings (`AI_*`, `OPENAI_*`, `LM_STUDIO_*`).
 
-- **LM Studio:** with a local LM Studio model, `pnpm dev` loads it with `ASSISTANT_CONTEXT_TOKENS` (default 32,768) of context.
+- **LM Studio:** with a local LM Studio model, `pnpm dev` loads it with `ASSISTANT_CONTEXT_TOKENS` (default 65,536) of context.
 - **Budget:** the assistant keeps a quarter of that context for output, and sizes the history it sends to fit the rest.
 
 ## Pushing from the CLI

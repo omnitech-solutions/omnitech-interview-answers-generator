@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import {
   type DatabasePort,
+  type ModelCatalog,
   type ModelPort,
+  type ModelRelay,
   originSchema,
   productOperationFailure,
   type Scope,
@@ -61,6 +63,12 @@ export type InterviewStudioOptions = {
   // The assistant's streaming model, and the version runs are recorded with.
   model: ModelPort;
   modelVersion: string;
+  // The models a person may pick for the assistant; `model` must run each one.
+  // Without it, only the built-in assistant profile is offered.
+  models?: ModelCatalog;
+  // Hands on-device model calls to the person's browser; required when the
+  // catalog offers a model that runs there.
+  relay?: ModelRelay;
   // One-shot structured generation for briefs and briefing packs.
   generate(input: StructuredInput, scope: Scope): Promise<unknown>;
   runner: Pick<CodeRunner, "runAll">;
@@ -117,6 +125,7 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
       interviewRunVersions(options.modelVersion),
     ),
     model: options.model,
+    ...(options.models ? { models: options.models } : {}),
     products: new Map([[INTERVIEW_PRODUCT_ID, product]]),
     patchSchemas: new Map([[INTERVIEW_PRODUCT_ID, interviewPatchJsonSchema]]),
     authority: {
@@ -124,8 +133,16 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
         scope.productId === INTERVIEW_PRODUCT_ID &&
         (await options.isMember(scope)),
       hasPermissions: readable,
+      // [SAFETY] A run may use the built-in profile or a model the catalog
+      // currently offers this person, never an arbitrary id.
       authorizeProfile: async (scope, id) =>
-        id === INTERVIEW_ASSISTANT_PROFILE && (await readable(scope)),
+        (id === INTERVIEW_ASSISTANT_PROFILE ||
+          Boolean(
+            (await options.models?.list(scope))?.models.some(
+              (model) => model.id === id,
+            ),
+          )) &&
+        (await readable(scope)),
     },
   };
   const attachments = createAttachmentService(core, {
@@ -182,6 +199,7 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
   // The assistant package serves its own routes below /api/assistant.
   const assistant = createAssistantApp({
     ...core,
+    ...(options.relay ? { relay: options.relay } : {}),
     attachments,
     resolveScope: scopeOf,
   });

@@ -160,7 +160,9 @@ const packShape = (briefing: BriefingDraft) =>
   });
 
 // What the assistant sees of a pack: everything needed to coach the person,
-// with evidence as the quotes behind each answer.
+// with evidence as the quotes behind each answer. [DOMAIN] The employer's
+// material and the person's own are kept apart, so a model never reports the
+// person's background or answers as facts about the company.
 function packContext(
   briefing: BriefingDraft,
   roles: readonly {
@@ -172,30 +174,41 @@ function packContext(
   const { evidenceRefs: _refs, ...prepared } = briefing.prepared ?? {
     evidenceRefs: [],
   };
+  const {
+    request,
+    candidatePreferences,
+    profile: _profile,
+    roleIds: _roleIds,
+    ...employer
+  } = briefing.context;
   return {
     kind: "behavioural-briefing-pack",
     title: briefing.title,
-    interview: briefing.context,
-    matrixRoles: roles.map((role, index) => ({
-      roleId: `/roles/${index}`,
-      company: role.company,
-      title: role.title,
-      ...(role.period ? { period: role.period } : {}),
-    })),
-    expectedQuestions: briefing.expected ?? [],
-    answers: briefing.questions.map((question) => ({
-      id: question.id,
-      question: question.question,
-      category: question.category,
-      answerMarkdown: question.answerMarkdown,
-      talkingPoints: question.talkingPoints,
-      accepted: Boolean(question.accepted),
-      gaps: question.gaps,
-      evidence: question.evidenceRefs.map(({ pointer, quote }) => ({
-        pointer,
-        quote,
+    employer,
+    you: {
+      ...(request ? { request } : {}),
+      ...(candidatePreferences ? { candidatePreferences } : {}),
+      matrixRoles: roles.map((role, index) => ({
+        roleId: `/roles/${index}`,
+        company: role.company,
+        title: role.title,
+        ...(role.period ? { period: role.period } : {}),
       })),
-    })),
+      expectedQuestions: briefing.expected ?? [],
+      answers: briefing.questions.map((question) => ({
+        id: question.id,
+        question: question.question,
+        category: question.category,
+        answerMarkdown: question.answerMarkdown,
+        talkingPoints: question.talkingPoints,
+        accepted: Boolean(question.accepted),
+        gaps: question.gaps,
+        evidence: question.evidenceRefs.map(({ pointer, quote }) => ({
+          pointer,
+          quote,
+        })),
+      })),
+    },
     preparedBriefing: briefing.prepared ? prepared : null,
   };
 }

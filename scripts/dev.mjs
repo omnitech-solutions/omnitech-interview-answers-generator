@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   defaultLocalModelEnvironment,
   ensureLmStudioContext,
@@ -35,6 +36,29 @@ if (localEnvironment.LM_STUDIO_MODEL && !localEnvironment.AI_MODEL) {
     localEnvironment.ASSISTANT_CONTEXT_TOKENS = String(contextTokens);
 }
 
+// The on-device (WebGPU) model: served from a packed model directory and
+// pinned by its manifest digest. Defaults to the sibling omnitech-on-device-llm
+// checkout's packed model; without one the on-device model is not offered.
+{
+  const directory =
+    localEnvironment.ON_DEVICE_MODEL_DIR ??
+    new URL(
+      "../../omnitech-on-device-llm/.cache/app-assets/model",
+      import.meta.url,
+    ).pathname;
+  try {
+    const pin = readFileSync(join(directory, "manifest.sha256"), "utf8").split(
+      /\s+/,
+    )[0];
+    if (/^[a-f0-9]{64}$/.test(pin ?? "")) {
+      localEnvironment.ON_DEVICE_MODEL_DIR = directory;
+      localEnvironment.NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256 ??= pin;
+    }
+  } catch {
+    // No packed model: the picker simply leaves the on-device model out.
+  }
+}
+
 for (const command of ["db:migrate", "db:bootstrap"]) {
   const setup = spawnSync(
     "pnpm",
@@ -57,12 +81,17 @@ for (const product of [
   if (build.status !== 0) process.exit(build.status ?? 1);
 }
 
+// The products rebuild their dist on save, so the web app reloads them.
 const child = spawn(
   "pnpm",
   [
     "--parallel",
     "--filter",
     "@omnitech/interview-web",
+    "--filter",
+    "@omnitech/product-interview",
+    "--filter",
+    "@omnitech/product-presentation",
     "--filter",
     "@omnitech/terminal-gateway",
     "--filter",

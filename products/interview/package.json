@@ -24,6 +24,7 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "dev": "tsc -b --watch --preserveWatchOutput",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",

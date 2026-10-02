@@ -678,11 +678,12 @@
   font-weight: 500;
   cursor: pointer;
 }
-.bp-accept {
+/* Scoped under .bp to outrank the frame's button color reset. */
+.bp .bp-accept {
   background: var(--text);
   color: var(--app);
 }
-.bp-accepted {
+.bp .bp-accepted {
   background: var(--green-soft);
   color: var(--green);
 }

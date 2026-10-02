@@ -146,6 +146,8 @@ type Sent = {
 };
 let calls: { method: string; path: string; body?: Sent }[];
 let failAsk: string | null;
+// When set, a write from an older revision is refused, as the server does.
+let strictRevisions = false;
 const envelope = () => ({
   origin: {
     workspaceId: "briefings",
@@ -160,6 +162,7 @@ const envelope = () => ({
 function installServer() {
   calls = [];
   failAsk = null;
+  strictRevisions = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -229,6 +232,11 @@ function installServer() {
           provenance: null,
         });
       if (method === "PUT") {
+        if (strictRevisions && body.expectedRevision !== revision)
+          return Response.json(
+            { error: { code: "revision-conflict" } },
+            { status: 409 },
+          );
         pack = body.briefing;
         revision += 1;
         return Response.json(envelope());
@@ -510,6 +518,38 @@ describe("an open pack", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save pack" }));
     expect(await screen.findByRole("button", { name: "Saved" })).toBeDisabled();
+  });
+
+  it("reloads and retries a write when another tab moved the pack on", async () => {
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context,
+      expected: ["Tell me about yourself."],
+      questions: [answer("Tell me about yourself.", "q1")],
+    };
+    revision = 4;
+    strictRevisions = true;
+    render(
+      <BehaviouralPack client={client} artifactId="prep-1" {...handlers()} />,
+    );
+    const accept = await screen.findByRole("button", { name: "Accept" });
+    // Another tab answers a new question meanwhile.
+    pack = {
+      ...pack,
+      expected: [...pack.expected!, "Why Northwind?"],
+      questions: [...pack.questions, answer("Why Northwind?", "q2")],
+    };
+    revision = 6;
+    fireEvent.click(accept);
+    await waitFor(() =>
+      expect(screen.getByText("1 / 2 accepted")).toBeVisible(),
+    );
+    const puts = calls.filter((call) => call.method === "PUT");
+    expect(puts.map((call) => call.body!.expectedRevision)).toEqual([4, 6]);
+    expect(pack.questions.map((item) => item.id)).toEqual(["q1", "q2"]);
+    expect(pack.questions[0]!.accepted).toBe(true);
+    expect(screen.queryByText(/couldn’t be saved/)).toBeNull();
   });
 
   it("edits, practises and reviews answers, and edits the setup in place", async () => {

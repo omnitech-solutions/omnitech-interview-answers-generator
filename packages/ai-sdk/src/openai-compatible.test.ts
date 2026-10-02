@@ -130,10 +130,11 @@ describe("createOpenAiCompatibleProvider", () => {
   });
 
   it("says when the provider does not answer in time", async () => {
-    const p = createOpenAiCompatibleProvider(options);
+    // Stub first: the provider's client keeps the fetch it is created with.
     vi.stubGlobal("fetch", async () => {
       throw new DOMException("timed out", "TimeoutError");
     });
+    const p = createOpenAiCompatibleProvider(options);
     await expect(p.generateText({ prompt: "Q" })).rejects.toThrow(
       /failed: no reply within \d+ s\.$/,
     );

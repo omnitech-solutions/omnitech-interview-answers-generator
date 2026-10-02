@@ -23,6 +23,7 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "dev": "tsc -b --watch --preserveWatchOutput",
     "import": "node dist/import/cli.js",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",

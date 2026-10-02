@@ -14,6 +14,8 @@ const match = (values: unknown, terms: readonly string[]) =>
     ),
   );
 
+// [DOMAIN] Every role is a source: relevant roles come first so the model
+// reads them first, and the rest keep their matrix order.
 export function selectCandidateFragments(
   matrix: CandidateMatrix,
   query: string,
@@ -81,7 +83,6 @@ export function selectCandidateFragments(
         index,
       };
     })
-    .filter((item) => item.score.some(Boolean))
     .sort((a, b) => {
       for (let part = 0; part < a.score.length; part++) {
         const difference = (b.score[part] ?? 0) - (a.score[part] ?? 0);
@@ -89,6 +90,5 @@ export function selectCandidateFragments(
       }
       return a.index - b.index;
     })
-    .slice(0, 4)
     .map(({ pointer, role }) => ({ pointer, role }));
 }

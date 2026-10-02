@@ -149,10 +149,11 @@ export function interviewAssistantBudget(baseUrl?: string) {
     baseUrl !== undefined &&
     /^(localhost|127\.0\.0\.1)$/.test(new URL(baseUrl).hostname);
   const contextTokens = Number(
-    process.env["ASSISTANT_CONTEXT_TOKENS"] ?? (local ? 32_768 : 131_072),
+    process.env["ASSISTANT_CONTEXT_TOKENS"] ?? (local ? 65_536 : 131_072),
   );
   const outputTokens = Math.min(8192, Math.floor(contextTokens / 4));
   return {
+    contextTokens,
     outputTokens,
     contextCharacters: local
       ? Math.floor((contextTokens - outputTokens) * 2.5)

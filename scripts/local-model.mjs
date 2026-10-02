@@ -69,7 +69,7 @@ export const LOCAL_TIMEOUT_MS = 600_000;
  * override the defaults. Returns the window the assistant can rely on.
  */
 export async function ensureLmStudioContext(id, env = process.env) {
-  const wanted = Number(env.ASSISTANT_CONTEXT_TOKENS ?? 32768);
+  const wanted = Number(env.ASSISTANT_CONTEXT_TOKENS ?? 65536);
   const ttl = String(env.ASSISTANT_MODEL_TTL_SECONDS ?? 14400);
   const lms = resolve(env.HOME ?? "", ".lmstudio/bin/lms");
   try {

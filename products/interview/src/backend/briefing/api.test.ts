@@ -640,6 +640,74 @@ it("flags a shortened qualified metric that does not appear in the cited field",
   );
 });
 
+it("accepts a metric of a cited role without quoting the metric leaf", async () => {
+  const metricMatrix = {
+    candidate: {},
+    roles: [
+      {
+        company: "Metric Co",
+        title: "Engineer",
+        responsibilities: ["Led the platform modernization"],
+        metrics: [{ label: "security incidents", value: "40%" }],
+      },
+      {
+        company: "Other Co",
+        title: "Engineer",
+        metrics: [{ label: "cost", value: "75%" }],
+      },
+    ],
+  };
+  await request("/api/interview/briefing/profiles", "POST", {
+    name: "Metrics",
+    profileId: "role-metrics",
+    matrix: metricMatrix,
+  });
+  const metricContext = {
+    ...context,
+    profile: { id: "role-metrics", revision: 1 },
+  };
+  await request("/api/interview/briefing/artifacts/role-metric", "PUT", {
+    expectedRevision: 0,
+    briefing: { ...briefing, context: metricContext },
+  });
+  generated = {
+    questions: [
+      {
+        id: "metric",
+        answerMarkdown:
+          "I led the platform modernization, cutting security incidents by 40% and costs by 75%.",
+        talkingPoints: ["a", "b", "c"],
+        citations: [
+          {
+            field: "answerMarkdown",
+            text: "led the platform modernization",
+            sourceKind: "candidate",
+            pointer: "/roles/0/responsibilities/0",
+            quote: "Led the platform modernization",
+          },
+        ],
+        gaps: [],
+      },
+    ],
+  };
+  const response = await request(
+    "/api/interview/briefing/artifacts/role-metric/proposals",
+    "POST",
+    {
+      expectedRevision: 0,
+      context: metricContext,
+      questions: [
+        { id: "metric", question: "What impact?", category: "delivery" },
+      ],
+    },
+  );
+  expect(response.status).toBe(201);
+  const [metric] = (await response.json()).briefing.questions;
+  expect(metric.gaps).toEqual([
+    "States a figure your sources don’t support: 75%. Check it before using.",
+  ]);
+});
+
 it("adds a gap when the answer has no source and refuses stale one-card refinements", async () => {
   generated = {
     questions: [
