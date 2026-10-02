@@ -392,6 +392,26 @@ export function Library({
     );
   }
 
+  const searching = Boolean(
+    query || types.length || collections.length || tags.length || officialOnly,
+  );
+  function clearSearch() {
+    setQuery("");
+    setTypes([]);
+    setCollections([]);
+    setTags([]);
+    setOfficialOnly(false);
+  }
+  // Back from an article to the results (or the landing page).
+  function closeArticle() {
+    setCurrentSlug(undefined);
+    window.history.pushState(
+      {},
+      "",
+      `${basePath}${filterQuery ? `?${filterQuery}` : ""}`,
+    );
+  }
+
   function openHit(hit: LibrarySearchHit) {
     const href = hitHref(hit, filterQuery, basePath);
     setPendingSlug(hit.slug);
@@ -542,16 +562,16 @@ export function Library({
               ))}
             </nav>
 
-            <div className="library-workspace">
+            <div
+              className={`library-workspace${embedded && !item ? " no-article" : ""}`}
+            >
               <aside
                 className={`library-filters${filtersOpen ? " open" : ""}`}
                 aria-label="Knowledge index"
               >
-                {query ||
-                types.length ||
-                collections.length ||
-                tags.length ||
-                officialOnly ? (
+                {/* Inside the studio the filters stay put and results fill
+                    the main column; standalone, results replace the filters. */}
+                {searching && !embedded ? (
                   <>
                     <div className="library-index-toolbar">
                       <strong>Search index</strong>
@@ -581,6 +601,15 @@ export function Library({
                   </>
                 ) : (
                   <>
+                    {embedded && searching ? (
+                      <button
+                        type="button"
+                        className="library-clear-filters"
+                        onClick={clearSearch}
+                      >
+                        Clear search and filters
+                      </button>
+                    ) : null}
                     <FilterGroup label="Content type">
                       {(
                         Object.keys(contentTypeLabels) as LibraryContentType[]
@@ -643,10 +672,31 @@ export function Library({
 
               <section className="library-main">
                 {item ? (
-                  <LibraryArticle
-                    item={item}
+                  <>
+                    {embedded ? (
+                      <button
+                        type="button"
+                        className="library-back"
+                        onClick={closeArticle}
+                      >
+                        ← {searching ? "Back to results" : "Back to Knowledge"}
+                      </button>
+                    ) : null}
+                    <LibraryArticle
+                      item={item}
+                      filters={filterQuery}
+                      {...adjacentItems}
+                    />
+                  </>
+                ) : embedded && searching ? (
+                  <ResultCards
+                    loading={loading}
+                    query={query}
+                    response={result}
                     filters={filterQuery}
-                    {...adjacentItems}
+                    pendingSlug={pendingSlug}
+                    onHitClick={onHitClick}
+                    onClear={clearSearch}
                   />
                 ) : (
                   <LibraryLanding
@@ -656,28 +706,30 @@ export function Library({
                 )}
               </section>
 
-              <aside
-                className={`library-toc${tocOpen ? " open" : ""}`}
-                aria-label="On this page"
-              >
-                <strong>On this page</strong>
-                {item ? (
-                  <nav>
-                    {headings.map((heading) => (
-                      <a
-                        key={heading.id}
-                        className={`depth-${heading.depth}`}
-                        href={`#${heading.id}`}
-                        onClick={() => setTocOpen(false)}
-                      >
-                        {heading.text}
-                      </a>
-                    ))}
-                  </nav>
-                ) : (
-                  <p>Open a reference to see its sections.</p>
-                )}
-              </aside>
+              {embedded && !item ? null : (
+                <aside
+                  className={`library-toc${tocOpen ? " open" : ""}`}
+                  aria-label="On this page"
+                >
+                  <strong>On this page</strong>
+                  {item ? (
+                    <nav>
+                      {headings.map((heading) => (
+                        <a
+                          key={heading.id}
+                          className={`depth-${heading.depth}`}
+                          href={`#${heading.id}`}
+                          onClick={() => setTocOpen(false)}
+                        >
+                          {heading.text}
+                        </a>
+                      ))}
+                    </nav>
+                  ) : (
+                    <p>Open a reference to see its sections.</p>
+                  )}
+                </aside>
+              )}
             </div>
 
             {item ? (
@@ -788,6 +840,81 @@ function SearchResults({
           <p>Try a shorter technical term or remove a filter.</p>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// Search results as the main column's cards (inside the studio).
+function ResultCards({
+  loading,
+  query,
+  response,
+  filters,
+  pendingSlug,
+  onHitClick,
+  onClear,
+}: {
+  loading: boolean;
+  query: string;
+  response?: LibrarySearchResponse | undefined;
+  filters: string;
+  pendingSlug?: string | undefined;
+  onHitClick: (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    hit: LibrarySearchHit,
+  ) => void;
+  onClear: () => void;
+}) {
+  const basePath = useContext(LibraryBasePath);
+  const hits = response?.hits ?? [];
+  if (!loading && response && !hits.length)
+    return (
+      <div className="library-nothing">
+        <strong>
+          {query.trim()
+            ? `Nothing matches “${query.trim()}”`
+            : "Nothing matches these filters"}
+        </strong>
+        <p>Try fewer words, or clear the filters.</p>
+        <button type="button" onClick={onClear}>
+          Clear search
+        </button>
+      </div>
+    );
+  return (
+    <div className="library-cards" id="library-results">
+      <div className="library-cards-count" aria-live="polite">
+        {loading && !response
+          ? "Searching…"
+          : `${hits.length} ${hits.length === 1 ? "result" : "results"}`}
+      </div>
+      {hits.map((hit) => (
+        <a
+          key={`${hit.itemId}:${hit.anchor}`}
+          className={`library-card${pendingSlug === hit.slug ? " loading" : ""}`}
+          href={hitHref(hit, filters, basePath)}
+          onClick={(event) => onHitClick(event, hit)}
+        >
+          <span className="library-card-crumb">
+            {[
+              hit.collection.replaceAll("-", " "),
+              ...hit.headingPath.filter((heading) => heading !== hit.title),
+            ].join(" › ")}
+          </span>
+          <span className="library-card-head">
+            <strong>{hit.title}</strong>
+            {hit.official ? (
+              <span className="library-card-official">Official</span>
+            ) : null}
+            <span className="library-card-type">
+              {contentTypeLabels[hit.contentType]}
+            </span>
+          </span>
+          <span className="library-card-excerpt">
+            {highlightedExcerpt(hit.excerpt, query)}
+          </span>
+        </a>
+      ))}
     </div>
   );
 }

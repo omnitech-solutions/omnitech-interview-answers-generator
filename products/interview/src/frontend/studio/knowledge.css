@@ -1,0 +1,172 @@
+/* Knowledge inside the studio (redesign sub-project 5). The Library keeps its
+   own styles standalone; these apply only to its embedded layout. */
+
+.studio-view .library-shell {
+  min-height: 100%;
+  background: var(--app);
+}
+.studio-view .library-header {
+  display: flex;
+  position: static;
+  min-height: 0;
+  padding: 24px 32px 0;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+}
+.studio-view .library-search-wrap {
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.studio-view .library-search-wrap input {
+  font-size: 15px;
+}
+.studio-view .library-search-wrap kbd {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0 5px;
+  font-size: 11.5px;
+  color: var(--faint);
+  background: none;
+}
+.studio-view .library-technology-filters {
+  padding: 14px 32px 0;
+  border: 0;
+  background: none;
+}
+.studio-view .library-technology-filters button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+}
+.studio-view .library-workspace {
+  padding: 18px 32px 48px;
+  gap: 28px;
+}
+.studio-view .library-workspace.no-article {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+.studio-view .library-filters {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.library-clear-filters {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 0 8px;
+}
+.library-back {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 0 12px;
+}
+.library-back:hover {
+  color: var(--text);
+}
+
+/* Result cards */
+.library-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.library-cards-count {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.library-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+.library-card:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+.library-card.loading {
+  opacity: 0.7;
+}
+.library-card-crumb {
+  font-size: 12px;
+  color: var(--faint);
+  text-transform: capitalize;
+}
+.library-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.library-card-head strong {
+  flex: 1;
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.library-card-official {
+  font-size: 11.5px;
+  color: var(--green);
+}
+.library-card-type {
+  font-size: 11.5px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--subtle);
+  color: var(--muted);
+}
+.library-card-excerpt {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.library-card-excerpt mark {
+  background: var(--amber-soft);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.library-nothing {
+  padding: 40px 20px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.library-nothing p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.library-nothing button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 4px;
+}

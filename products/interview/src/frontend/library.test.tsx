@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -496,6 +497,86 @@ describe("Library", () => {
     await user.click(screen.getByRole("button", { name: "Delete draft" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+});
+
+describe("Library inside the studio", () => {
+  const base = "/t/local/p/interview/knowledge";
+  let hits: unknown[] = [hit];
+  beforeEach(() => {
+    hits = [hit];
+    window.history.replaceState({}, "", `${base}?q=state`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/facets")) return response(facets);
+        if (url.includes("/items/react-state")) return response(article);
+        if (url.includes("/search"))
+          return response({ ...searchResponse, hits, total: hits.length });
+        return response({});
+      }),
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the filters beside result cards and leaves the shell its chrome", async () => {
+    render(<Library chrome="embedded" basePath={base} />);
+    const card = await screen.findByRole("link", { name: /React state/ });
+    expect(card).toHaveTextContent("react › Ownership");
+    expect(card).toHaveTextContent("Official");
+    expect(card).toHaveTextContent("Official Reference");
+    expect(screen.getByText("1 result")).toBeVisible();
+    expect(screen.getByText("Content type")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Add item/ })).toBeNull();
+    // ⌘K belongs to the studio palette; "/" still focuses search.
+    const search = screen.getByRole("searchbox", { name: "Search knowledge" });
+    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+    expect(search).not.toHaveFocus();
+    fireEvent.keyDown(document.body, { key: "/" });
+    expect(search).toHaveFocus();
+  });
+
+  it("opens an article under the studio path and goes back to the results", async () => {
+    render(<Library chrome="embedded" basePath={base} />);
+    fireEvent.click(await screen.findByRole("link", { name: /React state/ }));
+    await screen.findByRole("heading", { level: 1, name: "React state" });
+    expect(window.location.pathname).toBe(`${base}/react-state`);
+    fireEvent.click(screen.getByRole("button", { name: "← Back to results" }));
+    expect(window.location.pathname).toBe(base);
+    expect(window.location.search).toContain("q=state");
+    expect(
+      await screen.findByRole("link", { name: /React state/ }),
+    ).toBeVisible();
+  });
+
+  it("says when nothing matches and clears the search", async () => {
+    hits = [];
+    render(<Library chrome="embedded" basePath={base} />);
+    expect(await screen.findByText("Nothing matches “state”")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("searchbox", { name: "Search knowledge" }),
+      ).toHaveValue(""),
+    );
+    expect(screen.queryByText(/Nothing matches/)).toBeNull();
+  });
+
+  it("clears filters from the sidebar", async () => {
+    render(<Library chrome="embedded" basePath={base} />);
+    await screen.findByRole("link", { name: /React state/ });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear search and filters" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("searchbox", { name: "Search knowledge" }),
+      ).toHaveValue(""),
     );
   });
 });
