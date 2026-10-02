@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { InterviewPreparation } from "../../interview-preparation";
 import { Library } from "../../library";
 import { MockInterview } from "../../mock-interview";
 import {
   type WorkspaceAssistant,
   WorkspaceView,
 } from "../workspace/workspace-view";
+import { BriefingsView } from "../briefings/briefings-view";
 import { HomeView } from "../home/home-view";
 import type { IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
@@ -59,16 +59,14 @@ export const views: readonly ViewDefinition[] = [
     icon: "lightbulb",
     goKey: "B",
     assistantContext: "briefing",
-    render: ({ route, onDirtyChange }) => {
-      const artifactId = route.rest[0] ?? "preparation";
-      return (
-        <InterviewPreparation
-          key={artifactId}
-          artifactId={artifactId}
-          onDirtyChange={onDirtyChange}
-        />
-      );
-    },
+    render: ({ route, actions, lists, onDirtyChange }) => (
+      <BriefingsView
+        rest={route.rest}
+        actions={actions}
+        lists={lists}
+        onDirtyChange={onDirtyChange}
+      />
+    ),
   },
   {
     id: "knowledge",

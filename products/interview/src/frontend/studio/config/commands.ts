@@ -6,7 +6,10 @@ import { views } from "./views";
 export type StudioActions = {
   go(view: ViewId): void;
   openArtifact(artifactId: string): void;
+  // A behavioural preparation pack.
   openBriefing(artifactId: string): void;
+  // A spoken brief on a concept or system design.
+  openBrief(briefId: string): void;
   newQuestion(): void;
   runTests(): void;
   toggleTheme(): void;

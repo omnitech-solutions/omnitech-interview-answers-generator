@@ -268,17 +268,17 @@ describe("Studio shell", () => {
     await renderStudio();
     key("g");
     key("b");
-    expect(screen.getByText("Preparation preparation")).toBeVisible();
+    expect(screen.getByText("What do you need to explain?")).toBeVisible();
     const field = document.createElement("textarea");
     document.body.append(field);
     fireEvent.keyDown(field, { key: "g" });
     fireEvent.keyDown(field, { key: "h" });
-    expect(screen.getByText("Preparation preparation")).toBeVisible();
+    expect(screen.getByText("What do you need to explain?")).toBeVisible();
     field.remove();
     key("g");
     key("x");
     key("h");
-    expect(screen.getByText("Preparation preparation")).toBeVisible();
+    expect(screen.getByText("What do you need to explain?")).toBeVisible();
   });
 
   it("starts a new question with N", async () => {
@@ -359,7 +359,7 @@ describe("Studio shell", () => {
   });
 
   it("asks before leaving unsaved interview preparation", async () => {
-    await renderStudio("/t/local/p/interview/briefings");
+    await renderStudio("/t/local/p/interview/briefings/preparation");
     fireEvent.click(screen.getByRole("button", { name: "Edit preparation" }));
     const confirm = vi
       .spyOn(window, "confirm")

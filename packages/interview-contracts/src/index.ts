@@ -1,4 +1,17 @@
 export {
+  type Brief,
+  type BriefKind,
+  type BriefRequest,
+  type BriefSummary,
+  briefKindSchema,
+  briefListResponseSchema,
+  briefRequestSchema,
+  briefSchema,
+  briefSummarySchema,
+  type ConceptBrief,
+  conceptBriefSchema,
+} from "./brief.js";
+export {
   type InterviewClaim,
   type InterviewProvenance,
   interviewClaimSchema,

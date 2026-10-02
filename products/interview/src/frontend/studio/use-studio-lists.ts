@@ -1,4 +1,8 @@
-import { createBriefingClient } from "@omnitech/interview-api-client";
+import {
+  createBriefingClient,
+  createBriefsClient,
+} from "@omnitech/interview-api-client";
+import type { BriefSummary as ConceptBriefSummary } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type QuestionSummary = {
@@ -18,7 +22,10 @@ export type QuestionSummary = {
 export type BriefingSummary = { id: string; title: string; updatedAt: string };
 export type StudioLists = {
   questions: readonly QuestionSummary[];
+  // Behavioural preparation packs.
   briefings: readonly BriefingSummary[];
+  // Spoken briefs on concepts and system design.
+  briefs: readonly ConceptBriefSummary[];
   status: "loading" | "ready" | "error";
   refresh(): void;
 };
@@ -40,12 +47,14 @@ export function useStudioLists({
 }): StudioLists {
   const [questions, setQuestions] = useState<readonly QuestionSummary[]>([]);
   const [briefings, setBriefings] = useState<readonly BriefingSummary[]>([]);
+  const [briefs, setBriefs] = useState<readonly ConceptBriefSummary[]>([]);
   const [status, setStatus] = useState<StudioLists["status"]>("loading");
   const inFlight = useRef<AbortController | null>(null);
   const briefingClient = useMemo(
     () => createBriefingClient({ baseUrl: "", tenant }),
     [tenant],
   );
+  const briefsClient = useMemo(() => createBriefsClient({ baseUrl: "" }), []);
 
   const refresh = useCallback(() => {
     inFlight.current?.abort();
@@ -61,23 +70,25 @@ export function useStudioLists({
       briefingClient
         .listArtifacts()
         .catch(() => ({ artifacts: [] as BriefingSummary[] })),
+      briefsClient.list().catch(() => [] as ConceptBriefSummary[]),
     ]).then(
-      ([drafts, saved]) => {
+      ([drafts, saved, spoken]) => {
         if (controller.signal.aborted) return;
         setQuestions(drafts.filter((item) => item.kind === "coding"));
         setBriefings(saved.artifacts);
+        setBriefs(spoken);
         setStatus("ready");
       },
       () => {
         if (!controller.signal.aborted) setStatus("error");
       },
     );
-  }, [workspaceId, briefingClient]);
+  }, [workspaceId, briefingClient, briefsClient]);
 
   useEffect(() => {
     refresh();
     return () => inFlight.current?.abort();
   }, [refresh]);
 
-  return { questions, briefings, status, refresh };
+  return { questions, briefings, briefs, status, refresh };
 }

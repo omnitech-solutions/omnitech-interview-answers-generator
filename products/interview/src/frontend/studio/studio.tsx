@@ -229,6 +229,7 @@ function StudioFrame({
     go: (next) => leave({ view: next }),
     openArtifact: (artifact) => leave({ view: "work", artifact }),
     openBriefing: (artifact) => leave({ view: "briefings", rest: [artifact] }),
+    openBrief: (id) => leave({ view: "briefings", rest: ["brief", id] }),
     newQuestion: () =>
       leave({ view: "work", artifact: `q-${Date.now().toString(36)}` }),
     runTests,
@@ -260,6 +261,13 @@ function StudioFrame({
       label: question.title,
       icon: "code" as const,
       run: () => actions.openArtifact(question.artifactId),
+    })),
+    ...lists.briefs.map((brief) => ({
+      id: `brief-${brief.id}`,
+      group: "Briefings",
+      label: brief.title,
+      icon: "lightbulb" as const,
+      run: () => actions.openBrief(brief.id),
     })),
     ...lists.briefings.map((briefing) => ({
       id: `briefing-${briefing.id}`,

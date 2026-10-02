@@ -44,6 +44,7 @@ describe("command registry", () => {
       go: vi.fn(),
       openArtifact: vi.fn(),
       openBriefing: vi.fn(),
+      openBrief: vi.fn(),
       newQuestion: vi.fn(),
       runTests: vi.fn(),
       toggleTheme: vi.fn(),

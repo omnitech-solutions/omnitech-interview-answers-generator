@@ -36,6 +36,7 @@ import {
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createBriefingApi,
+  createBriefsApi,
   createPlanApi,
   loadLocalDefaultProfile,
   createInterviewApi,
@@ -104,6 +105,7 @@ for (const file of [
   "0006_interview_briefings.sql",
   "0007_assistant_reverts.sql",
   "0008_interview_plans.sql",
+  "0009_concept_briefs.sql",
 ])
   await admin.query(
     await readFile(
@@ -116,7 +118,7 @@ for (const file of [
   );
 await admin.query(assistantGrants("fixture_member"));
 await admin.query(
-  "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member; GRANT DELETE ON interview.interview_plan_items TO fixture_member",
+  "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member; GRANT DELETE ON interview.interview_plan_items, interview.concept_briefs TO fixture_member",
 );
 const queue = new PgBossRunQueue({
   ...config,
@@ -440,6 +442,34 @@ const planApi = createPlanApi({
 });
 app.all("/api/interview/plan", (context) => planApi.fetch(context.req.raw));
 app.all("/api/interview/plan/*", (context) => planApi.fetch(context.req.raw));
+// Spoken briefs on concepts and system design, generated like briefing packs.
+const generateStructured = async (
+  input: { system: string; prompt: string; schema?: Record<string, unknown> },
+  current: { tenantId: string; actorId: string; productId: string },
+) => {
+  if (fixture) throw new Error("Brief generation requires a configured model.");
+  const result = await gateway.execute({
+    context: {
+      tenantId: current.tenantId,
+      userId: current.actorId,
+      productId: current.productId,
+      permissions: ["interview.generate"],
+    },
+    profileId: "local-interview",
+    task: { type: "structured-generation", ...input },
+  });
+  return result.result;
+};
+const briefsApi = createBriefsApi({
+  database,
+  allowedOrigins: ["http://127.0.0.1:5175"],
+  resolveScope: async () => ((await readable(scope)) ? scope : null),
+  generate: generateStructured,
+});
+app.all("/api/interview/briefs", (context) => briefsApi.fetch(context.req.raw));
+app.all("/api/interview/briefs/*", (context) =>
+  briefsApi.fetch(context.req.raw),
+);
 const briefingApi = createBriefingApi({
   database,
   loadDefaultProfile: () => loadLocalDefaultProfile(),

@@ -3,8 +3,8 @@ import type {
   StageId,
   TestResult,
 } from "@omnitech/interview-contracts";
-import { useEffect, useState } from "react";
 import { MarkdownContent } from "../../markdown-content";
+import { PracticeTimer } from "../practice-timer";
 import { Icon, type IconName } from "../icon";
 import { type CoverageState, edgeCoverage } from "./coverage";
 import { InlineText } from "./inline-text";
@@ -24,7 +24,6 @@ const COVERAGE: Record<
     label: "not found in tests",
   },
 };
-const PRACTICE_SECONDS = 120;
 
 export type StagePaneProps = {
   stage: StageId;
@@ -318,7 +317,7 @@ function ExplainStage({ guide }: { guide: AnswerGuide }) {
   return (
     <>
       <SectionLabel>Two-minute explanation</SectionLabel>
-      <PracticeTimer />
+      <PracticeTimer seconds={120} />
       {guide.explain.map((section) => (
         <div key={section.heading} className="ws-explain">
           <div className="ws-block-title">{section.heading}</div>
@@ -338,54 +337,5 @@ function ExplainStage({ guide }: { guide: AnswerGuide }) {
         </ul>
       </div>
     </>
-  );
-}
-
-// Say it out loud against the clock.
-function PracticeTimer() {
-  const [running, setRunning] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(
-      () => setElapsed((seconds) => Math.min(PRACTICE_SECONDS, seconds + 1)),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [running]);
-  useEffect(() => {
-    if (elapsed >= PRACTICE_SECONDS) setRunning(false);
-  }, [elapsed]);
-  const left = PRACTICE_SECONDS - elapsed;
-  const time = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-  return (
-    <div className="ws-practice">
-      <button
-        type="button"
-        className={`ws-practice-button${running ? " running" : ""}`}
-        aria-label={running ? "Pause practice" : "Practise it out loud"}
-        onClick={() => {
-          if (!running && elapsed >= PRACTICE_SECONDS) setElapsed(0);
-          setRunning(!running);
-        }}
-      >
-        <Icon name={running ? "pause" : "mic"} filled />
-      </button>
-      <div className="ws-grow">
-        <div>
-          {running
-            ? "Practising — say it out loud"
-            : elapsed >= PRACTICE_SECONDS
-              ? "Time — how did it go?"
-              : "Practise it out loud"}
-        </div>
-        <div className="ws-meter">
-          <div style={{ width: `${(elapsed / PRACTICE_SECONDS) * 100}%` }} />
-        </div>
-      </div>
-      <span className="ws-big-mono" aria-label="Time left">
-        {time}
-      </span>
-    </div>
   );
 }

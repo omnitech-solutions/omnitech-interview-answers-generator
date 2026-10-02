@@ -15,6 +15,11 @@ import type {
 
 export { createBriefingClient } from "./briefing.js";
 export {
+  type BriefsClient,
+  type BriefsClientOptions,
+  createBriefsClient,
+} from "./briefs.js";
+export {
   createPlanClient,
   type PlanClient,
   type PlanClientOptions,

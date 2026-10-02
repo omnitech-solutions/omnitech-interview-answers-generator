@@ -113,6 +113,7 @@ const actions: StudioActions = {
   go: vi.fn(),
   openArtifact: vi.fn(),
   openBriefing: vi.fn(),
+  openBrief: vi.fn(),
   newQuestion: vi.fn(),
   runTests: vi.fn(),
   toggleTheme: vi.fn(),
@@ -140,6 +141,7 @@ const lists: StudioLists = {
     },
   ],
   briefings: [{ id: "pack-1", title: "Recruiter screen", updatedAt: "" }],
+  briefs: [],
 };
 
 beforeEach(() => {

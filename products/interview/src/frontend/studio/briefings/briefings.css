@@ -1,0 +1,207 @@
+/* Briefings (redesign sub-project 4). Uses the studio tokens. */
+
+.briefings {
+  height: 100%;
+  display: flex;
+  min-height: 0;
+}
+.briefings-list {
+  width: 280px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.briefings-list-head {
+  height: 48px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 18px;
+  border-bottom: 1px solid var(--border-soft);
+  font-weight: 600;
+}
+.briefings-list-head span {
+  flex: 1;
+}
+.briefings-items {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+.briefings-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.briefings-item:hover,
+.briefings-item[aria-current="page"] {
+  background: var(--hover);
+}
+.briefings-item-title {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.briefings-item-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.briefings-empty {
+  padding: 10px 12px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.briefings-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+/* New briefing */
+.brief-kinds {
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--subtle);
+  gap: 2px;
+  align-self: flex-start;
+}
+.brief-kinds button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+.brief-kinds button[aria-checked="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.brief-behavioural p {
+  padding: 4px 6px;
+}
+
+/* A brief */
+.brief {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.brief-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.brief-headline {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+.brief-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.brief-points li {
+  display: flex;
+  gap: 12px;
+  line-height: 1.55;
+}
+.brief-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.brief-muted {
+  color: var(--muted);
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.brief-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.brief-box {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.brief-box-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.brief-followup {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.brief-followup button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.brief-followup button span {
+  flex: 1;
+}
+.brief-followup p {
+  padding: 0 14px 12px;
+}
+.brief code {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--subtle);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+@media (max-width: 900px) {
+  .briefings-list {
+    width: 220px;
+  }
+}
