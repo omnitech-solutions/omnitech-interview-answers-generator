@@ -319,4 +319,81 @@ describe("createBriefingClient", () => {
     });
     await expect(client.listProfiles()).rejects.toThrow();
   });
+  it("asks one question and prepares the briefing, surfacing the server's message", async () => {
+    const briefing = {
+      kind: "non-technical-briefing" as const,
+      title: "Acme · Engineer",
+      context: {
+        company: "Acme",
+        role: "Engineer",
+        stage: "recruiter" as const,
+        profile: { id: "p", revision: 1 },
+      },
+      questions: [],
+    };
+    const artifact = {
+      origin: {
+        workspaceId: "briefings",
+        artifactId: "pack",
+        artifactRevision: 3,
+      },
+      value: { question: "", notes: "", answer: null, briefing },
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      provenance: null,
+    };
+    const requests: {
+      url: string;
+      method?: string | undefined;
+      body?: unknown;
+    }[] = [];
+    let fail = false;
+    const client = createBriefingClient({
+      baseUrl: "",
+      fetch: async (url, init) => {
+        requests.push({
+          url: String(url),
+          method: init?.method,
+          body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+        return fail
+          ? Response.json(
+              {
+                error: {
+                  code: "pack-full",
+                  message:
+                    "A pack holds 20 answers. Remove one to ask another.",
+                },
+              },
+              { status: 400 },
+            )
+          : Response.json(artifact);
+      },
+    });
+    await client.ask("pack", {
+      expectedRevision: 2,
+      question: "Why Acme?",
+      replaceId: "q1",
+    });
+    await client.prepare("pack", { expectedRevision: 3 });
+    expect(requests).toEqual([
+      {
+        url: "/api/interview/briefing/artifacts/pack/ask",
+        method: "POST",
+        body: { expectedRevision: 2, question: "Why Acme?", replaceId: "q1" },
+      },
+      {
+        url: "/api/interview/briefing/artifacts/pack/prepare",
+        method: "POST",
+        body: { expectedRevision: 3 },
+      },
+    ]);
+    fail = true;
+    await expect(
+      client.ask("pack", { expectedRevision: 3, question: "One more?" }),
+    ).rejects.toThrow("A pack holds 20 answers. Remove one to ask another.");
+    await expect(
+      client.ask("pack", { expectedRevision: 3, question: " " }),
+    ).rejects.toThrow();
+    expect(requests).toHaveLength(3);
+  });
 });

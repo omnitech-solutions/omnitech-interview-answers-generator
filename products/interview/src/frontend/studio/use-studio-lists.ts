@@ -20,7 +20,12 @@ export type QuestionSummary = {
     at: string;
   } | null;
 };
-export type BriefingSummary = { id: string; title: string; updatedAt: string };
+export type BriefingSummary = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  savedRevision?: number;
+};
 export type StudioLists = {
   questions: readonly QuestionSummary[];
   // Behavioural preparation packs.

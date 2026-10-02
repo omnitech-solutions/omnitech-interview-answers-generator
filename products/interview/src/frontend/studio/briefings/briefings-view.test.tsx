@@ -12,10 +12,26 @@ import { PracticeTimer } from "../practice-timer";
 import type { StudioLists } from "../use-studio-lists";
 import { BriefingsView, selectionOf } from "./briefings-view";
 
-vi.mock("../../interview-preparation", () => ({
-  InterviewPreparation: ({ artifactId }: { artifactId: string }) => (
-    <div>Preparation pack {artifactId}</div>
-  ),
+vi.mock("./behavioural/behavioural-pack", () => ({
+  BehaviouralPack: ({
+    artifactId,
+    autoDraft,
+    onCreated,
+  }: {
+    artifactId: string | null;
+    autoDraft?: boolean;
+    onCreated(id: string): void;
+  }) =>
+    artifactId ? (
+      <div>
+        Preparation pack {artifactId}
+        {autoDraft ? " (drafting)" : ""}
+      </div>
+    ) : (
+      <button type="button" onClick={() => onCreated("prep-new")}>
+        Create pack
+      </button>
+    ),
 }));
 
 const brief = {
@@ -170,15 +186,15 @@ describe("Briefings", () => {
     );
   });
 
-  it("starts a behavioural preparation pack", () => {
+  it("sets up a behavioural pack in place and opens it to draft", () => {
     view([]);
     fireEvent.click(screen.getByRole("radio", { name: "Behavioural" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Start a preparation pack" }),
-    );
-    expect(actions.openBriefing).toHaveBeenCalledWith(
-      expect.stringMatching(/^prep-/),
-    );
+    expect(
+      screen.getByText("Prepare for a screening or behavioural interview"),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Create pack" }));
+    expect(lists.refresh).toHaveBeenCalled();
+    expect(actions.go).toHaveBeenCalledWith("briefings", ["prep-new", "draft"]);
   });
 
   it("shows a brief to say out loud", async () => {
@@ -222,8 +238,16 @@ describe("Briefings", () => {
   it("reads the selection from the path", () => {
     expect(selectionOf([])).toEqual({ kind: "new" });
     expect(selectionOf(["brief", "b1"])).toEqual({ kind: "brief", id: "b1" });
-    expect(selectionOf(["brief"])).toEqual({ kind: "pack", id: "brief" });
-    expect(selectionOf(["pack-1"])).toEqual({ kind: "pack", id: "pack-1" });
+    expect(selectionOf(["brief"])).toEqual({
+      kind: "pack",
+      id: "brief",
+      draft: false,
+    });
+    expect(selectionOf(["pack-1", "draft"])).toEqual({
+      kind: "pack",
+      id: "pack-1",
+      draft: true,
+    });
   });
 });
 

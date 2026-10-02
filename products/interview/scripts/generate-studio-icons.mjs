@@ -15,6 +15,8 @@ const icons = [
   "priority_high", "record_voice_over", "refresh", "science", "search",
   "search_off", "terminal", "timer", "verified",
   "visibility", "visibility_off", "warning",
+  "arrow_back", "arrow_forward", "badge", "edit", "grid_view", "help",
+  "payments", "person", "schedule", "star", "tune", "upload_file", "work",
 ];
 // Studio names whose source file was renamed upstream. The assistant sparkle
 // (auto_awesome) is not here: icon.tsx renders the assistant package's own.

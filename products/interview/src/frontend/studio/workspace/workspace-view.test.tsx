@@ -267,19 +267,23 @@ describe("WorkspaceView: a new question", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Draft with assistant" }),
     );
-    expect(
-      await screen.findByText(/Find two numbers that add up to/),
-    ).toBeVisible();
-    expect(screen.getByText("target", { selector: "strong" })).toBeVisible();
+    // The full flow: the drafted answer's tests run and the Test stage opens.
+    // [SAFETY] Assert the end state first: the guide is unmounted when the
+    // flow moves on, so checking it mid-flow races the test run.
+    expect(await screen.findByText("1 / 2 passed · 1.2 s")).toBeVisible();
     expect(
       calls.find((call) => call.path === "/api/v1/generate")?.body,
     ).toEqual({ question: "Two sum", language: "auto" });
-    // The full flow: the drafted answer's tests run and the Test stage opens.
-    expect(await screen.findByText("1 / 2 passed · 1.2 s")).toBeVisible();
     expect(
       calls.filter((call) => call.path === `${base}/run-code`),
     ).toHaveLength(1);
     expect(step("Test")).toHaveAttribute("aria-current", "step");
+    // The drafted guide is there to go back to.
+    fireEvent.click(step("Understand"));
+    expect(
+      await screen.findByText(/Find two numbers that add up to/),
+    ).toBeVisible();
+    expect(screen.getByText("target", { selector: "strong" })).toBeVisible();
   });
 
   it("starts from an example", async () => {

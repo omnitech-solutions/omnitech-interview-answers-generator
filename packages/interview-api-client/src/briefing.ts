@@ -1,5 +1,7 @@
 import {
   briefingApplySchema,
+  briefingAskSchema,
+  briefingPrepareSchema,
   briefingArtifactListResponseSchema,
   briefingArtifactResponseSchema,
   briefingProfileImportSchema,
@@ -12,6 +14,8 @@ import {
   briefingSaveSchema,
   briefingSavedResponseSchema,
   type BriefingApply,
+  type BriefingAsk,
+  type BriefingPrepare,
   type BriefingArtifactListResponse,
   type BriefingArtifactResponse,
   type BriefingArtifactSummary as ContractArtifactSummary,
@@ -56,6 +60,10 @@ export interface BriefingClient {
     input: BriefingProposalRequest,
   ): Promise<BriefingProposalResponse>;
   apply(id: string, input: BriefingApply): Promise<BriefingArtifact>;
+  // Answer one question from the pack's matrix and material, adding it.
+  ask(id: string, input: BriefingAsk): Promise<BriefingArtifact>;
+  // Prepare or refresh the pack's full briefing sections.
+  prepare(id: string, input: BriefingPrepare): Promise<BriefingArtifact>;
   save(id: string, input: BriefingSave): Promise<SavedBriefingRevision>;
 }
 
@@ -130,6 +138,22 @@ export function createBriefingClient(
           artifactPath(id) + "/proposals",
           "POST",
           briefingProposalRequestSchema.parse(input),
+        ),
+      ),
+    ask: async (id, input) =>
+      briefingArtifactResponseSchema.parse(
+        await write(
+          artifactPath(id) + "/ask",
+          "POST",
+          briefingAskSchema.parse(input),
+        ),
+      ),
+    prepare: async (id, input) =>
+      briefingArtifactResponseSchema.parse(
+        await write(
+          artifactPath(id) + "/prepare",
+          "POST",
+          briefingPrepareSchema.parse(input),
         ),
       ),
     apply: async (id, input) =>

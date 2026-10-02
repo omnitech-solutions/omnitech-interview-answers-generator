@@ -67,12 +67,12 @@ vi.mock("./workspace/workspace-view", () => ({
     return <div>Workspace artifact: {assistant.artifactId}</div>;
   },
 }));
-vi.mock("../interview-preparation", () => ({
-  InterviewPreparation: ({
+vi.mock("./briefings/behavioural/behavioural-pack", () => ({
+  BehaviouralPack: ({
     artifactId,
     onDirtyChange,
   }: {
-    artifactId: string;
+    artifactId: string | null;
     onDirtyChange(dirty: boolean): void;
   }) => (
     <div>

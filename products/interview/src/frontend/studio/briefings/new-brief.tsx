@@ -1,5 +1,5 @@
 import type { BriefKind } from "@omnitech/interview-contracts";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 // The three kinds of briefing. Behavioural answers come from the person's own
 // experience, so they are built as an evidence-backed preparation pack.
@@ -26,25 +26,37 @@ export function NewBrief({
   busy,
   error,
   onBuild,
-  onBehavioural,
+  behavioural,
 }: {
   busy: boolean;
   error: string;
   onBuild(kind: BriefKind, topic: string): void;
-  onBehavioural(): void;
+  // The behavioural pack's setup, shown in place of a topic.
+  behavioural: ReactNode;
 }) {
   const [kind, setKind] = useState<Kind>("concept");
   const [topic, setTopic] = useState("");
   const current = KINDS.find((item) => item.id === kind)!;
   return (
     <div className="ws-new">
-      <div>
-        <h1>What do you need to explain?</h1>
-        <p>
-          You’ll get a headline, three points, an example and the follow-ups to
-          expect — sized for a 60–90 second answer.
-        </p>
-      </div>
+      {kind === "behavioural" ? (
+        <div>
+          <h1>Prepare for a screening or behavioural interview</h1>
+          <p>
+            Answers are drafted from your experience matrix, and each one links
+            back to the roles it uses. Review them, practise out loud, then save
+            the pack.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <h1>What do you need to explain?</h1>
+          <p>
+            You’ll get a headline, three points, an example and the follow-ups
+            to expect — sized for a 60–90 second answer.
+          </p>
+        </div>
+      )}
       <div className="brief-kinds" role="radiogroup" aria-label="Kind">
         {KINDS.map((item) => (
           <button
@@ -59,22 +71,7 @@ export function NewBrief({
         ))}
       </div>
       {kind === "behavioural" ? (
-        <div className="ws-new-card brief-behavioural">
-          <p>
-            Behavioural answers are built from your experience matrix, with each
-            claim linked to its source, for a specific company and stage.
-          </p>
-          <div className="ws-new-actions">
-            <span className="ws-spacer" />
-            <button
-              type="button"
-              className="studio-button primary"
-              onClick={onBehavioural}
-            >
-              Start a preparation pack
-            </button>
-          </div>
-        </div>
+        behavioural
       ) : (
         <form
           className="ws-new-card"

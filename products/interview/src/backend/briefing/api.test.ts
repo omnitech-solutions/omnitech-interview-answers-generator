@@ -59,6 +59,7 @@ let generated: unknown = {
     },
   ],
 };
+const prompts: { system: string; prompt: string }[] = [];
 const app = (
   database: WorkspaceDatabasePort = pg.database,
   loadDefaultProfile?: (
@@ -71,7 +72,8 @@ const app = (
       ...scope,
       actorId: request.headers.get("x-actor") ?? scope.actorId,
     }),
-    generate: async () => {
+    generate: async (input) => {
+      prompts.push(input);
       if (generated instanceof Error) throw generated;
       return generated;
     },
@@ -234,7 +236,7 @@ it("keeps generation separate from apply and saves the entire pack", async () =>
   );
 });
 
-it("rejects invented quotations and leaves the draft intact", async () => {
+it("turns an invented quotation into a gap and leaves the draft intact", async () => {
   generated = {
     questions: [
       {
@@ -275,7 +277,12 @@ it("rejects invented quotations and leaves the draft intact", async () => {
       ],
     },
   );
-  expect(proposal.status).toBe(400);
+  expect(proposal.status).toBe(201);
+  const [invented] = (await proposal.json()).briefing.questions;
+  expect(invented.evidenceRefs).toEqual([]);
+  expect(invented.gaps).toEqual([
+    "Could not verify “Invented” against your sources.",
+  ]);
   expect(
     (await (await request("/api/interview/briefing/artifacts/invalid")).json())
       .value.briefing.questions,
@@ -454,7 +461,7 @@ it("rejects cross-site mutations and preserves unrelated cards on a one-card ref
   ).toEqual(["I mentored engineers.", "Keep this"]);
 });
 
-it("rejects a model claim whose text is absent from its named answer field", async () => {
+it("does not count a claim whose text is absent from its named answer field", async () => {
   generated = {
     questions: [
       {
@@ -493,10 +500,15 @@ it("rejects a model claim whose text is absent from its named answer field", asy
       ],
     },
   );
-  expect(response.status).toBe(400);
+  expect(response.status).toBe(201);
+  const [unlinked] = (await response.json()).briefing.questions;
+  expect(unlinked.evidenceRefs).toEqual([]);
+  expect(unlinked.gaps).toContain(
+    "Could not verify “I led teams” against your sources.",
+  );
 });
 
-it("rejects employer material presented as candidate evidence", async () => {
+it("does not accept employer material as candidate evidence", async () => {
   const employerContext = {
     ...context,
     employerNotes: "The employer values mentoring",
@@ -535,8 +547,12 @@ it("rejects employer material presented as candidate evidence", async () => {
       ],
     },
   );
-  expect(response.status).toBe(400);
-  expect((await response.json()).error.code).toBe("citation-quote-conflict");
+  expect(response.status).toBe(201);
+  const [typed] = (await response.json()).briefing.questions;
+  expect(typed.evidenceRefs).toEqual([]);
+  expect(typed.gaps).toContain(
+    "Could not verify “employer values mentoring” against your sources.",
+  );
 });
 
 it("rejects a body above one MiB using actual UTF-8 bytes", async () => {
@@ -566,7 +582,7 @@ it("prevents rewriting immutable imported revisions and proposal payloads", asyn
   ).rejects.toThrow(/immutable/i);
 });
 
-it("rejects a shortened qualified metric that does not appear in the cited field", async () => {
+it("flags a shortened qualified metric that does not appear in the cited field", async () => {
   const metricMatrix = {
     candidate: {},
     roles: [
@@ -617,11 +633,14 @@ it("rejects a shortened qualified metric that does not appear in the cited field
       ],
     },
   );
-  expect(response.status).toBe(400);
-  expect((await response.json()).error.code).toBe("unsupported-metric");
+  expect(response.status).toBe(201);
+  const [metric] = (await response.json()).briefing.questions;
+  expect(metric.gaps).toContain(
+    "States a figure your sources don’t support: 40. Check it before using.",
+  );
 });
 
-it("requires a gap when the answer has no source and refuses stale one-card refinements", async () => {
+it("adds a gap when the answer has no source and refuses stale one-card refinements", async () => {
   generated = {
     questions: [
       {
@@ -648,7 +667,10 @@ it("requires a gap when the answer has no source and refuses stale one-card refi
       ],
     },
   );
-  expect(noSource.status).toBe(400);
+  expect(noSource.status).toBe(201);
+  expect((await noSource.json()).briefing.questions[0].gaps).toEqual([
+    "No source was cited for this answer.",
+  ]);
   const stale = await request(
     "/api/interview/briefing/artifacts/gap/proposals",
     "POST",
@@ -783,7 +805,7 @@ it("denies profile and derived pack reads after profile revocation", async () =>
   ).resolves.toBe(false);
 });
 
-it("rejects a long model answer instead of saving an unspoken script", async () => {
+it("flags a model answer too long to say in 60 seconds", async () => {
   generated = {
     questions: [
       {
@@ -814,7 +836,11 @@ it("rejects a long model answer instead of saving an unspoken script", async () 
       ],
     },
   );
-  expect(response.status).toBe(400);
+  expect(response.status).toBe(201);
+  expect((await response.json()).briefing.questions[0].gaps).toEqual([
+    "A personal example is missing",
+    "This runs past 60 seconds spoken; trim it.",
+  ]);
 });
 
 it("preserves lower bounds and ranges verbatim in generated numeric claims", async () => {
@@ -873,8 +899,12 @@ it("preserves lower bounds and ranges verbatim in generated numeric claims", asy
         },
       );
     };
-    expect((await generateMetric(shortened)).status).toBe(400);
-    expect((await generateMetric(sourceValue)).status).toBe(201);
+    const flagged = await (await generateMetric(shortened)).json();
+    expect(flagged.briefing.questions[0].gaps).toContain(
+      `Use the figure exactly as your sources state it: “${sourceValue}”.`,
+    );
+    const verbatim = await (await generateMetric(sourceValue)).json();
+    expect(verbatim.briefing.questions[0].gaps).toEqual([]);
   }
 });
 
@@ -1111,4 +1141,173 @@ it("accepts the browser host when the framework canonicalizes the request URL", 
     },
   );
   expect(response.status).toBe(201);
+});
+
+it("answers a question asked on the fly, redrafts it in place and caps the pack", async () => {
+  const researched = {
+    ...context,
+    research: "The interviewer joined from ecobee",
+    roleIds: ["/roles/0"],
+  };
+  const created = await request(
+    "/api/interview/briefing/artifacts/asked",
+    "PUT",
+    {
+      expectedRevision: 0,
+      briefing: { ...briefing, context: researched, expected: [] },
+    },
+  );
+  const start = (await created.json()).origin.artifactRevision;
+  generated = {
+    questions: [
+      {
+        id: "ignored",
+        answerMarkdown: "I mentored engineers.",
+        talkingPoints: ["I mentored engineers", "b", "c"],
+        citations: [
+          {
+            field: "answerMarkdown",
+            text: "mentored engineers",
+            sourceKind: "candidate",
+            pointer: "/roles/0/proof_points/0",
+            quote: "Mentored engineers",
+          },
+        ],
+        gaps: [],
+      },
+    ],
+  };
+  prompts.length = 0;
+  const asked = await request(
+    "/api/interview/briefing/artifacts/asked/ask",
+    "POST",
+    { expectedRevision: start, question: "How do you mentor engineers?" },
+  );
+  expect(asked.status).toBe(200);
+  const record = await asked.json();
+  const [answer] = record.value.briefing.questions;
+  expect(answer).toMatchObject({
+    question: "How do you mentor engineers?",
+    category: "leadership",
+    gaps: [],
+  });
+  expect(answer.id).toMatch(/^q-/);
+  // The person's research reaches the model as employer material.
+  expect(prompts[0]!.prompt).toContain("The interviewer joined from ecobee");
+
+  // A stale revision is refused; a redraft keeps the answer's place and id.
+  expect(
+    (
+      await request("/api/interview/briefing/artifacts/asked/ask", "POST", {
+        expectedRevision: start,
+        question: "Again?",
+      })
+    ).status,
+  ).toBe(409);
+  const redrafted = await request(
+    "/api/interview/briefing/artifacts/asked/ask",
+    "POST",
+    {
+      expectedRevision: record.origin.artifactRevision,
+      question: answer.question,
+      replaceId: answer.id,
+    },
+  );
+  const redraftedRecord = await redrafted.json();
+  expect(redraftedRecord.value.briefing.questions).toHaveLength(1);
+  expect(redraftedRecord.value.briefing.questions[0].id).toBe(answer.id);
+
+  // A full pack says how to make room.
+  const full = {
+    ...redraftedRecord.value.briefing,
+    questions: Array.from({ length: 20 }, (_, index) => ({
+      ...answer,
+      id: `q${index}`,
+    })),
+  };
+  const filled = await request(
+    "/api/interview/briefing/artifacts/asked",
+    "PUT",
+    {
+      expectedRevision: redraftedRecord.origin.artifactRevision,
+      briefing: full,
+    },
+  );
+  const overflow = await request(
+    "/api/interview/briefing/artifacts/asked/ask",
+    "POST",
+    {
+      expectedRevision: (await filled.json()).origin.artifactRevision,
+      question: "One more?",
+    },
+  );
+  expect(overflow.status).toBe(400);
+  expect((await overflow.json()).error).toMatchObject({
+    code: "pack-full",
+    message: "A pack holds 20 answers. Remove one to ask another.",
+  });
+});
+
+it("prepares the briefing's sections under the fixed headings", async () => {
+  const created = await request(
+    "/api/interview/briefing/artifacts/prepared",
+    "PUT",
+    { expectedRevision: 0, briefing },
+  );
+  const start = (await created.json()).origin.artifactRevision;
+  generated = {
+    sections: [
+      {
+        heading: "What this call is",
+        markdown: "A recruiter screen for Engineer.",
+        citations: [],
+        gaps: [],
+      },
+      {
+        heading: "Stories to reuse",
+        markdown: "Mentoring at Acme.",
+        citations: [
+          {
+            text: "Mentoring at Acme",
+            sourceKind: "candidate",
+            pointer: "/roles/0/proof_points/0",
+            quote: "Mentored engineers",
+          },
+        ],
+        gaps: [],
+      },
+    ],
+  };
+  prompts.length = 0;
+  const prepared = await request(
+    "/api/interview/briefing/artifacts/prepared/prepare",
+    "POST",
+    { expectedRevision: start },
+  );
+  expect(prepared.status).toBe(200);
+  const sections = (await prepared.json()).value.briefing.sections;
+  expect(
+    sections.map((section: { heading: string }) => section.heading),
+  ).toEqual(["What this call is", "Stories to reuse"]);
+  expect(sections[1].evidenceRefs[0]).toMatchObject({
+    pointer: "/roles/0/proof_points/0",
+    quote: "Mentored engineers",
+  });
+  expect(prompts[0]!.system).toContain("Watch-outs");
+
+  // A heading outside the briefing's shape gets one correction, then fails.
+  generated = {
+    sections: [
+      { heading: "Random notes", markdown: "x", citations: [], gaps: [] },
+    ],
+  };
+  const invalid = await request(
+    "/api/interview/briefing/artifacts/prepared/prepare",
+    "POST",
+    { expectedRevision: start + 1 },
+  );
+  expect(invalid.status).toBe(503);
+  expect((await invalid.json()).error.message).toMatch(
+    /did not match the required format, even after one correction: sections\.0\.heading/,
+  );
 });

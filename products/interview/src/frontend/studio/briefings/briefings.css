@@ -91,9 +91,6 @@
   box-shadow: var(--shadow);
   color: var(--text);
 }
-.brief-behavioural p {
-  padding: 4px 6px;
-}
 
 /* A brief */
 .brief {

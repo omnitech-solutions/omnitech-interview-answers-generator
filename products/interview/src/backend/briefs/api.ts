@@ -15,6 +15,7 @@ import {
   WorkspaceError,
   type WorkspaceScope,
 } from "../assistant/workspace.js";
+import { generateChecked } from "../structured.js";
 
 const prefix = "/api/interview/briefs";
 const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
@@ -41,13 +42,6 @@ export function briefPrompt(kind: BriefKind, topic: string) {
 }
 
 // The brief's JSON Schema, stated in the instructions.
-function withShape(prompt: { system: string; prompt: string }, shape: string) {
-  return {
-    ...prompt,
-    system: `${prompt.system}\nReply with one JSON object that matches this JSON Schema: ${shape}`,
-  };
-}
-
 const title = (topic: string) => {
   const line = topic.split("\n").find((part) => part.trim()) ?? topic;
   return line.trim().length > 90 ? `${line.trim().slice(0, 89)}…` : line.trim();
@@ -76,10 +70,6 @@ export function createBriefsApi(options: {
 }) {
   const app = new Hono<{ Variables: { briefScope: WorkspaceScope } }>();
   const workspace = new InterviewWorkspaceRepository(options.database);
-  const shape = JSON.stringify(
-    conceptBriefSchema.toJSONSchema({ unrepresentable: "any" }),
-  );
-
   app.use(`${prefix}/*`, async (context, next) => {
     const scope = await options.resolveScope(context.req.raw);
     if (!scope) return context.json({ error: { code: "unauthorized" } }, 401);
@@ -141,17 +131,12 @@ export function createBriefsApi(options: {
   app.post(prefix, async (context) => {
     const scope = context.get("briefScope");
     const request = briefRequestSchema.parse(await context.req.json());
-    let brief: ConceptBrief;
-    try {
-      brief = conceptBriefSchema.parse(
-        await options.generate(
-          withShape(briefPrompt(request.kind, request.topic), shape),
-          scope,
-        ),
-      );
-    } catch {
-      throw new WorkspaceError("generation-failed");
-    }
+    const brief: ConceptBrief = await generateChecked(
+      options.generate,
+      briefPrompt(request.kind, request.topic),
+      conceptBriefSchema,
+      scope,
+    );
     const [row] = await workspace.transaction(scope, (tx) =>
       tx.query(
         "INSERT INTO interview.concept_briefs(tenant_id,actor_id,product_id,id,kind,topic,value) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING *",

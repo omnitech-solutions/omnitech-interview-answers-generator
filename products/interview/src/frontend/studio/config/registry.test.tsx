@@ -5,8 +5,8 @@ import { available, commands, type StudioActions } from "./commands";
 import { views } from "./views";
 
 vi.mock("../workspace/workspace-view", () => ({ WorkspaceView: () => null }));
-vi.mock("../../interview-preparation", () => ({
-  InterviewPreparation: () => null,
+vi.mock("../briefings/behavioural/behavioural-pack", () => ({
+  BehaviouralPack: () => null,
 }));
 vi.mock("../../library", () => ({ Library: () => null }));
 vi.mock("../rehearsal/rehearsal-view", () => ({ RehearsalView: () => null }));

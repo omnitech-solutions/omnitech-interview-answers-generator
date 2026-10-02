@@ -1,14 +1,17 @@
-import { createBriefsClient } from "@omnitech/interview-api-client";
+import {
+  createBriefingClient,
+  createBriefsClient,
+} from "@omnitech/interview-api-client";
 import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import type { Brief } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatRelativeTime } from "../../format-timestamp";
-import { InterviewPreparation } from "../../interview-preparation";
 import type { StudioActions } from "../config/commands";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
+import { BehaviouralPack } from "./behavioural/behavioural-pack";
 import { BriefCard } from "./brief-card";
 import { ExplanationsPane } from "./explanations-pane";
 import { NewBrief } from "./new-brief";
@@ -26,12 +29,13 @@ type Selection =
   | { kind: "new" }
   | { kind: "brief"; id: string }
   | { kind: "explanations" }
-  | { kind: "pack"; id: string };
+  // `draft` marks a pack created a moment ago: its answers start drafting.
+  | { kind: "pack"; id: string; draft: boolean };
 export function selectionOf(rest: readonly string[]): Selection {
   if (rest[0] === "explanations" && rest.length === 1)
     return { kind: "explanations" };
   if (rest[0] === "brief" && rest[1]) return { kind: "brief", id: rest[1] };
-  if (rest[0]) return { kind: "pack", id: rest[0] };
+  if (rest[0]) return { kind: "pack", id: rest[0], draft: rest[1] === "draft" };
   return { kind: "new" };
 }
 
@@ -53,6 +57,10 @@ export function BriefingsView({
   const studio = useStudio();
   const client = useMemo(
     () => createBriefsClient({ baseUrl: "", fetch: studioFetch }),
+    [],
+  );
+  const packs = useMemo(
+    () => createBriefingClient({ baseUrl: "", fetch: studioFetch }),
     [],
   );
   const selection = selectionOf(rest);
@@ -183,8 +191,17 @@ export function BriefingsView({
                 .catch(() => setBuildError(GENERATION_FAILED))
                 .finally(() => setBusy(false));
             }}
-            onBehavioural={() =>
-              actions.openBriefing(`prep-${Date.now().toString(36)}`)
+            behavioural={
+              <BehaviouralPack
+                client={packs}
+                artifactId={null}
+                onCreated={(id) => {
+                  lists.refresh();
+                  actions.go("briefings", [id, "draft"]);
+                }}
+                onChanged={lists.refresh}
+                onDirtyChange={onDirtyChange}
+              />
             }
           />
         )}
@@ -208,11 +225,22 @@ export function BriefingsView({
           <ExplanationsPane explanations={explanations} />
         )}
         {selection.kind === "pack" && (
-          <InterviewPreparation
-            key={selection.id}
-            artifactId={selection.id}
-            onDirtyChange={onDirtyChange}
-          />
+          <div className="bp-page">
+            <BehaviouralPack
+              key={selection.id}
+              client={packs}
+              artifactId={selection.id}
+              autoDraft={selection.draft}
+              savedRevision={
+                lists.briefings.find((item) => item.id === selection.id)
+                  ?.savedRevision
+              }
+              onCreated={actions.openBriefing}
+              onDraftStarted={() => actions.openBriefing(selection.id)}
+              onChanged={lists.refresh}
+              onDirtyChange={onDirtyChange}
+            />
+          </div>
         )}
       </div>
     </div>

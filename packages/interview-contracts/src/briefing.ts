@@ -78,9 +78,21 @@ export const briefingContextSchema = z.strictObject({
   company: word,
   role: word,
   stage: z.enum(["recruiter", "hiring-manager", "leadership", "behavioural"]),
+  // What the person wants from this preparation, in their words.
+  request: text.optional(),
+  interviewer: word.optional(),
+  interviewerTitle: word.optional(),
+  durationMinutes: z.number().int().min(5).max(480).optional(),
   jobDescription: text.optional(),
   employerNotes: text.optional(),
+  // What the person found out: interviewer background, candidate reports.
+  research: text.optional(),
   candidatePreferences: text.optional(),
+  // The matrix roles to lean on; answers draw on these first.
+  roleIds: z
+    .array(z.string().regex(/^\/roles\/\d+$/))
+    .max(100)
+    .optional(),
   profile: z.strictObject({ id, revision }),
 });
 export const briefingQuestionCategorySchema = z.enum([
@@ -110,12 +122,56 @@ export const briefingQuestionSchema = z.strictObject({
   talkingPoints: z.array(text).length(3),
   evidenceRefs: z.array(briefingEvidenceRefSchema).max(32),
   gaps: z.array(text).max(32),
+  // The person reviewed this answer and is happy to use it.
+  accepted: z.boolean().optional(),
 });
+// A prepared briefing's sections, in reading order. The Studio groups them
+// into tabs: the last three are Stories, Questions to ask and Watch-outs.
+export const BRIEFING_SECTION_HEADINGS = [
+  "What this call is",
+  "Likely shape",
+  "Your story, in order",
+  "Strong match with the posting",
+  "Be ready on",
+  "Compensation and logistics",
+  "After this call",
+  "Stories to reuse",
+  "Questions to ask",
+  "Watch-outs",
+] as const;
 export const briefingDraftSchema = z.strictObject({
   kind: z.literal("non-technical-briefing"),
   title: word,
   context: briefingContextSchema,
+  // A prepared briefing for the call: agenda, positioning, stories, logistics
+  // and caveats, each section grounded in the matrix or employer material.
+  sections: z
+    .array(
+      z.strictObject({
+        heading: word,
+        markdown: text,
+        evidenceRefs: z.array(briefingEvidenceRefSchema).max(32),
+        gaps: z.array(text).max(32),
+      }),
+    )
+    .max(16)
+    .optional(),
+  // The questions the person expects, before their answers are drafted.
+  expected: z.array(word).max(20).optional(),
   questions: z.array(briefingQuestionSchema).max(20),
+});
+// Ask one question of a pack: the answer is added to it straight away.
+export const briefingAskSchema = z.strictObject({
+  expectedRevision: revision,
+  question: word,
+  category: briefingQuestionCategorySchema.optional(),
+  // Redraft this answer in place instead of adding a new one.
+  replaceId: id.optional(),
+});
+// Prepare (or refresh) the pack's full briefing sections.
+export const briefingPrepareSchema = z.strictObject({
+  expectedRevision: revision,
+  request: text.optional(),
 });
 export const briefingProfileImportSchema = z.strictObject({
   name: word,
@@ -217,6 +273,9 @@ export type BriefingQuestion = z.infer<typeof briefingQuestionSchema>;
 export type BriefingDraft = z.infer<typeof briefingDraftSchema>;
 export type BriefingProfileImport = z.infer<typeof briefingProfileImportSchema>;
 export type BriefingPut = z.infer<typeof briefingPutSchema>;
+export type BriefingAsk = z.infer<typeof briefingAskSchema>;
+export type BriefingPrepare = z.infer<typeof briefingPrepareSchema>;
+export type BriefingSection = NonNullable<BriefingDraft["sections"]>[number];
 export type BriefingProposalRequest = z.infer<
   typeof briefingProposalRequestSchema
 >;
@@ -247,3 +306,35 @@ export type BriefingArtifactResponse = z.infer<
   typeof briefingArtifactResponseSchema
 >;
 export type BriefingSavedResponse = z.infer<typeof briefingSavedResponseSchema>;
+
+// A question's kind, from its wording, when the person does not say.
+export function briefingCategoryOf(
+  question: string,
+): BriefingQuestion["category"] {
+  const text = question.toLowerCase();
+  if (
+    /\b(salary|compensation|pay|rate|notice|start date|(?:could|can) you start|visa|relocat|remote|hybrid|location|based|available|availability)\b/.test(
+      text,
+    )
+  )
+    return "logistics";
+  if (/\b(questions? for (us|me)|ask (us|me))\b/.test(text))
+    return "questions-to-ask";
+  if (/\b(why|interest|motivat|looking for|leave|leaving|excite)\b/.test(text))
+    return "motivation";
+  if (
+    /\b(lead|led|mentor|manage|conflict|disagree|influence|decision)\b/.test(
+      text,
+    )
+  )
+    return "leadership";
+  if (/\b(team|collaborat|stakeholder|cross-functional|work with)\b/.test(text))
+    return "collaboration";
+  if (
+    /\b(deliver|project|deadline|ship|built|build|achiev|impact|challenge)\b/.test(
+      text,
+    )
+  )
+    return "delivery";
+  return "background";
+}
