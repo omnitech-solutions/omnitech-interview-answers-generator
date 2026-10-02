@@ -108,12 +108,6 @@ try {
             order: 10,
             hidden: false,
             routes: {
-              "interview.workspace": {
-                label: "Workspace",
-                description: "Create and refine material",
-                path: "/p/interview/workspace",
-                hidden: false,
-              },
               "interview.knowledge": {
                 label: "Knowledge",
                 description: "Browse reusable material",

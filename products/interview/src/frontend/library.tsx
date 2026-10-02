@@ -21,13 +21,7 @@ import React, {
 } from "react";
 
 import { extractMarkdownHeadings, MarkdownContent } from "./markdown-content";
-import {
-  NavigationToggle,
-  StudioBrand,
-  StudioNavigation,
-  ThemeToggle,
-  useStudioTheme,
-} from "./studio-shell";
+import { StudioBrand, ThemeToggle, useStudioTheme } from "./studio-shell";
 
 const contentTypeLabels: Record<LibraryContentType, string> = {
   "official-reference": "Official Reference",
@@ -183,7 +177,6 @@ export function Library({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [authorOpen, setAuthorOpen] = useState(false);
-  const [navigationOpen, setNavigationOpen] = useState(false);
   const { theme, toggleTheme } = useStudioTheme();
 
   useEffect(() => {
@@ -459,15 +452,7 @@ export function Library({
         <App>
           <main className="library-shell">
             <header className="library-header">
-              {!embedded && (
-                <>
-                  <NavigationToggle
-                    open={navigationOpen}
-                    onClick={() => setNavigationOpen((open) => !open)}
-                  />
-                  <StudioBrand subtitle="Knowledge base" />
-                </>
-              )}
+              {!embedded && <StudioBrand subtitle="Knowledge base" />}
               <div className="library-search-wrap">
                 <SearchIcon />
                 <input
@@ -509,13 +494,6 @@ export function Library({
                 )}
               </div>
             </header>
-
-            {navigationOpen && !embedded ? (
-              <StudioNavigation
-                active="library"
-                onClose={() => setNavigationOpen(false)}
-              />
-            ) : null}
 
             {error ? (
               <div className="library-alert" role="alert">

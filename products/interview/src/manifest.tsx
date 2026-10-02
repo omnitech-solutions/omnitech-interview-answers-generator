@@ -14,12 +14,6 @@ export const manifest = {
   permissions: ["interview.read", "interview.write"],
   routes: [
     {
-      id: "interview.workspace",
-      defaultPath: "/workspace",
-      frontendEntry: "workspace.page",
-      requiredPermission: "interview.read",
-    },
-    {
       id: "interview.knowledge",
       defaultPath: "/knowledge",
       frontendEntry: "knowledge.page",
@@ -27,13 +21,6 @@ export const manifest = {
     },
   ],
   navigation: [
-    {
-      routeId: "interview.workspace",
-      defaultLabel: "Workspace",
-      defaultDescription: "Create and refine material",
-      group: "Create",
-      order: 10,
-    },
     {
       routeId: "interview.knowledge",
       defaultLabel: "Knowledge",
@@ -48,10 +35,6 @@ export const manifest = {
 export const frontendPlugin: ProductFrontendPlugin = {
   id: manifest.id,
   routes: {
-    "interview.workspace": async () => {
-      const { Workspace } = await import("./frontend/workspace.js");
-      return { default: Workspace };
-    },
     "interview.knowledge": async () => {
       const { Library } = await import("./frontend/library.js");
       return { default: () => <Library /> };

@@ -110,22 +110,6 @@ describe("Library", () => {
     const user = userEvent.setup();
     render(<Library />);
 
-    await user.click(screen.getByRole("button", { name: "Open navigation" }));
-    expect(
-      screen.getByRole("link", { name: /Solution Builder/ }),
-    ).toHaveAttribute("href", "./workspace");
-    expect(screen.getByRole("link", { name: /Briefing/ })).toHaveAttribute(
-      "href",
-      "./workspace?view=concept-lab",
-    );
-    expect(screen.getByRole("link", { name: /Knowledge/ })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    await user.click(
-      screen.getAllByRole("button", { name: "Close navigation" }).at(-1)!,
-    );
-
     expect(
       screen.getByRole("heading", { name: "Find the exact answer, fast." }),
     ).toBeVisible();
@@ -147,7 +131,7 @@ describe("Library", () => {
     expect(
       screen.getByRole("navigation", { name: "Filter by technology" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "PHP2" }));
+    await user.click(await screen.findByRole("button", { name: "PHP2" }));
     await waitFor(() =>
       expect(fetch).toHaveBeenLastCalledWith(
         expect.stringContaining("tag=php"),
