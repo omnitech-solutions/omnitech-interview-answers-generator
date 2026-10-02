@@ -1,4 +1,5 @@
 import { createBriefsClient } from "@omnitech/interview-api-client";
+import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import type { Brief } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -9,6 +10,7 @@ import { useStudio } from "../context";
 import { Icon } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
 import { BriefCard } from "./brief-card";
+import { ExplanationsPane } from "./explanations-pane";
 import { NewBrief } from "./new-brief";
 
 const KIND_LABELS = {
@@ -22,8 +24,11 @@ const GENERATION_FAILED =
 type Selection =
   | { kind: "new" }
   | { kind: "brief"; id: string }
+  | { kind: "explanations" }
   | { kind: "pack"; id: string };
 export function selectionOf(rest: readonly string[]): Selection {
+  if (rest[0] === "explanations" && rest.length === 1)
+    return { kind: "explanations" };
   if (rest[0] === "brief" && rest[1]) return { kind: "brief", id: rest[1] };
   if (rest[0]) return { kind: "pack", id: rest[0] };
   return { kind: "new" };
@@ -34,11 +39,14 @@ export function BriefingsView({
   rest,
   actions,
   lists,
+  explanations = [],
   onDirtyChange,
 }: {
   rest: readonly string[];
   actions: StudioActions;
   lists: StudioLists;
+  // Pushed by `interview-answers playground` (the Concept Lab channel).
+  explanations?: readonly PlaygroundExplanation[];
   onDirtyChange(dirty: boolean): void;
 }) {
   const studio = useStudio();
@@ -86,10 +94,12 @@ export function BriefingsView({
   const title =
     selection.kind === "brief"
       ? (brief?.title ?? "")
-      : selection.kind === "pack"
-        ? (lists.briefings.find((item) => item.id === selection.id)?.title ??
-          "Interview preparation")
-        : "New briefing";
+      : selection.kind === "explanations"
+        ? "Concept explanations"
+        : selection.kind === "pack"
+          ? (lists.briefings.find((item) => item.id === selection.id)?.title ??
+            "Interview preparation")
+          : "New briefing";
 
   return (
     <div className="briefings">
@@ -112,6 +122,23 @@ export function BriefingsView({
           </button>
         </div>
         <div className="briefings-items">
+          {explanations.length > 0 && (
+            <button
+              type="button"
+              className="briefings-item"
+              aria-current={
+                selection.kind === "explanations" ? "page" : undefined
+              }
+              onClick={() => actions.go("briefings", ["explanations"])}
+            >
+              <span className="briefings-item-title">
+                {explanations[0]!.title}
+              </span>
+              <span className="briefings-item-meta">
+                Concept explanations · {explanations.length} from the CLI
+              </span>
+            </button>
+          )}
           {entries.map((entry) => (
             <button
               key={entry.key}
@@ -126,9 +153,13 @@ export function BriefingsView({
               </span>
             </button>
           ))}
-          {lists.status === "ready" && !entries.length && (
-            <p className="briefings-empty">Your briefings will appear here.</p>
-          )}
+          {lists.status === "ready" &&
+            !entries.length &&
+            !explanations.length && (
+              <p className="briefings-empty">
+                Your briefings will appear here.
+              </p>
+            )}
         </div>
       </aside>
       <div className="briefings-main">
@@ -169,6 +200,9 @@ export function BriefingsView({
               {loadError || "Loading brief…"}
             </p>
           ))}
+        {selection.kind === "explanations" && (
+          <ExplanationsPane explanations={explanations} />
+        )}
         {selection.kind === "pack" && (
           <InterviewPreparation
             key={selection.id}

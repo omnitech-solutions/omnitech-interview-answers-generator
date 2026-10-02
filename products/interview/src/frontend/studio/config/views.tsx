@@ -8,6 +8,7 @@ import { BriefingsView } from "../briefings/briefings-view";
 import { HomeView } from "../home/home-view";
 import { RehearsalView } from "../rehearsal/rehearsal-view";
 import type { IconName } from "../icon";
+import type { PlaygroundControlState } from "../use-playground-control";
 import type { StudioLists } from "../use-studio-lists";
 import type { StudioRoute, ViewId } from "../use-studio-route";
 import type { StudioActions } from "./commands";
@@ -17,6 +18,8 @@ export type ViewProps = {
   assistant: WorkspaceAssistant;
   actions: StudioActions;
   lists: StudioLists;
+  // What the Playground control channel has pushed.
+  control: PlaygroundControlState;
   onDirtyChange(dirty: boolean): void;
 };
 export type ViewDefinition = {
@@ -59,11 +62,12 @@ export const views: readonly ViewDefinition[] = [
     icon: "lightbulb",
     goKey: "B",
     assistantContext: "briefing",
-    render: ({ route, actions, lists, onDirtyChange }) => (
+    render: ({ route, actions, lists, control, onDirtyChange }) => (
       <BriefingsView
         rest={route.rest}
         actions={actions}
         lists={lists}
+        explanations={control.explanations}
         onDirtyChange={onDirtyChange}
       />
     ),
@@ -88,10 +92,11 @@ export const views: readonly ViewDefinition[] = [
     icon: "timer",
     goKey: "R",
     assistantContext: "nothing (rehearsal)",
-    render: ({ assistant, actions, lists }) => (
+    render: ({ assistant, actions, lists, control }) => (
       <RehearsalView
         actions={actions}
         lists={lists}
+        command={control.rehearsal}
         workspaceId={assistant.workspaceId}
       />
     ),

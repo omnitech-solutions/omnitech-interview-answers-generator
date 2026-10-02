@@ -191,10 +191,23 @@ export function WorkspaceView({
   const bindView = studio?.bindView;
   useEffect(() => {
     if (!bindView) return;
+    const origin = canonical.origin;
     return bindView({
-      origin: canonical.origin,
+      origin,
       hooks,
       runTests: () => void runLatest.current(),
+      reloadDraft: (artifact) => {
+        if (origin?.artifactId !== artifact) return;
+        void canonical
+          .reloadAfterAssistant(origin)
+          .then((shown) =>
+            setStatus(
+              shown
+                ? "Updated from the Playground CLI."
+                : "The Playground CLI updated this question; your edits were kept. Reload to see it.",
+            ),
+          );
+      },
     });
   }, [bindView, canonical.origin]);
 

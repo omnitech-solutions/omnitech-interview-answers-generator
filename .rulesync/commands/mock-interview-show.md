@@ -5,5 +5,5 @@ targets: ["*"]
 
 # Show mock interview
 
-Run `interview-answers mock-interview show` and report the current Mock
-Interview workspace state without changing it.
+Run `interview-answers mock-interview show` and report the current Rehearsal
+control state without changing it.

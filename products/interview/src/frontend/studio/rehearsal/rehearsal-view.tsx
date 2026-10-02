@@ -2,10 +2,11 @@ import type {
   RehearsalFormat,
   RehearsalReveal,
 } from "@omnitech/interview-contracts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
+import type { RehearsalCommand } from "../playground-control";
 import type { StudioLists } from "../use-studio-lists";
 import { FORMATS, formatById } from "./config";
 import { LiveSession } from "./live-session";
@@ -46,16 +47,22 @@ type Stage =
   | { kind: "setup" }
   | { kind: "live" | "score"; material: SessionMaterial };
 
+// Commands from `interview-answers mock-interview …`, each acted on once even
+// when the view is opened again.
+const handledCommands = new Set<string>();
+
 // Rehearsal: choose a format and questions, run the timed session, then see
 // the scorecard. The sidebar steps aside while a session is live.
 export function RehearsalView({
   actions,
   lists,
   workspaceId,
+  command = null,
 }: {
   actions: StudioActions;
   lists: StudioLists;
   workspaceId: string;
+  command?: RehearsalCommand | null;
 }) {
   const studio = useStudio();
   const [settings, setSettings] = useState<RehearsalSettings>({
@@ -65,6 +72,29 @@ export function RehearsalView({
   });
   const [stage, setStage] = useState<Stage>({ kind: "setup" });
   const [session, setSession] = useState<SessionState | null>(null);
+  // A start requested by the CLI, run by Setup once the lists are ready.
+  const [startRequest, setStartRequest] = useState<string | null>(null);
+
+  // [DOMAIN] start opens a session with the chosen questions; end scores
+  // the live one; reset returns to setup and discards it.
+  useEffect(() => {
+    if (!command || handledCommands.has(command.id)) return;
+    handledCommands.add(command.id);
+    if (command.action === "start") {
+      setSettings((current) => ({ ...current, strict: command.strict }));
+      setStage({ kind: "setup" });
+      setStartRequest(command.id);
+    } else if (command.action === "end")
+      setStage((current) =>
+        current.kind === "live"
+          ? { kind: "score", material: current.material }
+          : current,
+      );
+    else {
+      setStartRequest(null);
+      setStage({ kind: "setup" });
+    }
+  }, [command]);
 
   // [SAFETY] Focus mode lasts only as long as the live session.
   const setFocus = studio?.setFocus;
@@ -82,7 +112,9 @@ export function RehearsalView({
         onSettings={setSettings}
         lists={lists}
         workspaceId={workspaceId}
+        startRequest={startRequest}
         onStart={(material) => {
+          setStartRequest(null);
           setSession({
             startedAt: new Date().toISOString(),
             elapsed: 0,
@@ -123,12 +155,14 @@ function Setup({
   onSettings,
   lists,
   workspaceId,
+  startRequest,
   onStart,
 }: {
   settings: RehearsalSettings;
   onSettings(next: RehearsalSettings): void;
   lists: StudioLists;
   workspaceId: string;
+  startRequest: string | null;
   onStart(material: SessionMaterial): void;
 }) {
   const format = formatById(settings.format);
@@ -167,6 +201,14 @@ function Setup({
       setStarting(false);
     }
   }
+  // Start once for a CLI request, when there is something to rehearse.
+  const startedFor = useRef<string | null>(null);
+  const ready = lists.status === "ready" && !missingCoding;
+  useEffect(() => {
+    if (!startRequest || startedFor.current === startRequest || !ready) return;
+    startedFor.current = startRequest;
+    void start();
+  });
 
   return (
     <div className="rehearsal-setup">

@@ -623,6 +623,10 @@ for (const route of ["generate", "explain", "syntax-check"])
   app.post(`/api/v1/${route}`, (c) => interviewApi.fetch(c.req.raw));
 // Knowledge reads the reviewed library; authoring stays refused on this host.
 app.get("/api/v1/library/*", (c) => interviewApi.fetch(c.req.raw));
+// The Playground control channel: `interview-answers playground …` pushes,
+// and the studio follows (questions, answers, explanations, rehearsals).
+app.all("/api/v1/playground-control", (c) => interviewApi.fetch(c.req.raw));
+app.all("/api/v1/playground-control/*", (c) => interviewApi.fetch(c.req.raw));
 app.all("/api/v1/*", (c) =>
   c.json(
     {

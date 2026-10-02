@@ -137,11 +137,22 @@ const questions = [
 ];
 
 let listFails = false;
+// What `interview-answers playground` has pushed, if anything.
+let control: unknown = null;
+const patches: unknown[] = [];
 function installServer() {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: string | URL | Request) => {
+    vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const path = String(input);
+      if (path === "/api/v1/playground-control")
+        return control
+          ? Response.json(control)
+          : new Response("{}", { status: 404 });
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)));
+        return Response.json({});
+      }
       if (path.startsWith("/api/interview/workspaces/interview/artifacts"))
         return listFails
           ? new Response("{}", { status: 500 })
@@ -180,6 +191,8 @@ async function renderStudio(path = "/t/local/p/interview") {
 beforeEach(() => {
   vi.unstubAllGlobals();
   listFails = false;
+  control = null;
+  patches.length = 0;
   views.throwLibrary = false;
   host.state = { open: false, shortcut: "⌘J", toggle: vi.fn() };
   const values = new Map<string, string>();
@@ -372,6 +385,100 @@ describe("Studio shell", () => {
     expect(host.config.theme).toBe("light");
     act(() => host.config.host!.onThemeChange!("light"));
     expect(host.config.theme).toBe("light");
+  });
+
+  it("opens a question pushed by the Playground CLI in the Workspace", async () => {
+    control = {
+      revision: 2,
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      value: {
+        question: "Two sum?",
+        language: "typescript",
+        answer: null,
+        notes: "Use a map",
+        panel: "notes",
+        view: "playground",
+        explanation: null,
+        explanations: [],
+        mockInterview: null,
+      },
+    };
+    await renderStudio();
+    await waitFor(() =>
+      expect(window.location.search).toMatch(/^\?artifact=q-/),
+    );
+    expect(screen.getByText(/Workspace artifact: q-/)).toBeVisible();
+    expect(patches).toEqual([
+      {
+        origin: undefined,
+        patch: { question: "Two sum?", notes: "Use a map", answer: null },
+      },
+    ]);
+  });
+
+  it("shows pushed concept explanations in Briefings", async () => {
+    control = {
+      revision: 1,
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      value: {
+        question: "",
+        language: "auto",
+        answer: null,
+        notes: "",
+        panel: "notes",
+        view: "concept-lab",
+        explanation: null,
+        explanations: [
+          {
+            title: "Closures",
+            topic: "JavaScript",
+            markdown: "Functions **remember**.",
+          },
+          {
+            title: "Follow-up: memory",
+            topic: "JavaScript",
+            markdown: "Leaks.",
+          },
+        ],
+        mockInterview: null,
+      },
+    };
+    await renderStudio();
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(
+        "/t/local/p/interview/briefings/explanations",
+      ),
+    );
+    expect(await screen.findByText("remember")).toBeVisible();
+    expect(screen.getByText("Leaks.")).not.toBeVisible();
+    expect(
+      screen.getByText("Concept explanations · 2 from the CLI"),
+    ).toBeVisible();
+  });
+
+  it("holds a push while interview preparation has unsaved changes", async () => {
+    await renderStudio("/t/local/p/interview/briefings/preparation");
+    fireEvent.click(screen.getByRole("button", { name: "Edit preparation" }));
+    control = {
+      revision: 1,
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      value: {
+        question: "Two sum?",
+        language: "auto",
+        answer: null,
+        notes: "",
+        panel: "notes",
+        view: "playground",
+        explanation: null,
+        explanations: [],
+        mockInterview: null,
+      },
+    };
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
+    expect(window.location.pathname).toBe(
+      "/t/local/p/interview/briefings/preparation",
+    );
+    expect(patches).toEqual([]);
   });
 
   it("asks before leaving unsaved interview preparation", async () => {

@@ -305,7 +305,9 @@ export function createProgram(): Command {
 
   const playground = program
     .command("playground")
-    .description("Read or update the open Playground form.");
+    .description(
+      "Read or update the Playground: what Interview Studio shows next.",
+    );
 
   playground
     .command("show")
@@ -328,7 +330,9 @@ export function createProgram(): Command {
 
   playground
     .command("append-explanation")
-    .description("Append a collapsed follow-up to the current Concept Lab.")
+    .description(
+      "Append a collapsed follow-up to the concept explanations in Briefings.",
+    )
     .requiredOption("--topic <topic>")
     .requiredOption("--title <title>")
     .requiredOption("--markdown-file <path>")
@@ -356,7 +360,10 @@ export function createProgram(): Command {
     .option("-l, --language <language>")
     .option("--notes <notes>")
     .option("--panel <panel>", "notes, output, or saved")
-    .option("--view <view>", "playground, concept-lab, or mock-interview")
+    .option(
+      "--view <view>",
+      "playground (Workspace), concept-lab or interview-preparation (Briefings), or mock-interview (Rehearsal)",
+    )
     .option("--title <title>", "answer title")
     .option("--answer-markdown <markdown>")
     .option("--code-file <path>")
@@ -455,7 +462,7 @@ export function createProgram(): Command {
 
   const mockInterview = program
     .command("mock-interview")
-    .description("Control the dedicated timed Mock Interview workspace.");
+    .description("Start, end or reset a Rehearsal in Interview Studio.");
 
   mockInterview
     .command("start")

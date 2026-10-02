@@ -89,12 +89,13 @@ export async function createConfiguredPlaygroundControlClient(
   const token =
     options.token ?? process.env["INTERVIEW_API_TOKEN"] ?? config.token;
 
+  // The Playground is Interview Studio, served by the local assistant host.
   return createPlaygroundControlClient({
     baseUrl:
       options.url ??
       process.env["INTERVIEW_API_URL"] ??
       config.url ??
-      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5175",
     ...(token === undefined ? {} : { token }),
   });
 }

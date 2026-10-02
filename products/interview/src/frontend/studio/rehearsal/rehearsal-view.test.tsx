@@ -12,6 +12,7 @@ import { StudioContext, type StudioContextValue } from "../context";
 import type { StudioLists } from "../use-studio-lists";
 import { clock, phaseAt, scoreHeadline, formatById } from "./config";
 import { codingMaterial } from "./material";
+import type { RehearsalCommand } from "../playground-control";
 import { RehearsalView } from "./rehearsal-view";
 
 const draft = {
@@ -352,6 +353,40 @@ describe("Rehearsal session", () => {
     expect(screen.getByText("This session couldn’t be saved.")).toBeVisible();
     vi.useRealTimers();
     await waitFor(() => expect(saves).toHaveLength(1));
+  });
+});
+
+describe("Rehearsal from the CLI", () => {
+  it("starts, ends and resets on mock-interview commands, once each", async () => {
+    const context = { setFocus } as unknown as StudioContextValue;
+    const at = (command: RehearsalCommand) => (
+      <StudioContext.Provider value={context}>
+        <RehearsalView
+          actions={actions}
+          lists={lists()}
+          workspaceId="interview"
+          command={command}
+        />
+      </StudioContext.Provider>
+    );
+    const { rerender } = render(
+      at({ id: "cli-1", action: "start", strict: true }),
+    );
+    expect(await screen.findByText("CONCEPT PHASE")).toBeVisible();
+    expect(setFocus).toHaveBeenLastCalledWith("strict");
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+
+    rerender(at({ id: "cli-2", action: "end", strict: false }));
+    expect(await screen.findByText("Worth another run")).toBeVisible();
+    // A command already acted on is not run again.
+    rerender(at({ id: "cli-1", action: "start", strict: true }));
+    expect(screen.getByText("Worth another run")).toBeVisible();
+
+    rerender(at({ id: "cli-3", action: "reset", strict: false }));
+    expect(screen.getByRole("radio", { name: /Full loop/ })).toBeVisible();
+    // End outside a live session changes nothing.
+    rerender(at({ id: "cli-4", action: "end", strict: false }));
+    expect(screen.getByRole("radio", { name: /Full loop/ })).toBeVisible();
   });
 });
 

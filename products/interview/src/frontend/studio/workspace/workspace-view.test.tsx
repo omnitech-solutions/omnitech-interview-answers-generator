@@ -439,6 +439,14 @@ describe("WorkspaceView: a guided answer", () => {
     );
     expect(screen.getByText("Assistant change applied.")).toBeVisible();
     expect(refreshLists).toHaveBeenCalled();
+
+    // The Playground CLI rewrote the open draft: it reloads; others are not ours.
+    server.value = { ...server.value, question: "Two sum (from the CLI)" };
+    binding.reloadDraft!("another");
+    binding.reloadDraft!("q1");
+    expect(
+      await screen.findByText("Updated from the Playground CLI."),
+    ).toBeVisible();
     await act(() =>
       hooks.onReverted({
         proposal: {

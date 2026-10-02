@@ -34,6 +34,7 @@ import {
 import { Icon } from "./icon";
 import { Sidebar } from "./sidebar";
 import { useShortcuts } from "./use-shortcuts";
+import { usePlaygroundControl } from "./use-playground-control";
 import { useStudioLists } from "./use-studio-lists";
 import { type StudioNavigation, useStudioRoute } from "./use-studio-route";
 import { ViewBoundary } from "./view-boundary";
@@ -74,6 +75,10 @@ export function Studio({ assistant }: StudioProps) {
   const [focus, setFocus] = useState<StudioFocus>(null);
   const preparationDirty = useRef(false);
   const dock = useDockWidth();
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const bindingRef = useRef(binding);
+  bindingRef.current = binding;
 
   // [GUARD] Unsaved interview preparation is never discarded silently.
   const mayLeave = useCallback(
@@ -104,6 +109,18 @@ export function Studio({ assistant }: StudioProps) {
     }),
     [theme, toggleTheme, headerSlot, bindView, lists.refresh],
   );
+
+  // `interview-answers playground …` pushes land here: drafts, views,
+  // explanations and rehearsal commands.
+  const control = usePlaygroundControl({
+    workspaceId: assistant.workspaceId,
+    navigate,
+    refreshLists: lists.refresh,
+    reloadDraft: (artifact) => bindingRef.current.reloadDraft?.(artifact),
+    busy: (plan) =>
+      preparationDirty.current ||
+      (focusRef.current !== null && plan.navigate?.view !== "rehearsal"),
+  });
 
   const workspaceAssistant = useMemo(
     () => ({ ...assistant, artifactId: route.artifact }),
@@ -185,6 +202,7 @@ export function Studio({ assistant }: StudioProps) {
                   assistant: workspaceAssistant,
                   lists,
                   actions,
+                  control,
                   onDirtyChange: (dirty) => {
                     preparationDirty.current = dirty;
                   },
@@ -246,7 +264,7 @@ function StudioFrame({
     closedForFocus.current = true;
   }, [focused, focus, assistantOpen, toggleAssistant]);
   const actions: StudioActions = {
-    go: (next) => leave({ view: next }),
+    go: (next, rest) => leave({ view: next, ...(rest ? { rest } : {}) }),
     openArtifact: (artifact) => leave({ view: "work", artifact }),
     openBriefing: (artifact) => leave({ view: "briefings", rest: [artifact] }),
     openBrief: (id) => leave({ view: "briefings", rest: ["brief", id] }),

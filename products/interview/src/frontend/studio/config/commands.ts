@@ -4,7 +4,8 @@ import { views } from "./views";
 
 // The only ways a command may change the studio.
 export type StudioActions = {
-  go(view: ViewId): void;
+  // rest: the path after the view, e.g. ["explanations"] in Briefings.
+  go(view: ViewId, rest?: readonly string[]): void;
   openArtifact(artifactId: string): void;
   // A behavioural preparation pack.
   openBriefing(artifactId: string): void;

@@ -14,6 +14,8 @@ export type StudioViewBinding = {
   origin?: Origin | undefined;
   hooks?: { readonly current: HostHooks } | undefined;
   runTests?: (() => void) | undefined;
+  // Reload this draft if it is the one open (the Playground channel wrote it).
+  reloadDraft?: ((artifact: string) => void) | undefined;
 };
 
 export type StudioContextValue = {

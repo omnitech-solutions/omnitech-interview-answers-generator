@@ -5,6 +5,17 @@ description: Read, update, or reset the live Interview Answers Playground throug
 
 # Interview Playground controller
 
+The Playground is what Interview Studio (the local assistant host,
+`http://127.0.0.1:5175` by default) shows next. Each push is applied once:
+
+- `question`/`answer`/`notes` open a Workspace draft; pushing the same question
+  again updates that draft.
+- `view`: `playground` → Workspace, `concept-lab` → Briefings › Concept
+  explanations, `interview-preparation` → Briefings, `mock-interview` →
+  Rehearsal.
+- `mock-interview start|end|reset` drives the Rehearsal session.
+- `panel` and an answer-less `language` are accepted but not shown.
+
 Use the global CLI as the only application-control boundary:
 
 ```bash

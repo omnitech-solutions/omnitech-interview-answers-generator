@@ -144,4 +144,14 @@ describe("createConfiguredPlaygroundControlClient", () => {
       token: "environment-token",
     });
   });
+
+  it("defaults to the Interview Studio host", async () => {
+    delete process.env["INTERVIEW_API_TOKEN"];
+    delete process.env["INTERVIEW_API_URL"];
+    readConfig.mockResolvedValue({});
+    await createConfiguredPlaygroundControlClient();
+    expect(createPlaygroundControlClient).toHaveBeenLastCalledWith({
+      baseUrl: "http://127.0.0.1:5175",
+    });
+  });
 });
