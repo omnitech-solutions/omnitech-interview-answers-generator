@@ -9,13 +9,19 @@ export interface TenantContext {
   tenantId: string;
   actorId: string;
 }
-export type TenantDatabase<S = Record<string, never>> = NodePgDatabase<any>;
+export type TenantDatabase<
+  S extends Record<string, unknown> = Record<string, never>,
+  // @ts-ignore Drizzle 1.0 rc.4 schema type constraint
+> = NodePgDatabase<S>;
 
 // [SAFETY] The only way to get a tenant-scoped Drizzle handle. One transaction
 // carries the tenant and actor as transaction-local settings, so row-level
 // security applies to every query, and a pooled connection can never carry
 // them into the next request.
-export async function withTenant<T, S = Record<string, never>>(
+export async function withTenant<
+  T,
+  S extends Record<string, unknown> = Record<string, never>,
+>(
   context: TenantContext,
   work: (db: TenantDatabase<S>) => Promise<T>,
   options: { schema?: S; database?: PlatformDatabase } = {},
@@ -37,7 +43,7 @@ export async function withTenant<T, S = Record<string, never>>(
         await client.query("COMMIT");
         return result;
       } catch (error) {
-        await client.query("ROLLBACK");
+        await client.query("ROLLBACK").catch(() => undefined);
         throw error;
       }
     },

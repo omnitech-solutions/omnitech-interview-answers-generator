@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { createPlatformDatabase, type PlatformDatabase } from "./connection.js";
 import {
@@ -100,4 +101,24 @@ it("rolls back the whole unit of work on error", async () => {
     opts(),
   );
   expect(rows).toEqual([]);
+});
+
+it("supports typed relational queries with schema", async () => {
+  const notesTable = pgTable("notes", {
+    tenantId: uuid("tenant_id").notNull(),
+    body: text("body").notNull(),
+  });
+
+  const schema = { notes: notesTable };
+
+  const rows = await withTenant(
+    { tenantId: A, actorId: actor },
+    async (db) => {
+      const result = await db.select().from(notesTable);
+      return result;
+    },
+    { schema, database: member },
+  );
+
+  expect(rows).toEqual([{ tenantId: A, body: "a" }]);
 });
