@@ -1,0 +1,675 @@
+/* Interview Studio design tokens and shell styles.
+   Tokens are scoped to the host side of the assistant root (.oa-host) and to
+   any omni-ui theme wrapper inside it, so the assistant panel keeps its own. */
+
+:root[data-theme="light"] :is(.studio-app .oa-host, .studio-app .oa-host [data-theme], .studio-palette-scrim) {
+  --app: oklch(0.975 0.004 255);
+  --side: oklch(0.965 0.005 255);
+  --surface: oklch(1 0 0);
+  --subtle: oklch(0.965 0.004 255);
+  --hover: oklch(0.935 0.006 255);
+  --border: oklch(0.905 0.006 255);
+  --border-soft: oklch(0.94 0.004 255);
+  --border-strong: oklch(0.82 0.008 255);
+  --text: oklch(0.23 0.012 255);
+  --muted: oklch(0.48 0.012 255);
+  --faint: oklch(0.6 0.01 255);
+  --accent: oklch(0.55 0.19 258);
+  --accent-soft: oklch(0.95 0.035 258);
+  --accent-ink: oklch(0.45 0.17 258);
+  --on-accent: #fff;
+  --green: oklch(0.56 0.15 152);
+  --green-soft: oklch(0.95 0.04 152);
+  --red: oklch(0.57 0.2 25);
+  --red-soft: oklch(0.965 0.022 25);
+  --amber: oklch(0.6 0.14 70);
+  --amber-soft: oklch(0.965 0.04 85);
+  --code-bg: oklch(0.2 0.018 260);
+  --code-border: oklch(0.28 0.02 260);
+  --shadow: 0 1px 2px oklch(0.2 0.02 255 / 0.05), 0 4px 16px oklch(0.2 0.02 255 / 0.05);
+  --pop: 0 12px 40px oklch(0.2 0.02 255 / 0.18), 0 1px 3px oklch(0.2 0.02 255 / 0.08);
+}
+
+:root[data-theme="dark"] :is(.studio-app .oa-host, .studio-app .oa-host [data-theme], .studio-palette-scrim) {
+  --app: oklch(0.18 0.006 260);
+  --side: oklch(0.16 0.006 260);
+  --surface: oklch(0.215 0.007 260);
+  --subtle: oklch(0.24 0.008 260);
+  --hover: oklch(0.27 0.008 260);
+  --border: oklch(0.3 0.009 260);
+  --border-soft: oklch(0.255 0.008 260);
+  --border-strong: oklch(0.42 0.01 260);
+  --text: oklch(0.93 0.005 260);
+  --muted: oklch(0.72 0.01 260);
+  --faint: oklch(0.58 0.01 260);
+  --accent: oklch(0.7 0.14 258);
+  --accent-soft: oklch(0.3 0.07 258);
+  --accent-ink: oklch(0.84 0.09 258);
+  --on-accent: oklch(0.16 0.02 258);
+  --green: oklch(0.74 0.14 152);
+  --green-soft: oklch(0.28 0.05 152);
+  --red: oklch(0.72 0.16 25);
+  --red-soft: oklch(0.27 0.045 25);
+  --amber: oklch(0.8 0.13 75);
+  --amber-soft: oklch(0.29 0.05 75);
+  --code-bg: oklch(0.15 0.01 260);
+  --code-border: oklch(0.26 0.01 260);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.3);
+  --pop: 0 12px 40px oklch(0 0 0 / 0.5);
+}
+
+/* Existing views read the app and omni-ui variables: point them at the tokens. */
+:root[data-theme] :is(.studio-app .oa-host, .studio-app .oa-host [data-theme]) {
+  --ink: var(--text);
+  --line: var(--border);
+  --paper: var(--surface);
+  --wash: var(--app);
+  --panel: var(--surface);
+  --bg-field: var(--surface);
+  --text-default: var(--text);
+  --text-muted: var(--muted);
+  --border-content: var(--border);
+  --bg-panel: var(--surface);
+  --bg-content: var(--app);
+  --color-primary: var(--accent);
+  --color-primary-contrast: var(--on-accent);
+  --color-danger: var(--red);
+  --color-warning: var(--amber);
+  --studio-focus: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ── Frame ─────────────────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+.studio-app {
+  height: 100vh;
+}
+.studio-app .oa-host {
+  overflow: hidden;
+}
+.studio-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--app);
+  color: var(--text);
+  font-family: "Geist", "Geist Variable", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.studio-frame :is(button, input, textarea, select) {
+  font: inherit;
+  color: inherit;
+}
+.studio-frame kbd,
+.studio-palette kbd {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--faint);
+}
+.studio-icon {
+  width: 1em;
+  height: 1em;
+  font-size: 18px;
+  flex: none;
+  fill: currentColor;
+}
+.studio-mono {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+.studio-faint {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+.studio-sidebar {
+  width: 244px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--side);
+  border-right: 1px solid var(--border);
+}
+.studio-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 14px;
+  line-height: 1.15;
+}
+.studio-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.studio-brand-mark .studio-icon {
+  font-size: 17px;
+}
+.studio-brand-name {
+  font-weight: 600;
+}
+.studio-brand-sub,
+.studio-identity-sub {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+.studio-jump {
+  margin: 2px 10px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--faint);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.studio-jump span {
+  flex: 1;
+}
+.studio-jump .studio-icon {
+  font-size: 16px;
+}
+.studio-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px;
+}
+.studio-nav-item,
+.studio-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.studio-nav-item:hover,
+.studio-recent-item:hover,
+.studio-icon-button:hover {
+  background: var(--hover);
+}
+.studio-nav-item[aria-current="page"] {
+  background: var(--hover);
+  color: var(--text);
+  font-weight: 500;
+}
+.studio-nav-label {
+  flex: 1;
+}
+.studio-nav-item kbd {
+  opacity: 0;
+}
+.studio-nav-item:hover kbd {
+  opacity: 1;
+}
+.studio-section-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--faint);
+  padding: 18px 18px 4px;
+}
+.studio-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px;
+  flex: 1;
+  overflow: auto;
+}
+.studio-recent-item {
+  height: 32px;
+  font-size: 13px;
+  color: var(--text);
+}
+.studio-recent-item[aria-current="page"] {
+  background: var(--hover);
+}
+.studio-recent-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  flex: none;
+}
+.studio-recent-note {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.studio-recent-note button,
+.studio-list-empty button {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+}
+.studio-identity {
+  border-top: 1px solid var(--border);
+  padding: 8px 8px 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.studio-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.studio-identity-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+  font-size: 13px;
+  font-weight: 500;
+}
+.studio-identity-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 400;
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+}
+.studio-online {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.studio-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* ── Main column ───────────────────────────────────────────────────────── */
+.studio-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The Workspace inspector docks inside the main column, under the header
+   and beside (not over) the assistant panel. */
+.studio-view .inspector-drawer {
+  position: absolute;
+  top: 56px;
+  bottom: 0;
+  height: auto;
+  max-width: 60%;
+}
+.studio-header {
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.studio-header-title {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.studio-header-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.studio-sees {
+  font-size: 12px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+.studio-view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.studio-button {
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.studio-button:hover {
+  background: var(--subtle);
+}
+.studio-button.primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.studio-button.primary:hover {
+  filter: brightness(1.05);
+}
+.studio-assistant-toggle .oa-icon,
+.studio-assistant-toggle .studio-icon {
+  font-size: 17px;
+  color: var(--accent);
+}
+.studio-assistant-toggle.open {
+  background: var(--accent-soft);
+}
+
+/* A view's toolbar placed in the shell header (Workspace today). */
+.studio-header-slot .topbar-embedded {
+  position: static;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.studio-header-slot .topbar-embedded .topbar-example {
+  display: none;
+}
+.studio-header-slot .topbar-embedded .toolbar {
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+/* ── Pages (Home and interim views) ────────────────────────────────────── */
+.studio-page {
+  height: 100%;
+  overflow: auto;
+}
+.studio-page-inner {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 40px 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.studio-page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.studio-page-head > div {
+  flex: 1;
+  min-width: 260px;
+}
+.studio-page-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.studio-page-head p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+.studio-page-head .studio-button {
+  height: 36px;
+  font-size: 13.5px;
+  border-radius: 9px;
+}
+.studio-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.studio-section h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.studio-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.studio-list-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 100px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.studio-list-row:last-child {
+  border-bottom: 0;
+}
+.studio-list-row:hover {
+  background: var(--subtle);
+}
+.studio-list-row .studio-faint {
+  text-align: right;
+}
+.studio-list-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-list-empty {
+  padding: 20px 16px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.studio-view-error {
+  margin: 48px auto;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  text-align: center;
+}
+
+/* ── Command palette ───────────────────────────────────────────────────── */
+.studio-palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: oklch(0.15 0.01 260 / 0.35);
+  font-family: "Geist", "Geist Variable", system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+.studio-palette {
+  width: min(580px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--pop);
+  overflow: hidden;
+  animation: studio-fade-up 0.12s;
+}
+.studio-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--faint);
+}
+.studio-palette-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+}
+.studio-palette-list {
+  max-height: 360px;
+  overflow: auto;
+  padding: 6px;
+}
+.studio-palette-group {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--faint);
+  padding: 8px 10px 4px;
+}
+.studio-palette-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+}
+.studio-palette-item .studio-icon,
+.studio-palette-item .oa-icon {
+  font-size: 17px;
+  color: var(--muted);
+}
+.studio-palette-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-palette-item[aria-selected="true"] {
+  background: var(--hover);
+}
+.studio-palette-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+@keyframes studio-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Rail: the sidebar becomes icons on narrow windows, or when the assistant
+   dock needs the room (set by the shell). ───────────────────────────────── */
+.studio-frame.rail .studio-sidebar {
+    width: 56px;
+  }
+.studio-frame.rail .studio-brand > div,
+.studio-frame.rail .studio-jump span,
+.studio-frame.rail .studio-jump kbd,
+.studio-frame.rail .studio-nav-label,
+.studio-frame.rail .studio-nav-item kbd,
+.studio-frame.rail .studio-section-label,
+.studio-frame.rail .studio-recent,
+.studio-frame.rail .studio-identity-text,
+.studio-frame.rail .studio-sees {
+    display: none;
+  }
+.studio-frame.rail .studio-brand,
+.studio-frame.rail .studio-identity {
+    justify-content: center;
+    padding: 0;
+  }
+.studio-frame.rail .studio-identity {
+    flex-direction: column;
+    padding: 8px 0;
+  }
+.studio-frame.rail .studio-jump {
+    margin: 2px 8px 10px;
+    justify-content: center;
+    padding: 0;
+  }
+.studio-frame.rail .studio-nav-item {
+    justify-content: center;
+    padding: 0;
+  }
+.studio-frame.rail .studio-nav {
+    flex: 1;
+  }

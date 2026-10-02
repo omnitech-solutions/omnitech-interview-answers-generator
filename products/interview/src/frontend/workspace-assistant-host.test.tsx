@@ -6,10 +6,12 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import React, { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { StudioContext, type StudioViewBinding } from "./studio/context";
 import { Workspace } from "./workspace";
 
 // The workspace's side of the assistant contract, driven through a fake host:
@@ -412,5 +414,76 @@ describe("Workspace assistant host", () => {
         "Run tests explicitly to validate the canonical draft.",
       ),
     ).toBeVisible();
+  });
+});
+
+describe("Workspace inside the studio shell", () => {
+  it("puts its toolbar in the shell header and lends the shell its draft", async () => {
+    const { calls } = installServer();
+    const slot = document.createElement("div");
+    document.body.append(slot);
+    const unbind = vi.fn();
+    const bindView = vi.fn((_binding: StudioViewBinding) => unbind);
+    const refreshLists = vi.fn();
+    host.config = undefined as unknown as AssistantConfig;
+    const { unmount } = render(
+      <StudioContext.Provider
+        value={{
+          theme: "light",
+          toggleTheme: vi.fn(),
+          headerSlot: slot,
+          bindView,
+          refreshLists,
+        }}
+      >
+        <Workspace
+          chrome="embedded"
+          assistant={{
+            client: {} as AssistantClient,
+            profileId: "local",
+            workspaceId: "w",
+            artifactId: "a",
+          }}
+        />
+      </StudioContext.Provider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Interview question")).toHaveValue(
+        "Find two numbers",
+      ),
+    );
+    // The shell owns the brand, theme toggle and assistant root.
+    expect(
+      within(slot).getByRole("button", { name: "Save answer" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Interview product home" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Assistant" })).toBeNull();
+    expect(host.config).toBeUndefined();
+    expect(refreshLists).toHaveBeenCalled();
+
+    await waitFor(() =>
+      expect(bindView).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          origin: expect.objectContaining({ artifactRevision: 3 }),
+        }),
+      ),
+    );
+    const binding = bindView.mock.lastCall![0];
+    await expect(binding.hooks!.current.prepareSend!()).resolves.toMatchObject({
+      artifactRevision: 3,
+    });
+    act(() => binding.runTests!());
+    await waitFor(() =>
+      expect(calls.some((call) => call.path.endsWith("/run-code"))).toBe(true),
+    );
+    fireEvent.click(within(slot).getByRole("button", { name: "Save answer" }));
+    await waitFor(() =>
+      expect(refreshLists.mock.calls.length).toBeGreaterThan(1),
+    );
+    unmount();
+    expect(unbind).toHaveBeenCalled();
+    slot.remove();
   });
 });

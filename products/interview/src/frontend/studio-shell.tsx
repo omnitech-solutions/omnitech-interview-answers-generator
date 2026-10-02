@@ -2,6 +2,7 @@
 
 import { IconButton } from "@oc-tech/omni-ui-components";
 import React, { useEffect, useState } from "react";
+import { useStudio } from "./studio/context";
 
 export type StudioWorkspace =
   | "playground"
@@ -46,9 +47,11 @@ const workspaces = [
 ] as const;
 
 export function useStudioTheme() {
+  const studio = useStudio();
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
+    if (studio) return;
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
     const nextTheme = storedTheme === "dark" ? "dark" : "light";
     setTheme(nextTheme);
@@ -64,7 +67,10 @@ export function useStudioTheme() {
     });
   }
 
-  return { theme, toggleTheme };
+  // Inside the studio shell, its theme is the only one.
+  return studio
+    ? { theme: studio.theme, toggleTheme: studio.toggleTheme }
+    : { theme, toggleTheme };
 }
 
 export function StudioBrand({

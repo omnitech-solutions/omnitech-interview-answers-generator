@@ -19,13 +19,15 @@
     "./assistant": {
       "types": "./dist/backend/assistant-entry.d.ts",
       "import": "./dist/backend/assistant-entry.js"
-    }
+    },
+    "./studio.css": "./src/frontend/studio/tokens.css"
   },
   "scripts": {
     "build": "tsc -b",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "icons": "node scripts/generate-studio-icons.mjs"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",
@@ -64,6 +66,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@material-symbols/svg-400": "0.47.5",
     "@omnitech-assistant/server": "file:../../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz",
     "@omnitech-assistant/storage-postgres": "file:../../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
     "@testing-library/jest-dom": "^7.0.0",

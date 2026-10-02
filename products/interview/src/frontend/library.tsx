@@ -10,8 +10,10 @@ import type {
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";
 import React, {
+  createContext,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -126,10 +128,13 @@ function libraryFilterParameters({
   return parameters;
 }
 
-function hitHref(hit: LibrarySearchHit, filters = "") {
+// Where article URLs live: /library standalone, or the studio's Knowledge path.
+const LibraryBasePath = createContext("/library");
+
+function hitHref(hit: LibrarySearchHit, filters: string, basePath: string) {
   const anchor =
     hit.anchor && !isDocumentTitleHeading(hit) ? `#${hit.anchor}` : "";
-  return `/library/${hit.slug}${filters ? `?${filters}` : ""}${anchor}`;
+  return `${basePath}/${hit.slug}${filters ? `?${filters}` : ""}${anchor}`;
 }
 
 function articleBodyWithoutDuplicateTitle(body: string, title: string) {
@@ -148,7 +153,17 @@ function articleBodyWithoutDuplicateTitle(body: string, title: string) {
   return lines.join("\n");
 }
 
-export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
+export function Library({
+  initialSlug,
+  basePath = "/library",
+  chrome = "standalone",
+}: {
+  initialSlug?: string | undefined;
+  basePath?: string;
+  // Inside the studio, the shell owns navigation, theme and ⌘K.
+  chrome?: "standalone" | "embedded";
+}) {
+  const embedded = chrome === "embedded";
   const searchRef = useRef<HTMLInputElement>(null);
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [query, setQuery] = useState("");
@@ -243,14 +258,17 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
 
   useEffect(() => {
     const onPopState = () => {
-      const match = window.location.pathname.match(/^\/library\/([^/]+)$/);
-      const slug = match?.[1] ? decodeURIComponent(match[1]) : undefined;
+      const prefix = `${basePath}/`;
+      const path = window.location.pathname;
+      const rest = path.startsWith(prefix) ? path.slice(prefix.length) : "";
+      const slug =
+        rest && !rest.includes("/") ? decodeURIComponent(rest) : undefined;
       setPendingSlug(slug);
       setCurrentSlug(slug);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [basePath]);
 
   useEffect(() => {
     if (!item || !window.location.hash) return;
@@ -319,6 +337,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
         target?.matches("input, textarea, select, [contenteditable=true]") ??
         false;
       if (
+        !embedded &&
         (event.metaKey || event.ctrlKey) &&
         event.key.toLocaleLowerCase() === "k"
       ) {
@@ -333,7 +352,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [embedded]);
 
   const headings = useMemo(
     () =>
@@ -374,7 +393,7 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
   }
 
   function openHit(hit: LibrarySearchHit) {
-    const href = hitHref(hit, filterQuery);
+    const href = hitHref(hit, filterQuery, basePath);
     setPendingSlug(hit.slug);
     setCurrentSlug(hit.slug);
     window.history.pushState({}, "", href);
@@ -415,258 +434,268 @@ export function Library({ initialSlug }: { initialSlug?: string | undefined }) {
   }
 
   return (
-    <ConfigProvider theme={{ mode: theme }}>
-      <App>
-        <main className="library-shell">
-          <header className="library-header">
-            <NavigationToggle
-              open={navigationOpen}
-              onClick={() => setNavigationOpen((open) => !open)}
-            />
-            <StudioBrand subtitle="Knowledge base" />
-            <div className="library-search-wrap">
-              <SearchIcon />
-              <input
-                ref={searchRef}
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={onSearchKeyDown}
-                placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
-                aria-label="Search knowledge"
-                aria-controls="library-results"
-                aria-activedescendant={
-                  result?.hits[activeResult]
-                    ? `library-result-${activeResult}`
-                    : undefined
-                }
-              />
-              <kbd>⌘K</kbd>
-            </div>
-            <div className="library-header-actions">
-              <button
-                className="library-mobile-control"
-                type="button"
-                onClick={() => setFiltersOpen((open) => !open)}
-              >
-                Filters
-              </button>
-              <button
-                className="library-add-button"
-                type="button"
-                onClick={() => setAuthorOpen(true)}
-              >
-                <PlusIcon /> Add item
-              </button>
-              <ThemeToggle theme={theme} onClick={toggleTheme} />
-            </div>
-          </header>
-
-          {navigationOpen ? (
-            <StudioNavigation
-              active="library"
-              onClose={() => setNavigationOpen(false)}
-            />
-          ) : null}
-
-          {error ? (
-            <div className="library-alert" role="alert">
-              {error}
-            </div>
-          ) : null}
-
-          <nav
-            className="library-technology-filters"
-            aria-label="Filter by technology"
-          >
-            <button
-              type="button"
-              className={
-                tags.some((tag) => technologyTags.has(tag)) ? "" : "active"
-              }
-              aria-pressed={!tags.some((tag) => technologyTags.has(tag))}
-              onClick={() =>
-                setTags((current) =>
-                  current.filter((tag) => !technologyTags.has(tag)),
-                )
-              }
-            >
-              All
-            </button>
-            {technologyFilters.map(({ label, tag }) => (
-              <button
-                type="button"
-                key={tag}
-                className={tags.includes(tag) ? "active" : ""}
-                aria-pressed={tags.includes(tag)}
-                onClick={() =>
-                  setTags((current) => [
-                    ...current.filter(
-                      (currentTag) => !technologyTags.has(currentTag),
-                    ),
-                    ...(current.includes(tag) ? [] : [tag]),
-                  ])
-                }
-              >
-                {label}
-                {facets?.tags[tag] ? <span>{facets.tags[tag]}</span> : null}
-              </button>
-            ))}
-          </nav>
-
-          <div className="library-workspace">
-            <aside
-              className={`library-filters${filtersOpen ? " open" : ""}`}
-              aria-label="Knowledge index"
-            >
-              {query ||
-              types.length ||
-              collections.length ||
-              tags.length ||
-              officialOnly ? (
+    <LibraryBasePath.Provider value={basePath}>
+      <ConfigProvider theme={{ mode: theme }}>
+        <App>
+          <main className="library-shell">
+            <header className="library-header">
+              {!embedded && (
                 <>
-                  <div className="library-index-toolbar">
-                    <strong>Search index</strong>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuery("");
-                        setTypes([]);
-                        setCollections([]);
-                        setTags([]);
-                        setOfficialOnly(false);
-                      }}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <SearchResults
-                    active={activeResult}
-                    filters={filterQuery}
-                    loading={loading}
-                    query={query}
-                    response={result}
-                    selectedSlug={item?.slug}
-                    pendingSlug={pendingSlug}
-                    onHitClick={onHitClick}
+                  <NavigationToggle
+                    open={navigationOpen}
+                    onClick={() => setNavigationOpen((open) => !open)}
                   />
+                  <StudioBrand subtitle="Knowledge base" />
                 </>
-              ) : (
-                <>
-                  <FilterGroup label="Content type">
-                    {(
-                      Object.keys(contentTypeLabels) as LibraryContentType[]
-                    ).map((type) => (
-                      <FilterButton
-                        key={type}
-                        active={types.includes(type)}
-                        count={facets?.contentTypes[type]}
-                        onClick={() => toggleFilter(type, types, setTypes)}
-                      >
-                        {contentTypeLabels[type]}
-                      </FilterButton>
-                    ))}
-                  </FilterGroup>
-                  <FilterGroup label="Collections">
-                    {Object.entries(facets?.collections ?? {}).map(
-                      ([value, count]) => (
-                        <FilterButton
-                          key={value}
-                          active={collections.includes(value)}
-                          count={count}
-                          onClick={() =>
-                            toggleFilter(value, collections, setCollections)
-                          }
-                        >
-                          {value.replaceAll("-", " ")}
-                        </FilterButton>
+              )}
+              <div className="library-search-wrap">
+                <SearchIcon />
+                <input
+                  ref={searchRef}
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
+                  aria-label="Search knowledge"
+                  aria-controls="library-results"
+                  aria-activedescendant={
+                    result?.hits[activeResult]
+                      ? `library-result-${activeResult}`
+                      : undefined
+                  }
+                />
+                <kbd>{embedded ? "/" : "⌘K"}</kbd>
+              </div>
+              <div className="library-header-actions">
+                <button
+                  className="library-mobile-control"
+                  type="button"
+                  onClick={() => setFiltersOpen((open) => !open)}
+                >
+                  Filters
+                </button>
+                {!embedded && (
+                  <>
+                    <button
+                      className="library-add-button"
+                      type="button"
+                      onClick={() => setAuthorOpen(true)}
+                    >
+                      <PlusIcon /> Add item
+                    </button>
+                    <ThemeToggle theme={theme} onClick={toggleTheme} />
+                  </>
+                )}
+              </div>
+            </header>
+
+            {navigationOpen && !embedded ? (
+              <StudioNavigation
+                active="library"
+                onClose={() => setNavigationOpen(false)}
+              />
+            ) : null}
+
+            {error ? (
+              <div className="library-alert" role="alert">
+                {error}
+              </div>
+            ) : null}
+
+            <nav
+              className="library-technology-filters"
+              aria-label="Filter by technology"
+            >
+              <button
+                type="button"
+                className={
+                  tags.some((tag) => technologyTags.has(tag)) ? "" : "active"
+                }
+                aria-pressed={!tags.some((tag) => technologyTags.has(tag))}
+                onClick={() =>
+                  setTags((current) =>
+                    current.filter((tag) => !technologyTags.has(tag)),
+                  )
+                }
+              >
+                All
+              </button>
+              {technologyFilters.map(({ label, tag }) => (
+                <button
+                  type="button"
+                  key={tag}
+                  className={tags.includes(tag) ? "active" : ""}
+                  aria-pressed={tags.includes(tag)}
+                  onClick={() =>
+                    setTags((current) => [
+                      ...current.filter(
+                        (currentTag) => !technologyTags.has(currentTag),
                       ),
-                    )}
-                  </FilterGroup>
-                  <FilterGroup label="Trust">
-                    <FilterButton
-                      active={officialOnly}
-                      count={facets?.contentTypes["official-reference"]}
-                      onClick={() => setOfficialOnly((value) => !value)}
-                    >
-                      Official only
-                    </FilterButton>
-                  </FilterGroup>
-                  <FilterGroup label="Popular tags">
-                    <div className="library-tag-cloud">
-                      {Object.entries(facets?.tags ?? {})
-                        .sort((left, right) => right[1] - left[1])
-                        .slice(0, 18)
-                        .map(([value, count]) => (
-                          <button
-                            type="button"
-                            key={value}
-                            className={tags.includes(value) ? "active" : ""}
-                            onClick={() => toggleFilter(value, tags, setTags)}
-                          >
-                            {value} <span>{count}</span>
-                          </button>
-                        ))}
+                      ...(current.includes(tag) ? [] : [tag]),
+                    ])
+                  }
+                >
+                  {label}
+                  {facets?.tags[tag] ? <span>{facets.tags[tag]}</span> : null}
+                </button>
+              ))}
+            </nav>
+
+            <div className="library-workspace">
+              <aside
+                className={`library-filters${filtersOpen ? " open" : ""}`}
+                aria-label="Knowledge index"
+              >
+                {query ||
+                types.length ||
+                collections.length ||
+                tags.length ||
+                officialOnly ? (
+                  <>
+                    <div className="library-index-toolbar">
+                      <strong>Search index</strong>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery("");
+                          setTypes([]);
+                          setCollections([]);
+                          setTags([]);
+                          setOfficialOnly(false);
+                        }}
+                      >
+                        Clear
+                      </button>
                     </div>
-                  </FilterGroup>
-                </>
-              )}
-            </aside>
+                    <SearchResults
+                      active={activeResult}
+                      filters={filterQuery}
+                      loading={loading}
+                      query={query}
+                      response={result}
+                      selectedSlug={item?.slug}
+                      pendingSlug={pendingSlug}
+                      onHitClick={onHitClick}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <FilterGroup label="Content type">
+                      {(
+                        Object.keys(contentTypeLabels) as LibraryContentType[]
+                      ).map((type) => (
+                        <FilterButton
+                          key={type}
+                          active={types.includes(type)}
+                          count={facets?.contentTypes[type]}
+                          onClick={() => toggleFilter(type, types, setTypes)}
+                        >
+                          {contentTypeLabels[type]}
+                        </FilterButton>
+                      ))}
+                    </FilterGroup>
+                    <FilterGroup label="Collections">
+                      {Object.entries(facets?.collections ?? {}).map(
+                        ([value, count]) => (
+                          <FilterButton
+                            key={value}
+                            active={collections.includes(value)}
+                            count={count}
+                            onClick={() =>
+                              toggleFilter(value, collections, setCollections)
+                            }
+                          >
+                            {value.replaceAll("-", " ")}
+                          </FilterButton>
+                        ),
+                      )}
+                    </FilterGroup>
+                    <FilterGroup label="Trust">
+                      <FilterButton
+                        active={officialOnly}
+                        count={facets?.contentTypes["official-reference"]}
+                        onClick={() => setOfficialOnly((value) => !value)}
+                      >
+                        Official only
+                      </FilterButton>
+                    </FilterGroup>
+                    <FilterGroup label="Popular tags">
+                      <div className="library-tag-cloud">
+                        {Object.entries(facets?.tags ?? {})
+                          .sort((left, right) => right[1] - left[1])
+                          .slice(0, 18)
+                          .map(([value, count]) => (
+                            <button
+                              type="button"
+                              key={value}
+                              className={tags.includes(value) ? "active" : ""}
+                              onClick={() => toggleFilter(value, tags, setTags)}
+                            >
+                              {value} <span>{count}</span>
+                            </button>
+                          ))}
+                      </div>
+                    </FilterGroup>
+                  </>
+                )}
+              </aside>
 
-            <section className="library-main">
-              {item ? (
-                <LibraryArticle
-                  item={item}
-                  filters={filterQuery}
-                  {...adjacentItems}
-                />
-              ) : (
-                <LibraryLanding
-                  filters={filterQuery}
-                  response={landingResult}
-                />
-              )}
-            </section>
+              <section className="library-main">
+                {item ? (
+                  <LibraryArticle
+                    item={item}
+                    filters={filterQuery}
+                    {...adjacentItems}
+                  />
+                ) : (
+                  <LibraryLanding
+                    filters={filterQuery}
+                    response={landingResult}
+                  />
+                )}
+              </section>
 
-            <aside
-              className={`library-toc${tocOpen ? " open" : ""}`}
-              aria-label="On this page"
-            >
-              <strong>On this page</strong>
-              {item ? (
-                <nav>
-                  {headings.map((heading) => (
-                    <a
-                      key={heading.id}
-                      className={`depth-${heading.depth}`}
-                      href={`#${heading.id}`}
-                      onClick={() => setTocOpen(false)}
-                    >
-                      {heading.text}
-                    </a>
-                  ))}
-                </nav>
-              ) : (
-                <p>Open a reference to see its sections.</p>
-              )}
-            </aside>
-          </div>
+              <aside
+                className={`library-toc${tocOpen ? " open" : ""}`}
+                aria-label="On this page"
+              >
+                <strong>On this page</strong>
+                {item ? (
+                  <nav>
+                    {headings.map((heading) => (
+                      <a
+                        key={heading.id}
+                        className={`depth-${heading.depth}`}
+                        href={`#${heading.id}`}
+                        onClick={() => setTocOpen(false)}
+                      >
+                        {heading.text}
+                      </a>
+                    ))}
+                  </nav>
+                ) : (
+                  <p>Open a reference to see its sections.</p>
+                )}
+              </aside>
+            </div>
 
-          {item ? (
-            <button
-              className="library-toc-toggle"
-              type="button"
-              onClick={() => setTocOpen((open) => !open)}
-            >
-              Contents
-            </button>
-          ) : null}
-          {authorOpen ? (
-            <LibraryAuthor onClose={() => setAuthorOpen(false)} />
-          ) : null}
-        </main>
-      </App>
-    </ConfigProvider>
+            {item ? (
+              <button
+                className="library-toc-toggle"
+                type="button"
+                onClick={() => setTocOpen((open) => !open)}
+              >
+                Contents
+              </button>
+            ) : null}
+            {authorOpen ? (
+              <LibraryAuthor onClose={() => setAuthorOpen(false)} />
+            ) : null}
+          </main>
+        </App>
+      </ConfigProvider>
+    </LibraryBasePath.Provider>
   );
 }
 
@@ -692,6 +721,7 @@ function SearchResults({
   response?: LibrarySearchResponse | undefined;
   selectedSlug?: string | undefined;
 }) {
+  const basePath = useContext(LibraryBasePath);
   const selectedIndex = selectedSlug
     ? response?.hits.findIndex((hit) => hit.slug === selectedSlug)
     : -1;
@@ -724,7 +754,7 @@ function SearchResults({
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                href={hitHref(hit, filters)}
+                href={hitHref(hit, filters, basePath)}
                 onClick={(event) => onHitClick(event, hit)}
                 aria-current={selected ? "page" : undefined}
               >
@@ -769,6 +799,7 @@ function LibraryLanding({
   filters: string;
   response?: LibrarySearchResponse | undefined;
 }) {
+  const basePath = useContext(LibraryBasePath);
   const collections = [
     ["react", "React & Frontend", "Hooks, state, rendering, accessibility"],
     ["php", "PHP 8.4", "Language, arrays, types, PDO"],
@@ -809,7 +840,10 @@ function LibraryLanding({
       <h2>Recently verified and reviewed</h2>
       <div className="library-quick-list">
         {response?.hits.slice(0, 8).map((hit) => (
-          <a key={`${hit.itemId}:${hit.anchor}`} href={hitHref(hit, filters)}>
+          <a
+            key={`${hit.itemId}:${hit.anchor}`}
+            href={hitHref(hit, filters, basePath)}
+          >
             <span className={typeClass(hit.contentType)}>
               {contentTypeLabels[hit.contentType]}
             </span>
@@ -833,6 +867,7 @@ function LibraryArticle({
   next?: LibrarySearchHit | undefined;
   previous?: LibrarySearchHit | undefined;
 }) {
+  const basePath = useContext(LibraryBasePath);
   return (
     <article className="library-article">
       <header className="library-article-header">
@@ -892,7 +927,7 @@ function LibraryArticle({
           aria-label="Adjacent references"
         >
           {previous ? (
-            <a href={hitHref(previous, filters)}>
+            <a href={hitHref(previous, filters, basePath)}>
               <small>Previous</small>
               <strong>{previous.title}</strong>
             </a>
@@ -900,7 +935,7 @@ function LibraryArticle({
             <span />
           )}
           {next ? (
-            <a href={hitHref(next, filters)}>
+            <a href={hitHref(next, filters, basePath)}>
               <small>Next</small>
               <strong>{next.title}</strong>
             </a>

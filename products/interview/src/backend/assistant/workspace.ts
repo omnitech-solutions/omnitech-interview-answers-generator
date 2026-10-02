@@ -89,6 +89,14 @@ export type InterviewEvidence = Readonly<
     audience: readonly string[];
   }
 >;
+export type DraftSummary = Readonly<{
+  artifactId: string;
+  title: string;
+  kind: "coding" | "briefing";
+  language: string | null;
+  revision: number;
+  updatedAt: string;
+}>;
 export type WorkspaceDraftRecord = Readonly<{
   origin: WorkspaceOrigin;
   value: InterviewDraft;
@@ -532,6 +540,35 @@ export class InterviewWorkspaceRepository {
         [...values(scope), id.parse(workspaceId), id.parse(artifactId)],
       );
       return rows.map((row) => this.answerRevision(row));
+    });
+  }
+  // The person's drafts in one workspace, newest first, for the studio's
+  // question lists. Titles come from the question's first non-empty line.
+  async listDrafts(
+    scope: WorkspaceScope,
+    workspaceId: string,
+  ): Promise<readonly DraftSummary[]> {
+    return this.transaction(scope, async (tx, scope) => {
+      const rows = await tx.query(
+        `SELECT artifact_id,revision,updated_at,value FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 ORDER BY updated_at DESC, artifact_id LIMIT 50`,
+        [...values(scope), id.parse(workspaceId)],
+      );
+      return rows.map((row) => {
+        const value = row["value"] as InterviewDraft;
+        const line =
+          value.question
+            .split("\n")
+            .map((text) => text.trim())
+            .find(Boolean) ?? "";
+        return {
+          artifactId: String(row["artifact_id"]),
+          title: line.length > 80 ? `${line.slice(0, 79)}…` : line,
+          kind: value.briefing ? "briefing" : "coding",
+          language: value.answer?.language ?? null,
+          revision: Number(row["revision"]),
+          updatedAt: timestamp(row["updated_at"]),
+        } as const;
+      });
     });
   }
   async putEvidence(

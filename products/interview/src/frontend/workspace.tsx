@@ -29,6 +29,7 @@ import type { Origin } from "@omnitech-assistant/contracts";
 import {
   type AssistantConfig,
   AssistantRoot,
+  type HostHooks,
   Icon,
   useAssistantHost,
 } from "@omnitech-assistant/react";
@@ -42,6 +43,8 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
+import { useStudio } from "./studio/context";
 import {
   createAgentJob,
   type ExecutionTarget,
@@ -310,10 +313,16 @@ interface CanonicalDraft {
 export function Workspace({
   assistant,
   onPreparationDirtyChange,
+  chrome = "standalone",
 }: {
   assistant?: WorkspaceAssistant;
   onPreparationDirtyChange?: (dirty: boolean) => void;
+  // Inside the studio shell: no own header, theme or assistant root; the
+  // toolbar goes into the shell header and the assistant hooks are lent to it.
+  chrome?: "standalone" | "embedded";
 } & Partial<ProductPageProps> = {}) {
+  const studio = useStudio();
+  const embedded = chrome === "embedded" && studio !== null;
   const [activeView, setActiveView] = useState<
     "playground" | "concept-lab" | "mock-interview" | "interview-preparation"
   >("playground");
@@ -384,6 +393,19 @@ export function Workspace({
   const [assistantFocus, setAssistantFocus] = useState<readonly string[]>([]);
   const [assistantPreview, setAssistantPreview] =
     useState<ProposalRecord | null>(null);
+  const assistantHooks = useRef<HostHooks>({});
+  const runTests = useRef<() => void>(() => undefined);
+  const bindView = studio?.bindView;
+  // Lend the studio shell this draft while it is open: the docked assistant
+  // reads and proposes against it, and ⌘↵ runs its tests.
+  useEffect(() => {
+    if (!embedded || !assistant || !bindView) return;
+    return bindView({
+      origin: assistantOrigin,
+      hooks: assistantHooks,
+      runTests: () => runTests.current(),
+    });
+  }, [embedded, assistant, bindView, assistantOrigin]);
   const originRef = useRef<Origin | undefined>(undefined);
   const canonicalValue = useRef<string>("");
   const workingValue = useRef({ question, notes, answer: answer ?? null });
@@ -474,7 +496,10 @@ export function Workspace({
     let active = true;
     void workspaceRequest<CanonicalDraft>("")
       .then((record) => {
-        if (active) hydrateCanonical(record);
+        if (!active) return;
+        hydrateCanonical(record);
+        // A new question exists once it is first read; list it.
+        studio?.refreshLists();
       })
       .catch((error) => {
         if (active)
@@ -925,6 +950,7 @@ export function Workspace({
         });
         delete effectKeys.current["save"];
         await loadSaved();
+        studio?.refreshLists();
         setStatus("Saved immutable answer version.");
         return;
       }
@@ -1198,142 +1224,318 @@ export function Workspace({
     );
   }
 
+  // What this draft needs from the assistant, whether it is hosted here or by
+  // the studio shell. Read through a ref so the latest closures always run.
+  assistantHooks.current = {
+    prepareSend: flushDraft,
+    beforeApply: async () => {
+      await flushDraft();
+    },
+    onApplied: async (_receipt, captured) => {
+      await reloadAfterAssistant(
+        captured,
+        "Assistant change applied. Not saved.",
+      );
+    },
+    onReverted: async (record) => {
+      await reloadAfterAssistant(
+        record.proposal.origin,
+        "Assistant change undone.",
+      );
+    },
+    onPreview: setAssistantPreview,
+    onContextChange: (surfaces) =>
+      setAssistantFocus(surfaces.map((item) => item.id)),
+  };
+  runTests.current = () => void run();
+
   const page = (
     <ConfigProvider theme={{ mode: theme }}>
       <App>
         <main className="studio">
-          <header
-            className={`topbar ${
-              activeView !== "playground" ? "topbar-concept" : ""
-            }`}
-          >
-            <NavigationToggle
-              open={navigationOpen}
-              onClick={() => setNavigationOpen((open) => !open)}
-            />
-            <StudioBrand />
-            {activeView === "playground" ? (
-              <label className="topbar-example">
-                <span>Example template</span>
-                <select
-                  aria-label="Example template"
-                  value={exampleId}
-                  onChange={(event) => selectExample(event.target.value)}
-                >
-                  <option value="">Choose a realistic example…</option>
-                  {preparedExampleTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <div className="topbar-view-title">
-                {activeView === "interview-preparation"
-                  ? "Interview preparation"
-                  : activeView === "concept-lab"
-                    ? "Briefing"
-                    : "Rehearsal"}
-              </div>
-            )}
-            {activeView === "playground" ? (
-              <div className="toolbar">
-                <label>
-                  <span>Language</span>
+          {embedded ? (
+            studio.headerSlot &&
+            createPortal(
+              <div className="topbar topbar-embedded">
+                {!embedded && (
+                  <>
+                    <NavigationToggle
+                      open={navigationOpen}
+                      onClick={() => setNavigationOpen((open) => !open)}
+                    />
+                    <StudioBrand />
+                  </>
+                )}
+                {activeView === "playground" ? (
+                  <label className="topbar-example">
+                    <span>Example template</span>
+                    <select
+                      aria-label="Example template"
+                      value={exampleId}
+                      onChange={(event) => selectExample(event.target.value)}
+                    >
+                      <option value="">Choose a realistic example…</option>
+                      {preparedExampleTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <div className="topbar-view-title">
+                    {activeView === "interview-preparation"
+                      ? "Interview preparation"
+                      : activeView === "concept-lab"
+                        ? "Briefing"
+                        : "Rehearsal"}
+                  </div>
+                )}
+                {activeView === "playground" ? (
+                  <div className="toolbar">
+                    <label>
+                      <span>Language</span>
+                      <select
+                        value={language}
+                        onChange={(event) =>
+                          setLanguage(event.target.value as LanguageSelection)
+                        }
+                      >
+                        {languages.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <Button
+                      variant="outline"
+                      onClick={() => void newPlayground()}
+                      disabled={busy}
+                    >
+                      New
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={save}
+                      disabled={busy || !answer}
+                    >
+                      {assistant ? "Save answer" : "Save"}
+                    </Button>
+                    <span className="toolbar-divider" aria-hidden="true" />
+                    <Button
+                      className="run-button"
+                      variant="outline"
+                      onClick={() => void run()}
+                      disabled={busy || !answer}
+                    >
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M8 5.5v13l10-6.5z" />
+                      </svg>
+                      {assistant ? "Run tests" : "Run All"}
+                    </Button>
+                    <span className="toolbar-divider" aria-hidden="true" />
+                    {!assistant && (
+                      <TerminalToggleButton
+                        open={terminalOpen}
+                        onToggle={() => {
+                          setTerminalOpen((current) => {
+                            const nextOpen = !current;
+                            if (nextOpen) setInspectorOpen(true);
+                            return nextOpen;
+                          });
+                        }}
+                      />
+                    )}
+                    {!embedded && (
+                      <ThemeToggle theme={theme} onClick={toggleTheme} />
+                    )}
+                    {assistant && !embedded && <AssistantToggle />}
+                    <InspectorToggleButton
+                      open={inspectorOpen}
+                      onToggle={toggleInspector}
+                    />
+                  </div>
+                ) : activeView === "concept-lab" ? (
+                  <div className="toolbar concept-toolbar">
+                    <div
+                      className="concept-toolbar-actions"
+                      ref={setConceptToolbarTarget}
+                    />
+                    <span className="toolbar-divider" aria-hidden="true" />
+                    {!assistant && (
+                      <TerminalToggleButton
+                        open={terminalOpen}
+                        onToggle={() => {
+                          setTerminalOpen((current) => {
+                            const nextOpen = !current;
+                            if (nextOpen) setInspectorOpen(true);
+                            return nextOpen;
+                          });
+                        }}
+                      />
+                    )}
+                    {!embedded && (
+                      <ThemeToggle theme={theme} onClick={toggleTheme} />
+                    )}
+                    {assistant && !embedded && <AssistantToggle />}
+                    <InspectorToggleButton
+                      open={inspectorOpen}
+                      onToggle={toggleInspector}
+                    />
+                  </div>
+                ) : (
+                  <div />
+                )}
+              </div>,
+              studio.headerSlot,
+            )
+          ) : (
+            <header
+              className={`topbar ${
+                activeView !== "playground" ? "topbar-concept" : ""
+              }`}
+            >
+              {!embedded && (
+                <>
+                  <NavigationToggle
+                    open={navigationOpen}
+                    onClick={() => setNavigationOpen((open) => !open)}
+                  />
+                  <StudioBrand />
+                </>
+              )}
+              {activeView === "playground" ? (
+                <label className="topbar-example">
+                  <span>Example template</span>
                   <select
-                    value={language}
-                    onChange={(event) =>
-                      setLanguage(event.target.value as LanguageSelection)
-                    }
+                    aria-label="Example template"
+                    value={exampleId}
+                    onChange={(event) => selectExample(event.target.value)}
                   >
-                    {languages.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
+                    <option value="">Choose a realistic example…</option>
+                    {preparedExampleTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.label}
                       </option>
                     ))}
                   </select>
                 </label>
-                <Button
-                  variant="outline"
-                  onClick={() => void newPlayground()}
-                  disabled={busy}
-                >
-                  New
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={save}
-                  disabled={busy || !answer}
-                >
-                  {assistant ? "Save answer" : "Save"}
-                </Button>
-                <span className="toolbar-divider" aria-hidden="true" />
-                <Button
-                  className="run-button"
-                  variant="outline"
-                  onClick={() => void run()}
-                  disabled={busy || !answer}
-                >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
+              ) : (
+                <div className="topbar-view-title">
+                  {activeView === "interview-preparation"
+                    ? "Interview preparation"
+                    : activeView === "concept-lab"
+                      ? "Briefing"
+                      : "Rehearsal"}
+                </div>
+              )}
+              {activeView === "playground" ? (
+                <div className="toolbar">
+                  <label>
+                    <span>Language</span>
+                    <select
+                      value={language}
+                      onChange={(event) =>
+                        setLanguage(event.target.value as LanguageSelection)
+                      }
+                    >
+                      {languages.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button
+                    variant="outline"
+                    onClick={() => void newPlayground()}
+                    disabled={busy}
                   >
-                    <path d="M8 5.5v13l10-6.5z" />
-                  </svg>
-                  {assistant ? "Run tests" : "Run All"}
-                </Button>
-                <span className="toolbar-divider" aria-hidden="true" />
-                {!assistant && (
-                  <TerminalToggleButton
-                    open={terminalOpen}
-                    onToggle={() => {
-                      setTerminalOpen((current) => {
-                        const nextOpen = !current;
-                        if (nextOpen) setInspectorOpen(true);
-                        return nextOpen;
-                      });
-                    }}
+                    New
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={save}
+                    disabled={busy || !answer}
+                  >
+                    {assistant ? "Save answer" : "Save"}
+                  </Button>
+                  <span className="toolbar-divider" aria-hidden="true" />
+                  <Button
+                    className="run-button"
+                    variant="outline"
+                    onClick={() => void run()}
+                    disabled={busy || !answer}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M8 5.5v13l10-6.5z" />
+                    </svg>
+                    {assistant ? "Run tests" : "Run All"}
+                  </Button>
+                  <span className="toolbar-divider" aria-hidden="true" />
+                  {!assistant && (
+                    <TerminalToggleButton
+                      open={terminalOpen}
+                      onToggle={() => {
+                        setTerminalOpen((current) => {
+                          const nextOpen = !current;
+                          if (nextOpen) setInspectorOpen(true);
+                          return nextOpen;
+                        });
+                      }}
+                    />
+                  )}
+                  {!embedded && (
+                    <ThemeToggle theme={theme} onClick={toggleTheme} />
+                  )}
+                  {assistant && !embedded && <AssistantToggle />}
+                  <InspectorToggleButton
+                    open={inspectorOpen}
+                    onToggle={toggleInspector}
                   />
-                )}
-                <ThemeToggle theme={theme} onClick={toggleTheme} />
-                {assistant && <AssistantToggle />}
-                <InspectorToggleButton
-                  open={inspectorOpen}
-                  onToggle={toggleInspector}
-                />
-              </div>
-            ) : activeView === "concept-lab" ? (
-              <div className="toolbar concept-toolbar">
-                <div
-                  className="concept-toolbar-actions"
-                  ref={setConceptToolbarTarget}
-                />
-                <span className="toolbar-divider" aria-hidden="true" />
-                {!assistant && (
-                  <TerminalToggleButton
-                    open={terminalOpen}
-                    onToggle={() => {
-                      setTerminalOpen((current) => {
-                        const nextOpen = !current;
-                        if (nextOpen) setInspectorOpen(true);
-                        return nextOpen;
-                      });
-                    }}
+                </div>
+              ) : activeView === "concept-lab" ? (
+                <div className="toolbar concept-toolbar">
+                  <div
+                    className="concept-toolbar-actions"
+                    ref={setConceptToolbarTarget}
                   />
-                )}
-                <ThemeToggle theme={theme} onClick={toggleTheme} />
-                {assistant && <AssistantToggle />}
-                <InspectorToggleButton
-                  open={inspectorOpen}
-                  onToggle={toggleInspector}
-                />
-              </div>
-            ) : (
-              <div />
-            )}
-          </header>
+                  <span className="toolbar-divider" aria-hidden="true" />
+                  {!assistant && (
+                    <TerminalToggleButton
+                      open={terminalOpen}
+                      onToggle={() => {
+                        setTerminalOpen((current) => {
+                          const nextOpen = !current;
+                          if (nextOpen) setInspectorOpen(true);
+                          return nextOpen;
+                        });
+                      }}
+                    />
+                  )}
+                  {!embedded && (
+                    <ThemeToggle theme={theme} onClick={toggleTheme} />
+                  )}
+                  {assistant && !embedded && <AssistantToggle />}
+                  <InspectorToggleButton
+                    open={inspectorOpen}
+                    onToggle={toggleInspector}
+                  />
+                </div>
+              ) : (
+                <div />
+              )}
+            </header>
+          )}
 
           {navigationOpen ? (
             <StudioNavigation
@@ -1972,7 +2174,7 @@ export function Workspace({
       </App>
     </ConfigProvider>
   );
-  if (!assistant) return page;
+  if (!assistant || embedded) return page;
   const assistantConfig: AssistantConfig = {
     client: assistant.client,
     origin: assistantOrigin ?? {
@@ -1992,25 +2194,7 @@ export function Workspace({
     surfaces: assistantSurfaces,
     theme,
     host: {
-      prepareSend: flushDraft,
-      beforeApply: async () => {
-        await flushDraft();
-      },
-      onApplied: async (_receipt, captured) => {
-        await reloadAfterAssistant(
-          captured,
-          "Assistant change applied. Not saved.",
-        );
-      },
-      onReverted: async (record) => {
-        await reloadAfterAssistant(
-          record.proposal.origin,
-          "Assistant change undone.",
-        );
-      },
-      onPreview: setAssistantPreview,
-      onContextChange: (surfaces) =>
-        setAssistantFocus(surfaces.map((item) => item.id)),
+      ...assistantHooks.current,
       onThemeChange: (next) => {
         if (next !== theme) toggleTheme();
       },

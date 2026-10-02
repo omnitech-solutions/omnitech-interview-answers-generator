@@ -476,6 +476,10 @@ app.get(path, async (c) => {
     );
   }
 });
+// The studio's question lists: this person's drafts in a workspace.
+app.get("/api/interview/workspaces/:workspace/artifacts", async (c) =>
+  c.json(await workspace.listDrafts(scope, c.req.param("workspace"))),
+);
 const editSchema = z.strictObject({
   origin: originSchema,
   patch: interviewDraftPatchSchema,
@@ -560,6 +564,8 @@ if (mode === "fixture")
 const interviewApi = createInterviewApi();
 for (const route of ["generate", "explain", "syntax-check"])
   app.post(`/api/v1/${route}`, (c) => interviewApi.fetch(c.req.raw));
+// Knowledge reads the reviewed library; authoring stays refused on this host.
+app.get("/api/v1/library/*", (c) => interviewApi.fetch(c.req.raw));
 app.all("/api/v1/*", (c) =>
   c.json(
     {

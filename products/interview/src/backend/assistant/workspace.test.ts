@@ -319,3 +319,47 @@ it("round-trips padded scope origin and evidence identifiers without rewriting s
     text,
   );
 });
+
+it("lists only this actor's drafts in a workspace, newest first, titled by the question", async () => {
+  const listScope = {
+    tenantId: "list",
+    actorId: "ana",
+    productId: "interview",
+  };
+  const at = (artifactId: string) => ({
+    workspaceId: "lw",
+    artifactId,
+    artifactRevision: 0,
+  });
+  await repo.create(listScope, at("older"), { question: "Older question" });
+  await repo.create(listScope, at("newer"), {
+    question: "\n  Max events in a time window\nGiven sorted timestamps…",
+  });
+  await repo.create(
+    listScope,
+    { ...at("elsewhere"), workspaceId: "other" },
+    {
+      question: "Another workspace",
+    },
+  );
+  await repo.create({ ...listScope, actorId: "bob" }, at("bobs"), {
+    question: "Bob's question",
+  });
+  await repo.create({ ...listScope, tenantId: "t2" }, at("t2"), {
+    question: "Other tenant",
+  });
+  const listed = await repo.listDrafts(listScope, "lw");
+  expect(listed.map((item) => item.artifactId)).toEqual(["newer", "older"]);
+  expect(listed[0]).toMatchObject({
+    title: "Max events in a time window",
+    language: null,
+    kind: "coding",
+    revision: 0,
+  });
+  expect(typeof listed[0]?.updatedAt).toBe("string");
+  const long = "x".repeat(120);
+  await repo.create(listScope, at("long"), { question: long });
+  expect((await repo.listDrafts(listScope, "lw"))[0]?.title).toBe(
+    `${"x".repeat(79)}…`,
+  );
+});

@@ -216,3 +216,18 @@ Each check is recorded with a screenshot and the interaction performed:
 - **Workspace embedded mode.** `workspace.tsx` is about 2,100 lines. The embedded mode only hides its top bar and navigation; its toolbar actions (Language, New, Save, Run) stay visible inside the view until sub-project 2.
 - **Moving the assistant config.** The proposal, apply and undo tests in `workspace-assistant*.test.tsx` must keep passing; the hook registration context is the seam.
 - **Size.** The estimate is about 1,200 changed lines including tests, which exceeds the 1,000-line checkpoint. That is accepted by approving this spec.
+
+## Implementation notes (2026-10-01)
+
+Deviations from the design above, found while building and checking in the browser:
+
+- **Routing is path-based, not `?view=`.** `Library` rewrites the whole query string for its filters and pushes `/library/<slug>`. Views therefore live in the path: `/t/local/p/interview/<view>[/<rest>]`, with `?artifact=` used only by the Workspace. `Library` gained `basePath` and `chrome="embedded"` props: no brand, theme, ⌘K or authoring inside the shell.
+- **No toast module.** Nothing in this sub-project raises one; it arrives with the first feature that does.
+- **Header slot.** The shell header has an action slot. The embedded Workspace portals its toolbar into it (Language, New, Save answer, Run tests, inspector), so the page has a single top bar. The example-template picker stays standalone-only.
+- **Inspector and narrow windows.** Inside the shell, the Workspace inspector is anchored under the header and capped at 60% of the main column. The sidebar collapses to an icon rail below 900px, and below 1400px while the assistant dock is open.
+- **Shortcut ownership.** The assistant package binds ⌘K (its search) and ⌘J (toggle). The shell moves the package's search to ⌘⇧K and leaves ⌘J to the package.
+- **Icons.** `scripts/generate-studio-icons.mjs` writes `icons.generated.ts` from `@material-symbols/svg-400` (dev dependency, Apache-2.0). The assistant sparkle uses the assistant package's own `Icon`.
+- **Stylesheet.** `tsc -b` does not copy CSS, so the package exports `@omnitech/product-interview/studio.css` and the host imports it.
+- **Dev CSP.** `apps/frontend/vite.config.ts` adds `'wasm-unsafe-eval'` to `script-src` so Shiki's WebAssembly highlighter runs. This was a pre-existing failure that became visible once Knowledge worked on this host.
+- **API route checks.** `apps/api/src/main.ts` is a start-up script with no test harness. Its two new routes were checked against the running API with curl: the drafts listing returns real drafts, the library search succeeds, and a library POST returns 501. `listDrafts` itself is covered by the Postgres fixture test.
+- **Not exercised in the browser:** Generate (a model call) and Save (writes an immutable answer version to the operator's data). Both go through the same shell binding that ⌘↵ exercised, and both are covered by component tests.
