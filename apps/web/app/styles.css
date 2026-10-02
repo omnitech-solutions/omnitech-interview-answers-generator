@@ -2048,8 +2048,10 @@ textarea {
   color: var(--shiki-light);
 }
 
+/* Shiki writes each token's light colour inline; dark mode must win over it,
+   as it does for code blocks. Tokens without a dark colour inherit. */
 [data-theme="dark"] .markdown-inline-code-highlighted span {
-  color: var(--shiki-dark);
+  color: var(--shiki-dark) !important;
 }
 
 .markdown-inline-code-highlighted .line {
