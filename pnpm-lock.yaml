@@ -757,6 +757,9 @@ importers:
       '@omnitech/platform-contracts':
         specifier: workspace:*
         version: link:../platform-contracts
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.22.0)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
       pg:
         specifier: ^8.16.3
         version: 8.22.0
@@ -815,6 +818,9 @@ importers:
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
+      '@omnitech/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@omnitech/interview-api-client':
         specifier: workspace:*
         version: link:../../packages/interview-api-client
@@ -833,6 +839,9 @@ importers:
       '@omnitech/platform-contracts':
         specifier: workspace:*
         version: link:../../packages/platform-contracts
+      '@omnitech/platform-storage':
+        specifier: workspace:*
+        version: link:../../packages/platform-storage
       '@panzoom/panzoom':
         specifier: ^4.6.2
         version: 4.6.2
@@ -851,6 +860,9 @@ importers:
       diff:
         specifier: 9.0.0
         version: 9.0.0
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.22.0)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3)
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
@@ -9727,6 +9739,15 @@ snapshots:
       esbuild: 0.25.12
       get-tsconfig: 4.14.3
       jiti: 2.7.0
+
+  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.22.0)(valibot@1.4.2(typescript@5.9.3))(zod@4.4.3):
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/pg': 8.20.0
+      effect: 3.21.4
+      pg: 8.22.0
+      valibot: 1.4.2(typescript@5.9.3)
+      zod: 4.4.3
 
   drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(effect@3.21.4)(pg@8.23.1)(valibot@1.4.2(typescript@5.9.3))(zod@4.6.5):
     optionalDependencies:

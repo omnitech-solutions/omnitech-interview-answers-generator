@@ -11,6 +11,7 @@
       "!**/dist",
       "!**/.turbo",
       "!coverage",
+      "!packages/database/drizzle",
       "!rulesync.jsonc",
       "!opencode.jsonc"
     ]

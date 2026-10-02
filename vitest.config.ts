@@ -84,6 +84,7 @@ export default defineConfig({
         "packages/platform-integrations/src/oauth.ts",
         "packages/platform-storage/src/bootstrap.ts",
         "packages/platform-storage/src/database.ts",
+        "packages/database/src/drizzle-migrations.ts",
         "packages/platform-storage/src/migrate.ts",
         "packages/platform-storage/src/platform-repository.ts",
         "packages/platform-storage/src/agent-job-repository.ts",
