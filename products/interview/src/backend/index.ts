@@ -22,3 +22,8 @@ export {
   type WorkspaceOrigin,
   type WorkspaceScope,
 } from "./assistant/workspace.js";
+
+export { briefingScope } from "./briefing-access.js";
+export { createBriefingApi } from "./briefing/api.js";
+
+export { loadLocalDefaultProfile } from "./local-default-profile.js";

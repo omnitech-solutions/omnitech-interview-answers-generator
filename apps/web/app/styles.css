@@ -4325,3 +4325,58 @@ select {
 .presentation-reference-files.is-list { grid-template-columns: 1fr; }
 .presentation-reference-files.is-list .presentation-reference-file-preview { display: none; }
 .platform-globals select[aria-label="AI model"] { max-width: 220px; }
+
+
+.interview-preparation {
+  display: grid;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px;
+}
+.interview-preparation > section {
+  display: grid;
+  gap: 14px;
+  background: var(--paper);
+}
+.interview-preparation h1 { font-size: 26px; font-weight: 750; }
+.interview-preparation h2 { font-size: 19px; font-weight: 700; }
+.interview-preparation h3 { font-size: 16px; font-weight: 700; }
+.interview-preparation p { color: var(--muted); line-height: 1.6; }
+.interview-preparation label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-block: 8px;
+}
+.interview-preparation input:not([type="checkbox"]),
+.interview-preparation textarea,
+.interview-preparation select {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-field);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+.interview-preparation textarea { resize: vertical; }
+.interview-preparation input:focus-visible,
+.interview-preparation textarea:focus-visible,
+.interview-preparation select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.interview-preparation button { justify-self: start; }
+.interview-preparation fieldset { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.interview-preparation input[type="checkbox"] { margin-right: 8px; }
+.interview-preparation article { display: grid; gap: 10px; padding-block: 16px; border-top: 1px solid var(--line); }
+.interview-preparation summary { cursor: pointer; font-weight: 600; padding-block: 8px; }
+.interview-preparation ul { padding-left: 20px; list-style: disc; line-height: 1.7; }
+.interview-preparation [role="status"] { padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--paper); }
+@media (max-width: 640px) {
+  .interview-preparation { padding: 16px; }
+}

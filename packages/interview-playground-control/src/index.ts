@@ -7,7 +7,11 @@ export type PlaygroundLanguage =
 
 export type PlaygroundAnswerLanguage = Exclude<PlaygroundLanguage, "auto">;
 export type PlaygroundPanel = "terminal" | "notes" | "output" | "saved";
-export type StudioView = "playground" | "concept-lab" | "mock-interview";
+export type StudioView =
+  | "playground"
+  | "concept-lab"
+  | "mock-interview"
+  | "interview-preparation";
 
 export interface MockInterviewControl {
   action: "start" | "end" | "reset";
@@ -98,6 +102,7 @@ const panels = new Set<PlaygroundPanel>([
   "saved",
 ]);
 const views = new Set<StudioView>([
+  "interview-preparation",
   "playground",
   "concept-lab",
   "mock-interview",

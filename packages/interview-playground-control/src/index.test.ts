@@ -12,6 +12,11 @@ afterEach(() => {
 });
 
 describe("parsePlaygroundPatch", () => {
+  it("opens preparation without requiring a code answer or language", () => {
+    expect(parsePlaygroundPatch({ view: "interview-preparation" })).toEqual({
+      view: "interview-preparation",
+    });
+  });
   it("accepts a partial form update", () => {
     expect(
       parsePlaygroundPatch({

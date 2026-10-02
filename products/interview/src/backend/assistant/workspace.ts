@@ -1,15 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  jsonValueSchema,
-  type ProductErrorStatus,
-  ProductOperationError,
-} from "@omnitech-assistant/contracts";
-import {
+  briefingDraftSchema,
   generatedAnswerSchema,
   type InterviewProvenance,
   interviewMetricSchema,
   interviewProvenanceSchema,
 } from "@omnitech/interview-contracts";
+import {
+  jsonValueSchema,
+  type ProductErrorStatus,
+  ProductOperationError,
+} from "@omnitech-assistant/contracts";
 import { z } from "zod";
 
 // Structural host ports: compatible with the portable package's built exports,
@@ -47,17 +48,24 @@ const boundedAnswerSchema = generatedAnswerSchema
     testCode: z.string().max(100_000).default(""),
   })
   .strict();
-export const interviewDraftSchema = z.strictObject({
-  question: z.string().max(32_000).trim().min(1),
-  notes: z.string().max(100_000).default(""),
-  answer: boundedAnswerSchema.nullable().default(null),
-});
+export const interviewDraftSchema = z
+  .strictObject({
+    question: z.string().max(32_000).trim().min(1),
+    notes: z.string().max(100_000).default(""),
+    answer: boundedAnswerSchema.nullable().default(null),
+    briefing: briefingDraftSchema.nullable().optional(),
+  })
+  .refine(
+    (value) => !(value.answer && value.briefing),
+    "Coding answer and briefing cannot coexist",
+  );
 // A patch must not inherit creation defaults: omitting notes/answer preserves
 // the existing fields rather than resetting them during a proposal edit.
 export const interviewDraftPatchSchema = z.strictObject({
   question: z.string().max(32_000).trim().min(1).optional(),
   notes: z.string().max(100_000).optional(),
   answer: boundedAnswerSchema.nullable().optional(),
+  briefing: briefingDraftSchema.nullable().optional(),
 });
 const evidenceSchema = z.strictObject({
   id,
@@ -213,24 +221,40 @@ export class InterviewWorkspaceRepository {
       question: string;
       notes?: string;
       answer?: InterviewDraft["answer"];
+      briefing?: InterviewDraft["briefing"];
     },
   ): Promise<WorkspaceDraftRecord> {
+    return this.transaction(scope, (tx, scope) =>
+      this.createTransaction(tx, scope, origin, initial),
+    );
+  }
+  async createTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    origin: WorkspaceOrigin,
+    initial: {
+      question: string;
+      notes?: string;
+      answer?: InterviewDraft["answer"];
+      briefing?: InterviewDraft["briefing"];
+    },
+  ): Promise<WorkspaceDraftRecord> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
     origin = originSchema.parse(origin);
     if (origin.artifactRevision !== 0)
       throw new WorkspaceError("revision-conflict");
     const value = interviewDraftSchema.parse(initial);
-    return this.transaction(scope, async (tx, scope) => {
-      const [row] = await tx.query(
-        "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
-        [
-          ...values(scope),
-          origin.workspaceId,
-          origin.artifactId,
-          JSON.stringify(value),
-        ],
-      );
-      return draft(row!);
-    });
+    const [row] = await tx.query(
+      "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
+      [
+        ...values(scope),
+        origin.workspaceId,
+        origin.artifactId,
+        JSON.stringify(value),
+      ],
+    );
+    return draft(row!);
   }
   async read(
     scope: WorkspaceScope,
@@ -302,7 +326,9 @@ export class InterviewWorkspaceRepository {
         origin.artifactId,
         origin.artifactRevision,
         JSON.stringify(value),
-        validated.answer !== undefined || validated.question !== undefined,
+        validated.answer !== undefined ||
+          validated.briefing !== undefined ||
+          validated.question !== undefined,
       ],
     );
     if (!updated) throw new WorkspaceError("revision-conflict");
@@ -432,7 +458,18 @@ export class InterviewWorkspaceRepository {
     if (Number(row["revision"]) !== origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
     const value = interviewDraftSchema.parse(row["value"]);
-    if (!value.answer) throw new WorkspaceError("answer-required");
+    if (!value.answer && !value.briefing)
+      throw new WorkspaceError("answer-required");
+    if (
+      value.briefing &&
+      (!value.briefing.questions.length ||
+        value.briefing.questions.some(
+          (question) =>
+            !question.answerMarkdown.trim() ||
+            question.talkingPoints.some((point) => !point.trim()),
+        ))
+    )
+      throw new WorkspaceError("briefing-incomplete");
     const [counter] = await tx.query(
       `UPDATE interview.assistant_drafts SET saved_revision=saved_revision+1 WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING saved_revision`,
       [...values(scope), origin.workspaceId, origin.artifactId],

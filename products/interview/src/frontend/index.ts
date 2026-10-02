@@ -1,6 +1,6 @@
 import "@oc-tech/omni-ui-components/styles.css";
 
+export { InterviewPreparation } from "./interview-preparation.js";
 export { Library } from "./library.js";
-export { Workspace } from "./workspace.js";
-
 export type { WorkspaceAssistant } from "./workspace.js";
+export { Workspace } from "./workspace.js";

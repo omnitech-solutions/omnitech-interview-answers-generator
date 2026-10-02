@@ -20,6 +20,20 @@ afterEach(() => {
 });
 
 describe("Studio shell", () => {
+  it("navigates to nontechnical preparation independently from technical explanations", async () => {
+    const select = vi.fn();
+    render(
+      <StudioNavigation
+        active="playground"
+        onSelect={select}
+        onClose={() => {}}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /Interview preparation/ }),
+    );
+    expect(select).toHaveBeenCalledWith("interview-preparation");
+  });
   it("provides shared branding and deep links for every workspace", async () => {
     const user = userEvent.setup();
     const close = vi.fn();
