@@ -1,3 +1,4 @@
+import type { AnyRelations, EmptyRelations } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
   getPlatformDatabase,
@@ -9,22 +10,21 @@ export interface TenantContext {
   tenantId: string;
   actorId: string;
 }
-export type TenantDatabase<
-  S extends Record<string, unknown> = Record<string, never>,
-  // @ts-ignore Drizzle 1.0 rc.4 schema type constraint
-> = NodePgDatabase<S>;
+export type TenantDatabase<R extends AnyRelations = EmptyRelations> =
+  NodePgDatabase<R>;
 
-// [SAFETY] The only way to get a tenant-scoped Drizzle handle. One transaction
-// carries the tenant and actor as transaction-local settings, so row-level
-// security applies to every query, and a pooled connection can never carry
-// them into the next request.
-export async function withTenant<
-  T,
-  S extends Record<string, unknown> = Record<string, never>,
->(
+// [SAFETY] The only way to get a tenant-scoped Drizzle handle. The handle is
+// typed by its relations parameter. One transaction carries the tenant and
+// actor as transaction-local settings, so row-level security applies to every
+// query, and a pooled connection can never carry them into the next request.
+export async function withTenant<T, R extends AnyRelations = EmptyRelations>(
   context: TenantContext,
-  work: (db: TenantDatabase<S>) => Promise<T>,
-  options: { schema?: S; database?: PlatformDatabase } = {},
+  work: (db: TenantDatabase<R>) => Promise<T>,
+  options: {
+    relations?: R;
+    schema?: Record<string, unknown>;
+    database?: PlatformDatabase;
+  } = {},
 ): Promise<T> {
   return withPoolClient(
     options.database ?? getPlatformDatabase(),
@@ -37,9 +37,10 @@ export async function withTenant<
         );
         const db = drizzle({
           client,
+          ...(options.relations ? { relations: options.relations } : {}),
           ...(options.schema ? { schema: options.schema } : {}),
-        }) as unknown as TenantDatabase<S>;
-        const result = await work(db);
+        });
+        const result = await work(db as TenantDatabase<R>);
         await client.query("COMMIT");
         return result;
       } catch (error) {
