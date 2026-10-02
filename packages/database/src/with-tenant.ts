@@ -40,7 +40,7 @@ export async function withTenant<T, R extends AnyRelations = EmptyRelations>(
           ...(options.relations ? { relations: options.relations } : {}),
           ...(options.schema ? { schema: options.schema } : {}),
         });
-        const result = await work(db as TenantDatabase<R>);
+        const result = await work(db);
         await client.query("COMMIT");
         return result;
       } catch (error) {
