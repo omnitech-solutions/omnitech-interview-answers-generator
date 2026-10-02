@@ -1344,3 +1344,16 @@ Expected: migrations apply, the app starts, and the briefing and Workspace pages
 git add products/interview .rulesync .claude .agents .cursor .codex .opencode AGENTS.md CLAUDE.md 2>/dev/null; git add -u
 git commit -m "chore: share the Postgres fixture; database owns connectivity and migrations"
 ```
+
+## Deviations from the plan
+
+- Drizzle is pinned to `1.0.0-rc.4` (newest 1.0 release at implementation), not `1.0.0-beta.22`.
+- Files landed as `connection.ts`, `drizzle-migrations.ts` (`./migrate`) and `test-support/postgres.ts` (`./test-support`); the security suite lives in `products/interview/src/backend/db/`.
+- `TenantDatabase` is generic over Drizzle relations and `withTenant` takes `{ relations?, schema?, database? }`.
+- `withTenant` is built on Drizzle's own transaction, so a nested `db.transaction()` is a savepoint and keeps the tenant.
+- `withTenant` refuses a superuser or BYPASSRLS role once per database; the app must connect as a NOSUPERUSER NOBYPASSRLS role before part 2.
+- `createPlatformDatabase`/`getPlatformDatabase` stay exported for raw queries; no Drizzle handle or pool is exported.
+- The pnpm catalog pins `zod` to `4.4.3` because 4.6.5 emits a `starts_with` format the Assistant's ajv rejects.
+- The lockfile keeps only the drizzle-orm/pg dedupe and the zod pin; hono, @codemirror/view and @modelcontextprotocol/sdk stay at their base resolutions.
+- The security suite is catalog-driven (case 12) and `domainTables` is derived from the schema; case 10 asserts the exact migration names and tables.
+- Rollback also drops the `practice` schema.
