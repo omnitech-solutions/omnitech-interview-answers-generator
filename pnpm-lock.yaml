@@ -42,6 +42,9 @@ overrides:
   '@omnitech-assistant/sdk': file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
   '@omnitech-assistant/react': file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
   '@oc-tech/omni-ui-components': file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz
+  '@omnitech-assistant/provider-on-device': file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz
+  '@omnitech/local-assistant': file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz
+  '@omnitech/local-inference': file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz
 
 importers:
 
@@ -553,7 +556,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(tsx@4.23.1))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(tsx@4.23.1))
 
   packages/interview-contracts:
     dependencies:
@@ -609,7 +612,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(tsx@4.23.1))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(tsx@4.23.1))
 
   packages/interview-rulesync-codex:
     devDependencies:
@@ -760,6 +763,9 @@ importers:
       '@omnitech-assistant/contracts':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech-assistant/provider-on-device':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz
       '@omnitech-assistant/react':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(@types/react@19.3.0)(react@19.3.0)
@@ -1612,6 +1618,9 @@ packages:
     peerDependencies:
       hono: ^4
 
+  '@huggingface/tokenizers@0.2.0':
+    resolution: {integrity: sha512-LidMHe1FpcSYH4vcSjXooda34pC0M8m1gmDOv7SQi6Iv+ib1zX7J3sHBCC9/3FPCkn2k1b55FneVqMRxrr99pg==}
+
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
 
@@ -2085,6 +2094,11 @@ packages:
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
+  '@omnitech-assistant/provider-on-device@file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz':
+    resolution: {integrity: sha512-zu/ZIpa+c94vwOp+bDmh0ea2oYO5XMMc1Fu7SQzHB0ezTH+INkZXtGcOmAN6zCvOY4BFeMX2IOz2CB0FhwBNvg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz}
+    version: 0.1.0
+    engines: {node: '>=22.13.0'}
+
   '@omnitech-assistant/providers@file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz':
     resolution: {integrity: sha512-I4CWH3DLoM/A+pqs/oPHGhl30GiC0vAOZ7QpHfquuEzK9NtC11iSq/iWT7PXuKY72EvdhCVpkvxrV60m65sVlQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz}
     version: 0.1.0
@@ -2111,6 +2125,31 @@ packages:
     resolution: {integrity: sha512-46vUO/0mLRM1bD5XNqsYf1F2rJWwzCzQGzHPTBH8+ADBMI9yAe0OAhphuFm2BVN1+bcFtmmiMg79+j3OQv1YIw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
+
+  '@omnitech/local-assistant@file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz':
+    resolution: {integrity: sha512-DofNt+5rpxLIyhQGWI1zjwspCO07fOO9aLh7fwH6HFLoswmGSn3b8trEGCJF5deHVX8Y7bZuw0fNNN9pctx6QQ==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz}
+    version: 0.1.0
+    peerDependencies:
+      '@omnitech/local-audio': 0.1.0
+      '@omnitech/local-conversation': 0.1.0
+      '@omnitech/local-jobs': 0.1.0
+      '@omnitech/local-search': 0.1.0
+      '@omnitech/local-tools': 0.1.0
+    peerDependenciesMeta:
+      '@omnitech/local-audio':
+        optional: true
+      '@omnitech/local-conversation':
+        optional: true
+      '@omnitech/local-jobs':
+        optional: true
+      '@omnitech/local-search':
+        optional: true
+      '@omnitech/local-tools':
+        optional: true
+
+  '@omnitech/local-inference@file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz':
+    resolution: {integrity: sha512-42wG0HKWjdeFO614CU3iFt5aq8oHo6eZz4YZ3SP3Fdp8aCFFE+XO9Sn1rSSeCLWxX1OiqP8NefOB7OMjQyFM0A==, tarball: file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz}
+    version: 0.1.0
 
   '@openai/codex-sdk@0.145.0':
     resolution: {integrity: sha512-lBviqBKnomEXNpdjfDzUoz/H+VZuK75m2oR8dQSmL2zUpnklfAsTneuaSg23NOoE+vw/Qhbxp8ePy9te973yfw==}
@@ -6752,6 +6791,8 @@ snapshots:
     dependencies:
       hono: 4.13.12
 
+  '@huggingface/tokenizers@0.2.0': {}
+
   '@iconify/types@2.0.0': {}
 
   '@iconify/utils@3.1.4':
@@ -7234,6 +7275,19 @@ snapshots:
     dependencies:
       zod: 4.6.5
 
+  '@omnitech-assistant/provider-on-device@file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz':
+    dependencies:
+      '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech/local-assistant': file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz
+      '@omnitech/local-inference': file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz
+      ajv: 8.20.0
+    transitivePeerDependencies:
+      - '@omnitech/local-audio'
+      - '@omnitech/local-conversation'
+      - '@omnitech/local-jobs'
+      - '@omnitech/local-search'
+      - '@omnitech/local-tools'
+
   '@omnitech-assistant/providers@file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)':
     dependencies:
       '@anthropic-ai/sdk': 0.131.0(zod@4.6.5)
@@ -7285,6 +7339,15 @@ snapshots:
       pg-boss: 12.35.1
     transitivePeerDependencies:
       - pg-native
+
+  '@omnitech/local-assistant@file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz':
+    dependencies:
+      '@omnitech/local-inference': file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz
+
+  '@omnitech/local-inference@file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz':
+    dependencies:
+      '@huggingface/tokenizers': 0.2.0
+      ajv: 8.20.0
 
   '@openai/codex-sdk@0.145.0':
     dependencies:
@@ -8609,7 +8672,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(tsx@4.23.1))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(tsx@4.23.1))
 
   '@vitest/expect@4.1.10':
     dependencies:

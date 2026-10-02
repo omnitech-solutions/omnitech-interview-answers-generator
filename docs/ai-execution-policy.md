@@ -12,3 +12,16 @@ They never switch on vendor names.
 
 LangGraph mutations must be idempotent. Product changes are staged and applied
 atomically after validation and approval.
+
+## On-device profile
+
+The `on-device` profile runs the Omnitech WebGPU model in the user's browser.
+Its adapter comes from omnitech-assistant
+(`@omnitech-assistant/provider-on-device`, vendored with the other assistant
+packages). `products/interview/src/frontend/on-device.ts` returns the
+profile's model manager, `ModelPort` and catalog entry only when a deployment
+sets `NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256`, which pins the model manifest
+served at `NEXT_PUBLIC_ON_DEVICE_MODEL_URL` (default `/model/manifest.json`),
+and the browser has WebGPU. Nothing downloads until a user action calls
+`models.load("chat")`. Callers select it by profile id; it never replaces a
+configured server profile, and server-side runs cannot use it.
