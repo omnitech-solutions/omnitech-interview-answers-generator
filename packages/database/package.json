@@ -28,13 +28,13 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-beta.22",
+    "drizzle-orm": "1.0.0-rc.4",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.15.5",
-    "drizzle-kit": "1.0.0-beta.22",
+    "drizzle-kit": "1.0.0-rc.4",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
