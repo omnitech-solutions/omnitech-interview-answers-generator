@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { runDrizzleMigrations } from "@omnitech/database";
+import { runDrizzleMigrations } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
   startDisposablePostgres,

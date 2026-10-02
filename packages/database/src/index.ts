@@ -10,4 +10,3 @@ export {
   type TenantDatabase,
   withTenant,
 } from "./with-tenant.js";
-export { runDrizzleMigrations } from "./drizzle-migrations.js";

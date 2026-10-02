@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { runDrizzleMigrations } from "@omnitech/database";
+import { runDrizzleMigrations } from "@omnitech/database/migrate";
 import { createPlatformDatabase } from "./database.js";
 import { legacyMigrations } from "./legacy-migrations.js";
 

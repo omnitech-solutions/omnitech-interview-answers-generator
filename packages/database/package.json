@@ -13,6 +13,10 @@
     "./test-support": {
       "types": "./dist/test-support/postgres.d.ts",
       "import": "./dist/test-support/postgres.js"
+    },
+    "./migrate": {
+      "types": "./dist/drizzle-migrations.d.ts",
+      "import": "./dist/drizzle-migrations.js"
     }
   },
   "files": [

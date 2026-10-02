@@ -1,9 +1,10 @@
+import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { type PlatformDatabase, withPoolClient } from "./connection.js";
 
 // The Drizzle stream ships beside dist (package "files": ["dist", "drizzle"]).
-const migrationsFolder = new URL("../drizzle", import.meta.url).pathname;
+const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 // Applies Drizzle migrations not yet recorded (by name) in
 // drizzle.__drizzle_migrations. Run after the legacy SQL.
