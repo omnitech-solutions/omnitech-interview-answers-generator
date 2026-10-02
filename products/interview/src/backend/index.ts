@@ -30,3 +30,11 @@ export { createPlanApi } from "./plan/api.js";
 export { createRehearsalApi, rehearsalStatus } from "./rehearsal/api.js";
 
 export { loadLocalDefaultProfile } from "./local-default-profile.js";
+export {
+  INTERVIEW_ASSISTANT_PROFILE,
+  INTERVIEW_PRODUCT_ID,
+} from "../assistant-profile.js";
+export {
+  createInterviewStudio,
+  type InterviewStudioOptions,
+} from "./studio/host.js";

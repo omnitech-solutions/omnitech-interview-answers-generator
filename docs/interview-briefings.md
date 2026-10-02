@@ -1,12 +1,12 @@
-# Non-technical interview briefings: operator runbook
+# Behavioural briefing packs: operator runbook
 
 ## Start and prepare a pack
 
-Use the repository launcher, `pnpm dev`, and open the Interview workspace at `http://127.0.0.1:3000`. Choose **Interview preparation**. The navigation target is `./workspace?view=interview-preparation`; the workspace handles that view in `products/interview/src/frontend/workspace.tsx`. Existing CLI users can also run `interview-answers briefing open` to select the view in the Playground controller.
+Run `pnpm dev` and open Interview Studio's Briefings at `http://127.0.0.1:3000/t/local/p/interview/briefings`. Choose **New briefing** (+), pick **Behavioural**, then **Start a preparation pack**; saved packs are listed on the left. `interview-answers briefing open` opens Briefings in the running studio.
 
 When the local default matrix is configured and the actor has no profiles, the host imports it as `local-experience-matrix` and selects it for a new pack. A saved pack keeps its own selected profile revision. You can instead import a candidate matrix JSON file or paste its JSON into the preparation view; review the identity, roles, story choices, and missing proof points before confirming import. Select an immutable profile revision, enter the company, role, stage, and questions, then generate a proposal. Review each answer, talking points, evidence, and gaps before **Apply proposal**. Edit as needed and **Save complete pack** to create an immutable saved revision. Applying a proposal changes the draft; saving is a separate action. **New pack** starts a separate artifact and asks before discarding unsaved work. Existing packs are available under **Available packs → Open**.
 
-The CLI uses `--url` or `INTERVIEW_API_URL` for the API origin (default `http://127.0.0.1:3000`), and `--token` or `INTERVIEW_API_TOKEN` when required. Its default tenant is `local`; `--tenant` overrides it. Authenticated Next.js sessions may still be required by the host. Replace the uppercase placeholders below with actual IDs and revisions returned by the commands; do not put private profile content or credentials in shell history.
+The CLI uses `--url` or `INTERVIEW_API_URL` for the API origin (default `http://127.0.0.1:3000`), and `--token` or `INTERVIEW_API_TOKEN` when required. Its default tenant is `local`; `--tenant` overrides it. Authenticated sessions may be required. Replace the uppercase placeholders below with actual IDs and revisions returned by the commands; do not put private profile content or credentials in shell history.
 
 ```bash
 interview-answers briefing profiles
@@ -36,9 +36,9 @@ The preparation view keeps local edits on a conflict and offers server reload on
 
 ## Provider and API boundaries
 
-Briefing generation uses the host's existing AI gateway. Configure a reachable OpenAI-compatible provider through the existing `AI_BASE_URL` and `AI_MODEL` settings, or the documented `OPENAI_*` / `LM_STUDIO_*` settings in `README.md`; use the host's normal secret management for provider credentials. `ASSISTANT_MODEL_MODE=fixture` cannot generate briefings. The local assistant host uses its `local` tenant and `operator` actor; do not treat that fixture identity as production authorization.
+Briefing generation uses the host's existing AI gateway. Configure a reachable OpenAI-compatible provider through the existing `AI_BASE_URL` and `AI_MODEL` settings, or the documented `OPENAI_*` / `LM_STUDIO_*` settings in `README.md`; use the host's normal secret management for provider credentials.
 
-The optional local default loader reads `INTERVIEW_DEFAULT_MATRIX_PATH` when set, otherwise `INTERVIEW_DATA_DIR/default-experience-matrix.json`, otherwise `.data/default-experience-matrix.json` relative to the host process. The matrix file stays in an ignored `.data` directory. It is disabled in production; the Next host additionally requires `FAKE_AUTH_ENABLED=true` and its exact local development actor and tenant, while the local API host uses its explicit development scope. Other users import through the UI or CLI.
+The optional local default loader reads `INTERVIEW_DEFAULT_MATRIX_PATH` when set, otherwise `INTERVIEW_DATA_DIR/default-experience-matrix.json`, otherwise `.data/default-experience-matrix.json` relative to the host process. The matrix file stays in an ignored `.data` directory. It is disabled in production and requires `FAKE_AUTH_ENABLED=true` with the local development user and tenant. Other users import through the UI or CLI.
 
 The implemented API prefix is `/api/interview/briefing`. Its routes are `GET/POST /profiles`, `GET /profiles/:id/revisions/:revision`, `GET /artifacts`, `GET/PUT /artifacts/:id`, and `POST /artifacts/:id/proposals`, `/artifacts/:id/apply`, `/artifacts/:id/save`. Request bodies and responses use `@omnitech/interview-contracts`; the CLI and UI use `@omnitech/interview-api-client`.
 

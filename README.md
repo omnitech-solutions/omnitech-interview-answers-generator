@@ -5,52 +5,28 @@ the cohesive delivery shell while product frontend and backend logic lives in
 `products/*`. See [Platform architecture](docs/platform-architecture.md) and
 [Adding a product](docs/adding-a-product.md).
 
-Its interview product is a local-first, AI-assisted workspace. It routes
-questions to PHP, React, TypeScript, or Ruby; generates structured answers;
-provides editable solution, usage, and test code; and runs code in isolated
-Docker containers. Its Briefing view prepares concise Markdown guidance for
-full-stack concepts, DSA, system design, behavioural questions, and
-candidate-experience stories.
+Its interview product is **Interview Studio**, served at
+`/t/<tenant>/p/interview`:
 
-The workspace can be used interactively in the browser or controlled by Codex,
-Claude, shell scripts, and other tools through the `interview-answers` CLI. The
-CLI and shared packages keep callers independent of HTTP routes and
-authentication details.
+- **Home:** the upcoming interview, a prep plan with live status, recent runs.
+- **Workspace:** a question worked through Understand → Plan → Code → Test →
+  Explain, with editable solution, usage and test code run in isolated Docker
+  containers (Pest, Vitest or RSpec), autosaved drafts and saved versions.
+- **Briefings:** 60–90 second spoken briefs on concepts and system design, and
+  evidence-backed behavioural preparation packs from a candidate experience
+  matrix.
+- **Knowledge:** reviewed React, PHP 8.4, Laravel 13, Symfony, web, backend
+  and DSA references with search, facets and an article reader.
+- **Rehearsal:** timed mock interviews with hints that cost points, a
+  checklist and a saved scorecard.
+- **Assistant:** a docked assistant that reads the open question, proposes
+  changes for review, and applies them only when you accept.
 
-## Current capabilities
-
-- Automatic or explicit PHP, React, TypeScript, and Ruby routing.
-- OpenAI-compatible AI providers, including hosted APIs and local servers.
-- Built-in deterministic fake provider for local UI and transport testing.
-- Editable CodeMirror solution, usage, and test tabs.
-- Syntax checks and focused native runtime diagnostics.
-- Docker-isolated solution and test execution with Pest, Vitest, or RSpec.
-- Rendered React preview compiled locally with esbuild.
-- Example templates with complete questions, solutions, usage, and tests.
-- Explicit draft saving, saved-answer pagination, reopening, and deletion.
-- Local draft recovery, theme persistence, and output word-wrap preferences.
-- Inspector drawer for notes, run output, saved answers, and an interactive
-  project-root terminal.
-- CLI and generated Rulesync commands for reading, updating, resetting, and
-  solving questions in the open Playground.
-- Burger navigation between the default Playground and Concept Lab without
-  discarding either workspace's draft state.
-- Interview-ready Concept Lab briefings with talking points, trade-offs,
-  rendered Mermaid workflows, GitHub-flavoured Markdown tables, browser draft
-  recovery, and explicit saving.
-- Interactive Mermaid controls for drag/pinch navigation, zoom in/out, reset,
-  fullscreen viewing, syntax disclosure, and syntax copying.
-- Experience-grounded explanations using the configured candidate experience
-  matrix; unsupported personal claims are never invented.
-- Deep-linked `/library` reference workspace with a DevDocs-style fixed index,
-  section search, keyboard navigation, compact facets, and an independent
-  article reader and table of contents.
-- Eighty-five reviewed React, PHP 8.4, Laravel 13, Symfony, web, backend, and
-  DSA references with explicit provenance and draft-then-publish authoring.
-- Revisioned, persisted Orama indexes that rebuild automatically from
-  authoritative Markdown when missing, stale, corrupt, or schema-incompatible.
-- Shared safe Markdown rendering with linked headings, GFM, Mermaid, Shiki
-  dual-theme highlighting, diff/focus annotations, and copy controls.
+Questions are routed to PHP, React, TypeScript or Ruby, and answers use any
+OpenAI-compatible provider, hosted or local. Codex, Claude, shell scripts and
+other tools can push questions, answers, explanations and rehearsals into the
+open studio with the `interview-answers` CLI, which keeps callers independent
+of HTTP routes and authentication details.
 
 ## Prerequisites
 
@@ -58,17 +34,12 @@ authentication details.
 - pnpm 10.33.3 through Corepack or a compatible pnpm 10 installation.
 - Docker with a running daemon for syntax checks and code execution.
 - A separate agent worker for Codex and Claude Code jobs.
-- The `omni-ui-components` repository checked out beside this repository:
 
-  ```text
-  omnitech-solutions/
-  ├── omni-ui-components/
-  └── omnitech-interview-answers-generator/
-  ```
-
-  The web app currently links
-  `../omni-ui-components/packages/core` as
-  `@oc-tech/omni-ui-components`.
+Shared packages from sibling repositories ship as packed tarballs in
+`vendor/`: `@oc-tech/omni-ui-components` (from `omni-ui-components`) and the
+`@omnitech-assistant/*` packages. To take a newer build, run `npm pack` in that
+package and replace the tarball, keeping its file name or updating the
+`file:` references and `pnpm.overrides` to match.
 
 ## Quick start
 
@@ -82,28 +53,30 @@ pnpm runner:build
 pnpm dev
 ```
 
-Open <http://127.0.0.1:3000>. The development command starts both the Next.js
-web app and the terminal gateway. The gateway listens at
+Open <http://127.0.0.1:3000/t/local/p/interview> for Interview Studio: Home,
+Workspace, Briefings, Knowledge and Rehearsal, with the docked assistant. The
+development command starts the Next.js web app (which also runs the
+assistant's turns), the terminal gateway and the agent worker. The gateway listens at
 `ws://127.0.0.1:3001/terminal` by default.
 
-Stop everything the development commands started (web app, terminal gateway,
-agent worker, and the assistant stack below) with:
+Stop everything the development command started (web app, terminal gateway
+and agent worker) with:
 
 ```bash
 pnpm dev:stop
 ```
 
 It asks each launcher to shut down cleanly, then stops anything from this
-repository that still holds ports 3000, 3001, 5175 or 8791. Other programs on
+repository that still holds ports 3000 or 3001. Other programs on
 those ports are reported and left running. It is safe to run when nothing is
 up.
 
-Open <http://127.0.0.1:3000/library> for the interview reference Library.
+Knowledge, inside Interview Studio, searches the interview reference library.
 Library source records are stored in `INTERVIEW_DATA_DIR/library.json`; the
 derived search index is disposable and rebuilt automatically.
 
-Drafts are cached in browser storage for recovery. Answers are not persisted to
-the JSON repository until **Save** is selected.
+Workspace drafts are saved to PostgreSQL as you edit; **Save version** keeps
+an immutable copy.
 
 ### Deterministic local generation
 
@@ -125,13 +98,12 @@ testing, not realistic interview answers.
 The web server reads the following variables from `apps/web/.env.local`.
 
 **One model configuration serves the whole application.** The interview API,
-the platform AI gateway and the assistant (`pnpm assistant:dev`) all resolve
-their model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below
-through `@omnitech/ai-sdk`, so changing a value changes it everywhere. When
-none is set, the development launchers (`pnpm dev`, `pnpm assistant:dev`) use
-the model LM Studio already has loaded and say so on start. The assistant also
-sizes its history and output limits from the model's loaded context window, and
-`pnpm assistant:dev` loads its LM Studio model with a 32,768-token window.
+the platform AI gateway and Interview Studio's assistant all resolve their
+model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below through
+`@omnitech/ai-sdk`, so changing a value changes it everywhere. When none is
+set, `pnpm dev` uses the model LM Studio already has loaded and says so on
+start, loading it with a 32,768-token window (`ASSISTANT_CONTEXT_TOKENS`) so
+the assistant's history and output limits fit.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
@@ -142,7 +114,7 @@ sizes its history and output limits from the model's loaded context window, and
 | `AI_PROVIDER_LABEL` | Previous provider display label | Inferred from its URL |
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
 | `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
-| `OPENAI_MODEL` | OpenAI model exposed in the Concept Lab provider selector | Unset |
+| `OPENAI_MODEL` | OpenAI model offered when choosing a provider | Unset |
 | `OPENAI_API_KEY` | OpenAI credential | Unset |
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `https://api.openai.com/v1` |
 | `LM_STUDIO_MODEL` | Loaded LM Studio model identifier | Unset |
@@ -224,7 +196,7 @@ interview-answers explain \
   --append
 ```
 
-Update the open Playground directly:
+Push into the open Interview Studio (the Playground channel):
 
 ```bash
 interview-answers playground set \
@@ -241,11 +213,11 @@ interview-answers playground append-explanation \
 interview-answers playground reset
 ```
 
-The open page polls for external control changes and applies them within roughly
-500 ms. A complete Playground patch can also be supplied as JSON through
-`--file` or stdin. Concept Lab keeps the first session briefing expanded;
-explanations added with `--append` or
-`POST /api/v1/playground-control/explanations` appear as collapsed follow-ups.
+Interview Studio polls for pushes and applies each one once, within roughly
+500 ms: a question and answer open as a Workspace draft, explanations appear in
+Briefings › Concept explanations (the first expanded, follow-ups collapsed),
+and `interview-answers mock-interview start|end|reset` drives Rehearsal. A
+complete patch can also be supplied as JSON through `--file` or stdin.
 
 CLI connection precedence is command flags, `INTERVIEW_API_URL` and
 `INTERVIEW_API_TOKEN`, then
@@ -259,7 +231,7 @@ Generated Rulesync commands provide the same workflow to supported coding
 agents:
 
 - `/answer` solves a supplied question and updates the live Playground.
-- `/explain` creates a concise briefing and updates Concept Lab.
+- `/explain` creates a concise briefing and shows it in Briefings.
 - `/playground` routes show, reset, and question-update requests.
 - `/playground-show` displays the current Playground state.
 - `/playground-reset` clears the Playground.

@@ -16,7 +16,7 @@
 - Preserve image positions in the source parser. Regression test first failed with `expected ['H1', 'P', 'IMG'] to deeply equal ['H1', 'IMG', 'P']`.
 - Implement source undo/redo, dirty-slide tracking and an export guard for unsaved content. Place the edit form next to the selected slide.
 - Vacate existing slide positions before assigning a new order, preserving the immediate `(document_id, position)` uniqueness constraint. Refresh the document revision after reorder/delete.
-- Expose generation and agent controls from active markup instead of retaining an inactive legacy editor. Insert existing uploaded images through the media panel.
+- Expose generation and agent controls from active markup instead of retaining an inactive editor. Insert existing uploaded images through the media panel.
 - Label deterministic local drafts explicitly. Respect requested slide count and keep generation instructions out of outline content. Language selectors contain language targets only.
 - Pass tone, audience, scenario and density to outline generation. Apply theme colors and presentation font/alignment settings to preview, presentation mode and exports.
 - Wire library sorting/list views and panel search. Offer the implemented bar chart and process-flow cards; remove choices that merely inserted unrelated placeholder content.

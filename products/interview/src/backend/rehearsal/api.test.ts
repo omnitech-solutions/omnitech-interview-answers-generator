@@ -3,7 +3,11 @@ import { disposablePostgres } from "../assistant/workspace-fixture.js";
 import { createRehearsalApi, rehearsalStatus } from "./api.js";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
-const scope = { tenantId: "t", actorId: "alice", productId: "interview" };
+const scope = {
+  tenantId: "t",
+  actorId: "alice",
+  productId: "omnitech.interview",
+};
 const app = () =>
   createRehearsalApi({
     database: pg.database,

@@ -1,7 +1,11 @@
 // Stylesheets are intentionally imported for their application-wide side effect.
 // oxlint-disable import/no-unassigned-import
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "@oc-tech/omni-ui-components/styles.css";
+import "@omnitech-assistant/react/styles.css";
 import "./styles.css";
+import "@omnitech/product-interview/studio.css";
 
 import type { Metadata } from "next";
 import React, { type ReactNode } from "react";

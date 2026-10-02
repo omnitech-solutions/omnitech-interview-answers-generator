@@ -28,7 +28,7 @@ const app = () =>
         : {
             tenantId: "t",
             actorId: request.headers.get("x-actor") ?? "alice",
-            productId: "interview",
+            productId: "omnitech.interview",
           },
     generate: async (input) => {
       prompts.push(input);

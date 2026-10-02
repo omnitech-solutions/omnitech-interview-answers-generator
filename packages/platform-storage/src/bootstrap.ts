@@ -108,10 +108,10 @@ try {
             order: 10,
             hidden: false,
             routes: {
-              "interview.knowledge": {
-                label: "Knowledge",
-                description: "Browse reusable material",
-                path: "/p/interview/knowledge",
+              "interview.home": {
+                label: "Interview Studio",
+                description: "Prepare, practise and rehearse interviews",
+                path: "/p/interview",
                 hidden: false,
               },
             },

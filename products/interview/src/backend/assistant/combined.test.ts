@@ -26,7 +26,7 @@ import { disposablePostgres } from "./workspace-fixture.js";
 const scope = {
   tenantId: "combined",
   actorId: "alice",
-  productId: "interview",
+  productId: "omnitech.interview",
 };
 const origin = { workspaceId: "w", artifactId: "q", artifactRevision: 0 };
 const text = "I improved latency by 40%.";
@@ -150,13 +150,13 @@ beforeAll(async () => {
   deps = {
     database,
     repository: repo,
-    products: new Map([["interview", adapter]]),
+    products: new Map([["omnitech.interview", adapter]]),
     authority: {
       isMember: async () => allowed,
       hasPermissions: async () => allowed,
       authorizeProfile: async () => allowed,
     },
-    patchSchemas: new Map([["interview", interviewPatchJsonSchema]]),
+    patchSchemas: new Map([["omnitech.interview", interviewPatchJsonSchema]]),
     model: {
       stream: async function* (_s, input) {
         modelInputs.push(input);
@@ -650,7 +650,10 @@ for (const [caseName, sourceIds] of [
       database: acceptanceDatabase,
       repository: acceptanceRepo,
       products: new Map([
-        ["interview", createInterviewAdapter(acceptanceDatabase, trusted)],
+        [
+          "omnitech.interview",
+          createInterviewAdapter(acceptanceDatabase, trusted),
+        ],
       ]),
     });
     const start = performance.now();

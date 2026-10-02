@@ -6,6 +6,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import type { Origin } from "@omnitech-assistant/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { studioFetch } from "../studio-fetch";
 
 export type Draft = {
   question: string;
@@ -62,7 +63,7 @@ export function useCanonicalDraft({
 
   const request = useCallback(
     async <T>(suffix: string, init?: RequestInit): Promise<T> => {
-      const response = await fetch(path + suffix, {
+      const response = await studioFetch(path + suffix, {
         ...init,
         headers: { "content-type": "application/json", ...init?.headers },
       });
@@ -206,12 +207,10 @@ export function useCanonicalDraft({
   }, [effectKey, flush, request]);
 
   const listVersions = useCallback(async () => {
-    const response = await fetch(
-      `/api/v1/answers?artifact=${encodeURIComponent(artifactId)}`,
-    );
+    const response = await studioFetch(`${path}/versions`);
     if (!response.ok) throw new Error("versions-unavailable");
     return (await response.json()) as SavedAnswer[];
-  }, [artifactId]);
+  }, [path]);
 
   useEffect(() => {
     let active = true;

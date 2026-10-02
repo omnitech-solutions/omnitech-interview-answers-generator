@@ -1,4 +1,4 @@
--- Additive lineage and explicit effect receipts. No legacy rows are imported.
+-- Draft lineage and explicit effect receipts.
 ALTER TABLE interview.assistant_drafts ADD COLUMN IF NOT EXISTS provenance jsonb;
 ALTER TABLE interview.assistant_answer_revisions ADD COLUMN IF NOT EXISTS provenance jsonb;
 ALTER TABLE interview.assistant_evidence ADD COLUMN IF NOT EXISTS metrics jsonb NOT NULL DEFAULT '[]'::jsonb;

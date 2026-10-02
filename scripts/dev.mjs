@@ -1,6 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { defaultLocalModelEnvironment } from "./local-model.mjs";
+import {
+  defaultLocalModelEnvironment,
+  ensureLmStudioContext,
+} from "./local-model.mjs";
 
 const localEnvironment = {
   ...process.env,
@@ -21,6 +24,16 @@ const localEnvironment = {
     process.env.AGENT_PAYLOAD_SECRET ??
     "omnitech-local-agent-payload-secret-change-me",
 };
+
+// The interview assistant needs LM Studio's model loaded with enough context.
+if (localEnvironment.LM_STUDIO_MODEL && !localEnvironment.AI_MODEL) {
+  const contextTokens = await ensureLmStudioContext(
+    localEnvironment.LM_STUDIO_MODEL,
+    localEnvironment,
+  );
+  if (contextTokens)
+    localEnvironment.ASSISTANT_CONTEXT_TOKENS = String(contextTokens);
+}
 
 for (const command of ["db:migrate", "db:bootstrap"]) {
   const setup = spawnSync(

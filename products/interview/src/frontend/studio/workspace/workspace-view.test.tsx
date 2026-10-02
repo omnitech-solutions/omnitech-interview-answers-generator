@@ -157,7 +157,7 @@ function installServer(value: Record<string, unknown>) {
           diagnostics: server.diagnostics,
         });
       if (input === "/api/v1/generate") return Response.json(answer);
-      if (input === "/api/v1/answers?artifact=q1")
+      if (input === "/api/interview/workspaces/interview/artifacts/q1/versions")
         return Response.json([
           {
             ...answer,

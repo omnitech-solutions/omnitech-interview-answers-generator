@@ -1,4 +1,4 @@
--- Additive assistant workspace storage. Legacy JSON/library rows are not imported.
+-- Interview Studio's private workspace drafts, saved versions and evidence.
 CREATE SCHEMA IF NOT EXISTS interview;
 CREATE TABLE IF NOT EXISTS interview.assistant_drafts (
   tenant_id text NOT NULL, actor_id text NOT NULL, product_id text NOT NULL,

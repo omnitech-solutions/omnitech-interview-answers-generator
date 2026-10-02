@@ -5,7 +5,11 @@ import * as implementation from "./adapter.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
 
-const scope = { tenantId: "ground", actorId: "alice", productId: "interview" };
+const scope = {
+  tenantId: "ground",
+  actorId: "alice",
+  productId: "omnitech.interview",
+};
 const origin = { workspaceId: "w", artifactId: "q", artifactRevision: 0 };
 const digest = (text: string) =>
   createHash("sha256").update(text).digest("hex");

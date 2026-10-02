@@ -2,7 +2,11 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
 
-const scope = { tenantId: "effects", actorId: "alice", productId: "interview" };
+const scope = {
+  tenantId: "effects",
+  actorId: "alice",
+  productId: "omnitech.interview",
+};
 const origin = { workspaceId: "w", artifactId: "q", artifactRevision: 0 };
 let pg: Awaited<ReturnType<typeof disposablePostgres>>,
   workspace: InterviewWorkspaceRepository;

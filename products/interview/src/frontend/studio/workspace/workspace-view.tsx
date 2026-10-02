@@ -31,6 +31,7 @@ import {
   type SaveState,
   useCanonicalDraft,
 } from "./use-canonical-draft";
+import { studioFetch } from "../studio-fetch";
 
 // The assistant connection and the question it is bound to.
 export interface WorkspaceAssistant {
@@ -94,7 +95,7 @@ function answerOf(version: SavedAnswer): GeneratedAnswer {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, {
+  const response = await studioFetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

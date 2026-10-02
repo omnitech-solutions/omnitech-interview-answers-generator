@@ -7,7 +7,7 @@ let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const scope = {
   tenantId: "tenant-a",
   actorId: "alice",
-  productId: "interview",
+  productId: "omnitech.interview",
 };
 const app = () =>
   createPlanApi({

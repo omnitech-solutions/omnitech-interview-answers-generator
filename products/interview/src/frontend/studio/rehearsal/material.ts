@@ -3,6 +3,7 @@ import type { RehearsalReveal } from "@omnitech/interview-contracts";
 import type { StudioLists } from "../use-studio-lists";
 import type { Draft } from "../workspace/use-canonical-draft";
 import { FALLBACK_CONCEPTS } from "./config";
+import { studioFetch } from "../studio-fetch";
 
 // What a rehearsal asks: a concept from the person's briefs (or a built-in
 // prompt), and a coding question from their Workspace drafts.
@@ -53,7 +54,10 @@ export async function loadConcept(
   choice: QuestionChoice,
 ): Promise<ConceptMaterial> {
   if (choice.source === "brief") {
-    const brief = await createBriefsClient({ baseUrl: "" }).get(choice.ref);
+    const brief = await createBriefsClient({
+      baseUrl: "",
+      fetch: studioFetch,
+    }).get(choice.ref);
     return {
       choice,
       followUps: brief.brief.followUps.map((item) => item.question),
@@ -67,7 +71,7 @@ export async function loadCoding(
   choice: QuestionChoice,
   workspaceId: string,
 ): Promise<CodingMaterial> {
-  const response = await fetch(
+  const response = await studioFetch(
     `/api/interview/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(choice.ref)}`,
   );
   if (!response.ok) throw new Error(`${response.status}`);

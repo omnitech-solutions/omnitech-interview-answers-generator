@@ -14,6 +14,7 @@ import {
 } from "@omnitech/ai-provider-images";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
 import { AiSdkError, resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
+import { INTERVIEW_ASSISTANT_PROFILE } from "@omnitech/product-interview/backend";
 import {
   type AgentExecutionPort,
   type AiProfile,
@@ -137,6 +138,28 @@ async function readImageResponse(response: Response, provider: string) {
   };
 }
 
+const INTERVIEW_ASSISTANT_TARGET = "interview-assistant-model";
+
+// How much the interview assistant may read and write per turn. A local
+// model is loaded with ASSISTANT_CONTEXT_TOKENS (see scripts/local-model.mjs);
+// a quarter of the window is kept for output, at about 2.5 characters per
+// token for code and JSON. A hosted model has a large window.
+export function interviewAssistantBudget(baseUrl?: string) {
+  const local =
+    baseUrl !== undefined &&
+    /^(localhost|127\.0\.0\.1)$/.test(new URL(baseUrl).hostname);
+  const contextTokens = Number(
+    process.env["ASSISTANT_CONTEXT_TOKENS"] ?? (local ? 32_768 : 131_072),
+  );
+  const outputTokens = Math.min(8192, Math.floor(contextTokens / 4));
+  return {
+    outputTokens,
+    contextCharacters: local
+      ? Math.floor((contextTokens - outputTokens) * 2.5)
+      : 100_000,
+  };
+}
+
 export function createPlatformAiGateway() {
   const modelAdapters = [];
   // The same model settings the interview API and the assistant use.
@@ -151,6 +174,7 @@ export function createPlatformAiGateway() {
     }
   })();
   const languageTargetId = language?.id ?? "local";
+  const assistantBudget = interviewAssistantBudget(language?.baseUrl);
   if (language) {
     modelAdapters.push(
       createOpenAiModelAdapter({
@@ -160,6 +184,18 @@ export function createPlatformAiGateway() {
         baseUrl: language.baseUrl,
         timeoutMs: language.timeoutMs,
         ...(language.apiKey ? { apiKey: language.apiKey } : {}),
+      }),
+      // The interview assistant's turns: output sized to the model's context
+      // window, and low enough temperature for factual answers and code.
+      createOpenAiModelAdapter({
+        id: INTERVIEW_ASSISTANT_TARGET,
+        label: language.label,
+        model: language.model,
+        baseUrl: language.baseUrl,
+        timeoutMs: language.timeoutMs,
+        ...(language.apiKey ? { apiKey: language.apiKey } : {}),
+        maxOutputTokens: assistantBudget.outputTokens,
+        temperature: 0.3,
       }),
     );
   } else {
@@ -395,6 +431,14 @@ export function createPlatformAiGateway() {
         ? "anthropic"
         : languageTargetId,
       taskTypes: ["text-generation", "structured-generation", "streaming-chat"],
+      enabled: true,
+    },
+    {
+      id: INTERVIEW_ASSISTANT_PROFILE,
+      label: "Interview assistant",
+      family: "direct-model",
+      targetId: language ? INTERVIEW_ASSISTANT_TARGET : languageTargetId,
+      taskTypes: ["structured-chat", "structured-generation"],
       enabled: true,
     },
     {

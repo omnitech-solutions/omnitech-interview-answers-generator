@@ -20,6 +20,7 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
+    "@omnitech-assistant/storage-postgres": "file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
     "@omnitech/agent-job-service": "workspace:*",
     "@omnitech/agent-runtime-contracts": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",

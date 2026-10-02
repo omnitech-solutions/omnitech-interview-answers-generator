@@ -4,7 +4,11 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import * as workspace from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
 
-const scope = { tenantId: "a", actorId: "alice", productId: "interview" };
+const scope = {
+  tenantId: "a",
+  actorId: "alice",
+  productId: "omnitech.interview",
+};
 const origin = { workspaceId: "w", artifactId: "q", artifactRevision: 0 };
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 let repo: workspace.InterviewWorkspaceRepository;
@@ -245,12 +249,12 @@ it("round-trips padded scope origin and evidence identifiers without rewriting s
   const padded = {
     tenantId: " canonical-tenant ",
     actorId: " canonical-actor ",
-    productId: " interview ",
+    productId: " omnitech.interview ",
   };
   const canonical = {
     tenantId: "canonical-tenant",
     actorId: "canonical-actor",
-    productId: "interview",
+    productId: "omnitech.interview",
   };
   const created = await repo.create(
     padded,
@@ -324,7 +328,7 @@ it("lists only this actor's drafts in a workspace, newest first, titled by the q
   const listScope = {
     tenantId: "list",
     actorId: "ana",
-    productId: "interview",
+    productId: "omnitech.interview",
   };
   const at = (artifactId: string) => ({
     workspaceId: "lw",
@@ -368,7 +372,7 @@ it("keeps stage progress on the draft and renders the answer's Markdown from its
   const progressScope = {
     tenantId: "guide",
     actorId: "ana",
-    productId: "interview",
+    productId: "omnitech.interview",
   };
   const at = { workspaceId: "gw", artifactId: "g1", artifactRevision: 0 };
   const guide = {
@@ -427,7 +431,11 @@ it("keeps stage progress on the draft and renders the answer's Markdown from its
 });
 
 it("summarises each question's latest completed test run", async () => {
-  const runScope = { tenantId: "runs", actorId: "ana", productId: "interview" };
+  const runScope = {
+    tenantId: "runs",
+    actorId: "ana",
+    productId: "omnitech.interview",
+  };
   const at = (artifactId: string) => ({
     workspaceId: "rw",
     artifactId,

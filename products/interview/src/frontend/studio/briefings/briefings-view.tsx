@@ -12,6 +12,7 @@ import type { StudioLists } from "../use-studio-lists";
 import { BriefCard } from "./brief-card";
 import { ExplanationsPane } from "./explanations-pane";
 import { NewBrief } from "./new-brief";
+import { studioFetch } from "../studio-fetch";
 
 const KIND_LABELS = {
   concept: "Concept",
@@ -50,7 +51,10 @@ export function BriefingsView({
   onDirtyChange(dirty: boolean): void;
 }) {
   const studio = useStudio();
-  const client = useMemo(() => createBriefsClient({ baseUrl: "" }), []);
+  const client = useMemo(
+    () => createBriefsClient({ baseUrl: "", fetch: studioFetch }),
+    [],
+  );
   const selection = selectionOf(rest);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [loadError, setLoadError] = useState("");

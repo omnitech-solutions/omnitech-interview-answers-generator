@@ -10,7 +10,7 @@ import { disposablePostgres } from "./workspace-fixture.js";
 const scope = {
   tenantId: "refusals",
   actorId: "alice",
-  productId: "interview",
+  productId: "omnitech.interview",
 };
 const originFor = (artifactId: string, artifactRevision = 0) => ({
   workspaceId: "w",

@@ -15,6 +15,7 @@ import {
   type Transaction,
 } from "@omnitech-assistant/contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
   answerGuideSchema,
   guideText,
@@ -334,7 +335,7 @@ export function createInterviewAdapter(
       };
     },
     descriptor: {
-      id: "interview",
+      id: INTERVIEW_PRODUCT_ID,
       version: interviewAdapterVersion,
       operations: {
         getContext: op(
@@ -565,8 +566,8 @@ export function createInterviewAdapter(
       }
       try {
         signal.throwIfAborted();
-        // Legacy CodeRunner has no native AbortSignal method. Ignore a late result
-        // after cancellation and retain a durable ambiguous receipt, never rerun.
+        // CodeRunner.runAll takes no AbortSignal. Ignore a late result after
+        // cancellation and retain a durable ambiguous receipt, never rerun.
         const result = runResultSchema.parse(
           await options.runner.runAll({ ...operation.answer!, stdin: "" }),
         );

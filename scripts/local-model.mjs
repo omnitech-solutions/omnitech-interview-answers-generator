@@ -1,7 +1,9 @@
-// Shared by the development launchers so `pnpm dev` and `pnpm assistant:dev`
-// start from the same model settings. The settings themselves are resolved by
+// Model settings for `pnpm dev`. The settings themselves are resolved by
 // @omnitech/ai-sdk (AI_*, OPENAI_*, LM_STUDIO_*); this only fills the gap when
-// nothing is configured.
+// nothing is configured, and makes sure LM Studio's window fits the assistant.
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 const CONFIGURING = ["AI_MODEL", "OPENAI_MODEL", "OPENAI_API_KEY", "LM_STUDIO_MODEL"];
 
@@ -41,4 +43,45 @@ export async function defaultLocalModelEnvironment(env = process.env) {
     `[dev] No AI model configured; using LM Studio's loaded model "${model}". Set LM_STUDIO_MODEL, OPENAI_MODEL or AI_BASE_URL and AI_MODEL to choose another.`,
   );
   return { LM_STUDIO_MODEL: model };
+}
+
+/**
+ * Loads LM Studio's model with a context window big enough for the interview
+ * assistant's system prompt, history and a drafted answer (LM Studio defaults
+ * to 4-8k tokens). ASSISTANT_CONTEXT_TOKENS and ASSISTANT_MODEL_TTL_SECONDS
+ * override the defaults. Returns the window the assistant can rely on.
+ */
+export async function ensureLmStudioContext(id, env = process.env) {
+  const wanted = Number(env.ASSISTANT_CONTEXT_TOKENS ?? 32768);
+  const ttl = String(env.ASSISTANT_MODEL_TTL_SECONDS ?? 14400);
+  const lms = resolve(env.HOME ?? "", ".lmstudio/bin/lms");
+  try {
+    const listing = await (
+      await fetch(`${lmStudioOrigin(env)}/api/v0/models`, {
+        signal: AbortSignal.timeout(3000),
+      })
+    ).json();
+    const loaded = listing.data?.find(
+      (item) => item.id === id && item.state === "loaded",
+    );
+    if (loaded?.loaded_context_length >= wanted)
+      return loaded.loaded_context_length;
+    if (!existsSync(lms)) {
+      console.error(
+        `[dev] LM Studio CLI not found at ${lms}; load ${id} with a context of at least ${wanted} tokens yourself.`,
+      );
+      return loaded?.loaded_context_length;
+    }
+    console.log(`[dev] Loading ${id} in LM Studio with ${wanted} tokens of context.`);
+    if (loaded) execFileSync(lms, ["unload", id], { stdio: "pipe" });
+    execFileSync(
+      lms,
+      ["load", id, "--identifier", id, "--context-length", String(wanted), "--ttl", ttl, "-y"],
+      { stdio: "pipe" },
+    );
+    return wanted;
+  } catch (error) {
+    console.error(`[dev] Could not prepare ${id} in LM Studio: ${error.message}`);
+    return undefined;
+  }
 }

@@ -1,16 +1,12 @@
 import { createPlatformApi } from "@omnitech/platform-api";
 import { getPlatformDatabase } from "@omnitech/platform-storage";
-import {
-  briefingScope,
-  createBriefingApi,
-  loadLocalDefaultProfile,
-  createInterviewApi,
-} from "@omnitech/product-interview/backend";
+import { createInterviewApi } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
 import { createPlatformAiGateway } from "./ai";
 import { resolvePlatformContext } from "./context";
+import { getInterviewStudio } from "./interview-studio";
 
 const localDatabaseUrl =
   "postgresql://omnitech:omnitech@127.0.0.1:5432/omnitech";
@@ -56,59 +52,13 @@ export function createApplicationApi() {
     );
   });
   api.route("/", createInterviewApi());
+  // Interview Studio: the assistant, drafts, plan, briefs, briefing packs
+  // and rehearsals, each scoped to the signed-in member of the tenant.
   if (process.env["DATABASE_URL"] && ai) {
-    const platformDatabase = getPlatformDatabase();
-    api.route(
-      "/",
-      createBriefingApi({
-        loadDefaultProfile: async (scope) => {
-          if (
-            process.env["NODE_ENV"] === "production" ||
-            process.env["FAKE_AUTH_ENABLED"] !== "true"
-          )
-            return null;
-          const local = briefingScope(
-            await resolvePlatformContext("local"),
-            "local",
-            "POST",
-          );
-          return local?.actorId === scope.actorId &&
-            local?.tenantId === scope.tenantId
-            ? loadLocalDefaultProfile()
-            : null;
-        },
-        database: {
-          tenantTransaction: (tenantId, fn) =>
-            platformDatabase.tenantTransaction(tenantId, (tx) =>
-              fn({
-                query: async (sql, values) =>
-                  (await tx.query(sql, values ? [...values] : undefined)).rows,
-              }),
-            ),
-        },
-        resolveScope: async (request) => {
-          const tenant = new URL(request.url).searchParams.get("tenant") ?? "";
-          return briefingScope(
-            await resolvePlatformContext(tenant),
-            tenant,
-            request.method,
-          );
-        },
-        generate: async (input, scope) => {
-          const result = await ai.execute({
-            context: {
-              tenantId: scope.tenantId,
-              userId: scope.actorId,
-              productId: scope.productId,
-              permissions: ["interview.read", "interview.write"],
-            },
-            profileId: "document-fast",
-            task: { type: "structured-generation", ...input },
-          });
-          return result.result;
-        },
-      }),
-    );
+    const forward = async (request: Request) =>
+      (await getInterviewStudio(ai)).app.fetch(request);
+    api.all("/api/assistant/*", (context) => forward(context.req.raw));
+    api.all("/api/interview/*", (context) => forward(context.req.raw));
   }
   if (process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production") {
     api.route("/api", createAgentApi());

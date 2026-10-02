@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS interview.candidate_profiles (
  updated_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz,
  PRIMARY KEY(tenant_id,actor_id,product_id,id)
 );
+-- Databases created before profiles could be revoked gain the column.
+ALTER TABLE interview.candidate_profiles ADD COLUMN IF NOT EXISTS revoked_at timestamptz;
 CREATE TABLE IF NOT EXISTS interview.candidate_profile_revisions (
  tenant_id text NOT NULL, actor_id text NOT NULL, product_id text NOT NULL,
  id text NOT NULL, revision bigint NOT NULL CHECK(revision>=1), name text NOT NULL,

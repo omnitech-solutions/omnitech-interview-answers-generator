@@ -6,11 +6,15 @@ import type {
   PlanResponse,
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { studioFetch } from "../studio-fetch";
 
 // The interview being prepared for and its plan. Every change returns the
 // whole plan, which replaces what is shown.
 export function usePlan() {
-  const client = useMemo(() => createPlanClient({ baseUrl: "" }), []);
+  const client = useMemo(
+    () => createPlanClient({ baseUrl: "", fetch: studioFetch }),
+    [],
+  );
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [error, setError] = useState("");
 

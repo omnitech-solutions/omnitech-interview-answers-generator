@@ -11,7 +11,7 @@ let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const scope = {
   tenantId: "tenant-a",
   actorId: "alice",
-  productId: "interview",
+  productId: "omnitech.interview",
 };
 const matrix = {
   candidate: { name: "Synthetic Candidate" },
@@ -315,14 +315,14 @@ it("refuses a historical profile revision whose stored hash does not match its m
   expect(imported.status).toBe(201);
   await pg.worker.transaction(async (tx) => {
     await tx.query(
-      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','interview',true)",
+      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','omnitech.interview',true)",
     );
     await tx.query(
       "INSERT INTO interview.candidate_profile_revisions(tenant_id,actor_id,product_id,id,revision,name,sha256,matrix) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)",
       [
         "tenant-a",
         "alice",
-        "interview",
+        "omnitech.interview",
         "hash-guard",
         99,
         "Hash guard",
@@ -360,7 +360,7 @@ it("does not overwrite a revoked profile or accept a stale profile revision", as
   expect((await stale.json()).error.code).toBe("revision-conflict");
   await pg.worker.transaction(async (tx) => {
     await tx.query(
-      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','interview',true)",
+      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','omnitech.interview',true)",
     );
     await tx.query(
       "UPDATE interview.candidate_profiles SET revoked_at=now() WHERE id='revocation-guard'",
@@ -557,7 +557,7 @@ it("prevents rewriting immutable imported revisions and proposal payloads", asyn
   await expect(
     pg.worker.transaction(async (tx) => {
       await tx.query(
-        "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','interview',true)",
+        "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','omnitech.interview',true)",
       );
       return tx.query(
         "UPDATE interview.candidate_profile_revisions SET name='Changed' WHERE id='immutable'",
@@ -761,7 +761,7 @@ it("denies profile and derived pack reads after profile revocation", async () =>
   });
   await pg.worker.transaction(async (tx) => {
     await tx.query(
-      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','interview',true)",
+      "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','omnitech.interview',true)",
     );
     await tx.query(
       "UPDATE interview.candidate_profiles SET revoked_at=now() WHERE id='revoked'",
@@ -958,7 +958,7 @@ it("holds the active profile lock through PUT and Save writes", async () => {
       await expect(
         pg.worker.transaction(async (tx) => {
           await tx.query(
-            "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','interview',true)",
+            "SELECT set_config('app.tenant_id','tenant-a',true), set_config('app.actor_id','alice',true), set_config('app.product_id','omnitech.interview',true)",
           );
           return tx.query(
             "SELECT id FROM interview.candidate_profiles WHERE id='lock-profile' FOR UPDATE NOWAIT",

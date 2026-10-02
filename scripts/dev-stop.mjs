@@ -1,15 +1,14 @@
-// Stops everything the development launchers started: `pnpm dev` (web app,
-// terminal gateway, agent worker) and `pnpm assistant:dev` (assistant API,
-// frontend and its disposable PostgreSQL). Launchers are asked to stop first so
-// they shut their children down cleanly; anything still holding one of this
-// project's ports afterwards is stopped too, but only if it belongs to this
-// repository. Other programs on those ports are reported and left alone.
+// Stops everything `pnpm dev` started (web app, terminal gateway, agent
+// worker). The launcher is asked to stop first so it shuts its children down
+// cleanly; anything still holding one of this project's ports afterwards is
+// stopped too, but only if it belongs to this repository. Other programs on
+// those ports are reported and left alone.
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
-const PORTS = { web: 3000, "terminal gateway": 3001, "assistant frontend": 5175, "assistant API": 8791 };
+const PORTS = { web: 3000, "terminal gateway": 3001 };
 
 const alive = (pid) => {
   try {
@@ -62,22 +61,11 @@ const count = (did) => {
   if (did) stopped += 1;
 };
 
-// 1. Launchers first: they stop their own children.
+// 1. The launcher first: it stops its own children.
 const dev = await readState(".dev-local/state.json");
 count(await stop(dev?.launcherPid, "dev launcher"));
-const assistant = await readState(".assistant-local/state.json");
-count(await stop(assistant?.launcherPid, "assistant launcher"));
 
-// 2. Anything the assistant launcher recorded that outlived it.
-for (const [label, pid] of [
-  ["assistant API", assistant?.apiPid],
-  ["assistant frontend", assistant?.frontendPid],
-  ["assistant PostgreSQL", assistant?.postgresPid],
-]) {
-  if (pid && alive(pid) && belongsHere(pid)) count(await stop(pid, label));
-}
-
-// 3. Whatever from this repo still holds one of the project's ports.
+// 2. Whatever from this repo still holds one of the project's ports.
 for (const [label, port] of Object.entries(PORTS)) {
   for (const pid of listeners(port)) {
     if (belongsHere(pid)) count(await stop(pid, `${label} on :${port}`));

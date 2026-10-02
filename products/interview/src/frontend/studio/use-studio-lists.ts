@@ -4,6 +4,7 @@ import {
 } from "@omnitech/interview-api-client";
 import type { BriefSummary as ConceptBriefSummary } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { studioFetch } from "./studio-fetch";
 
 export type QuestionSummary = {
   artifactId: string;
@@ -31,7 +32,7 @@ export type StudioLists = {
 };
 
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal });
+  const response = await studioFetch(url, { signal });
   if (!response.ok) throw new Error(`${response.status}`);
   return (await response.json()) as T;
 }
@@ -54,7 +55,10 @@ export function useStudioLists({
     () => createBriefingClient({ baseUrl: "", tenant }),
     [tenant],
   );
-  const briefsClient = useMemo(() => createBriefsClient({ baseUrl: "" }), []);
+  const briefsClient = useMemo(
+    () => createBriefsClient({ baseUrl: "", fetch: studioFetch }),
+    [],
+  );
 
   const refresh = useCallback(() => {
     inFlight.current?.abort();

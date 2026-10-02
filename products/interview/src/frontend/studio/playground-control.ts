@@ -6,6 +6,7 @@ import type {
 } from "@omnitech/interview-playground-control";
 import type { Draft } from "./workspace/use-canonical-draft";
 import type { StudioNavigation, ViewId } from "./use-studio-route";
+import { studioFetch } from "./studio-fetch";
 
 // The Playground control channel (`interview-answers playground …`) as the
 // studio applies it: questions and answers become Workspace drafts, views
@@ -153,10 +154,10 @@ export async function writeControlDraft(
   draft: ControlDraft,
 ) {
   const path = `/api/interview/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifact)}`;
-  const read = await fetch(path);
+  const read = await studioFetch(path);
   if (!read.ok) throw new Error(`${read.status}`);
   const { origin } = (await read.json()) as { origin: unknown };
-  const written = await fetch(path, {
+  const written = await studioFetch(path, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ origin, patch: draft }),

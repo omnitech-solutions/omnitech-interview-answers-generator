@@ -5,8 +5,8 @@ description: Read, update, or reset the live Interview Answers Playground throug
 
 # Interview Playground controller
 
-The Playground is what Interview Studio (the local assistant host,
-`http://127.0.0.1:5175` by default) shows next. Each push is applied once:
+The Playground is what Interview Studio (`pnpm dev`,
+`http://127.0.0.1:3000/t/local/p/interview`) shows next. Each push is applied once:
 
 - `question`/`answer`/`notes` open a Workspace draft; pushing the same question
   again updates that draft.

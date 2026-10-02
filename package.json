@@ -31,7 +31,6 @@
     "hooks:run:pre-commit": "lefthook run pre-commit",
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
-    "assistant:dev": "node scripts/assistant-dev.mjs",
     "dev:stop": "node scripts/dev-stop.mjs"
   },
   "devDependencies": {
@@ -50,7 +49,8 @@
       "@omnitech-assistant/server": "file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz",
       "@omnitech-assistant/storage-postgres": "file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
       "@omnitech-assistant/sdk": "file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
-      "@omnitech-assistant/react": "file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz"
+      "@omnitech-assistant/react": "file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz",
+      "@oc-tech/omni-ui-components": "file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz"
     }
   }
 }

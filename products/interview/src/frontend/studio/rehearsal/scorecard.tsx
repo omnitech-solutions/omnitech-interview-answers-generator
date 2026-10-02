@@ -14,6 +14,7 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
+import { studioFetch } from "../studio-fetch";
 
 const toRef = (choice: QuestionChoice | undefined) =>
   choice
@@ -42,7 +43,7 @@ export function Scorecard({
   useEffect(() => {
     if (saving.current) return;
     saving.current = true;
-    createRehearsalClient({ baseUrl: "" })
+    createRehearsalClient({ baseUrl: "", fetch: studioFetch })
       .save({
         format: settings.format,
         strict: settings.strict,
