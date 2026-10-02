@@ -1,5 +1,3 @@
-import "@oc-tech/omni-ui-components/styles.css";
-
 export { InterviewPreparation } from "./interview-preparation.js";
 export { Library } from "./library.js";
 export type { StudioProps } from "./studio/index.js";

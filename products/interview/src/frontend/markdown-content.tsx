@@ -14,6 +14,7 @@ import React, {
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
+import { highlighterFor, THEMES } from "./shiki-highlighter";
 
 function MermaidDiagram({ source }: { source: string }) {
   const reactId = useId();
@@ -248,25 +249,26 @@ function ShikiCodeBlock({
 
   useEffect(() => {
     let active = true;
-    void Promise.all([import("shiki"), import("@shikijs/transformers")]).then(
-      async ([{ codeToHtml }, transformers]) => {
-        const rendered = await codeToHtml(source, {
-          lang: language,
-          themes: { light: "github-light", dark: "github-dark" },
+    void Promise.all([
+      highlighterFor(language),
+      import("@shikijs/transformers"),
+    ]).then(([{ shiki, lang }, transformers]) => {
+      const options = { lang, themes: THEMES };
+      let rendered: string;
+      try {
+        rendered = shiki.codeToHtml(source, {
+          ...options,
           transformers: [
             transformers.transformerNotationDiff(),
             transformers.transformerNotationFocus(),
             transformers.transformerNotationHighlight(),
           ],
-        }).catch(() =>
-          codeToHtml(source, {
-            lang: "text",
-            themes: { light: "github-light", dark: "github-dark" },
-          }),
-        );
-        if (active) setHtml(rendered);
-      },
-    );
+        });
+      } catch {
+        rendered = shiki.codeToHtml(source, { lang: "text", themes: THEMES });
+      }
+      if (active) setHtml(rendered);
+    });
     return () => {
       active = false;
     };
@@ -345,11 +347,8 @@ function InlineShikiCode({
 
   useEffect(() => {
     let active = true;
-    void import("shiki").then(async ({ codeToHtml }) => {
-      const rendered = await codeToHtml(source, {
-        lang: inlineCodeLanguage(source),
-        themes: { light: "github-light", dark: "github-dark" },
-      });
+    void highlighterFor(inlineCodeLanguage(source)).then(({ shiki, lang }) => {
+      const rendered = shiki.codeToHtml(source, { lang, themes: THEMES });
       if (!active) return;
       setHtml(/<code[^>]*>([\s\S]*?)<\/code>/.exec(rendered)?.[1] ?? "");
     });

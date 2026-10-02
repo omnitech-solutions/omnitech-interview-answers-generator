@@ -1,7 +1,4 @@
-import type {
-  ProductFrontendPlugin,
-  ProductManifest,
-} from "@omnitech/platform-contracts";
+import type { ProductManifest } from "@omnitech/platform-contracts";
 
 const STUDIO_VIEWS = [
   { id: "home", path: "/" },
@@ -21,7 +18,8 @@ export const manifest = {
   icon: "sparkles",
   permissions: ["interview.read", "interview.write"],
   // Interview Studio routes within itself; each top-level view is a route
-  // here so the platform authorizes and serves it.
+  // here so the platform authorizes and serves it. Every route renders the
+  // studio's single entry point, StudioPage (see ./frontend).
   routes: STUDIO_VIEWS.map((view) => ({
     id: `interview.${view.id}`,
     defaultPath: view.path,
@@ -39,15 +37,3 @@ export const manifest = {
   ],
   configurationSchema: {},
 } as const satisfies ProductManifest;
-
-const studioPage = async () => {
-  const { StudioPage } = await import("./frontend/studio/studio-page.js");
-  return { default: () => <StudioPage /> };
-};
-
-export const frontendPlugin: ProductFrontendPlugin = {
-  id: manifest.id,
-  routes: Object.fromEntries(
-    STUDIO_VIEWS.map((view) => [`interview.${view.id}`, studioPage]),
-  ),
-};

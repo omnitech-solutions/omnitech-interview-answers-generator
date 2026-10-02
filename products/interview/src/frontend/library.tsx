@@ -1,6 +1,5 @@
 "use client";
 
-import { App, ConfigProvider } from "@oc-tech/omni-ui-components";
 import type {
   LibraryContentType,
   LibraryFacets,
@@ -448,283 +447,276 @@ export function Library({
 
   return (
     <LibraryBasePath.Provider value={basePath}>
-      <ConfigProvider theme={{ mode: theme }}>
-        <App>
-          <main className="library-shell">
-            <header className="library-header">
-              {!embedded && <StudioBrand subtitle="Knowledge base" />}
-              <div className="library-search-wrap">
-                <SearchIcon />
-                <input
-                  ref={searchRef}
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={onSearchKeyDown}
-                  placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
-                  aria-label="Search knowledge"
-                  aria-controls="library-results"
-                  aria-activedescendant={
-                    result?.hits[activeResult]
-                      ? `library-result-${activeResult}`
-                      : undefined
-                  }
-                />
-                <kbd>{embedded ? "/" : "⌘K"}</kbd>
-              </div>
-              <div className="library-header-actions">
-                <button
-                  className="library-mobile-control"
-                  type="button"
-                  onClick={() => setFiltersOpen((open) => !open)}
-                >
-                  Filters
-                </button>
-                {!embedded && (
-                  <>
-                    <button
-                      className="library-add-button"
-                      type="button"
-                      onClick={() => setAuthorOpen(true)}
-                    >
-                      <PlusIcon /> Add item
-                    </button>
-                    <ThemeToggle theme={theme} onClick={toggleTheme} />
-                  </>
-                )}
-              </div>
-            </header>
-
-            {error ? (
-              <div className="library-alert" role="alert">
-                {error}
-              </div>
-            ) : null}
-
-            <nav
-              className="library-technology-filters"
-              aria-label="Filter by technology"
+      <main className="library-shell">
+        <header className="library-header">
+          {!embedded && <StudioBrand subtitle="Knowledge base" />}
+          <div className="library-search-wrap">
+            <SearchIcon />
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+              placeholder="Search React, PHP, Laravel, Symfony, web, DSA…"
+              aria-label="Search knowledge"
+              aria-controls="library-results"
+              aria-activedescendant={
+                result?.hits[activeResult]
+                  ? `library-result-${activeResult}`
+                  : undefined
+              }
+            />
+            <kbd>{embedded ? "/" : "⌘K"}</kbd>
+          </div>
+          <div className="library-header-actions">
+            <button
+              className="library-mobile-control"
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
             >
-              <button
-                type="button"
-                className={
-                  tags.some((tag) => technologyTags.has(tag)) ? "" : "active"
-                }
-                aria-pressed={!tags.some((tag) => technologyTags.has(tag))}
-                onClick={() =>
-                  setTags((current) =>
-                    current.filter((tag) => !technologyTags.has(tag)),
-                  )
-                }
-              >
-                All
-              </button>
-              {technologyFilters.map(({ label, tag }) => (
+              Filters
+            </button>
+            {!embedded && (
+              <>
                 <button
+                  className="library-add-button"
                   type="button"
-                  key={tag}
-                  className={tags.includes(tag) ? "active" : ""}
-                  aria-pressed={tags.includes(tag)}
-                  onClick={() =>
-                    setTags((current) => [
-                      ...current.filter(
-                        (currentTag) => !technologyTags.has(currentTag),
-                      ),
-                      ...(current.includes(tag) ? [] : [tag]),
-                    ])
-                  }
+                  onClick={() => setAuthorOpen(true)}
                 >
-                  {label}
-                  {facets?.tags[tag] ? <span>{facets.tags[tag]}</span> : null}
+                  <PlusIcon /> Add item
                 </button>
-              ))}
-            </nav>
+                <ThemeToggle theme={theme} onClick={toggleTheme} />
+              </>
+            )}
+          </div>
+        </header>
 
-            <div
-              className={`library-workspace${embedded && !item ? " no-article" : ""}`}
+        {error ? (
+          <div className="library-alert" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        <nav
+          className="library-technology-filters"
+          aria-label="Filter by technology"
+        >
+          <button
+            type="button"
+            className={
+              tags.some((tag) => technologyTags.has(tag)) ? "" : "active"
+            }
+            aria-pressed={!tags.some((tag) => technologyTags.has(tag))}
+            onClick={() =>
+              setTags((current) =>
+                current.filter((tag) => !technologyTags.has(tag)),
+              )
+            }
+          >
+            All
+          </button>
+          {technologyFilters.map(({ label, tag }) => (
+            <button
+              type="button"
+              key={tag}
+              className={tags.includes(tag) ? "active" : ""}
+              aria-pressed={tags.includes(tag)}
+              onClick={() =>
+                setTags((current) => [
+                  ...current.filter(
+                    (currentTag) => !technologyTags.has(currentTag),
+                  ),
+                  ...(current.includes(tag) ? [] : [tag]),
+                ])
+              }
             >
-              <aside
-                className={`library-filters${filtersOpen ? " open" : ""}`}
-                aria-label="Knowledge index"
-              >
-                {/* Inside the studio the filters stay put and results fill
+              {label}
+              {facets?.tags[tag] ? <span>{facets.tags[tag]}</span> : null}
+            </button>
+          ))}
+        </nav>
+
+        <div
+          className={`library-workspace${embedded && !item ? " no-article" : ""}`}
+        >
+          <aside
+            className={`library-filters${filtersOpen ? " open" : ""}`}
+            aria-label="Knowledge index"
+          >
+            {/* Inside the studio the filters stay put and results fill
                     the main column; standalone, results replace the filters. */}
-                {searching && !embedded ? (
-                  <>
-                    <div className="library-index-toolbar">
-                      <strong>Search index</strong>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQuery("");
-                          setTypes([]);
-                          setCollections([]);
-                          setTags([]);
-                          setOfficialOnly(false);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <SearchResults
-                      active={activeResult}
-                      filters={filterQuery}
-                      loading={loading}
-                      query={query}
-                      response={result}
-                      selectedSlug={item?.slug}
-                      pendingSlug={pendingSlug}
-                      onHitClick={onHitClick}
-                    />
-                  </>
-                ) : (
-                  <>
-                    {embedded && searching ? (
-                      <button
-                        type="button"
-                        className="library-clear-filters"
-                        onClick={clearSearch}
-                      >
-                        Clear search and filters
-                      </button>
-                    ) : null}
-                    <FilterGroup label="Content type">
-                      {(
-                        Object.keys(contentTypeLabels) as LibraryContentType[]
-                      ).map((type) => (
-                        <FilterButton
-                          key={type}
-                          active={types.includes(type)}
-                          count={facets?.contentTypes[type]}
-                          onClick={() => toggleFilter(type, types, setTypes)}
-                        >
-                          {contentTypeLabels[type]}
-                        </FilterButton>
-                      ))}
-                    </FilterGroup>
-                    <FilterGroup label="Collections">
-                      {Object.entries(facets?.collections ?? {}).map(
-                        ([value, count]) => (
-                          <FilterButton
-                            key={value}
-                            active={collections.includes(value)}
-                            count={count}
-                            onClick={() =>
-                              toggleFilter(value, collections, setCollections)
-                            }
-                          >
-                            {value.replaceAll("-", " ")}
-                          </FilterButton>
-                        ),
-                      )}
-                    </FilterGroup>
-                    <FilterGroup label="Trust">
+            {searching && !embedded ? (
+              <>
+                <div className="library-index-toolbar">
+                  <strong>Search index</strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setTypes([]);
+                      setCollections([]);
+                      setTags([]);
+                      setOfficialOnly(false);
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <SearchResults
+                  active={activeResult}
+                  filters={filterQuery}
+                  loading={loading}
+                  query={query}
+                  response={result}
+                  selectedSlug={item?.slug}
+                  pendingSlug={pendingSlug}
+                  onHitClick={onHitClick}
+                />
+              </>
+            ) : (
+              <>
+                {embedded && searching ? (
+                  <button
+                    type="button"
+                    className="library-clear-filters"
+                    onClick={clearSearch}
+                  >
+                    Clear search and filters
+                  </button>
+                ) : null}
+                <FilterGroup label="Content type">
+                  {(Object.keys(contentTypeLabels) as LibraryContentType[]).map(
+                    (type) => (
                       <FilterButton
-                        active={officialOnly}
-                        count={facets?.contentTypes["official-reference"]}
-                        onClick={() => setOfficialOnly((value) => !value)}
+                        key={type}
+                        active={types.includes(type)}
+                        count={facets?.contentTypes[type]}
+                        onClick={() => toggleFilter(type, types, setTypes)}
                       >
-                        Official only
+                        {contentTypeLabels[type]}
                       </FilterButton>
-                    </FilterGroup>
-                    <FilterGroup label="Popular tags">
-                      <div className="library-tag-cloud">
-                        {Object.entries(facets?.tags ?? {})
-                          .sort((left, right) => right[1] - left[1])
-                          .slice(0, 18)
-                          .map(([value, count]) => (
-                            <button
-                              type="button"
-                              key={value}
-                              className={tags.includes(value) ? "active" : ""}
-                              onClick={() => toggleFilter(value, tags, setTags)}
-                            >
-                              {value} <span>{count}</span>
-                            </button>
-                          ))}
-                      </div>
-                    </FilterGroup>
-                  </>
-                )}
-              </aside>
-
-              <section className="library-main">
-                {item ? (
-                  <>
-                    {embedded ? (
-                      <button
-                        type="button"
-                        className="library-back"
-                        onClick={closeArticle}
-                      >
-                        ← {searching ? "Back to results" : "Back to Knowledge"}
-                      </button>
-                    ) : null}
-                    <LibraryArticle
-                      item={item}
-                      filters={filterQuery}
-                      {...adjacentItems}
-                    />
-                  </>
-                ) : embedded && searching ? (
-                  <ResultCards
-                    loading={loading}
-                    query={query}
-                    response={result}
-                    filters={filterQuery}
-                    pendingSlug={pendingSlug}
-                    onHitClick={onHitClick}
-                    onClear={clearSearch}
-                  />
-                ) : (
-                  <LibraryLanding
-                    filters={filterQuery}
-                    response={landingResult}
-                  />
-                )}
-              </section>
-
-              {embedded && !item ? null : (
-                <aside
-                  className={`library-toc${tocOpen ? " open" : ""}`}
-                  aria-label="On this page"
-                >
-                  <strong>On this page</strong>
-                  {item ? (
-                    <nav>
-                      {headings.map((heading) => (
-                        <a
-                          key={heading.id}
-                          className={`depth-${heading.depth}`}
-                          href={`#${heading.id}`}
-                          onClick={() => setTocOpen(false)}
-                        >
-                          {heading.text}
-                        </a>
-                      ))}
-                    </nav>
-                  ) : (
-                    <p>Open a reference to see its sections.</p>
+                    ),
                   )}
-                </aside>
-              )}
-            </div>
+                </FilterGroup>
+                <FilterGroup label="Collections">
+                  {Object.entries(facets?.collections ?? {}).map(
+                    ([value, count]) => (
+                      <FilterButton
+                        key={value}
+                        active={collections.includes(value)}
+                        count={count}
+                        onClick={() =>
+                          toggleFilter(value, collections, setCollections)
+                        }
+                      >
+                        {value.replaceAll("-", " ")}
+                      </FilterButton>
+                    ),
+                  )}
+                </FilterGroup>
+                <FilterGroup label="Trust">
+                  <FilterButton
+                    active={officialOnly}
+                    count={facets?.contentTypes["official-reference"]}
+                    onClick={() => setOfficialOnly((value) => !value)}
+                  >
+                    Official only
+                  </FilterButton>
+                </FilterGroup>
+                <FilterGroup label="Popular tags">
+                  <div className="library-tag-cloud">
+                    {Object.entries(facets?.tags ?? {})
+                      .sort((left, right) => right[1] - left[1])
+                      .slice(0, 18)
+                      .map(([value, count]) => (
+                        <button
+                          type="button"
+                          key={value}
+                          className={tags.includes(value) ? "active" : ""}
+                          onClick={() => toggleFilter(value, tags, setTags)}
+                        >
+                          {value} <span>{count}</span>
+                        </button>
+                      ))}
+                  </div>
+                </FilterGroup>
+              </>
+            )}
+          </aside>
 
+          <section className="library-main">
             {item ? (
-              <button
-                className="library-toc-toggle"
-                type="button"
-                onClick={() => setTocOpen((open) => !open)}
-              >
-                Contents
-              </button>
-            ) : null}
-            {authorOpen ? (
-              <LibraryAuthor onClose={() => setAuthorOpen(false)} />
-            ) : null}
-          </main>
-        </App>
-      </ConfigProvider>
+              <>
+                {embedded ? (
+                  <button
+                    type="button"
+                    className="library-back"
+                    onClick={closeArticle}
+                  >
+                    ← {searching ? "Back to results" : "Back to Knowledge"}
+                  </button>
+                ) : null}
+                <LibraryArticle
+                  item={item}
+                  filters={filterQuery}
+                  {...adjacentItems}
+                />
+              </>
+            ) : embedded && searching ? (
+              <ResultCards
+                loading={loading}
+                query={query}
+                response={result}
+                filters={filterQuery}
+                pendingSlug={pendingSlug}
+                onHitClick={onHitClick}
+                onClear={clearSearch}
+              />
+            ) : (
+              <LibraryLanding filters={filterQuery} response={landingResult} />
+            )}
+          </section>
+
+          {embedded && !item ? null : (
+            <aside
+              className={`library-toc${tocOpen ? " open" : ""}`}
+              aria-label="On this page"
+            >
+              <strong>On this page</strong>
+              {item ? (
+                <nav>
+                  {headings.map((heading) => (
+                    <a
+                      key={heading.id}
+                      className={`depth-${heading.depth}`}
+                      href={`#${heading.id}`}
+                      onClick={() => setTocOpen(false)}
+                    >
+                      {heading.text}
+                    </a>
+                  ))}
+                </nav>
+              ) : (
+                <p>Open a reference to see its sections.</p>
+              )}
+            </aside>
+          )}
+        </div>
+
+        {item ? (
+          <button
+            className="library-toc-toggle"
+            type="button"
+            onClick={() => setTocOpen((open) => !open)}
+          >
+            Contents
+          </button>
+        ) : null}
+        {authorOpen ? (
+          <LibraryAuthor onClose={() => setAuthorOpen(false)} />
+        ) : null}
+      </main>
     </LibraryBasePath.Provider>
   );
 }

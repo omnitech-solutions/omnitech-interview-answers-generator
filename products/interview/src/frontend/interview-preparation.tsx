@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@oc-tech/omni-ui-components";
 import {
   type BriefingArtifactSummary,
   type BriefingProfileSummary,
@@ -527,7 +526,8 @@ export function InterviewPreparation({
           Your configured local matrix is selected automatically. Review each
           proposal before applying it, then save the complete pack.
         </p>
-        <Button
+        <button
+          className="studio-button"
           type="button"
           disabled={busy}
           onClick={() => {
@@ -542,13 +542,17 @@ export function InterviewPreparation({
           }}
         >
           New pack
-        </Button>
+        </button>
       </header>
       <p role="status">{status}</p>
       {conflict && (
-        <Button type="button" onClick={() => void load()}>
+        <button
+          className="studio-button"
+          type="button"
+          onClick={() => void load()}
+        >
           Discard local edits and reload server version
-        </Button>
+        </button>
       )}
       <section
         aria-label="Candidate profile"
@@ -628,13 +632,14 @@ export function InterviewPreparation({
             style={{ width: "100%" }}
           />
         </label>
-        <Button
+        <button
+          className="studio-button"
           type="button"
           onClick={() => void previewMatrix(matrixText)}
           disabled={!matrixText.trim()}
         >
           Preview matrix
-        </Button>
+        </button>
         {matrixPreview && (
           <div aria-label="Matrix preview">
             <h3>Matrix preview</h3>
@@ -707,13 +712,14 @@ export function InterviewPreparation({
                   Import as a new revision of the selected profile
                 </label>
               )}
-            <Button
+            <button
+              className="studio-button"
               type="button"
               onClick={() => void importMatrix()}
               disabled={!profileName.trim() || busy}
             >
               Confirm import
-            </Button>
+            </button>
           </div>
         )}
       </section>
@@ -832,7 +838,8 @@ export function InterviewPreparation({
         }}
       >
         <h2>Questions</h2>
-        <Button
+        <button
+          className="studio-button"
           type="button"
           onClick={() => {
             setQuestions(suggested);
@@ -840,7 +847,7 @@ export function InterviewPreparation({
           }}
         >
           Use suggested pre-screen list
-        </Button>
+        </button>
         {questions.map((item, index) => (
           <div key={item.id} style={{ marginBlock: 8 }}>
             <label>
@@ -884,7 +891,8 @@ export function InterviewPreparation({
                 ))}
               </select>
             </label>
-            <Button
+            <button
+              className="studio-button"
               type="button"
               aria-label={`Remove ${item.question}`}
               onClick={() => {
@@ -895,10 +903,11 @@ export function InterviewPreparation({
               }}
             >
               Remove
-            </Button>
+            </button>
           </div>
         ))}
-        <Button
+        <button
+          className="studio-button"
           type="button"
           onClick={() => {
             setQuestions((items) => [
@@ -909,15 +918,16 @@ export function InterviewPreparation({
           }}
         >
           Add question
-        </Button>
+        </button>
         <p>
-          <Button
+          <button
+            className="studio-button"
             type="button"
             onClick={() => void generate()}
             disabled={busy || !context() || !questions.length}
           >
             Generate proposal
-          </Button>
+          </button>
         </p>
       </section>
       {proposal && (
@@ -966,13 +976,14 @@ export function InterviewPreparation({
               </details>
             </article>
           ))}
-          <Button
+          <button
+            className="studio-button"
             type="button"
             onClick={() => void apply()}
             disabled={busy || proposalStale}
           >
             Apply proposal
-          </Button>
+          </button>
         </section>
       )}
       {draft && (
@@ -1074,7 +1085,8 @@ export function InterviewPreparation({
                   }
                 />
               </label>
-              <Button
+              <button
+                className="studio-button"
                 type="button"
                 onClick={() => void generate(item.id)}
                 disabled={
@@ -1082,10 +1094,11 @@ export function InterviewPreparation({
                 }
               >
                 Regenerate this card
-              </Button>
+              </button>
             </article>
           ))}
-          <Button
+          <button
+            className="studio-button"
             type="button"
             onClick={() => void save()}
             disabled={
@@ -1096,7 +1109,7 @@ export function InterviewPreparation({
             }
           >
             Save complete pack
-          </Button>
+          </button>
         </section>
       )}
       {!!artifacts.length && (
@@ -1110,7 +1123,8 @@ export function InterviewPreparation({
                   ? ` · saved revision ${item.savedRevision}`
                   : " · unsaved"}
                 {item.id !== activeArtifactId && (
-                  <Button
+                  <button
+                    className="studio-button"
                     type="button"
                     onClick={() => setActiveArtifactId(item.id)}
                     disabled={
@@ -1121,7 +1135,7 @@ export function InterviewPreparation({
                       ? "Discard current setup and open"
                       : "Open"}{" "}
                     {item.title}
-                  </Button>
+                  </button>
                 )}
               </li>
             ))}
