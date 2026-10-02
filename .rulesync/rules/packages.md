@@ -9,8 +9,11 @@ description: Reusable package and SDK boundaries
   contracts.
 - `platform-runtime` owns trusted product registration and route resolution.
 - `platform-api` owns platform HTTP contracts without importing Next.js.
-- `platform-storage` owns PostgreSQL access, tenant transactions, migrations,
-  encryption boundaries, and platform repositories.
+- `database` owns PostgreSQL connectivity, tenant-scoped transactions
+  (`withTenant`) and migration execution; domain packages (`platform-storage`,
+  `products/*`) own their schemas and repositories.
+- `platform-storage` owns the platform schema, platform repositories,
+  encryption boundaries and the legacy migration list.
 - `platform-integrations` owns OAuth protocol behavior without UI or database
   access.
 - `products/*` own complete product verticals: manifest, frontend, backend,

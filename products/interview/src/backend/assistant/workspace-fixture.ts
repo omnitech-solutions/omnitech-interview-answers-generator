@@ -1,9 +1,6 @@
-import { execFileSync, spawn } from "node:child_process";
-import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { startDisposablePostgres } from "@omnitech/database/test-support";
 import type {
   WorkspaceDatabasePort as DatabasePort,
   WorkspaceTransaction as Transaction,
@@ -28,76 +25,19 @@ interface FixturePool {
   end(): Promise<void>;
 }
 const { Pool } = require("pg") as { Pool: new (config: object) => FixturePool };
-const bin = "/opt/homebrew/opt/postgresql@15/bin";
 
-// This fixture owns its foreground postgres PID and its mkdtemp directory only.
-// Readiness has a new bounded 10s budget; it changes no existing product policy.
+// The server lifecycle is the shared @omnitech/database fixture; this wraps it
+// in pg pools and the workspace transaction helpers.
 export async function disposablePostgres() {
-  const root = await mkdtemp(`${tmpdir()}/omnitech-assistant-pg-`);
-  const server = createServer();
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const address = server.address();
-  if (!address || typeof address === "string")
-    throw new Error("No fixture port");
-  const port = address.port;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  execFileSync(
-    `${bin}/initdb`,
-    [
-      "-D",
-      `${root}/data`,
-      "--auth=trust",
-      "--username=fixture_owner",
-      "--no-locale",
-    ],
-    { stdio: "pipe" },
-  );
-  const process = spawn(
-    `${bin}/postgres`,
-    ["-D", `${root}/data`, "-p", String(port), "-k", root, "-h", "127.0.0.1"],
-    // macOS postgres aborts ("became multithreaded") without a valid locale.
-    {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...globalThis.process.env, LC_ALL: "C" },
-    },
-  );
-  let log = "";
-  process.stdout.on("data", (chunk: Buffer) => {
-    log += chunk.toString();
-  });
-  process.stderr.on("data", (chunk: Buffer) => {
-    log += chunk.toString();
-  });
+  const server = await startDisposablePostgres();
+  const owner = new URL(server.ownerUrl);
   const config = {
-    host: "127.0.0.1",
-    port,
+    host: owner.hostname,
+    port: Number(owner.port),
     user: "fixture_owner",
     database: "postgres",
   };
   const admin = new Pool(config);
-  const deadline = Date.now() + 10_000;
-  try {
-    for (;;) {
-      try {
-        await admin.query("SELECT 1");
-        break;
-      } catch (error) {
-        if (Date.now() >= deadline || process.exitCode !== null)
-          throw new Error(`Fixture startup failed: ${log}`, { cause: error });
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-    }
-    await admin.query(
-      "CREATE ROLE fixture_member LOGIN NOSUPERUSER NOBYPASSRLS",
-    );
-  } catch (error) {
-    await admin.end();
-    process.kill("SIGTERM");
-    await once(process, "exit");
-    await rm(root, { recursive: true, force: true });
-    throw error;
-  }
   const member = new Pool({ ...config, user: "fixture_member" });
   function transaction(
     pool: InstanceType<typeof Pool>,
@@ -135,8 +75,6 @@ export async function disposablePostgres() {
       transaction(admin, undefined, fn) as Promise<T>,
   };
   return {
-    root,
-    pid: process.pid!,
     config,
     admin,
     member,
@@ -151,10 +89,7 @@ export async function disposablePostgres() {
     close: async () => {
       await member.end();
       await admin.end();
-      const exited = once(process, "exit");
-      process.kill("SIGTERM");
-      await exited;
-      await rm(root, { recursive: true, force: true });
+      await server.stop();
     },
   };
 }
