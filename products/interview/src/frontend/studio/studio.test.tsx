@@ -231,7 +231,7 @@ describe("Studio shell", () => {
     expect(
       screen.getByText("Library at /t/local/p/interview/knowledge"),
     ).toBeVisible();
-    expect(screen.getByText("sees: search results")).toBeVisible();
+    expect(screen.getByText("sees: your current question")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Rehearsal/ }));
     expect(screen.getByText("Rehearsal session")).toBeVisible();
     act(() => {

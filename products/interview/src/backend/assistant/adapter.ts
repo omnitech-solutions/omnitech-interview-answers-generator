@@ -16,8 +16,11 @@ import {
 } from "@omnitech-assistant/contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { userEditedBriefing } from "../briefing/edits.js";
+import { BriefingRepository } from "../briefing/repository.js";
 import {
   answerGuideSchema,
+  type BriefingDraft,
   guideText,
   type InterviewProvenance,
   interviewClaimsSchema,
@@ -35,7 +38,12 @@ import {
   permitted,
   validateClaims,
 } from "./evidence.js";
-import { interviewAdapterVersion, interviewPrompt } from "./prompt.js";
+import {
+  briefingPrompt,
+  conceptBriefPrompt,
+  interviewAdapterVersion,
+  interviewPrompt,
+} from "./prompt.js";
 import {
   type InterviewEvidence,
   InterviewWorkspaceRepository,
@@ -49,9 +57,22 @@ export const interviewProposalPatchSchema = interviewDraftPatchSchema
     (patch) =>
       patch.question !== undefined ||
       patch.notes !== undefined ||
-      patch.answer !== undefined,
+      patch.answer !== undefined ||
+      patch.briefing !== undefined,
     "Empty patch",
   );
+// Spoken concept and system-design briefs live outside the drafts store; the
+// assistant reads them but cannot change them.
+export const CONCEPT_BRIEFS_WORKSPACE = "concept-briefs";
+// What the model sends to change a pack's answers: each answer by its id.
+const briefingAnswerEditSchema = z.strictObject({
+  id: z.string().min(1).max(256),
+  answerMarkdown: z.string().trim().min(1).max(32_000).optional(),
+  talkingPoints: z
+    .array(z.string().trim().min(1).max(2_000))
+    .length(3)
+    .optional(),
+});
 // What the model is asked for. A claim names the source and the supporting
 // passage; revision, hash, claim kind and the exact quote are derived below, so
 // the model never hand-copies bookkeeping.
@@ -79,10 +100,105 @@ const partialAnswerSchema = z.strictObject({
   guide: answerGuideSchema.optional(),
   claims: draftClaimsSchema,
 });
-export const interviewModelDraftSchema = interviewDraftPatchSchema.extend({
-  answer: partialAnswerSchema.nullable().optional(),
-  claims: draftClaimsSchema,
-});
+export const interviewModelDraftSchema = interviewDraftPatchSchema
+  .omit({ briefing: true })
+  .extend({
+    answer: partialAnswerSchema.nullable().optional(),
+    claims: draftClaimsSchema,
+    briefingAnswers: z
+      .array(briefingAnswerEditSchema)
+      .min(1)
+      .max(20)
+      .optional(),
+  });
+
+// [DOMAIN] A pack's answers edited by id; nothing else in the pack changes,
+// and each edited answer is marked for the person to review.
+function editedBriefing(
+  briefing: BriefingDraft,
+  edits: z.infer<typeof briefingAnswerEditSchema>[],
+): BriefingDraft {
+  const known = briefing.questions.map((question) => question.id);
+  for (const edit of edits)
+    if (!known.includes(edit.id))
+      throw new WorkspaceError(
+        "proposal-invalid",
+        `Unknown answer id "${edit.id}". Use one of: ${known.join(", ") || "(the pack has no answers yet)"}.`,
+      );
+  return userEditedBriefing(
+    {
+      ...briefing,
+      questions: briefing.questions.map((question) => {
+        const edit = edits.find((item) => item.id === question.id);
+        return edit
+          ? {
+              ...question,
+              ...(edit.answerMarkdown
+                ? { answerMarkdown: edit.answerMarkdown }
+                : {}),
+              ...(edit.talkingPoints
+                ? { talkingPoints: edit.talkingPoints }
+                : {}),
+              accepted: false,
+            }
+          : question;
+      }),
+    },
+    briefing,
+  );
+}
+
+// Only the answers of a pack may change through a proposal.
+const packShape = (briefing: BriefingDraft) =>
+  JSON.stringify({
+    ...briefing,
+    questions: briefing.questions.map(({ id, question, category }) => ({
+      id,
+      question,
+      category,
+    })),
+  });
+
+// What the assistant sees of a pack: everything needed to coach the person,
+// with evidence as the quotes behind each answer.
+function packContext(
+  briefing: BriefingDraft,
+  roles: readonly {
+    company: string;
+    title: string;
+    period?: string | undefined;
+  }[],
+) {
+  const { evidenceRefs: _refs, ...prepared } = briefing.prepared ?? {
+    evidenceRefs: [],
+  };
+  return {
+    kind: "behavioural-briefing-pack",
+    title: briefing.title,
+    interview: briefing.context,
+    matrixRoles: roles.map((role, index) => ({
+      roleId: `/roles/${index}`,
+      company: role.company,
+      title: role.title,
+      ...(role.period ? { period: role.period } : {}),
+    })),
+    expectedQuestions: briefing.expected ?? [],
+    answers: briefing.questions.map((question) => ({
+      id: question.id,
+      question: question.question,
+      category: question.category,
+      answerMarkdown: question.answerMarkdown,
+      talkingPoints: question.talkingPoints,
+      accepted: Boolean(question.accepted),
+      gaps: question.gaps,
+      evidence: question.evidenceRefs.map(({ pointer, quote }) => ({
+        pointer,
+        quote,
+      })),
+    })),
+    preparedBriefing: briefing.prepared ? prepared : null,
+  };
+}
 const completeAnswerSchema = interviewDraftPatchSchema.shape.answer
   .unwrap()
   .unwrap();
@@ -151,6 +267,7 @@ export function createInterviewAdapter(
   options: InterviewAdapterOptions = {},
 ): ProductAdapter {
   const workspace = new InterviewWorkspaceRepository(database);
+  const briefings = new BriefingRepository(database);
   const authority: EvidenceAuthority = {
     authorizeEvidence:
       options.authorizeEvidence ??
@@ -220,12 +337,34 @@ export function createInterviewAdapter(
     if (current.origin.artifactRevision !== base)
       throw new WorkspaceError("revision-conflict");
     // A proposal that changes nothing is not worth a review; the model is told.
-    const unchanged = (["question", "notes", "answer"] as const).every(
+    const unchanged = (
+      ["question", "notes", "answer", "briefing"] as const
+    ).every(
       (key) =>
         patch[key] === undefined ||
         JSON.stringify(patch[key]) === JSON.stringify(current.value[key]),
     );
     if (unchanged) throw new WorkspaceError("no-change");
+    // [GUARD] A pack and a coding answer never mix, and a proposal may change
+    // a pack's answers only; their evidence is re-derived, never trusted.
+    const pack = current.value.briefing;
+    if (pack && patch.answer !== undefined)
+      throw new WorkspaceError(
+        "proposal-invalid",
+        "This is a briefing pack: change its answers with briefingAnswers.",
+      );
+    if (patch.briefing !== undefined) {
+      if (
+        !pack ||
+        !patch.briefing ||
+        packShape(patch.briefing) !== packShape(pack)
+      )
+        throw new WorkspaceError(
+          "proposal-invalid",
+          "A proposal may change a pack's answers only.",
+        );
+      patch.briefing = userEditedBriefing(patch.briefing, pack);
+    }
     if (patch.answer) {
       // Only new prose needs a source behind it; changing code or tests does not.
       validateClaims(patch.answer, patch.claims ?? [], sources, {
@@ -240,27 +379,63 @@ export function createInterviewAdapter(
   return {
     draftSchema: interviewModelDraftJsonSchema,
     buildProposal: async (scope, origin, raw) => {
+      if (origin.workspaceId === CONCEPT_BRIEFS_WORKSPACE)
+        throw new WorkspaceError(
+          "proposal-invalid",
+          "Concept briefs can't be changed from the assistant. Build a new brief in Briefings instead.",
+        );
       const parsed = interviewModelDraftSchema.safeParse(raw);
       if (!parsed.success) throw new WorkspaceError("proposal-invalid");
       const {
         claims: besideClaims = [],
         answer: draftAnswer,
+        briefingAnswers,
         ...rest
       } = parsed.data;
+      const readDraft = () =>
+        workspace.transaction(scope, (tx, current) =>
+          workspace.readTransaction(
+            tx,
+            current,
+            origin.workspaceId,
+            origin.artifactId,
+          ),
+        );
+      if (briefingAnswers) {
+        const pack = (await readDraft()).value.briefing;
+        if (!pack)
+          throw new WorkspaceError(
+            "proposal-invalid",
+            "briefingAnswers only apply to a briefing pack.",
+          );
+        if (
+          draftAnswer !== undefined ||
+          rest.question !== undefined ||
+          rest.notes !== undefined ||
+          besideClaims.length
+        )
+          throw new WorkspaceError(
+            "proposal-invalid",
+            "In a briefing pack, change answers only, with briefingAnswers.",
+          );
+        return {
+          patch: jsonValueSchema.parse({
+            briefing: editedBriefing(pack, briefingAnswers),
+          }) as Record<string, JsonValue>,
+          evidenceRefs: [],
+        };
+      }
       const { claims: insideClaims = [], ...answerFields } = draftAnswer ?? {};
       let mergedAnswer: z.infer<typeof completeAnswerSchema> | null | undefined;
       if (draftAnswer === null) mergedAnswer = null;
       else if (draftAnswer !== undefined) {
-        const existing = await workspace
-          .transaction(scope, (tx, current) =>
-            workspace.readTransaction(
-              tx,
-              current,
-              origin.workspaceId,
-              origin.artifactId,
-            ),
-          )
-          .then((record) => record.value.answer);
+        const record = await readDraft();
+        if (record.value.briefing)
+          throw new WorkspaceError(
+            "proposal-invalid",
+            "This is a briefing pack: change its answers with briefingAnswers.",
+          );
+        const existing = record.value.answer;
         // A guide renders the Markdown, so a guided answer need not send it.
         const complete = completeAnswerSchema.safeParse({
           ...(answerFields.guide
@@ -363,12 +538,56 @@ export function createInterviewAdapter(
     },
     getContext: async (scope, origin) =>
       workspace.transaction(scope, async (tx, scope) => {
+        if (origin.workspaceId === CONCEPT_BRIEFS_WORKSPACE) {
+          const [row] = await tx.query(
+            "SELECT kind,topic,value FROM interview.concept_briefs WHERE tenant_id=$1 AND actor_id=$2 AND product_id=$3 AND id=$4",
+            [scope.tenantId, scope.actorId, scope.productId, origin.artifactId],
+          );
+          if (!row) throw new WorkspaceError("not-found");
+          return {
+            origin: { ...origin, artifactRevision: 0 },
+            instructions: conceptBriefPrompt.instructions,
+            context: jsonValueSchema.parse({
+              prompt: {
+                version: conceptBriefPrompt.version,
+                taskProfile: conceptBriefPrompt.taskProfile,
+              },
+              kind: row["kind"],
+              topic: row["topic"],
+              brief: row["value"],
+            }),
+            evidence: [],
+          };
+        }
         const current = await workspace.readTransaction(
           tx,
           scope,
           origin.workspaceId,
           origin.artifactId,
         );
+        const pack = current.value.briefing;
+        if (pack) {
+          const profile = await briefings
+            .getProfileRevisionTransaction(
+              tx,
+              scope,
+              pack.context.profile.id,
+              pack.context.profile.revision,
+            )
+            .catch(() => null);
+          return {
+            origin: current.origin,
+            instructions: briefingPrompt.instructions,
+            context: jsonValueSchema.parse({
+              prompt: {
+                version: briefingPrompt.version,
+                taskProfile: briefingPrompt.taskProfile,
+              },
+              ...packContext(pack, profile?.matrix.roles ?? []),
+            }),
+            evidence: [],
+          };
+        }
         const sources = await visible(tx, scope);
         return {
           origin: current.origin,
@@ -656,7 +875,16 @@ export function describeChanges(current: Draft, patch: ProposalPatch) {
     if (before !== after) pairs["guide"] = { before, after, language: "text" };
     if (patch.answer.guide) delete pairs["answerMarkdown"];
   }
-  return SURFACES.filter((surface) => pairs[surface.id]).map((surface) => {
+  const surfaces = [
+    ...SURFACES.filter((surface) => pairs[surface.id]),
+    ...changedAnswers(current.briefing, patch.briefing).map(
+      ({ id, label, before, after }) => {
+        pairs[id] = { before, after, language: "markdown" };
+        return { id, label, icon: "record_voice_over" } as const;
+      },
+    ),
+  ];
+  return surfaces.map((surface) => {
     const pair = pairs[surface.id]!;
     const added = Math.max(0, lineCount(pair.after) - lineCount(pair.before));
     return {
@@ -672,6 +900,36 @@ export function describeChanges(current: Draft, patch: ProposalPatch) {
       before: pair.before,
       after: pair.after,
     };
+  });
+}
+
+// A pack's answers a patch changes, each as one reviewable surface.
+const spoken = (question: BriefingDraft["questions"][number]) =>
+  [
+    question.answerMarkdown,
+    "",
+    ...question.talkingPoints.map((point) => `- ${point}`),
+  ].join("\n");
+function changedAnswers(
+  current: BriefingDraft | null | undefined,
+  next: BriefingDraft | null | undefined,
+) {
+  if (!current || !next) return [];
+  return next.questions.flatMap((question) => {
+    const before = current.questions.find((item) => item.id === question.id);
+    if (!before || spoken(before) === spoken(question)) return [];
+    const label =
+      question.question.length > 60
+        ? `${question.question.slice(0, 59)}…`
+        : question.question;
+    return [
+      {
+        id: `briefing:${question.id}`,
+        label,
+        before: spoken(before),
+        after: spoken(question),
+      },
+    ];
   });
 }
 
@@ -704,7 +962,28 @@ export function pickSurfaces(
       : proposed;
     if (!answer.guide) delete answer.guide;
   }
+  // Pack answers are picked one by one; the rest keep their current text.
+  const briefing =
+    patch.briefing && current.briefing
+      ? userEditedBriefing(
+          {
+            ...current.briefing,
+            questions: current.briefing.questions.map(
+              (question) =>
+                (picked.has(`briefing:${question.id}`) &&
+                  patch.briefing!.questions.find(
+                    (item) => item.id === question.id,
+                  )) ||
+                question,
+            ),
+          },
+          current.briefing,
+        )
+      : undefined;
   const next = {
+    ...(briefing && changedAnswers(current.briefing, briefing).length > 0
+      ? { briefing }
+      : {}),
     ...(picked.has("question") && patch.question !== undefined
       ? { question: patch.question }
       : {}),

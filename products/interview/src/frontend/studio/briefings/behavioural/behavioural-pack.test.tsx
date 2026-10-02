@@ -12,6 +12,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StudioContext, type StudioViewBinding } from "../../context";
 import { BehaviouralPack } from "./behavioural-pack";
 
 vi.mock("../../../markdown-content", () => ({
@@ -625,5 +626,61 @@ describe("an open pack", () => {
     expect(await screen.findByText("lead.json")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("lends the assistant this pack, and reloads after an applied edit", async () => {
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context,
+      expected: ["Tell me about yourself."],
+      questions: [answer("Tell me about yourself.", "q1")],
+    };
+    revision = 7;
+    const bound: StudioViewBinding[] = [];
+    const unbind = vi.fn();
+    const studio = {
+      theme: "light" as const,
+      toggleTheme: vi.fn(),
+      headerSlot: null,
+      bindView: (binding: StudioViewBinding) => {
+        bound.push(binding);
+        return unbind;
+      },
+      refreshLists: vi.fn(),
+      setFocus: vi.fn(),
+    };
+    const { unmount } = render(
+      <StudioContext.Provider value={studio}>
+        <BehaviouralPack client={client} artifactId="prep-1" {...handlers()} />
+      </StudioContext.Provider>,
+    );
+    await waitFor(() => expect(bound.length).toBeGreaterThan(0));
+    const binding = bound.at(-1)!;
+    expect(binding.origin).toEqual({
+      workspaceId: "briefings",
+      artifactId: "prep-1",
+      artifactRevision: 7,
+    });
+    expect(binding.assistant?.sees).toBe("this preparation pack");
+    expect(await binding.hooks!.current.prepareSend!()).toEqual({
+      workspaceId: "briefings",
+      artifactId: "prep-1",
+      artifactRevision: 7,
+    });
+
+    // The assistant applied an edit on the server: the pack shows it.
+    pack = {
+      ...pack,
+      questions: [
+        { ...pack.questions[0]!, answerMarkdown: "Edited by the assistant" },
+      ],
+    };
+    revision = 8;
+    await binding.hooks!.current.onApplied!({} as never, {} as never);
+    expect(await screen.findByText("Edited by the assistant")).toBeVisible();
+    await waitFor(() => expect(bound.at(-1)!.origin?.artifactRevision).toBe(8));
+    unmount();
+    expect(unbind).toHaveBeenCalled();
   });
 });

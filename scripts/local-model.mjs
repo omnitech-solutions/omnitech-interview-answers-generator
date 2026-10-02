@@ -51,8 +51,16 @@ export async function defaultLocalModelEnvironment(env = process.env) {
       : `[dev] No AI model configured or loaded; using "${model}" from LM Studio.`,
     "Set LM_STUDIO_MODEL, OPENAI_MODEL or AI_BASE_URL and AI_MODEL to choose another.",
   );
-  return { LM_STUDIO_MODEL: model };
+  // A local model reads long briefing material slowly: a pack's research and
+  // matrix can take minutes before the reply starts.
+  return {
+    LM_STUDIO_MODEL: model,
+    ...(env.AI_TIMEOUT_MS ? {} : { AI_TIMEOUT_MS: String(LOCAL_TIMEOUT_MS) }),
+  };
 }
+
+/** How long a local model may take to reply, unless AI_TIMEOUT_MS is set. */
+export const LOCAL_TIMEOUT_MS = 600_000;
 
 /**
  * Loads LM Studio's model with a context window big enough for the interview

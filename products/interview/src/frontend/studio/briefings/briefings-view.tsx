@@ -5,6 +5,7 @@ import {
 import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import type { Brief } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useState } from "react";
+import { conceptBriefAssistant } from "../../assistant-config";
 import { createPortal } from "react-dom";
 import { formatRelativeTime } from "../../format-timestamp";
 import type { StudioActions } from "../config/commands";
@@ -83,6 +84,20 @@ export function BriefingsView({
       active = false;
     };
   }, [client, selectedBrief]);
+
+  // The open brief is what the assistant reads (it cannot change briefs).
+  const openBrief = brief && selectedBrief === brief.id ? brief.id : null;
+  useEffect(() => {
+    if (!studio || !openBrief) return;
+    return studio.bindView({
+      origin: {
+        workspaceId: "concept-briefs",
+        artifactId: openBrief,
+        artifactRevision: 0,
+      },
+      assistant: conceptBriefAssistant,
+    });
+  }, [studio, openBrief]);
 
   const entries = [
     ...lists.briefs.map((item) => ({

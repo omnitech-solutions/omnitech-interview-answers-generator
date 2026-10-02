@@ -7,7 +7,10 @@ import type {
   BriefingDraft,
   CandidateMatrix,
 } from "@omnitech/interview-contracts";
+import type { HostHooks } from "@omnitech-assistant/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { packAssistant } from "../../../assistant-config";
+import { useStudio } from "../../context";
 import { Icon } from "../../icon";
 import { AnswersTab, type PendingAnswer } from "./answers-tab";
 import { PACK_TABS, type PackTab, STAGES, suggestedFor } from "./config";
@@ -75,10 +78,12 @@ export function BehaviouralPack({
   const revision = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const briefingRef = useRef<BriefingDraft | null>(null);
+  const [packRevision, setPackRevision] = useState(0);
   const applied = useCallback((artifact: BriefingArtifact) => {
     revision.current = artifact.origin.artifactRevision;
     briefingRef.current = artifact.value.briefing;
     setBriefing(artifact.value.briefing);
+    setPackRevision(artifact.origin.artifactRevision);
     return artifact;
   }, []);
   const write = useCallback(<T,>(step: () => Promise<T>): Promise<T> => {
@@ -246,6 +251,41 @@ export function BehaviouralPack({
   }
 
   // A new pack starts drafting as soon as it opens.
+  // [DOMAIN] The assistant reads this pack and proposes answer edits to it;
+  // it sends from the newest revision once pending writes land, and the pack
+  // reloads after an edit is applied or undone.
+  const studio = useStudio();
+  const assistantHooks = useRef<HostHooks>({});
+  assistantHooks.current = {
+    prepareSend: async () => {
+      await queue.current;
+      return {
+        workspaceId: "briefings",
+        artifactId: artifactId!,
+        artifactRevision: revision.current,
+      };
+    },
+    onApplied: async () => {
+      applied(await client.getArtifact(artifactId!));
+    },
+    onReverted: async () => {
+      applied(await client.getArtifact(artifactId!));
+    },
+  };
+  const hasPack = briefing !== null;
+  useEffect(() => {
+    if (!studio || artifactId === null || !hasPack) return;
+    return studio.bindView({
+      origin: {
+        workspaceId: "briefings",
+        artifactId,
+        artifactRevision: packRevision,
+      },
+      assistant: packAssistant,
+      hooks: assistantHooks,
+    });
+  }, [studio, artifactId, hasPack, packRevision]);
+
   const started = useRef(false);
   useEffect(() => {
     if (!autoDraft || !briefing || started.current || artifactId === null)

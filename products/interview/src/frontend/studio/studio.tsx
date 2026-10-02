@@ -13,12 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  assistantFeatures,
-  assistantPrompts,
-  assistantStarters,
-  assistantSurfaces,
-} from "../assistant-config";
+import { assistantFeatures, questionAssistant } from "../assistant-config";
 import { useStudioTheme } from "./use-studio-theme";
 import type { WorkspaceAssistant } from "./workspace/workspace-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
@@ -126,6 +121,7 @@ export function Studio({ assistant }: StudioProps) {
     () => ({ ...assistant, artifactId: route.artifact }),
     [assistant, route.artifact],
   );
+  const presenting = binding.assistant ?? questionAssistant;
   // The assistant follows whichever view lent it a draft; hooks are read at
   // call time so the bound view stays in control of its own draft.
   const config: AssistantConfig = {
@@ -138,14 +134,13 @@ export function Studio({ assistant }: StudioProps) {
     profileId: assistant.profileId,
     product: {
       name: "Interview Studio",
-      description:
-        "I can read and edit the Question, Main Solution and Tests in Interview Studio. Changes are always proposed first — nothing is applied without you.",
+      description: presenting.description,
     },
     user: { name: "Local user", initials: "LU" },
     features: assistantFeatures,
-    starters: assistantStarters,
-    prompts: assistantPrompts,
-    surfaces: assistantSurfaces,
+    starters: presenting.starters,
+    prompts: presenting.prompts,
+    ...(presenting.surfaces ? { surfaces: presenting.surfaces } : {}),
     theme,
     layout: { mode: "panel", open: false, width: dock.width },
     // ⌘K belongs to the studio palette.
@@ -175,6 +170,10 @@ export function Studio({ assistant }: StudioProps) {
       onOpenBinding: ({ workspaceId, artifactId }) => {
         if (workspaceId === assistant.workspaceId)
           leave({ view: "work", artifact: artifactId });
+        else if (workspaceId === "briefings")
+          leave({ view: "briefings", rest: [artifactId] });
+        else if (workspaceId === "concept-briefs")
+          leave({ view: "briefings", rest: ["brief", artifactId] });
       },
     },
   };
@@ -184,6 +183,7 @@ export function Studio({ assistant }: StudioProps) {
       <div className="studio-app" data-view={route.view}>
         <AssistantRoot config={config}>
           <StudioFrame
+            sees={presenting.sees}
             route={route}
             lists={lists}
             theme={theme}
@@ -254,6 +254,7 @@ function StudioFrame({
   runTests,
   toggleTheme,
   dock,
+  sees,
   renderView,
 }: {
   route: ReturnType<typeof useStudioRoute>["route"];
@@ -267,6 +268,8 @@ function StudioFrame({
   runTests(): void;
   toggleTheme(): void;
   dock: ReturnType<typeof useDockWidth>;
+  // What the assistant is looking at, for the header.
+  sees: string;
   renderView(actions: StudioActions): ReactNode;
 }) {
   const host = useAssistantHost();
@@ -377,7 +380,7 @@ function StudioFrame({
           <span className="studio-header-title">{view.label}</span>
           <div className="studio-header-slot" ref={setHeaderSlot} />
           <span className="studio-sees" title="What the assistant can see">
-            sees: {view.assistantContext}
+            sees: {sees}
           </span>
           {focus !== "strict" && (
             <button

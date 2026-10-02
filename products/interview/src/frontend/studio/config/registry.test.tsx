@@ -17,7 +17,6 @@ describe("view registry", () => {
     expect(new Set(views.map((view) => view.goKey)).size).toBe(views.length);
     for (const view of views) {
       expect(view.label).toBeTruthy();
-      expect(view.assistantContext).toBeTruthy();
     }
   });
 });

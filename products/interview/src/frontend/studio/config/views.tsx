@@ -28,8 +28,6 @@ export type ViewDefinition = {
   icon: IconName;
   // "W" makes "G W" the shortcut.
   goKey: string;
-  // What the docked assistant can see while this view is open.
-  assistantContext: string;
   render(props: ViewProps): ReactNode;
 };
 
@@ -41,7 +39,6 @@ export const views: readonly ViewDefinition[] = [
     label: "Home",
     icon: "home",
     goKey: "H",
-    assistantContext: "prep plan",
     render: ({ actions, lists }) => (
       <HomeView actions={actions} lists={lists} />
     ),
@@ -51,7 +48,6 @@ export const views: readonly ViewDefinition[] = [
     label: "Workspace",
     icon: "terminal",
     goKey: "W",
-    assistantContext: "question, code, tests",
     render: ({ assistant, actions }) => (
       <WorkspaceView
         key={assistant.artifactId}
@@ -65,7 +61,6 @@ export const views: readonly ViewDefinition[] = [
     label: "Briefings",
     icon: "lightbulb",
     goKey: "B",
-    assistantContext: "briefing",
     render: ({ route, actions, lists, control, onDirtyChange }) => (
       <BriefingsView
         rest={route.rest}
@@ -81,7 +76,6 @@ export const views: readonly ViewDefinition[] = [
     label: "Knowledge",
     icon: "menu_book",
     goKey: "K",
-    assistantContext: "search results",
     render: ({ route }) => (
       <Library
         basePath={`${route.base}/knowledge`}
@@ -94,7 +88,6 @@ export const views: readonly ViewDefinition[] = [
     label: "Rehearsal",
     icon: "timer",
     goKey: "R",
-    assistantContext: "nothing (rehearsal)",
     render: ({ assistant, actions, lists, control }) => (
       <RehearsalView
         actions={actions}
