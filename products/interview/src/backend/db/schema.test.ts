@@ -35,7 +35,7 @@ it("lists every tenant-owned table, excluding the shared exercise catalog", () =
   expect(domainTables).not.toContain(exercises as never);
 });
 
-it("forces RLS with a policy whose WITH CHECK equals its USING on every domain table", () => {
+it("enables RLS with a policy whose WITH CHECK equals its USING on every domain table", () => {
   for (const table of domainTables) {
     const config = getTableConfig(table);
     expect(config.enableRLS, config.name).toBe(true);

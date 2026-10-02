@@ -12,13 +12,15 @@ import {
   tenants,
   users,
 } from "@omnitech/platform-storage/schema";
-import { sql } from "drizzle-orm";
+import { is, sql } from "drizzle-orm";
 import {
   check,
   foreignKey,
+  getTableConfig,
   index,
   integer,
   pgPolicy,
+  PgTable,
   pgSchema,
   primaryKey,
   text,
@@ -28,6 +30,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { interview } from "./legacy.js";
+import * as self from "./schema.js";
 
 const platform = { tenants, users };
 
@@ -358,14 +361,15 @@ export const exerciseAttempts = practice.table.withRLS(
   ],
 );
 
-// Every tenant-owned domain table (shared exercises excluded); Task 5 iterates it.
-export const domainTables = [
-  companies,
-  people,
-  memberPeople,
-  candidacies,
-  interviews,
-  interviewParticipants,
-  briefingLinks,
-  exerciseAttempts,
-] as const;
+// Every tenant-owned domain table (shared exercises excluded), derived from
+// this module's own exports so a new RLS table cannot be left off the list.
+// domainTables itself is skipped by name: it is still being initialised here.
+export const domainTables: readonly PgTable[] = Object.entries(self)
+  .filter(([name]) => name !== "domainTables")
+  .map(([, value]): unknown => value)
+  .filter(
+    (value: unknown): value is PgTable =>
+      is(value, PgTable) &&
+      getTableConfig(value).enableRLS &&
+      value !== exercises,
+  );

@@ -11,8 +11,8 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { legacyMigrations } from "@omnitech/platform-storage";
-import { eq, getTableName, sql } from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { eq, getTableName, is, sql } from "drizzle-orm";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "./schema.js";
 
@@ -129,6 +129,13 @@ describe("tenant isolation", () => {
     );
     expect(updated).toEqual([]);
     expect(deleted).toEqual([]);
+    const unchanged = await as(ids.tenantB, ids.bob, (db) =>
+      db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.id, beta.id)),
+    );
+    expect(unchanged.map((c) => c.name)).toEqual(["Beta2"]);
   });
 
   it("4: a row cannot reference a parent in another tenant (composite FK)", async () => {
@@ -295,12 +302,15 @@ it("11: every reference between tenant-owned tables uses the composite tenant ke
   const tenantOwned = new Set<string>(
     schema.domainTables.map((t) => getTableName(t)),
   );
+  let checked = 0;
   for (const table of schema.domainTables) {
     expect(getTableConfig(table).enableRLS, getTableName(table)).toBe(true);
     for (const fk of getTableConfig(table).foreignKeys) {
       const ref = fk.reference();
       const target = getTableName(ref.foreignTable);
       if (!tenantOwned.has(target)) continue;
+      checked += 1;
+      expect(ref.columns, getTableName(table)).toHaveLength(2);
       expect([
         getTableName(table),
         ref.columns[0]?.name,
@@ -308,4 +318,46 @@ it("11: every reference between tenant-owned tables uses the composite tenant ke
       ]).toEqual([getTableName(table), "tenant_id", "tenant_id"]);
     }
   }
+  expect(checked).toBeGreaterThan(0);
+});
+
+it("12: the live catalog forces RLS on every declared table and every tenant policy checks what it filters", async () => {
+  // Runs last: cases 7 and 8 temporarily change ownership and FORCE.
+  const exported: unknown[] = Object.values(schema);
+  const declared = exported
+    .filter((value: unknown): value is PgTable => is(value, PgTable))
+    .map((table) => {
+      const config = getTableConfig(table);
+      return `${config.schema}.${config.name}`;
+    });
+  expect(declared).toContain("practice.exercises");
+  expect(declared).toHaveLength(schema.domainTables.length + 1);
+  const flags = await pg.owner.query<{
+    name: string;
+    relrowsecurity: boolean;
+    relforcerowsecurity: boolean;
+  }>(
+    `SELECT n.nspname || '.' || c.relname AS name, c.relrowsecurity, c.relforcerowsecurity
+       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE c.relkind = 'r' AND n.nspname || '.' || c.relname = ANY($1)`,
+    [declared],
+  );
+  expect(flags.rows.map((r) => r.name).sort()).toEqual([...declared].sort());
+  for (const row of flags.rows)
+    expect(
+      [row.name, row.relrowsecurity, row.relforcerowsecurity],
+      row.name,
+    ).toEqual([row.name, true, true]);
+  const policies = await pg.owner.query<{
+    name: string;
+    qual: string | null;
+    with_check: string | null;
+  }>(
+    `SELECT schemaname || '.' || tablename || '.' || policyname AS name, qual, with_check
+       FROM pg_policies
+      WHERE schemaname IN ('interview', 'practice') AND policyname <> 'exercises_read'`,
+  );
+  expect(policies.rows.length).toBeGreaterThan(0);
+  for (const policy of policies.rows)
+    expect(policy.with_check, policy.name).toBe(policy.qual);
 });
