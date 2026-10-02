@@ -56,7 +56,11 @@ export async function disposablePostgres() {
   const process = spawn(
     `${bin}/postgres`,
     ["-D", `${root}/data`, "-p", String(port), "-k", root, "-h", "127.0.0.1"],
-    { stdio: ["ignore", "pipe", "pipe"] },
+    // macOS postgres aborts ("became multithreaded") without a valid locale.
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...globalThis.process.env, LC_ALL: "C" },
+    },
   );
   let log = "";
   process.stdout.on("data", (chunk: Buffer) => {

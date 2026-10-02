@@ -1,21 +1,5 @@
 "use client";
 
-import type { ProductPageProps } from "@omnitech/platform-contracts";
-import {
-  type AssistantConfig,
-  AssistantRoot,
-  Icon,
-  useAssistantHost,
-} from "@omnitech-assistant/react";
-import type { AssistantClient, ProposalRecord } from "@omnitech-assistant/sdk";
-import { diffLines } from "diff";
-import {
-  assistantFeatures,
-  assistantPrompts,
-  assistantStarters,
-  assistantSurfaces,
-} from "./assistant-config";
-import type { Origin } from "@omnitech-assistant/contracts";
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
 import {
@@ -40,7 +24,17 @@ import type {
   SavedAnswer,
 } from "@omnitech/interview-contracts";
 import type { PlaygroundSnapshot } from "@omnitech/interview-playground-control";
+import type { ProductPageProps } from "@omnitech/platform-contracts";
+import type { Origin } from "@omnitech-assistant/contracts";
+import {
+  type AssistantConfig,
+  AssistantRoot,
+  Icon,
+  useAssistantHost,
+} from "@omnitech-assistant/react";
+import type { AssistantClient, ProposalRecord } from "@omnitech-assistant/sdk";
 import CodeMirror from "@uiw/react-codemirror";
+import { diffLines } from "diff";
 import React, {
   useCallback,
   useEffect,
@@ -48,12 +42,17 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import {
   createAgentJob,
   type ExecutionTarget,
   executionTargets,
 } from "./agent-jobs";
+import {
+  assistantFeatures,
+  assistantPrompts,
+  assistantStarters,
+  assistantSurfaces,
+} from "./assistant-config";
 import { type ConceptDraft, ConceptLab } from "./concept-lab";
 import { formatTimestamp } from "./format-timestamp";
 import { MarkdownContent } from "./markdown-content";
@@ -1986,7 +1985,6 @@ function PreviewedCode({
   return (
     <div className="assistant-preview-code" aria-label="Previewed change">
       {rows.map((row, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: diff rows are positional
         <div key={index} className={`assistant-preview-line ${row.kind}`}>
           <span className="assistant-preview-number">
             {row.kind === "removed" ? "" : ++line}
