@@ -80,7 +80,6 @@ export const views: readonly ViewDefinition[] = [
     assistantContext: "search results",
     render: ({ route }) => (
       <Library
-        chrome="embedded"
         basePath={`${route.base}/knowledge`}
         initialSlug={route.rest[0]}
       />

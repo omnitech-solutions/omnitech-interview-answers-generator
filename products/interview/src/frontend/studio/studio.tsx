@@ -19,7 +19,7 @@ import {
   assistantStarters,
   assistantSurfaces,
 } from "../assistant-config";
-import { useStudioTheme } from "../studio-shell";
+import { useStudioTheme } from "./use-studio-theme";
 import type { WorkspaceAssistant } from "./workspace/workspace-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { DockResizer, useDockWidth } from "./dock-resizer";

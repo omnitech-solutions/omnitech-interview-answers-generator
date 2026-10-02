@@ -20,7 +20,6 @@ import React, {
 } from "react";
 
 import { extractMarkdownHeadings, MarkdownContent } from "./markdown-content";
-import { StudioBrand, ThemeToggle, useStudioTheme } from "./studio-shell";
 
 const contentTypeLabels: Record<LibraryContentType, string> = {
   "official-reference": "Official Reference",
@@ -40,16 +39,6 @@ const technologyFilters = [
 const technologyTags: ReadonlySet<string> = new Set(
   technologyFilters.map((technology) => technology.tag),
 );
-
-const emptyDraft: LibraryItemInput = {
-  slug: "",
-  title: "",
-  summary: "",
-  body: "# Start here\n\nWrite the concise interview reference.",
-  contentType: "concept-guide",
-  collection: "react-frontend",
-  tags: [],
-};
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
@@ -146,17 +135,16 @@ function articleBodyWithoutDuplicateTitle(body: string, title: string) {
   return lines.join("\n");
 }
 
+// Knowledge inside Interview Studio: the shell owns navigation, theme and
+// ⌘K; Knowledge owns search, filters and the article it opens.
 export function Library({
   initialSlug,
-  basePath = "/library",
-  chrome = "standalone",
+  basePath,
 }: {
   initialSlug?: string | undefined;
-  basePath?: string;
-  // Inside the studio, the shell owns navigation, theme and ⌘K.
-  chrome?: "standalone" | "embedded";
+  // Where Knowledge lives, e.g. /t/local/p/interview/knowledge.
+  basePath: string;
 }) {
-  const embedded = chrome === "embedded";
   const searchRef = useRef<HTMLInputElement>(null);
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [query, setQuery] = useState("");
@@ -175,8 +163,6 @@ export function Library({
   const [officialOnly, setOfficialOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
-  const [authorOpen, setAuthorOpen] = useState(false);
-  const { theme, toggleTheme } = useStudioTheme();
 
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search);
@@ -328,15 +314,6 @@ export function Library({
       const typing =
         target?.matches("input, textarea, select, [contenteditable=true]") ??
         false;
-      if (
-        !embedded &&
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLocaleLowerCase() === "k"
-      ) {
-        event.preventDefault();
-        searchRef.current?.focus();
-        return;
-      }
       if (event.key === "/" && !typing) {
         event.preventDefault();
         searchRef.current?.focus();
@@ -344,7 +321,7 @@ export function Library({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [embedded]);
+  }, []);
 
   const headings = useMemo(
     () =>
@@ -449,7 +426,6 @@ export function Library({
     <LibraryBasePath.Provider value={basePath}>
       <main className="library-shell">
         <header className="library-header">
-          {!embedded && <StudioBrand subtitle="Knowledge base" />}
           <div className="library-search-wrap">
             <SearchIcon />
             <input
@@ -467,7 +443,7 @@ export function Library({
                   : undefined
               }
             />
-            <kbd>{embedded ? "/" : "⌘K"}</kbd>
+            <kbd>/</kbd>
           </div>
           <div className="library-header-actions">
             <button
@@ -477,18 +453,6 @@ export function Library({
             >
               Filters
             </button>
-            {!embedded && (
-              <>
-                <button
-                  className="library-add-button"
-                  type="button"
-                  onClick={() => setAuthorOpen(true)}
-                >
-                  <PlusIcon /> Add item
-                </button>
-                <ThemeToggle theme={theme} onClick={toggleTheme} />
-              </>
-            )}
           </div>
         </header>
 
@@ -537,133 +501,97 @@ export function Library({
           ))}
         </nav>
 
-        <div
-          className={`library-workspace${embedded && !item ? " no-article" : ""}`}
-        >
+        <div className={`library-workspace${item ? "" : " no-article"}`}>
           <aside
             className={`library-filters${filtersOpen ? " open" : ""}`}
             aria-label="Knowledge index"
           >
-            {/* Inside the studio the filters stay put and results fill
-                    the main column; standalone, results replace the filters. */}
-            {searching && !embedded ? (
-              <>
-                <div className="library-index-toolbar">
-                  <strong>Search index</strong>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuery("");
-                      setTypes([]);
-                      setCollections([]);
-                      setTags([]);
-                      setOfficialOnly(false);
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <SearchResults
-                  active={activeResult}
-                  filters={filterQuery}
-                  loading={loading}
-                  query={query}
-                  response={result}
-                  selectedSlug={item?.slug}
-                  pendingSlug={pendingSlug}
-                  onHitClick={onHitClick}
-                />
-              </>
-            ) : (
-              <>
-                {embedded && searching ? (
-                  <button
-                    type="button"
-                    className="library-clear-filters"
-                    onClick={clearSearch}
-                  >
-                    Clear search and filters
-                  </button>
-                ) : null}
-                <FilterGroup label="Content type">
-                  {(Object.keys(contentTypeLabels) as LibraryContentType[]).map(
-                    (type) => (
-                      <FilterButton
-                        key={type}
-                        active={types.includes(type)}
-                        count={facets?.contentTypes[type]}
-                        onClick={() => toggleFilter(type, types, setTypes)}
-                      >
-                        {contentTypeLabels[type]}
-                      </FilterButton>
-                    ),
-                  )}
-                </FilterGroup>
-                <FilterGroup label="Collections">
-                  {Object.entries(facets?.collections ?? {}).map(
-                    ([value, count]) => (
-                      <FilterButton
+            <>
+              {searching ? (
+                <button
+                  type="button"
+                  className="library-clear-filters"
+                  onClick={clearSearch}
+                >
+                  Clear search and filters
+                </button>
+              ) : null}
+              <FilterGroup label="Content type">
+                {(Object.keys(contentTypeLabels) as LibraryContentType[]).map(
+                  (type) => (
+                    <FilterButton
+                      key={type}
+                      active={types.includes(type)}
+                      count={facets?.contentTypes[type]}
+                      onClick={() => toggleFilter(type, types, setTypes)}
+                    >
+                      {contentTypeLabels[type]}
+                    </FilterButton>
+                  ),
+                )}
+              </FilterGroup>
+              <FilterGroup label="Collections">
+                {Object.entries(facets?.collections ?? {}).map(
+                  ([value, count]) => (
+                    <FilterButton
+                      key={value}
+                      active={collections.includes(value)}
+                      count={count}
+                      onClick={() =>
+                        toggleFilter(value, collections, setCollections)
+                      }
+                    >
+                      {value.replaceAll("-", " ")}
+                    </FilterButton>
+                  ),
+                )}
+              </FilterGroup>
+              <FilterGroup label="Trust">
+                <FilterButton
+                  active={officialOnly}
+                  count={facets?.contentTypes["official-reference"]}
+                  onClick={() => setOfficialOnly((value) => !value)}
+                >
+                  Official only
+                </FilterButton>
+              </FilterGroup>
+              <FilterGroup label="Popular tags">
+                <div className="library-tag-cloud">
+                  {Object.entries(facets?.tags ?? {})
+                    .sort((left, right) => right[1] - left[1])
+                    .slice(0, 18)
+                    .map(([value, count]) => (
+                      <button
+                        type="button"
                         key={value}
-                        active={collections.includes(value)}
-                        count={count}
-                        onClick={() =>
-                          toggleFilter(value, collections, setCollections)
-                        }
+                        className={tags.includes(value) ? "active" : ""}
+                        onClick={() => toggleFilter(value, tags, setTags)}
                       >
-                        {value.replaceAll("-", " ")}
-                      </FilterButton>
-                    ),
-                  )}
-                </FilterGroup>
-                <FilterGroup label="Trust">
-                  <FilterButton
-                    active={officialOnly}
-                    count={facets?.contentTypes["official-reference"]}
-                    onClick={() => setOfficialOnly((value) => !value)}
-                  >
-                    Official only
-                  </FilterButton>
-                </FilterGroup>
-                <FilterGroup label="Popular tags">
-                  <div className="library-tag-cloud">
-                    {Object.entries(facets?.tags ?? {})
-                      .sort((left, right) => right[1] - left[1])
-                      .slice(0, 18)
-                      .map(([value, count]) => (
-                        <button
-                          type="button"
-                          key={value}
-                          className={tags.includes(value) ? "active" : ""}
-                          onClick={() => toggleFilter(value, tags, setTags)}
-                        >
-                          {value} <span>{count}</span>
-                        </button>
-                      ))}
-                  </div>
-                </FilterGroup>
-              </>
-            )}
+                        {value} <span>{count}</span>
+                      </button>
+                    ))}
+                </div>
+              </FilterGroup>
+            </>
           </aside>
 
           <section className="library-main">
             {item ? (
               <>
-                {embedded ? (
-                  <button
-                    type="button"
-                    className="library-back"
-                    onClick={closeArticle}
-                  >
-                    ← {searching ? "Back to results" : "Back to Knowledge"}
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="library-back"
+                  onClick={closeArticle}
+                >
+                  ← {searching ? "Back to results" : "Back to Knowledge"}
+                </button>
                 <LibraryArticle
                   item={item}
                   filters={filterQuery}
                   {...adjacentItems}
                 />
               </>
-            ) : embedded && searching ? (
+            ) : searching ? (
               <ResultCards
                 loading={loading}
                 query={query}
@@ -678,30 +606,26 @@ export function Library({
             )}
           </section>
 
-          {embedded && !item ? null : (
+          {item ? (
             <aside
               className={`library-toc${tocOpen ? " open" : ""}`}
               aria-label="On this page"
             >
               <strong>On this page</strong>
-              {item ? (
-                <nav>
-                  {headings.map((heading) => (
-                    <a
-                      key={heading.id}
-                      className={`depth-${heading.depth}`}
-                      href={`#${heading.id}`}
-                      onClick={() => setTocOpen(false)}
-                    >
-                      {heading.text}
-                    </a>
-                  ))}
-                </nav>
-              ) : (
-                <p>Open a reference to see its sections.</p>
-              )}
+              <nav>
+                {headings.map((heading) => (
+                  <a
+                    key={heading.id}
+                    className={`depth-${heading.depth}`}
+                    href={`#${heading.id}`}
+                    onClick={() => setTocOpen(false)}
+                  >
+                    {heading.text}
+                  </a>
+                ))}
+              </nav>
             </aside>
-          )}
+          ) : null}
         </div>
 
         {item ? (
@@ -713,104 +637,8 @@ export function Library({
             Contents
           </button>
         ) : null}
-        {authorOpen ? (
-          <LibraryAuthor onClose={() => setAuthorOpen(false)} />
-        ) : null}
       </main>
     </LibraryBasePath.Provider>
-  );
-}
-
-function SearchResults({
-  active,
-  filters,
-  loading,
-  onHitClick,
-  pendingSlug,
-  query,
-  response,
-  selectedSlug,
-}: {
-  active: number;
-  filters: string;
-  loading: boolean;
-  onHitClick: (
-    event: ReactMouseEvent<HTMLAnchorElement>,
-    hit: LibrarySearchHit,
-  ) => void;
-  pendingSlug?: string | undefined;
-  query: string;
-  response?: LibrarySearchResponse | undefined;
-  selectedSlug?: string | undefined;
-}) {
-  const basePath = useContext(LibraryBasePath);
-  const selectedIndex = selectedSlug
-    ? response?.hits.findIndex((hit) => hit.slug === selectedSlug)
-    : -1;
-
-  return (
-    <div className="library-results" id="library-results">
-      <header>
-        <div>
-          <span className="library-eyebrow">Section search</span>
-          <h1>{query ? `Results for “${query}”` : "Filtered references"}</h1>
-        </div>
-        <span aria-live="polite">
-          {loading ? "Searching…" : `${response?.total ?? 0} sections`}
-        </span>
-      </header>
-      {response?.hits.length ? (
-        <div className="library-result-list">
-          {response.hits.map((hit, index) => {
-            const selected =
-              selectedIndex !== undefined && selectedIndex === index;
-            const keyboardActive = !selectedSlug && active === index;
-            const pending = pendingSlug === hit.slug;
-            return (
-              <a
-                id={`library-result-${index}`}
-                key={`${hit.itemId}:${hit.anchor}`}
-                className={[
-                  selected || keyboardActive ? "active" : "",
-                  pending ? "loading" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                href={hitHref(hit, filters, basePath)}
-                onClick={(event) => onHitClick(event, hit)}
-                aria-current={selected ? "page" : undefined}
-              >
-                <span className="library-result-meta">
-                  <span className={typeClass(hit.contentType)}>
-                    {contentTypeLabels[hit.contentType]}
-                  </span>
-                  {hit.official ? (
-                    <span className="library-official">Verified source</span>
-                  ) : null}
-                </span>
-                <strong>{hit.title}</strong>
-                {hit.headingPath.length ? (
-                  <span className="library-breadcrumb">
-                    {hit.headingPath.join(" › ")}
-                  </span>
-                ) : null}
-                <p>{highlightedExcerpt(hit.excerpt, query)}</p>
-                <span className="library-result-tags">
-                  {hit.tags.slice(0, 4).map((tag) => (
-                    <small key={tag}>{tag}</small>
-                  ))}
-                </span>
-              </a>
-            );
-          })}
-        </div>
-      ) : !loading ? (
-        <div className="library-empty">
-          <h2>No matching reference</h2>
-          <p>Try a shorter technical term or remove a filter.</p>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -1126,288 +954,6 @@ function libraryKeywords(collection: string): string[] {
   return [...shared, ...(byCollection[collection] ?? [])];
 }
 
-function LibraryAuthor({ onClose }: { onClose: () => void }) {
-  const [draft, setDraft] = useState<LibraryItemInput>(emptyDraft);
-  const [saved, setSaved] = useState<LibraryItem>();
-  const [hasPublished, setHasPublished] = useState(false);
-  const [tagText, setTagText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  function update<K extends keyof LibraryItemInput>(
-    key: K,
-    value: LibraryItemInput[K],
-  ) {
-    setDraft((current) => ({ ...current, [key]: value }));
-  }
-
-  function normalizeTags(value: string) {
-    return [
-      ...new Set(
-        value
-          .split(/[,\s]+/)
-          .map((tag) =>
-            tag
-              .trim()
-              .toLocaleLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-|-$/g, ""),
-          )
-          .filter(Boolean),
-      ),
-    ];
-  }
-
-  async function save(publish: boolean) {
-    setBusy(true);
-    setMessage("");
-    try {
-      const body = JSON.stringify({ ...draft, tags: normalizeTags(tagText) });
-      const next = await requestJson<LibraryItem>(
-        saved ? `/api/v1/library/items/${saved.id}` : "/api/v1/library/items",
-        {
-          method: saved ? "PUT" : "POST",
-          headers: { "content-type": "application/json" },
-          body,
-        },
-      );
-      setSaved(next);
-      if (publish) {
-        const published = await requestJson<LibraryItem>(
-          `/api/v1/library/items/${next.id}/publish`,
-          { method: "POST" },
-        );
-        setSaved(published);
-        setHasPublished(true);
-        setMessage("Published and added to search.");
-      } else {
-        setMessage("Draft saved. It is not visible in search.");
-      }
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Save failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function archive() {
-    if (!saved) return;
-    setBusy(true);
-    try {
-      const archived = await requestJson<LibraryItem>(
-        `/api/v1/library/items/${saved.id}/archive`,
-        { method: "POST" },
-      );
-      setSaved(archived);
-      setMessage("Archived and removed from search.");
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Archive failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function deleteDraft() {
-    if (!saved) return;
-    setBusy(true);
-    try {
-      await requestJson<{ deleted: true }>(
-        `/api/v1/library/items/${saved.id}`,
-        { method: "DELETE" },
-      );
-      onClose();
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Delete failed.");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="library-author-scrim" role="presentation">
-      <section
-        className="library-author"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="library-author-title"
-      >
-        <header>
-          <div>
-            <span className="library-eyebrow">Draft → review → publish</span>
-            <h2 id="library-author-title">Add knowledge item</h2>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close authoring">
-            ×
-          </button>
-        </header>
-        <div className="library-author-grid">
-          <form onSubmit={(event) => event.preventDefault()}>
-            <label>
-              Title
-              <input
-                value={draft.title}
-                onChange={(event) => update("title", event.target.value)}
-              />
-            </label>
-            <label>
-              Slug
-              <input
-                value={draft.slug}
-                onChange={(event) => update("slug", event.target.value)}
-                placeholder="react-state-ownership"
-              />
-            </label>
-            <label>
-              Summary
-              <textarea
-                value={draft.summary}
-                onChange={(event) => update("summary", event.target.value)}
-              />
-            </label>
-            <div className="library-author-row">
-              <label>
-                Type
-                <select
-                  value={draft.contentType}
-                  onChange={(event) => {
-                    const contentType = event.target
-                      .value as LibraryContentType;
-                    setDraft((current) => ({
-                      ...current,
-                      contentType,
-                      ...(contentType === "official-reference"
-                        ? {
-                            source: current.source ?? {
-                              publisher: "",
-                              canonicalUrl: "https://",
-                              official: true,
-                              lastVerifiedAt: new Date()
-                                .toISOString()
-                                .slice(0, 10),
-                            },
-                          }
-                        : { source: undefined }),
-                    }));
-                  }}
-                >
-                  {Object.entries(contentTypeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Collection
-                <input
-                  value={draft.collection}
-                  onChange={(event) => update("collection", event.target.value)}
-                />
-              </label>
-            </div>
-            <label>
-              Tags
-              <input
-                value={tagText}
-                onChange={(event) => setTagText(event.target.value)}
-                placeholder="react, hooks, state-management"
-              />
-              <small>
-                Comma or space separated; tags normalize to lowercase slugs.
-              </small>
-            </label>
-            {draft.source ? (
-              <fieldset>
-                <legend>Official source</legend>
-                <label>
-                  Publisher
-                  <input
-                    value={draft.source.publisher}
-                    onChange={(event) =>
-                      update("source", {
-                        ...draft.source!,
-                        publisher: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Canonical HTTPS URL
-                  <input
-                    type="url"
-                    value={draft.source.canonicalUrl}
-                    onChange={(event) =>
-                      update("source", {
-                        ...draft.source!,
-                        canonicalUrl: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-              </fieldset>
-            ) : null}
-            <label>
-              Markdown
-              <textarea
-                className="library-body-editor"
-                value={draft.body}
-                onChange={(event) => update("body", event.target.value)}
-              />
-            </label>
-          </form>
-          <div className="library-author-preview">
-            <span className="library-eyebrow">Live preview</span>
-            <h1>{draft.title || "Untitled reference"}</h1>
-            <p>{draft.summary}</p>
-            <MarkdownContent
-              defaultCodeLanguage={libraryCodeLanguage(draft.collection)}
-              keywords={libraryKeywords(draft.collection)}
-            >
-              {draft.body}
-            </MarkdownContent>
-          </div>
-        </div>
-        <footer>
-          <span role="status">{message}</span>
-          {saved?.status === "draft" && !hasPublished ? (
-            <button
-              className="danger"
-              type="button"
-              disabled={busy}
-              onClick={() => void deleteDraft()}
-            >
-              Delete draft
-            </button>
-          ) : null}
-          {saved && hasPublished && saved.status !== "archived" ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void archive()}
-            >
-              Archive
-            </button>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void save(false)}
-          >
-            Save draft
-          </button>
-          <button
-            className="primary"
-            type="button"
-            disabled={busy}
-            onClick={() => void save(true)}
-          >
-            Publish
-          </button>
-        </footer>
-      </section>
-    </div>
-  );
-}
-
 function FilterGroup({
   children,
   label,
@@ -1447,14 +993,6 @@ function SearchIcon() {
     <svg aria-hidden="true" viewBox="0 0 20 20">
       <circle cx="9" cy="9" r="5.5" />
       <path d="m13 13 4 4" />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 16 16">
-      <path d="M8 3v10M3 8h10" />
     </svg>
   );
 }

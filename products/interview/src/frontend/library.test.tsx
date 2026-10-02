@@ -86,9 +86,10 @@ function response(body: unknown, ok = true): Response {
   } as Response;
 }
 
-describe("Library", () => {
+describe("Knowledge", () => {
+  const base = "/library";
   beforeEach(() => {
-    window.history.replaceState({}, "", "/library");
+    window.history.replaceState({}, "", base);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -106,9 +107,9 @@ describe("Library", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows a DevDocs-style collection index and moves search into the sidebar", async () => {
+  it("shows the collection index, then result cards for a search", async () => {
     const user = userEvent.setup();
-    render(<Library />);
+    render(<Library basePath={base} />);
 
     expect(
       screen.getByRole("heading", { name: "Find the exact answer, fast." }),
@@ -128,9 +129,6 @@ describe("Library", () => {
       "href",
       "?collection=symfony",
     );
-    expect(
-      screen.getByRole("navigation", { name: "Filter by technology" }),
-    ).toBeVisible();
     await user.click(await screen.findByRole("button", { name: "PHP2" }));
     await waitFor(() =>
       expect(fetch).toHaveBeenLastCalledWith(
@@ -141,26 +139,18 @@ describe("Library", () => {
 
     const search = screen.getByRole("searchbox", { name: "Search knowledge" });
     await user.type(search, "React state");
-    expect(
-      await screen.findByRole("heading", { name: "Results for “React state”" }),
-    ).toBeVisible();
-    expect(
-      (await screen.findAllByRole("link", { name: /React state/ }))[0],
-    ).toBeVisible();
-    expect(screen.getByText("React state › Ownership")).toBeVisible();
+    const card = await screen.findByRole("link", { name: /React state/ });
+    expect(card).toHaveTextContent("react › Ownership");
 
     await user.keyboard("{Enter}");
     expect(
       `${window.location.pathname}${window.location.search}${window.location.hash}`,
     ).toBe("/library/react-state?q=React+state&tag=php#ownership");
-    await user.click(screen.getByRole("button", { name: "Clear" }));
-    expect(search).toHaveValue("");
-    expect(screen.getByText("Content type")).toBeVisible();
   });
 
-  it("preserves active filters in selected reference links", async () => {
+  it("keeps active filters in result links", async () => {
     const user = userEvent.setup();
-    render(<Library />);
+    render(<Library basePath={base} />);
 
     await user.type(
       screen.getByRole("searchbox", { name: "Search knowledge" }),
@@ -168,58 +158,16 @@ describe("Library", () => {
     );
     await user.click(screen.getByRole("button", { name: /TypeScript/ }));
 
-    const resultLink = (
-      await screen.findAllByRole("link", { name: /React state/ })
-    )[0];
-    expect(resultLink).toHaveAttribute(
+    expect(
+      await screen.findByRole("link", { name: /React state/ }),
+    ).toHaveAttribute(
       "href",
       "/library/react-state?q=frequency&tag=typescript#ownership",
     );
     expect(window.location.search).toBe("?q=frequency&tag=typescript");
   });
 
-  it("marks the open reference instead of the first filtered result", async () => {
-    window.history.replaceState({}, "", "/library/react-state?tag=typescript");
-    const firstHit = {
-      ...hit,
-      itemId: "223e4567-e89b-42d3-a456-426614174000",
-      slug: "string-frequency",
-      title: "String frequency",
-    };
-    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.includes("/facets")) return response(facets);
-      if (url.includes("/items/react-state")) return response(article);
-      if (url.includes("/search")) {
-        return response({
-          ...searchResponse,
-          hits: [firstHit, hit],
-          total: 2,
-        });
-      }
-      return response({});
-    });
-
-    render(<Library initialSlug="react-state" />);
-
-    const index = screen.getByRole("complementary", {
-      name: "Knowledge index",
-    });
-    const selected = (
-      await within(index).findByText("React state", { selector: "strong" })
-    ).closest("a");
-    const first = (
-      await within(index).findByText("String frequency", {
-        selector: "strong",
-      })
-    ).closest("a");
-    expect(selected).toHaveAttribute("aria-current", "page");
-    expect(selected).toHaveClass("active");
-    expect(first).not.toHaveAttribute("aria-current");
-    expect(first).not.toHaveClass("active");
-  });
-
-  it("shows the border beam only while the selected article is loading", async () => {
+  it("shows the border beam on a card only while its article loads", async () => {
     window.history.replaceState({}, "", "/library?tag=typescript");
     let resolveArticle: ((value: Response) => void) | undefined;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
@@ -234,34 +182,27 @@ describe("Library", () => {
       return response({});
     });
     const user = userEvent.setup();
-    render(<Library />);
+    render(<Library basePath={base} />);
 
-    const index = screen.getByRole("complementary", {
-      name: "Knowledge index",
-    });
-    const selected = (
-      await within(index).findByText("React state", { selector: "strong" })
-    ).closest("a");
-    await user.click(selected!);
-    expect(selected).toHaveClass("loading");
+    const card = await screen.findByRole("link", { name: /React state/ });
+    await user.click(card);
+    expect(card).toHaveClass("loading");
 
     await act(async () => resolveArticle?.(response(article)));
-    await waitFor(() => expect(selected).not.toHaveClass("loading"));
-    expect(selected).toHaveClass("active");
     expect(
-      screen.getByRole("heading", { name: "React state", level: 1 }),
+      await screen.findByRole("heading", { name: "React state", level: 1 }),
     ).toBeVisible();
   });
 
-  it("supports command focus, slash focus, arrows, Escape, and filters", async () => {
+  it("supports slash focus, arrows, Escape, and filters", async () => {
     const user = userEvent.setup();
-    render(<Library />);
+    render(<Library basePath={base} />);
     const search = screen.getByRole("searchbox", { name: "Search knowledge" });
 
-    await user.keyboard("{Meta>}k{/Meta}");
+    fireEvent.keyDown(document.body, { key: "/" });
     expect(search).toHaveFocus();
     await user.type(search, "React");
-    await screen.findAllByRole("link", { name: /React state/ });
+    await screen.findByRole("link", { name: /React state/ });
     await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
     expect(window.location.pathname).toBe("/library/react-state");
     await user.keyboard("{Escape}");
@@ -293,32 +234,37 @@ describe("Library", () => {
       }
       return response({});
     });
-    render(<Library />);
+    render(<Library basePath={base} />);
 
     await user.type(
       screen.getByRole("searchbox", { name: "Search knowledge" }),
       "useRef",
     );
-    const links = await screen.findAllByRole("link", { name: /useRef/ });
-    expect(links[0]).toHaveAttribute("href", "/library/react-use-ref?q=useRef");
+    expect(await screen.findByRole("link", { name: /useRef/ })).toHaveAttribute(
+      "href",
+      "/library/react-use-ref?q=useRef",
+    );
   });
 
   it("uses compact collection, trust, tag, mobile, and quick-link controls", async () => {
     const user = userEvent.setup();
-    render(<Library />);
+    render(<Library basePath={base} />);
     await screen.findByText("Recently verified and reviewed");
 
     expect(
       (await screen.findAllByRole("link", { name: /React state/ })).at(-1),
     ).toHaveAttribute("href", "/library/react-state#ownership");
 
+    const clear = () =>
+      user.click(
+        screen.getByRole("button", { name: "Clear search and filters" }),
+      );
     await user.click(screen.getByRole("button", { name: /backend/ }));
-    await screen.findByRole("button", { name: "Clear" });
-    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await clear();
     await user.click(screen.getByRole("button", { name: /hooks/ }));
-    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await clear();
     await user.click(screen.getByRole("button", { name: /Official only/ }));
-    await user.click(screen.getByRole("button", { name: "Clear" }));
+    await clear();
 
     const index = screen.getByRole("complementary", {
       name: "Knowledge index",
@@ -329,7 +275,7 @@ describe("Library", () => {
 
   it("renders provenance, the article, and an on-page table of contents", async () => {
     window.history.replaceState({}, "", "/library/react-state#react-state");
-    render(<Library initialSlug="react-state" />);
+    render(<Library basePath={base} initialSlug="react-state" />);
 
     expect(
       (
@@ -363,129 +309,9 @@ describe("Library", () => {
       screen.getAllByRole("link", { name: "Ownership" }).at(-1)!,
     );
   });
-
-  it("authors drafts, normalizes tags, and publishes explicitly", async () => {
-    const user = userEvent.setup();
-    const draft = {
-      ...article,
-      contentType: "concept-guide",
-      source: undefined,
-      status: "draft",
-    };
-    vi.mocked(fetch).mockImplementation(async (input, init) => {
-      const url = String(input);
-      if (url.includes("/facets")) return response(facets);
-      if (url.includes("/search")) return response(searchResponse);
-      if (init?.method === "POST" && url.endsWith("/items")) {
-        return response(draft);
-      }
-      if (init?.method === "PUT") return response(draft);
-      if (url.endsWith("/publish")) return response(article);
-      if (url.endsWith("/archive")) {
-        return response({ ...article, status: "archived" });
-      }
-      return response({});
-    });
-    render(<Library />);
-
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-    await user.type(screen.getByLabelText("Title"), "State ownership");
-    await user.type(screen.getByLabelText("Slug"), "state-ownership");
-    await user.type(screen.getByLabelText("Summary"), "Keep one owner.");
-    await user.clear(screen.getByLabelText("Markdown"));
-    await user.type(screen.getByLabelText("Markdown"), "# Ownership");
-    await user.type(screen.getByLabelText(/^Tags/), "React Hooks, state");
-    await user.click(screen.getByRole("button", { name: "Publish" }));
-
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Published and added to search.",
-      ),
-    );
-    const createCall = vi
-      .mocked(fetch)
-      .mock.calls.find(
-        ([url, init]) =>
-          String(url).endsWith("/library/items") && init?.method === "POST",
-      );
-    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({
-      tags: ["react", "hooks", "state"],
-    });
-    await user.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Draft saved."),
-    );
-    expect(
-      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PUT"),
-    ).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Archive" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Archived and removed from search.",
-      ),
-    );
-  });
-
-  it("shows inline API errors and official-source authoring fields", async () => {
-    const user = userEvent.setup();
-    render(<Library />);
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-    await user.selectOptions(
-      screen.getByLabelText("Type"),
-      "official-reference",
-    );
-    expect(screen.getByLabelText("Publisher")).toBeVisible();
-    expect(screen.getByLabelText("Canonical HTTPS URL")).toBeVisible();
-    await user.type(screen.getByLabelText("Publisher"), "React");
-    await user.type(screen.getByLabelText("Canonical HTTPS URL"), "react.dev");
-    await user.selectOptions(screen.getByLabelText("Type"), "concept-guide");
-    expect(screen.queryByLabelText("Publisher")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Close authoring" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    vi.mocked(fetch).mockResolvedValueOnce(
-      response({ error: { message: "Index unavailable" } }, false),
-    );
-    await user.click(
-      screen.getByRole("button", { name: /Official Reference/ }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Index unavailable",
-    );
-  });
-
-  it("deletes a never-published draft", async () => {
-    const user = userEvent.setup();
-    const draft = {
-      ...article,
-      contentType: "concept-guide",
-      source: undefined,
-      status: "draft",
-    };
-    vi.mocked(fetch).mockImplementation(async (input, init) => {
-      const url = String(input);
-      if (url.includes("/facets")) return response(facets);
-      if (url.includes("/search")) return response(searchResponse);
-      if (init?.method === "POST") return response(draft);
-      if (init?.method === "DELETE") return response({ deleted: true });
-      return response({});
-    });
-    render(<Library />);
-    await user.click(screen.getByRole("button", { name: "Add item" }));
-    await user.type(screen.getByLabelText("Title"), "Draft");
-    await user.type(screen.getByLabelText("Slug"), "draft");
-    await user.type(screen.getByLabelText("Summary"), "Draft summary");
-    await user.type(screen.getByLabelText(/^Tags/), "draft");
-    await user.click(screen.getByRole("button", { name: "Save draft" }));
-    await screen.findByRole("button", { name: "Delete draft" });
-    await user.click(screen.getByRole("button", { name: "Delete draft" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  });
 });
 
-describe("Library inside the studio", () => {
+describe("Knowledge results and articles", () => {
   const base = "/t/local/p/interview/knowledge";
   let hits: unknown[] = [hit];
   beforeEach(() => {
@@ -508,15 +334,14 @@ describe("Library inside the studio", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the filters beside result cards and leaves the shell its chrome", async () => {
-    render(<Library chrome="embedded" basePath={base} />);
+  it("keeps the filters beside result cards and leaves ⌘K to the studio", async () => {
+    render(<Library basePath={base} />);
     const card = await screen.findByRole("link", { name: /React state/ });
     expect(card).toHaveTextContent("react › Ownership");
     expect(card).toHaveTextContent("Official");
     expect(card).toHaveTextContent("Official Reference");
     expect(screen.getByText("1 result")).toBeVisible();
     expect(screen.getByText("Content type")).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Add item/ })).toBeNull();
     // ⌘K belongs to the studio palette; "/" still focuses search.
     const search = screen.getByRole("searchbox", { name: "Search knowledge" });
     fireEvent.keyDown(document.body, { key: "k", metaKey: true });
@@ -526,7 +351,7 @@ describe("Library inside the studio", () => {
   });
 
   it("opens an article under the studio path and goes back to the results", async () => {
-    render(<Library chrome="embedded" basePath={base} />);
+    render(<Library basePath={base} />);
     fireEvent.click(await screen.findByRole("link", { name: /React state/ }));
     await screen.findByRole("heading", { level: 1, name: "React state" });
     expect(window.location.pathname).toBe(`${base}/react-state`);
@@ -540,7 +365,7 @@ describe("Library inside the studio", () => {
 
   it("says when nothing matches and clears the search", async () => {
     hits = [];
-    render(<Library chrome="embedded" basePath={base} />);
+    render(<Library basePath={base} />);
     expect(await screen.findByText("Nothing matches “state”")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
     await waitFor(() =>
@@ -552,7 +377,7 @@ describe("Library inside the studio", () => {
   });
 
   it("clears filters from the sidebar", async () => {
-    render(<Library chrome="embedded" basePath={base} />);
+    render(<Library basePath={base} />);
     await screen.findByRole("link", { name: /React state/ });
     fireEvent.click(
       screen.getByRole("button", { name: "Clear search and filters" }),
