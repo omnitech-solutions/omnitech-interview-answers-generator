@@ -25,6 +25,24 @@ import {
   setupOf,
 } from "./setup-card";
 
+// The same JSON whatever order its keys arrive in: the server returns packs
+// as Postgres stores them (jsonb reorders object keys), not as they were sent.
+const canonical = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(canonical)
+    : value && typeof value === "object"
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [
+              key,
+              canonical((value as Record<string, unknown>)[key]),
+            ]),
+        )
+      : value;
+const sameJson = (a: unknown, b: unknown) =>
+  JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+
 // The server refused a write made from an older revision of the pack.
 const isRevisionConflict = (failure: unknown) =>
   (failure as { details?: { error?: { code?: unknown } } } | null)?.details
@@ -170,8 +188,8 @@ export function BehaviouralPack({
   const context = contextOf(setup, briefing?.context);
   const persisted =
     briefing &&
-    JSON.stringify(briefing.context) === JSON.stringify(context) &&
-    JSON.stringify(briefing.expected ?? []) === JSON.stringify(expected);
+    sameJson(briefing.context, context) &&
+    sameJson(briefing.expected ?? [], expected);
   const dirty = artifactId !== null && briefing !== null && !persisted;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
   useEffect(() => {

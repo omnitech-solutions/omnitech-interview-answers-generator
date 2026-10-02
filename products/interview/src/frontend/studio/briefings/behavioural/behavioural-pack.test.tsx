@@ -148,13 +148,33 @@ let calls: { method: string; path: string; body?: Sent }[];
 let failAsk: string | null;
 // When set, a write from an older revision is refused, as the server does.
 let strictRevisions = false;
+// When set, packs come back with object keys in Postgres jsonb order (shorter
+// keys first, then bytewise), as the real server returns them.
+let storedOrder = false;
+const jsonbOrder = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(jsonbOrder)
+    : value && typeof value === "object"
+      ? Object.fromEntries(
+          Object.entries(value)
+            .sort(([a], [b]) =>
+              a.length === b.length ? (a < b ? -1 : 1) : a.length - b.length,
+            )
+            .map(([key, item]) => [key, jsonbOrder(item)]),
+        )
+      : value;
 const envelope = () => ({
   origin: {
     workspaceId: "briefings",
     artifactId: "prep-1",
     artifactRevision: revision,
   },
-  value: { question: pack!.title, notes: "", answer: null, briefing: pack },
+  value: {
+    question: pack!.title,
+    notes: "",
+    answer: null,
+    briefing: storedOrder ? jsonbOrder(pack) : pack,
+  },
   updatedAt: new Date().toISOString(),
   provenance: null,
 });
@@ -163,6 +183,7 @@ function installServer() {
   calls = [];
   failAsk = null;
   strictRevisions = false;
+  storedOrder = false;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -550,6 +571,37 @@ describe("an open pack", () => {
     expect(pack.questions.map((item) => item.id)).toEqual(["q1", "q2"]);
     expect(pack.questions[0]!.accepted).toBe(true);
     expect(screen.queryByText(/couldn’t be saved/)).toBeNull();
+  });
+
+  it("is not left with unsaved changes after accepting all answers", async () => {
+    pack = {
+      kind: "non-technical-briefing",
+      title: "Northwind · Tech Lead",
+      context: {
+        ...context,
+        request: "Prepare me for a conversation.",
+        interviewer: "Sam",
+        interviewerTitle: "Recruiter",
+        durationMinutes: 30,
+        jobDescription: "Lead the Payments team.",
+      },
+      expected: ["Tell me about yourself.", "Why Northwind?"],
+      questions: [
+        answer("Tell me about yourself.", "q1"),
+        answer("Why Northwind?", "q2"),
+      ],
+    };
+    revision = 2;
+    storedOrder = true;
+    const props = handlers();
+    render(<BehaviouralPack client={client} artifactId="prep-1" {...props} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+    await waitFor(() =>
+      expect(pack!.questions.every((item) => item.accepted)).toBe(true),
+    );
+    // Past the autosave pause: nothing is left to save, so leaving is free.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(props.onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 
   it("edits, practises and reviews answers, and edits the setup in place", async () => {
