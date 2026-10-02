@@ -29,6 +29,7 @@ beforeAll(async () => {
   for (const file of [
     "0004_assistant_interview.sql",
     "0005_assistant_provenance.sql",
+    "0007_assistant_reverts.sql",
   ])
     await pg.migrate(
       new URL(

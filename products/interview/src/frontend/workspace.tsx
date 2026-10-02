@@ -1,8 +1,20 @@
 "use client";
 
 import type { ProductPageProps } from "@omnitech/platform-contracts";
-import { AssistantPanel } from "@omnitech-assistant/react";
-import type { AssistantClient } from "@omnitech-assistant/sdk";
+import {
+  type AssistantConfig,
+  AssistantRoot,
+  Icon,
+  useAssistantHost,
+} from "@omnitech-assistant/react";
+import type { AssistantClient, ProposalRecord } from "@omnitech-assistant/sdk";
+import { diffLines } from "diff";
+import {
+  assistantFeatures,
+  assistantPrompts,
+  assistantStarters,
+  assistantSurfaces,
+} from "./assistant-config";
 import type { Origin } from "@omnitech-assistant/contracts";
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
@@ -354,6 +366,9 @@ export function Workspace({
   const [exampleId, setExampleId] = useState("");
   const [questionTab, setQuestionTab] = useState<QuestionTab>("input");
   const [assistantOrigin, setAssistantOrigin] = useState<Origin>();
+  const [assistantFocus, setAssistantFocus] = useState<readonly string[]>([]);
+  const [assistantPreview, setAssistantPreview] =
+    useState<ProposalRecord | null>(null);
   const originRef = useRef<Origin | undefined>(undefined);
   const canonicalValue = useRef<string>("");
   const workingValue = useRef({ question, notes, answer: answer ?? null });
@@ -393,6 +408,24 @@ export function Workspace({
     setQuestion(record.value.question);
     setNotes(record.value.notes);
     setAnswer(normalizeAnswer(record.value.answer ?? undefined));
+  }
+  // After the assistant changes the draft, show the stored version, unless the
+  // person edited meanwhile: their edits are never overwritten.
+  async function reloadAfterAssistant(captured: Origin, message: string) {
+    const snapshot = JSON.stringify(workingValue.current),
+      record = await workspaceRequest<CanonicalDraft>("");
+    if (
+      originRef.current?.workspaceId !== captured.workspaceId ||
+      originRef.current?.artifactId !== captured.artifactId ||
+      JSON.stringify(workingValue.current) !== snapshot
+    ) {
+      setStatus(
+        "Assistant change stored; your local edits were kept. Reload to see it.",
+      );
+      return;
+    }
+    hydrateCanonical(record);
+    setStatus(message);
   }
   async function flushDraft(): Promise<Origin> {
     if (flushPending.current) return flushPending.current;
@@ -1132,7 +1165,7 @@ export function Workspace({
     );
   }
 
-  return (
+  const page = (
     <ConfigProvider theme={{ mode: theme }}>
       <App>
         <main className="studio">
@@ -1228,6 +1261,7 @@ export function Workspace({
                   />
                 )}
                 <ThemeToggle theme={theme} onClick={toggleTheme} />
+                {assistant && <AssistantToggle />}
                 <InspectorToggleButton
                   open={inspectorOpen}
                   onToggle={toggleInspector}
@@ -1253,6 +1287,7 @@ export function Workspace({
                   />
                 )}
                 <ThemeToggle theme={theme} onClick={toggleTheme} />
+                {assistant && <AssistantToggle />}
                 <InspectorToggleButton
                   open={inspectorOpen}
                   onToggle={toggleInspector}
@@ -1263,70 +1298,6 @@ export function Workspace({
             )}
           </header>
 
-          {assistant && assistantOrigin && (
-            <section className="assistant-workspace-dock">
-              <button
-                type="button"
-                onClick={() =>
-                  void workspaceRequest<CanonicalDraft>("")
-                    .then(hydrateCanonical)
-                    .catch((error) => setStatus(error.message))
-                }
-              >
-                Reload canonical draft
-              </button>
-              <AssistantPanel
-                client={assistant.client}
-                origin={assistantOrigin}
-                profileId={assistant.profileId}
-                prepareSend={flushDraft}
-                beforeApply={async () => {
-                  await flushDraft();
-                }}
-                slots={{
-                  message: (text, role) =>
-                    role === "assistant" ? (
-                      <MarkdownContent>{text}</MarkdownContent>
-                    ) : (
-                      <p style={{ whiteSpace: "pre-wrap" }}>{text}</p>
-                    ),
-                  proposal: (record) => (
-                    <div>
-                      <p>
-                        {String(
-                          (
-                            record.proposal.patch["answer"] as Record<
-                              string,
-                              unknown
-                            >
-                          )?.["title"] ?? "Proposed answer",
-                        )}
-                      </p>
-                      <pre>
-                        {JSON.stringify(record.proposal.patch, null, 2)}
-                      </pre>
-                    </div>
-                  ),
-                }}
-                onApplied={async (_receipt, captured) => {
-                  const snapshot = JSON.stringify(workingValue.current),
-                    record = await workspaceRequest<CanonicalDraft>("");
-                  if (
-                    originRef.current?.workspaceId !== captured.workspaceId ||
-                    originRef.current?.artifactId !== captured.artifactId ||
-                    JSON.stringify(workingValue.current) !== snapshot
-                  ) {
-                    setStatus(
-                      "Proposal accepted; local edits preserved. Reload canonical draft explicitly to review.",
-                    );
-                    return;
-                  }
-                  hydrateCanonical(record);
-                  setStatus("Reviewed proposal applied to draft. Not saved.");
-                }}
-              />
-            </section>
-          )}
           {navigationOpen ? (
             <StudioNavigation
               active={activeView}
@@ -1367,12 +1338,19 @@ export function Workspace({
             >
               <section className="workspace">
                 <div className="main-column">
-                  <Card className="card question-card">
+                  <Card
+                    className={`card question-card${assistantFocus.includes("question") ? " assistant-in-context" : ""}`}
+                  >
                     <div className="section-heading">
                       <div>
                         <span className="step">01</span>
                         <h2>Question</h2>
                       </div>
+                      {assistantFocus.includes("question") && (
+                        <span className="assistant-context-badge">
+                          In assistant context
+                        </span>
+                      )}
                       <span className="save-state">
                         {savedId ? "Saved" : "Workspace · unsaved"}
                       </span>
@@ -1505,7 +1483,15 @@ export function Workspace({
                             {answer.answerMarkdown}
                           </MarkdownContent>
                         </article>
-                        <div className="editor-shell">
+                        <div
+                          className={`editor-shell${
+                            assistantFocus.some((id) =>
+                              ["code", "usageCode", "testCode"].includes(id),
+                            ) || assistantPreview
+                              ? " assistant-in-context"
+                              : ""
+                          }`}
+                        >
                           <div
                             className="editor-tabs"
                             role="tablist"
@@ -1528,7 +1514,22 @@ export function Workspace({
                               </button>
                             ))}
                           </div>
-                          <div className="editable-code-shell">
+                          {assistant && <AssistantChangeBanner />}
+                          {assistantPreview &&
+                          previewedChange(assistantPreview, editorTab) ? (
+                            <PreviewedCode
+                              change={
+                                previewedChange(assistantPreview, editorTab)!
+                              }
+                            />
+                          ) : null}
+                          <div
+                            className="editable-code-shell"
+                            hidden={Boolean(
+                              assistantPreview &&
+                                previewedChange(assistantPreview, editorTab),
+                            )}
+                          >
                             <CodeMirror
                               value={editorValue}
                               height="430px"
@@ -1903,5 +1904,150 @@ export function Workspace({
         </main>
       </App>
     </ConfigProvider>
+  );
+  if (!assistant) return page;
+  const assistantConfig: AssistantConfig = {
+    client: assistant.client,
+    origin: assistantOrigin ?? {
+      workspaceId: assistant.workspaceId,
+      artifactId: assistant.artifactId,
+      artifactRevision: 0,
+    },
+    profileId: assistant.profileId,
+    product: {
+      name: "Interview Studio",
+      description:
+        "I can read and edit the Question, Main Solution and Tests in Interview Studio. Changes are always proposed first — nothing is applied without you.",
+    },
+    features: assistantFeatures,
+    starters: assistantStarters,
+    prompts: assistantPrompts,
+    surfaces: assistantSurfaces,
+    theme,
+    host: {
+      prepareSend: flushDraft,
+      beforeApply: async () => {
+        await flushDraft();
+      },
+      onApplied: async (_receipt, captured) => {
+        await reloadAfterAssistant(
+          captured,
+          "Assistant change applied. Not saved.",
+        );
+      },
+      onReverted: async (record) => {
+        await reloadAfterAssistant(
+          record.proposal.origin,
+          "Assistant change undone.",
+        );
+      },
+      onPreview: setAssistantPreview,
+      onContextChange: (surfaces) =>
+        setAssistantFocus(surfaces.map((item) => item.id)),
+      onThemeChange: (next) => {
+        if (next !== theme) toggleTheme();
+      },
+    },
+  };
+  return (
+    <div className="assistant-shell">
+      <AssistantRoot config={assistantConfig}>{page}</AssistantRoot>
+    </div>
+  );
+}
+
+// The editor tab a proposal surface is shown in.
+const EDITOR_SURFACE: Record<EditorTab, string> = {
+  solution: "code",
+  usage: "usageCode",
+  tests: "testCode",
+};
+function previewedChange(record: ProposalRecord, tab: EditorTab) {
+  return record.changes?.find((change) => change.id === EDITOR_SURFACE[tab]);
+}
+
+// What the code panel shows while a proposed change is previewed: the new
+// version with added and removed lines marked. Nothing is applied.
+function PreviewedCode({
+  change,
+}: {
+  change: NonNullable<ReturnType<typeof previewedChange>>;
+}) {
+  const rows = diffLines(change.before, change.after).flatMap((part) =>
+    part.value
+      .replace(/\n$/, "")
+      .split("\n")
+      .map((text) => ({
+        text,
+        kind: part.added ? "added" : part.removed ? "removed" : "same",
+      })),
+  );
+  let line = 0;
+  return (
+    <div className="assistant-preview-code" aria-label="Previewed change">
+      {rows.map((row, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: diff rows are positional
+        <div key={index} className={`assistant-preview-line ${row.kind}`}>
+          <span className="assistant-preview-number">
+            {row.kind === "removed" ? "" : ++line}
+          </span>
+          <span>{row.text || " "}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Shows, above the code, a change being previewed or the one just applied.
+function AssistantChangeBanner() {
+  const host = useAssistantHost();
+  if (host.preview)
+    return (
+      <div className="assistant-change-banner preview" role="status">
+        <Icon name="visibility" />
+        <span>Previewing assistant change — not applied</span>
+        <button type="button" onClick={host.discardPreview}>
+          Discard
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void host.applyPreview()}
+        >
+          Apply
+        </button>
+      </div>
+    );
+  if (host.applied) {
+    const count = host.applied.changes?.length ?? 0;
+    return (
+      <div className="assistant-change-banner applied" role="status">
+        <Icon name="check_circle" />
+        <span>
+          Updated by assistant
+          {count ? ` · ${count} surface${count === 1 ? "" : "s"} changed` : ""}
+        </span>
+        <button type="button" onClick={() => void host.undoApplied()}>
+          Undo
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+function AssistantToggle() {
+  const host = useAssistantHost();
+  return (
+    <button
+      type="button"
+      className={`assistant-toggle${host.open ? " open" : ""}`}
+      title={`Assistant (${host.shortcut})`}
+      aria-pressed={host.open}
+      onClick={host.toggle}
+    >
+      <Icon name="auto_awesome" />
+      Assistant
+    </button>
   );
 }

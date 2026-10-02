@@ -11,88 +11,133 @@
   color: #111;
 }
 
-/* The assistant is a sidebar the page makes room for, not a window over it. */
-#root:has(.assistant-workspace-dock) {
-  padding-right: min(440px, 38vw);
+/* The page is the bar above, then the studio with the assistant beside it. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
 }
-.assistant-workspace-dock {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(440px, 38vw);
-  overflow: auto;
-  z-index: 20;
-  background: var(--paper, #fff);
-  border-left: 1px solid var(--line, #bbb);
-  box-shadow: -4px 0 18px #0002;
-  padding: 0.9rem 1rem;
-}
-.assistant-panel header {
+#root {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
 }
-.assistant-panel h2 {
-  font-size: 1.2rem;
+.assistant-app-nav {
+  flex: none;
 }
-.assistant-panel textarea {
-  width: 100%;
-  min-height: 80px;
-  box-sizing: border-box;
+.assistant-shell {
+  flex: 1;
+  min-height: 0;
 }
-.assistant-panel pre {
-  white-space: pre-wrap;
-  max-height: 220px;
+.assistant-shell .oa-host {
   overflow: auto;
+}
+.assistant-shell .studio {
+  min-height: 100%;
+}
+
+/* Host integration: what the assistant is looking at or changing. */
+.assistant-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #d4d4d8);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.assistant-toggle .oa-icon {
+  font-size: 17px;
+  color: oklch(0.55 0.19 258);
+}
+.assistant-toggle.open {
+  background: oklch(0.95 0.035 258);
+  color: oklch(0.3 0.1 258);
+}
+.assistant-in-context {
+  outline: 2px solid oklch(0.55 0.19 258);
+  outline-offset: 2px;
+}
+.assistant-context-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: oklch(0.55 0.19 258);
+  color: #fff;
+  white-space: nowrap;
+}
+.assistant-change-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  font-size: 12.5px;
+}
+.assistant-change-banner .oa-icon {
+  font-size: 16px;
+}
+.assistant-change-banner span {
+  flex: 1;
+}
+.assistant-change-banner.preview {
+  background: oklch(0.35 0.07 258 / 0.6);
+  color: oklch(0.95 0.02 258);
+}
+.assistant-change-banner.applied {
+  background: oklch(0.35 0.07 152 / 0.55);
+  color: oklch(0.95 0.03 152);
+}
+.assistant-change-banner button {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid oklch(1 0 0 / 0.25);
+  background: transparent;
+  color: inherit;
   font-size: 12px;
-}
-.assistant-panel select {
-  max-width: 100%;
-}
-.assistant-panel button {
-  margin: 0.25rem;
-  padding: 0.4rem 0.7rem;
   cursor: pointer;
 }
-.assistant-panel [role="alert"] {
-  color: #b91c1c;
+.assistant-change-banner button.primary {
+  border: 0;
+  background: oklch(0.95 0.02 258);
+  color: oklch(0.25 0.05 258);
+  font-weight: 600;
 }
-.assistant-panel [aria-label="Conversation messages"] {
-  max-height: 46vh;
+.assistant-preview-code {
+  background: oklch(0.2 0.018 260);
+  color: oklch(0.9 0.008 260);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  padding: 10px 0;
+  max-height: 430px;
   overflow: auto;
-  margin: 0.6rem 0;
 }
-.assistant-panel article {
-  padding: 0.6rem 0.7rem;
-  margin-bottom: 0.4rem;
-  border-radius: 8px;
-  background: #f1f5f9;
+.assistant-preview-line {
+  display: flex;
+  padding-right: 14px;
+  white-space: pre;
 }
-.assistant-panel article[data-role="user"] {
-  background: #e0ecff;
+.assistant-preview-line.added {
+  background: oklch(0.6 0.13 150 / 0.2);
 }
-.assistant-panel article > strong {
-  display: block;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #475569;
-  margin-bottom: 0.2rem;
+.assistant-preview-line.removed {
+  background: oklch(0.6 0.17 25 / 0.22);
+  text-decoration: line-through;
 }
-@media (max-width: 900px) {
-  #root:has(.assistant-workspace-dock) {
-    padding-right: 0;
-  }
-  .assistant-workspace-dock {
-    position: relative;
-    width: auto;
-    border-left: 0;
-    box-shadow: none;
-    border-top: 1px solid var(--line, #bbb);
-  }
-  .assistant-panel [aria-label="Conversation messages"] {
-    max-height: none;
-  }
+.assistant-preview-number {
+  width: 44px;
+  text-align: right;
+  padding-right: 14px;
+  color: oklch(0.5 0.02 260);
+  flex: none;
+  user-select: none;
 }

@@ -9,16 +9,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@omnitech/product-interview": "workspace:*",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@omnitech-assistant/react": "file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz",
     "@omnitech-assistant/sdk": "file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
+    "@omnitech/product-interview": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "vite": "8.3.2",
-    "typescript": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/node": "catalog:"
+    "typescript": "catalog:",
+    "vite": "8.3.2"
   }
 }

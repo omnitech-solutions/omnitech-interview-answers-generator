@@ -114,6 +114,8 @@ const refusalHints: Readonly<Record<string, string>> = {
     "Facts about the candidate need candidate evidence; remove them or mark them uncertain.",
   "no-change":
     "The proposal equals the current draft. Tell the user nothing needs to change.",
+  "changed-since":
+    "The draft was edited after this change was applied, so undoing it would overwrite those edits.",
 };
 export class WorkspaceError extends ProductOperationError {
   constructor(code: string, hint?: string) {
@@ -130,6 +132,7 @@ export class WorkspaceError extends ProductOperationError {
                   "effect-interrupted",
                   "effect-conflict",
                   "evidence-revision-conflict",
+                  "changed-since",
                 ].includes(code)
               ? 409
               : 400;
@@ -304,6 +307,91 @@ export class InterviewWorkspaceRepository {
     );
     if (!updated) throw new WorkspaceError("revision-conflict");
     return draft(updated);
+  }
+  // Remember what an applied proposal replaced, in the same transaction as the
+  // edit, so undo puts back exactly that.
+  async rememberReplacedTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    proposalId: string,
+    applied: WorkspaceDraftRecord,
+    previous: WorkspaceDraftRecord,
+  ): Promise<void> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
+    await tx.query(
+      `INSERT INTO interview.assistant_reverts (tenant_id,actor_id,product_id,proposal_id,workspace_id,artifact_id,applied_revision,previous_value,previous_provenance)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb)
+       ON CONFLICT (tenant_id,actor_id,product_id,proposal_id) DO UPDATE SET applied_revision=EXCLUDED.applied_revision,previous_value=EXCLUDED.previous_value,previous_provenance=EXCLUDED.previous_provenance,reverted_revision=NULL`,
+      [
+        ...values(scope),
+        id.parse(proposalId),
+        applied.origin.workspaceId,
+        applied.origin.artifactId,
+        applied.origin.artifactRevision,
+        JSON.stringify(previous.value),
+        previous.provenance ? JSON.stringify(previous.provenance) : null,
+      ],
+    );
+  }
+  // Put back what a proposal replaced, unless the draft changed since.
+  async revertTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    proposalId: string,
+  ): Promise<WorkspaceDraftRecord> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
+    const [stored] = await tx.query(
+      `SELECT * FROM interview.assistant_reverts WHERE ${where} AND proposal_id=$4 FOR UPDATE`,
+      [...values(scope), id.parse(proposalId)],
+    );
+    if (!stored) throw new WorkspaceError("not-found");
+    const [row] = await tx.query(
+      `SELECT revision FROM interview.assistant_drafts WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 FOR UPDATE`,
+      [...values(scope), stored["workspace_id"], stored["artifact_id"]],
+    );
+    if (!row) throw new WorkspaceError("not-found");
+    if (Number(row["revision"]) !== Number(stored["applied_revision"]))
+      throw new WorkspaceError("changed-since");
+    const [updated] = await tx.query(
+      `UPDATE interview.assistant_drafts SET value=$6::jsonb,provenance=$7::jsonb,revision=revision+1,updated_at=now() WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 RETURNING *`,
+      [
+        ...values(scope),
+        stored["workspace_id"],
+        stored["artifact_id"],
+        JSON.stringify(stored["previous_value"]),
+        stored["previous_provenance"]
+          ? JSON.stringify(stored["previous_provenance"])
+          : null,
+      ],
+    );
+    const restored = draft(updated!);
+    await tx.query(
+      `UPDATE interview.assistant_reverts SET reverted_revision=$5 WHERE ${where} AND proposal_id=$4`,
+      [
+        ...values(scope),
+        id.parse(proposalId),
+        restored.origin.artifactRevision,
+      ],
+    );
+    return restored;
+  }
+  // The draft revision an undo of this proposal produced, if it was undone.
+  async revertedRevisionTransaction(
+    tx: WorkspaceTransaction,
+    scope: WorkspaceScope,
+    proposalId: string,
+  ): Promise<number | undefined> {
+    scope = scopeSchema.parse(scope);
+    await this.bind(tx, scope);
+    const [row] = await tx.query(
+      `SELECT reverted_revision FROM interview.assistant_reverts WHERE ${where} AND proposal_id=$4`,
+      [...values(scope), id.parse(proposalId)],
+    );
+    return row?.["reverted_revision"] == null
+      ? undefined
+      : Number(row["reverted_revision"]);
   }
   async save(
     scope: WorkspaceScope,

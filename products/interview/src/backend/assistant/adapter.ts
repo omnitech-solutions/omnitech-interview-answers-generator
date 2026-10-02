@@ -34,6 +34,7 @@ import {
   type InterviewEvidence,
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
+  interviewDraftSchema,
   WorkspaceError,
 } from "./workspace.js";
 export const interviewProposalPatchSchema = interviewDraftPatchSchema
@@ -203,7 +204,12 @@ export function createInterviewAdapter(
       proposal.origin.artifactId,
       true,
     );
-    if (current.origin.artifactRevision !== proposal.origin.artifactRevision)
+    // A proposal applies to the revision it was made from, or to the revision
+    // its own undo produced (applying it again after undo).
+    const base =
+      (await workspace.revertedRevisionTransaction(tx, scope, proposal.id)) ??
+      proposal.origin.artifactRevision;
+    if (current.origin.artifactRevision !== base)
       throw new WorkspaceError("revision-conflict");
     // A proposal that changes nothing is not worth a review; the model is told.
     const unchanged = (["question", "notes", "answer"] as const).every(
@@ -221,7 +227,7 @@ export function createInterviewAdapter(
       });
     } else if (patch.claims?.length)
       throw new WorkspaceError("claim-answer-required");
-    return { proposal, patch, sources };
+    return { proposal, patch, sources, current };
   };
   return {
     draftSchema: interviewModelDraftJsonSchema,
@@ -413,14 +419,33 @@ export function createInterviewAdapter(
         await validate(tx, scope, proposal);
       });
     },
-    applyProposal: async (tx, scope, proposal) => {
+    supportsPartialApply: true,
+    describeProposal: async (scope, proposal) => {
+      const patch = interviewProposalPatchSchema.parse(proposal.patch);
+      const current = await workspace.read(
+        scope,
+        proposal.origin.workspaceId,
+        proposal.origin.artifactId,
+      );
+      return describeChanges(current.value, patch);
+    },
+    applyProposal: async (tx, scope, proposal, options) => {
       const checked = await validate(tx, scope, proposal);
-      const { claims, ...patch } = checked.patch;
+      const { claims, ...patch } = options?.surfaces
+        ? pickSurfaces(checked.patch, checked.current.value, options.surfaces)
+        : checked.patch;
       const edited = await workspace.editTransaction(
         tx,
         scope,
-        checked.proposal.origin,
+        checked.current.origin,
         patch,
+      );
+      await workspace.rememberReplacedTransaction(
+        tx,
+        scope,
+        proposal.id,
+        edited,
+        checked.current,
       );
       if (patch.answer) {
         const provenance: InterviewProvenance = {
@@ -451,6 +476,9 @@ export function createInterviewAdapter(
         proposalId: proposal.id,
         artifactRevision: edited.origin.artifactRevision,
       };
+    },
+    revertProposal: async (tx, scope, proposal) => {
+      await workspace.revertTransaction(tx, scope, proposal.id);
     },
     runCode: async (scope, request, signal) => {
       signal.throwIfAborted();
@@ -552,4 +580,117 @@ export function createInterviewAdapter(
       }
     },
   };
+}
+
+// The parts of an interview draft a proposal can change, as people name them.
+const SURFACES = [
+  { id: "question", label: "Question", icon: "quiz" },
+  { id: "title", label: "Title", icon: "title" },
+  { id: "answerMarkdown", label: "Answer", icon: "notes" },
+  { id: "code", label: "Main Solution", icon: "code" },
+  { id: "usageCode", label: "Usage / Output", icon: "terminal" },
+  { id: "testCode", label: "Tests", icon: "science" },
+  { id: "notes", label: "Notes", icon: "edit_note" },
+] as const;
+type Draft = z.infer<typeof interviewDraftSchema>;
+type ProposalPatch = z.infer<typeof interviewProposalPatchSchema>;
+const ANSWER_FIELDS = [
+  "title",
+  "answerMarkdown",
+  "code",
+  "usageCode",
+  "testCode",
+] as const;
+type AnswerField = (typeof ANSWER_FIELDS)[number];
+
+const lineCount = (text: string) => (text ? text.split("\n").length : 0);
+// What each changed surface looks like before and after, for review.
+export function describeChanges(current: Draft, patch: ProposalPatch) {
+  const language = patch.answer?.language ?? current.answer?.language ?? "text";
+  const pairs: Record<
+    string,
+    { before: string; after: string; language?: string }
+  > = {};
+  if (patch.question !== undefined && patch.question !== current.question)
+    pairs["question"] = { before: current.question, after: patch.question };
+  if (patch.notes !== undefined && patch.notes !== current.notes)
+    pairs["notes"] = {
+      before: current.notes,
+      after: patch.notes,
+      language: "markdown",
+    };
+  if (patch.answer)
+    for (const field of ANSWER_FIELDS) {
+      const before = current.answer?.[field] ?? "";
+      const after = patch.answer[field];
+      if (before !== after)
+        pairs[field] = {
+          before,
+          after,
+          language:
+            field === "answerMarkdown"
+              ? "markdown"
+              : field === "title"
+                ? "text"
+                : language,
+        };
+    }
+  return SURFACES.filter((surface) => pairs[surface.id]).map((surface) => {
+    const pair = pairs[surface.id]!;
+    const added = Math.max(0, lineCount(pair.after) - lineCount(pair.before));
+    return {
+      id: surface.id,
+      label: surface.label,
+      icon: surface.icon,
+      description: !pair.before
+        ? `Add ${lineCount(pair.after)} line${lineCount(pair.after) === 1 ? "" : "s"}`
+        : added
+          ? `Change and add ${added} line${added === 1 ? "" : "s"}`
+          : "Change in place",
+      ...(pair.language ? { language: pair.language } : {}),
+      before: pair.before,
+      after: pair.after,
+    };
+  });
+}
+
+// Only the surfaces the person picked. Answer fields merge into the current
+// answer; without one, the answer is all or nothing. Claims support the prose,
+// so they go only when the prose does.
+export function pickSurfaces(
+  patch: ProposalPatch,
+  current: Draft,
+  surfaces: readonly string[],
+): ProposalPatch {
+  const picked = new Set(surfaces);
+  const fields = ANSWER_FIELDS.filter((field) => picked.has(field));
+  let answer: ProposalPatch["answer"];
+  if (patch.answer && fields.length)
+    answer = current.answer
+      ? {
+          ...current.answer,
+          ...Object.fromEntries(
+            fields.map((field: AnswerField) => [field, patch.answer![field]]),
+          ),
+          ...(picked.has("code") ? { language: patch.answer.language } : {}),
+        }
+      : patch.answer;
+  const next = {
+    ...(picked.has("question") && patch.question !== undefined
+      ? { question: patch.question }
+      : {}),
+    ...(picked.has("notes") && patch.notes !== undefined
+      ? { notes: patch.notes }
+      : {}),
+    ...(answer ? { answer } : {}),
+    ...(answer && picked.has("answerMarkdown") && patch.claims
+      ? { claims: patch.claims }
+      : {}),
+  };
+  if (!Object.keys(next).length)
+    throw new WorkspaceError(
+      "proposal-invalid",
+      "Pick at least one change to apply.",
+    );
+  return next as ProposalPatch;
 }

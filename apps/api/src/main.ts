@@ -23,7 +23,8 @@ import {
 import {
   RunRepository,
   PgBossRunQueue,
-  assistantMigrationUrl,
+  assistantGrants,
+  assistantMigrations,
 } from "@omnitech-assistant/storage-postgres";
 import {
   createInterviewAdapter,
@@ -90,10 +91,12 @@ const database: DatabasePort = {
     transaction: <T>(fn: (tx: Transaction) => Promise<T>) =>
       transaction(admin, undefined, fn),
   };
-await admin.query(await readFile(assistantMigrationUrl, "utf8"));
+for (const migration of assistantMigrations)
+  await admin.query(await readFile(migration, "utf8"));
 for (const file of [
   "0004_assistant_interview.sql",
   "0005_assistant_provenance.sql",
+  "0007_assistant_reverts.sql",
 ])
   await admin.query(
     await readFile(
@@ -104,8 +107,9 @@ for (const file of [
       "utf8",
     ),
   );
+await admin.query(assistantGrants("fixture_member"));
 await admin.query(
-  "GRANT USAGE ON SCHEMA assistant,interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA assistant,interview TO fixture_member",
+  "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member",
 );
 const queue = new PgBossRunQueue({
   ...config,

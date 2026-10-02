@@ -2,6 +2,9 @@ import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Workspace } from "@omnitech/product-interview/frontend";
 import { createAssistantClient } from "@omnitech-assistant/sdk";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
+import "@omnitech-assistant/react/styles.css";
 import "../../web/app/styles.css";
 import "./style.css";
 function App() {

@@ -12,7 +12,8 @@ import {
   createRunExecutor,
 } from "@omnitech-assistant/server";
 import {
-  assistantMigrationUrl,
+  assistantGrants,
+  assistantMigrations,
   PgBossRunQueue,
   RunRepository,
 } from "@omnitech-assistant/storage-postgres";
@@ -88,6 +89,7 @@ beforeAll(async () => {
   for (const file of [
     "0004_assistant_interview.sql",
     "0005_assistant_provenance.sql",
+    "0007_assistant_reverts.sql",
   ])
     await pg.migrate(
       new URL(
@@ -95,10 +97,9 @@ beforeAll(async () => {
         import.meta.url,
       ),
     );
-  await pg.admin.query(await readFile(assistantMigrationUrl, "utf8"));
-  await pg.admin.query(
-    "GRANT USAGE ON SCHEMA assistant TO fixture_member; GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA assistant TO fixture_member",
-  );
+  for (const migration of assistantMigrations)
+    await pg.admin.query(await readFile(migration, "utf8"));
+  await pg.admin.query(assistantGrants("fixture_member"));
   queue = new PgBossRunQueue({
     ...pg.config,
     supervise: false,

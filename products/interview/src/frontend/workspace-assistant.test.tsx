@@ -159,6 +159,14 @@ const proposedAnswer = {
   testCode: "",
 };
 
+const message = (id: string, role: string, parts: unknown[]) => ({
+  id,
+  threadId: "t1",
+  role,
+  parts,
+  createdAt: stamp,
+  status: "complete",
+});
 function json(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -208,6 +216,7 @@ function installServer() {
             revision: 0,
             createdAt: stamp,
             updatedAt: stamp,
+            binding: { workspaceId: "w", artifactId: "a" },
           },
         ]);
       if (path === "/api/assistant/v1/threads/t1")
@@ -220,7 +229,39 @@ function installServer() {
             updatedAt: stamp,
           },
           binding: { workspaceId: "w", artifactId: "a" },
-          messages: [],
+          // A turn in which the assistant proposed a change.
+          messages: server.proposal
+            ? [
+                message("m1", "user", [
+                  { type: "text", text: "Write the answer" },
+                ]),
+                message("m2", "assistant", [
+                  {
+                    type: "tool-call",
+                    id: "c1",
+                    name: "proposePatch",
+                    input: { answer: proposedAnswer },
+                  },
+                ]),
+                message("m3", "tool", [
+                  {
+                    type: "tool-result",
+                    id: "c1",
+                    output: {
+                      status: "proposed",
+                      proposalId: "p1",
+                      applied: false,
+                    },
+                  },
+                ]),
+                message("m4", "assistant", [
+                  {
+                    type: "text",
+                    text: "Here is a draft. Nothing has been applied yet.",
+                  },
+                ]),
+              ]
+            : [],
           nextCursor: null,
           activeRun: null,
         });
@@ -280,21 +321,6 @@ describe("Workspace with the assistant", () => {
     );
   });
 
-  it("reloads the canonical draft on request", async () => {
-    const { server } = installServer();
-    renderAssistant();
-    await screen.findByRole("button", { name: "Reload canonical draft" });
-    server.value = { ...server.value, question: "Changed on the server" };
-    fireEvent.click(
-      screen.getByRole("button", { name: "Reload canonical draft" }),
-    );
-    await waitFor(() =>
-      expect(screen.getByLabelText("Interview question")).toHaveValue(
-        "Changed on the server",
-      ),
-    );
-  });
-
   it("saves local edits to the canonical draft before a message is sent", async () => {
     const { calls } = installServer();
     renderAssistant();
@@ -306,10 +332,10 @@ describe("Workspace with the assistant", () => {
     fireEvent.change(screen.getByLabelText("Interview question"), {
       target: { value: "My edited question" },
     });
-    fireEvent.change(screen.getByLabelText("Assistant message"), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
       target: { value: "Tighten the answer" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send (Enter)" }));
     await waitFor(() =>
       expect(calls.some((call) => call.path === "/api/assistant/v1/runs")).toBe(
         true,
@@ -330,10 +356,11 @@ describe("Workspace with the assistant", () => {
   it("shows a proposal for review and applies it to the draft without saving", async () => {
     const { calls } = installServer();
     renderAssistant();
-    await screen.findByText("Optimistic concurrency");
-    expect(screen.getByLabelText("Review proposed answer")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Apply to draft" }));
-    await screen.findByText("Reviewed proposal applied to draft. Not saved.");
+    const card = await screen.findByLabelText("Proposed change");
+    expect(card).toBeVisible();
+    expect(screen.getByText("Nothing has been applied yet")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await screen.findByText("Assistant change applied. Not saved.");
     expect(
       calls.some(
         (call) => call.path === "/api/assistant/v1/proposals/p1/apply",
@@ -358,10 +385,10 @@ describe("Workspace with the assistant", () => {
       language: "auto",
     });
     // Sending a message saves the generated answer so the assistant can read it.
-    fireEvent.change(screen.getByLabelText("Assistant message"), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
       target: { value: "What is the time complexity?" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send (Enter)" }));
     await waitFor(() =>
       expect(calls.some((call) => call.method === "PATCH")).toBe(true),
     );

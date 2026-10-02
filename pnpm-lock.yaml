@@ -153,6 +153,15 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@fontsource-variable/geist':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@fontsource-variable/geist-mono':
+        specifier: 5.3.0
+        version: 5.3.0
+      '@omnitech-assistant/react':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(@types/react@19.2.17)(react@19.2.8)
       '@omnitech-assistant/sdk':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
@@ -835,7 +844,7 @@ importers:
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       '@omnitech-assistant/react':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(react@19.2.8)
+        version: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(@types/react@19.2.17)(react@19.2.8)
       '@omnitech-assistant/sdk':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
@@ -878,6 +887,9 @@ importers:
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
+      diff:
+        specifier: 9.0.0
+        version: 9.0.0
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
@@ -1612,6 +1624,12 @@ packages:
       '@noble/hashes':
         optional: true
 
+  '@fontsource-variable/geist-mono@5.3.0':
+    resolution: {integrity: sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw==}
+
+  '@fontsource-variable/geist@5.3.0':
+    resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
+
   '@hono/node-server@1.19.15':
     resolution: {integrity: sha512-Za2ai6TLdKjUvnur+eenO6nuYYipVAEhyCAdaV8IRvmU9kK8crOZUSYvIXn72E4f8fJqyAbpcJuTsYYmZp9Deg==}
     engines: {node: '>=18.14.1'}
@@ -2077,7 +2095,7 @@ packages:
     resolution: {integrity: sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg==}
 
   '@omnitech-assistant/contracts@file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz':
-    resolution: {integrity: sha512-mc1fhZSojY+zjLS204HE2qz7BCZx3LMOGCICMU2xfd1mmvYTD1+Qi99T1aO2Hv0Ic4+rK8/6saLxOHNKVJKRkg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz}
+    resolution: {integrity: sha512-LnoU/SbR2GxFW4GfG9ztm4aEs18NXSZ333t5zEmx6eO8zeHcpT8ex/jfmuKCSFiFw4ovfGg5pS3v8nlG1aS2qw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
@@ -2087,24 +2105,24 @@ packages:
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz':
-    resolution: {integrity: sha512-MT1/2G4MR4MUz2c7R/Y+NmtWiPNPUVOTUOPnvVyWbOMgoRyN//VpKDsphdazwq2yEOlatnDdMP/Lsq1RrGfOxg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
+    resolution: {integrity: sha512-Fz7tF36TZi5FrWSe0pnnxr9GSQWtY4PbPnIoM3TOBkxIADTIsxP8H8pcP0cTJRJVof2SyrMZdzFcX+1xR4IpJg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
 
   '@omnitech-assistant/sdk@file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz':
-    resolution: {integrity: sha512-Qs63PXkEb4ZKQZrvWD+zwkyga+BVzqCnipPqxbUCaVveWAhAiVHfADLoVQseJg0z3OuQMx0LtUnEpmXXsPNcag==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz}
+    resolution: {integrity: sha512-CkhCsdmU1WrCE7eHcjU7FQU/Qa5G8MzufBSTKns6yr3hJLZ82N+lvB5OUOUo4gI0F3JzulsBu9dpHejvNE8klg==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/server@file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz':
-    resolution: {integrity: sha512-HIEFrDcrSDMaWTadVuz/pb+ZQZv2gbnjBDtJKK1uSsnPnc0kolGk/PKUevUQurSkF8Lr+zAS+dzn/DRPx+My+w==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
+    resolution: {integrity: sha512-3PE1pFXKBCIOGgREO1VCgshmXTAFHOTpBYHnqaVSa/chaXm2zq+8n/sbzHa9CPZLZFBHc7ZbVgfXu3ly9pVnzQ==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
   '@omnitech-assistant/storage-postgres@file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz':
-    resolution: {integrity: sha512-kL2bXzBQHkVbdUohC0gpDweHQvHdZ9pf1WsrsDi2V+1lmsaBxAaIlM6VP1powBHHolO28b5lIcG90fPWZwnxMA==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
+    resolution: {integrity: sha512-46vUO/0mLRM1bD5XNqsYf1F2rJWwzCzQGzHPTBH8+ADBMI9yAe0OAhphuFm2BVN1+bcFtmmiMg79+j3OQv1YIw==, tarball: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz}
     version: 0.1.0
     engines: {node: '>=22.13.0'}
 
@@ -3248,6 +3266,10 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
+    engines: {node: '>=0.3.1'}
+
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
 
@@ -3554,6 +3576,10 @@ packages:
 
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
+
+  highlight.js@11.11.2:
+    resolution: {integrity: sha512-oaXMACAU0kzOMXBjWpNcX+vlwSBCIAiZ9BHa7gA15NOTtT2L/l8OSZDuqS2XppOhZBPJ7hm4o8ep2kyuip2uEQ==}
+    engines: {node: '>=12.0.0'}
 
   hono@4.12.31:
     resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
@@ -3987,6 +4013,9 @@ packages:
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
+
+  lowlight@3.3.0:
+    resolution: {integrity: sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==}
 
   lru-cache@11.5.2:
     resolution: {integrity: sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==}
@@ -5741,6 +5770,10 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
+  '@fontsource-variable/geist-mono@5.3.0': {}
+
+  '@fontsource-variable/geist@5.3.0': {}
+
   '@hono/node-server@1.19.15(hono@4.13.12)':
     dependencies:
       hono: 4.13.12
@@ -6180,11 +6213,18 @@ snapshots:
       - undici
       - ws
 
-  '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(react@19.2.8)':
+  '@omnitech-assistant/react@file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz(@types/react@19.2.17)(react@19.2.8)':
     dependencies:
       '@omnitech-assistant/contracts': file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
       '@omnitech-assistant/sdk': file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
+      diff: 9.0.0
+      lowlight: 3.3.0
       react: 19.2.8
+      react-markdown: 10.1.0(@types/react@19.2.17)(react@19.2.8)
+      remark-gfm: 4.0.1
+    transitivePeerDependencies:
+      - '@types/react'
+      - supports-color
 
   '@omnitech-assistant/sdk@file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz':
     dependencies:
@@ -7273,6 +7313,8 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  diff@9.0.0: {}
+
   dom-accessibility-api@0.5.16: {}
 
   dom-accessibility-api@0.6.3: {}
@@ -7697,6 +7739,8 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.5
 
+  highlight.js@11.11.2: {}
+
   hono@4.12.31: {}
 
   hono@4.13.12: {}
@@ -8069,6 +8113,12 @@ snapshots:
   lodash@4.18.1: {}
 
   longest-streak@3.1.0: {}
+
+  lowlight@3.3.0:
+    dependencies:
+      '@types/hast': 3.0.5
+      devlop: 1.1.0
+      highlight.js: 11.11.2
 
   lru-cache@11.5.2: {}
 
