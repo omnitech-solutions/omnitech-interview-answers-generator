@@ -23,6 +23,18 @@ const createConfiguredClient = vi.fn(async () => apiClient);
 const createConfiguredPlaygroundControlClient = vi.fn(
   async () => playgroundClient,
 );
+const briefingClient = {
+  listProfiles: vi.fn(),
+  importProfile: vi.fn(),
+  getProfile: vi.fn(),
+  listArtifacts: vi.fn(),
+  getArtifact: vi.fn(),
+  editArtifact: vi.fn(),
+  propose: vi.fn(),
+  apply: vi.fn(),
+  save: vi.fn(),
+};
+const createConfiguredBriefingClient = vi.fn(async () => briefingClient);
 const writeConfig = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
@@ -35,6 +47,7 @@ vi.mock("./config.js", () => ({
 vi.mock("./index.js", () => ({
   createConfiguredClient,
   createConfiguredPlaygroundControlClient,
+  createConfiguredBriefingClient,
 }));
 
 const { createProgram } = await import("./cli.js");
@@ -47,6 +60,189 @@ describe("interview-answers CLI", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+
+  it("imports a profile from an explicit JSON file with the configured tenant", async () => {
+    vi.mocked(readFile).mockResolvedValueOnce('{"candidate":{},"roles":[]}');
+    briefingClient.importProfile.mockResolvedValue({ id: "p", revision: 1 });
+    await run(
+      "--format",
+      "json",
+      "briefing",
+      "--tenant",
+      "team-a",
+      "import",
+      "--file",
+      "matrix.json",
+      "--name",
+      "Candidate",
+    );
+    expect(createConfiguredBriefingClient).toHaveBeenCalledWith({
+      format: "json",
+      tenant: "team-a",
+    });
+    expect(briefingClient.importProfile).toHaveBeenCalledWith({
+      name: "Candidate",
+      matrix: { candidate: {}, roles: [] },
+    });
+    expect(process.stdout.write).toHaveBeenCalledWith(
+      expect.stringContaining('"revision": 1'),
+    );
+  });
+
+  it("lists and shows briefing resources without mutating them", async () => {
+    briefingClient.listProfiles.mockResolvedValue({
+      profiles: [{ id: "p", revision: 1 }],
+    });
+    briefingClient.getProfile.mockResolvedValue({ id: "p", revision: 1 });
+    briefingClient.listArtifacts.mockResolvedValue({
+      artifacts: [{ id: "a" }],
+    });
+    briefingClient.getArtifact.mockResolvedValue({
+      origin: { artifactId: "a" },
+    });
+
+    await run("briefing", "profiles");
+    await run("briefing", "show", "--id", "p", "--revision", "1");
+    await run("briefing", "artifacts");
+    await run("briefing", "show", "--id", "a");
+
+    expect(briefingClient.listProfiles).toHaveBeenCalledOnce();
+    expect(briefingClient.getProfile).toHaveBeenCalledWith("p", 1);
+    expect(briefingClient.listArtifacts).toHaveBeenCalledOnce();
+    expect(briefingClient.getArtifact).toHaveBeenCalledWith("a");
+    expect(briefingClient.editArtifact).not.toHaveBeenCalled();
+    expect(briefingClient.apply).not.toHaveBeenCalled();
+    expect(briefingClient.save).not.toHaveBeenCalled();
+  });
+
+  it("edits from a validated file and opens preparation separately", async () => {
+    const input = {
+      expectedRevision: 2,
+      briefing: {
+        kind: "non-technical-briefing",
+        title: "Preparation",
+        context: {
+          company: "Acme",
+          role: "Engineer",
+          stage: "recruiter",
+          profile: { id: "p", revision: 1 },
+        },
+        questions: [],
+      },
+    };
+    vi.mocked(readFile).mockResolvedValueOnce(JSON.stringify(input));
+    briefingClient.editArtifact.mockResolvedValue({
+      origin: { artifactId: "a" },
+    });
+    playgroundClient.set.mockResolvedValue({
+      value: { view: "interview-preparation" },
+    });
+
+    await run("briefing", "edit", "--id", "a", "--file", "draft.json");
+    await run("briefing", "open");
+
+    expect(readFile).toHaveBeenCalledWith("draft.json", "utf8");
+    expect(briefingClient.editArtifact).toHaveBeenCalledWith("a", input);
+    expect(playgroundClient.set).toHaveBeenCalledWith({
+      view: "interview-preparation",
+    });
+    expect(briefingClient.apply).not.toHaveBeenCalled();
+    expect(briefingClient.save).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid show and apply revisions before their requests", async () => {
+    await expect(
+      run("briefing", "show", "--id", "p", "--revision", "NaN"),
+    ).rejects.toThrow("Revision must be a non-negative integer.");
+    await expect(
+      run(
+        "briefing",
+        "apply",
+        "--id",
+        "a",
+        "--proposal",
+        "p",
+        "--revision",
+        "-1",
+      ),
+    ).rejects.toThrow("Revision must be a non-negative integer.");
+    expect(briefingClient.getProfile).not.toHaveBeenCalled();
+    expect(briefingClient.apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps propose, apply, and save as separate commands", async () => {
+    vi.mocked(readFile).mockResolvedValueOnce(
+      JSON.stringify({
+        expectedRevision: 2,
+        context: {
+          company: "A",
+          role: "B",
+          stage: "recruiter",
+          profile: { id: "p", revision: 1 },
+        },
+        questions: [{ id: "q", question: "Why?", category: "motivation" }],
+      }),
+    );
+    briefingClient.propose.mockResolvedValue({ id: "proposal" });
+    await run(
+      "briefing",
+      "propose",
+      "--id",
+      "artifact",
+      "--file",
+      "proposal.json",
+    );
+    expect(briefingClient.propose).toHaveBeenCalledOnce();
+    expect(briefingClient.apply).not.toHaveBeenCalled();
+    expect(briefingClient.save).not.toHaveBeenCalled();
+
+    await run(
+      "briefing",
+      "apply",
+      "--id",
+      "artifact",
+      "--proposal",
+      "proposal",
+      "--revision",
+      "2",
+    );
+    expect(briefingClient.apply).toHaveBeenCalledWith("artifact", {
+      proposalId: "proposal",
+      expectedRevision: 2,
+    });
+    expect(briefingClient.save).not.toHaveBeenCalled();
+
+    await run(
+      "briefing",
+      "save",
+      "--id",
+      "artifact",
+      "--revision",
+      "3",
+      "--request-id",
+      "request",
+    );
+    expect(briefingClient.save).toHaveBeenCalledWith("artifact", {
+      expectedRevision: 3,
+      requestId: "request",
+    });
+  });
+
+  it("rejects invalid CLI revisions before a briefing mutation", async () => {
+    await expect(
+      run(
+        "briefing",
+        "save",
+        "--id",
+        "artifact",
+        "--revision",
+        "1.5",
+        "--request-id",
+        "request",
+      ),
+    ).rejects.toThrow("Revision must be a non-negative integer.");
+    expect(briefingClient.save).not.toHaveBeenCalled();
   });
 
   it("configures the CLI", async () => {

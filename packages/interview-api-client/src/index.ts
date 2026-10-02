@@ -13,6 +13,17 @@ import type {
   SavedExplanation,
 } from "@omnitech/interview-contracts";
 
+export { createBriefingClient } from "./briefing.js";
+export type {
+  BriefingArtifact,
+  BriefingArtifactSummary,
+  BriefingClient,
+  BriefingClientOptions,
+  BriefingProfileRevision,
+  BriefingProfileSummary,
+  SavedBriefingRevision,
+} from "./briefing.js";
+
 export interface InterviewApiClientOptions {
   baseUrl: string;
   fetch?: typeof globalThis.fetch;

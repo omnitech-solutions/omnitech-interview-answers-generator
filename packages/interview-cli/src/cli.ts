@@ -2,7 +2,14 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-import { saveAnswerRequestSchema } from "@omnitech/interview-contracts";
+import {
+  briefingApplySchema,
+  briefingProfileImportSchema,
+  briefingProposalRequestSchema,
+  briefingPutSchema,
+  briefingSaveSchema,
+  saveAnswerRequestSchema,
+} from "@omnitech/interview-contracts";
 import {
   parsePlaygroundPatch,
   type PlaygroundAnswerLanguage,
@@ -12,6 +19,7 @@ import { Command } from "commander";
 
 import { configPath, writeConfig } from "./config.js";
 import {
+  createConfiguredBriefingClient,
   createConfiguredClient,
   createConfiguredPlaygroundControlClient,
 } from "./index.js";
@@ -82,6 +90,132 @@ export function createProgram(): Command {
       await writeConfig(options);
       process.stdout.write(`Saved CLI configuration to ${configPath}\n`);
     });
+
+  const briefing = program
+    .command("briefing")
+    .description(
+      "Review non-technical interview briefings. Propose, apply, and save are separate steps. Authenticated Next sessions may be required.",
+    )
+    .option("--tenant <tenant>", "tenant scope", "local");
+  const briefingOptions = () => ({
+    ...globalOptions(program),
+    tenant: briefing.opts<{ tenant: string }>().tenant,
+  });
+  const briefingClient = () =>
+    createConfiguredBriefingClient(briefingOptions());
+  const readJson = async (file: string) =>
+    JSON.parse(await readFile(file, "utf8")) as unknown;
+  const revision = (value: string) => {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < 0)
+      throw new Error("Revision must be a non-negative integer.");
+    return parsed;
+  };
+  const printBriefing = (value: unknown) => print(value, "json");
+
+  briefing
+    .command("profiles")
+    .action(async () =>
+      printBriefing(await (await briefingClient()).listProfiles()),
+    );
+  briefing
+    .command("import")
+    .requiredOption("--file <path>")
+    .requiredOption("--name <name>")
+    .action(async (options: { file: string; name: string }) =>
+      printBriefing(
+        await (await briefingClient()).importProfile(
+          briefingProfileImportSchema.parse({
+            name: options.name,
+            matrix: await readJson(options.file),
+          }),
+        ),
+      ),
+    );
+  briefing
+    .command("show")
+    .requiredOption("--id <id>")
+    .option("--revision <revision>")
+    .action(async (options: { id: string; revision?: string }) =>
+      printBriefing(
+        options.revision === undefined
+          ? await (await briefingClient()).getArtifact(options.id)
+          : await (await briefingClient()).getProfile(
+              options.id,
+              revision(options.revision),
+            ),
+      ),
+    );
+  briefing
+    .command("artifacts")
+    .action(async () =>
+      printBriefing(await (await briefingClient()).listArtifacts()),
+    );
+  briefing
+    .command("edit")
+    .requiredOption("--id <id>")
+    .requiredOption("--file <path>")
+    .action(async (options: { id: string; file: string }) =>
+      printBriefing(
+        await (await briefingClient()).editArtifact(
+          options.id,
+          briefingPutSchema.parse(await readJson(options.file)),
+        ),
+      ),
+    );
+  briefing
+    .command("propose")
+    .requiredOption("--id <id>")
+    .requiredOption("--file <path>")
+    .action(async (options: { id: string; file: string }) =>
+      printBriefing(
+        await (await briefingClient()).propose(
+          options.id,
+          briefingProposalRequestSchema.parse(await readJson(options.file)),
+        ),
+      ),
+    );
+  briefing
+    .command("apply")
+    .requiredOption("--id <id>")
+    .requiredOption("--proposal <proposal>")
+    .requiredOption("--revision <revision>")
+    .action(
+      async (options: { id: string; proposal: string; revision: string }) =>
+        printBriefing(
+          await (await briefingClient()).apply(
+            options.id,
+            briefingApplySchema.parse({
+              proposalId: options.proposal,
+              expectedRevision: revision(options.revision),
+            }),
+          ),
+        ),
+    );
+  briefing
+    .command("save")
+    .requiredOption("--id <id>")
+    .requiredOption("--revision <revision>")
+    .requiredOption("--request-id <requestId>")
+    .action(
+      async (options: { id: string; revision: string; requestId: string }) =>
+        printBriefing(
+          await (await briefingClient()).save(
+            options.id,
+            briefingSaveSchema.parse({
+              expectedRevision: revision(options.revision),
+              requestId: options.requestId,
+            }),
+          ),
+        ),
+    );
+  briefing.command("open").action(async () => {
+    printBriefing(
+      await (
+        await createConfiguredPlaygroundControlClient(globalOptions(program))
+      ).set({ view: "interview-preparation" }),
+    );
+  });
 
   program
     .command("ask")

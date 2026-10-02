@@ -35,6 +35,7 @@
     "@oc-tech/omni-ui-components": "link:../../../omni-ui-components/packages/core",
     "@omnitech/ai-sdk": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
+    "@omnitech/interview-api-client": "workspace:*",
     "@omnitech/interview-contracts": "workspace:*",
     "@omnitech/interview-library": "workspace:*",
     "@omnitech/interview-playground-control": "workspace:*",

@@ -1,4 +1,8 @@
-import { createInterviewApiClient } from "@omnitech/interview-api-client";
+import {
+  createBriefingClient,
+  createInterviewApiClient,
+} from "@omnitech/interview-api-client";
+import type { BriefingClient } from "@omnitech/interview-api-client";
 import {
   createPlaygroundControlClient,
   type PlaygroundControlClient,
@@ -10,6 +14,23 @@ import type { InterviewAnswersClient } from "./public-types.js";
 export interface CreateConfiguredClientOptions {
   token?: string;
   url?: string;
+}
+
+export async function createConfiguredBriefingClient(
+  options: CreateConfiguredClientOptions & { tenant?: string } = {},
+): Promise<BriefingClient> {
+  const config = await readConfig();
+  const token =
+    options.token ?? process.env["INTERVIEW_API_TOKEN"] ?? config.token;
+  return createBriefingClient({
+    baseUrl:
+      options.url ??
+      process.env["INTERVIEW_API_URL"] ??
+      config.url ??
+      "http://127.0.0.1:3000",
+    tenant: options.tenant ?? "local",
+    ...(token === undefined ? {} : { token }),
+  });
 }
 
 export async function createConfiguredClient(

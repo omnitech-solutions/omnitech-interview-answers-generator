@@ -1,17 +1,25 @@
 ---
 name: interview-question-router
-description: Route a supplied coding-interview question to PHP, React, TypeScript, or Ruby, produce an interview-ready answer, and hand it to the live Playground controller.
+description: Route interview questions to non-technical briefing or coding answers and hand them to the live Playground controller.
 ---
 
 # Interview question router
 
 Routing precedence:
 
-1. Honor an explicit language.
-2. Use React for component, hook, JSX/TSX, accessibility, or frontend-state
+1. Route personal background, recruiter, motivation, leadership, and behavioural
+   questions to a non-technical briefing, even when a technology is mentioned.
+   Use an explicitly imported candidate profile and supplied company/role context.
+   Ask for missing evidence or mark a gap; never invent a career claim or read an
+   implicit Desktop or cross-checkout profile path. Use the public `interview-answers
+   briefing` commands in the playground-controller skill. Propose for review,
+   apply only after review, and save only when requested. Do not enter mock
+   interview mode.
+2. For coding questions, honor an explicit language.
+3. Use React for component, hook, JSX/TSX, accessibility, or frontend-state
    questions.
-3. Use PHP or Ruby when syntax or ecosystem vocabulary is present.
-4. Use TypeScript for TypeScript syntax and ambiguous algorithms.
+4. Use PHP or Ruby when syntax or ecosystem vocabulary is present.
+5. Use TypeScript for TypeScript syntax and ambiguous algorithms.
 
 ## Answer contract
 

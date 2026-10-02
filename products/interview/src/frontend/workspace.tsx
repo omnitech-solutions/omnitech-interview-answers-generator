@@ -1,9 +1,5 @@
 "use client";
 
-import type { ProductPageProps } from "@omnitech/platform-contracts";
-import { AssistantPanel } from "@omnitech-assistant/react";
-import type { AssistantClient } from "@omnitech-assistant/sdk";
-import type { Origin } from "@omnitech-assistant/contracts";
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
 import {
@@ -28,6 +24,10 @@ import type {
   SavedAnswer,
 } from "@omnitech/interview-contracts";
 import type { PlaygroundSnapshot } from "@omnitech/interview-playground-control";
+import type { ProductPageProps } from "@omnitech/platform-contracts";
+import type { Origin } from "@omnitech-assistant/contracts";
+import { AssistantPanel } from "@omnitech-assistant/react";
+import type { AssistantClient } from "@omnitech-assistant/sdk";
 import CodeMirror from "@uiw/react-codemirror";
 import React, {
   useCallback,
@@ -36,7 +36,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import {
   createAgentJob,
   type ExecutionTarget,
@@ -44,6 +43,7 @@ import {
 } from "./agent-jobs";
 import { type ConceptDraft, ConceptLab } from "./concept-lab";
 import { formatTimestamp } from "./format-timestamp";
+import { InterviewPreparation } from "./interview-preparation";
 import { MarkdownContent } from "./markdown-content";
 import { MockInterview } from "./mock-interview";
 import { StudioTextarea } from "./studio-controls";
@@ -297,10 +297,25 @@ interface CanonicalDraft {
 }
 export function Workspace({
   assistant,
-}: { assistant?: WorkspaceAssistant } & Partial<ProductPageProps> = {}) {
+  onPreparationDirtyChange,
+}: {
+  assistant?: WorkspaceAssistant;
+  onPreparationDirtyChange?: (dirty: boolean) => void;
+} & Partial<ProductPageProps> = {}) {
   const [activeView, setActiveView] = useState<
-    "playground" | "concept-lab" | "mock-interview"
+    "playground" | "concept-lab" | "mock-interview" | "interview-preparation"
   >("playground");
+  const preparationDirty = useRef(false);
+  const [pendingView, setPendingView] = useState<
+    "playground" | "concept-lab" | "mock-interview" | "interview-preparation"
+  >();
+  const preparationChanged = useCallback(
+    (dirty: boolean) => {
+      preparationDirty.current = dirty;
+      onPreparationDirtyChange?.(dirty);
+    },
+    [onPreparationDirtyChange],
+  );
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [externalConcepts, setExternalConcepts] = useState<ConceptDraft[]>([]);
   const [externalMockControl, setExternalMockControl] =
@@ -448,18 +463,34 @@ export function Workspace({
     const requestedView = new URLSearchParams(window.location.search).get(
       "view",
     );
-    if (requestedView === "concept-lab" || requestedView === "mock-interview")
+    if (
+      requestedView === "concept-lab" ||
+      requestedView === "mock-interview" ||
+      requestedView === "interview-preparation"
+    )
       setActiveView(requestedView);
   }, []);
 
   function selectWorkspace(
-    view: "playground" | "concept-lab" | "mock-interview",
+    view:
+      | "playground"
+      | "concept-lab"
+      | "mock-interview"
+      | "interview-preparation",
   ) {
+    if (
+      activeView === "interview-preparation" &&
+      preparationDirty.current &&
+      view !== activeView
+    ) {
+      setPendingView(view);
+      return;
+    }
     setActiveView(view);
     window.history.replaceState(
       {},
       "",
-      view === "playground" ? "/" : `/?view=${view}`,
+      `${window.location.pathname}?${new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(window.location.search)), view }).toString()}`,
     );
   }
 
@@ -650,6 +681,7 @@ export function Workspace({
         });
         if (
           !active ||
+          preparationDirty.current ||
           snapshot.revision <= appliedControlRevision.current ||
           (localEdits.current && snapshot.revision === 0)
         ) {
@@ -665,7 +697,8 @@ export function Workspace({
         setRefinementRequest("");
         setExampleId("");
         setNotes(snapshot.value.notes);
-        setActiveView(snapshot.value.view ?? "playground");
+        if (snapshot.revision > 0)
+          setActiveView(snapshot.value.view ?? "playground");
         setExternalConcepts(
           snapshot.value.explanations ??
             (snapshot.value.explanation ? [snapshot.value.explanation] : []),
@@ -1164,7 +1197,11 @@ export function Workspace({
               </label>
             ) : (
               <div className="topbar-view-title">
-                {activeView === "concept-lab" ? "Briefing" : "Rehearsal"}
+                {activeView === "interview-preparation"
+                  ? "Interview preparation"
+                  : activeView === "concept-lab"
+                    ? "Briefing"
+                    : "Rehearsal"}
               </div>
             )}
             {activeView === "playground" ? (
@@ -1335,7 +1372,37 @@ export function Workspace({
             />
           ) : null}
 
-          {activeView === "concept-lab" ? (
+          {pendingView && (
+            <div
+              role="dialog"
+              aria-label="Unsaved preparation"
+              className="concept-answer-card"
+            >
+              <p>
+                Your preparation has unsaved changes. Stay to Save, or discard
+                local changes and leave.
+              </p>
+              <button type="button" onClick={() => setPendingView(undefined)}>
+                Stay and save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  preparationChanged(false);
+                  selectWorkspace(pendingView);
+                  setPendingView(undefined);
+                }}
+              >
+                Discard and leave
+              </button>
+            </div>
+          )}
+          {activeView === "interview-preparation" ? (
+            <InterviewPreparation
+              artifactId={assistant?.artifactId ?? "preparation"}
+              onDirtyChange={preparationChanged}
+            />
+          ) : activeView === "concept-lab" ? (
             <div
               className={`studio-body ${inspectorOpen ? "inspector-visible" : ""}`}
             >

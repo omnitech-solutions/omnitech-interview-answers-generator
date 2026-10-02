@@ -33,7 +33,11 @@ import {
   interviewDraftPatchSchema,
 } from "@omnitech/product-interview/assistant";
 import { DockerCodeRunner } from "@omnitech/code-runner";
-import { createInterviewApi } from "@omnitech/product-interview/backend";
+import {
+  createBriefingApi,
+  loadLocalDefaultProfile,
+  createInterviewApi,
+} from "@omnitech/product-interview/backend";
 import {
   createAiExecutionGateway,
   createGatewayModelPort,
@@ -94,6 +98,7 @@ await admin.query(await readFile(assistantMigrationUrl, "utf8"));
 for (const file of [
   "0004_assistant_interview.sql",
   "0005_assistant_provenance.sql",
+  "0006_interview_briefings.sql",
 ])
   await admin.query(
     await readFile(
@@ -187,7 +192,7 @@ const gateway = createAiExecutionGateway({
       label: "Local interview",
       family: "direct-model",
       targetId,
-      taskTypes: ["structured-chat"],
+      taskTypes: ["structured-chat", "structured-generation"],
       enabled: true,
     },
   ],
@@ -419,6 +424,30 @@ app.route(
     resolveScope: async () => scope,
     allowedOrigins: new Set(["http://127.0.0.1:5175"]),
   }),
+);
+const briefingApi = createBriefingApi({
+  database,
+  loadDefaultProfile: () => loadLocalDefaultProfile(),
+  allowedOrigins: ["http://127.0.0.1:5175", "http://127.0.0.1:8791"],
+  resolveScope: async () => ((await readable(scope)) ? scope : null),
+  generate: async (input, current) => {
+    if (fixture)
+      throw new Error("Briefing generation requires a configured model.");
+    const result = await gateway.execute({
+      context: {
+        tenantId: current.tenantId,
+        userId: current.actorId,
+        productId: current.productId,
+        permissions: ["interview.generate"],
+      },
+      profileId: "local-interview",
+      task: { type: "structured-generation", ...input },
+    });
+    return result.result;
+  },
+});
+app.all("/api/interview/briefing/*", (context) =>
+  briefingApi.fetch(context.req.raw),
 );
 const path = "/api/interview/workspaces/:workspace/artifacts/:artifact";
 const originFor = (c: Context) =>

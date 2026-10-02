@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { BriefingDraft } from "@omnitech/interview-contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import * as workspace from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
@@ -25,6 +26,51 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await pg?.close();
+});
+
+it("saves a complete briefing without a coding answer and rejects mixed draft kinds", async () => {
+  const briefing: BriefingDraft = {
+    kind: "non-technical-briefing",
+    title: "Recruiter",
+    context: {
+      company: "Acme",
+      role: "Engineer",
+      stage: "recruiter",
+      profile: { id: "p", revision: 1 },
+    },
+    questions: [
+      {
+        id: "q",
+        question: "Tell me about yourself",
+        category: "background",
+        answerMarkdown: "I build systems.",
+        talkingPoints: ["systems", "teams", "delivery"],
+        evidenceRefs: [],
+        gaps: [],
+      },
+    ],
+  };
+  const artifactId = "briefing-workspace-test";
+  const created = await repo.create(
+    scope,
+    { workspaceId: "briefings", artifactId, artifactRevision: 0 },
+    { question: "Recruiter", briefing },
+  );
+  expect(created.value.briefing).toEqual(briefing);
+  const saved = await repo.save(scope, created.origin, "briefing-save-test");
+  expect(saved.value.briefing).toEqual(briefing);
+  await expect(
+    repo.edit(scope, created.origin, {
+      answer: {
+        title: "Mixed",
+        language: "typescript",
+        answerMarkdown: "x",
+        code: "x",
+        usageCode: "",
+        testCode: "",
+      },
+    }),
+  ).rejects.toThrow();
 });
 
 it("exposes a scoped durable workspace repository rather than the process-global playground", () => {

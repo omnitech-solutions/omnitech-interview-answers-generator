@@ -845,6 +845,9 @@ importers:
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
+      '@omnitech/interview-api-client':
+        specifier: workspace:*
+        version: link:../../packages/interview-api-client
       '@omnitech/interview-contracts':
         specifier: workspace:*
         version: link:../../packages/interview-contracts

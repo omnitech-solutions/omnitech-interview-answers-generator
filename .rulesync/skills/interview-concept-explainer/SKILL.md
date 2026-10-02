@@ -26,13 +26,25 @@ Treat the supplied arguments as the exact topic or interview question.
 4. When calibrating a batch of questions or assessment coverage, read
    [references/assessment-question-matrix.md](references/assessment-question-matrix.md).
    It is an evaluation matrix, not content that must be repeated in an answer.
-5. For candidate examples, use the matrix supplied by the user when present;
-   otherwise inspect
-   `/Users/desoleary/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json`.
-   Treat it as authoritative. Never invent a company, system, technology,
-   outcome, or metric.
+5. For candidate examples, use only an explicitly supplied or imported profile.
+   Use `interview-answers briefing profiles` to inspect available profiles, then
+   request a profile choice if ambiguous. Never read an implicit Desktop or
+   cross-checkout path, and never invent a company, system, technology, outcome,
+   or metric. Mark evidence gaps clearly.
+
+For personal background, recruiter, leadership, motivation, or behavioural
+questions, use a non-technical briefing. Give a concise spoken answer, an
+evidence-backed mini-STAR where useful, and exactly three practical talking
+points. Do not force a code example. Keep proposal, review, apply, and save as
+separate steps through the public briefing CLI. Do not use mock interview mode.
 
 ## Output contract
+
+For non-technical personal, recruiter, or behavioural briefings, use the
+`BriefingDraft` contract through the briefing CLI. Its answers remain concise
+spoken Markdown with exactly three talking points, evidence references, and
+explicit gaps. The Concept Lab code-example shape below applies only to
+technical concept explanations.
 
 Use exactly this outer Markdown shape:
 
@@ -66,7 +78,7 @@ Use exactly this outer Markdown shape:
   words total** for a multi-part question.
 - Always include exactly **3 short Talking points**: details the candidate can
   say if probed, not new essay sections.
-- Always include exactly **one valid, syntax-highlighted fenced code example**.
+- For technical concepts, include exactly **one valid, syntax-highlighted fenced code example**.
   Use the requested language, React/TypeScript for frontend concepts, and
   TypeScript when the language is otherwise ambiguous.
 - Bold only the key domain terms, decisions, invariants, and complexity. Put

@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 
 export type StudioWorkspace =
   | "playground"
+  | "interview-preparation"
   | "concept-lab"
   | "mock-interview"
   | "library";
@@ -23,6 +24,12 @@ const workspaces = [
     href: "./workspace?view=concept-lab",
     title: "Briefing",
     description: "Prepare concise talking points",
+  },
+  {
+    id: "interview-preparation",
+    href: "./workspace?view=interview-preparation",
+    title: "Interview preparation",
+    description: "Prepare evidence-backed spoken answers",
   },
   {
     id: "library",
@@ -121,7 +128,11 @@ export function StudioNavigation({
 }: {
   active: StudioWorkspace;
   onSelect?: (
-    workspace: "playground" | "concept-lab" | "mock-interview",
+    workspace:
+      | "playground"
+      | "concept-lab"
+      | "mock-interview"
+      | "interview-preparation",
   ) => void;
   onClose: () => void;
 }) {

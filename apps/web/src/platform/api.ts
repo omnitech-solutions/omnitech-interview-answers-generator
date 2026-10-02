@@ -1,6 +1,11 @@
 import { createPlatformApi } from "@omnitech/platform-api";
 import { getPlatformDatabase } from "@omnitech/platform-storage";
-import { createInterviewApi } from "@omnitech/product-interview/backend";
+import {
+  briefingScope,
+  createBriefingApi,
+  loadLocalDefaultProfile,
+  createInterviewApi,
+} from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
@@ -51,6 +56,60 @@ export function createApplicationApi() {
     );
   });
   api.route("/", createInterviewApi());
+  if (process.env["DATABASE_URL"] && ai) {
+    const platformDatabase = getPlatformDatabase();
+    api.route(
+      "/",
+      createBriefingApi({
+        loadDefaultProfile: async (scope) => {
+          if (
+            process.env["NODE_ENV"] === "production" ||
+            process.env["FAKE_AUTH_ENABLED"] !== "true"
+          )
+            return null;
+          const local = briefingScope(
+            await resolvePlatformContext("local"),
+            "local",
+            "POST",
+          );
+          return local?.actorId === scope.actorId &&
+            local?.tenantId === scope.tenantId
+            ? loadLocalDefaultProfile()
+            : null;
+        },
+        database: {
+          tenantTransaction: (tenantId, fn) =>
+            platformDatabase.tenantTransaction(tenantId, (tx) =>
+              fn({
+                query: async (sql, values) =>
+                  (await tx.query(sql, values ? [...values] : undefined)).rows,
+              }),
+            ),
+        },
+        resolveScope: async (request) => {
+          const tenant = new URL(request.url).searchParams.get("tenant") ?? "";
+          return briefingScope(
+            await resolvePlatformContext(tenant),
+            tenant,
+            request.method,
+          );
+        },
+        generate: async (input, scope) => {
+          const result = await ai.execute({
+            context: {
+              tenantId: scope.tenantId,
+              userId: scope.actorId,
+              productId: scope.productId,
+              permissions: ["interview.read", "interview.write"],
+            },
+            profileId: "document-fast",
+            task: { type: "structured-generation", ...input },
+          });
+          return result.result;
+        },
+      }),
+    );
+  }
   if (process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production") {
     api.route("/api", createAgentApi());
     api.route(
