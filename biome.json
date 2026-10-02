@@ -7,6 +7,7 @@
       "!**/.next",
       "!**/.data",
       "!.assistant-local",
+      "!.dev-local",
       "!**/dist",
       "!**/.turbo",
       "!coverage",
