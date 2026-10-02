@@ -103,7 +103,7 @@ it("rolls back the whole unit of work on error", async () => {
   expect(rows).toEqual([]);
 });
 
-it("supports typed relational queries with schema", async () => {
+it("exposes typed query-builder selects on the tenant handle", async () => {
   const notesTable = pgTable("notes", {
     tenantId: uuid("tenant_id").notNull(),
     body: text("body").notNull(),
@@ -121,4 +121,51 @@ it("supports typed relational queries with schema", async () => {
   );
 
   expect(rows).toEqual([{ tenantId: A, body: "a" }]);
+});
+
+it("nests db.transaction() as a savepoint that keeps the tenant", async () => {
+  const seen = await withTenant(
+    { tenantId: A, actorId: actor },
+    async (db) => {
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`INSERT INTO notes VALUES (${A}, 'nested')`);
+      });
+      const setting = await db.execute(
+        sql`SELECT current_setting('app.tenant_id', true) AS t`,
+      );
+      const visible = await db.execute(
+        sql`SELECT body FROM notes WHERE body = 'nested'`,
+      );
+      return { tenant: setting.rows[0]?.["t"], rows: visible.rows };
+    },
+    opts(),
+  );
+  expect(seen).toEqual({ tenant: A, rows: [{ body: "nested" }] });
+});
+
+it("rolls back only the failed nested savepoint", async () => {
+  await withTenant(
+    { tenantId: A, actorId: actor },
+    async (db) => {
+      await expect(
+        db.transaction(async (tx) => {
+          await tx.execute(sql`INSERT INTO notes VALUES (${A}, 'inner')`);
+          throw new Error("inner boom");
+        }),
+      ).rejects.toThrow("inner boom");
+      await db.execute(sql`INSERT INTO notes VALUES (${A}, 'outer')`);
+    },
+    opts(),
+  );
+  const rows = await withTenant(
+    { tenantId: A, actorId: actor },
+    async (db) =>
+      (
+        await db.execute(
+          sql`SELECT body FROM notes WHERE body IN ('inner', 'outer')`,
+        )
+      ).rows,
+    opts(),
+  );
+  expect(rows).toEqual([{ body: "outer" }]);
 });
