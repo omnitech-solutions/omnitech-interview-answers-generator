@@ -2,6 +2,7 @@
 @import "./home/home.css";
 @import "./briefings/briefings.css";
 @import "./knowledge.css";
+@import "./rehearsal/rehearsal.css";
 
 /* Interview Studio design tokens and shell styles.
    Tokens are scoped to the host side of the assistant root (.oa-host) and to

@@ -1,0 +1,475 @@
+/* Rehearsal (redesign sub-project 6). Uses the studio tokens. */
+
+.rehearsal-setup,
+.rehearsal-score {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.rehearsal-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.rehearsal-muted {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.rehearsal-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 13.5px;
+}
+
+/* Setup */
+.rehearsal-formats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 10px;
+}
+.rehearsal-format {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.rehearsal-format.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.rehearsal-format-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+}
+.rehearsal-format-head .studio-icon {
+  color: var(--accent);
+}
+.rehearsal-split {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+.rehearsal-split span {
+  border-radius: 3px;
+}
+.rehearsal-split .concept {
+  background: var(--accent);
+}
+.rehearsal-split .coding {
+  background: var(--green);
+}
+.rehearsal-options {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.rehearsal-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+.rehearsal-option + .rehearsal-option,
+.rehearsal-pickers + .rehearsal-option {
+  border-top: 1px solid var(--border-soft);
+}
+.rehearsal-option-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+.rehearsal-pickers {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+.rehearsal-pickers label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.rehearsal-pickers select {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-field, var(--surface));
+}
+.rehearsal-switch {
+  flex: none;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: pointer;
+  display: flex;
+}
+.rehearsal-switch span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 0.15s;
+}
+.rehearsal-switch.on {
+  background: var(--accent);
+}
+.rehearsal-switch.on span {
+  transform: translateX(16px);
+}
+.rehearsal-start {
+  align-self: flex-start;
+  height: 38px;
+  padding: 0 16px 0 12px;
+  font-size: 14px;
+}
+.rehearsal-start:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Live */
+.rehearsal-live {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.rehearsal-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.rehearsal-phase {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.rehearsal-phase.concept {
+  color: var(--accent);
+}
+.rehearsal-phase.coding {
+  color: var(--green);
+}
+.rehearsal-progress {
+  flex: 1;
+  min-width: 120px;
+}
+.rehearsal-tracks {
+  display: flex;
+  gap: 3px;
+}
+.rehearsal-tracks .track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+.rehearsal-tracks .track > div {
+  height: 100%;
+}
+.rehearsal-tracks .concept {
+  background: var(--accent);
+}
+.rehearsal-tracks .coding {
+  background: var(--green);
+}
+.rehearsal-clock {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rehearsal-clock.soon {
+  color: var(--amber);
+}
+.rehearsal-clock.last {
+  color: var(--red);
+}
+.rehearsal-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 13.5px;
+  background: var(--subtle);
+  border-bottom: 1px solid var(--border-soft);
+}
+.rehearsal-banner.soon {
+  background: var(--amber-soft);
+}
+.rehearsal-banner.last {
+  background: var(--red-soft);
+}
+.rehearsal-columns {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 20px;
+  padding: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .rehearsal-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.rehearsal-question {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.rehearsal-question h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+.rehearsal-eyebrow {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.rehearsal-statement {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+.rehearsal-example {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+}
+.rehearsal-question textarea,
+.rehearsal-complexity input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-field, var(--surface));
+  resize: vertical;
+}
+.rehearsal-question textarea.rehearsal-code {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 13px;
+  background: var(--code-bg);
+}
+.rehearsal-complexity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.rehearsal-complexity input {
+  flex: 1;
+  height: 34px;
+}
+.rehearsal-followups {
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.rehearsal-followups p {
+  margin: 0;
+  font-style: italic;
+}
+.rehearsal-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rehearsal-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rehearsal-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 0 4px 6px;
+}
+.rehearsal-card-head > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rehearsal-reveal button,
+.rehearsal-check {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.rehearsal-reveal button:hover:not(:disabled),
+.rehearsal-check:hover {
+  background: var(--hover);
+}
+.rehearsal-reveal button > span:nth-child(2) {
+  flex: 1;
+}
+.rehearsal-reveal button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+.rehearsal-reveal pre {
+  margin: 0 0 6px 30px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--subtle);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: auto;
+}
+.rehearsal-check .box {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+}
+.rehearsal-check.on .box {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--surface);
+}
+.rehearsal-check .box .studio-icon {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+}
+
+/* Score */
+.rehearsal-score-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.rehearsal-ring {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 6px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.rehearsal-ring .value {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+}
+.rehearsal-ring.good {
+  border-color: var(--green);
+}
+.rehearsal-ring.warn {
+  border-color: var(--amber);
+}
+.rehearsal-ring.bad {
+  border-color: var(--red);
+}
+.rehearsal-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.rehearsal-stats > div {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.rehearsal-stats dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rehearsal-stats dd {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.rehearsal-next {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.rehearsal-next:hover {
+  background: var(--subtle);
+}
+.rehearsal-next > span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rehearsal-next .title {
+  font-weight: 500;
+  font-size: 13.5px;
+}
+.rehearsal-actions {
+  display: flex;
+  gap: 10px;
+}

@@ -28,6 +28,7 @@ import { viewById } from "./config/views";
 import {
   StudioContext,
   type StudioContextValue,
+  type StudioFocus,
   type StudioViewBinding,
 } from "./context";
 import { Icon } from "./icon";
@@ -70,6 +71,7 @@ export function Studio({ assistant }: StudioProps) {
   const [binding, setBinding] = useState<StudioViewBinding>({});
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [focus, setFocus] = useState<StudioFocus>(null);
   const preparationDirty = useRef(false);
   const dock = useDockWidth();
 
@@ -98,6 +100,7 @@ export function Studio({ assistant }: StudioProps) {
       headerSlot,
       bindView,
       refreshLists: lists.refresh,
+      setFocus,
     }),
     [theme, toggleTheme, headerSlot, bindView, lists.refresh],
   );
@@ -167,6 +170,7 @@ export function Studio({ assistant }: StudioProps) {
             route={route}
             lists={lists}
             theme={theme}
+            focus={focus}
             paletteOpen={paletteOpen}
             setPaletteOpen={setPaletteOpen}
             setHeaderSlot={setHeaderSlot}
@@ -199,6 +203,7 @@ function StudioFrame({
   route,
   lists,
   theme,
+  focus,
   paletteOpen,
   setPaletteOpen,
   setHeaderSlot,
@@ -211,6 +216,7 @@ function StudioFrame({
   route: ReturnType<typeof useStudioRoute>["route"];
   lists: ReturnType<typeof useStudioLists>;
   theme: "light" | "dark";
+  focus: StudioFocus;
   paletteOpen: boolean;
   setPaletteOpen(open: boolean): void;
   setHeaderSlot(slot: HTMLElement | null): void;
@@ -225,6 +231,20 @@ function StudioFrame({
   const width = useWindowWidth();
   const rail =
     width < RAIL_WIDTH || (host.open && width < RAIL_WIDTH_WITH_ASSISTANT);
+  // [GUARD] A rehearsal starts with the assistant closed; strict mode keeps
+  // it closed for the whole session.
+  const { open: assistantOpen, toggle: toggleAssistant } = host;
+  const focused = focus !== null;
+  const closedForFocus = useRef(false);
+  useEffect(() => {
+    if (!focused) {
+      closedForFocus.current = false;
+      return;
+    }
+    if (assistantOpen && (focus === "strict" || !closedForFocus.current))
+      toggleAssistant();
+    closedForFocus.current = true;
+  }, [focused, focus, assistantOpen, toggleAssistant]);
   const actions: StudioActions = {
     go: (next) => leave({ view: next }),
     openArtifact: (artifact) => leave({ view: "work", artifact }),
@@ -279,20 +299,24 @@ function StudioFrame({
   ];
 
   return (
-    <div className={`studio-frame${rail ? " rail" : ""}`}>
-      <Sidebar
-        view={route.view}
-        artifact={route.artifact}
-        lists={lists}
-        theme={theme}
-        onGo={actions.go}
-        onOpenArtifact={actions.openArtifact}
-        onOpenPalette={() => {
-          lists.refresh();
-          setPaletteOpen(true);
-        }}
-        onToggleTheme={toggleTheme}
-      />
+    <div
+      className={`studio-frame${rail ? " rail" : ""}${focused ? " focus" : ""}`}
+    >
+      {!focused && (
+        <Sidebar
+          view={route.view}
+          artifact={route.artifact}
+          lists={lists}
+          theme={theme}
+          onGo={actions.go}
+          onOpenArtifact={actions.openArtifact}
+          onOpenPalette={() => {
+            lists.refresh();
+            setPaletteOpen(true);
+          }}
+          onToggleTheme={toggleTheme}
+        />
+      )}
       <main className="studio-main">
         <header className="studio-header">
           <span className="studio-header-title">{view.label}</span>
@@ -300,16 +324,18 @@ function StudioFrame({
           <span className="studio-sees" title="What the assistant can see">
             sees: {view.assistantContext}
           </span>
-          <button
-            type="button"
-            className={`studio-button studio-assistant-toggle${host.open ? " open" : ""}`}
-            aria-pressed={host.open}
-            title={`Assistant (${host.shortcut})`}
-            onClick={host.toggle}
-          >
-            <Icon name="auto_awesome" />
-            Assistant
-          </button>
+          {focus !== "strict" && (
+            <button
+              type="button"
+              className={`studio-button studio-assistant-toggle${host.open ? " open" : ""}`}
+              aria-pressed={host.open}
+              title={`Assistant (${host.shortcut})`}
+              onClick={host.toggle}
+            >
+              <Icon name="auto_awesome" />
+              Assistant
+            </button>
+          )}
         </header>
         <div className="studio-view">{renderView(actions)}</div>
       </main>

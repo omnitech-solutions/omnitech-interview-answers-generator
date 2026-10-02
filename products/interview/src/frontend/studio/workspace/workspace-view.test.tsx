@@ -192,6 +192,7 @@ function renderView() {
           return () => undefined;
         },
         refreshLists,
+        setFocus: () => undefined,
       }}
     >
       <WorkspaceView

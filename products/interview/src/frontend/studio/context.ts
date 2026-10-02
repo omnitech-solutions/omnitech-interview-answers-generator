@@ -3,6 +3,9 @@ import type { HostHooks } from "@omnitech-assistant/react";
 import { createContext, useContext } from "react";
 
 export type StudioTheme = "light" | "dark";
+// A live rehearsal hides the sidebar; strict mode also keeps the assistant
+// closed.
+export type StudioFocus = "live" | "strict" | null;
 
 // What a mounted view lends the shell: the assistant draft it edits, and the
 // actions the shell's commands can trigger in it. Hooks are read through a
@@ -21,6 +24,7 @@ export type StudioContextValue = {
   // Returns the unbind function; the latest binding wins.
   bindView(binding: StudioViewBinding): () => void;
   refreshLists(): void;
+  setFocus(focus: StudioFocus): void;
 };
 
 export const StudioContext = createContext<StudioContextValue | null>(null);

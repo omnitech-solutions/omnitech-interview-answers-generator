@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Library } from "../../library";
-import { MockInterview } from "../../mock-interview";
 import {
   type WorkspaceAssistant,
   WorkspaceView,
 } from "../workspace/workspace-view";
 import { BriefingsView } from "../briefings/briefings-view";
 import { HomeView } from "../home/home-view";
+import { RehearsalView } from "../rehearsal/rehearsal-view";
 import type { IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
 import type { StudioRoute, ViewId } from "../use-studio-route";
@@ -88,7 +88,13 @@ export const views: readonly ViewDefinition[] = [
     icon: "timer",
     goKey: "R",
     assistantContext: "nothing (rehearsal)",
-    render: () => <MockInterview />,
+    render: ({ assistant, actions, lists }) => (
+      <RehearsalView
+        actions={actions}
+        lists={lists}
+        workspaceId={assistant.workspaceId}
+      />
+    ),
   },
 ];
 

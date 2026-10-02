@@ -89,8 +89,24 @@ vi.mock("../library", () => ({
     return <div>Library at {basePath}</div>;
   },
 }));
-vi.mock("../mock-interview", () => ({
-  MockInterview: () => <div>Rehearsal session</div>,
+vi.mock("./rehearsal/rehearsal-view", () => ({
+  RehearsalView: () => {
+    const studio = useStudio();
+    return (
+      <div>
+        Rehearsal session
+        <button type="button" onClick={() => studio?.setFocus("live")}>
+          Go live
+        </button>
+        <button type="button" onClick={() => studio?.setFocus("strict")}>
+          Go strict
+        </button>
+        <button type="button" onClick={() => studio?.setFocus(null)}>
+          Leave focus
+        </button>
+      </div>
+    );
+  },
 }));
 
 const questions = [
@@ -398,6 +414,22 @@ describe("Studio shell", () => {
     views.throwLibrary = false;
     fireEvent.click(screen.getByRole("button", { name: "Reload view" }));
     expect(screen.getByText(/Library at/)).toBeVisible();
+  });
+
+  it("steps the sidebar aside for a live rehearsal and keeps strict mode assistant-free", async () => {
+    host.state = { ...host.state, open: true };
+    await renderStudio("/t/local/p/interview/rehearsal");
+    // A live session closes the open assistant once, and hides the sidebar.
+    fireEvent.click(screen.getByRole("button", { name: "Go live" }));
+    expect(host.state.toggle).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /Knowledge/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Assistant/ })).toBeVisible();
+    // Strict mode hides the toggle and keeps closing the assistant.
+    fireEvent.click(screen.getByRole("button", { name: "Go strict" }));
+    expect(screen.queryByRole("button", { name: /^Assistant/ })).toBeNull();
+    expect(host.state.toggle).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Leave focus" }));
+    expect(screen.getByRole("button", { name: /Knowledge/ })).toBeVisible();
   });
 
   it("resizes the assistant dock by dragging or with the keyboard, and remembers it", async () => {

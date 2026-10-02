@@ -94,6 +94,20 @@ export {
   planItemStatusSchema,
   planResponseSchema,
 } from "./plan.js";
+export {
+  CHECK_POINTS,
+  REVEAL_COST,
+  type RehearsalFormat,
+  type RehearsalReveal,
+  type RehearsalSession,
+  type RehearsalSessionInput,
+  rehearsalFormatSchema,
+  rehearsalListResponseSchema,
+  rehearsalRevealSchema,
+  rehearsalScore,
+  rehearsalSessionInputSchema,
+  rehearsalSessionSchema,
+} from "./rehearsal.js";
 export { routeQuestion } from "./routing.js";
 export type {
   ApiError,

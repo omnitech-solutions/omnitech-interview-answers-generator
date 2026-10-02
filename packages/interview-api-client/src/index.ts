@@ -20,6 +20,10 @@ export {
   createBriefsClient,
 } from "./briefs.js";
 export {
+  createRehearsalClient,
+  type RehearsalClient,
+} from "./rehearsal.js";
+export {
   createPlanClient,
   type PlanClient,
   type PlanClientOptions,

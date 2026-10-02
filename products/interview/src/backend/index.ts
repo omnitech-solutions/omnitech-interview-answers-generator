@@ -27,5 +27,6 @@ export { briefingScope } from "./briefing-access.js";
 export { createBriefingApi } from "./briefing/api.js";
 export { createBriefsApi } from "./briefs/api.js";
 export { createPlanApi } from "./plan/api.js";
+export { createRehearsalApi, rehearsalStatus } from "./rehearsal/api.js";
 
 export { loadLocalDefaultProfile } from "./local-default-profile.js";

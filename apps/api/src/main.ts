@@ -38,7 +38,9 @@ import {
   createBriefingApi,
   createBriefsApi,
   createPlanApi,
+  createRehearsalApi,
   loadLocalDefaultProfile,
+  rehearsalStatus,
   createInterviewApi,
 } from "@omnitech/product-interview/backend";
 import {
@@ -106,6 +108,7 @@ for (const file of [
   "0007_assistant_reverts.sql",
   "0008_interview_plans.sql",
   "0009_concept_briefs.sql",
+  "0010_rehearsal_sessions.sql",
 ])
   await admin.query(
     await readFile(
@@ -437,6 +440,7 @@ app.route(
 const planApi = createPlanApi({
   database,
   questionsWorkspace: "interview",
+  rehearsalStatus: rehearsalStatus(database),
   allowedOrigins: ["http://127.0.0.1:5175"],
   resolveScope: async () => ((await readable(scope)) ? scope : null),
 });
@@ -469,6 +473,18 @@ const briefsApi = createBriefsApi({
 app.all("/api/interview/briefs", (context) => briefsApi.fetch(context.req.raw));
 app.all("/api/interview/briefs/*", (context) =>
   briefsApi.fetch(context.req.raw),
+);
+// Scored rehearsals; the plan's rehearsal items report the latest score.
+const rehearsalApi = createRehearsalApi({
+  database,
+  allowedOrigins: ["http://127.0.0.1:5175"],
+  resolveScope: async () => ((await readable(scope)) ? scope : null),
+});
+app.all("/api/interview/rehearsals", (context) =>
+  rehearsalApi.fetch(context.req.raw),
+);
+app.all("/api/interview/rehearsals/*", (context) =>
+  rehearsalApi.fetch(context.req.raw),
 );
 const briefingApi = createBriefingApi({
   database,

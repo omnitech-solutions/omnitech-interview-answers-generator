@@ -9,7 +9,7 @@ vi.mock("../../interview-preparation", () => ({
   InterviewPreparation: () => null,
 }));
 vi.mock("../../library", () => ({ Library: () => null }));
-vi.mock("../../mock-interview", () => ({ MockInterview: () => null }));
+vi.mock("../rehearsal/rehearsal-view", () => ({ RehearsalView: () => null }));
 
 describe("view registry", () => {
   it("has one entry per routable view with unique ids and G keys", () => {
