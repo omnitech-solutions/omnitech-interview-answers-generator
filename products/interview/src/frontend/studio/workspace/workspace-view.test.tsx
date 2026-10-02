@@ -463,6 +463,34 @@ describe("WorkspaceView: a guided answer", () => {
     );
   });
 
+  it("resizes the results panel and remembers its height", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+    });
+    renderView();
+    await screen.findByText(/Find two numbers/);
+    const results = () => screen.getByRole("region", { name: "Results" });
+    const handle = screen.getByRole("separator", { name: "Resize results" });
+    expect(results()).toHaveStyle({ height: "240px" });
+    fireEvent.keyDown(handle, { key: "ArrowUp" });
+    expect(results()).toHaveStyle({ height: "256px" });
+    fireEvent.keyDown(handle, { key: "ArrowDown" });
+    fireEvent.keyDown(handle, { key: "ArrowDown" });
+    expect(results()).toHaveStyle({ height: "224px" });
+    fireEvent.keyDown(handle, { key: "Home" });
+    expect(results()).toHaveStyle({ height: "96px" });
+    expect(store.get("interview-studio.results-height")).toBe("96");
+    fireEvent.doubleClick(handle);
+    expect(results()).toHaveStyle({ height: "240px" });
+    // Collapsing the results hides the handle.
+    fireEvent.click(screen.getByRole("button", { name: "Collapse results" }));
+    expect(
+      screen.queryByRole("separator", { name: "Resize results" }),
+    ).toBeNull();
+  });
+
   it("checks syntax as the person types", async () => {
     renderView();
     await screen.findByText(/Find two numbers/);

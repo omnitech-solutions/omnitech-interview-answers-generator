@@ -522,12 +522,43 @@
 /* Results panel under the code */
 .ws-panel {
   flex: none;
-  max-height: 42%;
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--code-border);
   background: oklch(0.18 0.016 260);
   color: oklch(0.88 0.01 260);
+}
+/* Drag the edge above the results to resize them. */
+.ws-panel-resizer {
+  flex: none;
+  height: 6px;
+  margin-bottom: -6px;
+  position: relative;
+  z-index: 5;
+  cursor: row-resize;
+  touch-action: none;
+}
+.ws-panel-resizer::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.ws-panel-resizer:hover::after,
+.ws-panel-resizer:focus-visible::after,
+.ws-panel-resizer.active::after {
+  background: var(--accent);
+}
+.ws-panel-resizer:focus-visible {
+  outline: none;
+}
+.ws-code:has(.ws-panel-resizer.active) {
+  cursor: row-resize;
+  user-select: none;
 }
 .ws-panel-bar {
   display: flex;

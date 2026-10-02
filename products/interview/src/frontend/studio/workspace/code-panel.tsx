@@ -14,6 +14,7 @@ import type { ProposalRecord } from "@omnitech-assistant/sdk";
 import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, type IconName } from "../icon";
+import { Resizer, useStoredSize } from "../resizer";
 import {
   AssistantChangeBanner,
   type EditorFile,
@@ -104,6 +105,18 @@ export function CodePanel({
   onGoTo(file: EditorFile, line: number): void;
 }) {
   const view = useRef<EditorView | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  // [STRATEGY] The results panel's height is the person's: drag the edge
+  // above it. The code keeps at least 120px.
+  const panelHeight = useStoredSize({
+    storageKey: "interview-studio.results-height",
+    initial: 240,
+    min: 96,
+    // Before layout (or when hidden) the panel measures 0; use the window.
+    max: () =>
+      (panel.current?.getBoundingClientRect().height || window.innerHeight) -
+      160,
+  });
   const [tab, setTab] = useState<PanelTab>("tests");
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -152,7 +165,10 @@ export function CodePanel({
   }, [focus, file]);
 
   return (
-    <div className={`ws-code${inContext ? " assistant-in-context" : ""}`}>
+    <div
+      ref={panel}
+      className={`ws-code${inContext ? " assistant-in-context" : ""}`}
+    >
       <div className="ws-files" role="tablist" aria-label="Files">
         {FILES.map((item) => (
           <button
@@ -201,7 +217,22 @@ export function CodePanel({
           />
         )}
       </div>
-      <section className="ws-panel" aria-label="Results">
+      {open && (
+        <Resizer
+          label="Resize results"
+          stored={panelHeight}
+          grows="up"
+          sizeFromPointer={(event) =>
+            (panel.current?.getBoundingClientRect().bottom ?? 0) - event.clientY
+          }
+          className="ws-panel-resizer"
+        />
+      )}
+      <section
+        className="ws-panel"
+        aria-label="Results"
+        style={open ? { height: panelHeight.size } : undefined}
+      >
         <div className="ws-panel-bar">
           <div
             role="tablist"

@@ -305,7 +305,7 @@ function StudioFrame({
         </header>
         <div className="studio-view">{renderView(actions)}</div>
       </main>
-      {host.open && <DockResizer width={dock.width} onResize={dock.resize} />}
+      {host.open && <DockResizer stored={dock.stored} />}
       {paletteOpen && (
         <CommandPalette
           items={paletteItems}
