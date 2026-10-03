@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 28
+current_prompt: 29
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -199,15 +199,15 @@ prompts:
   artifacts: []
 - n: 28
   title: 'Prep: changelog, docs, journal, PR notes'
-  state: "running"
+  state: "done"
   started: "2026-10-03T21:44:31Z"
-  completed: null
-  result: ''
+  completed: "2026-10-03T21:54:31Z"
+  result: "CHANGELOG, README, journal and PR draft recorded; generated docs clean; executed audit gates found no BROKEN or DRIFT (manual walker unavailable)"
   artifacts: []
 - n: 29
   title: 'Summary: completion report AND archive the book'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T21:54:31Z"
   completed: null
   result: ''
   artifacts: []
@@ -495,5 +495,203 @@ notes: |
   Code commits 0aea235 and fc918d4 render typed logistics found from pinned candidate-preference source text and compute all absent logistics fields from the pinned snapshot, ignoring model-supplied missing. The UI labels suggested drafts as unable to set preferences and labels the missing list as all unset approved-preference fields, including fields not asked. Backend and UI tests failed first on the old behavior. The final pnpm verify at fc918d4 passed lint/format (809 files), typecheck 54/54, 2,972 tests in 276 files and build 29/29; focused tests passed 120/120 (code worker output).
   One independent review initially returned REQUEST_CHANGES at 0aea235 after directly reproducing an omitted missing compensation and work-arrangement value for paraphrased questions. After fc918d4, the same reviewer re-ran both exact probes: with only approved "Notice period: two weeks.", each returned found notice-period, missing compensation and work-arrangement, and draft "From your stated preferences: Notice period: two weeks." The reviewer also verified that category other can carry suggested-interpretation text without preference authority, while preference-backed claims and logistics objects under other are rejected. Targeted 83 tests in two files passed; final verdict APPROVE for the revised invariant. The reviewer did not rerun full pnpm verify and did not observe a real model or call workload. No forged skill was invoked in this review module.
 
-pr_draft: ""
+  ## Prep evidence and matcher limit, 2026-10-03
+  The revised missing list means no matching approved preference line was found by the finite field matcher; it is not a semantic proof that a preference has never been stated. UI copy was corrected in 908162a and independently approved; pnpm verify passed 2,972 tests and build 29/29 after that commit. README and CHANGELOG state the same bounded contract.
+  Prompt 28 ran extract-code-docs on 662 pages (0 added/changed/removed; dry-run zero drift) and derive-arch (dry-run clean, strict_failures empty; Drizzle data-model extractor remains stubbed). The read-only Crux audit found 0 BROKEN and 0 DRIFT in checks run, with 7 doctrine-pairing warnings and one historical journal-order warning. The 727-file manual Explore walker did not run because the agent slot limit was reached, so a full manual vault audit is unobserved. A reflective journal entry and a PR draft were prepared; prose review changes were applied to CHANGELOG and the PR draft. The draft lists 161 unique commits in the branch-only range, with set equality checked; no CI run exists for the unpushed branch.
+
+pr_draft: |
+  ## Summary
+
+  - Added Active Session capture, processing, and Studio controls for agreed rehearsals and interviews.
+  - Added source-backed interview assistance, coding draft publication, actor-private persistence, and locality checks.
+  - Grounded authoritative logistics fields in pinned approved preferences while retaining labelled free-form suggestions.
+
+  ## ADR
+
+  The processor runs in the agent worker ([ADR-0011](bionic/adrs/ADR-0011-host-the-active-session-processor-in-the-agent-worker.md)); session data remains actor-private ([ADR-0012](bionic/adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and.md)); credential loss pauses the session ([ADR-0013](bionic/adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent.md)).
+
+  ## Contract preserved
+
+  The neutral session core imports active-session-contracts; Interview owns its vertical; the agent worker runs the processor. Session data stays actor-private under forced row security. Device-only processing is refused when a declared device profile is unavailable. Structured logistics values come from pinned approved preferences; suggestions cannot update them.
+
+  ## Test plan and observed results
+
+  - [x] `pnpm verify` at 908162a: lint and format checked 809 files; typecheck 54/54; 2,972 tests in 276 files; build 29/29.
+  - [x] Swift CaptureCore harness: 43 passed, 0 failed (earlier cycle check; no later companion source edits).
+  - [x] `extract-code-docs.py --dry-run`: 662 pages, zero drift.
+  - [x] `derive-arch.py --dry-run --docs-dir bionic`: clean, zero drift, no strict failures; data-model extractor stubbed for this Drizzle schema.
+  - [x] Independent revised-S1 review at fc918d4 and UI-copy recheck at 908162a: APPROVE; targeted 83 tests passed in two files.
+  - [ ] CI: no run observed for this unpushed branch.
+
+  ## Risks and unobserved boundaries
+
+  Real ScreenCaptureKit permissions, on-device speech, a signed app, a real model and call workload, and phone-width browser rendering were not observed. The missing-preference list uses lexical source matching; it reports no matching approved line rather than semantic absence. Free-form suggestions can contain personal wording and are labelled as suggestions.
+
+  ## Breaking changes
+
+  No intentional breaking change is recorded.
+
+  ## Commits in this branch
+
+  - `4479e9d` docs(bionic): author PB-0002 Active Session cycle (29 prompts, validator clean)
+  - `58c61df` docs(bionic): start PB-0002 RUN-001
+  - `96586e9` docs(bionic): record real-call workload profile as PB-0002 run notes
+  - `64bee6b` docs(bionic): propose ADR-0010 Active Session processor and wire contract
+  - `d29cdb8` docs(bionic): address council findings on ADR-0010 (3 rounds)
+  - `b52a398` docs(bionic): accept ADR-0010 and journal the Active Session core planning loop
+  - `813ed6c` docs(bionic): propose ADR-0011 Active Session private data and locality
+  - `bfba596` docs(bionic): record ADR-0011 council round 1 in the PB-0002 run
+  - `160b276` docs(bionic): address council round 1 findings on ADR-0011
+  - `7863428` docs(bionic): address council round 2 findings on ADR-0011
+  - `7da3fbb` docs(bionic): address council round 3 findings on ADR-0011
+  - `045c832` docs(bionic): accept ADR-0011 and journal the private data and locality planning loop
+  - `e398fa0` docs(bionic): record PB-0002 implementation plan #1 for Active Session dev loop 1
+  - `e5d7f8d` feat(active-session-contracts): add the versioned wire contract package
+  - `87019d6` feat(interview): add the neutral live-session core
+  - `dcc31ef` feat(ai-runtime): enforce device-only locality at resolution and before dispatch
+  - `b7bd0b6` build: add active-session-contracts to the development build graph
+  - `8a97eac` feat(platform-storage): add the private agent-job marker and actor-carrying job access
+  - `613b334` feat(interview): add actor-private Active Session persistence and migration
+  - `b8ec5da` feat(interview): add the live-session repository, ingest and claim
+  - `fdc7ace` feat(interview): add fenced session writes and complete purge
+  - `ab63bc5` feat(interview): add the baseline session interview policy
+  - `9b3406b` Integrated worker, Studio, documentation and test changes into the Active Session history.
+  - `9afba3f` docs(bionic): log check-drift (code and arch docs drift, promptbook index check broken)
+  - `c049fdc` feat(interview): add the Active Session processor with fenced dispatch and replay tests
+  - `f6af8e1` test(interview): record question-to-draft p50/p95 at real pacing and 4x
+  - `7aaf982` feat(interview): session-worker subpath and bounded lease renewal (ADR-0011)
+  - `b801136` test(interview): prove device-only refusal through the real gateway with spy adapters
+  - `8ac76f9` feat(interview): add Active Session ingest, stream and control routes
+  - `7c19ad1` feat(agent-worker): run the Active Session loop beside the job loop (ADR-0011)
+  - `8bf017a` test(interview): prove no session content or credential reaches logs, traces or errors
+  - `6a08443` test(interview): cover the session routes mounted ahead of the studio catch-all
+  - `aab59be` fix(interview): refuse observations from sources the session did not agree to
+  - `4418be6` test(interview): give slow database-backed session tests an explicit timeout
+  - `94e017b` fix(interview): never publish a pre-pause result after resume; re-arm and retry paused work
+  - `9086ea5` fix(interview): re-check the start permission at ingest and cite the wire-contract rule
+  - `785c273` fix(interview): let owners stop their own session without write; scope route headers
+  - `f952967` fix(agent-worker): pass OPENAI_API_KEY to the codex runtime only
+  - `41b78f1` docs(bionic): record PB-0002 dev loop 1 implementation, gates and review (prompts 10-12)
+  - `d3fd8a2` Integrated worker-loop adjustments, journal records and README changes into the Active Session history.
+  - `40f2002` docs(bionic): record PB-0002 implementation plan #2 for Active Session dev loop 2
+  - `94eba6e` feat(interview): add synthetic replay fixtures for hazards, manager and live-coding sessions
+  - `0752c59` feat(interview): verify per-claim source references and reject unsupported references
+  - `3fb8666` feat(interview): derive rehearsal hints from session assistance on save
+  - `0adef11` test(code-runner): verify sandbox controls against the real runner configuration
+  - `12baca4` Added classify-and-answer assist stage, claim checks and replay fixtures; this commit does not typecheck alone.
+  - `70094b5` feat(interview): assist sessions from the pinned context through a service
+  - `77018e6` feat(interview): solve coding tasks in a second action with distinct verified states and a session-owned draft
+  - `797b5f1` feat(interview): request an agent job only from a validated escalation field and wire the worker runner
+  - `e71ee14` test(interview): replay every synthetic set through the real processor (E-A2, E-A3)
+  - `0b13a43` test(interview): record latency p50/p95 at 1x and 4x for every set with questions
+  - `e2fdadf` test(interview): prove a hostile corpus cannot grant tools, change policy or reach secrets
+  - `8e2bf6a` docs(bionic): record PB-0002 dev loop 2 implementation reports (prompt 14)
+  - `ac3e430` test(interview): exempt test support from the no-second-scorecard source scan
+  - `38f5756` docs(bionic): record PB-0002 dev loop 2 quality gates (prompt 15)
+  - `5ec305e` fix(interview): ground the spoken draft, STAR text and figures in session claims (review findings 1-6)
+  - `dde5cb9` fix(interview): purge only session drafts the owner has not touched (review finding 7)
+  - `cd36625` fix(interview): discard the prompt payload when agent job creation is refused (review finding 8)
+  - `03088c0` fix(interview): require a distinct passing test per constraint for fully verified (review finding 9)
+  - `b2a0167` docs(bionic): record PB-0002 dev loop 2 review and deferrals (prompt 16)
+  - `8744f04` docs(bionic): record PB-0002 implementation plan #3 for the Studio session UI (prompt 17)
+  - `28e036e` test(web): prove the shell forwards credential-only ingest and refuses session routes without membership
+  - `f59ea00` feat(interview-contracts): add the browser-facing Active Session contract
+  - `6777a1d` feat(interview): add session history, setup choices and an action change cursor to the live routes
+  - `928193c` feat(interview): add the live view to the product manifest
+  - `86a53f3` feat(interview): add the Live session icons to the Studio icon pipeline
+  - `a6dcb24` feat(interview): add the Live session view to Studio routes, navigation and commands
+  - `3bdd1f8` feat(interview): add the Live session client and a module-level session store
+  - `52008f2` feat(interview): derive the Live session view model from the stream
+  - `21e7ef8` feat(interview): mount the session bar in the Studio shell and stub the Live views
+  - `5b7b535` fix(interview): reading a missing session draft is not found, not a new placeholder
+  - `4bda9c6` feat(interview): build the Live session Setup view and the pairing panel
+  - `efdf118` feat(interview): let the Workspace show a session draft and take a held solution safely
+  - `6ca4092` feat(interview): route a session's private Workspace through the Studio shell
+  - `92a154a` feat(interview): open a session draft in the Workspace with its results and held suggestions
+  - `1e306c5` feat(interview): derive the withheld count, banner copy and capability table for the live view
+  - `14a2923` feat(interview): add the task panels, claim chips and programming challenge panel
+  - `c178214` feat(interview): build the live session view with banners, tabs and the Sources controls
+  - `28ec31e` feat(interview): send a live session's rehearsal run id with the Rehearsal save
+  - `6484e4d` feat(interview): show the profile and policy each session stage ran under
+  - `3299f8a` fix(interview): never list a source as receiving without current companion contact
+  - `e1c8f72` fix(interview): open the Sources tab for a freshly issued pairing credential
+  - `5ad277c` fix(interview): state only what the session guarantees, and test it
+  - `8e9316b` feat(interview): enforce live session layout, theme and accessible-name rules in tests
+  - `505227d` test(interview): cover a lost microphone capture in the session end-to-end suite
+  - `0a4062a` docs(bionic): record PB-0002 dev loop 3 implementation reports (prompt 18)
+  - `29be2cd` docs(bionic): record PB-0002 dev loop 3 quality gates (prompt 19)
+  - `a0ac627` fix(interview): read stored observations as the stream returns them
+  - `3a179a8` fix(interview): never strand an action on an over-long withheld reason
+  - `e7e2f26` fix(interview): restart a caught-up action reader from the overlap margin
+  - `8623314` fix(interview): keep saved rehearsal run ids across a reload and retry an already-saved run
+  - `5a26e21` fix(interview): word a withheld solution as a failed check, not an experience check
+  - `19881b0` fix(interview): state only what the session guarantees about screenshots and locality
+  - `3259dc4` fix(interview): show the written draft's states, and a held result as a suggestion
+  - `5a2050c` feat(interview): say when Studio cannot reach the session service
+  - `f71231b` fix(interview): keep checking an ended delete-at-end session until its purge is seen
+  - `9a85696` fix(interview): identify transcript segments by source and event id
+  - `e25c520` fix(interview): focus the ended heading, fix purged-draft and pairing copy
+  - `811157c` docs(bionic): record PB-0002 dev loop 3 review and deferrals (prompt 20)
+  - `012e14f` docs(bionic): record PB-0002 dev loop 4 implementation plan (prompt 21)
+  - `2c79dc4` feat(contracts): add transcript source, capability.report, event_conflict and heartbeat spacing within wire v1
+  - `7153828` feat(contracts): generate the wire JSON Schema with a drift test
+  - `68b72c9` test(contracts): add the valid/invalid wire corpus, manifest and conformance test
+  - `1db4baa` feat(interview): store the companion's latest capability under owner-only row security
+  - `efc5900` feat(interview): harden ingest and serve the companion capability
+  - `18bd2d2` feat(capture-companion): add the TypeScript companion core and fixture companion
+  - `0f64110` test(boundaries): bound the capture companion and scan its Swift sources
+  - `1e9518e` feat(companion): add Swift CaptureCore (wire, outbox, backoff, ring buffer, change policy, capability, stop, control pull) with a corpus-driven test harness
+  - `b20c5dd` feat(companion): add thin macOS adapters (ScreenCaptureKit, on-device Speech, Keychain, URLSession) and the capture-companion executable
+  - `74a2e04` Wired companion capability and source status through Studio setup, source tab and session bar with tests.
+  - `ad25df6` test(interview): back every companion-side claim and feed a real stream page through the Live view
+  - `f80aeda` test(interview): add companion-driven hardening for resend, conflict, revocation, restart and cross-user reads
+  - `cd1fb40` test(interview): add egress, retention, canary and latency hardening through the fixture companion
+  - `c689c6b` docs(bionic): record PB-0002 dev loop 4 implementation reports (prompt 22)
+  - `6740e59` test(interview): send a true resend and exempt the hardening support files from the promotion scan
+  - `4662de7` test(interview): resolve the session bar CSS path from the test file
+  - `18145e0` docs(bionic): record PB-0002 dev loop 4 quality gates (prompt 23)
+  - `0dda4d6` fix(companion): keep an owner's resume from being undone and never widen a named window
+  - `2ab26ee` docs(bionic): record PB-0002 dev loop 4 review and deferrals (prompt 24)
+  - `84a9887` fix(security): kill timed-out sandbox containers, drop caps, scope worker env, require https for companion
+  - `cbcc891` fix(platform-storage): no generic resume of private jobs; guard child inserts
+  - `d5b4d6c` fix(interview): truthful Studio copy, advisory-only capability report, Active Session README
+  - `af71c09` fix(interview): close Unicode, glued-figure, multiplier and mid-word-quote bypasses in claim verification
+  - `4835788` fix(live-session): close processed utterances and name tasks after their source (M1, M2)
+  - `167cef9` fix(live-session): settle a thrown dispatch's action as failed so it is retried (S3)
+  - `0ce703a` test(live-session): cover the pause re-check before a dispatch's first call (S2)
+  - `b7b57a9` fix(live-session): enforce device-only inside a running dispatch (S5-2)
+  - `a6a5fd2` docs(bionic): propose ADR-0013 pause-only credential stop and advisory capability report
+  - `f85d441` docs(bionic): journal PB-0002 review-1 decisions and pending ADR-0013 acceptance
+  - `0adb3d5` fix(live-session): candidate-side speech never opens a task; recognise backchannel variants
+  - `897c825` docs(adr): split ADR-0013 into two single-obligation governs rules
+  - `d08aa41` Combined sandbox timeout cleanup, session rebuild/job-policy fixes, a migration, Studio copy and README edits.
+  - `f19e37f` fix(interview): close invisible-character and spelled-figure bypasses in claim grounding
+  - `d074453` fix(code-runner): clean up timed-out containers asynchronously, never blocking the event loop
+  - `4fc814a` fix(interview): treat spelled-out figures like digits in every draft sentence
+  - `c4fd735` fix(live-session): a rebuilt run matches the live run (handled-through marker, cumulative source ids, device-only sweep)
+  - `2c2cc58` docs(bionic): record PB-0002 review module 1 findings, dispositions and escalation (prompts 25-26)
+  - `7d60f93` fix(live-session): logistics drafts publish only figures from the approved preference text (allowlist)
+  - `c6769b8` fix(live-session): a deferred topic no longer stops the handled-through marker, so a rebuilt run matches the live run
+  - `2fc2ebc` Close logistics figure grounding gaps; verified pnpm verify (2961 tests, 29 builds)
+  - `f149bd7` Flush Rehearsal focus effects in tests; verified pnpm verify (2961 tests, 29 builds)
+  - `91c1b28` Disclose retained Workspace drafts; verified 104 focused UI tests
+  - `e773254` Restrict purge sweep to ended sessions; verified 34 focused tests
+  - `c24f7e6` Clarify ADR-0013 pause and retained draft contract; verified YAML and diff
+  - `843fd9d` Remove unsupported farewell bound from ADR-0013; verified YAML and diff
+  - `ffea4eb` Accept ADR-0013 after independent review; verified projections clean
+  - `a6b98ec` docs: repoint Active Session citations to accepted ADR-0013 (biome check 12 files)
+  - `722610e` docs: disclose Active Session draft retention in README and changelog (diff check)
+  - `8e97cb3` docs: record open PB-0002 logistics review (journal index dry-run clean)
+  - `0980772` docs: record PB-0002 continuation gate in run (schema valid)
+  - `c4dfbc4` Constrain classified logistics drafts to preference text; verify pnpm verify 2967 tests
+  - `2310da1` docs: restore promptbook index links (CHK-PB-11 clean)
+  - `000aa12` docs: regenerate code and architecture from c4dfbc4 (dry-runs clean)
+  - `e1ba681` docs: record final PB-0002 S1 blocker and derived-doc status (run schema valid)
+  - `56d8ff9` docs: record Rehearsal A/B test measurements (run schema valid)
+  - `7505a10` docs: record PB-0002 S1 merge decision (run schema valid)
+  - `0aea235` Derive logistics fields from pinned preferences; verify pnpm verify 2972 tests
+  - `fc918d4` Report every unset logistics preference; verify pnpm verify 2972 tests
+  - `ddc4e29` docs: close PB-0002 review on revised S1 invariant (run schema valid)
+  - `908162a` Clarify unmatched logistics preferences; verify pnpm verify 2972 tests
+  - `44d7110` docs: prepare Active Session release notes (docs drift checks clean)
 summary: ""
