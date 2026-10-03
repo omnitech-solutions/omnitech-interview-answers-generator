@@ -1,12 +1,13 @@
 # Promptbooks
 
-_Last updated: 2026-10-02_
+_Last updated: 2026-10-03_
 
-## Active (1)
+## Active (2)
 
 | id | title | status | current_run | progress | tags | created_at |
 |---|---|---|---|---|---|---|
 | PB-0001 | Cycle: Interview Documents in Interview Studio | active | RUN-001 | 0/17 (0%) | cycle, workflow, feature, interview, documents | 2026-10-02 |
+| PB-0002 | Cycle: Active Session capability for Interview Studio | active | — | 0/29 (0%) | cycle, workflow, feature, interview, active-session | 2026-10-03 |
 
 ## Recent runs (last 20)
 

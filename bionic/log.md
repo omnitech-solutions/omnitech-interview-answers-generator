@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] promptbook | authored PB-0002-active-session-capability-for-interview-studio (cycle)
+
+id PB-0002, "Cycle: Active Session capability for Interview Studio", total_prompts: 29, modules (2×ADR, 4×dev, 1×review). cycle: assembled from modular templates. Dev #3 (UI) split from Dev #4 (companion + hardening) before the run. Run stacks on the committed feat/interview-documents base (operator instruction 2026-10-03).
+
 ## [2026-10-02] arch | regenerated bionic/arch/ (spine 39d9326b7f5e)
 
 Regenerated after ADR-0009 acceptance and Interview Documents source changes. The decision index and module graph changed; the data-model extractor remains stubbed for this Drizzle repository.

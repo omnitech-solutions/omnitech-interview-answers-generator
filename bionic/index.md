@@ -1,6 +1,6 @@
 # docs/omnitech-interview-answers-generator
 
-_Last updated: 2026-10-02_
+_Last updated: 2026-10-03_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
@@ -43,7 +43,7 @@ _No briefs yet._
 
 See [[journal/index]].
 
-## Promptbooks (1 active, 0 archived)
+## Promptbooks (2 active, 0 archived)
 
 See [[promptbooks/index]].
 
