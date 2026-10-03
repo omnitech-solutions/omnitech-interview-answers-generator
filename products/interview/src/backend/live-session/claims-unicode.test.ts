@@ -233,3 +233,181 @@ describe("the prompt data block escapes line separators and bidi controls", () =
     expect(prompt).toContain("\\u2028");
   });
 });
+
+// Round 2 (S1 M-1, E-A2 M-2): every mechanism is asserted by its violation
+// CODE, never by .ok alone, so a mutant that weakens one mechanism fails.
+const codes = (result: ReturnType<typeof run>) =>
+  result.ok ? [] : [...result.violations];
+
+describe("round 2: invisible and combining characters cannot split a figure", () => {
+  const hidden: [string, string][] = [
+    ["combining grapheme joiner", "͏"],
+    ["variation selector", "︀"],
+    ["tag space", "\u{e0020}"],
+    ["mongolian vowel separator", "᠎"],
+    ["khmer inherent vowel", "឴"],
+    ["arabic letter mark", "؜"],
+    ["zero width joiner", "‍"],
+  ];
+  it("control: the ASCII figure is withheld as ungrounded", () => {
+    expect(
+      codes(run([], "experience-story", "I grew the team to 45 engineers.")),
+    ).toContain("draft:ungrounded_figure");
+  });
+  for (const [name, char] of hidden)
+    it(`withholds 45 split by ${name}`, () => {
+      expect(
+        codes(
+          run(
+            [],
+            "experience-story",
+            `I grew the team to 4${char}5 engineers.`,
+          ),
+        ),
+      ).toContain("draft:ungrounded_figure");
+      expect(figuresOf(`served 1${char}00000 requests`).has("100000")).toBe(
+        true,
+      );
+    });
+  it("withholds a figure hidden behind a Hangul filler", () => {
+    for (const filler of ["ᅟ", "ㅤ", "ﾠ"])
+      expect(
+        codes(
+          run(
+            [],
+            "experience-story",
+            `I grew the team to ${filler}45 engineers.`,
+          ),
+        ),
+      ).toContain("draft:ungrounded_figure");
+  });
+  it("flags a combining mark touching a digit as confusable_text", () => {
+    expect(
+      codes(run([], "experience-story", "I grew the team to 4́ 5 engineers.")),
+    ).toContain("draft:confusable_text");
+    expect(codes(run([general("Grew the team to 4́5")], "other"))).toContain(
+      "claims.0:confusable_text",
+    );
+  });
+  it("escapes invisible, tag and filler characters in the prompt data", () => {
+    const stage = createAssistStage();
+    const prepared = stage.prepare({
+      taskId: "t",
+      revision: 1,
+      deviceOnly: false,
+      context: { snapshot: snap, matrix: MATRIX },
+      captured: [
+        {
+          speaker: "speaker-1",
+          text: "Q? a͏b\u{e0041}c؜d᠎eㅤf︀g",
+        },
+      ],
+    } as never);
+    if (!prepared.ok) throw new Error("prepare failed");
+    const prompt = prepared.prompt.prompt;
+    for (const ch of ["͏", "\u{e0041}", "؜", "᠎", "ㅤ", "︀"])
+      expect(prompt.includes(ch)).toBe(false);
+    expect(prompt).toContain("\\u{e0041}");
+    expect(prompt).toContain("\\u034f");
+  });
+});
+
+describe("round 2: spelled-out notice period and compensation", () => {
+  it("withholds a notice period written as words", () => {
+    expect(
+      codes(run([], "other", "My notice period is three months.")),
+    ).toContain("draft:preference_only_topic");
+  });
+  it("withholds compensation written as words", () => {
+    expect(
+      codes(
+        run(
+          [],
+          "other",
+          "My expected salary is around a hundred and fifty thousand dollars.",
+        ),
+      ),
+    ).toContain("draft:preference_only_topic");
+    expect(
+      codes(run([], "logistics", "My salary expectation is one fifty grand.")),
+    ).toContain("draft:preference_only_topic");
+  });
+  it("withholds a spelled figure in a compensation claim", () => {
+    expect(
+      codes(
+        run(
+          [
+            {
+              kind: "preference-backed",
+              text: "Notice period 4 weeks three",
+              refs: [
+                refTo(
+                  "/context/candidatePreferences/0",
+                  "Notice period: 4 weeks.",
+                ),
+              ],
+            },
+          ],
+          "other",
+        ),
+      ),
+    ).toEqual(["claims.0:preference_only_topic"]);
+  });
+  it("leaves ordinary prose without a compensation sentence alone", () => {
+    expect(
+      run([], "other", "I used two queues and a few workers for one service.")
+        .ok,
+    ).toBe(true);
+  });
+});
+
+describe("round 2: ordinary technical drafts are not blocked", () => {
+  for (const text of [
+    "A cache hit costs about 5 µs.",
+    "Exponential smoothing uses a weight α.",
+    "An ε-greedy policy explores sometimes.",
+    "The binary targets x86 and arm, also x86_64 and x64.",
+    "Hash the token with sha256 before storing it.",
+    "Video uses h264 encoding and aes256.",
+    "Watch p99 latency and p999 too.",
+    "Use r5b instances and base64 encoding.",
+  ])
+    it(`passes: ${text}`, () => {
+      expect(codes(run([], "other", text))).toEqual([]);
+      expect(codes(run([general(text)], "other"))).toEqual([]);
+    });
+});
+
+describe("round 2: glued figures and homoglyph scripts", () => {
+  it("still reads glued currency and long runs as figures", () => {
+    expect(
+      codes(run([], "other", "My expected salary is USD150000.")),
+    ).toContain("draft:preference_only_topic");
+    expect(figuresOf("GBP90k").has("90k")).toBe(true);
+    expect(figuresOf("salary150000").has("150000")).toBe(true);
+    expect(figuresOf("salary1500").has("1500")).toBe(true);
+    expect(figuresOf("base90k").has("90k")).toBe(true);
+    expect(
+      codes(run([], "experience-story", "We handled req1500000 daily.")),
+    ).toContain("draft:ungrounded_figure");
+    expect(figuresOf("x40 faster").has("40x")).toBe(true);
+    expect(figuresOf("40 times").has("40x")).toBe(true);
+    expect(figuresOf("40-fold").has("40x")).toBe(true);
+  });
+  it("flags Cherokee and Armenian look-alikes as confusable_text", () => {
+    expect(
+      codes(run([], "experience-story", "I worked at ᎪᏟᎷᎬ on payments.")),
+    ).toContain("draft:confusable_text");
+    expect(
+      codes(run([], "experience-story", "I was promoted by the ՇEՕ.")),
+    ).toContain("draft:confusable_text");
+    expect(
+      codes(run([], "experience-story", "I was promoted by the Ꮯompany.")),
+    ).toContain("draft:confusable_text");
+  });
+  it("still flags Cyrillic homoglyphs by code", () => {
+    expect(
+      codes(run([], "other", "My expected sаlary is USD150000.")),
+    ).toContain("draft:confusable_text");
+  });
+});

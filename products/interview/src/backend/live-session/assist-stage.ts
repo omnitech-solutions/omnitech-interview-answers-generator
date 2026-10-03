@@ -382,12 +382,14 @@ const shown = (source: ContextSource) => ({
 // U+2028/U+2029 and bidi/format controls raw, which can fake line breaks or
 // reorder the text a reader sees, so they are written as \\u escapes.
 const RAW_CONTROLS =
-  /[\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+  /[\p{Default_Ignorable_Code_Point}\u2028\u2029\u061c\u115f\u1160\u180e\u3164\uffa0\u{e0000}-\u{e007f}]/gu;
 const dataJson = (value: unknown): string =>
-  JSON.stringify(value).replace(
-    RAW_CONTROLS,
-    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
+  JSON.stringify(value).replace(RAW_CONTROLS, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code > 0xffff
+      ? `\\u{${code.toString(16)}}`
+      : `\\u${code.toString(16).padStart(4, "0")}`;
+  });
 
 function renderPrompt(
   input: AssistInput,

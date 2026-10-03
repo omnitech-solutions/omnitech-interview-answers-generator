@@ -75,10 +75,14 @@ export class ContextSnapshotError extends Error {
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
 // [SAFETY] Canonical text for every comparison (review S1): NFKC (full-width
-// and compatibility forms), invisible and bidi format characters removed, and
-// every Unicode decimal digit mapped to its ASCII value. Case is left alone.
+// and compatibility forms), every default-ignorable code point removed (zero
+// width, bidi and variation selectors, tag characters, combining grapheme
+// joiner, Arabic letter mark, Mongolian vowel separator, Khmer inherent vowels)
+// plus the Hangul fillers that render blank, and every Unicode decimal digit
+// mapped to its ASCII value. Case is left alone. Stripping runs before NFKC too,
+// so an invisible character cannot block a composition.
 const INVISIBLE =
-  /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+  /[\p{Default_Ignorable_Code_Point}\u115f\u1160\u3164\uffa0]/gu;
 const digitValue = (char: string): string => {
   let code = char.codePointAt(0) ?? 0;
   let run = 0;
@@ -88,22 +92,48 @@ const digitValue = (char: string): string => {
 };
 export const canonicalText = (text: string): string =>
   text
+    .replace(INVISIBLE, "")
     .normalize("NFKC")
     .replace(INVISIBLE, "")
     .replace(/\p{Nd}/gu, (char) => digitValue(char));
 
-// A word is suspicious when it mixes Latin with another script (a homoglyph
-// inside a Latin word) or is a non-Latin word made only of Latin look-alikes
-// (a Cyrillic "CEO"). Plain accented Latin is fine.
+// A word is suspicious when it mixes Latin with a script whose letters pass for
+// Latin (Cyrillic, Cherokee, Armenian, or a Greek look-alike), or is a
+// non-Latin word made only of Latin look-alikes (a Cyrillic "CEO"). Plain
+// accented Latin is fine, and so are ordinary technical symbols: a Greek mu in
+// "5 µs" (NFKC maps the micro sign to Greek mu) or a lone alpha or epsilon in
+// "weight α" and "ε-greedy". A combining mark touching a digit splits or hides
+// a figure and is confusable too.
 const LOOKALIKE =
-  "АВЕКМНОРСТХаеорсухіјѕԁԛѵАВЕЗІЈКМНОРЅТХҮαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧοı";
+  "АВЕКМНОРСТХаеорсухіјѕԁԛѵАВЕЗІЈКМНОРЅТХҮαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧοıՕօՍսՈոԱԲԵՒՀհԶզՑց";
+const ALWAYS_CONFUSABLE_SCRIPT =
+  /[\p{Script=Cyrillic}\p{Script=Cherokee}\p{Script=Armenian}]/u;
+const GREEK = /\p{Script=Greek}/u;
 export const hasConfusableText = (text: string): boolean => {
-  for (const word of canonicalText(text).match(/\p{L}[\p{L}\p{M}]*/gu) ?? []) {
+  const clean = canonicalText(text);
+  if (/\p{Nd}\p{M}|\p{M}\p{Nd}/u.test(clean)) return true;
+  for (const word of clean.match(/\p{L}[\p{L}\p{M}]*/gu) ?? []) {
     const letters = [...word].filter((char) => /\p{L}/u.test(char));
     const latin = letters.filter((char) => /\p{Script=Latin}/u.test(char));
     if (latin.length === letters.length) continue;
-    if (latin.length > 0) return true;
-    if (letters.every((char) => LOOKALIKE.includes(char))) return true;
+    const foreign = letters.filter((char) => !/\p{Script=Latin}/u.test(char));
+    if (latin.length > 0) {
+      if (
+        foreign.some(
+          (char) =>
+            ALWAYS_CONFUSABLE_SCRIPT.test(char) || LOOKALIKE.includes(char),
+        )
+      )
+        return true;
+      continue;
+    }
+    // Cherokee letters are near-copies of capital Latin letters; no interview
+    // content needs them.
+    if (letters.some((char) => /\p{Script=Cherokee}/u.test(char))) return true;
+    if (!letters.every((char) => LOOKALIKE.includes(char))) continue;
+    // One Greek letter (alpha, epsilon) is mathematical notation, not a word.
+    if (letters.length === 1 && GREEK.test(letters[0] ?? "")) continue;
+    return true;
   }
   return false;
 };

@@ -7,9 +7,9 @@
 // Output is PATH:CODE strings only. A violation never copies a claim, quote or
 // any other model-controlled string (rule:id-only-traces).
 import {
-  canonicalText,
   type ContextSnapshot,
   type ContextSource,
+  canonicalText,
   hasConfusableText,
   isCompensationText,
   isNoticePeriodText,
@@ -56,21 +56,43 @@ const normalizeText = (text: string) =>
 // A figure is digits with optional thousands commas or decimals, an optional %,
 // k/m/b suffix or multiplier (x, times, -fold) and an optional lower-bound
 // plus. All text is canonicalised first (NFKC, ASCII digits). Digits glued to a
-// letter are identifiers (S3, ec2, k8s), EXCEPT after a currency code or an x
-// (USD150000, GBP90k, x40) and as a long or suffixed run (salary150000,
-// base90k), which are figures. Spelled-out numbers are out of scope by design.
+// letter are identifiers (S3, ec2, k8s, x86, sha256, h264, p99), EXCEPT after a
+// currency code or an x multiplier (USD150000, GBP90k, x40), as a long run
+// (salary150000: five or more digits), after a money word (salary1500) and as
+// a suffixed run after three letters (base90k). Spelled-out numbers are out of
+// scope here; compensation and notice-period sentences check them separately
+// (numberWordsOf).
 const NUMBER =
   "\\d+(?:[.,]\\d+)*(?:%|[kKmMbB](?!\\p{L})|[xX](?!\\p{L})|\\s?times(?!\\p{L})|-?fold(?!\\p{L}))?\\+?";
 const CURRENCY_CODE = "usd|cad|eur|gbp|aud|nzd|chf|jpy|inr|cny|sek|nok|dkk";
+const MONEY_WORD =
+  "salary|base|pay|comp|compensation|bonus|rate|ote|ctc|package|equity|stock|total";
 const FIGURE_PATTERNS = [
-  new RegExp(`(?<![\\p{L}\\d.,])${NUMBER}`, "gu"),
+  new RegExp(`(?<![\\p{L}\\d.,_])${NUMBER}`, "gu"),
   new RegExp(`(?<=(?<!\\p{L})(?:${CURRENCY_CODE}))${NUMBER}`, "giu"),
-  new RegExp(`(?<!\\p{L})[xX]${NUMBER}`, "gu"),
+  // x40 is a multiplier; the well-known architectures x86, x64 and x32 are not.
   new RegExp(
-    `(?<=\\p{L})(?:\\d{3,}(?:[.,]\\d+)*|\\d+(?:%|[kKmMbB](?!\\p{L})))\\+?`,
+    `(?<!\\p{L})[xX](?!(?:86|64|32)(?![\\d%kKmMbB]|[.,]\\d))${NUMBER}`,
     "gu",
   ),
+  new RegExp(
+    `(?<=\\p{L})(?:\\d{5,}(?:[.,]\\d+)*\\+?)|(?<=(?<!\\p{L})(?:${MONEY_WORD}))\\d{3,4}(?:[.,]\\d+)*\\+?`,
+    "giu",
+  ),
+  new RegExp(`(?<=\\p{L}{3})\\d+(?:%|[kKmMbB](?!\\p{L}))\\+?`, "gu"),
 ];
+
+// [DOMAIN] Spelled-out quantities. Notice period and compensation figures are
+// the candidate's own and may be written as words ("three months", "a hundred
+// and fifty grand"); inside those sentences any such word is a figure.
+const NUMBER_WORD =
+  /(?<!\p{L})(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|grand|million|billion|dozen|couple|few|several|half)(?!\p{L})/giu;
+export const numberWordsOf = (text: string): Set<string> =>
+  new Set(
+    (canonicalText(text).match(NUMBER_WORD) ?? []).map((word) =>
+      word.toLowerCase(),
+    ),
+  );
 
 // Canonical comparison key: lower case, no thousands commas, multiplier forms
 // unified ("40 times", "40-fold", "x40" -> "40x"). The percent sign is KEPT:
@@ -408,6 +430,7 @@ type DraftCheck = {
   matrixClaimTexts: readonly string[];
   groundedFigures: ReadonlySet<string>;
   preferenceFigures: ReadonlySet<string>;
+  preferenceWords: ReadonlySet<string>;
   capturedFigures: ReadonlySet<string>;
   sourceFigures: ReadonlySet<string>;
 };
@@ -438,6 +461,16 @@ function checkDraft(draft: string, check: DraftCheck): void {
     " ",
   );
   const sentences = sentencesOf(draft);
+  // [SAFETY] A spelled-out quantity in a notice-period or compensation sentence
+  // is a figure: only a word a verified preference quote carries may be spoken.
+  for (const sentence of sentences)
+    if (
+      (isCompensationText(sentence) || isNoticePeriodText(sentence)) &&
+      [...numberWordsOf(sentence)].some(
+        (word) => !check.preferenceWords.has(word),
+      )
+    )
+      flag("draft", "preference_only_topic");
   if (check.logistics) {
     for (const key of figuresOf(draft))
       if (!check.preferenceFigures.has(key)) {
@@ -516,6 +549,7 @@ export function verifyClaims(
   // Figures that a preference-backed claim legitimately carries, for the
   // logistics draft check.
   const preferenceFigures = new Set<string>();
+  const preferenceWords = new Set<string>();
   // Figures a VERIFIED matrix- or preference-backed claim carries (its quotes
   // and its own text): the only non-general figures a draft may speak.
   const groundedFigures = new Set<string>();
@@ -575,7 +609,17 @@ export function verifyClaims(
       if (structurallyValid && !supported)
         for (const refIndex of refs.keys())
           flag(`${at}.refs.${refIndex}`, "unsupported_reference");
-      if (supported) {
+      // A spelled-out quantity in a notice-period or compensation claim must
+      // come from the cited quotes.
+      const spokenWords = [...numberWordsOf(claim.text)];
+      const quoteNumberWords = numberWordsOf(
+        refs.map((ref) => ref.quote).join(" "),
+      );
+      const wordsGrounded =
+        !preferenceOnlyTopic ||
+        spokenWords.every((word) => quoteNumberWords.has(word));
+      if (supported && !wordsGrounded) flag(at, "preference_only_topic");
+      if (supported && wordsGrounded) {
         if (claim.kind === "matrix-backed")
           matrixTexts.push(normalizeText(claim.text));
         for (const key of supportedFigureKeys([
@@ -584,9 +628,12 @@ export function verifyClaims(
         ]))
           groundedFigures.add(key);
         if (claim.kind === "preference-backed")
-          for (const ref of refs)
+          for (const ref of refs) {
             for (const key of supportedFigureKeys([ref.quote]))
               preferenceFigures.add(key);
+            for (const word of numberWordsOf(ref.quote))
+              preferenceWords.add(word);
+          }
       }
       continue;
     }
@@ -666,6 +713,7 @@ export function verifyClaims(
         .map((claim) => normalizeText(claim.text)),
       groundedFigures,
       preferenceFigures,
+      preferenceWords,
       capturedFigures,
       sourceFigures,
     });
