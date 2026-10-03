@@ -30,9 +30,14 @@ export default defineConfig({
             "scripts/**/*.test.ts",
             "apps/terminal-gateway/src/**/*.test.ts",
             "apps/agent-worker/src/**/*.test.ts",
-            "products/*/src/backend/**/*.test.ts",
+            "products/*/src/**/*.test.ts",
           ],
-          exclude: ["**/dist/**", "**/node_modules/**"],
+          // Product frontend tests run in the jsdom project below.
+          exclude: [
+            "**/dist/**",
+            "**/node_modules/**",
+            "products/*/src/frontend/**",
+          ],
         },
       },
       {
@@ -54,7 +59,7 @@ export default defineConfig({
         test: {
           name: "react",
           environment: "jsdom",
-          include: ["products/*/src/frontend/**/*.test.tsx"],
+          include: ["products/*/src/frontend/**/*.test.{ts,tsx}"],
           setupFiles: ["./products/interview/vitest.setup.ts"],
         },
       },
