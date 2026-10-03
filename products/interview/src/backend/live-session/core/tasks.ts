@@ -264,16 +264,23 @@ export async function processUtterance(
   );
 }
 
-// The segment ids a task revision is built on, or null for an unknown one.
+// The segment ids a task revision rests on, or null for an unknown one: the
+// union of its own segments and every earlier revision's, oldest first. A
+// follow-up's answer needs the question it follows, so a rebuilt run that only
+// remembers this revision (an earlier one was never dispatched) still carries
+// the whole question.
 export function sourceIdsOf(
   state: TaskState,
   taskId: string,
   revision: number,
 ): readonly string[] | null {
-  const entry = state.tasks[taskId]?.revisions.find(
-    (candidate) => candidate.revision === revision,
-  );
-  return entry ? entry.basedOn : null;
+  const task = state.tasks[taskId];
+  if (!task?.revisions.some((candidate) => candidate.revision === revision))
+    return null;
+  const ids = new Set<string>();
+  for (const entry of task.revisions)
+    if (entry.revision <= revision) for (const id of entry.basedOn) ids.add(id);
+  return [...ids];
 }
 
 // What a rebuilt run remembers of one task revision: the ids of its source

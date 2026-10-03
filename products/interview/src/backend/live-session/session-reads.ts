@@ -186,6 +186,32 @@ export async function listActions(
   });
 }
 
+// The worker's read of a session's actions: the NEWEST `limit` rows, oldest
+// first. A long session whose actions pass a page would otherwise seed a
+// rebuilt run from its oldest rows only and lose every later task.
+export async function listActionsNewest(
+  database: PlatformDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  limit: number,
+): Promise<StoredAction[]> {
+  assertUuid(sessionId);
+  return inOwnerScope(database, scope, async (tx) => {
+    if (!(await readSession(tx, scope, sessionId)))
+      throw new SessionError("not_found");
+    const rows = await rowsOf<Record<string, unknown>>(
+      tx,
+      sql`SELECT ${ACTION_COLUMNS}, source_event_ids
+          FROM interview.session_actions
+          WHERE tenant_id = ${scope.tenantId}::uuid
+            AND owner_user_id = ${scope.actorId}::uuid
+            AND session_id = ${sessionId}::uuid
+          ORDER BY created_at DESC, id DESC LIMIT ${Math.max(1, limit)}`,
+    );
+    return rows.map(toStoredAction).reverse();
+  });
+}
+
 export type ScreenshotDownload = { bytes: Uint8Array; mediaType: string };
 
 // The download read: the owner's own session screenshot only, served with its

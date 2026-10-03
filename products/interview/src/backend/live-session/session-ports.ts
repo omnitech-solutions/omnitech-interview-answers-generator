@@ -8,6 +8,10 @@ import { createSessionJob, FencedSessionWrites } from "./fenced-writes.js";
 import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
 import { ActiveSessionRepository } from "./repository.js";
 import { loadSessionContext } from "./session-context.js";
+import { SessionError } from "./errors.js";
+import { inOwnerScope } from "./scope.js";
+import { listActionsNewest } from "./session-reads.js";
+import { readSession } from "./session-record.js";
 import {
   claimCapExpired,
   claimPurgeCandidates,
@@ -25,9 +29,12 @@ export type DatabasePortOptions = {
   leaseMs?: number;
   jobs?: SessionJobs;
   drafts?: SessionDraftPurger;
+  // How many of a session's newest actions a rebuilt run is seeded from.
+  actionLimit?: number;
 };
 
 export const DEFAULT_LEASE_MS = 60_000;
+export const DEFAULT_ACTION_LIMIT = 5_000;
 
 export function createDatabaseClaimPort(
   database: PlatformDatabase,
@@ -48,7 +55,7 @@ export function createDatabaseClaimPort(
 
 export function createDatabaseStorePort(
   database: PlatformDatabase,
-  options: Pick<DatabasePortOptions, "jobs" | "drafts"> = {},
+  options: Pick<DatabasePortOptions, "jobs" | "drafts" | "actionLimit"> = {},
 ): SessionStorePort {
   const jobs = options.jobs ?? new PostgresAgentJobRepository(database);
   const repository = new ActiveSessionRepository(database, { jobs });
@@ -63,8 +70,20 @@ export function createDatabaseStorePort(
       repository.reconcileSession(scope, sessionId),
     observationsAfter: (scope, sessionId, afterSequence, limit) =>
       repository.listObservations(scope, sessionId, { afterSequence, limit }),
+    recordProcessedThrough: (input) => writes.recordProcessedThrough(input),
     actions: (scope, sessionId) =>
-      repository.listActions(scope, sessionId, { limit: 500 }),
+      listActionsNewest(
+        database,
+        scope,
+        sessionId,
+        options.actionLimit ?? DEFAULT_ACTION_LIMIT,
+      ),
+    processedThrough: (scope, sessionId) =>
+      inOwnerScope(database, scope, async (tx) => {
+        const row = await readSession(tx, scope, sessionId);
+        if (!row) throw new SessionError("not_found");
+        return row.processedThrough;
+      }),
     loadContext: (scope, sessionId) =>
       loadSessionContext(database, scope, sessionId),
     cancelJobs: (scope, sessionId) =>

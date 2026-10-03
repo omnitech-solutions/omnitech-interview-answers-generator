@@ -302,13 +302,17 @@ export type ProcessorBuild = {
   agentEscalation?: SessionProcessorPorts["agentEscalation"];
   // The job repository the store port creates and cancels jobs through.
   jobs?: NonNullable<Parameters<typeof createDatabaseStorePort>[1]>["jobs"];
+  // How many of a session's newest actions a rebuilt run is seeded from.
+  actionLimit?: number;
 };
 
 export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
-  const store = createDatabaseStorePort(
-    fx.member,
-    build.jobs ? { jobs: build.jobs } : {},
-  );
+  const store = createDatabaseStorePort(fx.member, {
+    ...(build.jobs ? { jobs: build.jobs } : {}),
+    ...(build.actionLimit === undefined
+      ? {}
+      : { actionLimit: build.actionLimit }),
+  });
   const claim = createDatabaseClaimPort(fx.member, {
     workerId: build.workerId,
     ...(build.leaseMs === undefined ? {} : { leaseMs: build.leaseMs }),

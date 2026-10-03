@@ -41,6 +41,9 @@ export type SessionRecord = {
   purgedAt: Date | null;
   purgeOutcome: string | null;
   shownDraftCount: number;
+  // Observation sequence below which a holder handled every transcript
+  // segment (see FencedSessionWrites.recordProcessedThrough).
+  processedThrough: number;
   // The database clock when the row was read; every time decision uses it, so
   // the row-security policies, leases and these decisions share one clock.
   nowMs: number;
@@ -85,6 +88,7 @@ export function toRecord(row: Raw): SessionRecord {
     purgedAt: date(row["purged_at"]),
     purgeOutcome: text(row["purge_outcome"]),
     shownDraftCount: Number(row["shown_draft_count"] ?? 0),
+    processedThrough: Number(row["processed_through"] ?? 0),
     nowMs: Number(row["now_ms"] ?? Date.now()),
   };
 }

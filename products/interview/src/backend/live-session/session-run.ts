@@ -89,6 +89,21 @@ export type SessionRun = {
   // Segment ids already handed to the policy: a processed utterance is
   // closed, so a later segment (even the same speaker's) starts a new one.
   processed: Set<string>;
+  // The observation sequence below which a previous holder handled every
+  // transcript segment, read when the run is seeded; its segments are closed
+  // as they replay, never judged again.
+  restoredThrough: number;
+  // The highest such sequence stored so far (this run's or a predecessor's).
+  persistedThrough: number;
+  // Task revisions (`${taskId}:${revision}`) with an action row: their source
+  // segments are remembered by the database.
+  recorded: Set<string>;
+  // Segments whose handling changed state no action remembers (a deferred or
+  // resumed topic): the stored marker never passes them, so a rebuilt run
+  // evaluates them again.
+  held: Set<string>;
+  // True once a device-only session's queued jobs were swept (cancelled).
+  jobsSwept: boolean;
   taskCounter: number;
   // Dispatch keys finished for good in this run (published, refused,
   // suppressed): never dispatched again here.
@@ -129,6 +144,11 @@ export function createRun(
     tasks: emptyTaskState(),
     seenAtMs: new Map(),
     processed: new Set(),
+    restoredThrough: 0,
+    persistedThrough: 0,
+    recorded: new Set(),
+    held: new Set(),
+    jobsSwept: false,
     taskCounter: 0,
     settled: new Set(),
     failures: new Map(),
@@ -171,20 +191,37 @@ const idsOf = (run: SessionRun): IdGenerator => ({
 });
 
 // What the stored actions remember of the tasks a previous holder opened: the
-// source segments of every task revision it recorded an action for.
+// source segments of every task revision it recorded an action for. An action
+// stores the segments its revision RESTS ON (its own and every earlier
+// revision's), so a revision whose predecessors were never dispatched still
+// carries the whole question; a revision's own segments are what it adds to
+// the previous remembered revision's.
 function rememberedRevisions(
   actions: readonly StoredAction[],
 ): RememberedRevision[] {
-  const remembered: RememberedRevision[] = [];
+  const byTask = new Map<string, Map<number, StoredAction>>();
   for (const action of actions) {
     if (!action.sourceEventIds || action.sourceEventIds.length === 0) continue;
     if (!action.taskId.startsWith(`${TASK_ID_PREFIX}-`)) continue;
-    remembered.push({
-      taskId: action.taskId,
-      taskKey: action.taskId.slice(TASK_ID_PREFIX.length + 1),
-      revision: action.taskRevision,
-      basedOn: action.sourceEventIds,
-    });
+    const revisions = byTask.get(action.taskId) ?? new Map();
+    if (!revisions.has(action.taskRevision))
+      revisions.set(action.taskRevision, action);
+    byTask.set(action.taskId, revisions);
+  }
+  const remembered: RememberedRevision[] = [];
+  for (const [taskId, revisions] of byTask) {
+    let previous = new Set<string>();
+    for (const revision of [...revisions.keys()].sort((a, b) => a - b)) {
+      const resting = (revisions.get(revision) as StoredAction)
+        .sourceEventIds as readonly string[];
+      remembered.push({
+        taskId,
+        taskKey: taskId.slice(TASK_ID_PREFIX.length + 1),
+        revision,
+        basedOn: resting.filter((id) => !previous.has(id)),
+      });
+      previous = new Set(resting);
+    }
   }
   return remembered;
 }
@@ -285,6 +322,16 @@ export async function seedFromActions(
   run.tasks = restoreTasks(run.tasks, remembered);
   for (const entry of remembered)
     for (const id of entry.basedOn) run.processed.add(id);
+  // Segments the previous holder handled and ignored are closed too: judging
+  // them again against the restored task state could revise a task the live
+  // run never revised.
+  run.restoredThrough = await store.processedThrough(
+    run.scope,
+    run.claim.sessionId,
+  );
+  run.persistedThrough = run.restoredThrough;
+  for (const action of actions)
+    run.recorded.add(`${action.taskId}:${action.taskRevision}`);
   for (const action of actions) {
     const key = keyOf(
       run,
@@ -384,6 +431,8 @@ export async function replayObservations(
       );
       run.transcript = applied.view;
       run.seenAtMs.set(observation.eventId, nowMs);
+      if (stored.sequence <= run.restoredThrough)
+        run.processed.add(observation.eventId);
       if (applied.supersededIds.length > 0) {
         const marked = markSegmentsSuperseded(run.tasks, applied.supersededIds);
         run.tasks = marked.state;
@@ -461,9 +510,56 @@ export async function processUtterances(
       : await processUtterance(run.tasks, policy, utterance, idsOf(run));
     run.tasks = step.state;
     fromCore(run, step.trace);
+    if (step.outcome.kind === "deferred" || step.outcome.kind === "resumed")
+      for (const id of utterance.segmentIds) run.held.add(id);
     handled += 1;
   }
   return handled;
+}
+
+// Notes that a task revision now has an action row (dispatched, duplicate or
+// suppressed): the database remembers the segments it rests on.
+export function noteRecorded(
+  run: SessionRun,
+  taskId: string,
+  revision: number,
+): void {
+  run.recorded.add(`${taskId}:${revision}`);
+}
+
+// The observation sequence below which every transcript segment is handled AND
+// remembered: ignored by the policy, or part of a revision the database holds
+// an action for (or an earlier one of a task with a later recorded revision,
+// whose stored segment ids include it). A segment whose handling only lives in
+// memory (a revision not yet dispatched, a deferred topic) stops the marker,
+// so a rebuilt run evaluates it again instead of losing it.
+export function handledThrough(run: SessionRun): number {
+  const unremembered = new Set<string>(run.held);
+  for (const task of Object.values(run.tasks.tasks)) {
+    const newestRecorded = Math.max(
+      0,
+      ...task.revisions
+        .filter((entry) => run.recorded.has(`${task.taskId}:${entry.revision}`))
+        .map((entry) => entry.revision),
+    );
+    for (const entry of task.revisions)
+      if (entry.revision > newestRecorded)
+        for (const id of entry.basedOn) unremembered.add(id);
+  }
+  let through = run.persistedThrough;
+  const segments = Object.values(run.transcript.segments).sort(
+    (a, b) => a.seq - b.seq,
+  );
+  for (const segment of segments) {
+    if (segment.seq <= through) continue;
+    const handled =
+      segment.supersededBy !== null ||
+      (run.processed.has(segment.eventId) &&
+        !unremembered.has(segment.eventId));
+    if (!handled) break;
+    through = segment.seq;
+  }
+  return through;
 }
 
 // The next task revision that needs assistance: the current revision of a task

@@ -3,6 +3,7 @@
 // remote job left queued would still launch after the owner asked for
 // device-only.
 import { randomUUID } from "node:crypto";
+import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import {
   QUESTION,
@@ -15,6 +16,8 @@ import { type Fixture, startFixture } from "./live-session-fixture.js";
 import {
   buildProcessor,
   collectTraces,
+  createFakeGateway,
+  insertSessionJob,
   NEVER_ABORTED,
   settle,
   startSessionFor,
@@ -105,5 +108,57 @@ it("cancels a queued agent job when the session tightens to device-only", async 
     [ids],
   );
   expect(claimable.rows[0].n).toBe(0);
+  await processor.close();
+}, 120_000);
+
+it("retries a failed cancellation of a queued job on later ticks once the policy is device-only", async () => {
+  const started = await startSessionFor(
+    fx,
+    repo,
+    fx.tenantA,
+    "tighten-retry",
+    "permitted-remote",
+  );
+  const jobId = await insertSessionJob(fx, started, fx.tenantA, "queued");
+  // The tighten committed (device-only) but its cancellation was lost.
+  await fx.owner.query(
+    "UPDATE interview.active_sessions SET processing_policy='device_only' WHERE id=$1",
+    [started.sessionId],
+  );
+  const real = new PostgresAgentJobRepository(fx.member);
+  let failures = 0;
+  const flaky = {
+    create: real.create.bind(real),
+    get: real.get.bind(real),
+    requestResume: real.requestResume.bind(real),
+    requestCancellation: (
+      ...args: Parameters<typeof real.requestCancellation>
+    ) => {
+      // Only this session's job: another test's session may be held too.
+      if (args[2] === jobId && failures === 0) {
+        failures += 1;
+        throw new Error("simulated connection drop");
+      }
+      return real.requestCancellation(...args);
+    },
+  };
+  const processor = buildProcessor(fx, {
+    workerId: "w-tighten-retry",
+    gateway: createFakeGateway(),
+    jobs: flaky,
+  });
+  const status = async () =>
+    String(
+      (
+        await fx.owner.query("SELECT status FROM ai.agent_jobs WHERE id=$1", [
+          jobId,
+        ])
+      ).rows[0]?.status,
+    );
+  await processor.tick(NEVER_ABORTED);
+  expect(failures).toBe(1);
+  expect(await status()).toBe("queued");
+  await settle(processor, 3);
+  expect(await status()).not.toBe("queued");
   await processor.close();
 }, 120_000);

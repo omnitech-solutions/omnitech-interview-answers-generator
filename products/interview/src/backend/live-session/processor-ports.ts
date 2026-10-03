@@ -51,6 +51,7 @@ export type SessionStorePort = Pick<
   | "publishResult"
   | "recordFailure"
   | "abandonAction"
+  | "recordProcessedThrough"
 > & {
   // The time-derived standing: the duration cap ends, an expired credential or
   // a silent companion pauses (rule:stop-authority). Cancels jobs on a change.
@@ -62,6 +63,9 @@ export type SessionStorePort = Pick<
     limit: number,
   ): Promise<StoredObservation[]>;
   actions(scope: OwnerScope, sessionId: string): Promise<StoredAction[]>;
+  // The observation sequence below which a previous holder handled every
+  // transcript segment (0 when it recorded none).
+  processedThrough(scope: OwnerScope, sessionId: string): Promise<number>;
   // The session's pinned approved context (profile revision hash-verified,
   // linked briefing draft). Rejects when it is unavailable; never a stale one.
   loadContext(scope: OwnerScope, sessionId: string): Promise<SessionContext>;

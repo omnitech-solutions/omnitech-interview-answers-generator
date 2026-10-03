@@ -33,6 +33,7 @@ import { planAssist } from "./service.js";
 import {
   keyOf,
   noteCodingTask,
+  noteRecorded,
   type SessionCodeRunner,
   type SessionRun,
 } from "./session-run.js";
@@ -196,6 +197,8 @@ export async function beginDispatch(
     }
     return null;
   }
+  // An action row now remembers the segments this revision rests on.
+  noteRecorded(run, task.taskId, revision);
   if (recorded.outcome === "duplicate") {
     run.settled.add(key);
     finish("dispatch.duplicate", "duplicate", { existing: recorded.existing });

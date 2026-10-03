@@ -30,6 +30,7 @@ import {
   replayObservations,
   type SessionRun,
   seedFromActions,
+  handledThrough,
 } from "./session-run.js";
 import { type SessionTraceEvent } from "./trace.js";
 
@@ -153,6 +154,28 @@ export function createSessionProcessor(
     if (run.inflight === null) await drop(run, true);
   }
 
+  // Stores how far this holder has handled the transcript (a number), so a
+  // rebuilt run closes the segments this one closed. Best effort: a failed
+  // write is retried by the next tick and loses nothing but precision.
+  async function persistHandled(run: SessionRun): Promise<void> {
+    const through = handledThrough(run);
+    if (through <= run.persistedThrough) return;
+    try {
+      const outcome = await store.recordProcessedThrough({
+        scope: run.scope,
+        sessionId: run.claim.sessionId,
+        holder: run.holder,
+        through,
+      });
+      if (outcome.outcome === "recorded") run.persistedThrough = through;
+    } catch (error) {
+      run.trace({
+        event: "session.processed_marker",
+        outcome: errorCode(error),
+      });
+    }
+  }
+
   async function processRun(run: SessionRun): Promise<boolean> {
     if (run.mode === "superseded") {
       await drop(run, false);
@@ -210,6 +233,19 @@ export function createSessionProcessor(
     }
     if (run.mode !== "running") return false;
 
+    // Device-only means no remote job may launch: the agent worker claims any
+    // queued job without a policy check, so a job queued before a tighten
+    // whose cancellation failed (or was never reached) is cancelled here, and
+    // retried every tick until it succeeds. Idempotent: an ended job counts.
+    if (view.processingPolicy === "device-only" && !run.jobsSwept) {
+      try {
+        await store.cancelJobs(run.scope, sessionId);
+        run.jobsSwept = true;
+      } catch (error) {
+        run.trace({ event: "session.cancel_jobs", outcome: errorCode(error) });
+      }
+    }
+
     if (!run.seeded) {
       await seedFromActions(
         run,
@@ -231,6 +267,8 @@ export function createSessionProcessor(
       now,
       settings.settleMs,
     );
+
+    await persistHandled(run);
 
     // At most one model call per session at a time; replay keeps going while
     // it runs, so a newer revision makes an in-flight result stale. The prose

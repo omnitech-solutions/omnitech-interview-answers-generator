@@ -322,6 +322,36 @@ export class FencedSessionWrites {
     });
   }
 
+  // Records how far the holder has handled the transcript (an observation
+  // sequence, never content), so a rebuilt run closes the same segments the
+  // live run closed. Only raised; written only by the current holder.
+  async recordProcessedThrough(input: {
+    scope: OwnerScope;
+    sessionId: string;
+    holder: FenceHolder;
+    through: number;
+  }): Promise<SettleOutcome> {
+    assertUuid(input.sessionId);
+    if (!Number.isSafeInteger(input.through) || input.through < 0)
+      throw new SessionError("invalid_input");
+    return inOwnerScope(this.database, input.scope, async (tx) => {
+      const guard = await guardHolder(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.holder,
+      );
+      if (!guard.ok) return guard.refused;
+      await tx.execute(sql`
+        UPDATE interview.active_sessions
+        SET processed_through = GREATEST(COALESCE(processed_through, 0), ${input.through})
+        WHERE tenant_id = ${input.scope.tenantId}::uuid
+          AND owner_user_id = ${input.scope.actorId}::uuid
+          AND id = ${input.sessionId}::uuid`);
+      return { outcome: "recorded" };
+    });
+  }
+
   // Publishes a result only while the session is active, the holder's fence
   // and lease are current and the task revision is current; otherwise the
   // action is suppressed with a code and nothing is published.

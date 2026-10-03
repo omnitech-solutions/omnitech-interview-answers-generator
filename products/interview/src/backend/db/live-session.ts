@@ -117,6 +117,11 @@ export const activeSessions = interview.table.withRLS(
     purgeCounts: jsonb("purge_counts"),
     // Content-free hint count the rehearsal save reads (rule:tombstone-keeps-hint-count).
     shownDraftCount: integer("shown_draft_count").notNull().default(0),
+    // The highest observation sequence below which every transcript segment
+    // was already handled by a holder (a number, never content): a rebuilt run
+    // closes exactly those segments instead of evaluating them again against
+    // task state they were never judged against. Only ever raised.
+    processedThrough: bigint("processed_through", { mode: "number" }),
   },
   (t) => [
     unique("active_sessions_tenant_owner_id_key").on(
