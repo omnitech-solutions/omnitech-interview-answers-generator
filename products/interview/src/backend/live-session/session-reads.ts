@@ -13,8 +13,10 @@ import type { SessionJobs } from "./session-jobs.js";
 import { readSession, type SessionView, toView } from "./session-record.js";
 
 export const MAX_PAGE = 500;
-const pageSize = (limit: number | undefined, fallback: number): number =>
-  Math.max(1, Math.min(limit ?? fallback, MAX_PAGE));
+// A page is at most MAX_PAGE; one more row may be asked for (MAX_PAGE + 1) so
+// a reader can tell whether a further page exists.
+export const pageSize = (limit: number | undefined, fallback: number): number =>
+  Math.max(1, Math.min(limit ?? fallback, MAX_PAGE + 1));
 
 export async function getSession(
   database: PlatformDatabase,
@@ -111,8 +113,38 @@ export type StoredAction = {
   shown: boolean;
   suppressionReason: string | null;
   createdAt: string;
+  // Set by the database on every status change (the action cursor's key).
+  updatedAt: string;
 };
 
+export const ACTION_COLUMNS = sql`id, task_id, task_revision, action_kind,
+  dispatch_status, attempt, fence_at_dispatch, job_id, job_created, result,
+  shown, suppression_reason, created_at, updated_at`;
+
+export function toStoredAction(row: Record<string, unknown>): StoredAction {
+  return {
+    id: String(row["id"]),
+    taskId: String(row["task_id"]),
+    taskRevision: Number(row["task_revision"]),
+    actionKind: String(row["action_kind"]),
+    dispatchStatus: String(row["dispatch_status"]),
+    attempt: Number(row["attempt"]),
+    fenceAtDispatch: Number(row["fence_at_dispatch"]),
+    jobId: row["job_id"] ? String(row["job_id"]) : null,
+    jobCreated: Boolean(row["job_created"]),
+    result: row["result"] ?? null,
+    shown: Boolean(row["shown"]),
+    suppressionReason: row["suppression_reason"]
+      ? String(row["suppression_reason"])
+      : null,
+    createdAt: new Date(row["created_at"] as string).toISOString(),
+    updatedAt: new Date(row["updated_at"] as string).toISOString(),
+  };
+}
+
+// The oldest actions by creation, bounded: for workers and tests that read a
+// session's actions whole. The browser reads changes through
+// listActionChanges (session-pages.ts), which a changed row cannot hide from.
 export async function listActions(
   database: PlatformDatabase,
   scope: OwnerScope,
@@ -126,32 +158,14 @@ export async function listActions(
       throw new SessionError("not_found");
     const rows = await rowsOf<Record<string, unknown>>(
       tx,
-      sql`SELECT id, task_id, task_revision, action_kind, dispatch_status,
-                 attempt, fence_at_dispatch, job_id, job_created, result, shown,
-                 suppression_reason, created_at
+      sql`SELECT ${ACTION_COLUMNS}
           FROM interview.session_actions
           WHERE tenant_id = ${scope.tenantId}::uuid
             AND owner_user_id = ${scope.actorId}::uuid
             AND session_id = ${sessionId}::uuid
           ORDER BY created_at, id LIMIT ${limit}`,
     );
-    return rows.map((row) => ({
-      id: String(row["id"]),
-      taskId: String(row["task_id"]),
-      taskRevision: Number(row["task_revision"]),
-      actionKind: String(row["action_kind"]),
-      dispatchStatus: String(row["dispatch_status"]),
-      attempt: Number(row["attempt"]),
-      fenceAtDispatch: Number(row["fence_at_dispatch"]),
-      jobId: row["job_id"] ? String(row["job_id"]) : null,
-      jobCreated: Boolean(row["job_created"]),
-      result: row["result"] ?? null,
-      shown: Boolean(row["shown"]),
-      suppressionReason: row["suppression_reason"]
-        ? String(row["suppression_reason"])
-        : null,
-      createdAt: new Date(row["created_at"] as string).toISOString(),
-    }));
+    return rows.map(toStoredAction);
   });
 }
 

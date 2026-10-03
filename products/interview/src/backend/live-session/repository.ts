@@ -39,6 +39,8 @@ import {
   cancelSessionJobs,
   type SessionJobs,
 } from "./session-jobs.js";
+import { getSessionChoices } from "./session-choices.js";
+import { listActionChanges, listSessions } from "./session-pages.js";
 import {
   getOpenSession,
   getSession,
@@ -550,6 +552,22 @@ export class ActiveSessionRepository {
     options?: { limit?: number },
   ) {
     return listActions(this.database, scope, sessionId, options);
+  }
+  listActionChanges(
+    scope: OwnerScope,
+    sessionId: string,
+    options?: { limit?: number; cursor?: string },
+  ) {
+    return listActionChanges(this.database, scope, sessionId, options);
+  }
+  listSessions(
+    scope: OwnerScope,
+    options?: { limit?: number; cursor?: string },
+  ) {
+    return listSessions(this.database, scope, options);
+  }
+  getSessionChoices(scope: OwnerScope) {
+    return getSessionChoices(this.database, scope);
   }
   readScreenshot(scope: OwnerScope, sessionId: string, artifactId: string) {
     return readScreenshot(this.database, scope, sessionId, artifactId);

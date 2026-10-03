@@ -24,6 +24,11 @@ import {
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
+import {
+  LIVE_SESSION_ERROR_STATUS,
+  liveSessionListQuerySchema,
+  SESSION_LIST_DEFAULT_PAGE,
+} from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -34,6 +39,7 @@ import { type IngestOptions, ingestObservation } from "./ingest.js";
 import { isProcessingPolicy, isRetentionMode } from "./mapping.js";
 import { ActiveSessionRepository } from "./repository.js";
 import type { OwnerScope } from "./scope.js";
+import { MAX_PAGE } from "./session-reads.js";
 
 export const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
 
@@ -57,20 +63,10 @@ type Status = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503;
 
 // SessionError codes to HTTP statuses. Bodies are fixed by the code alone, so
 // no id, credential or content rides along in an error.
-const ERROR_STATUS: Record<SessionErrorCode, Status> = {
-  not_found: 404,
-  invalid_input: 400,
-  link_refused: 422,
-  open_session_exists: 409,
-  status_refused: 409,
-  loosening_refused: 409,
-  retention_lengthening_refused: 409,
-  credential_renewal_required: 409,
-  duration_cap_reached: 409,
-  job_cancellation_failed: 503,
-  job_creation_refused: 409,
-  purge_incomplete: 500,
-};
+// The table itself lives in the browser contract, so the Studio view and these
+// routes cannot disagree about a code's status.
+const ERROR_STATUS: Record<SessionErrorCode, Status> =
+  LIVE_SESSION_ERROR_STATUS;
 
 const errorBody = (code: string) => ({ error: { code } });
 
@@ -339,6 +335,24 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     return c.json(started, 201);
   });
 
+  // The owner's session history, newest first. Registered with /choices and
+  // /current ahead of /:sessionId so none of them is read as a session id.
+  app.get(base, async (c) => {
+    const query = liveSessionListQuerySchema.safeParse(c.req.query());
+    if (!query.success) throw new SessionError("invalid_input");
+    return c.json(
+      await repository.listSessions(c.get("scope"), {
+        limit: query.data.limit ?? SESSION_LIST_DEFAULT_PAGE,
+        ...(query.data.cursor ? { cursor: query.data.cursor } : {}),
+      }),
+    );
+  });
+
+  // What the setup screen offers to start a session with.
+  app.get(`${base}/choices`, async (c) =>
+    c.json(await repository.getSessionChoices(c.get("scope"))),
+  );
+
   app.get(`${base}/current`, async (c) => {
     const session = await repository.getOpenSession(c.get("scope"));
     if (!session) throw new SessionError("not_found");
@@ -354,25 +368,40 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     return c.json({ session });
   });
 
-  // The stream is a cursor-paged read: observations after a sequence, the
-  // session's actions, and the cursor to ask with next.
+  // The stream is a cursor-paged read of the owner's session: observations
+  // after a sequence, and every action created or changed after an action
+  // cursor (live-session.ts in interview-contracts documents both cursors).
   app.get(`${base}/:sessionId/stream`, async (c) => {
     const scope = c.get("scope");
     const sessionId = c.req.param("sessionId");
     const after = pageNumber(c.req.query("afterSequence"), 0);
-    const limit = pageNumber(c.req.query("limit"), 200);
+    const limit = Math.max(
+      1,
+      Math.min(pageNumber(c.req.query("limit"), 200), MAX_PAGE),
+    );
     const session = await repository.getSession(scope, sessionId);
+    // [SAFETY] Ownership is settled before the cursor is looked at, so a
+    // foreign session answers as an unknown one whatever the query says.
     if (!session) throw new SessionError("not_found");
-    const observations = await repository.listObservations(scope, sessionId, {
+    const actionCursor = c.req.query("actionCursor");
+    const found = await repository.listObservations(scope, sessionId, {
       afterSequence: after,
-      limit,
+      limit: limit + 1,
     });
-    const actions = await repository.listActions(scope, sessionId, { limit });
+    const observations = found.slice(0, limit);
+    const changes = await repository.listActionChanges(scope, sessionId, {
+      limit,
+      ...(actionCursor ? { cursor: actionCursor } : {}),
+    });
     return c.json({
       session,
       observations,
-      actions,
+      actions: changes.actions,
       nextAfterSequence: observations.at(-1)?.sequence ?? after,
+      nextActionCursor: changes.nextActionCursor,
+      hasMoreObservations: found.length > limit,
+      hasMoreActions: changes.hasMoreActions,
+      serverNow: changes.serverNow,
     });
   });
 

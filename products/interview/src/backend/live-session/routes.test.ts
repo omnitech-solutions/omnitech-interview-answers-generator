@@ -5,6 +5,13 @@
 // in a URL; bounds before parsing; membership re-checked; and control state
 // carried on every acknowledgement (ADR-0011, ADR-0012).
 import { randomUUID } from "node:crypto";
+import {
+  liveSessionChoicesResponseSchema,
+  liveSessionErrorBodySchema,
+  liveSessionListResponseSchema,
+  liveSessionResponseSchema,
+  liveStreamResponseSchema,
+} from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -538,5 +545,336 @@ describe("owner stop actions and header scope", () => {
     const own = await host.request(`${base()}/current`);
     expect(own.headers.get("cache-control")).toBe("no-store");
     expect(own.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+});
+
+// ---- Studio Live view reads (PB-0002 dev loop 3) ---------------------------
+
+const seedAction = (
+  sessionId: string,
+  owner: Person,
+  taskId: string,
+  ageSeconds: number,
+) =>
+  fx.owner.query(
+    `INSERT INTO interview.session_actions(tenant_id,owner_user_id,session_id,task_id,task_revision,action_kind,fence_at_dispatch,created_at,updated_at)
+     VALUES($1,$2,$3,$4,1,'draft-answer',1, now() - make_interval(secs => $5), now() - make_interval(secs => $5))
+     RETURNING id`,
+    [fx.tenantA, owner.id, sessionId, taskId, ageSeconds],
+  );
+
+type StreamBody = {
+  actions: Array<{ id: string; dispatchStatus: string; updatedAt: string }>;
+  nextActionCursor: string;
+  hasMoreActions: boolean;
+  hasMoreObservations: boolean;
+  nextAfterSequence: number;
+  serverNow: string;
+};
+
+describe("session history list", () => {
+  it("lists the owner's sessions newest first in pages, with summaries only", async () => {
+    const owner = await begin("history");
+    // End the first so a second can open (one open session per owner).
+    expect(
+      (
+        await post(`/${owner.id}/control`, {
+          version: 1,
+          kind: "session.control",
+          action: "end",
+        })
+      ).status,
+    ).toBe(200);
+    const second = (await (await post("", START)).json()) as {
+      session: { id: string };
+    };
+    as(owner.person);
+    const first = await get("?limit=1");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("cache-control")).toBe("no-store");
+    const page1 = (await first.json()) as {
+      sessions: Array<Record<string, unknown>>;
+      nextCursor: string | null;
+    };
+    expect(page1.sessions.map((s) => s["id"])).toEqual([second.session.id]);
+    expect(page1.nextCursor).not.toBeNull();
+    const page2 = (await (
+      await get(`?limit=1&cursor=${encodeURIComponent(page1.nextCursor ?? "")}`)
+    ).json()) as { sessions: Array<Record<string, unknown>>; nextCursor: null };
+    expect(page2.sessions.map((s) => s["id"])).toEqual([owner.id]);
+    expect(page2.nextCursor).toBeNull();
+    expect(Object.keys(page2.sessions[0] ?? {}).sort()).toEqual(
+      [
+        "candidacyId",
+        "createdAt",
+        "endedAt",
+        "id",
+        "interviewId",
+        "processingPolicy",
+        "purged",
+        "rehearsal",
+        "retention",
+        "shownDraftCount",
+        "status",
+      ].sort(),
+    );
+    expect(page2.sessions[0]).toMatchObject({ status: "ended" });
+  });
+
+  it("returns nothing of another same-tenant user's, and refuses a bad cursor and a non-member", async () => {
+    const owner = await begin("history-owner");
+    const other = await member("history-other");
+    as(other);
+    const empty = (await (await get("")).json()) as { sessions: unknown[] };
+    expect(empty.sessions).toEqual([]);
+    const text = await (await get("")).text();
+    expect(text).not.toContain(owner.id);
+    const bad = await get("?cursor=not-a-cursor");
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: { code: "invalid_input" } });
+    expect((await get("?limit=0")).status).toBe(400);
+    as(null);
+    expect((await get("")).status).toBe(401);
+    expect((await get("/choices")).status).toBe(401);
+  });
+
+  it("keeps /current and /choices from being read as a session id", async () => {
+    const owner = await begin("collide");
+    as(owner.person);
+    const current = (await (await get("/current")).json()) as {
+      session: { id: string };
+    };
+    expect(current.session.id).toBe(owner.id);
+    const choices = await get("/choices");
+    expect(choices.status).toBe(200);
+    expect(await choices.json()).toHaveProperty("candidacies");
+  });
+});
+
+describe("after a session ends", () => {
+  it("answers current as not found, and the session by id as ended, then purging", async () => {
+    const owner = await begin("ending");
+    const control = (action: string) =>
+      post(`/${owner.id}/control`, {
+        version: 1,
+        kind: "session.control",
+        action,
+      });
+    expect((await control("end")).status).toBe(200);
+    const current = await get("/current");
+    expect(current.status).toBe(404);
+    expect(await current.json()).toEqual({ error: { code: "not_found" } });
+    const ended = (await (await get(`/${owner.id}`)).json()) as {
+      session: { status: string };
+    };
+    expect(ended.session.status).toBe("ended");
+    // An ended session cannot be resumed.
+    const resumed = await control("resume");
+    expect(resumed.status).toBe(409);
+    expect(await resumed.json()).toEqual({ error: { code: "status_refused" } });
+    const deleted = await app().request(`${base()}/${owner.id}`, {
+      method: "DELETE",
+    });
+    expect(deleted.status).toBe(202);
+    expect(
+      ((await deleted.json()) as { session: { status: string } }).session
+        .status,
+    ).toBe("purging");
+    expect((await get("/current")).status).toBe(404);
+  });
+});
+
+describe("browser contract", () => {
+  it("is what every read and the error body actually return", async () => {
+    const owner = await begin("contract");
+    await seedAction(owner.id, owner.person, "contract-task", 10);
+    as(owner.person);
+    const json = async (path: string) => (await get(path)).json();
+    expect(
+      liveSessionListResponseSchema.safeParse(await json("")).success,
+    ).toBe(true);
+    expect(
+      liveSessionChoicesResponseSchema.safeParse(await json("/choices"))
+        .success,
+    ).toBe(true);
+    expect(
+      liveSessionResponseSchema.safeParse(await json("/current")).success,
+    ).toBe(true);
+    expect(
+      liveStreamResponseSchema.safeParse(await json(`/${owner.id}/stream`))
+        .success,
+    ).toBe(true);
+    const missing = await get(`/${randomUUID()}`);
+    expect(
+      liveSessionErrorBodySchema.safeParse(await missing.json()).success,
+    ).toBe(true);
+  });
+});
+
+describe("session setup choices", () => {
+  it("offers the owner's candidacies, interviews and approved profile revisions without matrix text", async () => {
+    const owner = await member("chooser");
+    const stranger = await member("chooser-other");
+    await fx.owner.query(
+      `UPDATE interview.candidate_profiles SET revision = 2 WHERE tenant_id=$1 AND actor_id=$2 AND id=$3`,
+      [fx.tenantA, owner.id, owner.profile],
+    );
+    await fx.owner.query(
+      `INSERT INTO interview.candidate_profile_revisions(tenant_id,actor_id,product_id,id,revision,name,sha256,matrix)
+       VALUES($1,$2,'omnitech.interview',$3,2,'Profile v2',$4,$5::jsonb)`,
+      [
+        fx.tenantA,
+        owner.id,
+        owner.profile,
+        "1".repeat(64),
+        JSON.stringify({
+          candidate: {},
+          roles: [
+            { company: "SecretCorp", title: "Lead" },
+            { company: "OtherSecret", title: "Dev" },
+          ],
+        }),
+      ],
+    );
+    as(owner);
+    const response = await get("/choices");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const text = await response.text();
+    expect(text).not.toContain("SecretCorp");
+    expect(text).not.toContain(stranger.candidacy);
+    const body = JSON.parse(text) as {
+      candidacies: Array<{
+        id: string;
+        title: string;
+        interviews: Array<{ id: string; label: string }>;
+      }>;
+      profiles: Array<{
+        profileId: string;
+        revision: number;
+        entryCount: number;
+        latest: boolean;
+      }>;
+    };
+    expect(body.candidacies.map((c) => c.id)).toEqual([owner.candidacy]);
+    expect(body.candidacies[0]?.interviews.map((i) => i.id)).toEqual([
+      owner.interview,
+    ]);
+    // Newest first; only revision 2 is the one a start would pin.
+    expect(
+      body.profiles.map((p) => [p.revision, p.latest, p.entryCount]),
+    ).toEqual([
+      [2, true, 2],
+      [1, false, 0],
+    ]);
+    expect(body.profiles.every((p) => p.profileId === owner.profile)).toBe(
+      true,
+    );
+  });
+
+  it("offers a member nothing that belongs to someone else, and nothing without membership", async () => {
+    const lonely = await fx.provision(fx.tenantA, "lonely");
+    await fx.owner.query(
+      "DELETE FROM interview.member_people WHERE tenant_id=$1 AND user_id=$2",
+      [fx.tenantA, lonely.id],
+    );
+    as(lonely);
+    const body = (await (await get("/choices")).json()) as {
+      candidacies: unknown[];
+    };
+    expect(body.candidacies).toEqual([]);
+    as(null);
+    expect((await get("/choices")).status).toBe(401);
+  });
+});
+
+describe("action cursor", () => {
+  it("reads every action created or changed after a cursor, across pages, including an early row that settles late", async () => {
+    const owner = await begin("cursor");
+    // Five old rows, backdated so the caught-up overlap does not re-read them.
+    const ids: string[] = [];
+    for (const [index, age] of [5000, 4000, 3000, 2000, 1000].entries()) {
+      const inserted = await seedAction(
+        owner.id,
+        owner.person,
+        `t${index}`,
+        age,
+      );
+      ids.push(String(inserted.rows[0].id));
+    }
+    as(owner.person);
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    for (;;) {
+      const query = `?limit=2${cursor ? `&actionCursor=${encodeURIComponent(cursor)}` : ""}`;
+      const page = (await (
+        await get(`/${owner.id}/stream${query}`)
+      ).json()) as StreamBody;
+      seen.push(...page.actions.map((a) => a.id));
+      cursor = page.nextActionCursor;
+      pages += 1;
+      expect(Number.isNaN(Date.parse(page.serverNow))).toBe(false);
+      if (!page.hasMoreActions) break;
+    }
+    expect(pages).toBe(3);
+    expect(seen).toEqual(ids);
+
+    // The earliest row settles after the cap-sized reads are done.
+    await fx.owner.query(
+      "UPDATE interview.session_actions SET dispatch_status='succeeded', result='{}'::jsonb WHERE id=$1",
+      [ids[0]],
+    );
+    const after = (await (
+      await get(
+        `/${owner.id}/stream?limit=2&actionCursor=${encodeURIComponent(cursor ?? "")}`,
+      )
+    ).json()) as StreamBody;
+    expect(after.actions.map((a) => [a.id, a.dispatchStatus])).toEqual([
+      [ids[0], "succeeded"],
+    ]);
+    expect(after.hasMoreActions).toBe(false);
+    // Nothing new: a caught-up reader re-reads only the last moments (the
+    // overlap), so the settled row may repeat and nothing else appears.
+    const quiet = (await (
+      await get(
+        `/${owner.id}/stream?actionCursor=${encodeURIComponent(after.nextActionCursor)}`,
+      )
+    ).json()) as StreamBody;
+    expect(quiet.actions.every((a) => a.id === ids[0])).toBe(true);
+  });
+
+  it("still serves the existing parameters, reports observation paging and rejects a malformed cursor", async () => {
+    const owner = await begin("cursor-compat");
+    as(null);
+    for (const sequence of [0, 1, 2])
+      await ingest(
+        owner.credential,
+        transcript("mic", sequence, "w", `cc-${sequence}`),
+      );
+    as(owner.person);
+    const page = (await (
+      await get(`/${owner.id}/stream?afterSequence=2&limit=1`)
+    ).json()) as StreamBody & { observations: Array<{ sequence: number }> };
+    expect(page.observations.map((o) => o.sequence)).toEqual([3]);
+    expect(page.nextAfterSequence).toBe(3);
+    expect(page.hasMoreObservations).toBe(false);
+    const more = (await (
+      await get(`/${owner.id}/stream?limit=2`)
+    ).json()) as StreamBody;
+    expect(more.hasMoreObservations).toBe(true);
+    const bad = await get(`/${owner.id}/stream?actionCursor=nope`);
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: { code: "invalid_input" } });
+  });
+
+  it("answers another same-tenant user's stream with the unknown-session error, content-free", async () => {
+    const owner = await begin("cursor-owner");
+    await seedAction(owner.id, owner.person, "secret-task", 10);
+    as(await member("cursor-intruder"));
+    const response = await get(`/${owner.id}/stream?actionCursor=x`);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ error: { code: "not_found" } });
   });
 });
