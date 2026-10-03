@@ -409,6 +409,21 @@ describe("a live session", () => {
       ),
     ).toBeVisible();
   });
+
+  it("names the microphone when only its capture is lost, and clears it when it speaks again", async () => {
+    await live();
+    service.script.observations.push(
+      disconnected(1, "microphone", "device-lost"),
+    );
+    await advance(1_000);
+    expect(bar()).toHaveTextContent("Microphone capture lost");
+    expect(screen.getByText(/Microphone was lost/)).toBeVisible();
+    service.script.observations.push(
+      transcript(2, "Back again.", { sourceId: "microphone" }),
+    );
+    await advance(1_000);
+    expect(bar()).not.toHaveTextContent("capture lost");
+  });
 });
 
 describe("ending", () => {
