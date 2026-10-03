@@ -13,7 +13,10 @@ import {
   createTogetherImageProvider,
 } from "@omnitech/ai-provider-images";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
-import { INTERVIEW_ASSISTANT_PROFILE } from "@omnitech/product-interview/backend";
+import {
+  INTERVIEW_ANSWER_PROFILE,
+  INTERVIEW_ASSISTANT_PROFILE,
+} from "@omnitech/product-interview/backend";
 import {
   type AgentExecutionPort,
   type AiProfile,
@@ -139,6 +142,7 @@ async function readImageResponse(response: Response, provider: string) {
 }
 
 const INTERVIEW_ASSISTANT_TARGET = "interview-assistant-model";
+const INTERVIEW_ANSWER_TARGET = "interview-answer-model";
 
 // How much the interview assistant may read and write per turn. A local
 // model is loaded with ASSISTANT_CONTEXT_TOKENS (see scripts/local-model.mjs);
@@ -189,6 +193,21 @@ export function createPlatformAiGateway() {
         ...(language.apiKey ? { apiKey: language.apiKey } : {}),
         maxOutputTokens: assistantBudget.outputTokens,
         temperature: 0.3,
+      }),
+      // Generated answers carry code, tests and the full guide: a larger
+      // output budget, still within a quarter of the context window.
+      createOpenAiModelAdapter({
+        id: INTERVIEW_ANSWER_TARGET,
+        label: language.label,
+        model: language.model,
+        baseUrl: language.baseUrl,
+        timeoutMs: language.timeoutMs,
+        ...(language.apiKey ? { apiKey: language.apiKey } : {}),
+        maxOutputTokens: Math.min(
+          12_000,
+          Math.floor(assistantBudget.contextTokens / 4),
+        ),
+        temperature: 0.2,
       }),
     );
   } else {
@@ -432,6 +451,14 @@ export function createPlatformAiGateway() {
       family: "direct-model",
       targetId: language ? INTERVIEW_ASSISTANT_TARGET : languageTargetId,
       taskTypes: ["structured-chat", "structured-generation"],
+      enabled: true,
+    },
+    {
+      id: INTERVIEW_ANSWER_PROFILE,
+      label: "Interview answers",
+      family: "direct-model",
+      targetId: language ? INTERVIEW_ANSWER_TARGET : languageTargetId,
+      taskTypes: ["structured-generation"],
       enabled: true,
     },
     {

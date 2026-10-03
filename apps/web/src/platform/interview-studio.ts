@@ -40,9 +40,12 @@ export async function resolveInterviewScope(request: Request) {
   );
 }
 
-// The product's one-shot JSON replies run on the interview assistant's
-// profile, as the member the request resolved to.
-export function interviewGenerate(ai: AiExecutionGateway) {
+// The product's one-shot JSON replies, on the given profile, as the member the
+// request resolved to.
+export function interviewGenerate(
+  ai: AiExecutionGateway,
+  profileId: string = INTERVIEW_ASSISTANT_PROFILE,
+) {
   return async (input: { system: string; prompt: string }, scope: Scope) =>
     (
       await ai.execute({
@@ -52,7 +55,7 @@ export function interviewGenerate(ai: AiExecutionGateway) {
           productId: scope.productId,
           permissions: [...PERMISSIONS],
         },
-        profileId: INTERVIEW_ASSISTANT_PROFILE,
+        profileId,
         task: { type: "structured-generation", ...input },
       })
     ).result;

@@ -1,6 +1,9 @@
 import { createPlatformApi } from "@omnitech/platform-api";
 import { getPlatformDatabase } from "@omnitech/database";
-import { createInterviewApi } from "@omnitech/product-interview/backend";
+import {
+  createInterviewApi,
+  INTERVIEW_ANSWER_PROFILE,
+} from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
@@ -55,7 +58,7 @@ export function createApplicationApi() {
     createInterviewApi({
       resolveScope: resolveInterviewScope,
       ...(resolveDefaultLanguageModel()
-        ? { generate: interviewGenerate(ai) }
+        ? { generate: interviewGenerate(ai, INTERVIEW_ANSWER_PROFILE) }
         : {}),
     }),
   );

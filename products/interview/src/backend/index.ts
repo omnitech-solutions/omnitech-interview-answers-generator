@@ -34,6 +34,7 @@ export { createRehearsalApi, rehearsalStatus } from "./rehearsal/api.js";
 
 export { loadLocalDefaultProfile } from "./local-default-profile.js";
 export {
+  INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_ASSISTANT_PROFILE,
   INTERVIEW_PRODUCT_ID,
 } from "../assistant-profile.js";
