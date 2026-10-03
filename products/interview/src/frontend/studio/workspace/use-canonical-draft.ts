@@ -14,7 +14,20 @@ export type Draft = {
   answer: GeneratedAnswer | null;
   progress?: StageProgress | undefined;
 };
-type CanonicalRecord = { origin: Origin; value: Draft };
+// What marks a draft as created by something other than its owner (an
+// assistant proposal or a session). An owner edit of the answer, briefing or
+// question clears it; any other edit moves `draftRevision` past
+// `acceptedDraftRevision`.
+export type DraftProvenance = {
+  proposalId: string;
+  draftRevision: number;
+  acceptedDraftRevision: number;
+};
+type CanonicalRecord = {
+  origin: Origin;
+  value: Draft;
+  provenance?: DraftProvenance | null;
+};
 export type SaveState = "saved" | "saving" | "unsaved" | "conflict" | "error";
 
 const AUTOSAVE_MS = 800;
@@ -45,6 +58,7 @@ export function useCanonicalDraft({
   const path = `/api/interview/workspaces/${encodeURIComponent(workspaceId)}/artifacts/${encodeURIComponent(artifactId)}`;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [origin, setOrigin] = useState<Origin>();
+  const [provenance, setProvenance] = useState<DraftProvenance | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [loadError, setLoadError] = useState("");
   // Refs mirror state for async work that must see the latest values.
@@ -80,6 +94,7 @@ export function useCanonicalDraft({
   const hydrate = useCallback((record: CanonicalRecord) => {
     originRef.current = record.origin;
     setOrigin(record.origin);
+    setProvenance(record.provenance ?? null);
     canonical.current = JSON.stringify(record.value);
     working.current = record.value;
     setDraft(record.value);
@@ -107,6 +122,7 @@ export function useCanonicalDraft({
         renamed.current?.();
       originRef.current = record.origin;
       setOrigin(record.origin);
+      setProvenance(record.provenance ?? null);
       canonical.current = JSON.stringify(record.value);
       // The server renders Markdown from the guide; keep its answer unless
       // the person has typed since.
@@ -150,6 +166,33 @@ export function useCanonicalDraft({
         () => void flush().catch(() => undefined),
         AUTOSAVE_MS,
       );
+    },
+    [flush],
+  );
+
+  // [SAFETY] Replaces part of the draft with something the person chose to
+  // take (a held session result). Their own pending edits are saved first, and
+  // the replacement is saved against the revision they have seen, so a draft
+  // that moved elsewhere is refused (revision-conflict) rather than overwritten.
+  // A refusal leaves the draft as it was.
+  const replace = useCallback(
+    async (patch: (current: Draft) => Partial<Draft>) => {
+      clearTimeout(timer.current);
+      await flush();
+      const base = working.current;
+      if (!base) throw new Error("workspace-not-ready");
+      const next = { ...base, ...patch(base) };
+      working.current = next;
+      setDraft(next);
+      try {
+        await flush();
+      } catch (error) {
+        if (working.current === next) {
+          working.current = base;
+          setDraft(base);
+        }
+        throw error;
+      }
     },
     [flush],
   );
@@ -246,10 +289,12 @@ export function useCanonicalDraft({
   return {
     draft,
     origin,
+    provenance,
     saveState,
     loadError,
     update,
     flush,
+    replace,
     reload,
     reloadAfterAssistant,
     runTests,

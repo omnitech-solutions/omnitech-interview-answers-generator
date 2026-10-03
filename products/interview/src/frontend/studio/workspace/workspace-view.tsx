@@ -8,6 +8,7 @@ import {
   type SavedAnswer,
   type StageProgress,
 } from "@omnitech/interview-contracts";
+import type { Origin } from "@omnitech-assistant/contracts";
 import type { HostHooks } from "@omnitech-assistant/react";
 import type { AssistantClient, ProposalRecord } from "@omnitech-assistant/sdk";
 import {
@@ -30,6 +31,7 @@ import { LANGUAGE_LABELS, STAGES, stageIndex } from "./stages";
 import { VersionsMenu } from "./versions-menu";
 import {
   type Draft,
+  type DraftProvenance,
   PLACEHOLDER_QUESTION,
   type SaveState,
   useCanonicalDraft,
@@ -43,6 +45,25 @@ export interface WorkspaceAssistant {
   workspaceId: string;
   artifactId: string;
 }
+
+// What a session's private draft needs to know about the open Workspace
+// (live/session-draft-panel.tsx renders from it).
+export type SessionDraftState = {
+  // The server has no draft here yet (the session has not written one).
+  missing: boolean;
+  origin: Origin | undefined;
+  provenance: DraftProvenance | null;
+  saveState: SaveState;
+  // The open draft's solution, usage and tests, as the person sees them.
+  files: Pick<GeneratedAnswer, "code" | "usageCode" | "testCode"> | null;
+  // Takes a solution into the draft against the revision the person sees; the
+  // server refuses it (revision-conflict) if the draft moved.
+  applySolution(
+    solution: Pick<GeneratedAnswer, "code" | "usageCode" | "testCode"> &
+      Partial<Pick<GeneratedAnswer, "language">>,
+  ): Promise<void>;
+  reload(): Promise<void>;
+};
 
 const SYNTAX_DELAY_MS = 500;
 const START: StageProgress = { stage: "understand", clarified: [] };
@@ -145,10 +166,14 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 export function WorkspaceView({
   assistant,
   onNewQuestion,
+  sessionDraft,
 }: {
   assistant: WorkspaceAssistant;
   // Starts another question (the header's New question button).
   onNewQuestion?: () => void;
+  // Set when this is a session's private draft: what to show above the editor,
+  // and in place of it while the session has not written the draft yet.
+  sessionDraft?: (state: SessionDraftState) => ReactNode;
 }) {
   const studio = useStudio();
   const refreshLists = studio?.refreshLists;
@@ -309,6 +334,27 @@ export function WorkspaceView({
   const header = (content: ReactNode) =>
     studio?.headerSlot ? createPortal(content, studio.headerSlot) : null;
 
+  const applySolution: SessionDraftState["applySolution"] = (solution) =>
+    canonical.replace((current) =>
+      current.answer ? { answer: { ...current.answer, ...solution } } : {},
+    );
+  const sessionState: SessionDraftState = {
+    missing: !draft && canonical.loadError === "not-found",
+    origin: canonical.origin,
+    provenance: canonical.provenance,
+    saveState: canonical.saveState,
+    files: draft?.answer
+      ? {
+          code: draft.answer.code,
+          usageCode: draft.answer.usageCode,
+          testCode: draft.answer.testCode,
+        }
+      : null,
+    applySolution,
+    reload: canonical.reload,
+  };
+  if (!draft && sessionDraft && sessionState.missing)
+    return <div className="ws">{sessionDraft(sessionState)}</div>;
   if (!draft)
     return (
       <div className="studio-page">
@@ -469,6 +515,7 @@ export function WorkspaceView({
           </button>
         </>,
       )}
+      {sessionDraft?.(sessionState)}
       <div
         className="ws-split"
         ref={split}
