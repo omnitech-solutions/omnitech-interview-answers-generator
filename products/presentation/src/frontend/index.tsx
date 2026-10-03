@@ -2551,7 +2551,7 @@ export function SharedPresentation(props: ProductPageProps) {
   useEffect(() => {
     if (!token) return;
     return load<PresentationDocument>(
-      `/api/presentation/v1/shared/${token}`,
+      `/api/presentation/v1/shared/${encodeURIComponent(token)}`,
       setDocument,
       (reason) =>
         setError(

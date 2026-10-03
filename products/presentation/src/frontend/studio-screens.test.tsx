@@ -546,6 +546,20 @@ describe("shared presentation", () => {
     );
   });
 
+  it("encodes a token holding reserved characters into one path segment", async () => {
+    const token = "a/b?c#d e";
+    const fake = installFakeApi({
+      [`GET ${api}/shared/${encodeURIComponent(token)}`]: sampleDocument({
+        title: "Encoded deck",
+      }),
+    });
+    await mount("presentation.shared", ["shared", token]);
+    expect(
+      await screen.findByRole("heading", { name: "Encoded deck" }),
+    ).toBeInTheDocument();
+    expect(fake.sent[0]?.path).toBe(`${api}/shared/a%2Fb%3Fc%23d%20e`);
+  });
+
   it("stays on the loading state when the link has no token", async () => {
     const fake = installFakeApi({});
     await mount("presentation.shared", ["shared"]);
