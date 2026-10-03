@@ -43,6 +43,26 @@ describe("programming challenge", () => {
       ...overrides,
     });
 
+  it("words a withheld solution as a failed structure check, not an experience check", () => {
+    show({
+      actions: [
+        coding(["Single thread"], 1),
+        solve(null, 1, {
+          dispatchStatus: "suppressed",
+          suppressionReason: "invalid_output",
+          createdAt: minutesAfter(1, 20),
+          updatedAt: minutesAfter(1, 21),
+        }),
+      ],
+    });
+    const notice = screen.getByTestId("run-notice");
+    expect(notice).toHaveTextContent("Solution withheld");
+    expect(notice).toHaveTextContent(
+      "did not pass its checks (language, tests and constraint coverage)",
+    );
+    expect(notice).not.toHaveTextContent(/approved experience/);
+  });
+
   it("shows the title, constraints across revisions and the revision", () => {
     show({
       actions: [
@@ -225,7 +245,7 @@ describe("programming challenge", () => {
     expect(screen.getByText(/Not run\./)).toBeVisible();
     expect(
       screen.getByText(
-        "Coding needs a remote model, and this session processes content on this Mac only.",
+        "Coding needs a remote model, and this session runs AI models on this Mac only.",
       ),
     ).toBeVisible();
   });

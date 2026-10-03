@@ -130,7 +130,8 @@ const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
   },
   runner_not_device_local: {
     state: "refused",
-    label: "The tests could not run on this Mac.",
+    label:
+      "Device-only mode refused it: the test runner does not run on this Mac.",
   },
   assistance_disabled: {
     state: "refused",
@@ -138,6 +139,11 @@ const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
   },
   job_refused: { state: "refused", label: "The agent job was refused." },
 };
+
+// A withheld solution failed its structural checks (language, tests,
+// constraint coverage); there is no approved experience involved.
+const CODE_INVALID_OUTPUT_LABEL =
+  "The generated solution did not pass its checks (language, tests and constraint coverage), so nothing was published.";
 
 function stateOf(action: LiveAction, context: RunContext): RunState {
   const currentRevision = action.taskRevision >= context.currentRevision;
@@ -199,7 +205,11 @@ export function activityRun(
         : presentation.label,
     tone: presentation.tone,
     reason: action.suppressionReason,
-    reasonLabel: SUPPRESSION[action.suppressionReason ?? ""]?.label ?? null,
+    reasonLabel:
+      action.suppressionReason === "invalid_output" &&
+      action.actionKind === "solve-code"
+        ? CODE_INVALID_OUTPUT_LABEL
+        : (SUPPRESSION[action.suppressionReason ?? ""]?.label ?? null),
     rejectedClaimCount:
       action.suppressionReason === "invalid_output"
         ? (parseWithheldResult(action.result)?.rejectedClaimCount ?? null)

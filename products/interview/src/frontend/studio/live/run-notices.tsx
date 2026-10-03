@@ -30,6 +30,14 @@ export function runNotice(
   const reason = run.reasonLabel;
   switch (run.state) {
     case "failed":
+      if (run.reason === "invalid_output" && run.actionKind === "solve-code")
+        return {
+          key,
+          tone: "amber",
+          icon: "visibility_off",
+          title: "Solution withheld",
+          text: reason ?? "The solution was withheld.",
+        };
       if (run.reason === "invalid_output")
         return {
           key,
@@ -58,7 +66,7 @@ export function runNotice(
           policy === "device-only" &&
           REMOTE_ONLY_KINDS.has(run.actionKind) &&
           POLICY_REASONS.has(run.reason ?? "")
-            ? "Coding needs a remote model, and this session processes content on this Mac only."
+            ? "Coding needs a remote model, and this session runs AI models on this Mac only."
             : (reason ?? "A policy refused this step."),
       };
     case "discarded":
