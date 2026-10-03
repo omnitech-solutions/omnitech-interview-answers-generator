@@ -179,7 +179,14 @@ const actionResult = async (actionId: string) =>
 
 // An owner edit through the real repository, so it clears provenance exactly
 // as a person's edit does.
-async function ownerEdits(w: World, taskId: string, code: string) {
+async function ownerEdits(
+  w: World,
+  taskId: string,
+  code:
+    | string
+    | { notes: string }
+    | { progress: { stage: "plan"; clarified: number[] } },
+) {
   const workspace = new InterviewWorkspaceRepository({
     tenantTransaction: (_tenantId, work) =>
       fx.member.transaction((client) =>
@@ -196,9 +203,11 @@ async function ownerEdits(w: World, taskId: string, code: string) {
   );
   const answer = current.value.answer;
   if (!answer) throw new Error("expected an answer");
-  return workspace.edit(w.workspaceScope, current.origin, {
-    answer: { ...answer, code },
-  });
+  return workspace.edit(
+    w.workspaceScope,
+    current.origin,
+    typeof code === "string" ? { answer: { ...answer, code } } : code,
+  );
 }
 
 describe("the draft shape", () => {
@@ -512,6 +521,27 @@ describe("the session draft purger", () => {
       [w.person.id],
     );
     expect(mine.rows).toHaveLength(1);
+  });
+
+  it("keeps a draft whose notes or progress the owner edited, though the edit keeps the provenance mark", async () => {
+    // Review finding 7: editTransaction clears provenance only for answer,
+    // briefing and question patches, so the mark alone cannot tell.
+    const w = await world("purge-notes-progress");
+    await publishSolution(w, "task-1", 1, "v1");
+    await publishSolution(w, "task-2", 1, "v1");
+    await publishSolution(w, "task-3", 1, "v1");
+    await ownerEdits(w, "task-1", { notes: "my own notes" });
+    await ownerEdits(w, "task-2", {
+      progress: { stage: "plan", clarified: [0] },
+    });
+    expect((await draftRow(w, "task-1")).provenance).not.toBeNull();
+    expect(await purge(w)).toBe(1);
+    expect((await draftRow(w, "task-1")).value.notes).toBe("my own notes");
+    expect((await draftRow(w, "task-2")).value.progress).toEqual({
+      stage: "plan",
+      clarified: [0],
+    });
+    expect(await draftRow(w, "task-3")).toBeUndefined();
   });
 
   it("keeps a draft a saved answer revision refers to, and never touches another session's or user's drafts", async () => {

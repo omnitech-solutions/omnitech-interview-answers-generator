@@ -13,9 +13,11 @@
 // outcome, never an exception: throwing would strand the action in flight.
 //
 // Provenance marks the draft as session-created (proposalId `session:<id>`). An
-// owner edit clears provenance (workspace.ts editTransaction), which takes the
-// draft out of the purge: the SessionDraftPurger deletes only drafts that still
-// carry the mark and that no saved answer revision refers to.
+// answer, briefing or question edit clears provenance (workspace.ts
+// editTransaction) but a notes or progress edit does not, so the purger also
+// compares the draft's revision with the one the session last wrote: it deletes
+// only drafts still byte-for-byte the session's own and that no saved answer
+// revision refers to.
 //
 // The Workspace repository speaks string-query transactions; the fenced write
 // holds a Drizzle transaction. `workspaceTransaction` adapts one to the other:
@@ -312,10 +314,15 @@ export function sessionDraftEffect(input: {
 }
 
 // [SAFETY] The purger runs inside the purge transaction (so it commits or rolls
-// back with it) for the session's owner. It deletes only drafts that still carry
-// the session's provenance mark: a draft the owner edited lost the mark, and a
-// draft a saved answer revision refers to is the owner's record (revisions are
-// immutable and reference it), so both stay.
+// back with it) for the session's owner, BEFORE the session's actions are
+// deleted. It deletes only drafts that are still byte-for-byte what the session
+// wrote: the provenance mark is present AND the draft's revision equals the
+// revision the session's newest published result recorded. Every owner edit of
+// any field (answer, question, notes, progress) bumps the revision, but only an
+// answer, briefing or question edit clears the mark, so the mark alone would
+// delete a draft whose notes or progress the owner wrote. A draft a saved answer
+// revision refers to is the owner's record (revisions are immutable and
+// reference it), so it stays too.
 export const sessionDraftPurger: SessionDraftPurger = {
   async purge(client, target) {
     const result = await client.query(
@@ -323,6 +330,15 @@ export const sessionDraftPurger: SessionDraftPurger = {
        WHERE d.tenant_id = $1 AND d.actor_id = $2 AND d.product_id = $3
          AND d.workspace_id = $4
          AND starts_with(COALESCE(d.provenance->>'proposalId', ''), $5)
+         AND d.revision = (
+           SELECT max((a.result->'workspace'->>'artifactRevision')::int)
+           FROM interview.session_actions a
+           WHERE a.tenant_id = $1::uuid AND a.owner_user_id = $2::uuid
+             AND a.session_id = $6::uuid
+             AND a.action_kind = $7
+             AND a.dispatch_status = 'succeeded'
+             AND a.result->'workspace'->>'published' = 'true'
+             AND 'coding:' || a.task_id = d.artifact_id)
          AND NOT EXISTS (
            SELECT 1 FROM interview.assistant_answer_revisions r
            WHERE r.tenant_id = d.tenant_id AND r.actor_id = d.actor_id
@@ -339,6 +355,8 @@ export const sessionDraftPurger: SessionDraftPurger = {
         INTERVIEW_PRODUCT_ID,
         sessionWorkspaceId(target.sessionId),
         sessionProposalId(target.sessionId),
+        target.sessionId,
+        CODING_ACTION_KIND,
       ],
     );
     return result.rowCount ?? 0;

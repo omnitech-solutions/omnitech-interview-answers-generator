@@ -265,6 +265,15 @@ export async function purgeSession(
         );
       }
 
+      // Session-created drafts go BEFORE the actions: the purger decides which
+      // drafts are still untouched by comparing each draft's revision with the
+      // revision the session's own results recorded.
+      const draftCount = await drafts.purge(
+        client,
+        target,
+        decodeDraftKey(session.workspace_draft_id),
+      );
+
       // The hint count is finalised before the actions are deleted.
       await client.query(
         `UPDATE interview.active_sessions SET shown_draft_count = GREATEST(
@@ -337,12 +346,6 @@ export async function purgeSession(
           agentSessions = removed.rowCount ?? 0;
         }
       }
-
-      const draftCount = await drafts.purge(
-        client,
-        target,
-        decodeDraftKey(session.workspace_draft_id),
-      );
 
       // Links, snapshot and credential are cleared (and only cleared) while the
       // session is purging.
