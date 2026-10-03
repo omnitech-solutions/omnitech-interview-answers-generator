@@ -49,6 +49,30 @@ async function json<T>(response: Response): Promise<T> {
   return body;
 }
 
+/**
+ * Loads a resource for an effect and returns the effect's cleanup. A cleaned-up
+ * effect aborts its request and drops its result, so React StrictMode's dev
+ * re-run (or a changed dependency) never leaves two live requests or a stale
+ * state update.
+ */
+function load<T>(
+  url: string,
+  onData: (value: T) => void,
+  onError: (reason: unknown) => void = () => undefined,
+): () => void {
+  const controller = new AbortController();
+  const current = () => !controller.signal.aborted;
+  void fetch(url, { signal: controller.signal })
+    .then(json<T>)
+    .then((value) => {
+      if (current()) onData(value);
+    })
+    .catch((reason: unknown) => {
+      if (current()) onError(reason);
+    });
+  return () => controller.abort();
+}
+
 async function ok(response: Response): Promise<void> {
   if (response.ok) return;
   const raw = await response.text();
@@ -232,33 +256,37 @@ export function PresentationLibrary({ tenantSlug }: ProductPageProps) {
   const [language, setLanguage] = useState("English");
   const [targets, setTargets] = useState<AiTargetSummary[]>([]);
   const [targetId, setTargetId] = useState("");
-  useEffect(() => {
-    void fetch(api(tenantSlug, "/documents"))
-      .then(json<PresentationSummary[]>)
-      .then(setItems)
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : "Unable to load."),
-      );
-  }, [tenantSlug]);
-  useEffect(() => {
-    void fetch(
-      `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
-    )
-      .then(json<AiTargetSummary[]>)
-      .then((available) => {
-        setTargets(
-          available.filter(
-            (target) =>
-              target.family === "direct-model" && target.kind === "language",
+  useEffect(
+    () =>
+      load<PresentationSummary[]>(
+        api(tenantSlug, "/documents"),
+        setItems,
+        (reason) =>
+          setError(
+            reason instanceof Error ? reason.message : "Unable to load.",
           ),
-        );
-        const persisted = window.localStorage.getItem("platform.aiProfileId");
-        setTargetId(
-          (current) => current || persisted || available[0]?.id || "",
-        );
-      })
-      .catch(() => undefined);
-  }, [tenantSlug]);
+      ),
+    [tenantSlug],
+  );
+  useEffect(
+    () =>
+      load<AiTargetSummary[]>(
+        `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
+        (available) => {
+          setTargets(
+            available.filter(
+              (target) =>
+                target.family === "direct-model" && target.kind === "language",
+            ),
+          );
+          const persisted = window.localStorage.getItem("platform.aiProfileId");
+          setTargetId(
+            (current) => current || persisted || available[0]?.id || "",
+          );
+        },
+      ),
+    [tenantSlug],
+  );
   const visibleItems = [...items]
     .sort((left, right) =>
       sortByTitle
@@ -533,24 +561,24 @@ export function PresentationCreate({ tenantSlug }: ProductPageProps) {
       sessionStorage.removeItem("presentation.create-settings");
     }
   }, []);
-  useEffect(() => {
-    void fetch(
-      `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
-    )
-      .then(json<AiTargetSummary[]>)
-      .then((available) => {
-        const languageTargets = available.filter(
-          (target) =>
-            target.family === "direct-model" && target.kind === "language",
-        );
-        setTargets(languageTargets);
-        const persisted = window.localStorage.getItem("platform.aiProfileId");
-        setTargetId(
-          (current) => current || persisted || languageTargets[0]?.id || "",
-        );
-      })
-      .catch(() => undefined);
-  }, [tenantSlug]);
+  useEffect(
+    () =>
+      load<AiTargetSummary[]>(
+        `/api/platform/v1/ai-targets?tenant=${encodeURIComponent(tenantSlug)}`,
+        (available) => {
+          const languageTargets = available.filter(
+            (target) =>
+              target.family === "direct-model" && target.kind === "language",
+          );
+          setTargets(languageTargets);
+          const persisted = window.localStorage.getItem("platform.aiProfileId");
+          setTargetId(
+            (current) => current || persisted || languageTargets[0]?.id || "",
+          );
+        },
+      ),
+    [tenantSlug],
+  );
   async function create() {
     setStatus("Creating…");
     try {
@@ -887,28 +915,24 @@ export function PresentationEditor({
   );
   useEffect(() => {
     if (!id) return;
-    void fetch(api(tenantSlug, `/documents/${id}`))
-      .then(json<PresentationDocument>)
-      .then((value) => {
+    return load<PresentationDocument>(
+      api(tenantSlug, `/documents/${id}`),
+      (value) => {
         setDocument(value);
         setSelectedId(value.slides[0]?.id ?? "");
-      })
-      .catch((reason: unknown) =>
+      },
+      (reason) =>
         setStatus(reason instanceof Error ? reason.message : "Unable to load."),
-      );
+    );
   }, [id, tenantSlug]);
-  useEffect(() => {
-    void fetch(api(tenantSlug, "/images"))
-      .then(json<GeneratedImage[]>)
-      .then(setImages)
-      .catch(() => undefined);
-  }, [tenantSlug]);
-  useEffect(() => {
-    void fetch(api(tenantSlug, "/themes"))
-      .then(json<PresentationTheme[]>)
-      .then(setThemes)
-      .catch(() => undefined);
-  }, [tenantSlug]);
+  useEffect(
+    () => load<GeneratedImage[]>(api(tenantSlug, "/images"), setImages),
+    [tenantSlug],
+  );
+  useEffect(
+    () => load<PresentationTheme[]>(api(tenantSlug, "/themes"), setThemes),
+    [tenantSlug],
+  );
   async function saveDocument(next: PresentationDocument) {
     setStatus("Saving…");
     try {
@@ -2003,16 +2027,18 @@ export function ThemeLibrary({ tenantSlug }: ProductPageProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [themeStatus, setThemeStatus] = useState("");
-  useEffect(() => {
-    void fetch(api(tenantSlug, "/themes"))
-      .then(json<PresentationTheme[]>)
-      .then(setThemes)
-      .catch((reason: unknown) =>
-        setThemeStatus(
-          reason instanceof Error ? reason.message : "Unable to load themes.",
-        ),
-      );
-  }, [tenantSlug]);
+  useEffect(
+    () =>
+      load<PresentationTheme[]>(
+        api(tenantSlug, "/themes"),
+        setThemes,
+        (reason) =>
+          setThemeStatus(
+            reason instanceof Error ? reason.message : "Unable to load themes.",
+          ),
+      ),
+    [tenantSlug],
+  );
   async function createTheme() {
     if (!name.trim()) return;
     setThemeStatus("Saving theme…");
@@ -2208,16 +2234,15 @@ export function ImageStudio({ tenantSlug }: ProductPageProps) {
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [modelId, setModelId] = useState("");
   const [status, setStatus] = useState("");
-  useEffect(() => {
-    void fetch(api(tenantSlug, "/images"))
-      .then(json<GeneratedImage[]>)
-      .then(setImages)
-      .catch((reason: unknown) =>
+  useEffect(
+    () =>
+      load<GeneratedImage[]>(api(tenantSlug, "/images"), setImages, (reason) =>
         setStatus(
           reason instanceof Error ? reason.message : "Unable to load images.",
         ),
-      );
-  }, [tenantSlug]);
+      ),
+    [tenantSlug],
+  );
   async function generate() {
     setStatus("Generating…");
     try {
@@ -2358,18 +2383,22 @@ export function PresentationMode({
   const recordingChunks = useRef<BlobPart[]>([]);
   useEffect(() => {
     if (!id) return;
-    void fetch(api(tenantSlug, `/documents/${id}`))
-      .then(json<PresentationDocument>)
-      .then(setDocument)
-      .catch((reason: unknown) =>
+    const stopDocument = load<PresentationDocument>(
+      api(tenantSlug, `/documents/${id}`),
+      setDocument,
+      (reason) =>
         setRecordingStatus(
           reason instanceof Error ? reason.message : "Unable to load.",
         ),
-      );
-    void fetch(api(tenantSlug, `/documents/${id}/recordings`))
-      .then(json<PresentationRecording[]>)
-      .then(setRecordings)
-      .catch(() => undefined);
+    );
+    const stopRecordings = load<PresentationRecording[]>(
+      api(tenantSlug, `/documents/${id}/recordings`),
+      setRecordings,
+    );
+    return () => {
+      stopDocument();
+      stopRecordings();
+    };
   }, [id, tenantSlug]);
   const slide = document?.slides[index];
   async function startRecording() {
@@ -2509,16 +2538,16 @@ export function SharedPresentation(props: ProductPageProps) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (!token) return;
-    void fetch(`/api/presentation/v1/shared/${token}`)
-      .then(json<PresentationDocument>)
-      .then(setDocument)
-      .catch((reason: unknown) =>
+    return load<PresentationDocument>(
+      `/api/presentation/v1/shared/${token}`,
+      setDocument,
+      (reason) =>
         setError(
           reason instanceof Error
             ? reason.message
             : "Unable to load presentation.",
         ),
-      );
+    );
   }, [token]);
   const slide = document?.slides[index];
   return (

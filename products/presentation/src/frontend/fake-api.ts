@@ -10,6 +10,8 @@ export interface SentRequest {
   path: string;
   query: string;
   body: unknown;
+  /** True once the screen aborted the request, as a real browser would drop it. */
+  aborted: boolean;
 }
 
 type Reply = unknown;
@@ -40,8 +42,18 @@ export function installFakeApi(routes: Record<string, Handler>) {
         path,
         query,
         body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        aborted: false,
       };
       sent.push(request);
+      const signal = init?.signal;
+      if (signal) {
+        const abort = () => {
+          request.aborted = true;
+        };
+        if (signal.aborted) abort();
+        else signal.addEventListener("abort", abort, { once: true });
+        if (request.aborted) throw new DOMException("Aborted", "AbortError");
+      }
       const route = routes[`${method} ${path}`];
       const reply = typeof route === "function" ? route(request) : route;
       if (route === undefined) {
@@ -49,6 +61,9 @@ export function installFakeApi(routes: Record<string, Handler>) {
           status: 404,
         });
       }
+      // A request aborted while in flight never delivers its response.
+      await Promise.resolve();
+      if (request.aborted) throw new DOMException("Aborted", "AbortError");
       if (reply instanceof Raw) {
         return new Response(reply.text, { status: reply.status });
       }
@@ -57,11 +72,23 @@ export function installFakeApi(routes: Record<string, Handler>) {
   );
   return {
     sent,
+    /** Requests per `"METHOD path"` resource that were not aborted. */
+    live: () => countByResource(sent.filter((request) => !request.aborted)),
+    /** Every request per `"METHOD path"` resource, aborted or not. */
+    issued: () => countByResource(sent),
     to: (method: string, path: string) =>
       sent.filter(
         (request) => request.method === method && request.path === path,
       ),
   };
+}
+
+function countByResource(requests: readonly SentRequest[]) {
+  const counts: Record<string, number> = {};
+  for (const { method, path } of requests) {
+    counts[`${method} ${path}`] = (counts[`${method} ${path}`] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /** A two-slide document as the API returns it. */
