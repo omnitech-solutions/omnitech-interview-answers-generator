@@ -27,7 +27,11 @@ export function PlatformShell({
   // A product page is /t/:tenantSlug/p/:productId/*; its registration
   // chooses the frame, and every other page is standard.
   const productSegment = /^\/t\/[^/]+\/p\/([^/]+)/.exec(pathname)?.[1];
-  const frame = (productSegment && frames[productSegment]) || "standard";
+  // [GUARD] Only the registry's own keys: /p/constructor names no frame.
+  const frame =
+    productSegment && Object.hasOwn(frames, productSegment)
+      ? (frames[productSegment] ?? "standard")
+      : "standard";
   const { theme, locale } = context.preferences;
   const tenant = encodeURIComponent(context.tenant.slug);
 

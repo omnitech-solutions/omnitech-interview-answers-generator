@@ -95,6 +95,17 @@ describe("the frame around a page", () => {
   });
 });
 
+// A segment is looked up as the registry's own key, never an inherited
+// property, so /p/constructor cannot inject a class name.
+it.each(["constructor", "toString", "__proto__"])(
+  "frames /p/%s as a standard page",
+  (segment) => {
+    location.pathname = `/t/acme/p/${segment}`;
+    renderShell();
+    expect(frameOf()).toBe("platform-frame platform-frame-standard");
+  },
+);
+
 describe("the member's preferences", () => {
   it("applies the chosen theme and locale to the document", () => {
     renderShell(context({ theme: "dark", locale: "fr" }));
