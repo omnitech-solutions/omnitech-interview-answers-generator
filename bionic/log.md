@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-02] arch | regenerated bionic/arch/ (8 files; spine 61bba9bd2092)
+
+Re-derived after the AI workflow packages were removed. ADR-0003, ADR-0007 and `research/references/ai-execution-boundaries.md` no longer name `ai-workflow-*`.
+
 ## [2026-10-02] arch | regenerated bionic/arch/ (8 files; spine 178292838431)
 
 First derive. `data-model` stubbed: no supported schema extractor reads the Drizzle schemas. Trigger: CHK-ARCH-1.

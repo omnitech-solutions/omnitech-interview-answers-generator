@@ -45,9 +45,8 @@ domain package owns its own schemas
      access.
    - `products/*` — complete product verticals: manifest, frontend, backend,
      services, tests.
-   - `ai-contracts`, `ai-runtime`, `ai-provider-*`, `ai-workflow-*`,
-     `agent-runtime-*`, `agent-job-service`, `agent-worker` — the AI execution
-     split decided in
+   - `ai-contracts`, `ai-runtime`, `ai-provider-*`, `agent-runtime-*`,
+     `agent-job-service`, `agent-worker` — the AI execution split decided in
      [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]].
    - `interview-contracts` — schemas, language routing, and answer workflows.
    - `interview-storage` — persistence interfaces and adapters.

@@ -45,7 +45,7 @@ reference for choosing an execution boundary is
    arbitrary environment variables, arbitrary directories, arbitrary MCP
    servers, or permission bypasses.
 5. **Execution style by need.** Direct model execution serves one-shot,
-   structured, streaming and image tasks. LangChain (`ai-workflow-*`) serves
+   structured, streaming and image tasks. LangChain serves
    loaders, retrieval, prompt chains and stream adaptation. LangGraph serves
    only durable, interruptible, tool-using workflows, and its mutations are
    idempotent; product changes from a workflow are staged and applied

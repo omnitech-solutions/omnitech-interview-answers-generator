@@ -33,7 +33,6 @@ atomically after validation and approval.
   event contracts.
 - `ai-runtime` — profile resolution, authorization, and adapter delegation.
 - `ai-provider-*` — provider SDKs and request translation.
-- `ai-workflow-*` — LangChain and LangGraph integration.
 - `agent-runtime-*` — Codex and Claude SDK translation.
 - `agent-job-service` — the durable job lifecycle; `agent-worker` — isolated
   execution.
