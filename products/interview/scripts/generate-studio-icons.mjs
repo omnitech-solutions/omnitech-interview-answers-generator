@@ -23,6 +23,10 @@ const icons = [
   "link", "article",
   "zoom_in", "zoom_out", "fit_screen", "left_panel_close", "left_panel_open",
   "radio_button_unchecked",
+  // Live session
+  "sensors", "psychology", "school", "stop_circle", "graphic_eq",
+  "screenshot_monitor", "cloud_off", "wifi_off", "delete", "open_in_new",
+  "memory", "devices", "desktop_windows",
 ];
 // Studio names whose source file was renamed upstream. The assistant sparkle
 // (auto_awesome) is not here: icon.tsx renders the assistant package's own.
