@@ -18,7 +18,7 @@ behind it are recorded in:
 - [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] — tenancy and storage.
 - [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] — identity vs connected accounts.
 - [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] — package ownership.
-- [[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]] — why the monolith is the default.
+- [[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]] — why the monolith is the default.
 
 Tenant transactions and migration execution live in the `database` package
 (`withTenant()`, `tenantTransaction`, one Drizzle stream in

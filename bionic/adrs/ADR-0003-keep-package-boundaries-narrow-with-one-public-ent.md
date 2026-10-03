@@ -60,7 +60,7 @@ domain package owns its own schemas
    own their schemas and repositories; `database` owns no domain schema.
 4. **New boundaries.** A new package is added for a demonstrated second
    implementation or an independent lifecycle
-   ([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]).
+   ([[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]]).
 
 ## Consequences
 

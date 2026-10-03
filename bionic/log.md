@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-02] journal | implementation: Forced RLS on every schema and package boundaries enforced in verify
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-02T21:05-06:00. Refs: [[research/concepts/architecture-overview]] [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] [[invariants/package-boundaries-hold]]
+
 ## [2026-10-02] arch | regenerated bionic/arch/ (8 files; spine 61bba9bd2092)
 
 Re-derived after the AI workflow packages were removed. ADR-0003, ADR-0007 and `research/references/ai-execution-boundaries.md` no longer name `ai-workflow-*`.
@@ -43,7 +47,7 @@ Proposed. File `bionic/adrs/ADR-0008-interview-answers-are-structured-guides-tha
 
 ## [2026-10-02] adr | ADR-0007: Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker
 
-Proposed. File `bionic/adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles.md`. Tags: ai, execution, agents, privacy, langchain, langgraph.
+Proposed. File `bionic/adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles.md`. Tags: ai, execution, agents, privacy.
 
 ## [2026-10-02] adr | ADR-0006: Keep login identities separate from connected provider accounts
 
@@ -63,7 +67,7 @@ Proposed. File `bionic/adrs/ADR-0003-keep-package-boundaries-narrow-with-one-pub
 
 ## [2026-10-02] adr | ADR-0002: Simplicity first: the least complex design that meets current requirements
 
-Proposed. File `bionic/adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis.md`. Tags: architecture, simplicity, scope.
+Proposed. File `bionic/adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee.md`. Tags: architecture, simplicity, scope.
 
 ## [2026-10-02] adr | ADR-0001: Crux is the sole AI development workflow
 

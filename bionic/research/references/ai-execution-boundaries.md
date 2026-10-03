@@ -2,7 +2,7 @@
 title: "AI execution boundaries and the on-device profile"
 slug: ai-execution-boundaries
 type: references
-tags: [ai, execution, langchain, langgraph, agents, on-device]
+tags: [ai, execution, agents, on-device]
 sources: []
 last_reviewed: 2026-10-02
 ---
@@ -20,12 +20,10 @@ is the working reference for choosing an execution boundary.
 | Boundary | Use it for | Do not use it for |
 | --- | --- | --- |
 | Direct model | One-shot or streaming text, structured output, classification, rewriting, and image generation | Durable state, approval, or multi-step recovery |
-| LangChain | Prompt chains, loaders, splitters, retrieval, vector stores, and adapting LangChain streams | Work that is clearer as one direct provider call |
-| LangGraph | Tool-using workflows, checkpoints, pause/resume, approvals, branching, and durable retries | Stateless calls that do not need workflow state |
 | Agent runtime | Explicit Codex or Claude jobs that need sessions, filesystem tools, or isolated execution | Routine chat, outlines, or image generation |
 
-LangGraph mutations must be idempotent. Product changes are staged and applied
-atomically after validation and approval.
+A workflow framework joins this table only when a workflow needs durable
+state; until then, multi-step work runs as an agent job.
 
 ## Package map
 

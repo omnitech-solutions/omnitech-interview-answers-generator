@@ -25,7 +25,7 @@ must never read, write or reference another workspace's rows, even through a
 query bug. The platform is one deployment unit
 ([[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]]), so a
 database per product or per tenant would add operations without a demonstrated
-need ([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]).
+need ([[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]]).
 The tables, helpers and tests that implement this model are described in
 [[research/concepts/interview-domain-model]].
 

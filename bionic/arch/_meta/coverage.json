@@ -674,7 +674,7 @@
       "inputs_found": [
         "bionic/adrs/ADR-0000-record-architecture-decisions.md",
         "bionic/adrs/ADR-0001-crux-is-the-sole-ai-development-workflow.md",
-        "bionic/adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis.md",
+        "bionic/adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee.md",
         "bionic/adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent.md",
         "bionic/adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol.md",
         "bionic/adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own.md",

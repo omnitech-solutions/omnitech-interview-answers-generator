@@ -11,7 +11,7 @@ supersedes: []
 amends: []
 superseded_by: null
 deciders: ["Desmond O'Leary"]
-tags: [ai, execution, agents, privacy, langchain, langgraph]
+tags: [ai, execution, agents, privacy]
 related_briefs: []
 related_research: [references/ai-execution-boundaries]
 ---
@@ -20,7 +20,7 @@ related_research: [references/ai-execution-boundaries]
 
 ## Context
 
-Products use language models, image models, multi-step workflows and coding
+Products use language models, image models and coding
 agents (Codex, Claude Code). Providers and models change often; agent runtimes
 can touch a filesystem and run tools, so they are a security boundary; and
 interview content (questions, code, notes, profiles) is private. The working
@@ -45,11 +45,9 @@ reference for choosing an execution boundary is
    arbitrary environment variables, arbitrary directories, arbitrary MCP
    servers, or permission bypasses.
 5. **Execution style by need.** Direct model execution serves one-shot,
-   structured, streaming and image tasks. LangChain serves
-   loaders, retrieval, prompt chains and stream adaptation. LangGraph serves
-   only durable, interruptible, tool-using workflows, and its mutations are
-   idempotent; product changes from a workflow are staged and applied
-   atomically after validation and approval.
+   structured, streaming and image tasks; work that needs sessions, tools or
+   isolation runs as an agent job in the worker. A workflow framework is added
+   only when a workflow needs durable state (ADR-0002).
 6. **No content logging by default.** Prompts, questions, generated content
    and code, notes, attachments, credentials, source files, model responses and
    provider-native events are not logged by default.

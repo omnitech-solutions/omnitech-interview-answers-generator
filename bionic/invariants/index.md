@@ -4,9 +4,9 @@ _Last updated: 2026-10-02_
 
 The invariants concern (`bionic/AGENTS.md` §15): pinned, ratified, executable statements of *what must be true*. Each pin is a ledger page here + zero-or-more checks in the `invariants/checks/` subdirectory, reconciled via `invariants/reconciliation.yml` beside the ledger. Non-`ratified` pins are visibly marked — survey-debt must be legible.
 
-## Pins (8)
+## Pins (9)
 
-**Survey debt: 8 `observed` pins awaiting owner ratification** via `transition-invariant`. None is ratified; no check has a recorded result.
+**Survey debt: 9 `observed` pins awaiting owner ratification** via `transition-invariant`. None is ratified; no check has a recorded result.
 
 | id | class | provenance | ratification | verification | checks | why |
 |----|-------|------------|--------------|--------------|--------|-----|
@@ -18,3 +18,4 @@ The invariants concern (`bionic/AGENTS.md` §15): pinned, ratified, executable s
 | [[invariants/products-never-branch-on-provider-names]] INV-0006 | contract | recovered | **observed** | none | products-never-branch-on-provider-names.md | ADR-0007 |
 | [[invariants/product-frontend-never-imports-apps-web]] INV-0007 | contract | recovered | **observed** | none | product-frontend-never-imports-apps-web.md | ADR-0004 |
 | [[invariants/product-domain-never-imports-nextjs]] INV-0008 | contract | recovered | **observed** | none | product-domain-never-imports-nextjs.md | ADR-0004 |
+| [[invariants/package-boundaries-hold]] INV-0009 | contract | recovered | **observed** | none | package-boundaries-hold.md | ADR-0003, ADR-0004, ADR-0007 |

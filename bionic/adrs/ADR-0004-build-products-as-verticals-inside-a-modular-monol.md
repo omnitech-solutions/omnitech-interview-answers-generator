@@ -24,7 +24,7 @@ Omnitech hosts several products (Interview Studio and Presentation today) for
 multiple tenants. Each product needs a complete vertical boundary, while the
 browser experience must stay cohesive. No product needs remote frontend
 loading, cross-service transactions or a separate deployment
-([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]). The
+([[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]]). The
 platform shape and the steps for adding a product are in
 [[research/concepts/platform-architecture]] and
 [[research/references/adding-a-product]].
