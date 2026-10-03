@@ -16,7 +16,8 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "lint": "biome lint src",
+    "lint": "biome lint src scripts",
+    "schema:generate": "tsc -b && node scripts/generate-wire-schema.mjs && biome format --write schema corpus",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
@@ -24,6 +25,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
