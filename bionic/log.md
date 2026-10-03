@@ -2,6 +2,22 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] lint | check-drift final (4 clean / 5 drift / 1 broken / 1 refusal / 8 N/A)
+
+Code docs, doctrine, lineage, ADR index, and master index drift. Arch refused stale ADR index; promptbook index is missing the active PB-0001 row. Eight plugin-authoring rows do not apply here; citation lint passed.
+
+## [2026-10-03] lint | check-drift before final renewal bound (4 clean / 5 drift / 1 broken / 1 refusal / 8 N/A)
+
+The same five projections drifted; arch refused stale ADR index and promptbook index failed CHK-PB-11. Eight plugin-authoring rows were inapplicable; citation lint passed.
+
+## [2026-10-03] journal | bug: Agent worker terminal events and loop isolation
+
+Entry in `bionic/journal/2026-10.md` at 02:53. Refs: [[adrs/ADR-0010-write-documents-in-a-few-parallel-calls-on-any-lan]] rule:running-jobs-keep-their-lease
+
+## [2026-10-03] journal | implementation: ADR-0010 parallel document generation delivery
+
+Entry in `bionic/journal/2026-10.md` at 02:52. Refs: [[adrs/ADR-0010-write-documents-in-a-few-parallel-calls-on-any-lan]] rule:parallel-document-generation rule:running-jobs-keep-their-lease
+
 ## [2026-10-03] adr | ADR-0010: accepted
 
 Write documents in a few parallel calls on any language profile. Accepted after two Claude-seat review rounds; remaining gaps recorded as follow-on work in the ADR.

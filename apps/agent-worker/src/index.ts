@@ -26,16 +26,25 @@ export async function runAgentWorker(
 ): Promise<void> {
   const loops = Math.max(1, Math.floor(options.concurrency ?? 1));
   await Promise.all(
-    Array.from({ length: loops }, (_, index) =>
-      runLoop(
-        {
-          ...options,
-          workerId:
-            loops === 1 ? options.workerId : `${options.workerId}:${index + 1}`,
-        },
-        signal,
-      ),
-    ),
+    Array.from({ length: loops }, async (_, index) => {
+      const loopOptions = {
+        ...options,
+        workerId:
+          loops === 1 ? options.workerId : `${options.workerId}:${index + 1}`,
+      };
+      while (!signal.aborted) {
+        try {
+          await runLoop(loopOptions, signal);
+        } catch {
+          // One loop's unexpected error must not tear down the shared database
+          // while another loop is still running a claimed job.
+          if (!signal.aborted)
+            await new Promise((resolve) =>
+              setTimeout(resolve, loopOptions.pollIntervalMs ?? 500),
+            );
+        }
+      }
+    }),
   );
 }
 
@@ -46,7 +55,14 @@ async function runLoop(
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   const leaseMs = options.leaseMs ?? 30_000;
   while (!signal.aborted) {
-    const job = await options.repository.claim(options.workerId, leaseMs);
+    let job: Awaited<ReturnType<AgentJobWorkerRepository["claim"]>>;
+    try {
+      job = await options.repository.claim(options.workerId, leaseMs);
+    } catch {
+      // A transient claim failure belongs to this loop, not its siblings.
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      continue;
+    }
     if (!job) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
       continue;
@@ -69,6 +85,14 @@ async function runLoop(
     }
     const runtime = options.runtimes[job.profile.runtime];
     if (!runtime) {
+      await options.repository.appendEvent(job.id, {
+        type: "failed",
+        error: {
+          code: "configuration",
+          message: "The agent runtime is not configured.",
+          retryable: false,
+        },
+      });
       await options.repository.transition(job.id, ["claimed"], "failed");
       continue;
     }
@@ -81,6 +105,8 @@ async function runLoop(
     let leaseLost = false;
     let stopping = false;
     let lastRenewed = Date.now();
+    let failedRenewals = 0;
+    let renewing = false;
     const stopRuntime = () => {
       if (stopping) return;
       stopping = true;
@@ -89,25 +115,39 @@ async function runLoop(
     const heartbeat = setInterval(
       () =>
         void (async () => {
-          const renewed = await options.repository
-            .renewLease(job.id, options.workerId, leaseMs)
-            .catch(() => undefined);
-          if (renewed) lastRenewed = Date.now();
-          // No successful renewal for a whole lease means another worker may
-          // own the job by now, however the renewal failed.
-          if (renewed === false || Date.now() - lastRenewed >= leaseMs) {
-            leaseLost = true;
-            stopRuntime();
-            return;
+          if (renewing || leaseLost) return;
+          renewing = true;
+          try {
+            const renewed = await options.repository
+              .renewLease(job.id, options.workerId, leaseMs)
+              .catch(() => undefined);
+            if (renewed) {
+              lastRenewed = Date.now();
+              failedRenewals = 0;
+            } else failedRenewals += 1;
+            // No successful renewal for a whole lease means another worker may
+            // own the job by now, however the renewal failed.
+            if (
+              renewed === false ||
+              failedRenewals >= 2 ||
+              Date.now() - lastRenewed >= leaseMs
+            ) {
+              leaseLost = true;
+              stopRuntime();
+              return;
+            }
+            const current = await options.repository
+              .get(job.tenantId, job.id)
+              .catch(() => undefined);
+            if (current?.status === "cancelling") stopRuntime();
+          } finally {
+            renewing = false;
           }
-          const current = await options.repository
-            .get(job.tenantId, job.id)
-            .catch(() => undefined);
-          if (current?.status === "cancelling") stopRuntime();
         })(),
       Math.max(250, Math.floor(leaseMs / 3)),
     );
     const me = options.workerId;
+    let ended = false;
     try {
       await options.repository.transition(job.id, ["claimed"], "starting", me);
       const request: AgentRunRequest = {
@@ -160,6 +200,7 @@ async function runLoop(
             "cancelled",
             me,
           );
+          ended = true;
           break;
         }
         await options.repository.appendEvent(job.id, event, me);
@@ -172,6 +213,7 @@ async function runLoop(
             "awaiting-input",
             me,
           );
+          ended = true;
           break;
         } else if (event.type === "completed") {
           if (options.storeResult) {
@@ -193,6 +235,18 @@ async function runLoop(
             me,
           );
           if (!finished && !leaseLost) {
+            await options.repository.appendEvent(
+              job.id,
+              {
+                type: "failed",
+                error: {
+                  code: "cancelled",
+                  message: "Agent job cancelled.",
+                  retryable: false,
+                },
+              },
+              me,
+            );
             await options.repository.transition(
               job.id,
               ["cancelling"],
@@ -200,6 +254,7 @@ async function runLoop(
               me,
             );
           }
+          ended = true;
           break;
         } else if (event.type === "failed") {
           await options.repository.transition(
@@ -208,11 +263,12 @@ async function runLoop(
             event.error.code === "cancelled" ? "cancelled" : "failed",
             me,
           );
+          ended = true;
           break;
         }
       }
       // A cancel noticed by the heartbeat ends here, under this worker's lease.
-      if (stopping && !leaseLost) {
+      if (stopping && !leaseLost && !ended) {
         await options.repository.appendEvent(
           job.id,
           {
@@ -231,6 +287,22 @@ async function runLoop(
           "cancelled",
           me,
         );
+        ended = true;
+      }
+      if (!ended && !leaseLost) {
+        await options.repository.appendEvent(
+          job.id,
+          {
+            type: "failed",
+            error: {
+              code: "infrastructure",
+              message: "The agent ended without a result.",
+              retryable: false,
+            },
+          },
+          me,
+        );
+        await options.repository.transition(job.id, ["running"], "failed", me);
       }
     } catch {
       if (leaseLost) continue;

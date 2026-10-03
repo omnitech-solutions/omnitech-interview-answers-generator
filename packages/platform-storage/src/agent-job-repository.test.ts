@@ -363,4 +363,10 @@ it("ends a cancel that no worker is running, so it never stays cancelling", asyn
   expect(await worker.get(tenantId, created.id)).toMatchObject({
     status: "cancelled",
   });
+  expect(
+    (await repository.eventsAfter(tenantId, created.id, 0)).at(-1)?.event,
+  ).toMatchObject({
+    type: "failed",
+    error: { code: "cancelled" },
+  });
 });

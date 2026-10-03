@@ -41,9 +41,20 @@ export class PostgresAgentJobWorkerRepository
       // A cancelled job nobody is running (never claimed, or its worker's
       // lease ran out) ends here, so a cancel always reaches a terminal state.
       await client.query(
-        `UPDATE ai.agent_jobs SET status = 'cancelled', updated_at = now()
-         WHERE status = 'cancelling'
-           AND (claimed_by IS NULL OR lease_expires_at < now())`,
+        `WITH swept AS (
+           UPDATE ai.agent_jobs
+           SET status = 'cancelled', updated_at = now(),
+               next_event_sequence = next_event_sequence + 1
+           WHERE status = 'cancelling'
+             AND (claimed_by IS NULL OR lease_expires_at < now())
+           RETURNING id, tenant_id, next_event_sequence - 1 AS sequence
+         )
+         INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event)
+         SELECT tenant_id, id, sequence,
+           jsonb_build_object('type', 'failed', 'error',
+             jsonb_build_object('code', 'cancelled',
+               'message', 'Agent job cancelled.', 'retryable', false))
+         FROM swept`,
       );
       const result = await client.query<JobRow>(
         `WITH candidate AS (
