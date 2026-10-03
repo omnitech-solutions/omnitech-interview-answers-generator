@@ -4,7 +4,12 @@ import {
   opaqueIdSchema,
   wireVersionSchema,
 } from "./ids.js";
-import { observationSchema } from "./observation.js";
+import {
+  type MessageValidation,
+  observationSchema,
+  validateObservation,
+  validateWireMessage,
+} from "./observation.js";
 
 export const sessionControlStateSchema = z.enum([
   "active",
@@ -50,6 +55,9 @@ export const REFUSAL_CODES = [
   "payload_too_large",
   "rate_limited",
   "limit_reached",
+  // The same source and event id arrived with different content; the original
+  // is kept and never overwritten.
+  "event_conflict",
 ] as const;
 export const refusalCodeSchema = z.enum(REFUSAL_CODES);
 export type RefusalCode = z.infer<typeof refusalCodeSchema>;
@@ -98,7 +106,62 @@ export const controlMessageSchema = z.strictObject({
 });
 export type ControlMessage = z.infer<typeof controlMessageSchema>;
 
+// Fixed acknowledgement event ids for the two content-free message kinds, which
+// carry no eventId of their own.
+export const HEARTBEAT_ACK_EVENT_ID = "heartbeat";
+export const CAPABILITY_ACK_EVENT_ID = "capability";
+
+// The companion's own local readiness: speech support and OS permission states
+// only. No recognised text, audio, device names or identity (a locale is a
+// language tag, not content).
+export const capabilityReportSchema = z.strictObject({
+  version: wireVersionSchema,
+  kind: z.literal("capability.report"),
+  sourceId: opaqueIdSchema,
+  sentAt: isoTimestampSchema,
+  speech: z.strictObject({
+    locale: z
+      .string()
+      .min(1)
+      .max(35)
+      .regex(/^[A-Za-z0-9_-]+$/),
+    onDeviceAvailable: z.boolean(),
+    recognizerAvailable: z.boolean(),
+    // Not named "authorization": that key is on the identity-field refusal list.
+    authorizationStatus: z.enum([
+      "authorized",
+      "denied",
+      "restricted",
+      "not-determined",
+    ]),
+  }),
+  permissions: z.strictObject({
+    microphone: z.enum(["granted", "denied", "not-determined"]),
+    screen: z.enum(["granted", "denied", "not-determined"]),
+  }),
+});
+export type CapabilityReport = z.infer<typeof capabilityReportSchema>;
+
 export const ingestMessageSchema = z.union([
   observationSchema,
   heartbeatSchema,
+  capabilityReportSchema,
 ]);
+export type IngestMessage = z.infer<typeof ingestMessageSchema>;
+
+// Validates any ingest message with one issue vocabulary. Observation kinds go
+// through validateObservation; the content-free kinds share its identity,
+// version and code handling.
+export function validateIngestMessage(
+  input: unknown,
+): MessageValidation<IngestMessage> {
+  const kind =
+    typeof input === "object" && input !== null
+      ? (input as { kind?: unknown }).kind
+      : undefined;
+  if (kind === "heartbeat") return validateWireMessage(heartbeatSchema, input);
+  if (kind === "capability.report") {
+    return validateWireMessage(capabilityReportSchema, input);
+  }
+  return validateObservation(input);
+}

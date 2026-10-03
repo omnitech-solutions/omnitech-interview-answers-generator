@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   acknowledgementSchema,
+  CAPABILITY_ACK_EVENT_ID,
+  capabilityReportSchema,
   controlMessageSchema,
   heartbeatSchema,
+  ingestMessageSchema,
   REFUSAL_CODES,
+  validateIngestMessage,
 } from "./control.js";
 
 const control = {
@@ -83,6 +87,111 @@ describe("acknowledgement", () => {
         control: { ...control, state: "broaden" },
       }).success,
     ).toBe(false);
+  });
+});
+
+const capability = {
+  version: 1,
+  kind: "capability.report",
+  sourceId: "companion-1",
+  sentAt: "2026-10-03T10:00:00Z",
+  speech: {
+    locale: "en-GB",
+    onDeviceAvailable: true,
+    recognizerAvailable: true,
+    authorizationStatus: "authorized",
+  },
+  permissions: { microphone: "granted", screen: "not-determined" },
+};
+
+describe("capability.report", () => {
+  it("is a strict content-free report accepted by the ingest union", () => {
+    expect(capabilityReportSchema.safeParse(capability).success).toBe(true);
+    expect(ingestMessageSchema.safeParse(capability).success).toBe(true);
+  });
+
+  it("rejects extra fields, a bad locale and unknown states", () => {
+    const bad = [
+      { ...capability, text: "hi" },
+      { ...capability, speech: { ...capability.speech, extra: 1 } },
+      { ...capability, speech: { ...capability.speech, locale: "en GB" } },
+      {
+        ...capability,
+        speech: { ...capability.speech, locale: "x".repeat(36) },
+      },
+      {
+        ...capability,
+        speech: { ...capability.speech, authorizationStatus: "maybe" },
+      },
+      { ...capability, permissions: { ...capability.permissions, screen: "" } },
+    ];
+    for (const message of bad) {
+      expect(capabilityReportSchema.safeParse(message).success).toBe(false);
+    }
+  });
+
+  it("is acknowledged with the fixed capability event id", () => {
+    expect(CAPABILITY_ACK_EVENT_ID).toBe("capability");
+    expect(
+      acknowledgementSchema.safeParse({
+        ...accepted,
+        eventId: CAPABILITY_ACK_EVENT_ID,
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("event_conflict refusal", () => {
+  it("is a stable refusal code", () => {
+    expect(REFUSAL_CODES).toContain("event_conflict");
+    expect(
+      acknowledgementSchema.safeParse({
+        version: 1,
+        status: "refused",
+        code: "event_conflict",
+        control,
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("validateIngestMessage", () => {
+  it("validates heartbeat and capability.report", () => {
+    expect(validateIngestMessage(capability).ok).toBe(true);
+    expect(
+      validateIngestMessage({
+        version: 1,
+        kind: "heartbeat",
+        sourceId: "mic-1",
+        sentAt: "2026-10-03T10:00:00Z",
+        capturing: true,
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("refuses identity fields anywhere in the new message", () => {
+    expect(
+      validateIngestMessage({
+        ...capability,
+        permissions: { ...capability.permissions, userId: "u" },
+      }),
+    ).toEqual({
+      ok: false,
+      issues: [
+        { path: ["permissions", "userId"], code: "identity_field_forbidden" },
+      ],
+    });
+  });
+
+  it("reports unknown fields and versions by stable code", () => {
+    expect(validateIngestMessage({ ...capability, extra: 1 })).toEqual({
+      ok: false,
+      issues: [{ path: [], code: "unknown_field" }],
+    });
+    expect(validateIngestMessage({ ...capability, version: 2 })).toEqual({
+      ok: false,
+      issues: [{ path: ["version"], code: "unsupported_version" }],
+    });
   });
 });
 

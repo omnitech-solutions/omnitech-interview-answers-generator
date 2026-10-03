@@ -284,11 +284,41 @@ describe("isWithinEnvelopeByteLimit", () => {
   });
 });
 
+describe("transcript.final source label", () => {
+  it.each(["microphone", "application-audio"])(
+    "accepts source %s",
+    (source) => {
+      expect(
+        validateObservation({
+          ...transcript,
+          content: { ...transcript.content, source },
+        }).ok,
+      ).toBe(true);
+    },
+  );
+
+  it("stays optional and rejects anything but an audio source label", () => {
+    expect(validateObservation(transcript).ok).toBe(true);
+    for (const source of ["screen", "speaker-1", ""]) {
+      expect(
+        validateObservation({
+          ...transcript,
+          content: { ...transcript.content, source },
+        }).ok,
+      ).toBe(false);
+    }
+  });
+});
+
 describe("limits", () => {
   it("keeps the credential strictly shorter than the session cap", () => {
     expect(ACTIVE_SESSION_LIMITS.credentialLifetimeMs).toBeLessThan(
       ACTIVE_SESSION_LIMITS.sessionDurationCapMs,
     );
+  });
+
+  it("spaces heartbeats at least one second apart", () => {
+    expect(ACTIVE_SESSION_LIMITS.minHeartbeatIntervalMs).toBe(1_000);
   });
 
   it("is frozen and allows one active session per owner", () => {

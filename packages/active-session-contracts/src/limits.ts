@@ -21,6 +21,11 @@ export const ACTIVE_SESSION_LIMITS = Object.freeze({
   maxIngestPerMinute: 120,
   // A session of a few hours; capture ends visibly at the cap.
   sessionDurationCapMs: 4 * 60 * 60 * 1000,
+  // Heartbeats and capability reports are rate-bounded by minimum spacing: the
+  // companion heartbeats about every 5 s, so 1 s leaves headroom for a resume
+  // heartbeat while stopping a loop from hammering the contact stamp. Closer
+  // messages are refused rate_limited, never queued.
+  minHeartbeatIntervalMs: 1_000,
   // Short-lived and strictly under the duration cap; a longer session needs an
   // owner-initiated replacement (rule:credential-lifetime-and-renewal).
   credentialLifetimeMs: 2 * 60 * 60 * 1000,

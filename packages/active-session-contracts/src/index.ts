@@ -2,13 +2,18 @@ export {
   type Acknowledgement,
   acceptedAckSchema,
   acknowledgementSchema,
+  CAPABILITY_ACK_EVENT_ID,
+  type CapabilityReport,
   type ControlMessage,
   type ControlStatus,
+  capabilityReportSchema,
   controlMessageSchema,
   controlStatusSchema,
   duplicateAckSchema,
+  HEARTBEAT_ACK_EVENT_ID,
   type Heartbeat,
   heartbeatSchema,
+  type IngestMessage,
   ingestMessageSchema,
   REFUSAL_CODES,
   type RefusalCode,
@@ -16,6 +21,7 @@ export {
   refusedAckSchema,
   type SessionControlState,
   sessionControlStateSchema,
+  validateIngestMessage,
 } from "./control.js";
 export {
   CREDENTIAL_PREFIX,
@@ -42,6 +48,7 @@ export {
   captureGapSchema,
   isIdentityFieldName,
   isWithinEnvelopeByteLimit,
+  type MessageValidation,
   type Observation,
   type ObservationIssue,
   type ObservationIssueCode,
@@ -56,6 +63,7 @@ export {
   type TranscriptFinal,
   transcriptFinalSchema,
   validateObservation,
+  validateWireMessage,
 } from "./observation.js";
 export {
   detectScreenshotMediaType,

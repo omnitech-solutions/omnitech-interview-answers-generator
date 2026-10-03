@@ -62,6 +62,10 @@ export const transcriptFinalSchema = z.strictObject({
     .strictObject({
       // A source label such as "speaker-1" or "microphone"; never a verified identity.
       speaker: speakerLabelSchema,
+      // Which captured audio source produced the text. Optional so earlier
+      // senders stay valid within wire version 1; a source label, never an
+      // identity (the speaker is not verified).
+      source: z.enum(["microphone", "application-audio"]).optional(),
       text: z.string().min(1).max(ACTIVE_SESSION_LIMITS.maxTranscriptTextChars),
       startMs: z.number().int().min(0),
       endMs: z.number().int().min(0),
@@ -199,7 +203,20 @@ const ZOD_CODES: Record<string, ObservationIssueCode> = {
   custom: "invalid_value",
 };
 
-export function validateObservation(input: unknown): ObservationValidation {
+export type MessageValidation<T> =
+  | { ok: true; value: T }
+  | { ok: false; issues: ObservationIssue[] };
+
+export const validateObservation = (input: unknown): ObservationValidation =>
+  validateWireMessage(observationSchema, input);
+
+// The one validation path for every companion-to-Studio message, so a message
+// added to the wire inherits the identity refusal, the version check and the
+// content-free issue codes.
+export function validateWireMessage<T>(
+  schema: z.ZodType<T>,
+  input: unknown,
+): MessageValidation<T> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     return { ok: false, issues: [{ path: [], code: "invalid_type" }] };
   }
@@ -213,7 +230,7 @@ export function validateObservation(input: unknown): ObservationValidation {
   if ((input as { version?: unknown }).version !== WIRE_VERSION) {
     issues.push({ path: ["version"], code: "unsupported_version" });
   }
-  const parsed = observationSchema.safeParse(input);
+  const parsed = schema.safeParse(input);
   if (parsed.success && issues.length === 0) {
     return { ok: true, value: parsed.data };
   }
