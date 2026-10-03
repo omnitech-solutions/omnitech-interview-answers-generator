@@ -10,6 +10,7 @@ const STUDIO_VIEWS = [
   { id: "documents", path: "/documents" },
   { id: "knowledge", path: "/knowledge" },
   { id: "rehearsal", path: "/rehearsal" },
+  { id: "live", path: "/live" },
 ] as const;
 
 export const manifest = {
