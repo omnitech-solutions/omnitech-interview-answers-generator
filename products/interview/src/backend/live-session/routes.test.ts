@@ -6,6 +6,7 @@
 // carried on every acknowledgement (ADR-0011, ADR-0012).
 import { randomUUID } from "node:crypto";
 import type { PlatformContext } from "@omnitech/platform-contracts";
+import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type Fixture,
@@ -21,6 +22,7 @@ let fx: Fixture;
 let slug = "";
 let otherSlug = "";
 let acting: Person | null = null;
+let permissions = ["interview.read", "interview.write"];
 const emails = new Map<string, Person>();
 
 beforeAll(async () => {
@@ -69,7 +71,7 @@ async function resolveContext(
     tenant: { id: tenantId, slug: requested, name: "T" },
     membership: { tenantId, userId: acting.id, role: "member" },
     preferences: { theme: "system", locale: "en" },
-    permissions: ["interview.read", "interview.write"],
+    permissions,
     products: [{ productId: "omnitech.interview", enabled: true }],
   } as unknown as PlatformContext;
 }
@@ -490,5 +492,51 @@ describe("ingest credential handling", () => {
         [fx.tenantA],
       );
     }
+  });
+});
+
+describe("owner stop actions and header scope", () => {
+  it("lets a member without interview.write stop their own session but not start or resume one", async () => {
+    const { person, id } = await begin("demoted");
+    as(person);
+    const control = (sessionId: string, action: string) =>
+      post(`/${sessionId}/control`, {
+        version: 1,
+        kind: "session.control",
+        action,
+      });
+    permissions = ["interview.read"];
+    try {
+      expect((await post("", START)).status).toBe(401);
+      expect((await control(id, "pause")).status).toBe(200);
+      expect((await control(id, "resume")).status).toBe(401);
+      expect((await post(`/${id}/credential`, {})).status).toBe(401);
+      const revoked = await app().request(`${base()}/${id}/credential`, {
+        method: "DELETE",
+      });
+      expect(revoked.status).toBe(204);
+      expect((await control(id, "end")).status).toBe(200);
+      const deleted = await app().request(`${base()}/${id}`, {
+        method: "DELETE",
+      });
+      expect(deleted.status).toBe(202);
+    } finally {
+      permissions = ["interview.read", "interview.write"];
+    }
+  });
+
+  it("does not leak its headers onto a route mounted after it", async () => {
+    const host = new Hono();
+    host.route("/", routes());
+    host.get("/unrelated", (c) =>
+      c.text("ok", 200, { "Cache-Control": "public, max-age=60" }),
+    );
+    const response = await host.request("http://studio.test/unrelated");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(response.headers.get("x-content-type-options")).toBeNull();
+    as(await member("headers"));
+    const own = await host.request(`${base()}/current`);
+    expect(own.headers.get("cache-control")).toBe("no-store");
+    expect(own.headers.get("x-content-type-options")).toBe("nosniff");
   });
 });

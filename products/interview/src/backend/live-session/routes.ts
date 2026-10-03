@@ -152,6 +152,22 @@ const pageNumber = (value: string | undefined, fallback: number) => {
   return parsed.success ? parsed.data : fallback;
 };
 
+// Pause, end, credential revocation and delete: the stop class that the
+// session's owner may always perform (rule:stop-authority).
+async function isOwnerStop(request: Request, path: string): Promise<boolean> {
+  if (request.method === "DELETE") return true;
+  if (request.method !== "POST" || !path.endsWith("/control")) return false;
+  try {
+    const bytes = await boundedBytes(request.clone(), MAX_JSON_BYTES);
+    const body = JSON.parse(new TextDecoder().decode(bytes)) as {
+      action?: unknown;
+    };
+    return body.action === "pause" || body.action === "end";
+  } catch {
+    return false;
+  }
+}
+
 export function createSessionRoutes(options: SessionRoutesOptions) {
   const repository =
     options.repository ?? new ActiveSessionRepository(options.database);
@@ -168,7 +184,9 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     // fixed body, because its message could carry session content.
     return c.json(errorBody("session_unavailable"), 500);
   });
-  app.use("*", async (c, next) => {
+  // Scoped to the session routes: a route mounted after this sub-app keeps
+  // its own headers.
+  app.use(`${SESSION_ROUTES_PREFIX}/*`, async (c, next) => {
     await next();
     c.header("Cache-Control", "no-store");
     c.header("X-Content-Type-Options", "nosniff");
@@ -283,10 +301,13 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     if (c.req.path.endsWith("/ingest") && c.req.method === "POST")
       return next();
     const slug = c.req.param("tenantSlug") ?? "";
+    // [SAFETY] Starting, resuming and renewing need interview.write; the
+    // owner's own stop actions (pause, end, revoke, delete) need only
+    // membership with read, so a demoted member can still stop their session.
     const scope = briefingScope(
       await options.resolveContext(slug),
       slug,
-      c.req.method,
+      (await isOwnerStop(c.req.raw, c.req.path)) ? "GET" : c.req.method,
     );
     if (!scope) return c.json(errorBody("unauthorized"), 401);
     if (c.req.method !== "GET" && c.req.method !== "HEAD") {
