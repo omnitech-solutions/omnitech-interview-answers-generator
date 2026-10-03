@@ -81,18 +81,15 @@ for (const [workspace, command] of [
   }
 }
 
-for (const product of [
-  "@omnitech/product-interview...",
-  "@omnitech/product-presentation...",
-]) {
-  const build = spawnSync("pnpm", ["--filter", product, "build"], {
-    env: localEnvironment,
-    stdio: "inherit",
-  });
-  if (build.status !== 0) process.exit(build.status ?? 1);
-}
+// The web app loads every workspace package from its dist, so build the
+// whole graph it depends on (in dependency order) before it starts.
+const build = spawnSync(
+  "pnpm",
+  ["--filter", "@omnitech/interview-web^...", "build"],
+  { env: localEnvironment, stdio: "inherit" },
+);
+if (build.status !== 0) process.exit(build.status ?? 1);
 
-// The products rebuild their dist on save, so the web app reloads them.
 const child = spawn(
   "pnpm",
   [
@@ -100,16 +97,20 @@ const child = spawn(
     "--filter",
     "@omnitech/interview-web",
     "--filter",
-    "@omnitech/product-interview",
-    "--filter",
-    "@omnitech/product-presentation",
-    "--filter",
     "@omnitech/terminal-gateway",
     "--filter",
     "@omnitech/agent-worker",
     "run",
     "dev",
   ],
+  { env: localEnvironment, stdio: "inherit" },
+);
+
+// Every package and product rebuilds its dist on save through the root
+// solution, so the web app never loads a stale build.
+const watcher = spawn(
+  "pnpm",
+  ["exec", "tsc", "-b", "tsconfig.json", "--watch", "--preserveWatchOutput"],
   { env: localEnvironment, stdio: "inherit" },
 );
 
@@ -123,7 +124,12 @@ writeFileSync(
 const forgetState = () => rmSync(stateFile, { force: true });
 process.once("exit", forgetState);
 
-const forwardSignal = (signal) => child.kill(signal);
+const forwardSignal = (signal) => {
+  watcher.kill(signal);
+  child.kill(signal);
+};
+// The watcher has no work of its own once the servers are gone.
+process.once("exit", () => watcher.kill());
 process.once("SIGINT", () => forwardSignal("SIGINT"));
 process.once("SIGTERM", () => forwardSignal("SIGTERM"));
 

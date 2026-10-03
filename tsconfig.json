@@ -1,0 +1,73 @@
+// The development watcher (scripts/dev.mjs) builds every package and product
+// through this solution; scripts/dev-build-graph.test.ts keeps it complete.
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/agent-job-service"
+    },
+    {
+      "path": "packages/agent-runtime-claude"
+    },
+    {
+      "path": "packages/agent-runtime-codex"
+    },
+    {
+      "path": "packages/agent-runtime-contracts"
+    },
+    {
+      "path": "packages/ai-contracts"
+    },
+    {
+      "path": "packages/ai-provider-anthropic"
+    },
+    {
+      "path": "packages/ai-provider-images"
+    },
+    {
+      "path": "packages/ai-provider-openai"
+    },
+    {
+      "path": "packages/ai-runtime"
+    },
+    {
+      "path": "packages/code-runner"
+    },
+    {
+      "path": "packages/database"
+    },
+    {
+      "path": "packages/interview-api-client"
+    },
+    {
+      "path": "packages/interview-contracts"
+    },
+    {
+      "path": "packages/interview-library"
+    },
+    {
+      "path": "packages/interview-storage"
+    },
+    {
+      "path": "packages/platform-api"
+    },
+    {
+      "path": "packages/platform-contracts"
+    },
+    {
+      "path": "packages/platform-integrations"
+    },
+    {
+      "path": "packages/platform-runtime"
+    },
+    {
+      "path": "packages/platform-storage"
+    },
+    {
+      "path": "products/interview"
+    },
+    {
+      "path": "products/presentation"
+    }
+  ]
+}
