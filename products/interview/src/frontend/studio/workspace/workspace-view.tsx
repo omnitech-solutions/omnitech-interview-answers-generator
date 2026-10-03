@@ -66,9 +66,9 @@ const firstLine = (text: string) =>
     .find(Boolean)
     ?.slice(0, 120) ?? "Interview question";
 
-// [DOMAIN] Every answer has a guide. One the person solves themselves starts
-// from the question and the prompts a candidate answers aloud; the assistant
-// can replace it with a full guide later.
+// [DOMAIN] Every answer has a guide. One the person solves themselves holds
+// the question and prompts for what they will say aloud, never an answer; the
+// assistant can replace it with a full guide later.
 function starterGuide(question: string): AnswerGuide {
   return {
     version: 1,
@@ -80,7 +80,10 @@ function starterGuide(question: string): AnswerGuide {
     },
     plan: {
       steps: ["Outline your approach before you code it."],
-      complexity: { time: "to be stated", space: "to be stated" },
+      complexity: {
+        time: "State the time complexity.",
+        space: "State the space complexity.",
+      },
     },
     edgeCases: [],
     explain: [
