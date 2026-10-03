@@ -14,9 +14,6 @@
   },
   "references": [
     { "path": "../../packages/database" },
-    { "path": "../../packages/interview-contracts" },
-    { "path": "../../packages/interview-library" },
-    { "path": "../../packages/interview-storage" },
     { "path": "../../packages/platform-api" },
     { "path": "../../packages/platform-contracts" },
     { "path": "../../packages/platform-integrations" },

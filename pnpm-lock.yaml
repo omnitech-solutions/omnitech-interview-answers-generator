@@ -190,18 +190,6 @@ importers:
       '@omnitech/database':
         specifier: workspace:*
         version: link:../../packages/database
-      '@omnitech/interview-contracts':
-        specifier: workspace:*
-        version: link:../../packages/interview-contracts
-      '@omnitech/interview-library':
-        specifier: workspace:*
-        version: link:../../packages/interview-library
-      '@omnitech/interview-playground-control':
-        specifier: workspace:*
-        version: link:../../packages/interview-playground-control
-      '@omnitech/interview-storage':
-        specifier: workspace:*
-        version: link:../../packages/interview-storage
       '@omnitech/platform-api':
         specifier: workspace:*
         version: link:../../packages/platform-api
