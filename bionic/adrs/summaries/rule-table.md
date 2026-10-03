@@ -72,6 +72,7 @@ _Handle -> governing rule, projected from ADR `governs` blocks. Regenerated; edi
 | ADR-0012/tombstone-keeps-hint-count | active-session-rehearsal | The tombstone keeps owner, rehearsal run id, strict flag and a content-free count of shown drafts. | active_sessions tombstone and the Rehearsal save | authored | ADR-0012 |
 | ADR-0012/transcripts-in-observations | active-session-privacy | Final transcript text lives only in session observation rows. | session content storage | authored | ADR-0012 |
 | ADR-0012/unlisted-stage-refused | active-session-locality | A stage with no device implementation is refused in device-only mode. | the session processor and interview policy | authored | ADR-0012 |
+| ADR-0013/pause-only-credential-stop | active-session | Only the owner's session control, owner delete or the duration cap end a session; credential expiry and a companion's local stop only pause it, and the owner resumes. | session status machine, ingest and the capture companion | authored | ADR-0013 |
 
 ## Retired handles
 

@@ -611,6 +611,15 @@
     "source_adr": "ADR-0012",
     "source_status": "Accepted"
   },
+  "ADR-0013/pause-only-credential-stop": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Only the owner's session control, owner delete or the duration cap end a session; credential expiry and a companion's local stop only pause it, and the owner resumes.",
+    "source_adr": "ADR-0013",
+    "source_status": "Proposed"
+  },
   "retired_slugs": {
     "structured-document-generation": [
       "ADR-0010/parallel-document-generation"
@@ -665,6 +674,7 @@
     "owner-chooses-retention": "ADR-0012/owner-chooses-retention",
     "parallel-document-generation": "ADR-0010/parallel-document-generation",
     "pause-end-suppression": "ADR-0011/pause-end-suppression",
+    "pause-only-credential-stop": "ADR-0013/pause-only-credential-stop",
     "private-session-artifact-types": "ADR-0012/private-session-artifact-types",
     "private-session-jobs": "ADR-0012/private-session-jobs",
     "purge-delete-setting": "ADR-0012/purge-delete-setting",

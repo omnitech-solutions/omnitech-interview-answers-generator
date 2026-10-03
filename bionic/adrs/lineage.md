@@ -21,8 +21,11 @@ graph TD
   ADR_0010["ADR-0010"]
   ADR_0011["ADR-0011"]
   ADR_0012["ADR-0012"]
+  ADR_0013["ADR-0013"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
+  ADR_0013 -.-> ADR_0011
+  ADR_0013 -.-> ADR_0012
 ```
 
 ## Lineage table
@@ -42,18 +45,19 @@ graph TD
 | ADR-0010 | Write documents in a few parallel calls on any language profile | Accepted | — | ADR-0009 | — |
 | ADR-0011 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | — | — | — |
 | ADR-0012 | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | — | ADR-0011 | — |
+| ADR-0013 | Pause rather than end an Active Session on credential expiry or companion stop | Proposed | — | ADR-0011, ADR-0012 | — |
 
 ## Topic clusters
 
 ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cluster to find the current decision on a topic.
 
-- **active-session** — ADR-0011, ADR-0012
+- **active-session** — ADR-0011, ADR-0012, ADR-0013
 - **agents** — ADR-0001, ADR-0007, ADR-0010
 - **ai** — ADR-0007, ADR-0009, ADR-0010
 - **architecture** — ADR-0002, ADR-0004
 - **contracts** — ADR-0008, ADR-0011
 - **documents** — ADR-0009, ADR-0010
-- **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012
-- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012
+- **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013
+- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013
 - **process** — ADR-0000, ADR-0001
 - **security** — ADR-0005, ADR-0006

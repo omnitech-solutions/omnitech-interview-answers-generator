@@ -29,6 +29,7 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0011/three-concept-split | rule:three-concept-split | An Interview, an Active Session and an Agent Job are separate records. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/versioned-wire-contract | rule:versioned-wire-contract | The companion and Studio exchange only versioned active-session-contracts schemas. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/worker-hosted-processor | rule:worker-hosted-processor | The session processor runs in apps/agent-worker as its own loop beside the agent-job loop. | ADR-0011 | Accepted | decided | run-bound |
+| ADR-0013/pause-only-credential-stop | rule:pause-only-credential-stop | Only the owner's session control, owner delete or the duration cap end a session; credential expiry and a companion's local stop only pause it, and the owner resumes. | ADR-0013 | Proposed | decided | not-run-bound |
 
 ## active-session-locality — no-applicable-invariant
 
@@ -112,7 +113,7 @@ _None._
 
 _Freshness is the deterministic input digests below; no wall-clock timestamp enters this file._
 
-- `adr_frontmatter_sha256`: `94a817b04b4275b7c08335a0f5ffea1ec5e5c5c25fc5dabdfa536ace6ac42dee`
+- `adr_frontmatter_sha256`: `20cfffbf6a656082dc700a08cbdef16b1bd0cc413bd39c872cb7bbf4f8f0fc5e`
 - `governs_from`: `None`
 - `invariants_sha256`: `57179ec45e978a0ccce122a1a659de4748a13c0b5afdc3c9eaf2bf8d06696201`
 - `observations_sha256`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
