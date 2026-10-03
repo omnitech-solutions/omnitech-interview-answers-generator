@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 10
+current_prompt: 13
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -73,29 +73,29 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 10
   title: 'Develop #1: spawn implementation team'
-  state: "running"
+  state: "done"
   started: "2026-10-03T07:20:17Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T11:19:40Z"
+  result: "Dev loop 1 implemented: processor, worker session loop, routes, locality, replay/latency, canary; per-agent reports in Notes"
+  artifacts: ["ADR-0011", "ADR-0012"]
 - n: 11
   title: 'Develop #1: run quality gates; loop until clean'
-  state: pending
-  started: null
-  completed: null
-  result: ''
+  state: "done"
+  started: "2026-10-03T11:19:40Z"
+  completed: "2026-10-03T11:19:40Z"
+  result: "Quality gates clean in round 1 (lint, format, typecheck, 1543 tests, scripts 18, build); tokens in Notes"
   artifacts: []
 - n: 12
   title: 'Develop #1: internal review'
-  state: pending
-  started: null
-  completed: null
-  result: ''
+  state: "done"
+  started: "2026-10-03T11:19:40Z"
+  completed: "2026-10-03T11:19:40Z"
+  result: "Independent review: 2 MUST-FIX plus 3 should-fix fixed, 4 deferred with rationale (Dev loop #1 review deferrals)"
   artifacts: []
 - n: 13
   title: 'Develop #2: derive an implementation plan for slices 1-2 interview assistance: interview-policy.ts and service.ts; bounded context snapshots with the experience-matrix revision pinned at session start; one structured AiExecutionGateway call that classifies and answers; matrix-backed claims versus suggested interpretation versus general technical knowledge with per-claim source references and an explicit unsupported-reference failure case; the coding path (direct model call, then code-runner) published to a session-owned Workspace draft with an expected-revision check; agent-job dispatch only when repository navigation or iterative repair is needed; the code-runner sandbox controls (restricted workspace, no host-home or credential mounts, no Docker socket, bounded resources, network off by default); and no automatic promotion of generated answers into the experience matrix or exercise catalogue'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T11:19:40Z"
   completed: null
   result: ''
   artifacts: []
@@ -264,5 +264,24 @@ notes: |
 
   ## Outcome narrowing #1
   None. Every dispatch receives the book's Outcome, Evidence and Constraint verbatim (file dev1-common.md in the orchestrator scratchpad) plus E-A1..E-A3 as added Evidence; each unit names its slice of the Outcome only as scope, not as a replacement.
+
+  ## Dev loop #1 implementation reports (prompt 10, resumed after master merge; ADRs renumbered ADR-0011 processor+wire, ADR-0012 private data+locality)
+  Built and committed: contracts package, neutral core, locality gate, private agent-job marker, persistence+migrations, repository/ingest/claim, fenced writes+purge, baseline interview policy (earlier commits); this resume added: session processor (c049fdc), question-to-draft latency replay (f6af8e1), device-only through the real gateway with spy adapters (b801136), session-worker subpath + bounded renewal (7aaf982), agent-worker session loop + gateway composition + agent-runtime environment allowlist (7c19ad1), ingest/stream/control routes + no-content canary (8ac76f9, 8bf017a, 6a08443), source-agreement refusal at ingest (aab59be), explicit timeouts (4418be6), review fixes (94e017b, 9086ea5, 785c273, f952967).
+  Decisions: worker composes its own AiExecutionGateway (ai-runtime ./config, openai adapter); session loop registered through a loop list in apps/agent-worker/src/main.ts (runWorkerLoops, Promise.allSettled, shared database closes after both loops settle); session worker id = base:session; bounded renewal failures (3) in the processor; master's ADR-0010 agent-job follow-ons (terminal event, agent-loop bounded renewals, unique id startup check) deliberately NOT implemented here; processor-fixture.ts renamed from processor-test-support.ts so the tenant-context boundary allowlist is unchanged.
+  Replay latency (processor-latency.test.ts, virtual clock, settle window 1500 ms, simulated model 800 ms, 4 questions): question end to first draft paced p50 2400 ms, p95 4000 ms at real timing and at 4x; real processing time (ingest to dispatch, excluding model) p50 ~110 ms, p95 ~125 ms at both.
+
+  ## Quality gates (prompt 11), round 1 clean after fixing a tenant-context allowlist violation, test syntax errors and slow-test timeouts
+  - pnpm lint -> exit 0 (1 info, no errors); pnpm format -> exit 0 (544 files)
+  - pnpm typecheck -> 52 of 52 tasks successful
+  - pnpm test:coverage --maxWorkers=3 (full suite incl. Docker database/RLS suites) -> 185 files / 1543 tests passed. Default parallelism flaked on Docker hook timeouts (7 files, 4 tests; each passes alone) - environment load, not a defect.
+  - pnpm vitest run scripts (package-boundaries incl. neutral-core directory check, tenant-context-boundary) -> 3 files / 18 passed
+  - pnpm build -> 28 of 28 tasks successful
+  - Security analysis: no separate SAST tool configured; RLS/security suites (live-session-security.test.ts, agent-job-private.test.ts) pass inside test:coverage.
+  - verify-code-docs: NOT regenerated; code/arch docs are known to drift until the prep prompt (recorded in bionic/log.md). pnpm verify composed of the above gates run separately (not invoked as one command).
+
+  ## Dev loop #1 review deferrals (prompt 12; independent crux:reviewer, verdict was DONE-WITH-CONCERNS)
+  Fixed (CONFIRMED): F1 pre-pause in-flight result published after resume and run stuck quiescing (94e017b); F2 ingest did not re-check the start permission (9086ea5, 785c273); F3 pause-suppressed question never retried after resume (94e017b); F4 route headers leaked to later routes (785c273); F8 OPENAI_API_KEY now passed to codex only (f952967); F9 rule citation (9086ea5).
+  Deferred with rationale (PLAUSIBLE): F5 action reads return oldest rows only (stream has no action cursor; orphaned in-flight rows beyond 500 actions) - a cursor belongs with the Studio stream UI in loop 3; F6 ingest cannot tell microphone from application audio because transcript.final carries no source label (wire-contract limit, kind-level check done); F7 heartbeats and refused messages bypass the per-minute bound (heartbeat rate limit to be added with the companion in loop 4); F10 superseded run's in-flight promise leaves runs so close() does not wait for it (cosmetic; the fenced write refuses it).
+  Operator-visible: end revokes the credential, so the companion sees post-end ingest as a uniform credential refusal; the Next shell must forward /api/interview/t/*/sessions/ingest without a user session (not checked in apps/web).
 pr_draft: ""
 summary: ""
