@@ -37,9 +37,14 @@ registered at build time, embedded Hono product backends, and one database
 
 1. **Shell.** `apps/web` owns Next.js delivery, the root layout, authentication
    entrypoints, tenant resolution, global navigation, composition, and router
-   mounting — nothing product-specific. Global theme, locale, identity, tenant,
-   permission and installed-product context belong to the shell; products
-   receive them through typed props or APIs.
+   mounting. It holds no product logic or product styling: composing a product
+   means registering its manifest, mounting its backend, importing its exported
+   stylesheet, and hosting a public page the product supplies. Global theme,
+   locale, identity, tenant, permission and installed-product context belong to
+   the shell; products receive them through typed props or APIs, including the
+   links to the tenant's other products, so a product can offer a way to the
+   others without knowing which exist. A product's root opens its first route
+   when it has no home page.
 2. **Products.** `products/*` own their manifest, frontend entrypoints, backend
    router, domain services and tests. Product routers are Hono applications
    that `apps/web` mounts; domain services do not import Next.js. Product
