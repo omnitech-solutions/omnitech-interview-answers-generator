@@ -27,6 +27,7 @@ export default defineConfig({
           environment: "node",
           include: [
             "packages/*/src/**/*.test.ts",
+            "scripts/**/*.test.ts",
             "apps/terminal-gateway/src/**/*.test.ts",
             "products/*/src/backend/**/*.test.ts",
           ],
