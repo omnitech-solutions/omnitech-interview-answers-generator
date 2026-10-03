@@ -44,15 +44,21 @@ export function usePlaygroundControl(options: {
   latest.current = options;
 
   useEffect(() => {
-    let active = true;
+    // [SAFETY] Cleanup aborts the poll in flight, so a re-run (StrictMode in
+    // development) never leaves two pollers' requests live.
+    const controller = new AbortController();
+    const isActive = () => !controller.signal.aborted;
     let polling = false;
 
     async function poll() {
       if (polling) return;
       polling = true;
       try {
-        const response = await fetch(CONTROL_PATH, { cache: "no-store" });
-        if (!response.ok || !active) return;
+        const response = await fetch(CONTROL_PATH, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok || !isActive()) return;
         const snapshot = (await response.json()) as PlaygroundSnapshot;
         // Explanations always mirror the channel, applied or not.
         const pushed = explanationsOf(snapshot);
@@ -85,7 +91,7 @@ export function usePlaygroundControl(options: {
           }
         }
         storeApplied(plan.applied);
-        if (!active) return;
+        if (!isActive()) return;
         if (plan.rehearsal) setRehearsal(plan.rehearsal);
         if (plan.navigate) host.navigate(plan.navigate);
       } catch {
@@ -105,7 +111,7 @@ export function usePlaygroundControl(options: {
     };
     document.addEventListener("visibilitychange", resume);
     return () => {
-      active = false;
+      controller.abort();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
     };

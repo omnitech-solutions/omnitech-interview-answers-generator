@@ -6,7 +6,7 @@ import type {
   PlanResponse,
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { studioFetch } from "../studio-fetch";
+import { studioFetch, studioFetchUntil } from "../studio-fetch";
 
 // The interview being prepared for and its plan. Every change returns the
 // whole plan, which replaces what is shown.
@@ -18,18 +18,32 @@ export function usePlan() {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [error, setError] = useState("");
 
-  const apply = useCallback(async (change: Promise<PlanResponse>) => {
-    try {
-      setPlan(await change);
-      setError("");
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    }
-  }, []);
+  // A change whose view has gone (its signal aborted) is not shown.
+  const apply = useCallback(
+    async (change: Promise<PlanResponse>, signal?: AbortSignal) => {
+      try {
+        const next = await change;
+        if (signal?.aborted) return;
+        setPlan(next);
+        setError("");
+      } catch (failure) {
+        if (signal?.aborted) return;
+        setError(failure instanceof Error ? failure.message : String(failure));
+      }
+    },
+    [],
+  );
 
+  // The first load ends with the view, so a re-run leaves one live request.
   useEffect(() => {
-    void apply(client.get());
-  }, [apply, client]);
+    const controller = new AbortController();
+    const loader = createPlanClient({
+      baseUrl: "",
+      fetch: studioFetchUntil(controller.signal),
+    });
+    void apply(loader.get(), controller.signal);
+    return () => controller.abort();
+  }, [apply]);
 
   return {
     plan,

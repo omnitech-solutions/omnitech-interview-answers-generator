@@ -1,17 +1,18 @@
-import type {
-  BriefingArtifact,
-  BriefingClient,
-  BriefingProfileSummary,
+import {
+  type BriefingArtifact,
+  type BriefingProfileSummary,
+  createBriefingClient,
 } from "@omnitech/interview-api-client";
 import type {
   BriefingDraft,
   CandidateMatrix,
 } from "@omnitech/interview-contracts";
 import type { HostHooks } from "@omnitech-assistant/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { packAssistant } from "../../../assistant-config";
 import { useStudio } from "../../context";
 import { Icon } from "../../icon";
+import { studioFetch, studioFetchUntil } from "../../studio-fetch";
 import { AnswersTab, type PendingAnswer } from "./answers-tab";
 import { PACK_TABS, type PackTab, STAGES, suggestedFor } from "./config";
 import { defaultProfile } from "./matrix-picker";
@@ -54,7 +55,6 @@ const failureOf = (error: unknown, fallback: string) =>
 // you expect, then review drafted answers and the prepared briefing.
 // Without an artifact id it is a new pack, created when answers are drafted.
 export function BehaviouralPack({
-  client,
   artifactId,
   autoDraft = false,
   savedRevision,
@@ -63,7 +63,6 @@ export function BehaviouralPack({
   onChanged,
   onDirtyChange,
 }: {
-  client: BriefingClient;
   artifactId: string | null;
   // Set when the pack was just created: drafting starts on arrival.
   autoDraft?: boolean;
@@ -94,6 +93,10 @@ export function BehaviouralPack({
   const [saved, setSaved] = useState(savedRevision ?? 0);
   const [askNext, setAskNext] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
+  const client = useMemo(
+    () => createBriefingClient({ baseUrl: "", fetch: studioFetch }),
+    [],
+  );
 
   // [SAFETY] Every write goes through one queue and starts from the newest
   // revision, so drafting, accepting and setup edits never conflict.
@@ -128,11 +131,18 @@ export function BehaviouralPack({
   );
 
   // Load the matrices, then the pack (or the default matrix for a new one).
+  // [SAFETY] Both loads end with the view (or a re-run), so no superseded
+  // request stays live or applies.
   useEffect(() => {
-    let active = true;
-    void client.listProfiles().then(
+    const controller = new AbortController();
+    const loader = createBriefingClient({
+      baseUrl: "",
+      fetch: studioFetchUntil(controller.signal),
+    });
+    const active = () => !controller.signal.aborted;
+    void loader.listProfiles().then(
       ({ profiles: loaded }) => {
-        if (!active) return;
+        if (!active()) return;
         setProfiles(loaded);
         if (artifactId === null)
           setSetup((current) =>
@@ -141,12 +151,13 @@ export function BehaviouralPack({
               : { ...current, profile: defaultProfile(loaded) },
           );
       },
-      () => active && setError("Your experience matrices couldn’t be loaded."),
+      () =>
+        active() && setError("Your experience matrices couldn’t be loaded."),
     );
     if (artifactId !== null)
-      client.getArtifact(artifactId).then(
+      loader.getArtifact(artifactId).then(
         (artifact) => {
-          if (!active) return;
+          if (!active()) return;
           applied(artifact);
           const loaded = artifact.value.briefing;
           setSetup(setupOf(loaded.context));
@@ -157,15 +168,13 @@ export function BehaviouralPack({
           setLoading(false);
         },
         () => {
-          if (!active) return;
+          if (!active()) return;
           setError("This pack couldn’t be loaded.");
           setLoading(false);
         },
       );
-    return () => {
-      active = false;
-    };
-  }, [client, artifactId, applied, autoDraft]);
+    return () => controller.abort();
+  }, [artifactId, applied, autoDraft]);
 
   // The chosen matrix, for role chips and evidence labels.
   const profileKey = setup.profile
@@ -173,15 +182,19 @@ export function BehaviouralPack({
     : "";
   useEffect(() => {
     if (!setup.profile) return setMatrix(null);
-    let active = true;
-    client.getProfile(setup.profile.id, setup.profile.revision).then(
-      (profile) => active && setMatrix(profile.matrix),
-      () => active && setMatrix(null),
-    );
-    return () => {
-      active = false;
-    };
-  }, [client, profileKey]);
+    const controller = new AbortController();
+    const active = () => !controller.signal.aborted;
+    createBriefingClient({
+      baseUrl: "",
+      fetch: studioFetchUntil(controller.signal),
+    })
+      .getProfile(setup.profile.id, setup.profile.revision)
+      .then(
+        (profile) => active() && setMatrix(profile.matrix),
+        () => active() && setMatrix(null),
+      );
+    return () => controller.abort();
+  }, [profileKey]);
 
   // [STRATEGY] Setup and question edits on a saved pack are written after a
   // short pause, through the queue, so a reload never loses them.

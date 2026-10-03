@@ -1,4 +1,3 @@
-import { createBriefingClient } from "@omnitech/interview-api-client";
 import type {
   BriefingDraft,
   BriefingQuestion,
@@ -268,7 +267,6 @@ function installServer() {
   );
 }
 
-let client: ReturnType<typeof createBriefingClient>;
 const handlers = () => ({
   onCreated: vi.fn(),
   onDraftStarted: vi.fn(),
@@ -281,15 +279,12 @@ beforeEach(() => {
   revision = 0;
   localStorage.clear();
   installServer();
-  client = createBriefingClient({ baseUrl: "" });
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("a new behavioural pack", () => {
   it("defaults to your matrix and the stage's usual questions", async () => {
-    render(
-      <BehaviouralPack client={client} artifactId={null} {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId={null} {...handlers()} />);
     expect(await screen.findByText("My matrix")).toBeVisible();
     expect(screen.getByText("Default")).toBeVisible();
     expect(screen.getByLabelText("Question 1")).toHaveValue(
@@ -310,9 +305,7 @@ describe("a new behavioural pack", () => {
   });
 
   it("ranks the matrix's roles against the role and lets you lean on some", async () => {
-    render(
-      <BehaviouralPack client={client} artifactId={null} {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId={null} {...handlers()} />);
     fireEvent.change(await screen.findByLabelText("Role"), {
       target: { value: "Principal TypeScript engineer" },
     });
@@ -325,7 +318,7 @@ describe("a new behavioural pack", () => {
 
   it("creates the pack with its context and questions, then opens it", async () => {
     const props = handlers();
-    render(<BehaviouralPack client={client} artifactId={null} {...props} />);
+    render(<BehaviouralPack artifactId={null} {...props} />);
     await screen.findByText("My matrix");
     const draft = screen.getByRole("button", { name: "Draft answers" });
     expect(draft).toBeDisabled();
@@ -363,9 +356,7 @@ describe("a new behavioural pack", () => {
   });
 
   it("imports another matrix from pasted JSON, with a preview", async () => {
-    render(
-      <BehaviouralPack client={client} artifactId={null} {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId={null} {...handlers()} />);
     fireEvent.click(await screen.findByRole("button", { name: /My matrix/ }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Import from JSON…" }),
@@ -423,14 +414,7 @@ describe("an open pack", () => {
     revision = 1;
     failAsk = "Why Northwind?";
     const props = handlers();
-    render(
-      <BehaviouralPack
-        client={client}
-        artifactId="prep-1"
-        autoDraft
-        {...props}
-      />,
-    );
+    render(<BehaviouralPack artifactId="prep-1" autoDraft {...props} />);
     expect(await screen.findByText("Tell me about yourself.")).toBeVisible();
     expect(props.onDraftStarted).toHaveBeenCalled();
     // A failed answer says why, on its own row; the others still arrive.
@@ -509,9 +493,7 @@ describe("an open pack", () => {
       questions: [answer("Tell me about yourself.", "q1")],
     };
     revision = 4;
-    render(
-      <BehaviouralPack client={client} artifactId="prep-1" {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId="prep-1" {...handlers()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Accept" }));
     await waitFor(() =>
       expect(screen.getByText("1 / 1 accepted")).toBeVisible(),
@@ -551,9 +533,7 @@ describe("an open pack", () => {
     };
     revision = 4;
     strictRevisions = true;
-    render(
-      <BehaviouralPack client={client} artifactId="prep-1" {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId="prep-1" {...handlers()} />);
     const accept = await screen.findByRole("button", { name: "Accept" });
     // Another tab answers a new question meanwhile.
     pack = {
@@ -594,7 +574,7 @@ describe("an open pack", () => {
     revision = 2;
     storedOrder = true;
     const props = handlers();
-    render(<BehaviouralPack client={client} artifactId="prep-1" {...props} />);
+    render(<BehaviouralPack artifactId="prep-1" {...props} />);
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
     await waitFor(() =>
       expect(pack!.questions.every((item) => item.accepted)).toBe(true),
@@ -617,7 +597,7 @@ describe("an open pack", () => {
     };
     revision = 2;
     const props = handlers();
-    render(<BehaviouralPack client={client} artifactId="prep-1" {...props} />);
+    render(<BehaviouralPack artifactId="prep-1" {...props} />);
     // Editing an answer saves it and asks for another review.
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByLabelText("Answer"), {
@@ -682,9 +662,7 @@ describe("an open pack", () => {
   });
 
   it("switches matrix, makes it the default and resets suggestions", async () => {
-    render(
-      <BehaviouralPack client={client} artifactId={null} {...handlers()} />,
-    );
+    render(<BehaviouralPack artifactId={null} {...handlers()} />);
     fireEvent.click(await screen.findByRole("button", { name: /My matrix/ }));
     fireEvent.click(
       screen.getByRole("menuitemradio", { name: /Leadership matrix/ }),
@@ -744,7 +722,7 @@ describe("an open pack", () => {
     };
     const { unmount } = render(
       <StudioContext.Provider value={studio}>
-        <BehaviouralPack client={client} artifactId="prep-1" {...handlers()} />
+        <BehaviouralPack artifactId="prep-1" {...handlers()} />
       </StudioContext.Provider>,
     );
     await waitFor(() => expect(bound.length).toBeGreaterThan(0));

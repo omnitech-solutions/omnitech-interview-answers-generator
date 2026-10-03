@@ -9,6 +9,8 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import React, { useEffect } from "react";
 
+const AI_PROFILE_KEY = "platform.aiProfileId";
+
 // The tenant's frame around its products. Each product brings its own
 // navigation and settings; the frame applies the member's preferences.
 export function PlatformShell({
@@ -30,21 +32,29 @@ export function PlatformShell({
   const tenant = encodeURIComponent(context.tenant.slug);
 
   // Products read the member's AI profile, defaulting to the first model.
+  // [STRATEGY] A saved choice needs no request; only without one are the
+  // targets listed, and cleanup aborts that load.
+  const savedAiProfile = context.preferences.aiProfileId;
   useEffect(() => {
-    void fetch(`/api/platform/v1/ai-targets?tenant=${tenant}`)
+    if (savedAiProfile) {
+      window.localStorage.setItem(AI_PROFILE_KEY, savedAiProfile);
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(`/api/platform/v1/ai-targets?tenant=${tenant}`, {
+      signal: controller.signal,
+    })
       .then((response) => (response.ok ? response.json() : []))
       .then((targets: AiTargetSummary[]) => {
-        const selected =
-          context.preferences.aiProfileId ??
-          targets.find(
-            (target) =>
-              target.kind === "language" && target.family === "direct-model",
-          )?.id;
-        if (selected)
-          window.localStorage.setItem("platform.aiProfileId", selected);
+        const selected = targets.find(
+          (target) =>
+            target.kind === "language" && target.family === "direct-model",
+        )?.id;
+        if (selected) window.localStorage.setItem(AI_PROFILE_KEY, selected);
       })
       .catch(() => undefined);
-  }, [context.preferences.aiProfileId, tenant]);
+    return () => controller.abort();
+  }, [savedAiProfile, tenant]);
 
   useEffect(() => {
     document.documentElement.dataset["theme"] =

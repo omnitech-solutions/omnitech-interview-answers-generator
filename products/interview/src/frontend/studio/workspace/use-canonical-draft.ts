@@ -212,22 +212,21 @@ export function useCanonicalDraft({
     return (await response.json()) as SavedAnswer[];
   }, [path]);
 
+  // The draft's load ends with the view, so a re-run leaves one live request.
   useEffect(() => {
-    let active = true;
-    void request<CanonicalRecord>("").then(
+    const controller = new AbortController();
+    void request<CanonicalRecord>("", { signal: controller.signal }).then(
       (record) => {
-        if (!active) return;
+        if (controller.signal.aborted) return;
         hydrate(record);
         loaded.current?.();
       },
       (error: unknown) => {
-        if (active)
+        if (!controller.signal.aborted)
           setLoadError(error instanceof Error ? error.message : String(error));
       },
     );
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, [hydrate, request]);
   // Leaving the question saves what was typed since the last save.
   const flushRef = useRef(flush);

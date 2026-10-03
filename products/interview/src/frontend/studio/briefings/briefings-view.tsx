@@ -1,7 +1,4 @@
-import {
-  createBriefingClient,
-  createBriefsClient,
-} from "@omnitech/interview-api-client";
+import { createBriefsClient } from "@omnitech/interview-api-client";
 import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import type { Brief } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +13,7 @@ import { BehaviouralPack } from "./behavioural/behavioural-pack";
 import { BriefCard } from "./brief-card";
 import { ExplanationsPane } from "./explanations-pane";
 import { NewBrief } from "./new-brief";
-import { studioFetch } from "../studio-fetch";
+import { studioFetch, studioFetchUntil } from "../studio-fetch";
 
 const KIND_LABELS = {
   concept: "Concept",
@@ -60,10 +57,6 @@ export function BriefingsView({
     () => createBriefsClient({ baseUrl: "", fetch: studioFetch }),
     [],
   );
-  const packs = useMemo(
-    () => createBriefingClient({ baseUrl: "", fetch: studioFetch }),
-    [],
-  );
   const selection = selectionOf(rest);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -71,19 +64,24 @@ export function BriefingsView({
   const [buildError, setBuildError] = useState("");
   const selectedBrief = selection.kind === "brief" ? selection.id : null;
 
+  // The open brief's load ends when another is chosen or the view closes.
   useEffect(() => {
     if (!selectedBrief) return;
-    let active = true;
+    const controller = new AbortController();
+    const active = () => !controller.signal.aborted;
     setBrief(null);
     setLoadError("");
-    client.get(selectedBrief).then(
-      (loaded) => active && setBrief(loaded),
-      () => active && setLoadError("This brief couldn’t be loaded."),
-    );
-    return () => {
-      active = false;
-    };
-  }, [client, selectedBrief]);
+    createBriefsClient({
+      baseUrl: "",
+      fetch: studioFetchUntil(controller.signal),
+    })
+      .get(selectedBrief)
+      .then(
+        (loaded) => active() && setBrief(loaded),
+        () => active() && setLoadError("This brief couldn’t be loaded."),
+      );
+    return () => controller.abort();
+  }, [selectedBrief]);
 
   // The open brief is what the assistant reads (it cannot change briefs).
   const openBrief = brief && selectedBrief === brief.id ? brief.id : null;
@@ -208,7 +206,6 @@ export function BriefingsView({
             }}
             behavioural={
               <BehaviouralPack
-                client={packs}
                 artifactId={null}
                 onCreated={(id) => {
                   lists.refresh();
@@ -243,7 +240,6 @@ export function BriefingsView({
           <div className="bp-page">
             <BehaviouralPack
               key={selection.id}
-              client={packs}
               artifactId={selection.id}
               autoDraft={selection.draft}
               savedRevision={

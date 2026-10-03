@@ -202,14 +202,20 @@ export function Library({
     );
   }, [filterQuery, filtersHydrated]);
 
+  // Loads end with the view (or a re-run), so none is left live behind it.
   useEffect(() => {
-    void requestJson<LibraryFacets>("/api/v1/library/facets")
+    const controller = new AbortController();
+    void requestJson<LibraryFacets>("/api/v1/library/facets", {
+      signal: controller.signal,
+    })
       .then(setFacets)
-      .catch((reason: unknown) =>
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return;
         setError(
           reason instanceof Error ? reason.message : "Knowledge view failed.",
-        ),
-      );
+        );
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -219,8 +225,10 @@ export function Library({
       return;
     }
     setLoading(true);
+    const controller = new AbortController();
     void requestJson<LibraryItem>(
       `/api/v1/library/items/${encodeURIComponent(currentSlug)}`,
+      { signal: controller.signal },
     )
       .then((next) => {
         setItem(next);
@@ -228,10 +236,14 @@ export function Library({
         setError("");
       })
       .catch((reason: unknown) => {
+        if (controller.signal.aborted) return;
         setPendingSlug(undefined);
         setError(reason instanceof Error ? reason.message : "Article failed.");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [currentSlug]);
 
   useEffect(() => {

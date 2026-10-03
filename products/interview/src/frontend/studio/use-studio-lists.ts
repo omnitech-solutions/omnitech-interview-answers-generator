@@ -3,8 +3,8 @@ import {
   createBriefsClient,
 } from "@omnitech/interview-api-client";
 import type { BriefSummary as ConceptBriefSummary } from "@omnitech/interview-contracts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { studioFetch } from "./studio-fetch";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { studioFetchUntil } from "./studio-fetch";
 
 export type QuestionSummary = {
   artifactId: string;
@@ -36,14 +36,15 @@ export type StudioLists = {
   refresh(): void;
 };
 
-async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await studioFetch(url, { signal });
+async function getJson<T>(url: string, fetch: typeof globalThis.fetch) {
+  const response = await fetch(url);
   if (!response.ok) throw new Error(`${response.status}`);
   return (await response.json()) as T;
 }
 
 // The person's questions and saved briefings, for the sidebar and palette.
-// Only the newest request's answer is shown; replaced requests are aborted.
+// Only the newest request's answer is shown; a replaced or unmounted refresh
+// aborts all three of its requests.
 export function useStudioLists({
   workspaceId,
   tenant,
@@ -56,24 +57,19 @@ export function useStudioLists({
   const [briefs, setBriefs] = useState<readonly ConceptBriefSummary[]>([]);
   const [status, setStatus] = useState<StudioLists["status"]>("loading");
   const inFlight = useRef<AbortController | null>(null);
-  const briefingClient = useMemo(
-    () => createBriefingClient({ baseUrl: "", tenant }),
-    [tenant],
-  );
-  const briefsClient = useMemo(
-    () => createBriefsClient({ baseUrl: "", fetch: studioFetch }),
-    [],
-  );
 
   const refresh = useCallback(() => {
     inFlight.current?.abort();
     const controller = new AbortController();
     inFlight.current = controller;
     setStatus((current) => (current === "ready" ? current : "loading"));
+    const fetch = studioFetchUntil(controller.signal);
+    const briefingClient = createBriefingClient({ baseUrl: "", tenant, fetch });
+    const briefsClient = createBriefsClient({ baseUrl: "", fetch });
     void Promise.all([
       getJson<QuestionSummary[]>(
         `/api/interview/workspaces/${encodeURIComponent(workspaceId)}/artifacts`,
-        controller.signal,
+        fetch,
       ),
       // Briefings are optional: a host without them still lists questions.
       briefingClient
@@ -92,7 +88,7 @@ export function useStudioLists({
         if (!controller.signal.aborted) setStatus("error");
       },
     );
-  }, [workspaceId, briefingClient, briefsClient]);
+  }, [workspaceId, tenant]);
 
   useEffect(() => {
     refresh();

@@ -12,3 +12,10 @@ export function studioFetch(
   headers.set(TENANT_HEADER, decodeURIComponent(slug));
   return fetch(input, { ...init, headers });
 }
+
+// studioFetch for one effect's loads: its cleanup aborts them, so a re-run
+// (a changed dependency, or React StrictMode in development) never leaves a
+// second live request behind the first.
+export function studioFetchUntil(signal: AbortSignal): typeof fetch {
+  return (input, init = {}) => studioFetch(input, { ...init, signal });
+}
