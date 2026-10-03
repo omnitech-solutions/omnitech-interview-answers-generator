@@ -7,6 +7,7 @@ const STUDIO_VIEWS = [
   { id: "home", path: "/" },
   { id: "work", path: "/work" },
   { id: "briefings", path: "/briefings" },
+  { id: "documents", path: "/documents" },
   { id: "knowledge", path: "/knowledge" },
   { id: "rehearsal", path: "/rehearsal" },
 ] as const;
@@ -21,7 +22,11 @@ export const manifest = {
   icon: "sparkles",
   // The studio fills the viewport below the platform header.
   frame: "fill-viewport",
-  permissions: ["interview.read", "interview.write"],
+  permissions: [
+    "interview.read",
+    "interview.write",
+    "interview.documents.write",
+  ],
   // Interview Studio routes within itself; each top-level view is a route
   // here so the platform authorizes and serves it. Every route renders the
   // studio's single entry point, StudioPage (see ./frontend).

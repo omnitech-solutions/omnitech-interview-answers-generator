@@ -8,6 +8,7 @@ import {
 import { afterAll, beforeAll, expect, it } from "vitest";
 import * as domain from "./schema.js";
 import * as studio from "./studio.js";
+import * as documents from "./documents.js";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {
@@ -17,7 +18,11 @@ beforeAll(async () => {
 afterAll(async () => pg?.stop());
 
 it("declares Interview Studio's and the domain's tables exactly as the migrations create them", async () => {
-  const tables = [...tablesOf(studio), ...tablesOf(domain)];
-  expect(tables).toHaveLength(21);
+  const tables = [
+    ...tablesOf(studio),
+    ...tablesOf(domain),
+    ...tablesOf(documents),
+  ];
+  expect(tables).toHaveLength(26);
   expect(await schemaDrift(pg.owner, tables)).toEqual([]);
 });

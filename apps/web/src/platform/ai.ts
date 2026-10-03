@@ -31,7 +31,11 @@ import {
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
 import { resolveAgentProfiles, resolveDefaultLanguageModel } from "./ai-config";
-import { agentAssistantProfiles, streamAgentTurn } from "./agent-models";
+import {
+  agentAssistantProfiles,
+  runAgentStructured,
+  streamAgentTurn,
+} from "./agent-models";
 import { createLocalModelAdapter } from "./local-model";
 
 function createAgentPort(): AgentExecutionPort {
@@ -70,7 +74,26 @@ function createAgentPort(): AgentExecutionPort {
   }
 
   return {
-    execute: create,
+    // A structured generation waits for its job's output; anything else
+    // queues a job and returns its id.
+    execute: async (request, profile) => {
+      if (request.task.type !== "structured-generation")
+        return create(request, profile);
+      if (!secret) throw new Error("AGENT_PAYLOAD_SECRET is not configured.");
+      const { result, usage } = await runAgentStructured(
+        database,
+        secret,
+        request,
+        profile,
+      );
+      return {
+        executionId: crypto.randomUUID(),
+        family: "agent-runtime",
+        targetId: profile.targetId,
+        result,
+        ...(usage ? { usage } : {}),
+      };
+    },
     async *stream(
       request: AiExecutionRequest,
       profile: AiProfile,

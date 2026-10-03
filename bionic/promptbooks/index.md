@@ -2,14 +2,15 @@
 
 _Last updated: 2026-10-02_
 
-## Active (0)
+## Active (1)
 
 | id | title | status | current_run | progress | tags | created_at |
-|----|-------|--------|-------------|----------|------|------------|
+|---|---|---|---|---|---|---|
+| PB-0001 | Cycle: Interview Documents in Interview Studio | active | RUN-001 | 0/17 (0%) | cycle, workflow, feature, interview, documents | 2026-10-02 |
 
 ## Recent runs (last 20)
 
-_None yet._
+- `PB-0001/RUN-001` — in_progress — started 2026-10-03 — current prompt 1
 
 ## Archived (0)
 

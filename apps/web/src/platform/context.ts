@@ -60,6 +60,7 @@ async function resolveLocalContext(): Promise<PlatformContext | null> {
       userId: resolved.user.id,
     },
     preferences: resolved.preferences,
+    permissions: resolved.permissions,
     products: resolved.products,
   };
 }

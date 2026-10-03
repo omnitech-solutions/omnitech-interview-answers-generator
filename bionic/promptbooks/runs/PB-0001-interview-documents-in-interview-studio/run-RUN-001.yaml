@@ -1,0 +1,157 @@
+format_version: '1'
+run_id: RUN-001
+book_id: PB-0001
+book_content_hash: sha256:3e778a5d24dc10f0d1ec90652c58b5e688b6e350e1c4e49c2b49c2a18a9db332
+started_at: '2026-10-03T04:09:26Z'
+completed_at: null
+status: in_progress
+current_prompt: 14
+base_commit: 72869dbe92a26e512ac7ad7985c0ffdf219f2737
+prompts:
+- n: 1
+  title: 'Plan: spawn planning team, propose ADR for Interview Documents inside the Interview product'
+  state: "done"
+  started: "2026-10-03T04:17:56Z"
+  completed: "2026-10-03T04:17:56Z"
+  result: "ADR-0009 proposed from two planning analyses; current candidacy, profile, artifact and gateway contracts checked; four governing rules recorded; summaries regenerated and coverage advisory had no warnings."
+  artifacts: ["bionic/adrs/ADR-0009-keep-interview-documents-in-the-interview-product.md"]
+- n: 2
+  title: 'Plan: convene LLM council to review the ADR'
+  state: "done"
+  started: "2026-10-03T04:17:56Z"
+  completed: "2026-10-03T04:21:58Z"
+  result: "Council round 1: Completeness, Correctness, Clarity and Security REQUEST_CHANGES; Consistency APPROVE_WITH_NITS. Deep architecture review REQUEST_CHANGES. Findings: actor RLS, candidacy binding, artifact payload/authz, built-ins, pinned fields, upload safety, research refs. Safety findings retained; no in-repo probe resolves them."
+  artifacts: []
+- n: 3
+  title: 'Plan: address council findings, re-convene the council'
+  state: "done"
+  started: "2026-10-03T04:21:58Z"
+  completed: "2026-10-03T04:25:00Z"
+  result: "Addressed round-1 blockers; round 2 approved completeness and consistency, with correctness/security implementation nits; clarified actor-scoped artifact policy, controlled ownerless built-ins and tenant-composite payload; round 3 all five dimensions APPROVE with no ADR findings. Advisory warnings empty."
+  artifacts: ["bionic/adrs/ADR-0009-keep-interview-documents-in-the-interview-product.md"]
+- n: 4
+  title: 'Plan: accept the ADR'
+  state: "done"
+  started: "2026-10-03T04:25:00Z"
+  completed: "2026-10-03T04:26:09Z"
+  result: "ADR-0009 accepted after three council rounds; body hash unchanged across acceptance; journal records first-round artifact/privacy/permission surprises and remaining implementation proofs."
+  artifacts: ["bionic/adrs/ADR-0009-keep-interview-documents-in-the-interview-product.md", "bionic/journal/2026-10.md"]
+- n: 5
+  title: 'Develop #1: derive an implementation plan for the Interview Documents data model, migrations, private APIs, field
+    extraction, structured generation and rendering/export services'
+  state: "done"
+  started: "2026-10-03T04:26:09Z"
+  completed: "2026-10-03T04:29:23Z"
+  result: "Implementation plan #1 recorded in run Notes: 15 ordered backend units, file ownership and tests, profile-key type mismatch, one-call generation and member authorization seams; doctrine resolves all four ADR-0009 rules."
+  artifacts: []
+- n: 6
+  title: 'Develop #1: spawn implementation team'
+  state: "done"
+  started: "2026-10-03T04:29:23Z"
+  completed: "2026-10-03T05:02:47Z"
+  result: "Backend implementation complete: private schema, artifacts, templates, context, one-call generation, immutable revisions, preview/export and API; 26 Interview backend tests, 25 platform-storage tests and 49 contracts tests passed. Full quality gates follow in prompt 7."
+  artifacts: ["products/interview/src/backend/documents/api.ts", "products/interview/src/backend/db/documents.ts", "packages/database/drizzle/20261003040000_document_artifact_payloads_and_interview_documents/migration.sql"]
+- n: 7
+  title: 'Develop #1: run quality gates; loop until clean'
+  state: "done"
+  started: "2026-10-03T05:02:47Z"
+  completed: "2026-10-03T05:32:09Z"
+  result: "pnpm verify exited 0 (146 files, 1064 tests; lint/format/types/build passed); Drizzle and generated-doc drift checks exited 0. Repository pnpm audit exited 1 with 18 high and 6 critical advisories; no jszip advisory, recorded for security review."
+  artifacts: ["products/interview/src/backend/documents/generate.test.ts", "packages/database/drizzle/20261003040000_document_artifact_payloads_and_interview_documents/migration.sql", "bionic/code/index.md", "bionic/arch/decision-index.md"]
+- n: 8
+  title: 'Develop #1: internal review'
+  state: "done"
+  started: "2026-10-03T05:32:09Z"
+  completed: "2026-10-03T05:32:17Z"
+  result: "Independent backend review found four MUST-FIX paths; transaction, uniqueness, cancellation, and field-evidence fixes were independently rechecked. Focused backend suite passed 42 tests, custom-field negative probe returned blank plus missing error, and no remaining focused MUST-FIX was reported."
+  artifacts: ["products/interview/src/backend/documents/api.ts", "products/interview/src/backend/documents/repository.ts", "products/interview/src/backend/documents/generate.ts", "packages/platform-storage/src/document-artifact-repository.ts"]
+- n: 9
+  title: 'Develop #2: derive an implementation plan for the Interview Studio Documents area, templates and document flows,
+    field editor, live preview, revisions and export UI'
+  state: "done"
+  started: "2026-10-03T05:32:17Z"
+  completed: "2026-10-03T05:32:43Z"
+  result: "Implementation plan #2 recorded in run Notes: eight ordered UI units covering client, route, template intake/settings, creation, editor/preview, revisions/regeneration, exports and regression tests."
+  artifacts: ["products/interview/src/frontend/studio/documents/documents-view.tsx"]
+- n: 10
+  title: 'Develop #2: spawn implementation team'
+  state: "done"
+  started: "2026-10-03T05:32:43Z"
+  completed: "2026-10-03T05:32:50Z"
+  result: "Documents UI, typed client, route, template intake/field settings, generation, editor/preview, revision history and exports implemented. UI fix agent added regression tests for template configuration and A-to-B switching; targeted suite 7 passed, product typecheck and Biome passed."
+  artifacts: ["products/interview/src/frontend/studio/documents/documents-view.tsx", "products/interview/src/frontend/studio/documents/documents-view.test.tsx", "products/interview/src/frontend/studio/documents/documents-client.ts"]
+- n: 11
+  title: 'Develop #2: run quality gates; loop until clean'
+  state: "done"
+  started: "2026-10-03T05:32:50Z"
+  completed: "2026-10-03T05:33:18Z"
+  result: "Final pnpm verify exited 0: 146 test files, 1064 tests, 50 typecheck tasks and 27 build tasks; generated-doc checks and Drizzle check exited 0. pnpm audit reported repository advisories, recorded explicitly in Notes for review."
+  artifacts: ["products/interview/src/frontend/studio/documents/documents-view.test.tsx", "bionic/code/index.md", "bionic/arch/decision-index.md"]
+- n: 12
+  title: 'Develop #2: internal review'
+  state: "done"
+  started: "2026-10-03T05:33:18Z"
+  completed: "2026-10-03T05:33:26Z"
+  result: "Independent UI review raised two MUST-FIX findings; intake field controls and selected-template remount/guard closed both. Independent re-review approved the fixes and reran 55 Interview test files, 414 tests passed."
+  artifacts: ["products/interview/src/frontend/studio/documents/documents-view.tsx", "products/interview/src/frontend/studio/documents/documents-view.test.tsx"]
+- n: 13
+  title: 'Review: external team review (multi-dimension + dedicated security review) of the full Interview Documents cycle
+    diff'
+  state: "done"
+  started: "2026-10-03T05:33:26Z"
+  completed: "2026-10-03T06:09:20Z"
+  result: "Independent correctness, consistency, clarity and S1-S5 security review closed all confirmed MUST-FIX: provider selection, active DOCX parts, member authorization, stale context, job-description save and distinct production assets. pnpm verify exit 0: 147 test files, 1077 tests, 50 typechecks, 27 builds. Live browser flow remains unobserved because the operator database has not been migrated."
+  artifacts: ["products/interview/src/backend/documents/api.ts", "products/interview/src/frontend/studio/documents/documents-view.tsx", "packages/database/drizzle/20261003040000_document_artifact_payloads_and_interview_documents/migration.sql"]
+- n: 14
+  title: 'Review: tests, docs, and dev-practice conformance audit of the full Interview Documents cycle diff'
+  state: "running"
+  started: "2026-10-03T06:09:20Z"
+  completed: null
+  result: ''
+  artifacts: []
+- n: 15
+  title: 'Review: implement feedback; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 16
+  title: 'Prep: changelog, docs, journal, PR notes'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 17
+  title: 'Summary: completion report AND archive the book'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+notes: |
+  Implementation plan #1: Backend and persistence, in ordered units <= roughly 200 handwritten LOC each.
+  1. Strict documents contracts and field validation in packages/interview-contracts/src/documents.ts; unit tests.
+  2. Platform artifact metadata policy and controlled nullable owner for tenant-local built-ins in packages/platform-storage/src/schema/platform.ts; preserve existing artifact behavior; SQL migration and security tests.
+  3. Size-bounded payload bytes table and narrow repository in platform-storage; tenant-composite artifact FK, forced RLS, owner-scoped read/write; database tests.
+  4. Documents-specific member permission and scoped API resolver; ordinary member can write Documents without broad interview.write or artifact.write.
+  5. Interview template and immutable template-revision tables with private/built-in policies, artifact links and migration/immutability tests.
+  6. Interview document, immutable revision and export tables with same-scope UUID foreign keys where types agree and tenant+actor forced RLS. Existing profile revisions use text tenant/actor keys, so pin and validate profile identity/owner transactionally or use a migration-safe typed bridge; prove cross-member denial.
+  7. Nullable candidacy job description and context resolver requiring candidatePersonId = member_people.personId and interview belonging to candidacy.
+  8. Bounded DOCX/Markdown template extraction; reject traversal, expansion, external relationships, macros and embedded objects before commit.
+  9. Template upload, version, built-in duplication repository; rollback and actor-isolation tests.
+  10. Document create/list/revision repository; persist only after successful first generation; pin profile and template revisions.
+  11. Exactly one AiExecutionGateway structured call; do not use generateChecked because it can retry. Validate output and authoritative candidacy fields.
+  12. Edit, targeted regeneration and restore append full immutable snapshots; stale-revision conflict and historical stability tests.
+  13. DOCX and Markdown renderers from selected flat revision; actual file fixtures, split-run placeholder and inert preview tests.
+  14. Export bytes persisted as private artifact, safe download headers and history by selected revision; same-tenant other member denied.
+  15. Hono Documents API mounted in Interview backend with body/auth/origin limits; end-to-end member route tests.
+  Quality gates: targeted package tests and typechecks per unit, schema/migration drift, real PostgreSQL RLS/immutability tests, actual DOCX/Markdown reopen/download, then pnpm verify. Use negative controls for claimed isolation gates. Risks: current artifact RLS is tenant-only; members lack write permissions; shared generateChecked can call AI twice; prototype is sample-only. Preserve Interview behavior, private-content no-log rule, unrelated changes and accepted ADR-0009; no LangGraph.
+  Quality gates #1 (final source, 2026-10-02): pnpm verify -> exit 0; lint checked 442 files, format checked 442 files, typecheck 50/50 tasks, full coverage suite 146 files and 1064 tests passed, build 27/27 tasks. pnpm --filter @omnitech/database exec drizzle-kit check -> exit 0, Everything's fine. uv run --no-config crux/scripts/extract-code-docs.py --config bionic/manifest.yml --dry-run -> exit 0, drift false, 361 pages. uv run crux/scripts/derive-arch.py --docs-dir bionic --dry-run -> exit 0, clean true, strict_failures empty; data-model extractor stubbed because it does not support Drizzle. git diff --check -> exit 0 (backend independent reviewer). pnpm audit --audit-level high --json -> exit 1, 18 high and 6 critical repository advisories; none names jszip, whose 3.10.1 version existed in the base lockfile. Security review must assess feature-specific reachability; no claim of a clean repository audit.
+  Dev loop #1 review: independent backend reviewer found four MUST-FIX items (unsupported profile facts, artifact orphans on failed links, concurrent duplicate creates, cancellation during first save). Atomic artifact/link transactions, a NULLS NOT DISTINCT selection key, a PostgreSQL blocked-insert cancellation test, and explicit profile field evidence mappings closed them. The reviewer independently reproduced the custom-field failure, reran it after the fix, and found an empty value plus a missing-field validation error; no remaining backend MUST-FIX in focused re-review. Abort after PostgreSQL begins COMMIT cannot be retroactively rolled back.
+  Implementation plan #2: Interview Studio Documents UI, using rules in ADR-0009 (Interview ownership, member privacy, one structured gateway call, immutable revisions). Ordered independently testable units: (1) add typed, bounded Documents API client in products/interview/src/frontend/studio/documents/documents-client.ts with same-origin requests and abort support; (2) register Documents view and route in products/interview/src/frontend/studio/config/views.tsx, use-studio-route.ts, manifest.tsx and tokens.css; (3) implement template list, upload/duplicate and server intake field discovery with required/maxLength editing in documents-view.tsx/CSS; (4) implement candidacy/profile/interview/model selection, duplicate Open it and cancellable generation; (5) implement document field editor, local sandboxed preview and validation; (6) implement immutable revision history, stale edit handling, restore and targeted/all/fix regeneration; (7) implement revision-targeted DOCX/Markdown export and stored download list; (8) exercise each flow in documents-view.test.tsx, including A-to-B template switching and field configuration. Risks: stale async template detail, cancellation before save, unsaved preview state, MIME/filename handling, accessibility and field metadata omission. Gates: focused UI Vitest, product TypeScript/Biome, full pnpm verify, doc drift, dependency audit and independent UI/security review. Preserve existing Interview navigation and avoid private content in logs.
+  Quality gates #2 (final source, 2026-10-02): pnpm verify -> exit 0; lint 442 files, format 442 files, Turbo typecheck 50/50 tasks, Vitest coverage 146 files and 1064 tests, build 27/27 tasks. pnpm --filter @omnitech/product-interview test -- src/frontend/studio/documents/documents-view.test.tsx -> exit 0, 55 files and 414 tests (independent UI reviewer). uv run --no-config crux/scripts/extract-code-docs.py --config bionic/manifest.yml --dry-run -> exit 0, drift false and 361 pages. uv run crux/scripts/derive-arch.py --docs-dir bionic --dry-run -> exit 0, clean true and strict_failures empty. pnpm --filter @omnitech/database exec drizzle-kit check -> exit 0. git diff --check -> exit 0. pnpm audit --audit-level high --json -> exit 1, 18 high and 6 critical repository advisories; newly declared jszip 3.10.1 existed in HEAD lockfile and is absent from advisory list. Security reviewers must assess relevant paths; no clean audit claim. Release-content scan N/A: no distributed crux skill, agent or template changed.
+  Dev loop #2 review: independent UI reviewer found template required/maxLength controls unreachable and stale template-switch upload state. UI fix agent added intake-first field settings plus selected-ID remount and guard; independent re-review found both closed and 414 Interview package tests passed. Live browser flow remains unobserved because persistent migration was not applied to the operator's database.
+pr_draft: ''
+summary: ''

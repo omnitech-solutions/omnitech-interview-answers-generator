@@ -38,6 +38,13 @@ export class PostgresAgentJobWorkerRepository
     leaseMs: number,
   ): Promise<AgentJob | undefined> {
     return this.asWorker(async (client) => {
+      // A cancelled job nobody is running (never claimed, or its worker's
+      // lease ran out) ends here, so a cancel always reaches a terminal state.
+      await client.query(
+        `UPDATE ai.agent_jobs SET status = 'cancelled', updated_at = now()
+         WHERE status = 'cancelling'
+           AND (claimed_by IS NULL OR lease_expires_at < now())`,
+      );
       const result = await client.query<JobRow>(
         `WITH candidate AS (
            SELECT id FROM ai.agent_jobs
@@ -63,6 +70,23 @@ export class PostgresAgentJobWorkerRepository
     });
   }
 
+  async renewLease(
+    jobId: string,
+    workerId: string,
+    leaseMs: number,
+  ): Promise<boolean> {
+    const result = await this.asWorker((client) =>
+      client.query(
+        `UPDATE ai.agent_jobs
+         SET lease_expires_at = now() + ($3 * interval '1 millisecond')
+         WHERE id = $1 AND claimed_by = $2
+           AND status IN ('claimed', 'starting', 'running', 'cancelling')`,
+        [jobId, workerId, leaseMs],
+      ),
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
+
   // Once claimed, the worker knows the job's tenant and reads it there.
   async get(tenantId: string, jobId: string): Promise<AgentJob | undefined> {
     return this.database.tenantTransaction(tenantId, async (client) => {
@@ -79,35 +103,45 @@ export class PostgresAgentJobWorkerRepository
     jobId: string,
     expected: readonly AgentJobStatus[],
     next: AgentJobStatus,
+    claimant?: string,
   ): Promise<boolean> {
     const result = await this.asWorker((client) =>
       client.query(
         `UPDATE ai.agent_jobs SET status = $3, updated_at = now()
-         WHERE id = $1 AND status = ANY($2::text[])`,
-        [jobId, expected, next],
+         WHERE id = $1 AND status = ANY($2::text[])
+           AND ($4::text IS NULL OR claimed_by = $4)`,
+        [jobId, expected, next, claimant ?? null],
       ),
     );
     return (result.rowCount ?? 0) === 1;
   }
 
-  async setResultReference(jobId: string, reference: string): Promise<void> {
+  async setResultReference(
+    jobId: string,
+    reference: string,
+    claimant?: string,
+  ): Promise<void> {
     await this.asWorker((client) =>
       client.query(
         `UPDATE ai.agent_jobs
          SET result_reference = $2, updated_at = now()
-         WHERE id = $1`,
-        [jobId, reference],
+         WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)`,
+        [jobId, reference, claimant ?? null],
       ),
     );
   }
 
-  async setSessionId(jobId: string, sessionId: string): Promise<void> {
+  async setSessionId(
+    jobId: string,
+    sessionId: string,
+    claimant?: string,
+  ): Promise<void> {
     await this.asWorker((client) =>
       client.query(
         `UPDATE ai.agent_jobs
          SET session_id = $2, updated_at = now()
-         WHERE id = $1`,
-        [jobId, sessionId],
+         WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)`,
+        [jobId, sessionId, claimant ?? null],
       ),
     );
   }
@@ -117,6 +151,7 @@ export class PostgresAgentJobWorkerRepository
   async appendEvent(
     jobId: string,
     event: AgentEvent,
+    claimant?: string,
   ): Promise<PersistedAgentEvent> {
     return this.asWorker(async (client) => {
       const inserted = await client.query<{
@@ -127,7 +162,7 @@ export class PostgresAgentJobWorkerRepository
            UPDATE ai.agent_jobs SET
              next_event_sequence = next_event_sequence + 1,
              updated_at = now()
-           WHERE id = $1
+           WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)
            RETURNING tenant_id, next_event_sequence - 1 AS sequence
          ), appended AS (
            INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event)
@@ -136,7 +171,7 @@ export class PostgresAgentJobWorkerRepository
          -- The worker may append events but never read them back, so the
          -- result comes from the job row; created_at defaults to now().
          SELECT sequence, now() AS created_at FROM job`,
-        [jobId, event],
+        [jobId, event, claimant ?? null],
       );
       const row = inserted.rows[0];
       if (!row) throw new Error("Agent job was not found.");

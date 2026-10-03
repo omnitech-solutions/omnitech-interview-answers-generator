@@ -225,6 +225,47 @@ it("lets another worker reclaim a running job whose lease has expired", async ()
   expect(await worker.claim("worker-3", 30_000)).toBeUndefined();
 });
 
+it("keeps a running job away from other workers while its lease is renewed, and only for its owner", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
+  while (await worker.claim("drain", 60_000)) {}
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:heartbeat",
+  });
+  await worker.claim("worker-1", 1);
+  await worker.transition(created.id, ["claimed"], "running");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  // Another worker cannot extend a lease it does not hold.
+  expect(await worker.renewLease(created.id, "worker-2", 30_000)).toBe(false);
+  // The owner's heartbeat does.
+  expect(await worker.renewLease(created.id, "worker-1", 30_000)).toBe(true);
+  // A lifecycle write names its claimant: another worker's write does nothing.
+  expect(
+    await worker.transition(created.id, ["running"], "failed", "worker-2"),
+  ).toBe(false);
+  // The same fence covers events, session and result writes.
+  await expect(
+    worker.appendEvent(
+      created.id,
+      { type: "started", sessionId: "s" },
+      "worker-2",
+    ),
+  ).rejects.toThrow("not found");
+  await worker.appendEvent(
+    created.id,
+    { type: "started", sessionId: "s" },
+    "worker-1",
+  );
+  expect(await worker.claim("worker-2", 30_000)).toBeUndefined();
+  const job = await worker.get(tenantId, created.id);
+  expect(job).toMatchObject({ status: "running", claimedBy: "worker-1" });
+  expect(job?.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+});
+
 it("replays a job's events after a sequence, in order", async () => {
   const repository = new PostgresAgentJobRepository(member);
   const worker = new PostgresAgentJobWorkerRepository(member);
@@ -304,4 +345,22 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
   expect(await worker.transition(created.id, ["running"], "failed")).toBe(
     false,
   );
+});
+
+it("ends a cancel that no worker is running, so it never stays cancelling", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
+  while (await worker.claim("drain", 60_000)) {}
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:stranded",
+  });
+  await worker.transition(created.id, ["queued"], "cancelling");
+  await worker.claim("sweeper", 30_000);
+  expect(await worker.get(tenantId, created.id)).toMatchObject({
+    status: "cancelled",
+  });
 });

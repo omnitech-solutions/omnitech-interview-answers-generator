@@ -4,6 +4,7 @@ export const VIEW_IDS = [
   "home",
   "work",
   "briefings",
+  "documents",
   "knowledge",
   "rehearsal",
 ] as const;

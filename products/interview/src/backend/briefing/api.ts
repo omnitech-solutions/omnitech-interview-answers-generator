@@ -580,16 +580,15 @@ export function createBriefingApi(options: {
   );
   app.get(`${prefix}/profiles`, async (context) => {
     const scope = withScope(context);
-    let profiles = await repository.listProfiles(scope);
-    if (profiles.length === 0 && options.loadDefaultProfile) {
+    if (options.loadDefaultProfile) {
       try {
         const input = await options.loadDefaultProfile(scope);
-        if (input) await repository.importDefaultProfileIfEmpty(scope, input);
+        if (input) await repository.syncDefaultProfile(scope, input);
       } catch {
         throw new WorkspaceError("default-profile-unavailable");
       }
-      profiles = await repository.listProfiles(scope);
     }
+    const profiles = await repository.listProfiles(scope);
     return context.json({ profiles });
   });
   app.post(`${prefix}/profiles`, async (context) => {

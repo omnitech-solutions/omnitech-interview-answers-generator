@@ -1,6 +1,6 @@
 # Decision index
 
-_Accepted, non-archived decisions (5), projected from `adrs/index.md`. ADR references are footnotes, never inline._
+_Accepted, non-archived decisions (6), projected from `adrs/index.md`. ADR references are footnotes, never inline._
 
 | # | decision | date | ref |
 |---|---|---|---|
@@ -9,9 +9,11 @@ _Accepted, non-archived decisions (5), projected from `adrs/index.md`. ADR refer
 | 3 | Simplicity first: the least complex design that meets current requirements | 2026-10-02 | [^d3] |
 | 4 | Keep package boundaries narrow with one public entrypoint per runtime surface | 2026-10-02 | [^d4] |
 | 5 | Interview answers are structured guides that render their Markdown | 2026-10-02 | [^d5] |
+| 6 | Keep candidate documents in the Interview product | 2026-10-02 | [^d6] |
 
 [^d1]: ADR-0000
 [^d2]: ADR-0001
 [^d3]: ADR-0002
 [^d4]: ADR-0003
 [^d5]: ADR-0008
+[^d6]: ADR-0009

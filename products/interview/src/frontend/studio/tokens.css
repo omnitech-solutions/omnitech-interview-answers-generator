@@ -1,6 +1,7 @@
 @import "./workspace/workspace.css";
 @import "./home/home.css";
 @import "./briefings/briefings.css";
+@import "./documents/documents.css";
 @import "./briefings/behavioural/behavioural.css";
 @import "./knowledge.css";
 @import "./rehearsal/rehearsal.css";

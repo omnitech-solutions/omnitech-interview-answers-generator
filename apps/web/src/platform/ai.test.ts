@@ -642,11 +642,89 @@ describe("agent jobs", () => {
     expect(job.profile).toMatchObject({ outputSchema: { type: "object" } });
   });
 
+  it("lists the agent models for document generation too", async () => {
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
+    const targets = await createPlatformAiGateway().listAvailableTargets(
+      context(),
+      { taskType: "structured-generation" },
+    );
+    expect(targets.map((target) => target.id)).toEqual(
+      expect.arrayContaining(["agent/claude-code", "agent/codex"]),
+    );
+  });
+
+  it("generates structured document values on an agent and returns the parsed JSON", async () => {
+    vi.stubEnv("AGENT_PAYLOAD_SECRET", "a-payload-secret-of-32-characters!");
+    const before = (await latestJob())?.id;
+    const schema = {
+      type: "object",
+      properties: { summary: { type: "string" } },
+    };
+    const generating = createPlatformAiGateway().execute({
+      context: context(),
+      profileId: "agent/claude-code",
+      task: {
+        type: "structured-generation",
+        system: "Return JSON.",
+        prompt: "{}",
+        schema,
+      },
+    });
+    let job = await latestJob();
+    while (!job || job.id === before) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      job = await latestJob();
+    }
+    const worker = new PostgresAgentJobWorkerRepository(pg.owner);
+    await worker.appendEvent(job.id, {
+      type: "usage",
+      usage: {
+        inputTokens: 2,
+        outputTokens: 90,
+        totalTokens: 92,
+        costUsd: 0.11,
+      },
+    } as never);
+    await worker.appendEvent(job.id, {
+      type: "completed",
+      result: { output: { summary: "Ledger migrations." } },
+    } as never);
+    const execution = await generating;
+    expect(execution).toMatchObject({
+      family: "agent-runtime",
+      targetId: "claude-code",
+      result: { summary: "Ledger migrations." },
+      usage: { outputTokens: 90, costUsd: 0.11 },
+    });
+    expect(job.profile).toMatchObject({
+      id: "assistant-claude-code",
+      outputSchema: schema,
+    });
+  });
+
   it("reports a failed agent run", async () => {
     const { reading } = await assistantTurn([
       { type: "failed", error: { code: "agent-crashed", message: "boom" } },
     ]);
     await expect(reading).rejects.toThrow("Agent run failed: agent-crashed");
+  });
+
+  it("fails a run that started twice and stops the job, instead of joining two runs", async () => {
+    const { reading, job } = await assistantTurn([
+      { type: "started", sessionId: "first" },
+      { type: "started", sessionId: "first" },
+      { type: "text-delta", text: '{"a":' },
+      { type: "started", sessionId: "second" },
+    ]);
+    await expect(reading).rejects.toThrow("Agent run restarted");
+    expect(
+      (
+        await pg.owner.query<{ status: string }>(
+          "SELECT status FROM ai.agent_jobs WHERE id = $1",
+          [job.id],
+        )
+      ).rows[0]?.status,
+    ).toBe("cancelling");
   });
 
   it("cancels the job when the turn is stopped", async () => {

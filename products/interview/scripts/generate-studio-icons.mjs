@@ -17,6 +17,12 @@ const icons = [
   "visibility", "visibility_off", "warning",
   "arrow_back", "arrow_forward", "badge", "edit", "grid_view", "help",
   "payments", "person", "schedule", "star", "tune", "upload_file", "work",
+  // Documents
+  "contact_page", "mail", "checklist", "draft", "upload", "download",
+  "history", "build", "update", "task_alt", "neurology", "description",
+  "link", "article",
+  "zoom_in", "zoom_out", "fit_screen", "left_panel_close", "left_panel_open",
+  "radio_button_unchecked",
 ];
 // Studio names whose source file was renamed upstream. The assistant sparkle
 // (auto_awesome) is not here: icon.tsx renders the assistant package's own.

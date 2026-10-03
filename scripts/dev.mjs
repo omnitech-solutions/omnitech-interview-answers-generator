@@ -26,7 +26,13 @@ const localEnvironment = {
 };
 
 // The interview assistant needs LM Studio's model loaded with enough context.
-if (localEnvironment.LM_STUDIO_MODEL && !localEnvironment.AI_MODEL) {
+// DEV_SKIP_LM_STUDIO_LOAD=1 leaves LM Studio alone: the model stays the app's
+// default and loads on first use, so a restart never loads a large model.
+if (
+  localEnvironment.LM_STUDIO_MODEL &&
+  !localEnvironment.AI_MODEL &&
+  !localEnvironment.DEV_SKIP_LM_STUDIO_LOAD
+) {
   const contextTokens = await ensureLmStudioContext(
     localEnvironment.LM_STUDIO_MODEL,
     localEnvironment,

@@ -9,6 +9,7 @@ export default defineConfig({
     "../../products/presentation/src/backend/db/schema.ts",
     "../../products/interview/src/backend/db/studio.ts",
     "../../products/interview/src/backend/db/schema.ts",
+    "../../products/interview/src/backend/db/documents.ts",
   ],
   out: "./drizzle",
   schemaFilter: ["platform", "ai", "presentation", "interview", "practice"],

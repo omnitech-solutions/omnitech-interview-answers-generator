@@ -58,6 +58,24 @@ it("scopes reads and writes to the tenant and exposes the actor", async () => {
   expect(rows).toEqual([{ body: "a", actor }]);
 });
 
+it("sets product context only for the scoped transaction", async () => {
+  const seen = await withTenant(
+    { tenantId: A, actorId: actor, productId: "omnitech.interview" },
+    async (db) =>
+      (
+        await db.execute(
+          sql`SELECT current_setting('app.product_id', true) AS product`,
+        )
+      ).rows[0]?.["product"],
+    opts(),
+  );
+  expect(seen).toBe("omnitech.interview");
+  const outside = await member.query(
+    "SELECT current_setting('app.product_id', true) AS product",
+  );
+  expect(outside.rows[0]?.["product"] ?? "").toBe("");
+});
+
 it("does not leak context into the next transaction on the same pooled connection", async () => {
   await withTenant(
     { tenantId: A, actorId: actor },
