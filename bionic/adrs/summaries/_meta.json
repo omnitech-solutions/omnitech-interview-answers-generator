@@ -1,5 +1,5 @@
 {
-  "adr_frontmatter_sha256": "f487e6eca8b5702dbfc8c41321ae25eedc825db4877f73a1539457c25ec9975e",
+  "adr_frontmatter_sha256": "b617a34bb625b7566bbf8324321c561a33e075653d5766d669624c925d03d9c1",
   "backfill_reviews_sha256": null,
   "input_domain": [
     "adrs",

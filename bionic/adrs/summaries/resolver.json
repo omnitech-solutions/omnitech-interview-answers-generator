@@ -35,12 +35,30 @@
     "source_adr": "ADR-0009",
     "source_status": "Accepted"
   },
-  "ADR-0010/agreed-visible-assistance": {
+  "ADR-0010/credential-ingest-scope": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Active Session assistance makes no undetectability claim, adds no detection evasion, and never submits, messages or operates an external interview interface.",
+    "rule": "The session credential grants ingest for one session only and has a short hard maximum lifetime.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/credential-storage": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The session credential is stored hashed and is never logged or placed in a URL.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/fast-path-no-tools": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The fast-path model call has no tools.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
@@ -53,12 +71,21 @@
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
-  "ADR-0010/idempotent-observation-and-dispatch": {
+  "ADR-0010/idempotent-dispatch": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Observations are deduplicated by source and event id, and dispatch by session, logical task, task revision and action kind.",
+    "rule": "Dispatch is deduplicated by session, logical task, task revision and action kind.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/idempotent-observation": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Observations are deduplicated by source and event id.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
@@ -67,16 +94,88 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Tenant, actor and session identity come only from a short-lived session credential, never from observation content.",
+    "rule": "Ingest identity comes only from the session credential, and stream and control identity only from the user's session, never from request or observation content.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
-  "ADR-0010/pause-end-stop-authority": {
+  "ADR-0010/loop-isolation": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Pause or end suppresses new dispatch and rejects late publication, and only the authenticated user's session control starts, pauses or stops capture.",
+    "rule": "A failure in one worker loop never stops the other.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/neutral-core-imports": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The session core imports only active-session-contracts.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/no-external-interface-operation": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Active Session assistance never submits, messages or operates an external interview interface.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/no-promotion": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Session output and transcript content are never written into the experience matrix or exercise catalogue.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/no-undetectability-or-evasion": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Active Session assistance makes no undetectability claim and adds no detection evasion.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/pause-end-suppression": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Pause or end refuses new dispatch and cancels the session's in-flight jobs.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/stop-authority": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/structured-field-decisions": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Job, retrieval and publish decisions come only from validated structured fields.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/tenant-scoped-worker-access": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The worker reads and writes session data only inside a tenant-scoped transaction after a minimal cross-tenant claim.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
@@ -85,7 +184,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "An Interview, an Active Session and an Agent Job are separate records that reference one another and never stand in for one another.",
+    "rule": "An Interview, an Active Session and an Agent Job are separate records.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
@@ -94,7 +193,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The capture companion and Studio exchange only observations and commands that validate against versioned active-session-contracts schemas.",
+    "rule": "The companion and Studio exchange only versioned active-session-contracts schemas.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
@@ -103,21 +202,32 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The session processor runs in apps/agent-worker as a separately bounded loop beside the agent-job loop, and the neutral session core imports only active-session-contracts.",
+    "rule": "The session processor runs in apps/agent-worker as its own loop beside the agent-job loop.",
     "source_adr": "ADR-0010",
     "source_status": "Proposed"
   },
   "retired_slugs": {},
   "slugs": {
-    "agreed-visible-assistance": "ADR-0010/agreed-visible-assistance",
+    "credential-ingest-scope": "ADR-0010/credential-ingest-scope",
+    "credential-storage": "ADR-0010/credential-storage",
+    "fast-path-no-tools": "ADR-0010/fast-path-no-tools",
     "fenced-current-publish": "ADR-0010/fenced-current-publish",
-    "idempotent-observation-and-dispatch": "ADR-0010/idempotent-observation-and-dispatch",
+    "idempotent-dispatch": "ADR-0010/idempotent-dispatch",
+    "idempotent-observation": "ADR-0010/idempotent-observation",
     "identity-from-credential": "ADR-0010/identity-from-credential",
     "immutable-document-revisions": "ADR-0009/immutable-document-revisions",
     "interview-owns-documents": "ADR-0009/interview-owns-documents",
+    "loop-isolation": "ADR-0010/loop-isolation",
     "member-private-documents": "ADR-0009/member-private-documents",
-    "pause-end-stop-authority": "ADR-0010/pause-end-stop-authority",
+    "neutral-core-imports": "ADR-0010/neutral-core-imports",
+    "no-external-interface-operation": "ADR-0010/no-external-interface-operation",
+    "no-promotion": "ADR-0010/no-promotion",
+    "no-undetectability-or-evasion": "ADR-0010/no-undetectability-or-evasion",
+    "pause-end-suppression": "ADR-0010/pause-end-suppression",
+    "stop-authority": "ADR-0010/stop-authority",
     "structured-document-generation": "ADR-0009/structured-document-generation",
+    "structured-field-decisions": "ADR-0010/structured-field-decisions",
+    "tenant-scoped-worker-access": "ADR-0010/tenant-scoped-worker-access",
     "three-concept-split": "ADR-0010/three-concept-split",
     "versioned-wire-contract": "ADR-0010/versioned-wire-contract",
     "worker-hosted-processor": "ADR-0010/worker-hosted-processor"

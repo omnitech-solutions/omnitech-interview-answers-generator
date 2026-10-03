@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 2
+current_prompt: 4
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -17,22 +17,22 @@ prompts:
   artifacts: ["ADR #1: ADR-0010 (rule:three-concept-split rule:versioned-wire-contract rule:identity-from-credential rule:worker-hosted-processor rule:idempotent-observation-and-dispatch rule:fenced-current-publish rule:pause-end-stop-authority rule:agreed-visible-assistance)", "bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md"]
 - n: 2
   title: 'Plan #1: convene LLM council to review the ADR'
-  state: "running"
+  state: "done"
   started: "2026-10-03T06:44:58Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T06:47:29Z"
+  result: "Council round 1 convened as the book's documented equivalent: 5 parallel Claude review sub-agents (Completeness, Correctness, Consistency, Clarity, Security). NOT the multi-model Claude+Gemini+GPT council: not run, because it needs OpenRouter calls that send ADR text externally and spend, which the book does not authorize. Verdicts: Completeness APPROVE_WITH_NITS, Correctness APPROVE_WITH_NITS, Consistency APPROVE_WITH_NITS, Clarity APPROVE_WITH_NITS, Security REQUEST_CHANGES => split verdict (safety-adjacent). srde skill not run (its dissents are safety-adjacent so auto-drop is excluded); one dedicated deep-architecture-review agent ran: REQUEST_CHANGES (narrow), 10 edits E1-E10 (credential scope/lifetime, claim-only cross-tenant worker access, no-tools fast path, loop isolation, gateway injection, split governs rules, evidence deferrals). Findings go to prompt 3."
+  artifacts: ["bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md"]
 - n: 3
   title: 'Plan #1: address council findings, re-convene the council'
-  state: pending
-  started: null
-  completed: null
-  result: ''
-  artifacts: []
+  state: "done"
+  started: "2026-10-03T06:47:29Z"
+  completed: "2026-10-03T06:50:12Z"
+  result: "Addressed round-1 findings (E1-E10; governs 8 -> 16 single-obligation rules), re-convened as 5 Claude review sub-agents (not the multi-model council): round 2 = 5x APPROVE_WITH_NITS (nits applied; governs split to 19, control-channel/no-promotion/lease lifecycle added); round 3 = Completeness APPROVE, Security APPROVE, Correctness/Clarity/Consistency APPROVE_WITH_NITS, zero REQUEST_CHANGES. Final wording nits (resume heartbeat, cancel-tolerance, stop-authority wording, credential-lifetime consistency) applied in place WITHOUT a fourth convene (3-loop bound). Converged on no blocking findings; no escalation fired. Rule-length advisory re-run each round: no warnings. Body 78 narrative lines (<120)."
+  artifacts: ["bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md"]
 - n: 4
   title: 'Plan #1: accept the ADR'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T06:50:12Z"
   completed: null
   result: ''
   artifacts: []
