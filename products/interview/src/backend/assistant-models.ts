@@ -74,9 +74,17 @@ export function createAssistantModels(
     catalog,
     port: {
       stream: (scope, input, signal) =>
-        input.profileId === ON_DEVICE.id
-          ? relaySource.port.stream(scope, input, signal)
-          : gatewayPort.stream(scope, input, signal),
+        input.profileId !== ON_DEVICE.id
+          ? gatewayPort.stream(scope, input, signal)
+          : onDevice
+            ? relaySource.port.stream(scope, input, signal)
+            : // [GUARD] A turn may not pick the on-device model the host
+              // never offered.
+              (async function* () {
+                throw new Error(
+                  "The on-device model is not enabled on this host.",
+                );
+              })(),
     },
   };
 }

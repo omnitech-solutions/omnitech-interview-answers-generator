@@ -90,4 +90,25 @@ describe("createAssistantModels", () => {
       expect.objectContaining({ profileId: "lm-studio/qwen" }),
     );
   });
+
+  it("refuses the on-device model when the host has it off", async () => {
+    const g = gateway();
+    const relay = new Proxy({} as ModelRelay, {
+      get: () => {
+        throw new Error("the relay must not be reached");
+      },
+    });
+    const { port } = createAssistantModels(g.ai, relay, false);
+    const turn = async () => {
+      for await (const _part of port.stream(
+        scope,
+        { profileId: "on-device", messages: [] },
+        new AbortController().signal,
+      ));
+    };
+    await expect(turn()).rejects.toThrow(
+      "The on-device model is not enabled on this host.",
+    );
+    expect(g.streamStructured).not.toHaveBeenCalled();
+  });
 });
