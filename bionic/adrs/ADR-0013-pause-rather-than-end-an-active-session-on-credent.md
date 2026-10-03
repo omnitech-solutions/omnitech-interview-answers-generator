@@ -16,11 +16,16 @@ related_briefs: []
 related_research: []
 governs:
   - domain: active-session
-    rule: "Only the owner's session control, owner delete or the duration cap end a session; credential expiry and a companion's local stop only pause it, and the owner resumes."
+    rule: "Only the owner's session control starts or resumes a session."
+    scope: session status machine and capture companion
+    handle: ADR-0013/owner-starts-and-resumes
+    provenance: authored
+    retires: [ADR-0011/stop-authority]
+  - domain: active-session
+    rule: "Credential expiry and a companion's local stop only pause a session; only owner control, owner delete or the duration cap end it."
     scope: session status machine, ingest and the capture companion
     handle: ADR-0013/pause-only-credential-stop
     provenance: authored
-    retires: [ADR-0011/stop-authority]
 ---
 
 # ADR-0013 — Pause rather than end an Active Session on credential expiry or companion stop
@@ -33,7 +38,7 @@ The PB-0002 review-1 pass found two more gaps between ADR-0012 and the code. The
 
 ## Decision
 
-1. **Stop authority.** Only the owner's session control, owner delete or the duration cap end a session. Credential expiry and a companion's local stop only pause it, and only the owner resumes it. This rule replaces `ADR-0011/stop-authority`, and it takes effect when this ADR is accepted.
+1. **Stop authority.** Only the owner's session control, owner delete or the duration cap end a session. Credential expiry and a companion's local stop only pause it, and only the owner resumes it. The two governed rules, owner-starts-and-resumes and pause-only-credential-stop, together replace `ADR-0011/stop-authority`, and they take effect when this ADR is accepted.
 2. **Capability report is advisory.** The companion's stored capability report is advisory only. Setup shows it as a non-blocking advisory with its age. The companion's own on-device check when it starts capture is the authority. The stored report never blocks Start, and no server decision depends on it.
 3. **Draft purge.** The purge deletes a session-created Workspace draft only while it is still exactly what the session last published. It keeps every draft the owner has edited, and every draft that a saved answer revision or a revert record references. This replaces ADR-0012's narrower statement that only promoted or exported drafts survive the purge.
 
