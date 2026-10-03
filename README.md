@@ -135,6 +135,24 @@ The terminal gateway accepts:
 | `TERMINAL_GATEWAY_PORT` | Local terminal gateway port | `3001` |
 | `TERMINAL_GATEWAY_TOKEN` | Optional WebSocket query-string and HTTP bearer token | Unset |
 | `AGENT_WORKER_ID` | Stable identity used for job leases | Generated UUID |
+| `AGENT_WORKER_CONCURRENCY` | Agent jobs run at once (1–16); keep above `DOCUMENTS_MAX_PARALLEL_CALLS` | `6` |
+| `AGENT_WORKER_LEASE_MS` | Job lease, renewed while a job runs (3000–600000) | `30000` |
+| `AGENT_WORKER_POLL_MS` | Idle claim interval (10–60000) | `100` |
+
+Document generation (read by the web server; out-of-range values stop startup
+and name the variable):
+
+| Variable | Purpose | Default (bounds) |
+| --- | --- | --- |
+| `DOCUMENTS_MAX_PARALLEL_CALLS` | Most calls for one document | `4` (1–8) |
+| `DOCUMENTS_FIELDS_PER_CALL` | Fields one call is worth | `24` (5–100) |
+| `DOCUMENTS_CALL_ATTEMPTS` | Tries per call | `2` (1–3) |
+| `DOCUMENTS_FIELD_WORDS` | Words per field | `25` (5–200) |
+| `DOCUMENTS_LIST_ITEM_WORDS` | Words per list item | `15` (3–100) |
+| `DOCUMENTS_SUMMARY_WORDS` | Words per summary | `60` (10–300) |
+| `DOCUMENTS_SKILL_ITEMS` | Skill items listed | `12` (3–40) |
+
+`DEV_SKIP_LM_STUDIO_LOAD=1` makes `pnpm dev` skip loading the local LM Studio model.
 
 If `TERMINAL_GATEWAY_TOKEN` is enabled, include the same token in
 `NEXT_PUBLIC_TERMINAL_GATEWAY_URL`, for example

@@ -40,10 +40,10 @@ const agentRuntimes = new Set([
   "@omnitech/agent-runtime-codex",
 ]);
 
-// rule:neutral-core-imports (ADR-0010): the session core imports only its own
+// rule:neutral-core-imports (ADR-0011): the session core imports only its own
 // files and the contracts package, so interview policy cannot leak into it.
 const neutralCoreDir = "products/interview/src/backend/live-session/core";
-const neutralCoreRule = "rule:neutral-core-imports, ADR-0010";
+const neutralCoreRule = "rule:neutral-core-imports, ADR-0011";
 
 const isApp = (pkg: WorkspacePackage) => pkg.dir.startsWith("apps/");
 const isProduct = (pkg: WorkspacePackage) => pkg.dir.startsWith("products/");

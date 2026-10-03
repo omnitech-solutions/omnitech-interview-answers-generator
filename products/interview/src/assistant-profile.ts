@@ -6,7 +6,7 @@ export const INTERVIEW_ASSISTANT_PROFILE = "interview-assistant";
 // (code, tests and the answer guide) that need a larger output budget than an
 // assistant turn.
 export const INTERVIEW_ANSWER_PROFILE = "interview-answers";
-// Active Session assistance (ADR-0010 fast path). The fast profile serves
+// Active Session assistance (ADR-0011 fast path). The fast profile serves
 // permitted-remote sessions; the device profile is the only one a device-only
 // session may use (rule:device-only-enforced-twice). The host declares each
 // profile's locality in the shared profile configuration source; this product

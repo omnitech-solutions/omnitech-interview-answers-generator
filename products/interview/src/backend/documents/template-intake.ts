@@ -2,17 +2,54 @@ import type { Readable } from "node:stream";
 import JSZip from "jszip";
 
 export type DocumentTemplateFormat = "docx" | "md";
-export type TemplateInspection = { fields: string[] };
+export type TemplateInspection = {
+  fields: string[];
+  // Canonical field key to the heading it sits under, when the template has
+  // at least two headings.
+  sections?: Record<string, string>;
+};
 
 const MAX_TEMPLATE_BYTES = 5 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
 const MAX_ENTRIES = 128;
-const FIELD = /\{([a-z][a-z0-9_]*)\}/g;
+// {{name}} and {name}, camelCase or snake_case, as in a DOCX template.
+export const MARKDOWN_FIELD =
+  /\{\{([A-Za-z][A-Za-z0-9_]{0,79})\}\}|\{([A-Za-z][A-Za-z0-9_]{0,79})\}/g;
 const DOCX_FIELD = /\{([^{}]+)\}/g;
 const DOCX_SOURCE_KEY = /^[A-Za-z][A-Za-z0-9_]{0,79}$/;
 const WORD_PART = /^word\/(?:document|header\d+|footer\d+)\.xml$/;
 const HYPERLINK_RELATIONSHIP =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
+// Page numbering is the only field a template may carry; any other field
+// instruction (INCLUDETEXT, DDE, HYPERLINK, MACROBUTTON...) can fetch or run.
+const PAGE_FIELD = /^\s*(?:PAGE|NUMPAGES|SECTIONPAGES)(?:\s+\\\*\s+\w+)*\s*$/i;
+
+function hasActiveContent(xml: string): boolean {
+  if (/<(?:[A-Za-z_][\w.-]*:)?(?:altChunk|object|OLEObject|svg)\b/i.test(xml))
+    return true;
+  const instructions = [
+    ...Array.from(
+      xml.matchAll(
+        /<(?:[A-Za-z_][\w.-]*:)?instrText\b[^>]*>([\s\S]*?)<\/(?:[A-Za-z_][\w.-]*:)?instrText>/gi,
+      ),
+      (match) => decodeXmlText(match[1] ?? ""),
+    ),
+    ...Array.from(
+      xml.matchAll(
+        /<(?:[A-Za-z_][\w.-]*:)?fldSimple\b[^>]*?\bw:instr=(?:"([^"]*)"|'([^']*)')/gi,
+      ),
+      (match) => decodeXmlText(match[1] ?? match[2] ?? ""),
+    ),
+  ];
+  const declared = (
+    xml.match(/<(?:[A-Za-z_][\w.-]*:)?(?:instrText|fldSimple)\b/gi) ?? []
+  ).length;
+  return (
+    instructions.length !== declared ||
+    instructions.some((instruction) => !PAGE_FIELD.test(instruction))
+  );
+}
 
 export class InvalidDocumentTemplateError extends Error {
   constructor(message: string) {
@@ -233,11 +270,7 @@ export async function loadDocxTemplate(bytes: Buffer): Promise<{
       const xml = part.toString("utf8");
       if (/<!(?:DOCTYPE|ENTITY)\b/i.test(xml))
         reject("Template XML declarations are unsupported.");
-      if (
-        /<(?:[A-Za-z_][\w.-]*:)?(?:instrText|fldSimple|altChunk|object|OLEObject|svg)\b/i.test(
-          xml,
-        )
-      )
+      if (hasActiveContent(xml))
         reject("Template contains active field or embedded content.");
       if (name.endsWith(".rels")) assertSafeRelationships(xml);
       if (
@@ -291,6 +324,83 @@ export function extractDocxPartFields(xml: string): string[] {
   return fields;
 }
 
+const sentenceCase = (text: string) => {
+  const lower = text.trim().replace(/\s+/g, " ").toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+// Group fields under the headings a template already has. The first fields,
+// above any heading, are the header. One heading is no structure.
+function groupBySection(
+  entries: ReadonlyArray<{ heading?: string; keys: string[] }>,
+  intro: string,
+): Record<string, string> | undefined {
+  const sections: Record<string, string> = {};
+  let current = intro;
+  let headings = 0;
+  for (const entry of entries) {
+    if (entry.heading) {
+      current = entry.heading;
+      headings++;
+    }
+    for (const key of entry.keys)
+      if (!Object.hasOwn(sections, key)) sections[key] = current;
+  }
+  return headings >= 2 ? sections : undefined;
+}
+
+function docxSections(parts: Map<string, string>) {
+  const entries: Array<{ heading?: string; keys: string[] }> = [];
+  for (const paragraph of (parts.get("word/document.xml") ?? "").matchAll(
+    /<w:p\b[^>]*>[\s\S]*?<\/w:p>/g,
+  )) {
+    const text = Array.from(
+      paragraph[0].matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g),
+      (run) => decodeXmlText(run[1] ?? ""),
+    ).join("");
+    const keys = Array.from(text.matchAll(DOCX_FIELD), (match) => {
+      try {
+        return canonicalDocumentField(match[1] ?? "");
+      } catch {
+        return "";
+      }
+    }).filter(Boolean);
+    const label = text.trim();
+    // A heading has no placeholders, is short, and is set apart: a heading
+    // style, small caps, all caps or a shaded bar.
+    const heading =
+      !keys.length &&
+      label.length >= 3 &&
+      label.length <= 60 &&
+      (/<w:pStyle\b[^>]*w:val="(?:Heading\d?|Title|Subtitle)"/i.test(
+        paragraph[0],
+      ) ||
+        /<w:(?:smallCaps|caps)\b/.test(paragraph[0]) ||
+        /<w:shd\b/.test(paragraph[0]) ||
+        (label === label.toUpperCase() && /[A-Z]/.test(label)));
+    entries.push({
+      ...(heading ? { heading: sentenceCase(label) } : {}),
+      keys,
+    });
+  }
+  return groupBySection(entries, "Header");
+}
+
+function markdownSections(source: string) {
+  const entries: Array<{ heading?: string; keys: string[] }> = [];
+  for (const line of source.split(/\r\n?|\n/)) {
+    const heading = /^\s{0,3}##\s+(.+?)\s*#*\s*$/.exec(line)?.[1];
+    const keys = Array.from(line.matchAll(MARKDOWN_FIELD), (match) =>
+      canonicalDocumentField(match[1] ?? match[2] ?? ""),
+    );
+    entries.push({
+      ...(heading && !keys.length ? { heading: sentenceCase(heading) } : {}),
+      keys,
+    });
+  }
+  return groupBySection(entries, "Overview");
+}
+
 export function canonicalDocumentField(sourceKey: string): string {
   if (!DOCX_SOURCE_KEY.test(sourceKey)) {
     reject("Template contains an unsupported field token.");
@@ -330,18 +440,25 @@ export async function inspectTemplate(input: {
     const source = input.bytes.toString("utf8");
     if (Buffer.from(source, "utf8").compare(input.bytes) !== 0)
       reject("Markdown must be UTF-8.");
+    const byCanonical = new Map<string, string>();
+    for (const match of source.matchAll(MARKDOWN_FIELD)) {
+      const sourceKey = match[1] ?? match[2] ?? "";
+      const canonical = canonicalDocumentField(sourceKey);
+      const previous = byCanonical.get(canonical);
+      if (previous && previous !== sourceKey)
+        reject("Template contains conflicting field names.");
+      byCanonical.set(canonical, sourceKey);
+    }
+    const sections = markdownSections(source);
     return {
-      fields: [
-        ...new Set(
-          Array.from(source.matchAll(FIELD), (match) => match[1]).filter(
-            (key): key is string => !!key,
-          ),
-        ),
-      ],
+      fields: [...byCanonical.keys()],
+      ...(sections ? { sections } : {}),
     };
   }
   const { parts } = await loadDocxTemplate(input.bytes);
+  const sections = docxSections(parts);
   return {
     fields: collectDocxFields(parts),
+    ...(sections ? { sections } : {}),
   };
 }

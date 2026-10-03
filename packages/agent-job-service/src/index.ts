@@ -107,15 +107,38 @@ export interface AgentJobRepository {
 // the tenant, then advances it by id. Only apps/agent-worker constructs one.
 export interface AgentJobWorkerRepository {
   claim(workerId: string, leaseMs: number): Promise<AgentJob | undefined>;
+  // A running job keeps its lease; otherwise another claimer would take it.
+  // False means the job is no longer this worker's: stop and write nothing.
+  renewLease(
+    jobId: string,
+    workerId: string,
+    leaseMs: number,
+  ): Promise<boolean>;
   get(tenantId: string, jobId: string): Promise<AgentJob | undefined>;
+  // With a claimant, only that worker's job moves: the lease is the fence.
   transition(
     jobId: string,
     expected: readonly AgentJobStatus[],
     next: AgentJobStatus,
+    claimant?: string,
   ): Promise<boolean>;
-  setSessionId(jobId: string, sessionId: string): Promise<void>;
-  setResultReference(jobId: string, reference: string): Promise<void>;
-  appendEvent(jobId: string, event: AgentEvent): Promise<PersistedAgentEvent>;
+  // With a claimant, a write by a worker that no longer holds the job changes
+  // nothing (appendEvent throws, so the caller stops).
+  setSessionId(
+    jobId: string,
+    sessionId: string,
+    claimant?: string,
+  ): Promise<void>;
+  setResultReference(
+    jobId: string,
+    reference: string,
+    claimant?: string,
+  ): Promise<void>;
+  appendEvent(
+    jobId: string,
+    event: AgentEvent,
+    claimant?: string,
+  ): Promise<PersistedAgentEvent>;
 }
 
 export class AgentJobService {

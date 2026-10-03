@@ -66,7 +66,7 @@ import {
 export type StartSessionInput = {
   processingPolicy: ProcessingPolicy;
   // The permitted capture sources, fixed at start; the companion cannot
-  // broaden them (ADR-0010 Wire contract).
+  // broaden them (ADR-0011 Wire contract).
   captureSources: readonly CaptureSource[];
   liveAssistance?: boolean;
   // Defaults to delete at end (rule:retention-modes).

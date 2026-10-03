@@ -18,7 +18,7 @@ import { type JobRow, mapJob } from "./agent-job-row.js";
 import { ConnectedAccountVault } from "./connected-account-vault.js";
 
 // A member's jobs: every read and write runs inside the job's tenant and as
-// an explicit actor, so a private job (ADR-0011 Agent jobs) is visible only
+// an explicit actor, so a private job (ADR-0012 Agent jobs) is visible only
 // to its creator. A `null` actor is a caller with no user: it sees no private
 // row. Lock order for a session job is the session row, then the job row.
 export class PostgresAgentJobRepository implements AgentJobRepository {

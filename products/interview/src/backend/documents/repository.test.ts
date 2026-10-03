@@ -123,6 +123,12 @@ it("versions a template, duplicates it, and keeps it private", async () => {
     instructions: "Use only evidence",
   });
   expect(second.revision).toBe(2);
+  const [listed] = await repository.listTemplates(scope());
+  expect(listed).toMatchObject({
+    latestRevision: 2,
+    fieldCount: fields.length,
+  });
+  expect(listed?.revisions.map((item) => item.revision)).toEqual([2, 1]);
   await expect(
     repository.addTemplateRevision(scope(), {
       templateId: created.template.id,
@@ -200,6 +206,64 @@ it("provisions one read-only tenant built-in and refuses a member ownerless inse
       { database: member },
     ),
   ).rejects.toThrow();
+});
+
+it("appends a built-in revision when its file or instructions change, and only then", async () => {
+  const input = {
+    key: "versioned-resume",
+    name: "Versioned resume",
+    kind: "resume" as const,
+    format: "md" as const,
+    sourceBytes: Buffer.from("# {{full_name}}"),
+    fields,
+    instructions: "First wording",
+  };
+  const first = await repository.provisionBuiltInTemplate(scope(), input);
+  expect(first.revision.revision).toBe(1);
+  const again = await repository.provisionBuiltInTemplate(scope(), input);
+  expect(again.revision.revision).toBe(1);
+  const reworded = await repository.provisionBuiltInTemplate(scope(), {
+    ...input,
+    instructions: "Second wording",
+  });
+  expect(reworded.revision.revision).toBe(2);
+  const replaced = await repository.provisionBuiltInTemplate(scope(), {
+    ...input,
+    instructions: "Second wording",
+    sourceBytes: Buffer.from("# Resume of {{full_name}}"),
+  });
+  expect(replaced.revision.revision).toBe(3);
+  const latest = await repository.getTemplateRevision(
+    scope(),
+    first.template.id,
+  );
+  expect(latest?.revision).toMatchObject({
+    revision: 3,
+    instructions: "Second wording",
+  });
+  expect(
+    (await repository.getTemplateRevision(scope(), first.template.id, 1))
+      ?.revision.instructions,
+  ).toBe("First wording");
+});
+
+it("does not append a built-in revision for fields whose keys jsonb reorders", async () => {
+  const sectioned = fields.map((field) => ({ ...field, section: "Header" }));
+  const input = {
+    key: "sectioned-resume",
+    name: "Sectioned resume",
+    kind: "resume" as const,
+    format: "md" as const,
+    sourceBytes: Buffer.from("# {{full_name}}"),
+    fields: sectioned,
+    instructions: "Same every time",
+  };
+  const first = await repository.provisionBuiltInTemplate(scope(), input);
+  for (let run = 0; run < 3; run++)
+    expect(
+      (await repository.provisionBuiltInTemplate(scope(), input)).revision
+        .revision,
+    ).toBe(first.revision.revision);
 });
 
 it("saves immutable snapshots, rejects stale edits, restores, and records selected-revision exports", async () => {

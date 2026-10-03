@@ -1,4 +1,4 @@
-// Active Session persistence (ADR-0010, ADR-0011). Tables are owned by
+// Active Session persistence (ADR-0011, ADR-0012). Tables are owned by
 // Interview and carry tenant and owner ids under forced row security that
 // binds both (rule:actor-private-session-rows); every child references its
 // session by tenant, owner and session id (rule:composite-owner-references).
@@ -77,9 +77,9 @@ export const activeSessions = interview.table.withRLS(
     ownerUserId: uuid("owner_user_id").notNull(),
     status: text("status").notNull().default("created"),
     retentionMode: text("retention_mode").notNull().default("delete_at_end"),
-    // Recorded at start; only the session row decides it (ADR-0011 locality).
+    // Recorded at start; only the session row decides it (ADR-0012 locality).
     processingPolicy: text("processing_policy").notNull(),
-    // Per-session counter: every lease acquire raises it (ADR-0010 Fencing).
+    // Per-session counter: every lease acquire raises it (ADR-0011 Fencing).
     fence: bigint("fence", { mode: "number" }).notNull().default(0),
     leaseHolderId: text("lease_holder_id"),
     leaseExpiresAt: timestamptz("lease_expires_at"),

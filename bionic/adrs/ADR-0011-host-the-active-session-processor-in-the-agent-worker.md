@@ -1,5 +1,5 @@
 ---
-id: ADR-0010
+id: ADR-0011
 title: Host the Active Session processor in the agent worker behind a versioned wire contract
 status: Accepted
 date: 2026-10-03
@@ -18,101 +18,101 @@ governs:
   - domain: active-session
     rule: "An Interview, an Active Session and an Agent Job are separate records."
     scope: products/interview active-session persistence and services
-    handle: ADR-0010/three-concept-split
+    handle: ADR-0011/three-concept-split
     provenance: authored
   - domain: active-session
     rule: "The companion and Studio exchange only versioned active-session-contracts schemas."
     scope: packages/active-session-contracts and apps/capture-companion
-    handle: ADR-0010/versioned-wire-contract
+    handle: ADR-0011/versioned-wire-contract
     provenance: authored
   - domain: active-session
     rule: "Ingest identity comes only from the session credential, and stream and control identity only from the user's session, never from request or observation content."
     scope: active-session ingest, stream and control routes
-    handle: ADR-0010/identity-from-credential
+    handle: ADR-0011/identity-from-credential
     provenance: authored
   - domain: active-session
     rule: "The session credential grants ingest for one session only and has a short hard maximum lifetime."
     scope: active-session credential minting and ingest
-    handle: ADR-0010/credential-ingest-scope
+    handle: ADR-0011/credential-ingest-scope
     provenance: authored
   - domain: active-session
     rule: "The session credential is stored hashed and is never logged or placed in a URL."
     scope: active-session credential storage and logging
-    handle: ADR-0010/credential-storage
+    handle: ADR-0011/credential-storage
     provenance: authored
   - domain: active-session
     rule: "The session processor runs in apps/agent-worker as its own loop beside the agent-job loop."
     scope: apps/agent-worker
-    handle: ADR-0010/worker-hosted-processor
+    handle: ADR-0011/worker-hosted-processor
     provenance: authored
   - domain: active-session
     rule: "The session core imports only active-session-contracts."
     scope: the session core directory in products/interview, named in the boundary test
-    handle: ADR-0010/neutral-core-imports
+    handle: ADR-0011/neutral-core-imports
     provenance: authored
   - domain: active-session
     rule: "A failure in one worker loop never stops the other."
     scope: apps/agent-worker
-    handle: ADR-0010/loop-isolation
+    handle: ADR-0011/loop-isolation
     provenance: authored
   - domain: active-session
     rule: "The worker reads and writes session data only inside a tenant-scoped transaction after a minimal cross-tenant claim."
     scope: session processor persistence access
-    handle: ADR-0010/tenant-scoped-worker-access
+    handle: ADR-0011/tenant-scoped-worker-access
     provenance: authored
   - domain: active-session
     rule: "Observations are deduplicated by source and event id."
     scope: session core and session persistence
-    handle: ADR-0010/idempotent-observation
+    handle: ADR-0011/idempotent-observation
     provenance: authored
   - domain: active-session
     rule: "Dispatch is deduplicated by session, logical task, task revision and action kind."
     scope: session core and session persistence
-    handle: ADR-0010/idempotent-dispatch
+    handle: ADR-0011/idempotent-dispatch
     provenance: authored
   - domain: active-session
     rule: "The fast-path model call has no tools."
     scope: session processor fast path
-    handle: ADR-0010/fast-path-no-tools
+    handle: ADR-0011/fast-path-no-tools
     provenance: authored
   - domain: active-session
     rule: "Job, retrieval and publish decisions come only from validated structured fields."
     scope: session processor and interview policy
-    handle: ADR-0010/structured-field-decisions
+    handle: ADR-0011/structured-field-decisions
     provenance: authored
   - domain: active-session
     rule: "A result publishes only while its session lease fence, session status and task revision are all current."
     scope: session actions and Workspace draft publication
-    handle: ADR-0010/fenced-current-publish
+    handle: ADR-0011/fenced-current-publish
     provenance: authored
   - domain: active-session
     rule: "Pause or end refuses new dispatch and cancels the session's in-flight jobs."
     scope: session processor
-    handle: ADR-0010/pause-end-suppression
+    handle: ADR-0011/pause-end-suppression
     provenance: authored
   - domain: active-session
     rule: "Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it."
     scope: session control and capture companion
-    handle: ADR-0010/stop-authority
+    handle: ADR-0011/stop-authority
     provenance: authored
   - domain: active-session
     rule: "Session output and transcript content are never written into the experience matrix or exercise catalogue."
     scope: session actions, Workspace publication and interview policy
-    handle: ADR-0010/no-promotion
+    handle: ADR-0011/no-promotion
     provenance: authored
   - domain: active-session
     rule: "Active Session assistance makes no undetectability claim and adds no detection evasion."
     scope: the whole Active Session capability
-    handle: ADR-0010/no-undetectability-or-evasion
+    handle: ADR-0011/no-undetectability-or-evasion
     provenance: authored
   - domain: active-session
     rule: "Active Session assistance never submits, messages or operates an external interview interface."
     scope: the whole Active Session capability
-    handle: ADR-0010/no-external-interface-operation
+    handle: ADR-0011/no-external-interface-operation
     provenance: authored
 ---
 
-# ADR-0010 — Host the Active Session processor in the agent worker behind a versioned wire contract
+# ADR-0011 — Host the Active Session processor in the agent worker behind a versioned wire contract
 
 ## Context
 

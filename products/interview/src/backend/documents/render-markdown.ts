@@ -1,6 +1,9 @@
-import { InvalidDocumentTemplateError } from "./template-intake";
+import {
+  canonicalDocumentField,
+  InvalidDocumentTemplateError,
+  MARKDOWN_FIELD as FIELD,
+} from "./template-intake";
 
-const FIELD = /\{\{([a-z][a-z0-9_]*)\}\}|\{([a-z][a-z0-9_]*)\}/g;
 export const MISSING_DOCUMENT_FIELD = "[[MISSING_DATA]]";
 
 export function escapePreviewHtml(value: string): string {
@@ -45,7 +48,7 @@ export function renderMarkdownTemplate(
   return source.replace(
     FIELD,
     (_whole, doubleKey: string | undefined, singleKey: string | undefined) => {
-      const key = doubleKey ?? singleKey!;
+      const key = canonicalDocumentField(doubleKey ?? singleKey!);
       if (!Object.hasOwn(values, key))
         return options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD;
       const value = values[key];
@@ -71,16 +74,17 @@ export function renderMarkdownPreview(
     let result = "";
     let last = 0;
     for (const match of text.matchAll(FIELD)) {
-      const key = match[1] ?? match[2]!;
+      const key = canonicalDocumentField(match[1] ?? match[2]!);
       result += escapePreviewHtml(text.slice(last, match.index));
       const value = Object.hasOwn(values, key) ? values[key] : undefined;
       if (value !== undefined && typeof value !== "string")
         throw new InvalidDocumentTemplateError(
           "Document field values must be text.",
         );
-      result += value
-        ? escapePreviewHtml(value).replace(/\r\n?|\n/g, "<br>")
-        : escapePreviewHtml(MISSING_DOCUMENT_FIELD);
+      // Each value is tagged with its field, so a click can select it.
+      result += `<span class="doc-field${value ? "" : " doc-empty"}" data-field="${key}">${
+        value ? escapePreviewHtml(value).replace(/\r\n?|\n/g, "<br>") : ""
+      }</span>`;
       last = match.index + match[0].length;
     }
     result += escapePreviewHtml(text.slice(last));

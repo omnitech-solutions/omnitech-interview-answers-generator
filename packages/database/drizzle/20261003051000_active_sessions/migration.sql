@@ -129,7 +129,7 @@ CREATE POLICY "session_observations_owner_select" ON "interview"."session_observ
 CREATE POLICY "session_observations_owner_insert" ON "interview"."session_observations" AS PERMISSIVE FOR INSERT TO public WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "session_observations_owner_delete" ON "interview"."session_observations" AS PERMISSIVE FOR DELETE TO public USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid AND current_setting('app.session_purge', true) = 'on');--> statement-breakpoint
 
--- Active Session persistence (ADR-0010, ADR-0011). Everything below is
+-- Active Session persistence (ADR-0011, ADR-0012). Everything below is
 -- hand-appended, as in the Documents migration: forced row security, the
 -- claim projection, and the triggers that refuse what a policy cannot express.
 

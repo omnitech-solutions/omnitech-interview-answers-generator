@@ -88,6 +88,21 @@ export type ProvisionBuiltInTemplateInput = Omit<
     key: string;
   };
 
+// jsonb hands object keys back in its own order, so equal fields must be
+// compared without regard to key order.
+function sameFields(left: unknown, right: unknown): boolean {
+  const canonical = (value: unknown): string =>
+    Array.isArray(value)
+      ? `[${value.map(canonical).join(",")}]`
+      : value && typeof value === "object"
+        ? `{${Object.entries(value)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+            .join(",")}}`
+        : JSON.stringify(value);
+  return canonical(left) === canonical(right);
+}
+
 function builtInTemplateId(tenantId: string, key: string): string {
   const digest = createHash("sha256")
     .update(`omnitech.interview/document-template/${tenantId}/${key}`)
@@ -175,9 +190,14 @@ export class InterviewDocumentRepository {
     });
   }
 
-  async listTemplates(
-    scope: DocumentScope,
-  ): Promise<Array<{ template: TemplateRow; latestRevision: number }>> {
+  async listTemplates(scope: DocumentScope): Promise<
+    Array<{
+      template: TemplateRow;
+      latestRevision: number;
+      fieldCount: number;
+      revisions: Array<{ revision: number; createdAt: Date }>;
+    }>
+  > {
     return this.inScope(scope, async (db) => {
       const templates = await db
         .select()
@@ -187,19 +207,38 @@ export class InterviewDocumentRepository {
         .select({
           templateId: documentTemplateRevisions.templateId,
           revision: documentTemplateRevisions.revision,
+          fields: documentTemplateRevisions.fields,
+          createdAt: documentTemplateRevisions.createdAt,
         })
         .from(documentTemplateRevisions)
         .where(eq(documentTemplateRevisions.tenantId, scope.tenantId));
-      const latest = new Map<string, number>();
+      const history = new Map<
+        string,
+        Array<{ revision: number; createdAt: Date; fieldCount: number }>
+      >();
       for (const item of revisions)
-        latest.set(
-          item.templateId,
-          Math.max(latest.get(item.templateId) ?? 0, item.revision),
+        history.set(item.templateId, [
+          ...(history.get(item.templateId) ?? []),
+          {
+            revision: item.revision,
+            createdAt: item.createdAt,
+            fieldCount: Array.isArray(item.fields) ? item.fields.length : 0,
+          },
+        ]);
+      return templates.map((template) => {
+        const own = (history.get(template.id) ?? []).sort(
+          (a, b) => b.revision - a.revision,
         );
-      return templates.map((template) => ({
-        template,
-        latestRevision: latest.get(template.id) ?? 0,
-      }));
+        return {
+          template,
+          latestRevision: own[0]?.revision ?? 0,
+          fieldCount: own[0]?.fieldCount ?? 0,
+          revisions: own.map(({ revision, createdAt }) => ({
+            revision,
+            createdAt,
+          })),
+        };
+      });
     });
   }
 
@@ -310,12 +349,14 @@ export class InterviewDocumentRepository {
       await db.execute(
         sql`select set_config('app.document_catalog_provisioner', 'on', true)`,
       );
+      // Bytes are content-addressed: a changed file is a new artifact, so
+      // updating a built-in appends a revision instead of rewriting history.
       const sourceArtifactId = input.sourceBytes
         ? await new DocumentArtifactRepository(
             this.database,
           ).provisionBuiltInInTenantTransaction(db, {
             tenantId: scope.tenantId,
-            key: input.key,
+            key: `${input.key}-${createHash("sha256").update(input.sourceBytes).digest("hex").slice(0, 12)}`,
             title: metadata.name,
             bytes: input.sourceBytes,
           })
@@ -331,53 +372,51 @@ export class InterviewDocumentRepository {
           format: metadata.format,
         })
         .onConflictDoNothing({ target: documentTemplates.id });
-      await db
-        .insert(documentTemplateRevisions)
-        .values({
-          tenantId: scope.tenantId,
-          ownerUserId: null,
-          templateId: id,
-          revision: 1,
-          sourceArtifactId,
-          fields,
-          instructions: metadata.instructions,
-        })
-        .onConflictDoNothing({
-          target: [
-            documentTemplateRevisions.tenantId,
-            documentTemplateRevisions.templateId,
-            documentTemplateRevisions.revision,
-          ],
-        });
       const [template] = await db
         .select()
         .from(documentTemplates)
         .where(templateKey(scope, id))
         .limit(1);
-      const [revision] = await db
+      const [latest] = await db
         .select()
         .from(documentTemplateRevisions)
         .where(
           and(
             eq(documentTemplateRevisions.tenantId, scope.tenantId),
             eq(documentTemplateRevisions.templateId, id),
-            eq(documentTemplateRevisions.revision, 1),
           ),
         )
+        .orderBy(desc(documentTemplateRevisions.revision))
         .limit(1);
       if (
         !template ||
-        !revision ||
         template.ownerUserId !== null ||
-        template.name !== metadata.name ||
         template.kind !== metadata.kind ||
-        template.format !== metadata.format ||
-        revision.ownerUserId !== null ||
-        revision.sourceArtifactId !== sourceArtifactId ||
-        revision.instructions !== metadata.instructions ||
-        JSON.stringify(revision.fields) !== JSON.stringify(fields)
+        template.format !== metadata.format
       )
         throw new Error("Built-in template key already has different content");
+      if (
+        latest &&
+        latest.ownerUserId === null &&
+        latest.sourceArtifactId === sourceArtifactId &&
+        latest.instructions === metadata.instructions &&
+        sameFields(latest.fields, fields)
+      )
+        return { template, revision: latest };
+      const [revision] = await db
+        .insert(documentTemplateRevisions)
+        .values({
+          tenantId: scope.tenantId,
+          ownerUserId: null,
+          templateId: id,
+          revision: (latest?.revision ?? 0) + 1,
+          sourceArtifactId,
+          fields,
+          instructions: metadata.instructions,
+        })
+        .returning();
+      if (!revision)
+        throw new Error("Built-in template revision did not return a row");
       return { template, revision };
     });
   }

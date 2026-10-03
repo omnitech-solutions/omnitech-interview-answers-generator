@@ -1,5 +1,5 @@
 // The assist stage: the ONE structured model call a session task makes
-// (ADR-0010 fast path). This loop is the deterministic baseline: the draft
+// (ADR-0011 fast path). This loop is the deterministic baseline: the draft
 // carries general technical knowledge and suggested interpretation only. It
 // creates no agent job (the coding path is loop 2), retrieves nothing and does
 // no matrix grounding (loop 2), so a "matrix-backed" claim section is not part

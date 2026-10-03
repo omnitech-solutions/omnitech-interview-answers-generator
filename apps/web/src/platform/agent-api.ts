@@ -138,7 +138,7 @@ export function createAgentApi() {
         return context.json({ error: "A tenant id is required." }, 400);
       }
       // [SAFETY] The service token carries no user, so it reads as no actor
-      // and sees no private job's events (ADR-0011 Agent jobs). Decision: the
+      // and sees no private job's events (ADR-0012 Agent jobs). Decision: the
       // gateway does not learn the owner, so session agent jobs (private) are
       // not streamable through the terminal gateway; a permitted-remote
       // session job reaches its owner only through a member's own request.

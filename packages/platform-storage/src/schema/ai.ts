@@ -21,7 +21,7 @@ import { tenants, users } from "./platform.js";
 
 export const ai = pgSchema("ai");
 
-// ADR-0011 Agent jobs: a private job's row belongs to its creator (user_id is
+// ADR-0012 Agent jobs: a private job's row belongs to its creator (user_id is
 // the creator) and the agent worker; every other job is unchanged.
 const privateJobAdmitted = sql`(NOT private OR user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR current_setting('app.agent_worker', true) = 'on')`;
 
@@ -176,7 +176,7 @@ export const agentJobs = ai.table.withRLS(
     promptReference: text("prompt_reference").notNull(),
     resultReference: text("result_reference"),
     sessionId: text("session_id"),
-    // Immutable and set only by the session dispatch path (ADR-0011 Agent
+    // Immutable and set only by the session dispatch path (ADR-0012 Agent
     // jobs); the ai.guard_agent_job_private_marker trigger enforces both.
     private: boolean().default(false).notNull(),
     claimedBy: text("claimed_by"),

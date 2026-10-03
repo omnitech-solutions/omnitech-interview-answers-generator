@@ -92,12 +92,20 @@ it("attaches only the member's intact active profile and candidacy", async () =>
     target_role: "Engineer",
     job_description: "Build systems",
   });
-  expect(alice.missingProfileKeys).toEqual([
-    "phone",
-    "phone_number",
-    "email",
-    "email_address",
-  ]);
+  // The matrix names no contact details, so none are invented or filled.
+  expect(alice.profileValues).toMatchObject({
+    heading_name: "Synthetic Candidate",
+  });
+  expect(alice.missingProfileKeys).toEqual(
+    expect.arrayContaining([
+      "email_address",
+      "heading_phone_number",
+      "portfolio",
+      "city",
+      "province",
+    ]),
+  );
+  expect(alice.missingProfileKeys).not.toContain("heading_name");
   await expect(context(ids.bob)).rejects.toBeInstanceOf(
     DocumentContextNotFound,
   );

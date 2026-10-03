@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PostgresAgentJobRepository } from "./agent-job-repository.js";
 import { PostgresAgentJobWorkerRepository } from "./agent-job-worker-repository.js";
 
-// ADR-0011 "Agent jobs": a session's job carries an immutable private marker,
+// ADR-0012 "Agent jobs": a session's job carries an immutable private marker,
 // admitted only to its creator and the agent worker. fixture_member is
 // NOSUPERUSER NOBYPASSRLS, so forced row-level security binds it.
 let pg: DisposablePostgres;

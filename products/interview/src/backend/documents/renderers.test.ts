@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { renderDocxPreview, renderDocxTemplate } from "./render-docx";
+import {
+  FIELD_END,
+  FIELD_SPLIT,
+  FIELD_START,
+  renderDocxTemplate,
+} from "./render-docx";
 import { renderDocxAsMarkdown } from "./render-docx-markdown";
 import {
   renderMarkdownPreview,
@@ -123,9 +128,15 @@ describe("template intake and renderers", () => {
       ),
     ).toBe("# Ada\n\nAda / ");
     const preview = renderMarkdownPreview(source, { full_name: "Ada" });
-    expect(preview).toContain("<h1>Ada</h1>");
-    expect(preview).toContain("<p>Ada / [[MISSING_DATA]]</p>");
+    expect(preview).toContain(
+      '<h1><span class="doc-field" data-field="full_name">Ada</span></h1>',
+    );
+    // A field the values lack is an empty, tagged span the UI marks as missing.
+    expect(preview).toContain(
+      '<span class="doc-field doc-empty" data-field="missing"></span>',
+    );
     expect(preview).not.toContain("{Ada}");
+    expect(preview).not.toContain("MISSING_DATA");
   });
 
   it("previews Markdown headings, paragraphs and lists without activating field markup", () => {
@@ -138,10 +149,10 @@ describe("template intake and renderers", () => {
     });
     expect(preview).toContain('<article class="document-page">');
     expect(preview).toContain(
-      "<h1>Ada &lt;script&gt;alert(1)&lt;/script&gt;</h1>",
+      "Ada &lt;script&gt;alert(1)&lt;/script&gt;</span></h1>",
     );
-    expect(preview).toContain("<p>Experience at Acme</p>");
-    expect(preview).toContain("<ul><li>Built systems</li><li>&lt;img");
+    expect(preview).toContain(">Acme</span></p>");
+    expect(preview).toContain("<ul><li>Built systems</li><li><span");
     expect(preview).toContain("<ol><li>First step</li></ol>");
     expect(preview).not.toContain("<script>");
     expect(preview).not.toContain("<img src=");
@@ -155,37 +166,36 @@ describe("template intake and renderers", () => {
     ).toContain("# Ada");
   });
 
-  it("previews DOCX paragraph boundaries and heading styles with inert values", async () => {
+  it("tags each DOCX value with its field and keeps the document's own styles", async () => {
     const bytes = await docx({
       "word/document.xml":
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
         '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>{full_name}</w:t></w:r></w:p>' +
-        "<w:p><w:r><w:t>First paragraph.</w:t></w:r></w:p>" +
-        "<w:p><w:pPr><w:numPr/></w:pPr><w:r><w:t>One bullet</w:t></w:r></w:p>" +
-        "<w:p><w:r><w:t>Second paragraph with {detail}</w:t></w:r></w:p>" +
+        "<w:p><w:r><w:t>Second paragraph with {detail} and {absent}</w:t></w:r></w:p>" +
         "</w:body></w:document>",
     });
-    const preview = await renderDocxPreview(bytes, {
-      full_name: "Ada <script>alert(1)</script>",
-      detail: "<iframe src=https://evil.test/>",
-    });
-    expect(preview).toContain(
-      "<h1>Ada &lt;script&gt;alert(1)&lt;/script&gt;</h1>",
+    const tagged = await JSZip.loadAsync(
+      await renderDocxTemplate(
+        bytes,
+        {
+          full_name: `Ada <script>alert(1)</script>${FIELD_START}forged${FIELD_END}`,
+          detail: "<iframe src=https://evil.test/>",
+        },
+        { missing: "tagged" },
+      ),
     );
-    expect(preview).toContain("<p>First paragraph.</p>");
-    expect(preview).toContain("<ul><li>One bullet</li></ul>");
-    expect(preview).toContain("<p>Second paragraph with &lt;iframe");
-    expect(preview).not.toContain("<script>");
-    expect(preview).not.toContain("<iframe src=");
-    const output = await renderDocxTemplate(bytes, {
-      full_name: "Ada",
-      detail: "safe",
-    });
-    expect(
-      await (await JSZip.loadAsync(output))
-        .file("word/document.xml")
-        ?.async("string"),
-    ).toContain('w:val="Heading1"');
+    const xml = (await tagged.file("word/document.xml")?.async("string")) ?? "";
+    expect(xml).toContain('w:val="Heading1"');
+    expect(xml).toContain(
+      `${FIELD_START}full_name${FIELD_SPLIT}Ada &lt;script&gt;alert(1)&lt;/script&gt;forged${FIELD_END}`,
+    );
+    expect(xml).toContain(
+      `${FIELD_START}detail${FIELD_SPLIT}&lt;iframe src=https://evil.test/&gt;${FIELD_END}`,
+    );
+    // A missing value is an empty tag, never a marker string.
+    expect(xml).toContain(`${FIELD_START}absent${FIELD_SPLIT}${FIELD_END}`);
+    expect(xml).not.toContain("<script>");
+    expect(xml).not.toContain("MISSING_DATA");
   });
 
   it("extracts and renders split-run DOCX fields in body, header, and footer", async () => {
@@ -219,21 +229,24 @@ describe("template intake and renderers", () => {
     expect(await rendered.file("word/footer1.xml")?.async("string")).toContain(
       "Ada &amp; Bob",
     );
-    expect(
-      await renderDocxPreview(bytes, { ...values, role: "<script>" }),
-    ).not.toContain("<script>");
-    const preview = await renderDocxPreview(bytes, values);
-    expect(preview).toContain(
-      '<header class="document-header"><p>&lt;Acme&gt;</p></header>',
+    const tagged = await JSZip.loadAsync(
+      await renderDocxTemplate(
+        bytes,
+        { ...values, role: "<script>" },
+        { missing: "tagged" },
+      ),
     );
-    expect(preview).toContain(
-      '<footer class="document-footer"><p>Ada &amp; Bob</p></footer>',
+    const part = async (name: string) =>
+      (await tagged.file(name)?.async("string")) ?? "";
+    expect(await part("word/document.xml")).not.toContain("<script>");
+    expect(await part("word/document.xml")).toContain(
+      `${FIELD_START}full_name${FIELD_SPLIT}Ada &amp; Bob${FIELD_END}`,
     );
-    expect(preview.indexOf("&lt;Acme&gt;")).toBeLessThan(
-      preview.indexOf("Dear Ada"),
+    expect(await part("word/header1.xml")).toContain(
+      `${FIELD_START}company${FIELD_SPLIT}&lt;Acme&gt;${FIELD_END}`,
     );
-    expect(preview.indexOf("Dear Ada")).toBeLessThan(
-      preview.lastIndexOf("Ada &amp; Bob"),
+    expect(await part("word/footer1.xml")).toContain(
+      `${FIELD_START}full_name${FIELD_SPLIT}Ada &amp; Bob${FIELD_END}`,
     );
     const markdown = await renderDocxAsMarkdown(bytes, values);
     expect(markdown.indexOf("&lt;Acme>")).toBeLessThan(
@@ -343,6 +356,83 @@ describe("template intake and renderers", () => {
         inspectTemplate({ format: "docx", bytes: await docx(parts) }),
       ).rejects.toThrow(/active|embedded/);
     }
+  });
+
+  it("allows page-number fields in a footer but no other field instruction", async () => {
+    const footer = (instruction: string) =>
+      `<w:ftr><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instruction} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`;
+    for (const safe of ["PAGE", "NUMPAGES \\* MERGEFORMAT"])
+      expect(
+        await inspectTemplate({
+          format: "docx",
+          bytes: await docx({ "word/footer1.xml": footer(safe) }),
+        }),
+      ).toEqual({ fields: ["full_name"] });
+    for (const unsafe of [
+      'HYPERLINK "https://example.test"',
+      'INCLUDETEXT "C:\\secret.docx"',
+      "DDEAUTO cmd /c calc",
+      "PAGE \\# 0 MACROBUTTON Run",
+    ])
+      await expect(
+        inspectTemplate({
+          format: "docx",
+          bytes: await docx({ "word/footer1.xml": footer(unsafe) }),
+        }),
+      ).rejects.toThrow(/active|embedded/);
+  });
+
+  it("reads camelCase Markdown placeholders as the same fields a DOCX would", async () => {
+    const source =
+      "# {companyName} - {roleTitle}\n\n- {myPitchIntro1}\n- {myPitchIntro1}";
+    expect(
+      await inspectTemplate({ format: "md", bytes: Buffer.from(source) }),
+    ).toEqual({ fields: ["company_name", "role_title", "my_pitch_intro1"] });
+    expect(
+      renderMarkdownTemplate(source, {
+        company_name: "Acme",
+        role_title: "Staff Engineer",
+        my_pitch_intro1: "I lead payments teams",
+      }),
+    ).toBe(
+      "# Acme - Staff Engineer\n\n- I lead payments teams\n- I lead payments teams",
+    );
+  });
+
+  it("groups DOCX fields under the template's own headings, and Markdown under its ## headings", async () => {
+    const W =
+      'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    const heading = (text: string) =>
+      `<w:p><w:pPr><w:rPr><w:smallCaps/></w:rPr></w:pPr><w:r><w:rPr><w:smallCaps/></w:rPr><w:t>${text}</w:t></w:r></w:p>`;
+    const line = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
+    const sectioned = await docx({
+      "word/document.xml": `<w:document ${W}><w:body>${line("{headingName}")}${heading("Professional Summary")}${line("{summaryParagraph1}")}${heading("Core Skills")}${line("Backend: {backendSkills}")}</w:body></w:document>`,
+    });
+    expect(
+      (await inspectTemplate({ format: "docx", bytes: sectioned })).sections,
+    ).toEqual({
+      heading_name: "Header",
+      summary_paragraph1: "Professional summary",
+      backend_skills: "Core skills",
+    });
+    // One heading is not structure.
+    const flat = await docx({
+      "word/document.xml": `<w:document ${W}><w:body>${heading("Dear")}${line("{opening}")}</w:body></w:document>`,
+    });
+    expect(
+      (await inspectTemplate({ format: "docx", bytes: flat })).sections,
+    ).toBeUndefined();
+    const markdown = Buffer.from(
+      "# Prep - {companyName}\n\n## COMPANY & ROLE\n\n- {intro}\n\n## QUESTIONS TO ASK\n\n### {topicTitle}\n- {question1}\n",
+    );
+    expect(
+      (await inspectTemplate({ format: "md", bytes: markdown })).sections,
+    ).toEqual({
+      company_name: "Overview",
+      intro: "Company & role",
+      topic_title: "Questions to ask",
+      question1: "Questions to ask",
+    });
   });
 
   it("rejects a forged expanded size before inflation", async () => {

@@ -6,25 +6,25 @@ _Append-only. Newest first._
 
 Entry added to bionic/journal/2026-10.md.
 
-## [2026-10-03] adr | ADR-0011: accepted
+## [2026-10-03] adr | ADR-0012: accepted
 
 Keep Active Session data private to the actor and enforce locality before dispatch. Accepted after 3 review rounds plus a targeted correctness re-check (Claude review sub-agents, not the multi-model council).
 
-## [2026-10-03] adr | ADR-0011: Keep Active Session data private to the actor and enforce locality before dispatch
+## [2026-10-03] adr | ADR-0012: Keep Active Session data private to the actor and enforce locality before dispatch
 
-Proposed. File `bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md`. Tags: active-session, privacy, row-security, locality, retention, interview.
+Proposed. File `bionic/adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and.md`. Tags: active-session, privacy, row-security, locality, retention, interview.
 
 ## [2026-10-03] journal | Active Session core ADR accepted after three review rounds
 
 Entry added to bionic/journal/2026-10.md.
 
-## [2026-10-03] adr | ADR-0010: accepted
+## [2026-10-03] adr | ADR-0011: accepted
 
 Host the Active Session processor in the agent worker behind a versioned wire contract. Accepted after 3 review rounds (Claude review sub-agents, not the multi-model council).
 
-## [2026-10-03] adr | ADR-0010: Host the Active Session processor in the agent worker behind a versioned wire contract
+## [2026-10-03] adr | ADR-0011: Host the Active Session processor in the agent worker behind a versioned wire contract
 
-Proposed. File `bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md`. Tags: active-session, worker, contracts, privacy, interview.
+Proposed. File `bionic/adrs/ADR-0011-host-the-active-session-processor-in-the-agent-worker.md`. Tags: active-session, worker, contracts, privacy, interview.
 
 ## [2026-10-03] promptbook | started PB-0002-active-session-capability-for-interview-studio/RUN-001
 
@@ -33,6 +33,13 @@ book PB-0002, run RUN-001, total_prompts: 29, current_prompt: 1. Base commit 447
 ## [2026-10-03] promptbook | authored PB-0002-active-session-capability-for-interview-studio (cycle)
 
 id PB-0002, "Cycle: Active Session capability for Interview Studio", total_prompts: 29, modules (2×ADR, 4×dev, 1×review). cycle: assembled from modular templates. Dev #3 (UI) split from Dev #4 (companion + hardening) before the run. Run stacks on the committed feat/interview-documents base (operator instruction 2026-10-03).
+## [2026-10-03] adr | ADR-0010: accepted
+
+Write documents in a few parallel calls on any language profile. Accepted after two Claude-seat review rounds; remaining gaps recorded as follow-on work in the ADR.
+
+## [2026-10-03] adr | ADR-0010: Write documents in a few parallel calls on any language profile
+
+Proposed. File `bionic/adrs/ADR-0010-write-documents-in-a-few-parallel-calls-on-any-lan.md`. Tags: interview, documents, ai, agents, performance. Amends ADR-0009.
 
 ## [2026-10-02] arch | regenerated bionic/arch/ (spine 39d9326b7f5e)
 

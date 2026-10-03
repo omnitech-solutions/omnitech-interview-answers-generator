@@ -25,9 +25,9 @@ const workerSettings = {
   agent_worker: "packages/platform-storage/src/agent-job-worker-repository.ts",
   run_worker: "products/interview/src/backend/interview-backend.ts",
   // The session dispatch path: the one job-creation function that may set the
-  // private marker on an agent job (ADR-0011 Agent jobs).
+  // private marker on an agent job (ADR-0012 Agent jobs).
   session_dispatch: "packages/platform-storage/src/agent-job-repository.ts",
-  // The Active Session settings (ADR-0011): the worker's cross-tenant claim,
+  // The Active Session settings (ADR-0012): the worker's cross-tenant claim,
   // ingest's credential lookup and the purge's delete permission.
   session_worker:
     "products/interview/src/backend/live-session/session-claim.ts",

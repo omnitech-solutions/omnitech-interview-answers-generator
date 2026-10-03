@@ -95,7 +95,7 @@ export const artifacts = platform.table.withRLS(
       for: "delete",
       using: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export'))`,
     }),
-    // ADR-0011 rule:private-session-artifact-types: a stored screenshot is an
+    // ADR-0012 rule:private-session-artifact-types: a stored screenshot is an
     // owner-only artifact, never updated, deleted only by the purge, which
     // sets app.session_purge in its one owning file.
     pgPolicy("session_artifacts_select", {

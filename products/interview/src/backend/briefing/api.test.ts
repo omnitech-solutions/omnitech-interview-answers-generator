@@ -1103,7 +1103,7 @@ it("seeds one private default profile only for an actor with no profiles", async
   expect((await version.json()).matrix).toEqual(matrix);
 });
 
-it("leaves an existing scoped profile untouched and does not call the default loader", async () => {
+it("leaves an existing scoped profile untouched when a default is offered", async () => {
   let loads = 0;
   const server = app(pg.database, async () => {
     loads++;
@@ -1130,7 +1130,35 @@ it("leaves an existing scoped profile untouched and does not call the default lo
   expect(
     (await listed.json()).profiles.map((item: { id: string }) => item.id),
   ).toEqual(["chosen"]);
-  expect(loads).toBe(0);
+  expect(loads).toBe(1);
+});
+
+it("adds one revision when the default profile's file changes, and none when it does not", async () => {
+  let current: unknown = matrix;
+  const server = app(pg.database, async () => ({
+    name: "My matrix",
+    matrix: current,
+  }));
+  const headers = { "x-actor": "seed-sync" };
+  const revision = async () =>
+    (
+      (await (
+        await server.request(
+          "http://localhost/api/interview/briefing/profiles",
+          {
+            headers,
+          },
+        )
+      ).json()) as { profiles: Array<{ id: string; revision: number }> }
+    ).profiles.find((item) => item.id === "local-experience-matrix")?.revision;
+  expect(await revision()).toBe(1);
+  expect(await revision()).toBe(1);
+  current = {
+    ...(matrix as object),
+    candidate: { name: "Synthetic Candidate", email: "a@example.invalid" },
+  };
+  expect(await revision()).toBe(2);
+  expect(await revision()).toBe(2);
 });
 
 it("reports a default-file failure safely without importing invalid data", async () => {

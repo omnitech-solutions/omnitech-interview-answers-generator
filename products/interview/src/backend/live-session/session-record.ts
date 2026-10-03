@@ -90,7 +90,7 @@ export function toRecord(row: Raw): SessionRecord {
 }
 
 // Locks the owner's session row. Every status change, ingest write and fenced
-// write starts here, so they serialize per session (ADR-0011 job creation and
+// write starts here, so they serialize per session (ADR-0012 job creation and
 // purge also take this lock).
 export async function lockSession(
   tx: TenantDatabase,

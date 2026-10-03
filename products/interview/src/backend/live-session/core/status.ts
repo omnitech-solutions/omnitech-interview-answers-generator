@@ -1,5 +1,5 @@
 // Session status machine and stop authority (rule:stop-authority, as amended by
-// ADR-0011: credential expiry and a companion stop pause; only the owner's
+// ADR-0012: credential expiry and a companion stop pause; only the owner's
 // control, owner delete or the duration cap end). Pure; persistence enforces it.
 import type { RefusalCode } from "@omnitech/active-session-contracts";
 

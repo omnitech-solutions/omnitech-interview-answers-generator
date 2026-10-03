@@ -18,7 +18,7 @@ export type AiTaskType =
 /**
  * Where a request's session content may be processed. Absent means the host's
  * existing behaviour; `device-only` is enforced by the gateway and never falls
- * back to a remote profile (ADR-0011).
+ * back to a remote profile (ADR-0012).
  */
 export type AiProcessingPolicy = "device-only" | "permitted-remote";
 

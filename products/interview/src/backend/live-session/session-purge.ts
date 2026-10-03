@@ -18,7 +18,7 @@
 //      purge_outcome, counts; the shown-draft count is preserved).
 // A crash resumes at the next sweep; a failing final check never tombstones.
 //
-// The relay rows of the on-device model (ADR-0011 Locality by stage) are out of
+// The relay rows of the on-device model (ADR-0012 Locality by stage) are out of
 // scope for this loop: no relay rows are created yet, so none are deleted here.
 // The purge runs as the session owner whether or not the owner is still a
 // tenant member, so a removed member's sessions are still purged.

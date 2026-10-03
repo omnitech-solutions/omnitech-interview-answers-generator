@@ -1,7 +1,11 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { describe, expect, it, vi } from "vitest";
-import { generateDocumentValues } from "./generate.js";
+import {
+  generateDocumentValues,
+  outputWeight,
+  planBatches,
+} from "./generate.js";
 
 const fields: DocumentField[] = [
   {
@@ -77,51 +81,52 @@ describe("document generation", () => {
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves unsupported profile facts empty even if the provider fabricates them", async () => {
-    const evidenceFields: DocumentField[] = [
-      ...fields,
-      ...(
-        ["full_name", "city", "portfolio_url", "experience_1_title"] as const
-      ).map((key) => ({
-        key,
-        label: key,
-        source: "candidate-profile" as const,
-        required: false,
-        maxLength: null,
-      })),
-    ];
+  it("uses matrix facts as written and never accepts contact details the matrix lacks", async () => {
+    const profileField = (key: string) => ({
+      key,
+      label: key,
+      source: "candidate-profile" as const,
+      required: false,
+      maxLength: null,
+    });
     const execute = vi.fn().mockResolvedValue({
       result: {
-        full_name: "Ada",
+        full_name: "Mallory",
         city: "Invented City",
         portfolio_url: "https://invented.example",
-        experience_1_title: "Invented Role",
-        summary: "Invented summary",
+        summary: "Led the ledger migration.",
       },
     });
     const generated = await generateDocumentValues(
       { execute } as Pick<AiExecutionGateway, "execute">,
       {
         ...input,
-        fields: evidenceFields,
+        fields: [
+          ...fields,
+          ...["full_name", "city", "portfolio_url"].map(profileField),
+        ],
         candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+        profileValues: { full_name: "Ada", city: "Calgary" },
+        missingProfileKeys: ["phone", "portfolio_url"],
       },
     );
     expect(generated.values).toMatchObject({
       full_name: "Ada",
-      city: "",
+      city: "Calgary",
       portfolio_url: "",
-      experience_1_title: "",
-      summary: "",
+      summary: "Led the ledger migration.",
     });
     const request = execute.mock.calls[0]?.[0];
-    expect(Object.keys(request.task.schema.properties)).toEqual(["full_name"]);
+    expect(Object.keys(request.task.schema.properties)).toEqual(["summary"]);
     expect(request.task.prompt).toContain("Real Company");
   });
 
-  it("does not treat an unrelated role as evidence for a custom profile field", async () => {
+  it("decodes HTML entities a model puts in plain-text values", async () => {
     const execute = vi.fn().mockResolvedValue({
-      result: { security_clearance: "Top Secret" },
+      result: {
+        architecture_skills:
+          "R&amp;D, CI/CD &lt;fast&gt; &quot;safe&quot; &#39;ok&#39;",
+      },
     });
     const generated = await generateDocumentValues(
       { execute } as Pick<AiExecutionGateway, "execute">,
@@ -129,24 +134,48 @@ describe("document generation", () => {
         ...input,
         fields: [
           {
-            key: "security_clearance",
-            label: "Security clearance",
+            key: "architecture_skills",
+            label: "Architecture skills",
             source: "candidate-profile",
             required: true,
             maxLength: null,
           },
         ],
-        candidateProfile: {
-          candidate: { name: "Ada" },
-          roles: [{ company: "Acme", title: "Engineer" }],
-        },
+        candidateProfile: { candidate: { name: "Ada" }, roles: [] },
       },
     );
-    expect(generated.values).toEqual({ security_clearance: "" });
-    expect(generated.errors).toEqual([
-      { key: "security_clearance", code: "missing" },
-    ]);
-    expect(execute.mock.calls[0]?.[0].task.schema.properties).toEqual({});
+    expect(generated.values["architecture_skills"]).toBe(
+      "R&D, CI/CD <fast> \"safe\" 'ok'",
+    );
+  });
+
+  it("asks the model for every other profile field, however the template names it", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      result: { architecture_skills: "Event-driven services, outbox pattern" },
+    });
+    const generated = await generateDocumentValues(
+      { execute } as Pick<AiExecutionGateway, "execute">,
+      {
+        ...input,
+        fields: [
+          {
+            key: "architecture_skills",
+            label: "Architecture skills",
+            source: "candidate-profile",
+            required: true,
+            maxLength: null,
+          },
+        ],
+        candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+      },
+    );
+    expect(generated.values).toEqual({
+      architecture_skills: "Event-driven services, outbox pattern",
+    });
+    expect(generated.errors).toEqual([]);
+    expect(
+      Object.keys(execute.mock.calls[0]?.[0].task.schema.properties),
+    ).toEqual(["architecture_skills"]);
   });
 
   it("includes evidence-backed interview prep fields in the one gateway call", async () => {
@@ -199,5 +228,211 @@ describe("document generation", () => {
     expect(generated.values).toEqual(
       Object.fromEntries(keys.map((key) => [key, `Evidence for ${key}`])),
     );
+  });
+});
+
+const sectioned = (sections: Array<[string, number]>) =>
+  sections.flatMap(([section, count]) =>
+    Array.from({ length: count }, (_, index) => ({
+      key: `${section.toLowerCase().replaceAll(" ", "_")}_${index + 1}`,
+      label: `${section} ${index + 1}`,
+      source: "candidate-profile" as const,
+      required: false,
+      maxLength: null,
+      section,
+    })),
+  );
+
+describe("planBatches", () => {
+  it("makes one call for a small template and none for an empty one", () => {
+    expect(planBatches([])).toEqual([]);
+    expect(planBatches(sectioned([["Letter", 20]]))).toHaveLength(1);
+  });
+
+  it("shares fields evenly over as many calls as are worth making, at most four", () => {
+    const sizes = (count: number) =>
+      planBatches(sectioned([["Only", count]])).map(
+        (batch) => batch.fields.length,
+      );
+    expect(sizes(40)).toEqual([20, 20]);
+    expect(sizes(64)).toEqual([21, 22, 21]);
+    expect(sizes(180)).toEqual([45, 45, 45, 45]);
+    expect(sizes(400)).toHaveLength(4);
+  });
+
+  it("keeps template order and cuts at a section edge when one is near", () => {
+    const fields = sectioned([
+      ["Header", 7],
+      ["Intro", 2],
+      ["Tools", 7],
+      ["Experience", 47],
+      ["Extras", 1],
+    ]);
+    const plan = planBatches(fields);
+    expect(plan.flatMap((batch) => batch.fields)).toEqual(fields);
+    expect(plan.map((batch) => batch.fields.length)).toEqual([16, 27, 21]);
+    expect(plan.map((batch) => batch.title)).toEqual([
+      "Header … Tools",
+      "Experience",
+      "Experience … Extras",
+    ]);
+  });
+});
+
+describe("planBatches by output size", () => {
+  it("gives a call of bullets fewer fields than a call of short facts", () => {
+    const facts: DocumentField[] = Array.from({ length: 30 }, (_, index) => ({
+      key: `company_${index}`,
+      label: `Company ${index}`,
+      source: "candidate-profile" as const,
+      required: false,
+      maxLength: null,
+    }));
+    const bullets: DocumentField[] = Array.from({ length: 30 }, (_, index) => ({
+      ...(facts[0] as DocumentField),
+      key: `role_bullet${index}`,
+      label: `Bullet ${index}`,
+    }));
+    const [first, second] = planBatches([...facts, ...bullets]);
+    // Equal amounts to write: all the facts and some bullets against the rest.
+    expect(first?.fields.length).toBeGreaterThan(second?.fields.length ?? 0);
+    expect(outputWeight(bullets[0] as DocumentField)).toBeGreaterThan(
+      outputWeight(facts[0] as DocumentField),
+    );
+  });
+});
+
+describe("parallel section generation", () => {
+  const base = {
+    ...input,
+    candidacyValues: {},
+    missingProfileKeys: [],
+    candidateProfile: { candidate: { name: "Ada" }, roles: [] },
+  };
+  const answer = (task: { schema?: { properties: Record<string, unknown> } }) =>
+    Object.fromEntries(
+      Object.keys(task.schema?.properties ?? {}).map((key) => [
+        key,
+        `v ${key}`,
+      ]),
+    );
+
+  it("writes sections side by side, never more than four at once, and merges them in template order", async () => {
+    let running = 0;
+    let peak = 0;
+    const execute = vi.fn(async (request: { task: never }) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      running--;
+      return { result: answer(request.task), usage: { totalTokens: 10 } };
+    });
+    const fields = sectioned(
+      Array.from({ length: 7 }, (_, index) => [`Part ${index + 1}`, 20]),
+    );
+    const plan: unknown[] = [];
+    const done: string[] = [];
+    const generated = await generateDocumentValues(
+      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      { ...base, fields },
+      {
+        onPlan: (value) => plan.push(value),
+        onBatch: (update) => done.push(update.title),
+      },
+    );
+    expect(execute).toHaveBeenCalledTimes(4);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(Object.keys(generated.values)).toEqual(fields.map((f) => f.key));
+    expect(generated.values["part_3_5"]).toBe("v part_3_5");
+    expect(generated.usage).toEqual({ totalTokens: 40 });
+    expect(plan).toHaveLength(1);
+    expect(done).toHaveLength(4);
+    // Each call is asked only for its own section, and told what else exists.
+    const first = JSON.parse(
+      (execute.mock.calls[0]?.[0].task as unknown as { prompt: string }).prompt,
+    );
+    expect(first.fields.length).toBeGreaterThanOrEqual(30);
+    expect(first.fields.length).toBeLessThanOrEqual(45);
+    expect(first.otherSections).toHaveLength(3);
+  });
+
+  it("reports the plan before any call, with what the model does not write", async () => {
+    const order: string[] = [];
+    const execute = vi.fn(async (request: { task: never }) => {
+      order.push("call");
+      return { result: answer(request.task) };
+    });
+    await generateDocumentValues(
+      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      {
+        ...base,
+        fields: [
+          ...sectioned([["Header", 2]]),
+          {
+            key: "company_name",
+            label: "Company",
+            source: "candidacy" as const,
+            required: true,
+            maxLength: null,
+            section: "Header",
+          },
+        ],
+        candidacyValues: { company_name: "Real Company" },
+      },
+      { onPlan: (plan) => order.push(`plan ${plan.fixed["company_name"]}`) },
+    );
+    expect(order).toEqual(["plan Real Company", "call"]);
+  });
+
+  it("retries a call that failed once, but not malformed output", async () => {
+    let calls = 0;
+    const flaky = vi.fn(async (request: { task: never }) => {
+      if (++calls === 1) throw new Error("socket hang up");
+      return { result: answer(request.task) };
+    });
+    const ok = await generateDocumentValues(
+      { execute: flaky } as unknown as Pick<AiExecutionGateway, "execute">,
+      { ...base, fields: sectioned([["One", 3]]) },
+    );
+    expect(flaky).toHaveBeenCalledTimes(2);
+    expect(ok.values["one_1"]).toBe("v one_1");
+    const bad = vi.fn().mockResolvedValue({ result: "not an object" });
+    await expect(
+      generateDocumentValues(
+        { execute: bad } as unknown as Pick<AiExecutionGateway, "execute">,
+        { ...base, fields: sectioned([["One", 3]]) },
+      ),
+    ).rejects.toThrow("Invalid structured document output");
+    expect(bad).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the other sections when one fails for good", async () => {
+    const seen: AbortSignal[] = [];
+    const execute = vi.fn(
+      async (request: { task: never; signal?: AbortSignal }) => {
+        if (request.signal) seen.push(request.signal);
+        const section = JSON.parse((request.task as { prompt: string }).prompt)
+          .section as string;
+        if (section.startsWith("Part 3")) throw new Error("model unavailable");
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        return { result: answer(request.task) };
+      },
+    );
+    await expect(
+      generateDocumentValues(
+        { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+        {
+          ...base,
+          fields: sectioned(
+            Array.from({ length: 9 }, (_, index) => [`Part ${index + 1}`, 20]),
+          ),
+        },
+      ),
+    ).rejects.toThrow("model unavailable");
+    expect(seen.some((signal) => signal.aborted)).toBe(true);
+    // The queued sections never started.
+    // Four calls, one of them tried twice; nothing beyond that started.
+    expect(execute.mock.calls.length).toBeLessThanOrEqual(5);
   });
 });

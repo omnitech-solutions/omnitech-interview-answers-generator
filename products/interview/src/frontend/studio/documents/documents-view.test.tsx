@@ -13,6 +13,9 @@ import { DocumentsView } from "./documents-view";
 const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 const OWNED_TEMPLATE_A = "66666666-6666-4666-8666-666666666666";
 const OWNED_TEMPLATE_B = "77777777-7777-4777-8777-777777777777";
+const NEW_CANDIDACY_ID = "99999999-9999-4999-8999-999999999999";
+const NEW_INTERVIEW_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const PREP_TEMPLATE_ID = "88888888-8888-4888-8888-888888888888";
 const DOCUMENT_ID = "22222222-2222-4222-8222-222222222222";
 const CANDIDACY_ID = "33333333-3333-4333-8333-333333333333";
 const INTERVIEW_ID = "44444444-4444-4444-8444-444444444444";
@@ -40,24 +43,22 @@ const fields = [
     maxLength: null,
   },
 ];
+const baseCandidacy = {
+  id: CANDIDACY_ID,
+  title: "Engineer",
+  company_name: "Northwind",
+  job_description: "Build systems" as string | null,
+};
+const baseInterview = {
+  id: INTERVIEW_ID,
+  candidacy_id: CANDIDACY_ID,
+  label: "Hiring manager",
+  kind: "hiring-manager",
+};
 const context = {
   profiles: [{ id: "profile-1", name: "Experience matrix", revision: 3 }],
-  candidacies: [
-    {
-      id: CANDIDACY_ID,
-      title: "Engineer",
-      company_name: "Northwind",
-      job_description: "Build systems",
-    },
-  ],
-  interviews: [
-    {
-      id: INTERVIEW_ID,
-      candidacy_id: CANDIDACY_ID,
-      label: "Hiring manager",
-      kind: "hiring-manager",
-    },
-  ],
+  candidacies: [baseCandidacy],
+  interviews: [baseInterview],
   targets: [{ id: "target-1", label: "Primary model" }],
 };
 const exportRow = {
@@ -79,6 +80,18 @@ let editorFields: typeof fields;
 let documentCandidacyId: string | null;
 let documentInterviewId: string | null;
 
+function listed(item: Template, latestRevision = 1): TemplateListItem {
+  return {
+    template: item,
+    latestRevision,
+    fieldCount: 2,
+    revisions: Array.from({ length: latestRevision }, (_, index) => ({
+      revision: latestRevision - index,
+      createdAt: "2026-10-02",
+    })),
+  };
+}
+
 function mockApi() {
   calls = [];
   currentRevision = 1;
@@ -86,7 +99,7 @@ function mockApi() {
   exports = [];
   validationIssues = [];
   saveConflict = false;
-  templateCatalog = [{ template, latestRevision: 1 }];
+  templateCatalog = [listed(template)];
   editorFields = fields;
   documentCandidacyId = CANDIDACY_ID;
   documentInterviewId = INTERVIEW_ID;
@@ -111,6 +124,28 @@ function mockApi() {
         });
       if (path.endsWith("/templates/intake") && method === "POST")
         return Response.json({ fields: [fields[0]] });
+      if (path.endsWith("/candidacies") && method === "POST")
+        return Response.json(
+          {
+            candidacyId: NEW_CANDIDACY_ID,
+            interviewId: (body as { interview?: unknown }).interview
+              ? NEW_INTERVIEW_ID
+              : null,
+          },
+          { status: 201 },
+        );
+      if (path.endsWith("/interviews") && method === "POST")
+        return Response.json(
+          { interviewId: NEW_INTERVIEW_ID },
+          { status: 201 },
+        );
+      if (path.endsWith("/instructions") && method === "POST")
+        return Response.json({ revision: 2 }, { status: 201 });
+      if (path.endsWith("/duplicate") && method === "POST")
+        return Response.json(
+          { template: { ...template, id: OWNED_TEMPLATE_A } },
+          { status: 201 },
+        );
       if (
         path.endsWith(`/templates/${OWNED_TEMPLATE_A}/revisions`) &&
         method === "POST"
@@ -122,7 +157,10 @@ function mockApi() {
       )
         return Response.json({ revision: { revision: 2 } }, { status: 201 });
       if (path.endsWith("/templates") && method === "POST")
-        return Response.json({ template, latestRevision: 1 }, { status: 201 });
+        return Response.json(
+          { template: { ...template, id: OWNED_TEMPLATE_B } },
+          { status: 201 },
+        );
       if (path.endsWith("/templates"))
         return Response.json({ templates: templateCatalog });
       if (path.endsWith(`/templates/${OWNED_TEMPLATE_A}`))
@@ -159,15 +197,38 @@ function mockApi() {
               profileRevision: 2,
               candidacyId: documentCandidacyId,
               interviewId: documentInterviewId,
+              templateId: TEMPLATE_ID,
+              templateRevision: 1,
               updatedAt: "2026-10-02",
             },
           ],
         });
       if (path === "/api/interview/documents" && method === "POST")
-        return Response.json(
-          { document: { id: DOCUMENT_ID } },
-          { status: 201 },
+        return new Response(
+          [
+            {
+              t: "plan",
+              batches: [{ id: "batch-1", title: "Header", count: 2 }],
+              fixed: {},
+            },
+            {
+              t: "batch",
+              id: "batch-1",
+              title: "Header",
+              values: { full_name: "Ada" },
+            },
+            { t: "done", document: { id: DOCUMENT_ID }, errors: [] },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n") + "\n",
+          { headers: { "content-type": "application/x-ndjson" } },
         );
+      if (
+        path.endsWith("/preview") &&
+        path.includes("/templates/") &&
+        method === "POST"
+      )
+        return Response.json({ kind: "html", html: "<p>draft</p>" });
       if (path.endsWith(`/${DOCUMENT_ID}/preview`) && method === "POST") {
         return Response.json({
           html: `<pre>${(body as { values: Record<string, string> }).values["full_name"]}</pre>`,
@@ -199,6 +260,7 @@ function mockApi() {
         return Response.json({ revision: currentRevision }, { status: 201 });
       }
       if (path.endsWith(`/${DOCUMENT_ID}/regenerate`) && method === "POST") {
+        validationIssues = [];
         currentRevision++;
         revisionValues[currentRevision] = {
           ...revisionValues[currentRevision - 1]!,
@@ -266,6 +328,12 @@ const actions = {
 } satisfies StudioActions;
 
 beforeEach(() => {
+  localStorage.clear();
+  context.targets = [{ id: "target-1", label: "Primary model" }];
+  context.candidacies = [baseCandidacy];
+  context.interviews = [baseInterview];
+  context.profiles[0]!.revision = 3;
+  context.candidacies[0]!.job_description = "Build systems";
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   mockApi();
@@ -281,77 +349,82 @@ beforeEach(() => {
   );
 });
 
-describe("Documents view", () => {
-  it("explains missing setup data instead of leaving generation silently disabled", async () => {
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-        String(input).endsWith("/context")
-          ? Promise.resolve(
-              Response.json({ ...context, profiles: [], targets: [] }),
-            )
-          : original(input, init),
-      ),
-    );
-    render(
-      <DocumentsView
-        rest={["new"]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
-    expect(await screen.findByText(/Save an experience matrix/)).toBeVisible();
-    expect(screen.getByText(/No model is available/)).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Generate document" }),
-    ).toBeDisabled();
-  });
+function renderAt(rest: readonly string[]) {
+  return render(
+    <DocumentsView rest={rest} actions={actions} onDirtyChange={vi.fn()} />,
+  );
+}
 
-  it("offers retry when a selected document cannot load", async () => {
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-        String(input).endsWith(`/${DOCUMENT_ID}`)
-          ? Promise.resolve(
-              new Response("Internal Server Error", { status: 500 }),
-            )
-          : original(input, init),
-      ),
-    );
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
+function stubFetchFor(match: (path: string) => Response | undefined): void {
+  const original = globalThis.fetch;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const response = match(String(input));
+      return response ? Promise.resolve(response) : original(input, init);
+    }),
+  );
+}
+
+const posted = (suffix: string) =>
+  calls.find((call) => call.method === "POST" && call.path.endsWith(suffix));
+
+describe("Documents list", () => {
+  it("groups documents under their application and keeps a General group", async () => {
+    renderAt([]);
+    const northwind = await screen.findByRole("region", {
+      name: "Northwind · Engineer",
+    });
     expect(
-      await screen.findByRole("heading", { name: "Document could not load" }),
+      within(northwind).getByText("Resume for Northwind"),
+    ).toBeInTheDocument();
+    expect(within(northwind).getByText(/Resume · rev 1/)).toBeInTheDocument();
+    expect(within(northwind).getByText("Ready to export")).toBeInTheDocument();
+    const general = screen.getByRole("region", { name: "General" });
+    expect(
+      within(general).getByText(/A general resume is useful/),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+
+    fireEvent.click(
+      within(northwind).getByRole("button", { name: /Resume for Northwind/ }),
+    );
+    expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add document to General" }),
+    );
+    expect(actions.go).toHaveBeenCalledWith("documents", ["new"]);
   });
 
-  it("shows a recoverable error when the Documents service returns a non-JSON 500", async () => {
-    const original = globalThis.fetch;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
-        String(input).endsWith("/context")
-          ? Promise.resolve(
-              new Response("Internal Server Error", { status: 500 }),
-            )
-          : original(input, init),
-      ),
+  it("refreshes when the person comes back to the window, not on every focus", async () => {
+    renderAt([]);
+    await screen.findByRole("heading", { name: "Documents" });
+    const loads = () =>
+      calls.filter((call) => call.path.endsWith("/context")).length;
+    const before = loads();
+    // Too soon after loading: nothing to catch up on.
+    fireEvent.focus(window);
+    expect(loads()).toBe(before);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 10_000);
+    fireEvent.focus(window);
+    vi.useRealTimers();
+    await waitFor(() => expect(loads()).toBe(before + 1));
+  });
+
+  it("switches between documents and templates from the tabs", async () => {
+    renderAt([]);
+    await screen.findByRole("heading", { name: "Documents" });
+    fireEvent.click(screen.getByRole("tab", { name: "Templates" }));
+    expect(actions.go).toHaveBeenCalledWith("documents", ["templates"]);
+  });
+
+  it("offers retry when the catalog cannot load", async () => {
+    stubFetchFor((path) =>
+      path.endsWith("/context")
+        ? new Response("Internal Server Error", { status: 500 })
+        : undefined,
     );
-    render(
-      <DocumentsView
-        rest={["new"]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
+    renderAt([]);
     expect(
       await screen.findByRole("heading", { name: "Documents could not load" }),
     ).toBeVisible();
@@ -361,59 +434,421 @@ describe("Documents view", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
     expect(screen.queryByText("Loading documents…")).not.toBeInTheDocument();
   });
+});
+
+describe("New document dialog", () => {
+  it("explains missing setup data instead of leaving generation silently disabled", async () => {
+    stubFetchFor((path) =>
+      path.endsWith("/context")
+        ? Response.json({ ...context, profiles: [], targets: [] })
+        : undefined,
+    );
+    renderAt(["new"]);
+    expect(await screen.findByText(/Save an experience matrix/)).toBeVisible();
+    expect(screen.getByText(/No model is available/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+  });
 
   it("creates from candidacy, profile revision, and model", async () => {
-    render(
-      <DocumentsView
-        rest={["new"]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
     );
-    await screen.findByRole("button", { name: "Generate document" });
-    fireEvent.change(screen.getByLabelText("Candidacy"), {
-      target: { value: CANDIDACY_ID },
-    });
-    fireEvent.change(screen.getByLabelText("Interview stage"), {
-      target: { value: INTERVIEW_ID },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Generate document" }));
-    await waitFor(() =>
-      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    expect(screen.getByText(/Resume — Northwind/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(
+      () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+      { timeout: 4000 },
     );
-    const request = calls.find(
-      (call) =>
-        call.method === "POST" && call.path === "/api/interview/documents",
-    );
-    expect(request?.body).toMatchObject({
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
       templateId: TEMPLATE_ID,
+      templateRevision: 1,
       profileId: "profile-1",
       profileRevision: 3,
       candidacyId: CANDIDACY_ID,
-      interviewId: INTERVIEW_ID,
+      interviewId: null,
       aiTargetId: "target-1",
+    });
+  });
+
+  it("generates with the model the assistant has chosen", async () => {
+    context.targets = [
+      { id: "target-1", label: "Primary model" },
+      { id: "agent/claude-code", label: "Claude Code" },
+    ];
+    localStorage.setItem("omnitech-assistant:model", '"agent/claude-code"');
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    expect(screen.getByText("Claude Code")).toBeVisible();
+    expect(screen.getByText(/Follows the model chosen/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(posted("/api/interview/documents")).toBeTruthy(),
+    );
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      aiTargetId: "agent/claude-code",
+    });
+  });
+
+  it("says so when the assistant's model cannot write documents", async () => {
+    context.targets = [
+      { id: "target-1", label: "Primary model" },
+      { id: "agent/claude-code", label: "Claude Code" },
+    ];
+    localStorage.setItem(
+      "omnitech-assistant:model",
+      '"lm-studio/qwen3-coder-30b"',
+    );
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    expect(screen.getByText(/can't write documents/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(posted("/api/interview/documents")).toBeTruthy(),
+    );
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      aiTargetId: "agent/claude-code",
+    });
+  });
+
+  it("asks for the interview stage when the template is interview prep", async () => {
+    templateCatalog = [
+      listed(template),
+      listed({
+        ...template,
+        id: PREP_TEMPLATE_ID,
+        name: "Interview prep",
+        kind: "interview_prep",
+        format: "md",
+      }),
+    ];
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
+    expect(
+      screen.getByRole("radio", { name: /General — no application/ }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Hiring manager" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(posted("/api/interview/documents")).toBeTruthy(),
+    );
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      templateId: PREP_TEMPLATE_ID,
+      candidacyId: CANDIDACY_ID,
+      interviewId: INTERVIEW_ID,
+    });
+  });
+
+  it("shows the document being written: sections tick off as each lands, then it opens", async () => {
+    let send!: (event: object) => void;
+    let close!: () => void;
+    const encoder = new TextEncoder();
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (
+          path === "/api/interview/documents" &&
+          (init?.method ?? "GET") === "POST"
+        )
+          return Promise.resolve(
+            new Response(
+              new ReadableStream({
+                start(controller) {
+                  send = (event) =>
+                    controller.enqueue(
+                      encoder.encode(`${JSON.stringify(event)}\n`),
+                    );
+                  close = () => controller.close();
+                },
+              }),
+              { headers: { "content-type": "application/x-ndjson" } },
+            ),
+          );
+        return original(input, init);
+      }),
+    );
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(await screen.findByText("Writing your document")).toBeVisible();
+    expect(screen.getByText("Reading your experience…")).toBeVisible();
+    await waitFor(() => expect(send).toBeDefined());
+    send({
+      t: "plan",
+      batches: [
+        { id: "batch-1", title: "Header", count: 7 },
+        { id: "batch-2", title: "Core skills", count: 7 },
+      ],
+      fixed: { company_name: "Northwind" },
+    });
+    expect(await screen.findByText("0 of 2 sections")).toBeVisible();
+    expect(screen.getByText("Core skills")).toBeVisible();
+    send({
+      t: "batch",
+      id: "batch-1",
+      title: "Header",
+      values: { full_name: "Ada" },
+    });
+    expect(await screen.findByText("1 of 2 sections")).toBeVisible();
+    // The page is redrawn from what has landed so far.
+    await waitFor(() => {
+      const drawn = calls.filter(
+        (call) => call.method === "POST" && call.path.endsWith("/preview"),
+      );
+      expect(drawn.length).toBeGreaterThan(1);
+      expect(drawn.at(-1)?.body).toMatchObject({
+        values: { company_name: "Northwind", full_name: "Ada" },
+      });
+    });
+    send({
+      t: "batch",
+      id: "batch-2",
+      title: "Core skills",
+      values: {},
+    });
+    send({ t: "done", document: { id: DOCUMENT_ID }, errors: [] });
+    close();
+    expect(await screen.findByText("Done. Opening it…")).toBeVisible();
+    await waitFor(
+      () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+      { timeout: 4000 },
+    );
+  });
+
+  it("asks before the page is left while a document is being written, and not otherwise", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" &&
+        (init?.method ?? "GET") === "POST"
+          ? new Promise<Response>((_resolve, reject) =>
+              init?.signal?.addEventListener("abort", () =>
+                reject(new DOMException("Aborted", "AbortError")),
+              ),
+            )
+          : original(input, init),
+      ),
+    );
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    const leave = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leave()).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await screen.findByText("Writing your document");
+    expect(leave()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel generation" }));
+    await waitFor(() => expect(leave()).toBe(false));
+  });
+
+  it("says when another window is already writing the same document", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" &&
+        (init?.method ?? "GET") === "POST"
+          ? Promise.resolve(
+              Response.json(
+                { inProgress: true, offer: "wait" },
+                { status: 409 },
+              ),
+            )
+          : original(input, init),
+      ),
+    );
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "already being written in another window",
+    );
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+  });
+
+  it("returns to the form with the reason when writing fails part way", async () => {
+    const original = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        String(input) === "/api/interview/documents" &&
+        (init?.method ?? "GET") === "POST"
+          ? Promise.resolve(
+              new Response(
+                `${JSON.stringify({ t: "plan", batches: [], fixed: {} })}\n${JSON.stringify({ t: "error", code: "generation-failed" })}\n`,
+                { headers: { "content-type": "application/x-ndjson" } },
+              ),
+            )
+          : original(input, init),
+      ),
+    );
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "could not be completed",
+    );
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+  });
+
+  it("creates a new application first, then writes the document for it", async () => {
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("radio", { name: /New application/ }));
+    expect(screen.getByRole("button", { name: "Generate" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Company"), {
+      target: { value: "Zensurance" },
+    });
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "Tech Lead" },
+    });
+    fireEvent.change(screen.getByLabelText("Job description"), {
+      target: { value: "Own payments" },
+    });
+    expect(screen.getByText(/Resume — Zensurance/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(
+      () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+      { timeout: 4000 },
+    );
+    const order = calls
+      .filter((call) => call.method === "POST")
+      .map((call) => call.path);
+    expect(order.indexOf("/api/interview/documents/candidacies")).toBeLessThan(
+      order.indexOf("/api/interview/documents"),
+    );
+    expect(posted("/candidacies")?.body).toEqual({
+      companyName: "Zensurance",
+      title: "Tech Lead",
+      jobDescription: "Own payments",
+    });
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      candidacyId: NEW_CANDIDACY_ID,
+      interviewId: null,
+    });
+  });
+
+  it("prepares for a new application with a stage made on the spot", async () => {
+    context.candidacies = [];
+    context.interviews = [];
+    templateCatalog = [
+      listed(template),
+      listed({
+        ...template,
+        id: PREP_TEMPLATE_ID,
+        name: "Interview prep",
+        kind: "interview_prep",
+        format: "md",
+      }),
+    ];
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
+    expect(
+      screen.getByRole("radio", { name: /New application/ }),
+    ).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Company"), {
+      target: { value: "Roofr" },
+    });
+    fireEvent.change(screen.getByLabelText("Role"), {
+      target: { value: "Senior Engineer" },
+    });
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Technical" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(posted("/api/interview/documents")).toBeTruthy(),
+    );
+    expect(posted("/candidacies")?.body).toMatchObject({
+      companyName: "Roofr",
+      interview: { kind: "technical", label: "Technical" },
+    });
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      candidacyId: NEW_CANDIDACY_ID,
+      interviewId: NEW_INTERVIEW_ID,
+    });
+  });
+
+  it("preselects a stage for prep when the application has none, so Generate is ready", async () => {
+    context.interviews = [];
+    templateCatalog = [
+      listed(template),
+      listed({
+        ...template,
+        id: PREP_TEMPLATE_ID,
+        name: "Interview prep",
+        kind: "interview_prep",
+        format: "md",
+      }),
+    ];
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
+    expect(
+      screen.getByRole("button", { name: "Hiring manager" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Generate" })).toBeEnabled();
+    expect(
+      screen.getByText(/Interview prep — Northwind · Hiring manager/),
+    ).toBeVisible();
+  });
+
+  it("adds a stage to an existing application when prep needs one it doesn't have", async () => {
+    templateCatalog = [
+      listed(template),
+      listed({
+        ...template,
+        id: PREP_TEMPLATE_ID,
+        name: "Interview prep",
+        kind: "interview_prep",
+        format: "md",
+      }),
+    ];
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(screen.getByRole("button", { name: /Interview prep/ }));
+    fireEvent.click(screen.getByRole("button", { name: "System design" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(posted("/api/interview/documents")).toBeTruthy(),
+    );
+    expect(posted(`/candidacies/${CANDIDACY_ID}/interviews`)?.body).toEqual({
+      kind: "system_design",
+      label: "System design",
+    });
+    expect(posted("/api/interview/documents")?.body).toMatchObject({
+      candidacyId: CANDIDACY_ID,
+      interviewId: NEW_INTERVIEW_ID,
     });
   });
 
   it("saves a candidacy job description before generating from it", async () => {
     context.candidacies[0]!.job_description = "";
-    render(
-      <DocumentsView
-        rest={["new"]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
     );
-    await screen.findByRole("button", { name: "Generate document" });
-    fireEvent.change(screen.getByLabelText("Candidacy"), {
-      target: { value: CANDIDACY_ID },
-    });
     fireEvent.change(screen.getByLabelText("Job description"), {
       target: { value: "Build reliable systems" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Generate document" }));
-    await waitFor(() =>
-      expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(
+      () => expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]),
+      { timeout: 4000 },
     );
     const saveIndex = calls.findIndex(
       (call) =>
@@ -428,23 +863,44 @@ describe("Documents view", () => {
     expect(calls[saveIndex]?.body).toEqual({
       jobDescription: "Build reliable systems",
     });
-    context.candidacies[0]!.job_description = "Build systems";
   });
 
-  it("previews drafts, saves revisions, restores older revisions, and downloads an export", async () => {
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
+  it("points at the existing document instead of generating a duplicate", async () => {
+    context.profiles[0]!.revision = 2;
+    documentInterviewId = null;
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
     );
+    expect(
+      screen.getByText(/You already have “Resume for Northwind”/),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(actions.go).toHaveBeenCalledWith("documents", [DOCUMENT_ID]);
+  });
+
+  it("treats a newer experience revision as a new document, not a duplicate", async () => {
+    renderAt(["new"]);
+    await screen.findByRole("dialog", { name: "New document" });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Northwind · Engineer/ }),
+    );
+    expect(screen.queryByText(/You already have/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Document editor", () => {
+  it("previews drafts and saves a revision when a field loses focus", async () => {
+    renderAt([DOCUMENT_ID]);
     const name = await screen.findByRole("textbox", { name: "Full name" });
     expect(name).toHaveValue("Ada");
     expect(
       screen.getByRole("textbox", { name: "Company name" }),
     ).toHaveAttribute("readonly");
+    fireEvent.focus(name);
     fireEvent.change(name, { target: { value: "Ada Lovelace" } });
+    expect(screen.getByText("Editing…")).toBeVisible();
     await waitFor(() =>
       expect(
         calls.some(
@@ -457,55 +913,166 @@ describe("Documents view", () => {
         ),
       ).toBe(true),
     );
-    const frame = screen.getByTitle("Document preview");
-    expect(frame).toHaveAttribute("sandbox", "");
-    fireEvent.click(screen.getByRole("button", { name: "Save new revision" }));
+    expect(screen.getByTitle("Document preview")).toHaveAttribute(
+      "sandbox",
+      "allow-same-origin",
+    );
+    expect(posted(`/${DOCUMENT_ID}/revisions`)).toBeUndefined();
+    fireEvent.blur(name);
     await waitFor(() => expect(currentRevision).toBe(2));
-    expect(
-      calls.find(
-        (call) =>
-          call.method === "POST" &&
-          call.path.endsWith(`/${DOCUMENT_ID}/revisions`),
-      )?.body,
-    ).toMatchObject({
+    expect(posted(`/${DOCUMENT_ID}/revisions`)?.body).toMatchObject({
       baseRevision: 1,
       values: { full_name: "Ada Lovelace", company_name: "Northwind" },
     });
-    await waitFor(() =>
-      expect(screen.getByLabelText("Revision")).toHaveValue("2"),
+    expect(await screen.findByText("Saved as rev 2")).toBeVisible();
+    expect(await screen.findByText("Saved · rev 2")).toBeVisible();
+  });
+
+  it("zooms the preview and hides the fields to focus on the document", async () => {
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    expect(screen.getByText("Fit")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getByText("100%")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getByText("110%")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Fit to width" }));
+    expect(screen.getByText("Fit")).toBeVisible();
+    const body = screen
+      .getByRole("region", { name: "Document fields" })
+      .closest(".dx-editor-body");
+    expect(body).toHaveAttribute("data-focus", "false");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Focus on the document" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Export DOCX" }));
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            call.method === "POST" &&
-            call.path.endsWith(`/${DOCUMENT_ID}/exports`) &&
-            (call.body as { revision: number }).revision === 2,
-        ),
-      ).toBe(true),
+    expect(body).toHaveAttribute("data-focus", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Show fields" }));
+    expect(body).toHaveAttribute("data-focus", "false");
+  });
+
+  it("groups fields by where their values come from", async () => {
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    expect(screen.getByText("From the application")).toBeVisible();
+    expect(screen.getByText("Written from your experience")).toBeVisible();
+    expect(screen.getByText("All 2 valid")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Needs attention/ }));
+    expect(screen.getByText("Nothing needs attention")).toBeVisible();
+  });
+
+  it("lists revisions, opens an older one read-only, and restores it", async () => {
+    currentRevision = 2;
+    revisionValues[2] = { full_name: "Ada latest", company_name: "Northwind" };
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    fireEvent.click(screen.getByRole("button", { name: /Rev 2/ }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /Rev 1.*Generated/ }),
     );
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Revision"), {
-      target: { value: "1" },
-    });
-    await screen.findByText("Older revision · read-only");
+    await screen.findByText("Viewing rev 1 of 2. Read-only.");
+    expect(screen.getByRole("textbox", { name: "Full name" })).toHaveValue(
+      "Ada",
+    );
     expect(screen.getByRole("textbox", { name: "Full name" })).toHaveAttribute(
       "readonly",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Restore as rev 3" }));
+    await waitFor(() => expect(posted(`/${DOCUMENT_ID}/restore`)).toBeTruthy());
+    expect(posted(`/${DOCUMENT_ID}/restore`)?.body).toMatchObject({
+      baseRevision: 2,
+      sourceRevision: 1,
+    });
+  });
+
+  it("exports the shown revision and keeps earlier exports downloadable", async () => {
+    currentRevision = 2;
+    revisionValues[2] = { full_name: "Ada latest", company_name: "Northwind" };
+    exports = [{ ...exportRow, revision: 1 }];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByText("EXPORT REV 2")).toBeVisible();
+    expect(screen.getByText("PREVIOUS EXPORTS")).toBeVisible();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Word document/ }));
+    await waitFor(() => expect(posted(`/${DOCUMENT_ID}/exports`)).toBeTruthy());
+    expect(posted(`/${DOCUMENT_ID}/exports`)?.body).toEqual({
+      revision: 2,
+      format: "docx",
+    });
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    expect(await screen.findByText("Exported rev 2 as DOCX")).toBeVisible();
+  });
+
+  it("warns that missing fields export blank and still offers Markdown", async () => {
+    validationIssues = [{ key: "full_name", code: "missing" }];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    expect(screen.getByText("1 / 2 need attention")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    expect(screen.getByText(/Missing fields export blank/)).toBeVisible();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Markdown/ }));
+    await waitFor(() => expect(posted(`/${DOCUMENT_ID}/exports`)).toBeTruthy());
+    expect(posted(`/${DOCUMENT_ID}/exports`)?.body).toMatchObject({
+      format: "md",
+    });
+  });
+
+  it("regenerates only what needs attention, or every profile field", async () => {
+    validationIssues = [{ key: "full_name", code: "missing" }];
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Restore as new revision" }),
+      screen.getByRole("menuitem", { name: /Fix fields that need attention/ }),
     );
     await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            call.method === "POST" &&
-            call.path.endsWith(`/${DOCUMENT_ID}/restore`) &&
-            (call.body as { sourceRevision: number }).sourceRevision === 1,
-        ),
-      ).toBe(true),
+      expect(posted(`/${DOCUMENT_ID}/regenerate`)).toBeTruthy(),
     );
+    expect(posted(`/${DOCUMENT_ID}/regenerate`)?.body).toEqual({
+      baseRevision: 1,
+      mode: "fix",
+      aiTargetId: "target-1",
+    });
+    await waitFor(() => expect(currentRevision).toBe(2));
+    fireEvent.click(await screen.findByRole("button", { name: "Regenerate" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("menuitem", {
+          name: /Fix fields that need attention/,
+        }),
+      ).toBeDisabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Regenerate every field/ }),
+    );
+    await waitFor(() => expect(currentRevision).toBe(3));
+  });
+
+  it("regenerates one profile field and never offers it for candidacy fields", async () => {
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    expect(
+      screen.queryByRole("button", { name: "Regenerate Company name" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Regenerate Full name" }),
+    );
+    await waitFor(() =>
+      expect(posted(`/${DOCUMENT_ID}/regenerate`)).toBeTruthy(),
+    );
+    expect(posted(`/${DOCUMENT_ID}/regenerate`)?.body).toEqual({
+      baseRevision: 1,
+      fieldKey: "full_name",
+      aiTargetId: "target-1",
+    });
+  });
+
+  it("offers a fresh document when the experience matrix has moved on", async () => {
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    expect(screen.getByText(/newer revision \(rev 3\)/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "New with rev 3" }));
+    expect(actions.go).toHaveBeenCalledWith("documents", ["new"]);
   });
 
   it("lets a general resume fill missing role and interview fields without a linked candidacy", async () => {
@@ -533,28 +1100,17 @@ describe("Documents view", () => {
       target_role: "",
       interview_stage: "",
     };
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
+    renderAt([DOCUMENT_ID]);
     const role = await screen.findByRole("textbox", { name: "Target role" });
     const stage = screen.getByRole("textbox", { name: "Interview stage" });
     expect(role).not.toHaveAttribute("readonly");
     expect(stage).not.toHaveAttribute("readonly");
+    fireEvent.focus(role);
     fireEvent.change(role, { target: { value: "Platform engineer" } });
     fireEvent.change(stage, { target: { value: "Screening" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save new revision" }));
+    fireEvent.blur(role);
     await waitFor(() => expect(currentRevision).toBe(2));
-    expect(
-      calls.find(
-        (call) =>
-          call.method === "POST" &&
-          call.path.endsWith(`/${DOCUMENT_ID}/revisions`),
-      )?.body,
-    ).toMatchObject({
+    expect(posted(`/${DOCUMENT_ID}/revisions`)?.body).toMatchObject({
       baseRevision: 1,
       values: {
         target_role: "Platform engineer",
@@ -563,173 +1119,174 @@ describe("Documents view", () => {
     });
   });
 
-  it("keeps unsaved edits when revision navigation is declined", async () => {
-    currentRevision = 2;
-    revisionValues[2] = { full_name: "Ada latest", company_name: "Northwind" };
-    const confirm = vi
-      .spyOn(window, "confirm")
-      .mockReturnValueOnce(false)
-      .mockReturnValueOnce(true);
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
+  it("shows a stale revision error without changing the editor value", async () => {
+    saveConflict = true;
+    renderAt([DOCUMENT_ID]);
     const name = await screen.findByRole("textbox", { name: "Full name" });
-    fireEvent.change(name, { target: { value: "Unsaved name" } });
-    fireEvent.change(screen.getByLabelText("Revision"), {
-      target: { value: "1" },
-    });
-    expect(confirm).toHaveBeenCalledWith(
-      "Discard unsaved edits and open another revision?",
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "Ada edited" } });
+    fireEvent.blur(name);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "A newer revision exists",
     );
-    expect(name).toHaveValue("Unsaved name");
-    expect(screen.getByLabelText("Revision")).toHaveValue("2");
-    expect(
-      calls.some(
-        (call) =>
-          call.method === "GET" &&
-          call.path.endsWith(`${DOCUMENT_ID}?revision=1`),
-      ),
-    ).toBe(false);
+    expect(name).toHaveValue("Ada edited");
+    expect(currentRevision).toBe(1);
+  });
 
-    fireEvent.change(screen.getByLabelText("Revision"), {
-      target: { value: "1" },
-    });
-    await screen.findByText("Older revision · read-only");
-    expect(screen.getByRole("textbox", { name: "Full name" })).toHaveValue(
-      "Ada",
+  it("offers retry when a selected document cannot load", async () => {
+    stubFetchFor((path) =>
+      path.endsWith(`/${DOCUMENT_ID}`)
+        ? new Response("Internal Server Error", { status: 500 })
+        : undefined,
     );
-    expect(screen.getByRole("textbox", { name: "Full name" })).toHaveAttribute(
-      "readonly",
-    );
+    renderAt([DOCUMENT_ID]);
+    expect(
+      await screen.findByRole("heading", { name: "Document could not load" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+  });
+});
+
+describe("Templates", () => {
+  it("lists templates with kind, format, field count, and documents using them", async () => {
+    renderAt(["templates"]);
+    const row = await screen.findByRole("row", { name: /Resume/ });
+    expect(within(row).getByText("Built-in · rev 1")).toBeVisible();
+    expect(within(row).getByText("DOCX")).toBeVisible();
+    expect(within(row).getByText("2")).toBeVisible();
+    expect(within(row).getByText("1 doc")).toBeVisible();
+    fireEvent.click(row);
+    expect(actions.go).toHaveBeenCalledWith("documents", [
+      "templates",
+      TEMPLATE_ID,
+    ]);
   });
 
   it("keeps built-in templates read-only and offers duplication", async () => {
-    render(
-      <DocumentsView
-        rest={["templates", TEMPLATE_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
+    renderAt(["templates", TEMPLATE_ID]);
+    await screen.findByText("Built-in templates are read-only.");
+    expect(screen.getByLabelText("GENERATION INSTRUCTIONS")).toHaveAttribute(
+      "readonly",
     );
-    await screen.findByText("Built-in template · read-only");
     expect(
-      screen.queryByRole("button", { name: "Save new version" }),
+      screen.queryByRole("button", { name: "Upload new version" }),
     ).not.toBeInTheDocument();
-    vi.spyOn(window, "prompt").mockReturnValue("My resume");
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate template" }));
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            call.method === "POST" &&
-            call.path.endsWith(`/templates/${TEMPLATE_ID}/duplicate`),
-        ),
-      ).toBe(true),
+    expect(await screen.findByText("{full_name}")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Duplicate to customize" }),
     );
-    expect(
-      within(screen.getByRole("main")).getByText(/fields:/),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(posted(`/templates/${TEMPLATE_ID}/duplicate`)).toBeTruthy(),
+    );
+    expect(posted(`/templates/${TEMPLATE_ID}/duplicate`)?.body).toEqual({
+      name: "Resume (copy)",
+    });
+    expect(actions.go).toHaveBeenCalledWith("documents", [
+      "templates",
+      OWNED_TEMPLATE_A,
+    ]);
   });
 
-  it("uploads a Markdown template with its instructions", async () => {
-    render(
-      <DocumentsView
-        rest={["templates"]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
-    await screen.findByRole("button", { name: "Add template" });
-    fireEvent.change(screen.getByLabelText("Name"), {
-      target: { value: "Practice notes" },
-    });
-    fireEvent.change(screen.getByLabelText("Format"), {
-      target: { value: "md" },
-    });
-    fireEvent.change(screen.getByLabelText("Generation instructions"), {
-      target: { value: "Use concise evidence." },
-    });
-    fireEvent.change(screen.getByLabelText("Source file"), {
+  it("uploads a Markdown template; fields come from the file", async () => {
+    renderAt(["templates"]);
+    await screen.findByRole("row", { name: /Resume/ });
+    fireEvent.click(screen.getByRole("button", { name: "Upload template" }));
+    expect(
+      screen.getByRole("button", { name: "Save template" }),
+    ).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Template file"), {
       target: {
         files: [
           new File(["# {{full_name}}"], "notes.md", { type: "text/markdown" }),
         ],
       },
     });
-    await screen.findByText("Detected fields");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Required" }));
-    fireEvent.change(
-      screen.getByRole("spinbutton", { name: "Maximum length" }),
-      {
-        target: { value: "40" },
-      },
-    );
-    fireEvent.submit(
-      screen.getByRole("button", { name: "Add template" }).closest("form")!,
-    );
+    expect(await screen.findByText("1 fields found")).toBeVisible();
+    expect(screen.getByLabelText("Name")).toHaveValue("notes");
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Practice notes" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Interview prep" }));
+    fireEvent.change(screen.getByLabelText("Generation instructions"), {
+      target: { value: "Use concise evidence." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    await waitFor(() => expect(posted("/templates")).toBeTruthy());
+    const upload = posted("/templates")?.body as FormData;
+    expect(upload.get("name")).toBe("Practice notes");
+    expect(upload.get("kind")).toBe("interview_prep");
+    expect(upload.get("format")).toBe("md");
+    expect(upload.get("instructions")).toBe("Use concise evidence.");
+    expect(upload.get("file")).toBeInstanceOf(File);
+    expect(upload.get("fields")).toBeNull();
     await waitFor(() =>
-      expect(
-        calls.some(
-          (call) => call.method === "POST" && call.path.endsWith("/templates"),
-        ),
-      ).toBe(true),
+      expect(actions.go).toHaveBeenCalledWith("documents", [
+        "templates",
+        OWNED_TEMPLATE_B,
+      ]),
     );
-    const upload = calls.find(
-      (call) => call.method === "POST" && call.path.endsWith("/templates"),
-    )?.body;
-    expect(upload).toBeInstanceOf(FormData);
-    expect((upload as FormData).get("name")).toBe("Practice notes");
-    expect((upload as FormData).get("format")).toBe("md");
-    expect((upload as FormData).get("instructions")).toBe(
-      "Use concise evidence.",
-    );
-    expect((upload as FormData).get("file")).toBeInstanceOf(File);
-    expect(JSON.parse(String((upload as FormData).get("fields")))).toEqual([
-      { ...fields[0], required: false, maxLength: 40 },
-    ]);
   });
 
-  it("clears previous template file, instructions, and detail when switching templates", async () => {
-    templateCatalog = [
-      {
-        template: {
-          ...template,
-          id: OWNED_TEMPLATE_A,
-          name: "Template A",
-          ownerUserId: "member",
-        },
-        latestRevision: 1,
-      },
-      {
-        template: {
-          ...template,
-          id: OWNED_TEMPLATE_B,
-          name: "Template B",
-          ownerUserId: "member",
-        },
-        latestRevision: 1,
-      },
-    ];
-    const { rerender } = render(
-      <DocumentsView
-        rest={["templates", OWNED_TEMPLATE_A]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
-    await screen.findByDisplayValue("Instructions for A");
-    fireEvent.change(screen.getByLabelText("Source file"), {
-      target: { files: [new File(["{{full_name}}"], "a.docx")] },
+  it("rejects a file that is neither .docx nor .md", async () => {
+    renderAt(["templates"]);
+    await screen.findByRole("row", { name: /Resume/ });
+    fireEvent.click(screen.getByRole("button", { name: "Upload template" }));
+    fireEvent.change(screen.getByLabelText("Template file"), {
+      target: { files: [new File(["x"], "notes.txt")] },
     });
-    await screen.findByText("Detected fields");
-    expect(
-      screen.getByRole("button", { name: "Save new version" }),
-    ).toBeEnabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Choose a .docx or .md file.",
+    );
+    expect(posted("/templates/intake")).toBeUndefined();
+  });
 
+  it("saves edited instructions as the next template revision", async () => {
+    templateCatalog = [
+      listed({
+        ...template,
+        id: OWNED_TEMPLATE_A,
+        name: "Template A",
+        ownerUserId: "member",
+      }),
+    ];
+    renderAt(["templates", OWNED_TEMPLATE_A]);
+    const instructions = await screen.findByDisplayValue("Instructions for A");
+    expect(
+      screen.queryByRole("button", { name: /Save as rev/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(instructions, { target: { value: "Be brief." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save as rev 2" }));
+    await waitFor(() =>
+      expect(
+        posted(`/templates/${OWNED_TEMPLATE_A}/instructions`),
+      ).toBeTruthy(),
+    );
+    expect(posted(`/templates/${OWNED_TEMPLATE_A}/instructions`)?.body).toEqual(
+      {
+        expectedRevision: 1,
+        instructions: "Be brief.",
+      },
+    );
+    expect(await screen.findByText("Template A saved as rev 2")).toBeVisible();
+  });
+
+  it("uploads a new version for the selected template only, with its own instructions", async () => {
+    templateCatalog = [
+      listed({
+        ...template,
+        id: OWNED_TEMPLATE_A,
+        name: "Template A",
+        ownerUserId: "member",
+      }),
+      listed({
+        ...template,
+        id: OWNED_TEMPLATE_B,
+        name: "Template B",
+        ownerUserId: "member",
+      }),
+    ];
+    const { rerender } = renderAt(["templates", OWNED_TEMPLATE_A]);
+    await screen.findByDisplayValue("Instructions for A");
     rerender(
       <DocumentsView
         rest={["templates", OWNED_TEMPLATE_B]}
@@ -738,90 +1295,20 @@ describe("Documents view", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Save new version" }),
-    ).toBeDisabled();
-    expect(screen.getByLabelText("Source file")).toHaveValue("");
-    expect(
       screen.queryByDisplayValue("Instructions for A"),
     ).not.toBeInTheDocument();
     await screen.findByDisplayValue("Instructions for B");
-
-    fireEvent.change(screen.getByLabelText("Source file"), {
+    fireEvent.change(screen.getByLabelText("New template version file"), {
       target: { files: [new File(["{{full_name}}"], "b.docx")] },
     });
-    await screen.findByText("Detected fields");
-    fireEvent.submit(
-      screen.getByRole("button", { name: "Save new version" }).closest("form")!,
-    );
     await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            call.method === "POST" &&
-            call.path.endsWith(`/templates/${OWNED_TEMPLATE_B}/revisions`),
-        ),
-      ).toBe(true),
+      expect(posted(`/templates/${OWNED_TEMPLATE_B}/revisions`)).toBeTruthy(),
     );
-    expect(
-      calls.some(
-        (call) =>
-          call.method === "POST" &&
-          call.path.endsWith(`/templates/${OWNED_TEMPLATE_A}/revisions`),
-      ),
-    ).toBe(false);
-    const upload = calls.find(
-      (call) =>
-        call.method === "POST" &&
-        call.path.endsWith(`/templates/${OWNED_TEMPLATE_B}/revisions`),
-    )?.body as FormData;
+    expect(posted(`/templates/${OWNED_TEMPLATE_A}/revisions`)).toBeUndefined();
+    const upload = posted(`/templates/${OWNED_TEMPLATE_B}/revisions`)
+      ?.body as FormData;
     expect(upload.get("instructions")).toBe("Instructions for B");
+    expect(upload.get("expectedRevision")).toBe("1");
     expect((upload.get("file") as File).name).toBe("b.docx");
-  });
-
-  it("offers Markdown export from a DOCX template when a field is missing", async () => {
-    validationIssues = [{ key: "full_name", code: "missing" }];
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
-    await screen.findByRole("button", { name: "Export DOCX" });
-    expect(screen.getByText(/Missing fields export blank/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Export format"), {
-      target: { value: "md" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
-    await waitFor(() =>
-      expect(
-        calls.some(
-          (call) =>
-            call.method === "POST" &&
-            call.path.endsWith(`/${DOCUMENT_ID}/exports`) &&
-            (call.body as { format: string }).format === "md",
-        ),
-      ).toBe(true),
-    );
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
-  });
-
-  it("shows a stale revision error without changing the editor value", async () => {
-    saveConflict = true;
-    render(
-      <DocumentsView
-        rest={[DOCUMENT_ID]}
-        actions={actions}
-        onDirtyChange={vi.fn()}
-      />,
-    );
-    const name = await screen.findByRole("textbox", { name: "Full name" });
-    fireEvent.change(name, { target: { value: "Ada edited" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save new revision" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "A newer revision exists",
-    );
-    expect(name).toHaveValue("Ada edited");
-    expect(currentRevision).toBe(1);
   });
 });

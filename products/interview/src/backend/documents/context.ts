@@ -15,6 +15,7 @@ export type DocumentContext = {
   candidateProfileSha256: string;
   candidacyValues: Record<string, string>;
   interviewValues: Record<string, string>;
+  profileValues: Record<string, string>;
   missingProfileKeys: string[];
 };
 
@@ -113,24 +114,56 @@ export async function resolveDocumentContext(
         typeof candidate === "object" && candidate !== null
           ? (candidate as Record<string, unknown>)
           : {};
-      const contactFields = [
-        ["phone", "phone"],
-        ["phone_number", "phone_number"],
-        ["email", "email"],
-        ["email_address", "email_address"],
-      ] as const;
-      const missingProfileKeys = contactFields
-        .filter(
-          ([, profileKey]) =>
-            typeof contact[profileKey] !== "string" ||
-            !contact[profileKey].trim(),
-        )
-        .map(([fieldKey]) => fieldKey);
+      const text = (...names: string[]) =>
+        names
+          .map((name) => contact[name])
+          .find(
+            (value): value is string =>
+              typeof value === "string" && !!value.trim(),
+          )
+          ?.trim() ?? "";
+      // "Calgary, AB" is a city and a province.
+      const [city = "", province = ""] = text("location")
+        .split(",")
+        .map((part) => part.trim());
+      const email = text("email", "email_address");
+      const phone = text("phone", "phone_number");
+      const portfolio = text("portfolio", "website", "portfolio_url");
+      const name = text("name");
+      const candidates: Record<string, string> = {
+        heading_name: name,
+        full_name: name,
+        candidate_name: name,
+        name,
+        email,
+        email_address: email,
+        phone,
+        phone_number: phone,
+        heading_phone_number: phone,
+        portfolio,
+        portfolio_url: portfolio,
+        location: text("location"),
+        city,
+        province,
+      };
+      // Facts the matrix states are used as written. The contact ones it does
+      // not state stay blank for the person to type, never invented.
+      const profileValues = Object.fromEntries(
+        Object.entries(candidates).filter(([, value]) => value),
+      );
+      const missingProfileKeys = Object.keys(candidates).filter(
+        (key) =>
+          !profileValues[key] &&
+          !["name", "full_name", "candidate_name", "heading_name"].includes(
+            key,
+          ),
+      );
       return {
         candidateProfile: matrix,
         candidateProfileSha256: sha256,
         candidacyValues,
         interviewValues,
+        profileValues,
         missingProfileKeys,
       };
     },

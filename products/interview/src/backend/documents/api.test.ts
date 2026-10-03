@@ -343,7 +343,7 @@ describe("Documents private API", () => {
     form.set("instructions", "Use only the candidate profile");
     form.set(
       "file",
-      new File(["# {name}\n"], "resume.md", { type: "text/markdown" }),
+      new File(["# {about}\n"], "resume.md", { type: "text/markdown" }),
     );
     const uploaded = await mine.request(`${url}/templates`, {
       method: "POST",
@@ -385,7 +385,7 @@ describe("Documents private API", () => {
       document: { id: string };
       revision: { values: Record<string, string> };
     };
-    expect(result.revision.values["name"]).toBe("Ada");
+    expect(result.revision.values["about"]).toBe("Evidence");
     expect(output).toHaveLength(1);
     expect((output[0] as AiExecutionRequest).profileId).toBe("test-model");
     expect((output[0] as AiExecutionRequest).targetId).toBe("test-model");
@@ -410,7 +410,7 @@ describe("Documents private API", () => {
     expect(output).toHaveLength(1);
     const edit = await mine.request(
       `${url}/${result.document.id}/revisions`,
-      post({ baseRevision: 1, values: { name: "Ada Lovelace" } }),
+      post({ baseRevision: 1, values: { about: "Ada Lovelace" } }),
     );
     expect(edit.status).toBe(201);
     const preview = await mine.request(
@@ -651,7 +651,7 @@ describe("Documents private API", () => {
     form.set("kind", "custom");
     form.set("format", "md");
     form.set("instructions", "");
-    form.set("file", new File(["{name}"], "cancel.md"));
+    form.set("file", new File(["{about}"], "cancel.md"));
     const uploaded = await mine.request(`${url}/templates`, {
       method: "POST",
       headers,
@@ -695,14 +695,73 @@ describe("Documents private API", () => {
     }
   }, 30_000);
 
-  it("returns the winner as an Open it offer when two first generations race", async () => {
+  it("stops writing and saves nothing when the page reading the stream goes away", async () => {
+    const mine = app(ownerId);
+    const form = new FormData();
+    form.set("name", "Reload template");
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "");
+    form.set("file", new File(["{about}"], "reload.md"));
+    const templateId = (
+      (await (
+        await mine.request(`${url}/templates`, {
+          method: "POST",
+          headers,
+          body: form,
+        })
+      ).json()) as { template: { id: string } }
+    ).template.id;
+    const entered = new Promise<void>((resolve) => {
+      enteredGeneration = resolve;
+    });
+    waitForAbort = true;
+    try {
+      const response = await mine.request(
+        url,
+        post(
+          {
+            title: "Abandoned by a reload",
+            templateId,
+            templateRevision: 1,
+            profileId: "profile",
+            profileRevision: 1,
+            candidacyId: null,
+            interviewId: null,
+            aiTargetId: "test-model",
+          },
+          { accept: "application/x-ndjson" },
+        ),
+      );
+      expect(response.status).toBe(200);
+      await entered;
+      const call = output.at(-1) as { signal?: AbortSignal } | undefined;
+      expect(call?.signal?.aborted).toBe(false);
+      // A reload closes the connection: the reader cancels the stream.
+      await response.body?.cancel();
+      await vi.waitFor(() => expect(call?.signal?.aborted).toBe(true));
+      const rows = (
+        (await (await mine.request(url, { headers })).json()) as {
+          documents: Array<{ title: string }>;
+        }
+      ).documents;
+      expect(rows.some((item) => item.title === "Abandoned by a reload")).toBe(
+        false,
+      );
+    } finally {
+      waitForAbort = false;
+      enteredGeneration = null;
+    }
+  }, 30_000);
+
+  it("tells a second window a document is already being written, and offers the saved one afterwards", async () => {
     const mine = app(ownerId);
     const form = new FormData();
     form.set("name", "Concurrent template");
     form.set("kind", "custom");
     form.set("format", "md");
     form.set("instructions", "");
-    form.set("file", new File(["{name}"], "concurrent.md"));
+    form.set("file", new File(["{about}"], "concurrent.md"));
     const uploaded = await mine.request(`${url}/templates`, {
       method: "POST",
       headers,
@@ -712,12 +771,9 @@ describe("Documents private API", () => {
     const templateId = ((await uploaded.json()) as { template: { id: string } })
       .template.id;
     let release!: () => void;
-    let arrived!: () => void;
+    const arrived = () => undefined;
     const releasePromise = new Promise<void>((resolve) => {
       release = resolve;
-    });
-    const bothArrived = new Promise<void>((resolve) => {
-      arrived = resolve;
     });
     concurrentGate = { entered: 0, arrived, release: releasePromise };
     try {
@@ -732,23 +788,24 @@ describe("Documents private API", () => {
         aiTargetId: "test-model",
       };
       const first = mine.request(url, post(input));
-      const second = mine.request(url, post(input));
-      await bothArrived;
+      await vi.waitFor(() => expect(concurrentGate?.entered).toBe(1));
+      // Another window asks for the same document while it is being written.
+      const second = await mine.request(url, post(input));
+      expect(second.status).toBe(409);
+      expect(await second.json()).toEqual({ inProgress: true, offer: "wait" });
+      // It did not start a second, paid-for generation.
+      expect(concurrentGate?.entered).toBe(1);
       release();
-      const responses = await Promise.all([first, second]);
-      expect(responses.map((response) => response.status).sort()).toEqual([
-        201, 409,
-      ]);
-      const winner = responses.find((response) => response.status === 201)!;
-      const loser = responses.find((response) => response.status === 409)!;
+      const winner = await first;
+      expect(winner.status).toBe(201);
       const winnerId = ((await winner.json()) as { document: { id: string } })
         .document.id;
+      // Once saved, the same request is offered the saved document.
+      const third = await mine.request(url, post(input));
+      expect(third.status).toBe(409);
       expect(
-        (await loser.json()) as { existingDocumentId: string; offer: string },
-      ).toMatchObject({
-        existingDocumentId: winnerId,
-        offer: "open-it",
-      });
+        (await third.json()) as { existingDocumentId: string; offer: string },
+      ).toMatchObject({ existingDocumentId: winnerId, offer: "open-it" });
       const listed = await mine.request(url, { headers });
       const rows = (
         (await listed.json()) as { documents: Array<{ title: string }> }
@@ -829,6 +886,252 @@ describe("Documents private API", () => {
     expect(await count("interview.document-export")).toBe(exportBefore);
   }, 30_000);
 
+  it("streams the plan, each section and the saved document while a document is written", async () => {
+    const mine = app(ownerId);
+    const rows = (
+      (await (await mine.request(`${url}/templates`, { headers })).json()) as {
+        templates: Array<{ template: { id: string; kind: string } }>;
+      }
+    ).templates;
+    const cover = rows.find((row) => row.template.kind === "cover_letter");
+    const response = await mine.request(
+      url,
+      post(
+        {
+          title: "Streamed cover letter",
+          templateId: cover!.template.id,
+          templateRevision: 1,
+          profileId: "profile",
+          profileRevision: 1,
+          candidacyId: null,
+          interviewId: null,
+          aiTargetId: "test-model",
+        },
+        { accept: "application/x-ndjson" },
+      ),
+    );
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(response.headers.get("content-type")).toContain("x-ndjson");
+    const events = (await response.text())
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { t: string; [key: string]: unknown });
+    expect(events.map((event) => event.t)).toEqual([
+      "plan",
+      ...events.filter((event) => event.t === "batch").map(() => "batch"),
+      "done",
+    ]);
+    const plan = events[0] as unknown as {
+      batches: Array<{ id: string; count: number }>;
+      fixed: Record<string, string>;
+    };
+    expect(plan.batches.length).toBeGreaterThan(0);
+    expect(events.filter((event) => event.t === "batch")).toHaveLength(
+      plan.batches.length,
+    );
+    const done = events.at(-1) as unknown as { document: { id: string } };
+    const saved = await mine.request(`${url}/${done.document.id}`, {
+      headers,
+    });
+    expect(saved.status).toBe(200);
+    // The same request, asked again, is answered before anything streams.
+    const again = await mine.request(
+      url,
+      post(
+        {
+          title: "Streamed cover letter",
+          templateId: cover!.template.id,
+          templateRevision: 1,
+          profileId: "profile",
+          profileRevision: 1,
+          candidacyId: null,
+          interviewId: null,
+          aiTargetId: "test-model",
+        },
+        { accept: "application/x-ndjson" },
+      ),
+    );
+    expect(again.status).toBe(409);
+  }, 30_000);
+
+  it("draws a template with given values, for its owner or when it is built in", async () => {
+    const mine = app(ownerId);
+    const form = new FormData();
+    form.set("name", "Previewed template");
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "");
+    form.set("file", new File(["# Hello {name}"], "preview.md"));
+    const uploaded = await mine.request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const id = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const drawn = await mine.request(
+      `${url}/templates/${id}/preview`,
+      post({ revision: 1, values: { name: "Ada" } }),
+    );
+    expect(drawn.status).toBe(200);
+    const body = (await drawn.json()) as { kind: string; html: string };
+    expect(body.kind).toBe("html");
+    expect(body.html).toContain('data-field="name"');
+    expect(body.html).toContain("Ada");
+    expect(
+      (
+        await app(otherId).request(
+          `${url}/templates/${id}/preview`,
+          post({ revision: 1, values: {} }),
+        )
+      ).status,
+    ).toBe(404);
+    const rows = (
+      (await (await mine.request(`${url}/templates`, { headers })).json()) as {
+        templates: Array<{ template: { id: string; kind: string } }>;
+      }
+    ).templates;
+    const resume = rows.find((row) => row.template.kind === "resume");
+    const docx = (await (
+      await app(otherId).request(
+        `${url}/templates/${resume!.template.id}/preview`,
+        post({ revision: 1, values: {} }),
+      )
+    ).json()) as { kind: string; docx: string };
+    expect(docx.kind).toBe("docx");
+    expect(Buffer.from(docx.docx, "base64").subarray(0, 2).toString()).toBe(
+      "PK",
+    );
+  }, 30_000);
+
+  it("creates an application and its stages for the member, and only for them", async () => {
+    const mine = app(ownerId);
+    const created = await mine.request(
+      `${url}/candidacies`,
+      post({
+        companyName: "Zensurance",
+        title: "Tech Lead",
+        jobDescription: "  Own payments.  ",
+        interview: { kind: "hiring_manager", label: "Hiring manager" },
+      }),
+    );
+    expect(created.status).toBe(201);
+    const { candidacyId, interviewId } = (await created.json()) as {
+      candidacyId: string;
+      interviewId: string;
+    };
+    const again = (await (
+      await mine.request(
+        `${url}/candidacies`,
+        post({ companyName: "zensurance", title: "Staff Engineer" }),
+      )
+    ).json()) as { candidacyId: string; interviewId: string | null };
+    expect(again.interviewId).toBeNull();
+    const stage = await mine.request(
+      `${url}/candidacies/${candidacyId}/interviews`,
+      post({ kind: "technical", label: "Technical" }),
+    );
+    expect(stage.status).toBe(201);
+    const context = (await (
+      await mine.request(`${url}/context`, { headers })
+    ).json()) as {
+      candidacies: Array<{
+        id: string;
+        company_name: string;
+        job_description: string | null;
+      }>;
+      interviews: Array<{ id: string; candidacy_id: string; label: string }>;
+    };
+    expect(
+      context.candidacies
+        .filter((item) => [candidacyId, again.candidacyId].includes(item.id))
+        .map((item) => [item.company_name, item.job_description]),
+    ).toEqual(
+      expect.arrayContaining([
+        ["Zensurance", "Own payments."],
+        ["Zensurance", null],
+      ]),
+    );
+    expect(
+      context.interviews
+        .filter((item) => item.candidacy_id === candidacyId)
+        .map((item) => item.label),
+    ).toEqual(["Hiring manager", "Technical"]);
+    expect(interviewId).toBeTruthy();
+    const company = await pg.owner.query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM interview.companies WHERE tenant_id=$1 AND lower(name)='zensurance'",
+      [tenantId],
+    );
+    expect(company.rows[0]?.n).toBe("1");
+    // Another member neither sees it nor can add stages to it.
+    const theirs = app(otherId);
+    expect(
+      (
+        (await (
+          await theirs.request(`${url}/context`, { headers })
+        ).json()) as {
+          candidacies: Array<{ id: string }>;
+        }
+      ).candidacies.map((item) => item.id),
+    ).not.toContain(candidacyId);
+    expect(
+      (
+        await theirs.request(
+          `${url}/candidacies/${candidacyId}/interviews`,
+          post({ kind: "final", label: "Final" }),
+        )
+      ).status,
+    ).toBe(404);
+    const invalid = await mine.request(
+      `${url}/candidacies`,
+      post({ companyName: "", title: "x" }),
+    );
+    expect(invalid.status).toBe(400);
+  }, 30_000);
+
+  it("saves edited instructions as a new revision over the same fields", async () => {
+    const mine = app(ownerId);
+    const form = new FormData();
+    form.set("name", "Instruction revision template");
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "First");
+    form.set("file", new File(["{name}"], "instructions.md"));
+    const uploaded = await mine.request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const templateId = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const stale = await mine.request(
+      `${url}/templates/${templateId}/instructions`,
+      post({ expectedRevision: 2, instructions: "Stale" }),
+    );
+    expect(stale.status).toBe(409);
+    const saved = await mine.request(
+      `${url}/templates/${templateId}/instructions`,
+      post({ expectedRevision: 1, instructions: "Second" }),
+    );
+    expect(saved.status).toBe(201);
+    const latest = (await (
+      await mine.request(`${url}/templates/${templateId}`, { headers })
+    ).json()) as {
+      revision: { revision: number; instructions: string };
+      fields: Array<{ key: string }>;
+    };
+    expect(latest.revision).toMatchObject({
+      revision: 2,
+      instructions: "Second",
+    });
+    expect(latest.fields.map((field) => field.key)).toEqual(["name"]);
+    const foreign = await app(randomUUID()).request(
+      `${url}/templates/${templateId}/instructions`,
+      post({ expectedRevision: 2, instructions: "Not yours" }),
+    );
+    expect(foreign.status).toBe(404);
+  }, 30_000);
+
   it("rolls back a first document save when the request aborts during its insert", async () => {
     const mine = app(ownerId);
     const form = new FormData();
@@ -836,7 +1139,7 @@ describe("Documents private API", () => {
     form.set("kind", "custom");
     form.set("format", "md");
     form.set("instructions", "");
-    form.set("file", new File(["{name}"], "save-cancel.md"));
+    form.set("file", new File(["{about}"], "save-cancel.md"));
     const uploaded = await mine.request(`${url}/templates`, {
       method: "POST",
       headers,

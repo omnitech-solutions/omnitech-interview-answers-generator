@@ -67,7 +67,7 @@ const target = (row: Row): SessionTarget => ({
 
 // Claims up to `limit` active sessions whose lease is free or expired. Acquiring
 // raises the session's fence, so a restarted worker outranks its earlier self
-// (ADR-0010 Fencing); `includeOwnLive` lets a restarted worker re-acquire the
+// (ADR-0011 Fencing); `includeOwnLive` lets a restarted worker re-acquire the
 // live leases its previous process still holds under the same id.
 export function claimSessions(
   database: PlatformDatabase,
