@@ -4,6 +4,7 @@ import React from "react";
 
 import { resolvePlatformContext } from "@/src/platform/context";
 import { PlatformShell } from "@/src/platform/platform-shell";
+import { productFrames } from "@/src/platform/registry";
 
 export default async function TenantLayout({
   children,
@@ -15,5 +16,9 @@ export default async function TenantLayout({
   const { tenantSlug } = await params;
   const context = await resolvePlatformContext(tenantSlug);
   if (!context) notFound();
-  return <PlatformShell context={context}>{children}</PlatformShell>;
+  return (
+    <PlatformShell context={context} frames={productFrames()}>
+      {children}
+    </PlatformShell>
+  );
 }

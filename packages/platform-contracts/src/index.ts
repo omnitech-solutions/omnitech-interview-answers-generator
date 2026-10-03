@@ -21,8 +21,10 @@ export {
 export {
   type NavigationManifest,
   navigationManifestSchema,
+  type ProductFrame,
   type ProductFrontendPlugin,
   type ProductManifest,
+  productFrameSchema,
   productManifestSchema,
   type ProductPageLoader,
   type ProductPageProps,

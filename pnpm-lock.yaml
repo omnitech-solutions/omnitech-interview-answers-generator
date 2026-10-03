@@ -184,9 +184,6 @@ importers:
       '@omnitech/ai-runtime':
         specifier: workspace:*
         version: link:../../packages/ai-runtime
-      '@omnitech/code-runner':
-        specifier: workspace:*
-        version: link:../../packages/code-runner
       '@omnitech/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -722,6 +719,18 @@ importers:
       '@omnitech-assistant/sdk':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
+      '@omnitech-assistant/server':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz(@cfworker/json-schema@4.1.1)
+      '@omnitech-assistant/storage-postgres':
+        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+        version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+      '@omnitech/ai-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ai-contracts
+      '@omnitech/ai-runtime':
+        specifier: workspace:*
+        version: link:../../packages/ai-runtime
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
@@ -807,12 +816,6 @@ importers:
       '@material-symbols/svg-400':
         specifier: 0.47.5
         version: 0.47.5
-      '@omnitech-assistant/server':
-        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz(@cfworker/json-schema@4.1.1)
-      '@omnitech-assistant/storage-postgres':
-        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
       '@testing-library/jest-dom':
         specifier: ^7.0.0
         version: 7.0.0(@testing-library/dom@10.4.1)

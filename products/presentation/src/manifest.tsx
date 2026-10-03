@@ -11,6 +11,8 @@ export const manifest = {
   defaultName: "Presentations",
   defaultDescription: "Create, edit, present, and share visual documents.",
   icon: "presentation",
+  // The presentation studio's dark chrome.
+  frame: "dark",
   permissions: [
     "presentation.read",
     "presentation.write",

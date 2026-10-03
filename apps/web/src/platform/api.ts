@@ -1,20 +1,9 @@
 import { createPlatformApi } from "@omnitech/platform-api";
-import { getPlatformDatabase } from "@omnitech/database";
-import {
-  createInterviewApi,
-  INTERVIEW_ANSWER_PROFILE,
-} from "@omnitech/product-interview/backend";
-import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
 import { createPlatformAiGateway } from "./ai";
-import { resolveDefaultLanguageModel } from "./ai-config";
 import { resolvePlatformContext } from "./context";
-import {
-  getInterviewStudio,
-  interviewGenerate,
-  resolveInterviewScope,
-} from "./interview-studio";
+import { createProductBackends } from "./products";
 
 export function createApplicationApi() {
   const api = new Hono();
@@ -50,32 +39,9 @@ export function createApplicationApi() {
       }),
     );
   });
-  // Interview answers and explanations: generated on the gateway for the
-  // member of the tenant the request names; without a configured model the
-  // API answers 503 instead of drafting with the local placeholder.
-  api.route(
-    "/",
-    createInterviewApi({
-      resolveScope: resolveInterviewScope,
-      ...(resolveDefaultLanguageModel()
-        ? { generate: interviewGenerate(ai, INTERVIEW_ANSWER_PROFILE) }
-        : {}),
-    }),
-  );
-  // Interview Studio: the assistant, drafts, plan, briefs, briefing packs
-  // and rehearsals, each scoped to the signed-in member of the tenant.
-  const forward = async (request: Request) =>
-    (await getInterviewStudio(ai)).app.fetch(request);
-  api.all("/api/assistant/*", (context) => forward(context.req.raw));
-  api.all("/api/interview/*", (context) => forward(context.req.raw));
+  // Each registered product's router, with the platform services it needs.
+  for (const backend of createProductBackends(ai))
+    api.route(backend.mountPath, backend.app as Hono);
   api.route("/api", createAgentApi());
-  api.route(
-    "/api",
-    createPresentationApi({
-      database: getPlatformDatabase(),
-      resolveContext: resolvePlatformContext,
-      ai,
-    }),
-  );
   return api;
 }

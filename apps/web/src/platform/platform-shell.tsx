@@ -1,7 +1,10 @@
 "use client";
 
 import type { AiTargetSummary } from "@omnitech/ai-contracts";
-import type { PlatformContext } from "@omnitech/platform-contracts";
+import type {
+  PlatformContext,
+  ProductFrame,
+} from "@omnitech/platform-contracts";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import React, { useEffect } from "react";
@@ -10,14 +13,19 @@ import React, { useEffect } from "react";
 // navigation and settings; the frame applies the member's preferences.
 export function PlatformShell({
   context,
+  frames,
   children,
 }: {
   context: PlatformContext;
+  // Each registered product's frame, by the route segment naming it.
+  frames: Readonly<Record<string, ProductFrame>>;
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const isPresentationRoute = pathname.includes("/p/presentation");
-  const isInterviewRoute = pathname.includes("/p/interview");
+  // A product page is /t/:tenantSlug/p/:productId/*; its registration
+  // chooses the frame, and every other page is standard.
+  const productSegment = /^\/t\/[^/]+\/p\/([^/]+)/.exec(pathname)?.[1];
+  const frame = (productSegment && frames[productSegment]) || "standard";
   const { theme, locale } = context.preferences;
   const tenant = encodeURIComponent(context.tenant.slug);
 
@@ -72,9 +80,7 @@ export function PlatformShell({
   }, [locale, theme, tenant]);
 
   return (
-    <div
-      className={`platform-frame ${isPresentationRoute ? "platform-frame-presentation" : ""} ${isInterviewRoute ? "platform-frame-interview" : ""}`}
-    >
+    <div className={`platform-frame platform-frame-${frame}`}>
       <main className="platform-content">{children}</main>
     </div>
   );

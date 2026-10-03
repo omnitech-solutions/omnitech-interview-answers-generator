@@ -39,6 +39,10 @@ export {
   INTERVIEW_PRODUCT_ID,
 } from "../assistant-profile.js";
 export {
+  createInterviewBackend,
+  type InterviewBackendServices,
+} from "./interview-backend.js";
+export {
   createInterviewStudio,
   type InterviewStudioOptions,
 } from "./studio/host.js";

@@ -18,6 +18,10 @@ export const navigationManifestSchema = z.object({
   order: z.number().int(),
 });
 
+// How the shell frames a product's pages: the standard page, a dark page,
+// or a page that fills the viewport. Products choose it at registration.
+export const productFrameSchema = z.enum(["standard", "dark", "fill-viewport"]);
+
 export const productManifestSchema = z.object({
   schemaVersion: z.union([z.literal(1), z.literal(2)]),
   id: z.string().regex(/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/),
@@ -26,6 +30,7 @@ export const productManifestSchema = z.object({
   defaultName: z.string().trim().min(1),
   defaultDescription: z.string().trim().min(1),
   icon: z.string().trim().min(1),
+  frame: productFrameSchema.optional(),
   permissions: z.array(z.string().trim().min(1)),
   routes: z.array(productRouteManifestSchema).min(1),
   navigation: z.array(navigationManifestSchema),
@@ -47,6 +52,7 @@ export const productManifestSchema = z.object({
 export type ProductRouteManifest = z.infer<typeof productRouteManifestSchema>;
 export type NavigationManifest = z.infer<typeof navigationManifestSchema>;
 export type ProductManifest = z.infer<typeof productManifestSchema>;
+export type ProductFrame = z.infer<typeof productFrameSchema>;
 
 export interface ProductPageProps {
   tenantSlug: string;

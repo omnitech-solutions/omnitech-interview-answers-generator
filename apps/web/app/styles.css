@@ -1744,24 +1744,24 @@ select {
   border-radius: 0.75rem;
 }
 
-/* Presentation product chrome mirrors the reference studio while keeping all
-   persistence and routing inside the platform shell. */
-.platform-frame-presentation {
+/* The dark frame a product registers (Presentation's studio chrome). */
+.platform-frame-dark {
   background: #0b0b0c;
   color: #f5f5f5;
 }
 
-/* Interview Studio fills the space below the platform header. */
-.platform-frame-interview {
+/* The fill-viewport frame: the product's page fills the space below the
+   platform header. */
+.platform-frame-fill-viewport {
   display: flex;
   flex-direction: column;
   height: 100dvh;
 }
-.platform-frame-interview .platform-content {
+.platform-frame-fill-viewport .platform-content {
   flex: 1;
   min-height: 0;
 }
-.platform-frame-interview .studio-app {
+.platform-frame-fill-viewport .platform-content > * {
   height: 100%;
 }
 

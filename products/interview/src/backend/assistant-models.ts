@@ -1,6 +1,5 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { createGatewayModelPort } from "@omnitech/ai-runtime";
-import { INTERVIEW_ASSISTANT_PROFILE } from "@omnitech/product-interview/backend";
 import type {
   ModelCatalog,
   ModelInfo,
@@ -9,8 +8,10 @@ import type {
   Scope,
 } from "@omnitech-assistant/contracts";
 import { createRelayModelSource } from "@omnitech-assistant/server";
+import { INTERVIEW_ASSISTANT_PROFILE } from "../assistant-profile.js";
+import { manifest } from "../manifest.js";
 
-const PERMISSIONS = ["interview.read", "interview.write"] as const;
+const PERMISSIONS = manifest.permissions;
 // The most models one picker listing may hold.
 const MAX_MODELS = 64;
 

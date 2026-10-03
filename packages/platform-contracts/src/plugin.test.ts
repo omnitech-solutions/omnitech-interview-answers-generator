@@ -35,6 +35,16 @@ describe("productManifestSchema", () => {
     expect(productManifestSchema.parse(manifest)).toEqual(manifest);
   });
 
+  it("accepts a registered frame and rejects any other", () => {
+    expect(
+      productManifestSchema.parse({ ...manifest, frame: "fill-viewport" })
+        .frame,
+    ).toBe("fill-viewport");
+    expect(() =>
+      productManifestSchema.parse({ ...manifest, frame: "interview" }),
+    ).toThrow();
+  });
+
   it("rejects an unnamespaced route id", () => {
     expect(() =>
       productManifestSchema.parse({
