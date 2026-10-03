@@ -142,6 +142,19 @@ const answerInput = {
   testCode: "",
   question: "Solve it",
   notes: "",
+  guide: {
+    version: 1 as const,
+    understand: {
+      prompt: "Solve it",
+      examples: [],
+      constraints: [],
+      clarify: [],
+    },
+    plan: { steps: ["Solve it."], complexity: { time: "O(1)", space: "O(1)" } },
+    edgeCases: [],
+    explain: [{ heading: "Approach", body: "Solve it." }],
+    talkingPoints: ["One.", "Two.", "Three."],
+  },
 };
 
 function request(fetchMock: ReturnType<typeof vi.fn>, call: number) {

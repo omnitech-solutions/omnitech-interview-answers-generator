@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { createInterviewAdapter } from "./adapter.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "code",
@@ -13,7 +14,7 @@ const origin = { workspaceId: "w", artifactId: "q", artifactRevision: 0 };
 const answer = {
   title: "Synthetic",
   language: "typescript" as const,
-  answerMarkdown: "Technical explanation",
+  ...guidedProse("Technical explanation"),
   code: "return 1;",
   usageCode: "solution();",
   testCode: "assert.equal(1,1)",

@@ -3,11 +3,14 @@ import {
   type AnswerGuide,
   answerGuideSchema,
   guideText,
-  reconcileAnswerGuide,
   renderGuideMarkdown,
   stageProgressSchema,
 } from "./guide.js";
-import { generatedAnswerSchema, runResultSchema } from "./schemas.js";
+import {
+  generatedAnswerSchema,
+  runResultSchema,
+  saveAnswerRequestSchema,
+} from "./schemas.js";
 
 const sampleGuide: AnswerGuide = {
   version: 1,
@@ -102,7 +105,7 @@ describe("answer guide", () => {
     ).toBe(false);
   });
 
-  it("keeps answers and run results without the new fields unchanged", () => {
+  it("requires a guide on every answer", () => {
     const answer = {
       title: "T",
       language: "typescript",
@@ -111,10 +114,34 @@ describe("answer guide", () => {
       usageCode: "",
       testCode: "",
     };
-    expect(generatedAnswerSchema.parse(answer)).toEqual(answer);
+    expect(generatedAnswerSchema.safeParse(answer).success).toBe(false);
     expect(
       generatedAnswerSchema.parse({ ...answer, guide: sampleGuide }).guide,
     ).toEqual(sampleGuide);
+  });
+
+  it("renders a saved answer's Markdown from its guide", () => {
+    const saved = saveAnswerRequestSchema.parse({
+      title: "T",
+      language: "typescript",
+      answerMarkdown: "My own words",
+      code: "x",
+      question: "Q",
+      guide: sampleGuide,
+    });
+    expect(saved.answerMarkdown).toBe(renderGuideMarkdown(sampleGuide));
+    expect(
+      saveAnswerRequestSchema.safeParse({
+        title: "T",
+        language: "typescript",
+        answerMarkdown: "## Question",
+        code: "x",
+        question: "Q",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps run results without the new fields unchanged", () => {
     const run = {
       stdout: "",
       stderr: "",
@@ -147,53 +174,5 @@ describe("answer guide", () => {
       stageProgressSchema.safeParse({ stage: "plan", clarified: [], extra: 1 })
         .success,
     ).toBe(false);
-  });
-});
-
-describe("reconcileAnswerGuide", () => {
-  const rendered = renderGuideMarkdown(sampleGuide);
-  const answer = {
-    title: "T",
-    answerMarkdown: "old prose",
-    guide: sampleGuide,
-  };
-
-  it("renders the Markdown from a written guide", () => {
-    expect(reconcileAnswerGuide(answer).answerMarkdown).toBe(rendered);
-    expect(
-      reconcileAnswerGuide({ ...answer, answerMarkdown: rendered }, answer)
-        .answerMarkdown,
-    ).toBe(rendered);
-  });
-
-  it("drops a guide whose Markdown was edited on its own", () => {
-    const previous = { ...answer, answerMarkdown: rendered };
-    const edited = reconcileAnswerGuide(
-      { ...previous, answerMarkdown: "## Question\nMy own words" },
-      previous,
-    );
-    expect(edited).toEqual({
-      title: "T",
-      answerMarkdown: "## Question\nMy own words",
-    });
-  });
-
-  it("re-renders when the guide itself changed", () => {
-    const previous = { ...answer, answerMarkdown: rendered };
-    const guide = {
-      ...sampleGuide,
-      talkingPoints: ["a", "b", "c"],
-    };
-    const next = reconcileAnswerGuide(
-      { ...previous, guide, answerMarkdown: "stale" },
-      previous,
-    );
-    expect(next.guide).toEqual(guide);
-    expect(next.answerMarkdown).toBe(renderGuideMarkdown(guide));
-  });
-
-  it("leaves answers without a guide alone", () => {
-    const plain = { answerMarkdown: "## Question" };
-    expect(reconcileAnswerGuide(plain, answer)).toBe(plain);
   });
 });

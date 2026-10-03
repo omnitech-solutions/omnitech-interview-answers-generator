@@ -60,10 +60,10 @@ export const assistantPrompts: readonly SavedPrompt[] = [
 export const assistantSurfaces: readonly Surface[] = [
   { id: "question", name: "Question", icon: "quiz", description: "Text" },
   {
-    id: "answerMarkdown",
-    name: "Answer",
+    id: "guide",
+    name: "Guide",
     icon: "description",
-    description: "Explanation",
+    description: "Plan and explanation",
   },
   { id: "code", name: "Main Solution", icon: "code", description: "Code" },
   {

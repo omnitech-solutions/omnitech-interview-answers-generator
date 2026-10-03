@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { guidedProse } from "../answer-fixture.js";
 
 async function freshStore() {
   vi.resetModules();
@@ -57,7 +58,7 @@ describe("playgroundControlStore", () => {
       answer: {
         title: "Answer",
         language: "php",
-        answerMarkdown: "Explanation",
+        ...guidedProse("Explanation"),
         code: "<?php",
         usageCode: "echo 'usage';",
         testCode: "tests",

@@ -2,6 +2,20 @@ import { readFile } from "node:fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const guide = {
+  version: 1 as const,
+  understand: {
+    prompt: "Solve it",
+    examples: [],
+    constraints: [],
+    clarify: [],
+  },
+  plan: { steps: ["Solve it."], complexity: { time: "O(1)", space: "O(1)" } },
+  edgeCases: [],
+  explain: [{ heading: "Approach", body: "Solve it." }],
+  talkingPoints: ["One.", "Two.", "Three."],
+};
+
 const apiClient = {
   generate: vi.fn(),
   explain: vi.fn(),
@@ -383,11 +397,11 @@ describe("interview-answers CLI", () => {
         JSON.stringify({
           title: "PHP answer",
           language: "php",
-          answerMarkdown: "Explanation",
           code: "<?php",
           testCode: "",
           question: "Question",
           notes: "",
+          guide,
         }),
       );
     apiClient.generate.mockResolvedValue({
@@ -571,7 +585,8 @@ describe("interview-answers CLI", () => {
   it("sets a complete answer from code files", async () => {
     vi.mocked(readFile)
       .mockResolvedValueOnce("export function Counter() {}")
-      .mockResolvedValueOnce("test('counter', () => {})");
+      .mockResolvedValueOnce("test('counter', () => {})")
+      .mockResolvedValueOnce(JSON.stringify(guide));
     playgroundClient.set.mockResolvedValue({});
 
     await run(
@@ -581,8 +596,8 @@ describe("interview-answers CLI", () => {
       "react",
       "--title",
       "Counter",
-      "--answer-markdown",
-      "Explanation",
+      "--guide-file",
+      "guide.json",
       "--code-file",
       "answer.tsx",
       "--test-code-file",
@@ -594,10 +609,11 @@ describe("interview-answers CLI", () => {
       answer: {
         title: "Counter",
         language: "react",
-        answerMarkdown: "Explanation",
+        answerMarkdown: "",
         code: "export function Counter() {}",
         usageCode: "",
         testCode: "test('counter', () => {})",
+        guide,
       },
     });
   });

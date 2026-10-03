@@ -248,13 +248,18 @@ describe("WorkspaceView: a new question", () => {
       target: { value: "ruby" },
     });
     fireEvent.click(solve);
-    // Without a guide, Understand shows the question as written.
-    expect(await screen.findByText("The question")).toBeVisible();
+    // A starter guide: Understand shows the question as its prompt.
+    expect(await screen.findByText("The prompt")).toBeVisible();
     expect(step("Understand")).toHaveAttribute("aria-current", "step");
     await waitFor(() => expect(patches()).toHaveLength(1), { timeout: 2000 });
     expect(lastPatch()).toMatchObject({
       question: "# Reverse a list\nIn place.",
-      answer: { title: "Reverse a list", language: "ruby", code: "" },
+      answer: {
+        title: "Reverse a list",
+        language: "ruby",
+        code: "",
+        guide: { understand: { prompt: "# Reverse a list\nIn place." } },
+      },
       progress: { stage: "understand", clarified: [] },
     });
   });
@@ -605,23 +610,7 @@ describe("WorkspaceView: a guided answer", () => {
   });
 });
 
-describe("WorkspaceView: older answers and failures", () => {
-  it("shows an answer without a guide as its Markdown", async () => {
-    installServer({
-      question: "Old question",
-      notes: "",
-      answer: {
-        ...answer,
-        guide: undefined,
-        answerMarkdown: "## Approach\nOld prose.",
-      },
-    });
-    renderView();
-    expect(await screen.findByText("Old question")).toBeVisible();
-    fireEvent.click(step("Plan"));
-    expect(screen.getByText(/Old prose/)).toBeVisible();
-  });
-
+describe("WorkspaceView: failures", () => {
   it("says when the question cannot be loaded", async () => {
     installServer({});
     vi.mocked(fetch).mockImplementationOnce(async () =>

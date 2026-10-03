@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { createInterviewAdapter } from "./adapter.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
 
 // Every refusal the product can make, against a real PostgreSQL schema: what is
 // refused, with which code, and (where the model can act on it) with which hint.
@@ -49,10 +50,10 @@ const generic = (item: typeof reference | typeof candidate) => {
   };
   return plain;
 };
-const answer = (answerMarkdown: string) => ({
+const answer = (prose: string) => ({
   title: "Example",
   language: "typescript" as const,
-  answerMarkdown,
+  ...guidedProse(prose),
   code: "",
   usageCode: "",
   testCode: "",
@@ -216,7 +217,7 @@ it("finds evidence by query, and refuses an empty query", async () => {
 it("explains an unusable quote or draft to the model", async () => {
   await expect(
     adapter().buildProposal!(scope, originFor("blank"), {
-      answer: answer("Compare the expected revision."),
+      answer: withoutMarkdown(answer("Compare the expected revision.")),
       claims: [
         {
           field: "answerMarkdown",
@@ -265,8 +266,8 @@ it("lists the saved versions of an artifact, newest first", async () => {
   await workspace.save(scope, origin, "save-1");
   const saved = await workspace.listAnswerRevisions(scope, "w", "with-answer");
   expect(saved).toHaveLength(1);
-  expect(saved[0]?.value.answer?.answerMarkdown).toBe(
-    "Compare the expected revision.",
+  expect(saved[0]?.value.answer).toEqual(
+    answer("Compare the expected revision."),
   );
 });
 
@@ -289,7 +290,9 @@ it("asks for every field when there is no answer yet to merge into", async () =>
     }),
   ).rejects.toMatchObject({
     code: "proposal-invalid",
-    hint: expect.stringContaining("title, language, guide (or answerMarkdown)"),
+    hint: expect.stringContaining(
+      "title, language, guide, code, usageCode, testCode",
+    ),
   });
 });
 
@@ -308,7 +311,7 @@ it("accepts a change to code or tests without citations, but not a change to the
   await expect(
     adapter().validateProposal(
       scope,
-      make({ answer: { ...base, answerMarkdown: "Something new." } }),
+      make({ answer: { ...base, ...guidedProse("Something new.") } }),
     ),
   ).rejects.toMatchObject({ code: "missing-citation" });
 });

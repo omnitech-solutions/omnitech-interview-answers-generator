@@ -27,13 +27,15 @@ export interface PlaygroundExplanation {
 export interface PlaygroundAnswer {
   title: string;
   language: PlaygroundAnswerLanguage;
+  // Rendered from the guide by the Playground server; a pushed value is
+  // replaced.
   answerMarkdown: string;
   code: string;
   usageCode: string;
   testCode: string;
-  // The structured guide behind answerMarkdown; validated where it is stored
-  // or shown (see @omnitech/interview-contracts answerGuideSchema).
-  guide?: Record<string, unknown>;
+  // The structured answer; validated where it is stored or shown (see
+  // @omnitech/interview-contracts answerGuideSchema).
+  guide: Record<string, unknown>;
 }
 
 export interface PlaygroundValue {
@@ -148,20 +150,19 @@ function parseAnswer(value: unknown): PlaygroundAnswer | null {
   return {
     title: requireString(value, "title"),
     language: language as PlaygroundAnswerLanguage,
-    answerMarkdown: requireString(value, "answerMarkdown"),
+    answerMarkdown: optionalString(value, "answerMarkdown"),
     code: requireString(value, "code"),
     usageCode: optionalString(value, "usageCode"),
     testCode: requireString(value, "testCode"),
-    ...parseGuide(value["guide"]),
+    guide: parseGuide(value["guide"]),
   };
 }
 
-function parseGuide(value: unknown): { guide?: Record<string, unknown> } {
-  if (value === undefined) return {};
+function parseGuide(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new TypeError('Playground answer "guide" must be an object.');
   }
-  return { guide: value };
+  return value;
 }
 
 export function parsePlaygroundExplanation(

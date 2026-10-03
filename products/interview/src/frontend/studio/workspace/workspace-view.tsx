@@ -1,7 +1,9 @@
 import {
+  type AnswerGuide,
   type GeneratedAnswer,
   type LanguageSelection,
   type RunResult,
+  renderGuideMarkdown,
   routeQuestion,
   type SavedAnswer,
   type StageProgress,
@@ -64,19 +66,52 @@ const firstLine = (text: string) =>
     .find(Boolean)
     ?.slice(0, 120) ?? "Interview question";
 
+// [DOMAIN] Every answer has a guide. One the person solves themselves starts
+// from the question and the prompts a candidate answers aloud; the assistant
+// can replace it with a full guide later.
+function starterGuide(question: string): AnswerGuide {
+  return {
+    version: 1,
+    understand: {
+      prompt: question.trim().slice(0, 2_000),
+      examples: [],
+      constraints: [],
+      clarify: [],
+    },
+    plan: {
+      steps: ["Outline your approach before you code it."],
+      complexity: { time: "to be stated", space: "to be stated" },
+    },
+    edgeCases: [],
+    explain: [
+      {
+        heading: "Your explanation",
+        body: "Explain the problem, your approach and its trade-offs in about two minutes.",
+      },
+    ],
+    talkingPoints: [
+      "Name the invariant your solution keeps.",
+      "State the time and space complexity.",
+      "Mention one trade-off you considered.",
+    ],
+  };
+}
+
 // A started answer the person writes themselves.
 function blankAnswer(
   question: string,
   language: LanguageSelection,
 ): GeneratedAnswer {
+  const guide = starterGuide(question);
   return {
     title: firstLine(question),
     language:
       language === "auto" ? routeQuestion(question, "auto").language : language,
-    answerMarkdown: `## Question\n\n${question}`,
+    answerMarkdown: renderGuideMarkdown(guide),
     code: "",
     usageCode: "",
     testCode: "",
+    guide,
   };
 }
 
@@ -84,15 +119,7 @@ function blankAnswer(
 function answerOf(version: SavedAnswer): GeneratedAnswer {
   const { title, language, answerMarkdown, code, usageCode, testCode, guide } =
     version;
-  return {
-    title,
-    language,
-    answerMarkdown,
-    code,
-    usageCode,
-    testCode,
-    ...(guide ? { guide } : {}),
-  };
+  return { title, language, answerMarkdown, code, usageCode, testCode, guide };
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -450,7 +477,6 @@ export function WorkspaceView({
           stage={stage.id}
           question={draft.question}
           guide={guide}
-          answerMarkdown={answer?.answerMarkdown}
           notes={draft.notes}
           clarified={progress.clarified}
           testResults={run.kind === "done" ? run.result.tests : undefined}

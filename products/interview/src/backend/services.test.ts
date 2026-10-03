@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { guideSaying } from "../answer-fixture.js";
 
 // The host's model: one structured reply per call.
 const generate = vi.fn();
@@ -66,7 +67,7 @@ describe("generateInterviewAnswer", () => {
     generate.mockResolvedValue({
       title: "Counter",
       language: "php",
-      answerMarkdown: "Use a functional state update.",
+      guide: guideSaying("Use a functional state update."),
       code: "export function Counter() {}",
       usageCode: "render(<Counter />)",
       testCode: "",
@@ -204,17 +205,8 @@ describe("generateInterviewAnswer with a guide", () => {
     );
   });
 
-  it("accepts older-style Markdown and refuses an answer with neither", async () => {
-    generate.mockResolvedValueOnce({ ...base, answerMarkdown: "## Question" });
-    await expect(
-      generateInterviewAnswer(
-        { question: "Q", language: "react" },
-        generate,
-        scope,
-      ),
-    ).resolves.toMatchObject({ answerMarkdown: "## Question" });
-
-    generate.mockResolvedValue(base);
+  it("refuses an answer that has Markdown but no guide", async () => {
+    generate.mockResolvedValue({ ...base, answerMarkdown: "## Question" });
     await expect(
       generateInterviewAnswer(
         { question: "Q", language: "react" },

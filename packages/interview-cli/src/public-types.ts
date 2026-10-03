@@ -12,7 +12,7 @@ export interface GeneratedInterviewAnswer {
   usageCode: string;
   // The structured guide the Workspace stages show; answerMarkdown is
   // rendered from it.
-  guide?: AnswerGuide | undefined;
+  guide: AnswerGuide;
 }
 
 export interface SavedInterviewAnswer extends GeneratedInterviewAnswer {

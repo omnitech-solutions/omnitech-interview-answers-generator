@@ -158,28 +158,3 @@ export const diagnosticSchema = z.object({
 export type EditorLocation = z.infer<typeof editorLocationSchema>;
 export type TestResult = z.infer<typeof testResultSchema>;
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
-
-type GuidedAnswer = { answerMarkdown: string; guide?: AnswerGuide | undefined };
-const sameGuide = (a: AnswerGuide | undefined, b: AnswerGuide | undefined) =>
-  JSON.stringify(a) === JSON.stringify(b);
-
-// One rule wherever an answer is written. A guide is the source of the
-// Markdown, so the Markdown is rendered from it. If only the Markdown was
-// edited (by a client that does not know guides), the guide is stale and is
-// dropped: the person's prose wins and the Workspace falls back to it.
-export function reconcileAnswerGuide<T extends GuidedAnswer>(
-  next: T,
-  previous?: GuidedAnswer | null,
-): T {
-  if (!next.guide) return next;
-  const markdownOnlyEdit =
-    previous?.guide !== undefined &&
-    sameGuide(previous.guide, next.guide) &&
-    next.answerMarkdown !== previous.answerMarkdown &&
-    next.answerMarkdown !== renderGuideMarkdown(next.guide);
-  if (markdownOnlyEdit) {
-    const { guide: _stale, ...rest } = next;
-    return rest as T;
-  }
-  return { ...next, answerMarkdown: renderGuideMarkdown(next.guide) };
-}

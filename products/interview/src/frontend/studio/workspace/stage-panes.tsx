@@ -28,8 +28,8 @@ const COVERAGE: Record<
 export type StagePaneProps = {
   stage: StageId;
   question: string;
+  // Undefined until the question has an answer.
   guide: AnswerGuide | undefined;
-  answerMarkdown: string | undefined;
   notes: string;
   clarified: readonly number[];
   testResults: readonly TestResult[] | undefined;
@@ -80,18 +80,13 @@ function StageBody(props: StagePaneProps) {
   const { guide } = props;
   // Code is the scratchpad whatever the answer looks like.
   if (props.stage === "code") return <CodeStage {...props} />;
+  // No answer yet: the question as written, and how to get a guide.
   if (!guide)
     return (
       <>
-        <SectionLabel>
-          {props.stage === "understand" ? "The question" : "The answer"}
-        </SectionLabel>
-        <MarkdownContent>
-          {props.stage === "understand" || !props.answerMarkdown
-            ? props.question
-            : props.answerMarkdown}
-        </MarkdownContent>
-        {props.stage !== "understand" && !props.answerMarkdown && (
+        <SectionLabel>The question</SectionLabel>
+        <MarkdownContent>{props.question}</MarkdownContent>
+        {props.stage !== "understand" && (
           <p className="ws-muted">
             Draft an answer to get a step-by-step guide for this stage.
           </p>

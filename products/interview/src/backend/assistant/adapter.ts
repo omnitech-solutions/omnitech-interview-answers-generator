@@ -26,7 +26,6 @@ import {
   interviewClaimsSchema,
   interviewMetricSchema,
   languageSchema,
-  reconcileAnswerGuide,
   renderGuideMarkdown,
   runResultSchema,
 } from "@omnitech/interview-contracts";
@@ -88,15 +87,14 @@ const draftClaimSchema = z.strictObject({
 const draftClaimsSchema = z.array(draftClaimSchema).max(64).optional();
 // An edit names only the answer fields it changes; the rest come from the
 // current answer. No defaults here: a missing field must stay missing, or an
-// empty default would overwrite what is already there.
+// empty default would overwrite what is already there. There is no
+// answerMarkdown: it is rendered from the guide.
 const partialAnswerSchema = z.strictObject({
   title: z.string().max(256).trim().min(1).optional(),
   language: languageSchema.optional(),
-  answerMarkdown: z.string().max(100_000).trim().min(1).optional(),
   code: z.string().max(100_000).optional(),
   usageCode: z.string().max(100_000).optional(),
   testCode: z.string().max(100_000).optional(),
-  // The structured answer; answerMarkdown is rendered from it.
   guide: answerGuideSchema.optional(),
   claims: draftClaimsSchema,
 });
@@ -448,21 +446,21 @@ export function createInterviewAdapter(
             "proposal-invalid",
             "This is a briefing pack: change its answers with briefingAnswers.",
           );
-        const existing = record.value.answer;
-        // A guide renders the Markdown, so a guided answer need not send it.
+        // The changed fields over the current answer; its Markdown is always
+        // rendered from the resulting guide.
+        const fields = { ...(record.value.answer ?? {}), ...answerFields };
         const complete = completeAnswerSchema.safeParse({
-          ...(answerFields.guide
-            ? { answerMarkdown: renderGuideMarkdown(answerFields.guide) }
+          ...fields,
+          ...(fields.guide
+            ? { answerMarkdown: renderGuideMarkdown(fields.guide) }
             : {}),
-          ...(existing ?? {}),
-          ...answerFields,
         });
         if (!complete.success)
           throw new WorkspaceError(
             "proposal-invalid",
-            "There is no answer to change yet. A new answer needs all of: title, language, guide (or answerMarkdown), code, usageCode, testCode.",
+            "There is no answer to change yet. A new answer needs all of: title, language, guide, code, usageCode, testCode.",
           );
-        mergedAnswer = reconcileAnswerGuide(complete.data, existing);
+        mergedAnswer = complete.data;
       }
       const patch = {
         ...rest,
@@ -830,7 +828,6 @@ export function createInterviewAdapter(
 const SURFACES = [
   { id: "question", label: "Question", icon: "quiz" },
   { id: "title", label: "Title", icon: "title" },
-  { id: "answerMarkdown", label: "Answer", icon: "notes" },
   { id: "guide", label: "Guide", icon: "checklist" },
   { id: "code", label: "Main Solution", icon: "code" },
   { id: "usageCode", label: "Usage / Output", icon: "terminal" },
@@ -839,13 +836,8 @@ const SURFACES = [
 ] as const;
 type Draft = z.infer<typeof interviewDraftSchema>;
 type ProposalPatch = z.infer<typeof interviewProposalPatchSchema>;
-const ANSWER_FIELDS = [
-  "title",
-  "answerMarkdown",
-  "code",
-  "usageCode",
-  "testCode",
-] as const;
+// answerMarkdown is not among them: it follows the guide.
+const ANSWER_FIELDS = ["title", "code", "usageCode", "testCode"] as const;
 type AnswerField = (typeof ANSWER_FIELDS)[number];
 
 const lineCount = (text: string) => (text ? text.split("\n").length : 0);
@@ -872,21 +864,15 @@ export function describeChanges(current: Draft, patch: ProposalPatch) {
         pairs[field] = {
           before,
           after,
-          language:
-            field === "answerMarkdown"
-              ? "markdown"
-              : field === "title"
-                ? "text"
-                : language,
+          language: field === "title" ? "text" : language,
         };
     }
   // A guide is reviewed as one readable surface; the Markdown rendered from
   // it is not a separate change to pick.
   if (patch.answer) {
-    const before = current.answer?.guide ? guideText(current.answer.guide) : "";
-    const after = patch.answer.guide ? guideText(patch.answer.guide) : "";
+    const before = current.answer ? guideText(current.answer.guide) : "";
+    const after = guideText(patch.answer.guide);
     if (before !== after) pairs["guide"] = { before, after, language: "text" };
-    if (patch.answer.guide) delete pairs["answerMarkdown"];
   }
   const surfaces = [
     ...SURFACES.filter((surface) => pairs[surface.id]),
@@ -973,7 +959,6 @@ export function pickSurfaces(
             : {}),
         }
       : proposed;
-    if (!answer.guide) delete answer.guide;
   }
   // Pack answers are picked one by one; the rest keep their current text.
   const briefing =
@@ -1004,9 +989,7 @@ export function pickSurfaces(
       ? { notes: patch.notes }
       : {}),
     ...(answer ? { answer } : {}),
-    ...(answer && (picked.has("answerMarkdown") || guide) && patch.claims
-      ? { claims: patch.claims }
-      : {}),
+    ...(answer && guide && patch.claims ? { claims: patch.claims } : {}),
   };
   if (!Object.keys(next).length)
     throw new WorkspaceError(

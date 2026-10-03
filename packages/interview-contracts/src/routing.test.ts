@@ -9,6 +9,20 @@ import {
 } from "./schemas.js";
 import { getWorkflow, listWorkflows } from "./workflows.js";
 
+const guide = {
+  version: 1 as const,
+  understand: {
+    prompt: "Solve it",
+    examples: [],
+    constraints: [],
+    clarify: [],
+  },
+  plan: { steps: ["Solve it."], complexity: { time: "O(1)", space: "O(1)" } },
+  edgeCases: [],
+  explain: [{ heading: "Approach", body: "Solve it." }],
+  talkingPoints: ["One.", "Two.", "Three."],
+};
+
 describe("routeQuestion", () => {
   it("honors an explicit language", () => {
     expect(routeQuestion("anything", "php").language).toBe("php");
@@ -81,6 +95,7 @@ describe("request and response schemas", () => {
       language: "typescript",
       answerMarkdown: "Explanation",
       code: "export {};",
+      guide,
     });
 
     expect(answer.usageCode).toBe("");
@@ -98,6 +113,7 @@ describe("request and response schemas", () => {
       testCode: "",
       question: "Solve it",
       notes: "",
+      guide,
       createdAt: "2026-07-23T00:00:00.000Z",
       updatedAt: "2026-07-23T00:00:00.000Z",
     };

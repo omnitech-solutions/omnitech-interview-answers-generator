@@ -188,7 +188,7 @@ describe("the assistant on a behavioural pack", () => {
     ).rejects.toMatchObject({ code: "proposal-invalid" });
     await expect(
       adapter().buildProposal!(scope, at, {
-        answer: { title: "x", answerMarkdown: "x" },
+        answer: { title: "x" },
       }),
     ).rejects.toMatchObject({
       hint: "This is a briefing pack: change its answers with briefingAnswers.",

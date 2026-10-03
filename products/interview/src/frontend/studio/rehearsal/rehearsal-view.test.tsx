@@ -14,6 +14,7 @@ import { clock, phaseAt, scoreHeadline, formatById } from "./config";
 import { codingMaterial } from "./material";
 import type { RehearsalCommand } from "../playground-control";
 import { RehearsalView } from "./rehearsal-view";
+import { guidedProse } from "../../../answer-fixture";
 
 const draft = {
   question: "Find the pair that sums to the target.",
@@ -21,7 +22,7 @@ const draft = {
   answer: {
     title: "Two sum",
     language: "typescript",
-    answerMarkdown: "x",
+    ...guidedProse("x"),
     code: "function twoSum() {}",
     usageCode: "",
     testCode: "it('finds the pair')",

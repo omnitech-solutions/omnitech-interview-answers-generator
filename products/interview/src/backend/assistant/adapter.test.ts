@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import * as implementation from "./adapter.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "ground",
@@ -27,7 +28,7 @@ const source = {
 const answer = {
   title: "Example",
   language: "typescript",
-  answerMarkdown: "I improved latency by 40%.",
+  ...guidedProse("I improved latency by 40%."),
   code: "",
   usageCode: "",
   testCode: "",
@@ -35,7 +36,7 @@ const answer = {
 const claim = {
   kind: "candidate-metric",
   field: "answerMarkdown",
-  text: answer.answerMarkdown,
+  text: "I improved latency by 40%.",
   metric: { value: 40, unit: "%" },
   citations: [
     { id: source.id, revision: 1, sha256: source.sha256, quote: source.text },
@@ -84,7 +85,7 @@ it("refuses unsupported personal metrics rather than treating a citation as proo
     adapter().validateProposal(
       scope,
       proposal({
-        answer: { ...answer, answerMarkdown: "I improved latency by 80%." },
+        answer: { ...answer, ...guidedProse("I improved latency by 80%.") },
         claims: [
           {
             ...claim,
@@ -107,8 +108,9 @@ it("preserves supported candidate metrics inside ordinary Markdown talking point
     proposal({
       answer: {
         ...answer,
-        answerMarkdown:
+        ...guidedProse(
           "**Talking points**\n- I improved latency by 40%.\n- Compare expected revisions.",
+        ),
       },
       claims: [claim],
     }),
@@ -280,7 +282,7 @@ it("supports exact candidate facts and explicitly verified technical fixture ref
       { id: "fact", revision: 1, sha256: fact.sha256, quote: factText },
     ],
   };
-  const draft = { ...answer, answerMarkdown: factText };
+  const draft = { ...answer, ...guidedProse(factText) };
   const proposed = {
     ...proposal({ answer: draft, claims: [factClaim] }, [fact]),
     origin: { ...origin, artifactRevision: 1 },
@@ -290,7 +292,7 @@ it("supports exact candidate facts and explicitly verified technical fixture ref
     adapter().validateProposal(scope, {
       ...proposed,
       patch: {
-        answer: { ...draft, answerMarkdown: "Led an invented global team" },
+        answer: { ...draft, ...guidedProse("Led an invented global team") },
         claims: [{ ...factClaim, text: "Led an invented global team" }],
       },
     } as never),
@@ -323,7 +325,7 @@ it("supports exact candidate facts and explicitly verified technical fixture ref
   const technicalProposal = {
     ...proposal(
       {
-        answer: { ...answer, answerMarkdown: referenceText },
+        answer: { ...answer, ...guidedProse(referenceText) },
         claims: [technicalClaim],
       },
       [ref],
@@ -359,7 +361,7 @@ const technicalNote = {
 };
 const technicalAnswer = {
   ...answer,
-  answerMarkdown: "Compare the expected revision before writing.",
+  ...guidedProse("Compare the expected revision before writing."),
 };
 const draftClaim = {
   field: "answerMarkdown",
@@ -400,7 +402,7 @@ async function ensureReference() {
 it("derives revision, hash, kind and citation from a source id and quote, and the result passes validation", async () => {
   await ensureReference();
   const built = await adapter().buildProposal!(scope, origin, {
-    answer: technicalAnswer,
+    answer: withoutMarkdown(technicalAnswer),
     claims: [draftClaim],
   });
   expect(built.evidenceRefs).toEqual([{ id: "technical-note", revision: 1 }]);
@@ -428,7 +430,7 @@ it("derives revision, hash, kind and citation from a source id and quote, and th
 it("locates the real passage when the model's quote differs in case or whitespace", async () => {
   await ensureReference();
   const built = await adapter().buildProposal!(scope, origin, {
-    answer: technicalAnswer,
+    answer: withoutMarkdown(technicalAnswer),
     claims: [
       {
         ...draftClaim,
@@ -443,9 +445,9 @@ it("locates the real passage when the model's quote differs in case or whitespac
 });
 it("derives candidate-metric claims from the model's metric", async () => {
   await ensureReference();
-  const candidateAnswer = { ...answer, answerMarkdown: candidateNote.text };
+  const candidateAnswer = { ...answer, ...guidedProse(candidateNote.text) };
   const built = await adapter().buildProposal!(scope, origin, {
-    answer: candidateAnswer,
+    answer: withoutMarkdown(candidateAnswer),
     claims: [
       {
         field: "answerMarkdown",
@@ -468,7 +470,7 @@ it("refuses a quote that is not in the source and shows the model the real text"
   await ensureReference();
   await expect(
     adapter().buildProposal!(scope, origin, {
-      answer: technicalAnswer,
+      answer: withoutMarkdown(technicalAnswer),
       claims: [{ ...draftClaim, quote: "caches every write forever" }],
     }),
   ).rejects.toMatchObject({
@@ -480,7 +482,7 @@ it("refuses an unknown source and lists the sources it may cite", async () => {
   await ensureReference();
   await expect(
     adapter().buildProposal!(scope, origin, {
-      answer: technicalAnswer,
+      answer: withoutMarkdown(technicalAnswer),
       claims: [{ ...draftClaim, source: "made-up" }],
     }),
   ).rejects.toMatchObject({
@@ -491,7 +493,7 @@ it("refuses an unknown source and lists the sources it may cite", async () => {
 it("passes a draft without claims through so validation can ask for them", async () => {
   await ensureReference();
   const built = await adapter().buildProposal!(scope, origin, {
-    answer: technicalAnswer,
+    answer: withoutMarkdown(technicalAnswer),
   });
   expect(built.evidenceRefs).toEqual([]);
   expect(built.patch["claims"]).toBeUndefined();
@@ -505,17 +507,17 @@ it("passes a draft without claims through so validation can ask for them", async
 it("accepts claims placed inside the answer as well as beside it", async () => {
   await ensureReference();
   const nested = await adapter().buildProposal!(scope, origin, {
-    answer: { ...technicalAnswer, claims: [draftClaim] },
+    answer: { ...withoutMarkdown(technicalAnswer), claims: [draftClaim] },
   });
   const beside = await adapter().buildProposal!(scope, origin, {
-    answer: technicalAnswer,
+    answer: withoutMarkdown(technicalAnswer),
     claims: [draftClaim],
   });
   expect(nested).toEqual(beside);
   expect(nested.patch["answer"]).toEqual(technicalAnswer);
   // The same claim in both places is stated once.
   const both = await adapter().buildProposal!(scope, origin, {
-    answer: { ...technicalAnswer, claims: [draftClaim] },
+    answer: { ...withoutMarkdown(technicalAnswer), claims: [draftClaim] },
     claims: [draftClaim],
   });
   expect((both.patch["claims"] as unknown[]).length).toBe(1);

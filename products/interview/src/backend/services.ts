@@ -9,10 +9,9 @@ import {
   generatedAnswerSchema,
   generatedExplanationSchema,
   getWorkflow,
-  reconcileAnswerGuide,
+  renderGuideMarkdown,
   routeQuestion,
 } from "@omnitech/interview-contracts";
-import { z } from "zod";
 import {
   interviewLibrarySeed,
   OramaLibrarySearchIndex,
@@ -191,14 +190,8 @@ export async function generateExplanation(
   };
 }
 
-// What a model may return: a guide (preferred), or Markdown it wrote itself.
-const modelAnswerSchema = generatedAnswerSchema
-  .extend({ answerMarkdown: z.string().trim().min(1).optional() })
-  .refine(
-    (answer) =>
-      answer.guide !== undefined || answer.answerMarkdown !== undefined,
-    "An answer needs a guide or answerMarkdown.",
-  );
+// What a model returns: the guide, never the Markdown rendered from it.
+const modelAnswerSchema = generatedAnswerSchema.omit({ answerMarkdown: true });
 
 export async function generateInterviewAnswer(
   input: GenerateRequest,
@@ -224,10 +217,10 @@ export async function generateInterviewAnswer(
 
   // Routing is authoritative. This prevents a model typo from switching the
   // execution language after the user has made an explicit selection.
-  // A guide renders the Markdown that every other reader of the answer uses.
-  return reconcileAnswerGuide({
+  // The guide renders the Markdown that every other reader of the answer uses.
+  return {
     ...answer,
-    answerMarkdown: answer.answerMarkdown ?? "",
+    answerMarkdown: renderGuideMarkdown(answer.guide),
     language: routing.language,
-  });
+  };
 }

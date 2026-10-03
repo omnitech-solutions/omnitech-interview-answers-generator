@@ -12,6 +12,20 @@ import {
   LibraryStateError,
 } from "./index.js";
 
+const guide = {
+  version: 1 as const,
+  understand: {
+    prompt: "Solve it",
+    examples: [],
+    constraints: [],
+    clarify: [],
+  },
+  plan: { steps: ["Solve it."], complexity: { time: "O(1)", space: "O(1)" } },
+  edgeCases: [],
+  explain: [{ heading: "Approach", body: "Solve it." }],
+  talkingPoints: ["One.", "Two.", "Three."],
+};
+
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -78,6 +92,7 @@ describe("JsonAnswerRepository", () => {
       title: "Simple answer",
       language: "typescript",
       answerMarkdown: "Use a map.",
+      guide,
       code: "export const answer = 1;",
       usageCode: "console.log(answer);",
       testCode: "",
@@ -289,6 +304,7 @@ function answerInput() {
     title: "Simple answer",
     language: "typescript" as const,
     answerMarkdown: "Use a map.",
+    guide,
     code: "export const answer = 1;",
     usageCode: "console.log(answer);",
     testCode: "",

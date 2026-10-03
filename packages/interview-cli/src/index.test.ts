@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const guide = {
+  version: 1 as const,
+  understand: {
+    prompt: "Solve it",
+    examples: [],
+    constraints: [],
+    clarify: [],
+  },
+  plan: { steps: ["Solve it."], complexity: { time: "O(1)", space: "O(1)" } },
+  edgeCases: [],
+  explain: [{ heading: "Approach", body: "Solve it." }],
+  talkingPoints: ["One.", "Two.", "Three."],
+};
+
 const apiClient = {
   deleteAnswer: vi.fn(),
   generate: vi.fn(),
@@ -97,6 +111,7 @@ describe("createConfiguredClient", () => {
       title: "Answer",
       language: "php",
       answerMarkdown: "Explanation",
+      guide,
       code: "<?php",
       usageCode: "echo 'usage';",
       testCode: "",

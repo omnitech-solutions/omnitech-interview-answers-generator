@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import type { InterviewClaim } from "@omnitech/interview-contracts";
+import {
+  type InterviewClaim,
+  renderGuideMarkdown,
+} from "@omnitech/interview-contracts";
 import { expect, it } from "vitest";
 import { validateClaims } from "./evidence.js";
 import type { InterviewEvidence } from "./workspace.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 function check(generated: string, quoted: string, value: number, unit = "%") {
   const source: InterviewEvidence = {
@@ -29,7 +33,7 @@ function check(generated: string, quoted: string, value: number, unit = "%") {
     {
       title: "Synthetic",
       language: "typescript",
-      answerMarkdown: generated,
+      ...guidedProse(generated),
       code: "",
       usageCode: "",
       testCode: "",
@@ -108,7 +112,7 @@ it("checks the guide's spoken prose like the Markdown", () => {
   const answer = {
     title: "Locking",
     language: "typescript" as const,
-    answerMarkdown: "## Question",
+    answerMarkdown: renderGuideMarkdown(guide),
     code: "",
     usageCode: "",
     testCode: "",
@@ -127,7 +131,8 @@ it("checks the guide's spoken prose like the Markdown", () => {
     ],
   };
   expect(() => validateClaims(answer, [claim], sources)).not.toThrow();
+  const retold = { ...guide, explain: [{ heading: "Story", body: "Retold." }] };
   expect(() =>
-    validateClaims({ ...answer, guide: undefined }, [claim], sources),
+    validateClaims({ ...answer, guide: retold }, [claim], sources),
   ).toThrow(expect.objectContaining({ code: "claim-text-conflict" }));
 });

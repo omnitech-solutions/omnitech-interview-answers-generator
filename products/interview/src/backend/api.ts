@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  answerGuideSchema,
   explanationRequestSchema,
   generateRequestSchema,
   libraryItemInputSchema,
@@ -11,9 +12,11 @@ import {
   runRequestSchema,
   saveAnswerRequestSchema,
   saveExplanationRequestSchema,
+  renderGuideMarkdown,
   syntaxCheckRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
+  type PlaygroundPatch,
   parsePlaygroundExplanation,
   parsePlaygroundPatch,
 } from "@omnitech/interview-playground-control";
@@ -62,6 +65,27 @@ function apiError(
     },
     status,
   );
+}
+
+// [GUARD] A pushed answer becomes a Workspace answer: its guide must be valid,
+// and its Markdown is the guide's rendering, never the pushed text.
+function withRenderedPlaygroundAnswer(patch: PlaygroundPatch): PlaygroundPatch {
+  if (!patch.answer) return patch;
+  const guide = answerGuideSchema.safeParse(patch.answer.guide);
+  if (!guide.success) {
+    const issue = guide.error.issues[0];
+    throw new TypeError(
+      `Playground answer "guide" is invalid at ${["guide", ...(issue?.path ?? [])].join(".")}: ${issue?.message}`,
+    );
+  }
+  return {
+    ...patch,
+    answer: {
+      ...patch.answer,
+      guide: guide.data,
+      answerMarkdown: renderGuideMarkdown(guide.data),
+    },
+  };
 }
 
 function queryList(context: Context<ApiEnvironment>, name: string): string[] {
@@ -227,8 +251,37 @@ console.log(solve([1, 2, 3]));`,
       : JSON.stringify({
           title: `Fake ${language} Answer`,
           language: languageId,
-          answerMarkdown:
-            "## Approach\n\nStart with the smallest correct implementation, verify the primary example, then discuss only improvements justified by the constraints.\n\n## Complexity\n\nTime: **O(n)**. Space: **O(n)** for the returned collection.",
+          guide: {
+            version: 1,
+            understand: {
+              prompt: "Return the supplied values unchanged.",
+              examples: [{ input: "[1, 2, 3]", output: "[1, 2, 3]" }],
+              constraints: [],
+              clarify: [],
+            },
+            plan: {
+              steps: [
+                "Start with the smallest correct implementation, verify the primary example, then discuss only improvements justified by the constraints.",
+              ],
+              complexity: {
+                time: "O(n)",
+                space: "O(n)",
+                note: "for the returned collection",
+              },
+            },
+            edgeCases: [],
+            explain: [
+              {
+                heading: "The approach",
+                body: "Keep the baseline explicit so it is easy to adapt.",
+              },
+            ],
+            talkingPoints: [
+              "Start simple.",
+              "Verify the primary example.",
+              "Improve only for a stated constraint.",
+            ],
+          },
           code: codeByLanguage[languageId] ?? codeByLanguage["typescript"],
           usageCode:
             languageId === "react"
@@ -581,7 +634,9 @@ console.log(solve([1, 2, 3]));`,
     try {
       return context.json(
         playgroundControlStore.set(
-          parsePlaygroundPatch(await context.req.json()),
+          withRenderedPlaygroundAnswer(
+            parsePlaygroundPatch(await context.req.json()),
+          ),
         ),
       );
     } catch (error) {

@@ -3,6 +3,7 @@ import type { BriefingDraft } from "@omnitech/interview-contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import * as workspace from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "a",
@@ -57,7 +58,7 @@ it("saves a complete briefing without a coding answer and rejects mixed draft ki
       answer: {
         title: "Mixed",
         language: "typescript",
-        answerMarkdown: "x",
+        ...guidedProse("x"),
         code: "x",
         usageCode: "",
         testCode: "",
@@ -93,7 +94,7 @@ it("rejects oversized raw identifiers, padded questions and answer fields before
         answer: {
           title: "Bounded",
           language: "typescript",
-          answerMarkdown: "Valid",
+          ...guidedProse("Valid"),
           code: "x".repeat(100_001),
           usageCode: "",
           testCode: "",
@@ -154,7 +155,7 @@ it("saves immutable answer versions separately from draft edits", async () => {
     answer: {
       title: "Concurrency",
       language: "typescript",
-      answerMarkdown: "Compare the expected revision",
+      ...guidedProse("Compare the expected revision"),
       code: "",
       usageCode: "",
       testCode: "",
@@ -272,7 +273,7 @@ it("round-trips padded scope origin and evidence identifiers without rewriting s
     answer: {
       title: "Canonical",
       language: "typescript",
-      answerMarkdown: "Canonical answer",
+      ...guidedProse("Canonical answer"),
       code: " Exact code ",
       usageCode: "",
       testCode: "",
@@ -402,15 +403,14 @@ it("keeps stage progress on the draft and renders the answer's Markdown from its
   // Progress is not an answer change: it keeps the answer as it was.
   expect(progressed.value.answer).toEqual(created.value.answer);
 
-  // Editing only the Markdown (a client that does not know guides) drops it.
+  // The guide is the answer: Markdown edited on its own is rendered again.
   const edited = await repo.edit(progressScope, progressed.origin, {
     answer: {
       ...progressed.value.answer!,
       answerMarkdown: "## Question\nMine",
     },
   });
-  expect(edited.value.answer?.guide).toBeUndefined();
-  expect(edited.value.answer?.answerMarkdown).toBe("## Question\nMine");
+  expect(edited.value.answer).toEqual(created.value.answer);
   expect(edited.value.progress).toEqual({ stage: "plan", clarified: [0] });
   await expect(
     repo.edit(progressScope, edited.origin, {

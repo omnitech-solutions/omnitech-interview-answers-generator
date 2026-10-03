@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { generatedAnswerSchema } from "@omnitech/interview-contracts";
+import { guidedProse } from "../answer-fixture.js";
 
 const mocks = vi.hoisted(() => ({
   build: vi.fn(),
@@ -92,7 +94,7 @@ function createApi(options: Partial<InterviewApiOptions> = {}) {
 const generatedAnswer = {
   title: "Readable Counter",
   language: "react" as const,
-  answerMarkdown: "## Approach\n\nKeep state local.",
+  ...guidedProse("Keep state local."),
   code: "function App() { return <button>0</button>; }",
   usageCode: "render(<App />)",
   testCode: "render(<App />)",
@@ -233,10 +235,16 @@ describe("web API", () => {
     const choices = completionBody["choices"] as Array<{
       message: { content: string };
     }>;
-    expect(JSON.parse(choices[0]!.message.content)).toMatchObject({
+    const fakeAnswer = JSON.parse(choices[0]!.message.content);
+    expect(fakeAnswer).toMatchObject({
       title: "Fake PHP Answer",
       language: "php",
     });
+    // The fake model answers with a guide, as a real one must.
+    expect(
+      generatedAnswerSchema.omit({ answerMarkdown: true }).safeParse(fakeAnswer)
+        .success,
+    ).toBe(true);
     expect(await fallback.json()).toMatchObject({
       model: "fake-interview-model",
     });
@@ -489,6 +497,8 @@ describe("web API", () => {
       "http://localhost/api/v1/answers",
       jsonRequest("POST", {
         ...generatedAnswer,
+        // The client's Markdown is replaced by the guide's rendering.
+        answerMarkdown: "My own words",
         question: savedAnswer.question,
         notes: savedAnswer.notes,
       }),
@@ -567,7 +577,7 @@ describe("web API", () => {
         language: "react",
         notes: "Keep it simple.",
         panel: "terminal",
-        answer: generatedAnswer,
+        answer: { ...generatedAnswer, answerMarkdown: "My own words" },
       }),
     );
     const updated = await responseJson(updatedResponse);
@@ -620,6 +630,21 @@ describe("web API", () => {
     );
     expect(await responseJson(clearedSession)).toMatchObject({
       value: { explanation: null, explanations: [] },
+    });
+
+    const invalidGuide = await app.request(
+      "http://localhost/api/v1/playground-control",
+      jsonRequest("PATCH", {
+        answer: { ...generatedAnswer, guide: { version: 1 } },
+      }),
+    );
+    expect(invalidGuide.status).toBe(400);
+    expect(await responseJson(invalidGuide)).toMatchObject({
+      error: {
+        message: expect.stringContaining(
+          'Playground answer "guide" is invalid at guide.understand',
+        ),
+      },
     });
 
     const invalid = await app.request(

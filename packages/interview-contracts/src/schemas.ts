@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   answerGuideSchema,
   diagnosticSchema,
+  renderGuideMarkdown,
   testResultSchema,
 } from "./guide.js";
 
@@ -25,6 +26,8 @@ export const routeResultSchema = z.object({
   reasons: z.array(z.string()),
 });
 
+// The guide is the answer's source; answerMarkdown is its rendering
+// (renderGuideMarkdown), kept beside it for every reader that shows Markdown.
 export const generatedAnswerSchema = z.object({
   title: z.string().trim().min(1),
   language: languageSchema,
@@ -32,8 +35,7 @@ export const generatedAnswerSchema = z.object({
   code: z.string(),
   usageCode: z.string().default(""),
   testCode: z.string().default(""),
-  // Optional and never defaulted: answers without a guide read back unchanged.
-  guide: answerGuideSchema.optional(),
+  guide: answerGuideSchema,
 });
 
 // The host's gateway picks the model by profile; a request never names one.
@@ -69,11 +71,19 @@ export const savedAnswerSchema = generatedAnswerSchema.extend({
   updatedAt: z.string().datetime(),
 });
 
-export const saveAnswerRequestSchema = generatedAnswerSchema.extend({
-  id: z.string().uuid().optional(),
-  question: z.string().trim().min(1),
-  notes: z.string().default(""),
-});
+// A save never takes the Markdown on trust: it is rendered from the guide, so
+// a client's copy (if sent) is replaced.
+export const saveAnswerRequestSchema = generatedAnswerSchema
+  .omit({ answerMarkdown: true })
+  .extend({
+    id: z.string().uuid().optional(),
+    question: z.string().trim().min(1),
+    notes: z.string().default(""),
+  })
+  .transform((answer) => ({
+    ...answer,
+    answerMarkdown: renderGuideMarkdown(answer.guide),
+  }));
 
 export const runRequestSchema = z.object({
   language: z.enum(["php", "typescript", "ruby"]),

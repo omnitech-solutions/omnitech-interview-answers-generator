@@ -57,6 +57,7 @@ describe("parsePlaygroundPatch", () => {
       code: "function App() {}",
       usageCode: "render(<App />)",
       testCode: "test('counter', () => {})",
+      guide: { version: 1 },
     };
 
     expect(parsePlaygroundPatch({ answer })).toEqual({ answer });
@@ -302,20 +303,18 @@ describe("answer guides", () => {
   const answer = {
     title: "T",
     language: "typescript",
-    answerMarkdown: "## Question",
     code: "x",
     usageCode: "",
     testCode: "t",
   };
-  it("passes a guide through and rejects one that is not an object", () => {
+  it("requires a guide object and leaves the Markdown to the server", () => {
     const guide = { version: 1 };
     expect(
       parsePlaygroundPatch({ answer: { ...answer, guide } }).answer,
-    ).toEqual({
-      ...answer,
-      guide,
-    });
-    expect(parsePlaygroundPatch({ answer }).answer).toEqual(answer);
+    ).toEqual({ ...answer, answerMarkdown: "", guide });
+    expect(() => parsePlaygroundPatch({ answer })).toThrow(
+      'Playground answer "guide" must be an object.',
+    );
     expect(() =>
       parsePlaygroundPatch({ answer: { ...answer, guide: "x" } }),
     ).toThrow('Playground answer "guide" must be an object.');

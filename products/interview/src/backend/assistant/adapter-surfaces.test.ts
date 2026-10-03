@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeChanges, pickSurfaces } from "./adapter.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 type Draft = Parameters<typeof describeChanges>[0];
 type Patch = Parameters<typeof describeChanges>[1];
@@ -7,13 +8,13 @@ type Patch = Parameters<typeof describeChanges>[1];
 const answer = {
   title: "Two sum",
   language: "typescript",
-  answerMarkdown: "Use a map.",
+  ...guidedProse("Use a map."),
   code: "const a = 1;",
   usageCode: "console.log(a);",
   testCode: "",
 } as NonNullable<Draft["answer"]>;
 const current = { question: "Find two", notes: "", answer } as Draft;
-const claims = [{ field: "answerMarkdown" }] as unknown as Patch["claims"];
+const claims = [{ field: "guide" }] as unknown as Patch["claims"];
 
 describe("describeChanges", () => {
   it("lists only the changed surfaces, in surface order", () => {
@@ -46,9 +47,9 @@ describe("describeChanges", () => {
       answer: { ...answer, usageCode: "a\nb" },
     } as Patch);
     expect(changes.find((c) => c.id === "title")?.language).toBe("text");
-    expect(changes.find((c) => c.id === "answerMarkdown")?.language).toBe(
-      "markdown",
-    );
+    // A new answer's prose is its guide; the Markdown is not its own change.
+    expect(changes.find((c) => c.id === "guide")?.language).toBe("text");
+    expect(changes.map((c) => c.id)).not.toContain("answerMarkdown");
     expect(changes.find((c) => c.id === "usageCode")?.description).toBe(
       "Add 2 lines",
     );
@@ -82,14 +83,14 @@ describe("pickSurfaces", () => {
       ...answer,
       language: "php",
       code: "<?php echo 1;",
-      answerMarkdown: "New prose.",
+      ...guidedProse("New prose."),
     },
     claims,
   } as Patch;
 
   it("merges only the picked answer fields into the current answer", () => {
-    expect(pickSurfaces(patch, current, ["answerMarkdown"])).toEqual({
-      answer: { ...answer, answerMarkdown: "New prose." },
+    expect(pickSurfaces(patch, current, ["guide"])).toEqual({
+      answer: { ...answer, ...guidedProse("New prose.") },
       claims,
     });
     // The language travels with the code.
@@ -153,12 +154,6 @@ describe("the guide as one reviewable surface", () => {
     const change = changes.find((c) => c.id === "guide")!;
     expect(change.after).toContain("Step 2: Return early.");
     expect(change.language).toBe("text");
-    // Removing a guide is a change too.
-    expect(
-      describeChanges(guided, { answer: { ...answer } } as Patch).map(
-        (c) => c.id,
-      ),
-    ).toContain("guide");
   });
 
   it("takes the guide with its Markdown and claims, and leaves it when not picked", () => {
@@ -170,9 +165,5 @@ describe("the guide as one reviewable surface", () => {
     expect(codeOnly.answer?.guide).toEqual(guide);
     expect(codeOnly.answer?.code).toBe("new");
     expect(codeOnly).not.toHaveProperty("claims");
-    const removal = pickSurfaces({ answer: { ...answer } } as Patch, guided, [
-      "guide",
-    ]);
-    expect(removal.answer).not.toHaveProperty("guide");
   });
 });

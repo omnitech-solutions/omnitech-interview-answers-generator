@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "effects",
@@ -19,7 +20,7 @@ beforeAll(async () => {
     answer: {
       title: "Synthetic",
       language: "typescript",
-      answerMarkdown: "Explanation",
+      ...guidedProse("Explanation"),
       code: "return 1;",
       usageCode: "",
       testCode: "",

@@ -80,7 +80,7 @@ export async function loadCoding(
 }
 
 // [DOMAIN] Hints come from the answer's guide, from gentlest to the full
-// solution; a question without a guide offers only its code and tests.
+// solution; a question with no answer yet offers none.
 export function codingMaterial(
   choice: QuestionChoice,
   draft: Draft,

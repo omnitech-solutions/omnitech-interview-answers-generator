@@ -12,6 +12,7 @@ import {
   storeApplied,
   writeControlDraft,
 } from "./playground-control";
+import { guidedProse } from "../../answer-fixture";
 
 const empty: PlaygroundValue = {
   question: "",
@@ -27,7 +28,7 @@ const empty: PlaygroundValue = {
 const answer = {
   title: "Two sum",
   language: "typescript" as const,
-  answerMarkdown: "Use a map.",
+  ...guidedProse("Use a map."),
   code: "export function twoSum() {}",
   usageCode: "",
   testCode: "it('works')",

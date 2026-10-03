@@ -20,6 +20,7 @@ import { createInterviewAdapter, interviewPatchJsonSchema } from "./adapter.js";
 import { interviewRunVersions } from "./prompt.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "combined",
@@ -40,7 +41,7 @@ const source = {
 const answer = {
   title: "Synthetic",
   language: "typescript" as const,
-  answerMarkdown: text,
+  ...guidedProse(text),
   code: "function solution() { return 1; }",
   usageCode: "solution();",
   testCode: "assert.equal(solution(),1);",
@@ -61,7 +62,7 @@ const patch = {
 };
 // What the model sends; the adapter derives revision, hash and kind.
 const draft = {
-  answer,
+  answer: withoutMarkdown(answer),
   claims: [
     {
       field: "answerMarkdown",
@@ -331,7 +332,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
   await workspace.create(scope, o, {
     question: "Serialized question",
     notes: "Serialized notes",
-    answer: { ...answer, answerMarkdown: "Existing editor answer" },
+    answer: { ...answer, ...guidedProse("Existing editor answer") },
   });
   const thread = await repo.createThread(scope, { title: "Model", origin: o });
   const run = await repo.createRun(
@@ -371,7 +372,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
   );
   expect((await repo.getRun(scope, run.id)).status).toBe("completed");
   const serialized = JSON.stringify(modelInputs[0]);
-  expect(serialized).toContain("interview-grounding-3");
+  expect(serialized).toContain("interview-grounding-4");
   expect(serialized).toContain("software-interview-preparation");
   expect(serialized).toContain("PROBLEM, STRATEGY, COMPLEXITY");
   expect(serialized).toContain("Serialized question");
@@ -384,7 +385,7 @@ it("serializes versioned interview instructions/current draft/evidence into actu
     ])
   ).rows[0]!;
   expect((saved["versions"] as { prompt: string }).prompt).toBe(
-    "interview-grounding-3",
+    "interview-grounding-4",
   );
   expect(
     (await repo.readThread(scope, thread.id)).messages.filter(
@@ -421,7 +422,7 @@ it("saves accepted source lineage separately, replays Save, and clears proof aft
     ].map(({ text, ...rest }) => rest),
   );
   await workspace.edit(scope, noted.origin, {
-    answer: { ...answer, answerMarkdown: "Manual unsupported replacement" },
+    answer: { ...answer, ...guidedProse("Manual unsupported replacement") },
   });
   expect((await workspace.read(scope, "w", "accept")).provenance).toBeNull();
   expect(

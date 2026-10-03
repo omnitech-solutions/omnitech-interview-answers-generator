@@ -73,7 +73,7 @@ type DraftAnswer = NonNullable<InterviewDraft["answer"]>;
 export function answerProse(answer: DraftAnswer): string {
   return [
     answer.answerMarkdown,
-    ...(answer.guide?.explain ?? []).map(
+    ...answer.guide.explain.map(
       (section) => `${section.heading}: ${section.body}`,
     ),
   ].join("\n");
@@ -83,11 +83,7 @@ const PROSE_FIELDS: readonly InterviewClaim["field"][] = [
   "guide",
 ];
 const fieldText = (answer: DraftAnswer, field: InterviewClaim["field"]) =>
-  field === "guide"
-    ? answer.guide
-      ? guideText(answer.guide)
-      : ""
-    : answer[field];
+  field === "guide" ? guideText(answer.guide) : answer[field];
 
 // Bounded structural checks, not a general truth/entailment detector. A trusted
 // ingestion action supplies candidate metrics; no model-minted verification.

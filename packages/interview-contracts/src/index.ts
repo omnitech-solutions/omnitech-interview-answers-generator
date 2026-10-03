@@ -76,7 +76,6 @@ export {
   type EditorLocation,
   editorLocationSchema,
   guideText,
-  reconcileAnswerGuide,
   renderGuideMarkdown,
   type StageId,
   type StageProgress,

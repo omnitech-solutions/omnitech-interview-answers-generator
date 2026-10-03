@@ -377,7 +377,7 @@ export function createProgram(): Command {
       "playground (Workspace), concept-lab or interview-preparation (Briefings), or mock-interview (Rehearsal)",
     )
     .option("--title <title>", "answer title")
-    .option("--answer-markdown <markdown>")
+    .option("--guide-file <path>", "answer guide JSON file")
     .option("--code-file <path>")
     .option("--usage-code-file <path>")
     .option("--test-code-file <path>")
@@ -392,7 +392,7 @@ export function createProgram(): Command {
         options.notes,
         options.panel,
         options.title,
-        options.answerMarkdown,
+        options.guideFile,
         options.codeFile,
         options.usageCodeFile,
         options.testCodeFile,
@@ -420,7 +420,7 @@ export function createProgram(): Command {
 
         const hasAnswerFields =
           options.title !== undefined ||
-          options.answerMarkdown !== undefined ||
+          options.guideFile !== undefined ||
           options.codeFile !== undefined ||
           options.usageCodeFile !== undefined ||
           options.testCodeFile !== undefined;
@@ -434,19 +434,20 @@ export function createProgram(): Command {
         if (hasAnswerFields) {
           if (
             !options.title ||
-            !options.answerMarkdown ||
+            !options.guideFile ||
             !options.codeFile ||
             !options.language ||
             options.language === "auto"
           ) {
             throw new Error(
-              "An answer requires --title, --answer-markdown, --code-file, and a non-auto --language.",
+              "An answer requires --title, --guide-file, --code-file, and a non-auto --language.",
             );
           }
           patch.answer = {
             title: options.title,
             language: options.language as PlaygroundAnswerLanguage,
-            answerMarkdown: options.answerMarkdown,
+            // The Playground renders the answer's Markdown from the guide.
+            answerMarkdown: "",
             code: await readFile(options.codeFile, "utf8"),
             usageCode: options.usageCodeFile
               ? await readFile(options.usageCodeFile, "utf8")
@@ -454,6 +455,7 @@ export function createProgram(): Command {
             testCode: options.testCodeFile
               ? await readFile(options.testCodeFile, "utf8")
               : "",
+            guide: JSON.parse(await readFile(options.guideFile, "utf8")),
           };
         }
       }

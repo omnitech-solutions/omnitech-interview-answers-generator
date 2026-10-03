@@ -5,7 +5,7 @@ import {
   type InterviewProvenance,
   interviewMetricSchema,
   interviewProvenanceSchema,
-  reconcileAnswerGuide,
+  renderGuideMarkdown,
   stageProgressSchema,
 } from "@omnitech/interview-contracts";
 import {
@@ -144,10 +144,22 @@ export type AnswerRevisionRecord = Readonly<{
   createdAt: string;
   provenance: InterviewProvenance | null;
 }>;
+// The answer's Markdown is always its guide's rendering, whatever was sent.
+function withRenderedAnswer(draft: z.infer<typeof interviewDraftSchema>) {
+  return draft.answer
+    ? {
+        ...draft,
+        answer: {
+          ...draft.answer,
+          answerMarkdown: renderGuideMarkdown(draft.answer.guide),
+        },
+      }
+    : draft;
+}
 // Advice the model sees when a proposal is refused, so it can fix the next one.
 const refusalHints: Readonly<Record<string, string>> = {
   "missing-citation":
-    'Add a top-level `claims` list beside `answer` in the arguments. Each claim is {"field":"answerMarkdown","text":"<exact words from that answer field>","source":"<evidence id>","quote":"<passage from that evidence that supports the text>"}. You do not supply hashes or revisions.',
+    'Add a top-level `claims` list beside `answer` in the arguments. Each claim is {"field":"guide","text":"<exact words from that answer field>","source":"<evidence id>","quote":"<passage from that evidence that supports the text>"}. You do not supply hashes or revisions.',
   "citation-quote-conflict":
     "Each citation quote must be copied exactly, character for character, from that evidence's text.",
   "evidence-hash-conflict":
@@ -284,10 +296,7 @@ export class InterviewWorkspaceRepository {
     origin = originSchema.parse(origin);
     if (origin.artifactRevision !== 0)
       throw new WorkspaceError("revision-conflict");
-    const parsed = interviewDraftSchema.parse(initial);
-    const value = parsed.answer
-      ? { ...parsed, answer: reconcileAnswerGuide(parsed.answer) }
-      : parsed;
+    const value = withRenderedAnswer(interviewDraftSchema.parse(initial));
     const [row] = await tx.query(
       "INSERT INTO interview.assistant_drafts (tenant_id,actor_id,product_id,workspace_id,artifact_id,value) VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *",
       [
@@ -358,14 +367,9 @@ export class InterviewWorkspaceRepository {
     if (Number(row["revision"]) !== origin.artifactRevision)
       throw new WorkspaceError("revision-conflict");
     const current = interviewDraftSchema.parse(row["value"]);
-    const merged = interviewDraftSchema.parse({ ...current, ...validated });
-    // The answer's Markdown follows its guide; see reconcileAnswerGuide.
-    const value = merged.answer
-      ? {
-          ...merged,
-          answer: reconcileAnswerGuide(merged.answer, current.answer),
-        }
-      : merged;
+    const value = withRenderedAnswer(
+      interviewDraftSchema.parse({ ...current, ...validated }),
+    );
     const [updated] = await tx.query(
       `UPDATE interview.assistant_drafts SET value=$7::jsonb,revision=revision+1,updated_at=now(),provenance=CASE WHEN $8::boolean THEN NULL WHEN provenance IS NOT NULL THEN jsonb_set(provenance,'{draftRevision}',to_jsonb(revision+1)) ELSE NULL END WHERE ${where} AND workspace_id=$4 AND artifact_id=$5 AND revision=$6 RETURNING *`,
       [

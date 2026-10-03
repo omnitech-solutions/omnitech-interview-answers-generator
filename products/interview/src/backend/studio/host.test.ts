@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { disposablePostgres } from "../assistant/workspace-fixture.js";
 import { createInterviewStudio } from "./host.js";
+import { guidedProse } from "../../answer-fixture.js";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 let queue: PgBossRunQueue;
@@ -113,7 +114,7 @@ describe("Interview Studio host", () => {
             answer: {
               title: "Two sum",
               language: "typescript",
-              answerMarkdown: "Use a map.",
+              ...guidedProse("Use a map."),
               code: "export const twoSum = () => null;",
               usageCode: "",
               testCode: "",
