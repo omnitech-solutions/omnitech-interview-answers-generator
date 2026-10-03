@@ -53,13 +53,12 @@ export const RETENTION_LABEL: Record<LiveRetentionMode, string> = {
   "thirty-days": "30 days",
   "until-deleted": "Until I delete",
 };
-// What a purge does not reach, and what is never stored at all. ADR-0012 keeps
-// a draft the owner edited, promoted or exported; ADR-0013 Decision 3 adds a
-// draft an answer revision or revert refers to (session-drafts.ts); raw audio
-// is never stored.
+// What a purge does not reach, and what is never stored at all. An owner edit,
+// saved answer revision or revert record preserves a Workspace draft even when
+// the session is deleted (session-drafts.ts); raw audio is never stored.
 export const DRAFTS_KEPT =
-  "Drafts you edited, promoted or exported, and drafts an answer revision refers to, stay in your Workspace";
-export const PROMOTED_NOTE = `Raw audio is never stored. ${DRAFTS_KEPT} and are not deleted with the session.`;
+  "Edited drafts and drafts used by an answer revision or revert can remain in Workspace. They may contain captured questions and generated answers or code. Delete them separately in Workspace.";
+export const PROMOTED_NOTE = `Raw audio is never stored. ${DRAFTS_KEPT}`;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // What the chosen mode means for this session, in one sentence.
@@ -68,15 +67,15 @@ export function retentionMeaning(
 ): string {
   switch (session.retention) {
     case "delete-at-end":
-      return "Session data is deleted shortly after the session ends, when the worker’s purge runs.";
+      return "Session records are deleted shortly after the session ends, when the worker’s purge runs. Some Workspace drafts may remain.";
     case "thirty-days": {
       const ended = session.endedAt ? Date.parse(session.endedAt) : Number.NaN;
       return Number.isNaN(ended)
-        ? "Kept for 30 days after the session ends, then deleted."
-        : `Kept until ${DATE.format(ended + THIRTY_DAYS_MS)} (UTC), then deleted.`;
+        ? "Session records are kept for 30 days after the session ends, then deleted. Some Workspace drafts may remain."
+        : `Session records are kept until ${DATE.format(ended + THIRTY_DAYS_MS)} (UTC), then deleted. Some Workspace drafts may remain.`;
     }
     case "until-deleted":
-      return "Kept until you delete it.";
+      return "Session records are kept until you delete them. Some Workspace drafts may remain.";
   }
 }
 

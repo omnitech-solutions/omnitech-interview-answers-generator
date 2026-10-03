@@ -414,7 +414,11 @@ describe("sources", () => {
   it("offers only shorter retention modes, each behind a confirmation", async () => {
     const { actions } = show({ session: { retention: "until-deleted" } });
     open();
-    expect(screen.getByText("Kept until you delete it.")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Session records are kept until you delete them. Some Workspace drafts may remain.",
+      ),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Shorten to Delete at end" }),
     ).toBeVisible();

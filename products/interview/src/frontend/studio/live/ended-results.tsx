@@ -163,7 +163,8 @@ export function EndedResults({
               The session added nothing to your matrix or exercise catalogue
             </div>
             <div className="live-note">
-              Drafts stay private to you unless you promote or export them.
+              Session Workspace drafts are private to you and managed in
+              Workspace.
             </div>
           </div>
         </li>

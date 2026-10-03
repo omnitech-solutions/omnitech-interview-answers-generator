@@ -128,6 +128,9 @@ describe("Setup defaults", () => {
     ).not.toBeChecked();
     expect(screen.getByRole("radio", { name: "Device only" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Delete at end" })).toBeChecked();
+    expect(screen.getByTestId("live-setup")).toHaveTextContent(
+      "Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
+    );
     expect(screen.getByRole("switch", { name: "Microphone" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "App audio" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "Screen" })).not.toBeChecked();

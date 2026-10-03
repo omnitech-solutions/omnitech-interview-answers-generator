@@ -222,6 +222,9 @@ describe("the ended view: header and results", () => {
     expect(screen.getByTestId("ended-no-promotion")).toHaveTextContent(
       "The session added nothing to your matrix or exercise catalogue",
     );
+    expect(screen.getByTestId("ended-no-promotion")).not.toHaveTextContent(
+      "promote or export",
+    );
   });
 
   it("shows a withheld draft with the content-free count, and tolerates its absence", async () => {
@@ -336,7 +339,7 @@ describe("retention", () => {
   it("explains delete at end", async () => {
     await mount(ended({ retention: "delete-at-end" }));
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
-      "Delete at end · Session data is deleted shortly after the session ends, when the worker’s purge runs.",
+      "Delete at end · Session records are deleted shortly after the session ends, when the worker’s purge runs. Some Workspace drafts may remain.",
     );
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
       "Raw audio is never stored.",
@@ -346,14 +349,14 @@ describe("retention", () => {
   it("explains thirty days with the date, thirty days after the end", async () => {
     await mount(ended({ retention: "thirty-days" }));
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
-      "30 days · Kept until 2 Nov 2026 (UTC), then deleted.",
+      "30 days · Session records are kept until 2 Nov 2026 (UTC), then deleted. Some Workspace drafts may remain.",
     );
   });
 
   it("explains until deleted", async () => {
     await mount(ended({ retention: "until-deleted" }));
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
-      "Until I delete · Kept until you delete it.",
+      "Until I delete · Session records are kept until you delete them. Some Workspace drafts may remain.",
     );
   });
 
@@ -383,7 +386,7 @@ describe("retention", () => {
     await flush();
     expect(server.count("POST /:id/retention")).toBe(1);
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
-      "Delete at end · Session data is deleted",
+      "Delete at end · Session records are deleted",
     );
     expect(
       screen.queryByRole("group", { name: "Shorten retention" }),
@@ -418,6 +421,12 @@ describe("deleting session data", () => {
       name: "Confirm deleting session data",
     });
     expect(confirm).toHaveTextContent("can’t be undone");
+    expect(confirm).toHaveTextContent(
+      "Edited drafts and drafts used by an answer revision or revert can remain in Workspace",
+    );
+    expect(confirm).toHaveTextContent(
+      "They may contain captured questions and generated answers or code",
+    );
     expect(confirm).toHaveTextContent(
       "Copies in backups remain until they rotate",
     );
@@ -517,6 +526,9 @@ describe("a deleted session", () => {
     );
     const tomb = screen.getByTestId("ended-tombstone");
     expect(tomb).toHaveTextContent("Session data deleted");
+    expect(tomb).toHaveTextContent(
+      "Edited drafts and drafts used by an answer revision or revert can remain in Workspace",
+    );
     expect(tomb).toHaveTextContent("Hints counted3");
     expect(tomb).toHaveTextContent("3 Oct 2026, 12:00 UTC");
     expect(tomb).toHaveTextContent("3 Oct 2026, 12:05 UTC");

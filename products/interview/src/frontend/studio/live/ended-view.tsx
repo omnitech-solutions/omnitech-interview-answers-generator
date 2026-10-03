@@ -134,8 +134,8 @@ export function EndedView({ studio }: EndedViewProps) {
             </h3>
             <p className="live-note">
               {session.purged
-                ? `The transcript, screenshots and the session drafts you did not edit are gone; only these facts remain. ${DRAFTS_KEPT}.`
-                : `The transcript, screenshots and the session drafts you did not edit are no longer shown here. ${DRAFTS_KEPT}.`}
+                ? `The transcript, screenshots and unedited, unreferenced session Workspace drafts are gone. ${DRAFTS_KEPT}`
+                : `The transcript, screenshots and session Workspace drafts are no longer shown here while deletion runs. ${DRAFTS_KEPT}`}
             </p>
             <dl className="ended-facts">
               <div>

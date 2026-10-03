@@ -175,7 +175,7 @@ export const SCENARIOS: Scenario[] = [
     must: [
       /Nothing was submitted or sent for you/,
       /Raw audio is never stored/,
-      /stay in your Workspace/,
+      /may contain captured questions and generated answers or code/i,
     ],
     mustNot: [/nothing is running/i],
   },
@@ -189,6 +189,9 @@ export const SCENARIOS: Scenario[] = [
         purged: true,
       });
     },
-    must: [/Session data deleted/, /stay in your Workspace/],
+    must: [
+      /Session data deleted/,
+      /may contain captured questions and generated answers or code/i,
+    ],
   },
 ];

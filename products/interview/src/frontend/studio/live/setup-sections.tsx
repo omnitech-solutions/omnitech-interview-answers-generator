@@ -290,10 +290,11 @@ export function ProcessingSection({
 
 const RETENTION_COPY: Record<LiveRetentionMode, string> = {
   "delete-at-end":
-    "Session data is deleted shortly after you end the session, when the worker’s purge runs.",
-  "thirty-days": "Session data is deleted 30 days after the session ends.",
+    "Session records are deleted shortly after you end the session, when the worker’s purge runs. Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
+  "thirty-days":
+    "Session records are deleted 30 days after the session ends. Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
   "until-deleted":
-    "Kept until you delete it. Until then it blocks deleting the interview, candidacy or matrix revision it links.",
+    "Session records are kept until you delete them. Until then they block deleting the interview, candidacy or matrix revision they link. Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
 };
 
 export function RetentionSection({

@@ -127,8 +127,11 @@ export function EndedRetention({
             >
               <p>
                 Delete this session’s transcript, screenshots, answer drafts and
-                session Workspace drafts? This can’t be undone. Copies in
-                backups remain until they rotate.
+                unedited, unreferenced session Workspace drafts? This can’t be
+                undone. Edited drafts and drafts used by an answer revision or
+                revert can remain in Workspace. They may contain captured
+                questions and generated answers or code. Delete them separately
+                in Workspace. Copies in backups remain until they rotate.
               </p>
               <div className="ended-actions">
                 <button
