@@ -13,6 +13,20 @@ describe("provider configuration", () => {
     vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "");
     expect(getProviderConfiguration("google")).toBeUndefined();
   });
+
+  // ADR-0006 D4: the base integration requests OIDC profile data only;
+  // product-specific scopes are a separate, later grant.
+  it.each([
+    ["google", ["openid", "email", "profile"]],
+    ["linkedin", ["openid", "profile", "email"]],
+  ] as const)(
+    "requests only OIDC profile scopes from %s",
+    (provider, scopes) => {
+      vi.stubEnv(`INTEGRATION_${provider.toUpperCase()}_ID`, "client-id");
+      vi.stubEnv(`INTEGRATION_${provider.toUpperCase()}_SECRET`, "secret");
+      expect(getProviderConfiguration(provider)?.scopes).toEqual(scopes);
+    },
+  );
 });
 
 const secret = "integration-state-secret-at-least-32";

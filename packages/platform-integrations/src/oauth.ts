@@ -49,12 +49,8 @@ export function getProviderConfiguration(
         authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
         tokenUrl: "https://oauth2.googleapis.com/token",
         userInfoUrl: "https://openidconnect.googleapis.com/v1/userinfo",
-        scopes: [
-          "openid",
-          "email",
-          "profile",
-          "https://www.googleapis.com/auth/drive.file",
-        ],
+        // OIDC profile only (ADR-0006): no product uses Google APIs yet.
+        scopes: ["openid", "email", "profile"],
       }
     : {
         provider,
