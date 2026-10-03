@@ -48,7 +48,6 @@ From the repository root:
 ```bash
 corepack enable
 pnpm install
-cp .env.example apps/web/.env.local
 pnpm runner:build
 pnpm dev
 ```
@@ -82,7 +81,7 @@ an immutable copy.
 
 The committed `.env.example` targets an OpenAI-compatible hosted endpoint. To
 exercise the application without an external model, set these values in
-`apps/web/.env.local`:
+the root `.env`:
 
 ```dotenv
 AI_BASE_URL=http://127.0.0.1:3000/api/fake/v1
@@ -95,14 +94,29 @@ testing, not realistic interview answers.
 
 ## Configuration
 
-The web server reads the following variables from `apps/web/.env.local`.
+`pnpm dev` reads the root `.env`, then `apps/web/.env.local` if present.
+Values in `apps/web/.env.local` override the root file; exported shell
+variables take precedence over both. Both files are ignored by Git.
+Use `.env.example` as a reference, not a file to copy with placeholder secrets.
 
-**One model configuration serves the whole application.** The interview API,
-the platform AI gateway and Interview Studio's assistant all resolve their
-model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below through
-`packages/ai-runtime/src/config.ts`, so changing a value changes it
-everywhere. When none is
-set, `pnpm dev` uses the model LM Studio already has loaded and says so on
+To default the Studio assistant to Claude Code's signed-in CLI, set these in
+the root `.env`:
+
+```dotenv
+INTERVIEW_ASSISTANT_DEFAULT_MODEL=agent/claude-code
+CLAUDE_ASSISTANT_MODEL=claude-sonnet-5-5
+```
+
+The Claude Code assistant profile uses medium effort. Its model must be
+available to your Claude Code login. A previously saved model choice in the
+browser continues to take precedence until changed in the assistant picker.
+Generated answers and Active Session use the separate HTTP model configuration
+below; `pnpm dev` uses LM Studio when no HTTP model is configured.
+
+The interview API, platform AI gateway and Studio's direct-model assistant
+profile resolve their HTTP model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*`
+variables below through `packages/ai-runtime/src/config.ts`. When none is set,
+`pnpm dev` uses the model LM Studio already has loaded and says so on
 start, loading it with a 65,536-token window (`ASSISTANT_CONTEXT_TOKENS`) so
 the assistant's history and output limits fit.
 
@@ -115,6 +129,8 @@ the assistant's history and output limits fit.
 | `AI_PROVIDER_LABEL` | Display label for the `AI_*` provider | Inferred from its URL |
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
 | `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
+| `INTERVIEW_ASSISTANT_DEFAULT_MODEL` | Preferred Studio assistant picker target, such as `agent/claude-code`; falls back if unavailable | `interview-assistant` |
+| `CLAUDE_ASSISTANT_MODEL` | Claude Code CLI model for assistant turns | `sonnet` at medium effort |
 | `OPENAI_MODEL` | OpenAI model offered when choosing a provider | Unset |
 | `OPENAI_API_KEY` | OpenAI credential | Unset |
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `https://api.openai.com/v1` |

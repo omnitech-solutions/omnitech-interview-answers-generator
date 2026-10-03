@@ -47,6 +47,8 @@ export interface InterviewBackendServices {
   contextCharacters: number;
   // Offer the on-device (browser) model in the assistant's picker.
   onDeviceModel: boolean;
+  // Preferred assistant picker model; unavailable targets use the product default.
+  assistantDefaultModel?: string;
   // Local development: briefing packs start from the bundled profile.
   localDefaultProfile: boolean;
 }
@@ -144,6 +146,7 @@ async function build(
     services.ai,
     relay,
     services.onDeviceModel,
+    services.assistantDefaultModel,
   );
   return createInterviewStudio({
     database,

@@ -75,6 +75,44 @@ describe("createAssistantModels", () => {
     expect((await on.catalog.list(scope)).models.at(-1)?.id).toBe("on-device");
   });
 
+  it("uses the configured Claude agent only when it is available", async () => {
+    const g = gateway();
+    g.listAvailableTargets.mockResolvedValue([
+      target(INTERVIEW_ASSISTANT_PROFILE),
+      target("agent/claude-code"),
+    ]);
+    const { catalog } = createAssistantModels(
+      g.ai,
+      {} as ModelRelay,
+      false,
+      "agent/claude-code",
+    );
+    const listing = await catalog.list(scope);
+    expect(listing.defaultModel).toBe("agent/claude-code");
+    expect(
+      listing.models.find(({ id }) => id === "agent/claude-code")?.tags,
+    ).toContain("default");
+    expect(
+      listing.models.find(({ id }) => id === INTERVIEW_ASSISTANT_PROFILE)?.tags,
+    ).not.toContain("default");
+
+    g.listAvailableTargets.mockResolvedValue([
+      target(INTERVIEW_ASSISTANT_PROFILE),
+    ]);
+    expect((await catalog.list(scope)).defaultModel).toBe(
+      INTERVIEW_ASSISTANT_PROFILE,
+    );
+
+    g.listAvailableTargets.mockResolvedValue([
+      target(INTERVIEW_ASSISTANT_PROFILE),
+      ...Array.from({ length: 63 }, (_, index) => target(`extra-${index}`)),
+      target("agent/claude-code"),
+    ]);
+    const capped = await catalog.list(scope);
+    expect(capped.models).toHaveLength(64);
+    expect(capped.defaultModel).toBe(INTERVIEW_ASSISTANT_PROFILE);
+  });
+
   it("runs every picked model but the on-device one through the gateway", async () => {
     const g = gateway();
     const { port } = createAssistantModels(g.ai, {} as ModelRelay, false);

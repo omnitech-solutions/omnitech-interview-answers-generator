@@ -1,10 +1,10 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import { resolveDefaultLanguageModel } from "@omnitech/ai-runtime/config";
 import { getPlatformDatabase } from "@omnitech/database";
 import { createInterviewBackend } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import type { Hono } from "hono";
 import { interviewAssistantBudget } from "./ai";
-import { resolveDefaultLanguageModel } from "@omnitech/ai-runtime/config";
 import { resolvePlatformContext } from "./context";
 
 /** A registered product's backend: its router and any in-process worker. */
@@ -39,6 +39,12 @@ export function createProductBackends(
     contextCharacters: interviewAssistantBudget(language?.baseUrl)
       .contextCharacters,
     onDeviceModel: Boolean(process.env["NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256"]),
+    ...(process.env["INTERVIEW_ASSISTANT_DEFAULT_MODEL"]
+      ? {
+          assistantDefaultModel:
+            process.env["INTERVIEW_ASSISTANT_DEFAULT_MODEL"],
+        }
+      : {}),
     localDefaultProfile:
       process.env["NODE_ENV"] !== "production" &&
       process.env["FAKE_AUTH_ENABLED"] === "true",

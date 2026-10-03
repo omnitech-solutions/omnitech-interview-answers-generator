@@ -40,3 +40,12 @@ it("gives the run queue the configured connection string", () => {
     }),
   );
 });
+
+it("passes the configured assistant default to the product", () => {
+  vi.stubEnv("DATABASE_URL", "postgresql://app@db/omnitech");
+  vi.stubEnv("INTERVIEW_ASSISTANT_DEFAULT_MODEL", "agent/claude-code");
+  createProductBackends({} as AiExecutionGateway);
+  expect(createInterviewBackend).toHaveBeenCalledWith(
+    expect.objectContaining({ assistantDefaultModel: "agent/claude-code" }),
+  );
+});

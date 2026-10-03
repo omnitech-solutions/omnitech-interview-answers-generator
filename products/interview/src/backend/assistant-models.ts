@@ -35,13 +35,14 @@ const ON_DEVICE: ModelInfo = {
  * The models the interview assistant offers in its picker, and the port that
  * runs whichever one a turn asks for. Every model but the on-device one is a
  * gateway target for structured chat, so it runs through the gateway: the
- * assistant's own profile first (the default), then whatever catalogs and
+ * assistant's own profile first, then whatever catalogs and
  * agents the host configured. The on-device model is offered when pinned.
  */
 export function createAssistantModels(
   ai: AiExecutionGateway,
   relay: ModelRelay,
   onDevice: boolean,
+  preferredModel = INTERVIEW_ASSISTANT_PROFILE,
 ): { catalog: ModelCatalog; port: ModelPort } {
   const gatewayPort = createGatewayModelPort(ai, async () => PERMISSIONS);
   const relaySource = createRelayModelSource({ relay, models: [ON_DEVICE] });
@@ -56,17 +57,21 @@ export function createAssistantModels(
         },
         { taskType: "structured-chat" },
       );
-      const models = targets.flatMap(({ id, listing }) =>
-        !listing
-          ? []
-          : id === INTERVIEW_ASSISTANT_PROFILE
-            ? [{ ...listing, tags: ["default", ...listing.tags] }]
-            : [listing],
+      const listed = targets
+        .flatMap(({ listing }) => (listing ? [listing] : []))
+        .slice(0, MAX_MODELS - Number(onDevice));
+      const defaultModel = listed.some(({ id }) => id === preferredModel)
+        ? preferredModel
+        : INTERVIEW_ASSISTANT_PROFILE;
+      const models = listed.map((listing) =>
+        listing.id === defaultModel
+          ? { ...listing, tags: ["default", ...listing.tags] }
+          : listing,
       );
       if (onDevice) models.push(ON_DEVICE);
       return {
-        models: models.slice(0, MAX_MODELS),
-        defaultModel: INTERVIEW_ASSISTANT_PROFILE,
+        models,
+        defaultModel,
       };
     },
   };

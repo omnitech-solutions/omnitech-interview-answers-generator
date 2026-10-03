@@ -48,8 +48,8 @@ export async function defaultLocalModelEnvironment(env = process.env) {
   const model = loaded ?? DEFAULT_LM_STUDIO_MODEL;
   console.log(
     loaded
-      ? `[dev] No AI model configured; using LM Studio's loaded model "${model}".`
-      : `[dev] No AI model configured or loaded; using "${model}" from LM Studio.`,
+      ? `[dev] No HTTP AI model configured; using LM Studio's loaded model "${model}" for generated answers and Active Session.`
+      : `[dev] No HTTP AI model configured or loaded; using "${model}" from LM Studio for generated answers and Active Session.`,
     "Set LM_STUDIO_MODEL, OPENAI_MODEL or AI_BASE_URL and AI_MODEL to choose another.",
   );
   // A local model reads long briefing material slowly: a pack's research and

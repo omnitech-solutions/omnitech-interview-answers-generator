@@ -5,29 +5,37 @@ import {
   defaultLocalModelEnvironment,
   ensureLmStudioContext,
 } from "./local-model.mjs";
+import { loadDevEnvironment } from "./dev-env.mjs";
 
+const configuredEnvironment = loadDevEnvironment();
 const localEnvironment = {
-  ...process.env,
-  ...(await defaultLocalModelEnvironment()),
-  NODE_ENV: process.env.NODE_ENV ?? "development",
-  FAKE_AUTH_ENABLED: process.env.FAKE_AUTH_ENABLED ?? "true",
+  ...configuredEnvironment,
+  ...(await defaultLocalModelEnvironment(configuredEnvironment)),
+  NODE_ENV: configuredEnvironment.NODE_ENV ?? "development",
+  FAKE_AUTH_ENABLED: configuredEnvironment.FAKE_AUTH_ENABLED ?? "true",
   NEXT_PUBLIC_FAKE_AUTH_ENABLED:
-    process.env.NEXT_PUBLIC_FAKE_AUTH_ENABLED ?? "true",
+    configuredEnvironment.NEXT_PUBLIC_FAKE_AUTH_ENABLED ?? "true",
   AUTH_SECRET:
-    process.env.AUTH_SECRET ??
+    configuredEnvironment.AUTH_SECRET ??
     "development-only-auth-secret-change-before-deployment",
   // The compose.yaml database, as its application role.
   DATABASE_URL: "postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech",
   // This fallback is scoped to the local `pnpm dev` launcher. Production and
   // direct worker starts still require an explicitly configured secret.
   AGENT_PAYLOAD_SECRET:
-    process.env.AGENT_PAYLOAD_SECRET ??
+    configuredEnvironment.AGENT_PAYLOAD_SECRET ??
     "omnitech-local-agent-payload-secret-change-me",
 };
 
-// The interview assistant needs LM Studio's model loaded with enough context.
-// DEV_SKIP_LM_STUDIO_LOAD=1 leaves LM Studio alone: the model stays the app's
-// default and loads on first use, so a restart never loads a large model.
+if (localEnvironment.INTERVIEW_ASSISTANT_DEFAULT_MODEL === "agent/claude-code") {
+  console.log(
+    `[dev] Studio assistant default: Claude Code (${localEnvironment.CLAUDE_ASSISTANT_MODEL ?? "sonnet"}, medium effort).`,
+  );
+}
+
+// The local HTTP model needs enough context for generated answers and
+// Active Session. DEV_SKIP_LM_STUDIO_LOAD=1 leaves LM Studio alone and lets
+// it load the model on first use.
 if (
   localEnvironment.LM_STUDIO_MODEL &&
   !localEnvironment.AI_MODEL &&
