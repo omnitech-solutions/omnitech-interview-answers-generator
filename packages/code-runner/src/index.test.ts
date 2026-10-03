@@ -1,10 +1,13 @@
 import { EventEmitter } from "node:events";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const childProcessMocks = vi.hoisted(() => ({
   spawn: vi.fn(),
-  spawnSync: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 const fsMocks = vi.hoisted(() => ({
@@ -19,7 +22,7 @@ const fsMocks = vi.hoisted(() => ({
 
 vi.mock("node:child_process", () => ({
   spawn: childProcessMocks.spawn,
-  spawnSync: childProcessMocks.spawnSync,
+  execFile: childProcessMocks.execFile,
 }));
 
 vi.mock("node:fs/promises", () => fsMocks);
@@ -355,15 +358,17 @@ describe("DockerCodeRunner", () => {
       string[],
     ];
     const name = runArguments[runArguments.indexOf("--name") + 1];
-    expect(childProcessMocks.spawnSync).toHaveBeenCalledWith(
+    expect(childProcessMocks.execFile).toHaveBeenCalledWith(
       "docker",
       ["kill", name],
       expect.anything(),
+      expect.any(Function),
     );
-    expect(childProcessMocks.spawnSync).toHaveBeenCalledWith(
+    expect(childProcessMocks.execFile).toHaveBeenCalledWith(
       "docker",
       ["rm", "-f", name],
       expect.anything(),
+      expect.any(Function),
     );
 
     child.emit("close", null);
@@ -383,15 +388,60 @@ describe("DockerCodeRunner", () => {
     const resultPromise = runner.run({ language: "php", code: "1", stdin: "" });
 
     await vi.advanceTimersByTimeAsync(25);
-    for (const call of childProcessMocks.spawnSync.mock.calls) {
+    for (const call of childProcessMocks.execFile.mock.calls) {
       expect(call[2]).toEqual(
         expect.objectContaining({ timeout: expect.any(Number) }),
       );
     }
-    expect(childProcessMocks.spawnSync).toHaveBeenCalled();
+    expect(childProcessMocks.execFile).toHaveBeenCalled();
     child.emit("close", null);
     await resultPromise;
   });
+
+  it("never blocks the event loop when a hung Docker daemon stalls cleanup", async () => {
+    // A fake docker that logs its subcommand and then hangs, like a wedged daemon.
+    const directory = mkdtempSync(join(tmpdir(), "fake-docker-"));
+    const log = join(directory, "calls.log");
+    const binary = join(directory, "docker");
+    writeFileSync(binary, `#!/bin/sh\necho "$1" >> "${log}"\nexec sleep 30\n`);
+    chmodSync(binary, 0o755);
+    const actual =
+      await vi.importActual<typeof import("node:child_process")>(
+        "node:child_process",
+      );
+    childProcessMocks.spawn.mockImplementation(actual.spawn);
+    childProcessMocks.execFile.mockImplementation(actual.execFile);
+
+    let maxDelay = 0;
+    let last = performance.now();
+    const probe = setInterval(() => {
+      const now = performance.now();
+      maxDelay = Math.max(maxDelay, now - last - 10);
+      last = now;
+    }, 10);
+    try {
+      const runner = new DockerCodeRunner({
+        dockerBinary: binary,
+        timeoutMs: 150,
+      });
+      const result = await runner.run({
+        language: "php",
+        code: "1",
+        stdin: "",
+      });
+      // Let the (hanging) cleanup processes start before inspecting the log.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(result.timedOut).toBe(true);
+      expect(maxDelay).toBeLessThan(200);
+      // Cleanup was still attempted: kill, rm -f, and the close-time rm -f.
+      const calls = readFileSync(log, "utf8").trim().split("\n");
+      expect(calls.filter((call) => call === "kill")).toHaveLength(1);
+      expect(calls.filter((call) => call === "rm")).toHaveLength(2);
+    } finally {
+      clearInterval(probe);
+    }
+  }, 15_000);
 
   it("removes the container again after close when the run timed out", async () => {
     vi.useFakeTimers();
@@ -406,7 +456,7 @@ describe("DockerCodeRunner", () => {
     ];
     const name = runArguments[runArguments.indexOf("--name") + 1];
     const removals = () =>
-      childProcessMocks.spawnSync.mock.calls.filter(
+      childProcessMocks.execFile.mock.calls.filter(
         (call) => call[1][0] === "rm" && call[1][2] === name,
       ).length;
     expect(removals()).toBe(1);
@@ -425,7 +475,7 @@ describe("DockerCodeRunner", () => {
     });
     child.emit("close", 0);
     await resultPromise;
-    expect(childProcessMocks.spawnSync).not.toHaveBeenCalled();
+    expect(childProcessMocks.execFile).not.toHaveBeenCalled();
   });
 
   it("rejects when the container process cannot be started", async () => {

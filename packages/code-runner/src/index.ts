@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   chmod,
@@ -414,6 +414,7 @@ export class DockerCodeRunner implements CodeRunner {
       ...rest,
     ];
     const docker = this.options.dockerBinary ?? "docker";
+    const cleanupTimeoutMs = 5_000;
     return new Promise((resolve, reject) => {
       const maximumOutput = this.options.maxOutputBytes ?? 64_000;
       const child = spawn(docker, namedArguments, {
@@ -433,16 +434,24 @@ export class DockerCodeRunner implements CodeRunner {
       });
       child.on("error", reject);
 
-      const cleanupTimeoutMs = 5_000;
+      // Cleanup is asynchronous and bounded: a hung Docker daemon must never
+      // block the event loop (and with it the worker's lease renewal), nor
+      // hold the run's result hostage. Failures are swallowed; the run result
+      // already reports the timeout.
+      const cleanup = (cleanupArguments: string[]) => {
+        execFile(
+          docker,
+          cleanupArguments,
+          { timeout: cleanupTimeoutMs, killSignal: "SIGKILL" },
+          () => undefined,
+        );
+      };
       const timer = setTimeout(() => {
         timedOut = true;
         // Stop the container, then the client; `rm -f` covers a container the
         // kill raced with, so none outlives its run (or its mounted temp dir).
-        // Bounded: a hung Docker daemon must not freeze the worker event loop
-        // (and with it lease renewal) indefinitely.
-        const bounded = { stdio: "ignore", timeout: cleanupTimeoutMs } as const;
-        spawnSync(docker, ["kill", containerName], bounded);
-        spawnSync(docker, ["rm", "-f", containerName], bounded);
+        cleanup(["kill", containerName]);
+        cleanup(["rm", "-f", containerName]);
         child.kill("SIGKILL");
       }, timeoutMs);
 
@@ -452,10 +461,7 @@ export class DockerCodeRunner implements CodeRunner {
           // The timer may have fired before the daemon created the container,
           // so the first kill/rm found nothing and a Created-state container
           // would remain; the client has exited now, so remove it again.
-          spawnSync(docker, ["rm", "-f", containerName], {
-            stdio: "ignore",
-            timeout: cleanupTimeoutMs,
-          });
+          cleanup(["rm", "-f", containerName]);
         }
         if (isDockerDaemonUnavailable(stderr)) {
           reject(new Error("Docker daemon is unavailable."));

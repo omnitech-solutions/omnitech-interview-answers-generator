@@ -509,10 +509,21 @@ if (process.argv[2] === "run") setInterval(() => {}, 1000);
       timeoutMs: 300,
     }).run({ language: "typescript", code: "1", stdin: "" });
     expect(result.timedOut).toBe(true);
-    const calls = readFileSync(hangLog, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as string[]);
+    // Cleanup is asynchronous and no longer awaited by the run, so poll the
+    // log (bounded) until the kill and both rm -f calls have landed.
+    const readCalls = () =>
+      readFileSync(hangLog, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as string[]);
+    const deadline = Date.now() + 5_000;
+    while (
+      readCalls().filter((argv) => argv[0] === "rm").length < 2 &&
+      Date.now() < deadline
+    ) {
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    const calls = readCalls();
     const run = calls.find((argv) => argv[0] === "run") as string[];
     const name = run[run.indexOf("--name") + 1] as string;
     expect(name).toMatch(/^interview-run-/);
