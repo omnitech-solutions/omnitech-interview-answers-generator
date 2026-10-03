@@ -1,0 +1,213 @@
+format_version: '1'
+run_id: RUN-001
+book_id: PB-0002
+book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1256648cfa4
+started_at: '2026-10-03T06:36:52Z'
+completed_at: null
+status: in_progress
+current_prompt: 1
+base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
+prompts:
+- n: 1
+  title: 'Plan #1: spawn planning team, propose ADR for the Active Session capability: the bounded session core, the versioned active-session-contracts wire protocol between the capture companion and Studio, the worker-hosted session processor beside the agent-job loop, and the three-concept split between Interview, Active Session and Agent Job'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 2
+  title: 'Plan #1: convene LLM council to review the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 3
+  title: 'Plan #1: address council findings, re-convene the council'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 4
+  title: 'Plan #1: accept the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 5
+  title: 'Plan #2: spawn planning team, propose ADR for private Active Session data and locality: actor-level row security for active_sessions, session_observations and session_actions, composite tenant+owner references and explicit linked-resource authorization, PostgreSQL storage of final transcripts and selected screenshots with bounded raw-audio memory, retention, the device-only versus permitted-remote processing policy enforced at profile resolution and before dispatch, and the rule that captured text and images are untrusted input'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 6
+  title: 'Plan #2: convene LLM council to review the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 7
+  title: 'Plan #2: address council findings, re-convene the council'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 8
+  title: 'Plan #2: accept the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 9
+  title: 'Develop #1: derive an implementation plan for slice 1 foundation: the active-session-contracts package; products/interview live-session/core (observation ordering, dedup, task revisions, leases and fencing, stop authority) importing only neutral contracts; the repository and Drizzle migration with actor-level forced RLS; the session processor exported through the product''s public entrypoint and registered in apps/agent-worker as a separately bounded loop; authenticated ingest, stream and control routes with a short-lived credential bound to tenant, actor and session; and the locality policy gate'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 10
+  title: 'Develop #1: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 11
+  title: 'Develop #1: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 12
+  title: 'Develop #1: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 13
+  title: 'Develop #2: derive an implementation plan for slices 1-2 interview assistance: interview-policy.ts and service.ts; bounded context snapshots with the experience-matrix revision pinned at session start; one structured AiExecutionGateway call that classifies and answers; matrix-backed claims versus suggested interpretation versus general technical knowledge with per-claim source references and an explicit unsupported-reference failure case; the coding path (direct model call, then code-runner) published to a session-owned Workspace draft with an expected-revision check; agent-job dispatch only when repository navigation or iterative repair is needed; the code-runner sandbox controls (restricted workspace, no host-home or credential mounts, no Docker socket, bounded resources, network off by default); and no automatic promotion of generated answers into the experience matrix or exercise catalogue'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 14
+  title: 'Develop #2: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 15
+  title: 'Develop #2: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 16
+  title: 'Develop #2: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 17
+  title: 'Develop #3: derive an implementation plan for slice 1-3 Studio UI: the persistent session control and session view (source status, processing locality, pause and stop, current activity, current question and answer with evidence and transcript beneath) extending the existing Workspace, Briefings, Knowledge, Rehearsal and Assistant surfaces per the Active Session.html reference, surviving navigation between Studio pages (session lifetime not tied to a React component), with Workspace job progress and test output'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 18
+  title: 'Develop #3: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 19
+  title: 'Develop #3: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 20
+  title: 'Develop #3: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 21
+  title: 'Develop #4: derive an implementation plan for slices 1-3 capture companion and operational hardening: apps/capture-companion, a narrow macOS ScreenCaptureKit companion consuming only the versioned wire schema, with local transcription, an on-device capability check that fails visibly, source labels without speaker identity, bounded buffering and a local stop that works while Studio is down, plus a protocol-conformant fixture companion for what cannot run here; and the operational hardening tests (reconnection, worker restart, conflicting observations, permission revocation, same-tenant cross-user access, remote-egress blocking, retention, latency)'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 22
+  title: 'Develop #4: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 23
+  title: 'Develop #4: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 24
+  title: 'Develop #4: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 25
+  title: 'Review : external team review (multi-dimension + dedicated security review) of the full Active Session cycle diff'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 26
+  title: 'Review : tests, docs, and dev-practice conformance audit of the full Active Session cycle diff'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 27
+  title: 'Review : implement feedback; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 28
+  title: 'Prep: changelog, docs, journal, PR notes'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 29
+  title: 'Summary: completion report AND archive the book'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []

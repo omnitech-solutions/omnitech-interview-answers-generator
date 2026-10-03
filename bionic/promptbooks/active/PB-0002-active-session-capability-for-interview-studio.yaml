@@ -4,8 +4,8 @@ title: 'Cycle: Active Session capability for Interview Studio'
 status: active
 created_at: '2026-10-03'
 total_prompts: 29
-current_run: null
-current_prompt: null
+current_run: RUN-001
+current_prompt: 1
 forked_from: null
 tags:
 - cycle
