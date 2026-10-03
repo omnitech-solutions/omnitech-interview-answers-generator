@@ -61,8 +61,13 @@ export const tenantReference = (
   name: string,
   columns: [PgColumn, PgColumn],
   parent: [PgColumn, PgColumn],
+  options: { onDelete?: "cascade" } = {},
 ) =>
   [
-    foreignKey({ name, columns, foreignColumns: parent }),
+    options.onDelete
+      ? foreignKey({ name, columns, foreignColumns: parent }).onDelete(
+          options.onDelete,
+        )
+      : foreignKey({ name, columns, foreignColumns: parent }),
     index(name.replace(/_fkey$/, "_idx")).on(...columns),
   ] as const;

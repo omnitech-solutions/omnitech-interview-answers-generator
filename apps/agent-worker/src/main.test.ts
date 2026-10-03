@@ -137,7 +137,9 @@ async function runUntil(
 }
 
 async function eventTypes(jobId: string) {
-  return (await jobs.eventsAfter(jobId, 0)).map(({ event }) => event.type);
+  return (await jobs.eventsAfter(tenantId, jobId, 0)).map(
+    ({ event }) => event.type,
+  );
 }
 
 function fakeRuntime(
@@ -263,7 +265,9 @@ describe("configured agent worker", () => {
     );
 
     expect(done.status).toBe("failed");
-    expect((await jobs.eventsAfter(failing.id, 0)).at(-1)?.event).toEqual({
+    expect(
+      (await jobs.eventsAfter(tenantId, failing.id, 0)).at(-1)?.event,
+    ).toEqual({
       type: "failed",
       error: { code: "provider", message: "Overloaded", retryable: true },
     });

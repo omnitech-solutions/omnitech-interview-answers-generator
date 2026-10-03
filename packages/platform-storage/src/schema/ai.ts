@@ -16,34 +16,44 @@ import {
   boolean,
   numeric,
 } from "drizzle-orm/pg-core";
+import { tenantReference, tenantUnique } from "@omnitech/database";
 import { tenants, users } from "./platform.js";
 
 export const ai = pgSchema("ai");
 
-export const agentArtifacts = ai.table("agent_artifacts", {
-  id: uuid().defaultRandom().primaryKey(),
-  jobId: uuid("job_id")
-    .notNull()
-    .references(() => agentJobs.id, {
-      name: "agent_artifacts_job_id_fkey",
-      onDelete: "cascade",
+// A job's artifacts and events are tenant-owned rows: each carries its job's
+// tenant, and the composite (tenant_id, job_id) key keeps the two equal.
+export const agentArtifacts = ai.table.withRLS(
+  "agent_artifacts",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    jobId: uuid("job_id").notNull(),
+    artifactReference: text("artifact_reference").notNull(),
+    kind: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  (table) => [
+    ...tenantReference(
+      "agent_artifacts_job_id_fkey",
+      [table.tenantId, table.jobId],
+      [agentJobs.tenantId, agentJobs.id],
+      { onDelete: "cascade" },
+    ),
+    pgPolicy("tenant_scope", {
+      using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+      withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
     }),
-  artifactReference: text("artifact_reference").notNull(),
-  kind: text().notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .default(sql`now()`)
-    .notNull(),
-});
+  ],
+);
 
-export const agentJobEvents = ai.table(
+export const agentJobEvents = ai.table.withRLS(
   "agent_job_events",
   {
-    jobId: uuid("job_id")
-      .notNull()
-      .references(() => agentJobs.id, {
-        name: "agent_job_events_job_id_fkey",
-        onDelete: "cascade",
-      }),
+    tenantId: uuid("tenant_id").notNull(),
+    jobId: uuid("job_id").notNull(),
     sequence: integer().notNull(),
     event: jsonb().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -54,6 +64,22 @@ export const agentJobEvents = ai.table(
     primaryKey({
       columns: [table.jobId, table.sequence],
       name: "agent_job_events_pkey",
+    }),
+    ...tenantReference(
+      "agent_job_events_job_id_fkey",
+      [table.tenantId, table.jobId],
+      [agentJobs.tenantId, agentJobs.id],
+      { onDelete: "cascade" },
+    ),
+    pgPolicy("tenant_scope", {
+      using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+      withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+    }),
+    // The worker appends a job's events before it is in the job's tenant
+    // (agent-job-worker-repository.ts); it never reads or changes them.
+    pgPolicy("agent_worker_append", {
+      for: "insert",
+      withCheck: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
     }),
   ],
 );
@@ -118,6 +144,7 @@ export const agentJobs = ai.table.withRLS(
       .notNull(),
   },
   (table) => [
+    tenantUnique("agent_jobs", table.tenantId, table.id),
     index("agent_jobs_claim_idx").using(
       "btree",
       table.status.asc().nullsLast(),

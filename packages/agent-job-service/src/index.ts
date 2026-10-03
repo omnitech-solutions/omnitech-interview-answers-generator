@@ -35,25 +35,36 @@ export interface CreateAgentJob {
   promptReference: string;
 }
 
+// Everything a member's request does to a job, always inside its tenant.
 export interface AgentJobRepository {
   create(input: CreateAgentJob): Promise<AgentJob>;
   get(tenantId: string, jobId: string): Promise<AgentJob | undefined>;
-  setResultReference(jobId: string, reference: string): Promise<void>;
-  setSessionId(jobId: string, sessionId: string): Promise<void>;
-  claim(workerId: string, leaseMs: number): Promise<AgentJob | undefined>;
-  transition(
+  eventsAfter(
+    tenantId: string,
     jobId: string,
-    expected: readonly AgentJobStatus[],
-    next: AgentJobStatus,
-  ): Promise<boolean>;
-  appendEvent(jobId: string, event: AgentEvent): Promise<PersistedAgentEvent>;
-  eventsAfter(jobId: string, sequence: number): Promise<PersistedAgentEvent[]>;
+    sequence: number,
+  ): Promise<PersistedAgentEvent[]>;
   requestCancellation(tenantId: string, jobId: string): Promise<boolean>;
   requestResume(
     tenantId: string,
     jobId: string,
     promptReference: string,
   ): Promise<boolean>;
+}
+
+// [SAFETY] The isolated agent worker's view: it leases a job before it knows
+// the tenant, then advances it by id. Only apps/agent-worker constructs one.
+export interface AgentJobWorkerRepository {
+  claim(workerId: string, leaseMs: number): Promise<AgentJob | undefined>;
+  get(tenantId: string, jobId: string): Promise<AgentJob | undefined>;
+  transition(
+    jobId: string,
+    expected: readonly AgentJobStatus[],
+    next: AgentJobStatus,
+  ): Promise<boolean>;
+  setSessionId(jobId: string, sessionId: string): Promise<void>;
+  setResultReference(jobId: string, reference: string): Promise<void>;
+  appendEvent(jobId: string, event: AgentEvent): Promise<PersistedAgentEvent>;
 }
 
 export class AgentJobService {
@@ -92,7 +103,7 @@ export class AgentJobService {
   ): Promise<PersistedAgentEvent[]> {
     return this.repository.get(tenantId, jobId).then((job) => {
       if (!job) throw new Error("Agent job was not found.");
-      return this.repository.eventsAfter(jobId, afterSequence);
+      return this.repository.eventsAfter(tenantId, jobId, afterSequence);
     });
   }
 }

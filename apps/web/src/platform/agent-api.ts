@@ -116,8 +116,15 @@ export function createAgentApi() {
       return context.json({ error: "Unauthorized" }, 401);
     }
     if (internal) {
+      // [SAFETY] The event gateway names the job's tenant; events are
+      // tenant-owned rows, read only inside that tenant.
+      const tenantId = context.req.query("tenantId") ?? "";
+      if (!/^[0-9a-f-]{36}$/i.test(tenantId)) {
+        return context.json({ error: "A tenant id is required." }, 400);
+      }
       return context.json(
         await repository.eventsAfter(
+          tenantId,
           jobId,
           Number(context.req.query("after") ?? "0"),
         ),

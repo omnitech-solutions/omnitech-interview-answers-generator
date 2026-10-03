@@ -167,6 +167,25 @@ describe("package boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("lets only apps/agent-worker reach the cross-tenant worker repository", () => {
+    // The worker repository reads and advances any tenant's job (ADR-0007),
+    // so its entrypoint is separate and only the isolated worker imports it.
+    const storage = byName.get("@omnitech/platform-storage");
+    expect(storage?.exports).toHaveProperty("./worker");
+    const importers = new Set(
+      packages
+        .filter((pkg) =>
+          workspaceImports(pkg, byName).some(
+            (found) =>
+              found.specifier === "@omnitech/platform-storage/worker" &&
+              !found.isTest,
+          ),
+        )
+        .map((pkg) => pkg.dir),
+    );
+    expect([...importers]).toEqual(["apps/agent-worker"]);
+  });
+
   it("imports only in an allowed direction", () => {
     const violations: string[] = [];
     for (const pkg of packages) {

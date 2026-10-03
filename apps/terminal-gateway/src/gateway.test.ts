@@ -7,6 +7,7 @@ import { WebSocket } from "ws";
 import { startTerminalGateway, type TerminalGateway } from "./index.js";
 
 const jobId = "3f2b8c1e-4d5a-4e6f-8a9b-0c1d2e3f4a5b";
+const tenantId = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d";
 
 // The platform's agent-job event endpoint, as the gateway polls it.
 type Reply = { status: number; body: unknown };
@@ -94,7 +95,7 @@ describe("agent job event gateway", () => {
       },
     ];
 
-    const terminal = connect(`/terminal?session=${jobId}`);
+    const terminal = connect(`/terminal?session=${jobId}&tenant=${tenantId}`);
     const output = await terminal.until((text) =>
       text.includes("[completed] Job finished"),
     );
@@ -110,7 +111,7 @@ describe("agent job event gateway", () => {
     expect(output).toContain("[awaiting-input]");
     expect(output).toContain("[event] Progress update");
     expect(requests[0]).toEqual({
-      url: `/api/platform/v1/agent-jobs/${jobId}/events?after=0`,
+      url: `/api/platform/v1/agent-jobs/${jobId}/events?after=0&tenantId=${tenantId}`,
       authorization: "Bearer service-secret",
     });
     expect(requests[1]?.url).toContain("after=2");
@@ -133,7 +134,7 @@ describe("agent job event gateway", () => {
       },
     ];
 
-    const terminal = connect(`/terminal?session=${jobId}`);
+    const terminal = connect(`/terminal?session=${jobId}&tenant=${tenantId}`);
     const output = await terminal.until((text) =>
       text.includes("Quota exceeded"),
     );
@@ -148,7 +149,7 @@ describe("agent job event gateway", () => {
   it("answers typed input with where follow-ups belong", async () => {
     gateway = await startTerminalGateway({ port: 0, platformUrl });
 
-    const terminal = connect(`/terminal?session=${jobId}`);
+    const terminal = connect(`/terminal?session=${jobId}&tenant=${tenantId}`);
     await terminal.until((text) => text.includes("Observing"));
     terminal.socket.send("continue please");
     const output = await terminal.until((text) =>
@@ -168,8 +169,12 @@ describe("agent job event gateway", () => {
       platformUrl,
     });
 
-    const refused = connect(`/terminal?session=${jobId}&token=wrong`);
-    const admitted = connect(`/terminal?session=${jobId}&token=browser-secret`);
+    const refused = connect(
+      `/terminal?session=${jobId}&tenant=${tenantId}&token=wrong`,
+    );
+    const admitted = connect(
+      `/terminal?session=${jobId}&tenant=${tenantId}&token=browser-secret`,
+    );
     await admitted.until((text) => text.includes("Observing"));
     admitted.socket.close();
 
@@ -180,16 +185,21 @@ describe("agent job event gateway", () => {
     expect(refused.received).toEqual([]);
   });
 
-  it("refuses a connection that does not name an agent job", async () => {
+  it("refuses a connection that does not name an agent job and its tenant", async () => {
     gateway = await startTerminalGateway({ port: 0, platformUrl });
 
     const missing = connect("/terminal");
-    const malformed = connect("/terminal?session=../../etc/passwd");
+    const malformed = connect(
+      `/terminal?session=../../etc/passwd&tenant=${tenantId}`,
+    );
+    // A job's events are tenant-owned: observing one needs its tenant too.
+    const untenanted = connect(`/terminal?session=${jobId}`);
+    const badTenant = connect(`/terminal?session=${jobId}&tenant=everyone`);
 
-    for (const terminal of [missing, malformed]) {
+    for (const terminal of [missing, malformed, untenanted, badTenant]) {
       expect(await terminal.closed).toEqual({
         code: 1008,
-        reason: "A valid agent job id is required.",
+        reason: "A valid agent job and tenant id are required.",
       });
     }
     expect(requests).toEqual([]);
@@ -239,7 +249,7 @@ describe("agent job event gateway service", () => {
     });
 
     const socket = new WebSocket(
-      `ws://127.0.0.1:${port}/terminal?session=${jobId}`,
+      `ws://127.0.0.1:${port}/terminal?session=${jobId}&tenant=${tenantId}`,
     );
     const closed = await new Promise<number>((resolve) =>
       socket.on("close", (code) => resolve(code)),

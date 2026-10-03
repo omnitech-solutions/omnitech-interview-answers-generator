@@ -27,15 +27,16 @@ try {
     const tenantId = tenant.rows[0]?.id;
     if (!userId || !tenantId)
       throw new Error("Bootstrap records were not created.");
+    // Memberships and installations are tenant-owned rows under forced
+    // row-level security, so they are written inside the tenant this
+    // bootstrap just resolved.
+    await enterTenant(client, { tenantId, actorId: userId });
     await client.query(
       `INSERT INTO platform.tenant_memberships (tenant_id, user_id, role)
        VALUES ($1, $2, 'owner')
        ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = 'owner'`,
       [tenantId, userId],
     );
-    // Installations are tenant-owned rows under forced row-level security, so
-    // they are written inside the tenant this bootstrap just resolved.
-    await enterTenant(client, { tenantId, actorId: userId });
     await client.query(
       `INSERT INTO platform.product_installations
          (tenant_id, product_id, display_name, description, icon, sort_order,

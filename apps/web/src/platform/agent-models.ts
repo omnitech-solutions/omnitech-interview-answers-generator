@@ -120,7 +120,11 @@ export async function* streamAgentTurn(
   try {
     for (;;) {
       signal.throwIfAborted();
-      for (const { sequence, event } of await jobs.eventsAfter(job.id, after)) {
+      for (const { sequence, event } of await jobs.eventsAfter(
+        tenantId,
+        job.id,
+        after,
+      )) {
         after = sequence;
         if (event.type === "text-delta" && event.text) {
           streamed = true;

@@ -1,15 +1,16 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentJobRepository } from "@omnitech/agent-job-service";
-import type {
-  AgentRunRequest,
-  AgentRuntimeAdapter,
+import type { AgentJobWorkerRepository } from "@omnitech/agent-job-service";
+import {
+  type AgentRunRequest,
+  type AgentRuntimeAdapter,
+  validateAgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 
 export interface AgentWorkerOptions {
   workerId: string;
-  repository: AgentJobRepository;
+  repository: AgentJobWorkerRepository;
   runtimes: Readonly<Record<string, AgentRuntimeAdapter>>;
   loadPrompt(reference: string): Promise<string>;
   storeResult?(tenantId: string, result: unknown): Promise<string>;
@@ -29,6 +30,22 @@ export async function runAgentWorker(
     );
     if (!job) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      continue;
+    }
+    // [GUARD] The stored snapshot is re-checked before anything runs: a job
+    // whose profile is out of bounds fails with a normalized error instead.
+    try {
+      validateAgentProfile(job.profile);
+    } catch {
+      await options.repository.appendEvent(job.id, {
+        type: "failed",
+        error: {
+          code: "configuration",
+          message: "The agent profile is outside its allowed bounds.",
+          retryable: false,
+        },
+      });
+      await options.repository.transition(job.id, ["claimed"], "failed");
       continue;
     }
     const runtime = options.runtimes[job.profile.runtime];

@@ -13,6 +13,7 @@ Configuration:
 - `PLATFORM_HTTP_URL`: platform API origin, default `http://127.0.0.1:3000`.
 - `AGENT_SERVICE_TOKEN`: internal token used to read job events.
 
-Connect to `/terminal?session=<agent-job-uuid>`. The gateway resumes after the
+Connect to `/terminal?session=<agent-job-uuid>&tenant=<tenant-uuid>`; the
+platform reads a job's events only inside its tenant. The gateway resumes after the
 last observed event sequence and displays normalized progress, tool, usage,
 completion, and failure events.

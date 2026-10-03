@@ -1,4 +1,7 @@
-import type { AgentJob, AgentJobRepository } from "@omnitech/agent-job-service";
+import type {
+  AgentJob,
+  AgentJobWorkerRepository,
+} from "@omnitech/agent-job-service";
 import type {
   AgentEvent,
   AgentProfile,
@@ -42,16 +45,16 @@ function job(overrides: Partial<AgentJob> = {}): AgentJob {
 function repositoryFor(
   firstJob: AgentJob,
   onIdle: () => void,
-): AgentJobRepository & { transitions: string[]; events: AgentEvent[] } {
+): AgentJobWorkerRepository & {
+  transitions: string[];
+  events: AgentEvent[];
+} {
   let claimed = false;
   const transitions: string[] = [];
   const events: AgentEvent[] = [];
   return {
     transitions,
     events,
-    async create() {
-      return firstJob;
-    },
     async get() {
       return firstJob;
     },
@@ -77,15 +80,6 @@ function repositoryFor(
         event,
         createdAt: new Date(),
       };
-    },
-    async eventsAfter() {
-      return [];
-    },
-    async requestCancellation() {
-      return true;
-    },
-    async requestResume() {
-      return true;
     },
   };
 }
@@ -316,4 +310,53 @@ it("marks a thrown runtime failure and removes its temporary workspace", async (
   );
   const { access } = await import("node:fs/promises");
   await expect(access(workspace)).rejects.toMatchObject({ code: "ENOENT" });
+});
+
+it("fails a job whose stored profile is out of bounds without running it", async () => {
+  const controller = new AbortController();
+  // A snapshot no central profile could produce: an arbitrary directory.
+  const repository = repositoryFor(
+    job({ profile: { ...profile, additionalDirectories: ["/etc"] } }),
+    () => controller.abort(),
+  );
+  let ran = false;
+  await runAgentWorker(
+    {
+      workerId: "worker",
+      repository,
+      loadPrompt: async () => "edit",
+      runtimes: {
+        "claude-code": {
+          runtime: "claude-code",
+          capabilities: {
+            resume: true,
+            structuredOutput: true,
+            attachments: false,
+            tools: false,
+          },
+          async *run() {
+            ran = true;
+            yield { type: "started" as const, sessionId: "session" };
+          },
+          async *resume() {
+            ran = true;
+          },
+          async cancel() {},
+        },
+      },
+    },
+    controller.signal,
+  );
+  expect(ran).toBe(false);
+  expect(repository.transitions).toEqual(["failed"]);
+  expect(repository.events).toEqual([
+    {
+      type: "failed",
+      error: {
+        code: "configuration",
+        message: "The agent profile is outside its allowed bounds.",
+        retryable: false,
+      },
+    },
+  ]);
 });

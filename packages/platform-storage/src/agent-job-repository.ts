@@ -4,68 +4,14 @@ import type {
   CreateAgentJob,
   PersistedAgentEvent,
 } from "@omnitech/agent-job-service";
-import type {
-  AgentEvent,
-  AgentJobStatus,
-  AgentProfile,
-} from "@omnitech/agent-runtime-contracts";
+import type { AgentEvent } from "@omnitech/agent-runtime-contracts";
+import type { PlatformDatabase } from "@omnitech/database";
+import { type JobRow, mapJob } from "./agent-job-row.js";
 import { ConnectedAccountVault } from "./connected-account-vault.js";
-import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 
-type JobRow = {
-  id: string;
-  tenant_id: string;
-  user_id: string;
-  product_id: string;
-  status: AgentJobStatus;
-  profile_snapshot: AgentProfile;
-  prompt_reference: string;
-  result_reference: string | null;
-  session_id: string | null;
-  claimed_by: string | null;
-  lease_expires_at: Date | null;
-  created_at: Date;
-  updated_at: Date;
-};
-
-function mapJob(row: JobRow): AgentJob {
-  return {
-    id: row.id,
-    tenantId: row.tenant_id,
-    userId: row.user_id,
-    productId: row.product_id,
-    status: row.status,
-    profile: row.profile_snapshot,
-    promptReference: row.prompt_reference,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    ...(row.result_reference === null
-      ? {}
-      : { resultReference: row.result_reference }),
-    ...(row.session_id === null ? {} : { sessionId: row.session_id }),
-    ...(row.claimed_by === null ? {} : { claimedBy: row.claimed_by }),
-    ...(row.lease_expires_at === null
-      ? {}
-      : { leaseExpiresAt: row.lease_expires_at }),
-  };
-}
-
+// A member's jobs: every read and write runs inside the job's tenant.
 export class PostgresAgentJobRepository implements AgentJobRepository {
   constructor(private readonly database: PlatformDatabase) {}
-
-  // [SAFETY] The worker leases jobs before it knows their tenant and then
-  // holds only a job id. Its transactions set app.agent_worker, which the
-  // agent_worker_read and agent_worker_update policies admit. Only the
-  // id-addressed methods below use it; everything else in ai.agent_jobs runs
-  // in a tenant scope.
-  private asWorker<Result>(
-    work: (client: DatabaseClient) => Promise<Result>,
-  ): Promise<Result> {
-    return this.database.transaction(async (client) => {
-      await client.query("SELECT set_config('app.agent_worker', 'on', true)");
-      return work(client);
-    });
-  }
 
   async create(input: CreateAgentJob): Promise<AgentJob> {
     const result = await this.database.tenantTransaction(
@@ -102,130 +48,23 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     });
   }
 
-  // An execution is cancelled by id alone (AiExecutionGateway.cancel), so the
-  // job's tenant is read under the worker's read policy before the tenant-
-  // scoped cancellation request.
-  async tenantOf(jobId: string): Promise<string | undefined> {
-    const result = await this.asWorker((client) =>
-      client.query<{ tenant_id: string }>(
-        `SELECT tenant_id FROM ai.agent_jobs WHERE id = $1`,
-        [jobId],
-      ),
-    );
-    return result.rows[0]?.tenant_id;
-  }
-
-  async claim(
-    workerId: string,
-    leaseMs: number,
-  ): Promise<AgentJob | undefined> {
-    return this.asWorker(async (client) => {
-      const result = await client.query<JobRow>(
-        `WITH candidate AS (
-           SELECT id FROM ai.agent_jobs
-           WHERE status = 'queued'
-              OR (status IN ('claimed', 'starting', 'running')
-                  AND lease_expires_at < now())
-           ORDER BY created_at
-           FOR UPDATE SKIP LOCKED
-           LIMIT 1
-         )
-         UPDATE ai.agent_jobs j SET
-           status = 'claimed',
-           claimed_by = $1,
-           lease_expires_at = now() + ($2 * interval '1 millisecond'),
-           updated_at = now()
-         FROM candidate
-         WHERE j.id = candidate.id
-         RETURNING j.*`,
-        [workerId, leaseMs],
-      );
-      const row = result.rows[0];
-      return row ? mapJob(row) : undefined;
-    });
-  }
-
-  async transition(
-    jobId: string,
-    expected: readonly AgentJobStatus[],
-    next: AgentJobStatus,
-  ): Promise<boolean> {
-    const result = await this.asWorker((client) =>
-      client.query(
-        `UPDATE ai.agent_jobs SET status = $3, updated_at = now()
-         WHERE id = $1 AND status = ANY($2::text[])`,
-        [jobId, expected, next],
-      ),
-    );
-    return (result.rowCount ?? 0) === 1;
-  }
-
-  async setResultReference(jobId: string, reference: string): Promise<void> {
-    await this.asWorker((client) =>
-      client.query(
-        `UPDATE ai.agent_jobs
-         SET result_reference = $2, updated_at = now()
-         WHERE id = $1`,
-        [jobId, reference],
-      ),
-    );
-  }
-
-  async setSessionId(jobId: string, sessionId: string): Promise<void> {
-    await this.asWorker((client) =>
-      client.query(
-        `UPDATE ai.agent_jobs
-         SET session_id = $2, updated_at = now()
-         WHERE id = $1`,
-        [jobId, sessionId],
-      ),
-    );
-  }
-
-  async appendEvent(
-    jobId: string,
-    event: AgentEvent,
-  ): Promise<PersistedAgentEvent> {
-    return this.asWorker(async (client) => {
-      const sequence = await client.query<{ sequence: number }>(
-        `UPDATE ai.agent_jobs SET
-           next_event_sequence = next_event_sequence + 1,
-           updated_at = now()
-         WHERE id = $1
-         RETURNING next_event_sequence - 1 AS sequence`,
-        [jobId],
-      );
-      const value = sequence.rows[0]?.sequence;
-      if (!value) throw new Error("Agent job was not found.");
-      const inserted = await client.query<{ created_at: Date }>(
-        `INSERT INTO ai.agent_job_events (job_id, sequence, event)
-         VALUES ($1, $2, $3)
-         RETURNING created_at`,
-        [jobId, value, event],
-      );
-      return {
-        jobId,
-        sequence: value,
-        event,
-        createdAt: inserted.rows[0]?.created_at ?? new Date(),
-      };
-    });
-  }
-
   async eventsAfter(
+    tenantId: string,
     jobId: string,
     sequence: number,
   ): Promise<PersistedAgentEvent[]> {
-    const result = await this.database.query<{
-      sequence: number;
-      event: AgentEvent;
-      created_at: Date;
-    }>(
-      `SELECT sequence, event, created_at
-       FROM ai.agent_job_events
-       WHERE job_id = $1 AND sequence > $2
-       ORDER BY sequence`,
-      [jobId, sequence],
+    const result = await this.database.tenantTransaction(tenantId, (client) =>
+      client.query<{
+        sequence: number;
+        event: AgentEvent;
+        created_at: Date;
+      }>(
+        `SELECT sequence, event, created_at
+         FROM ai.agent_job_events
+         WHERE tenant_id = $1 AND job_id = $2 AND sequence > $3
+         ORDER BY sequence`,
+        [tenantId, jobId, sequence],
+      ),
     );
     return result.rows.map((row) => ({
       jobId,
@@ -314,14 +153,5 @@ export class AgentPayloadStore {
     const ciphertext = result.rows[0]?.ciphertext;
     if (!ciphertext) throw new Error("Agent job payload is unavailable.");
     return this.vault.decrypt(ciphertext);
-  }
-
-  async remove(tenantId: string, reference: string): Promise<void> {
-    await this.database.tenantTransaction(tenantId, async (client) => {
-      await client.query(
-        `DELETE FROM ai.agent_job_payloads WHERE reference = $1`,
-        [reference],
-      );
-    });
   }
 }

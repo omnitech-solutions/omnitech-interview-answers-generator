@@ -13,6 +13,7 @@ import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "./agent-job-repository.js";
+import { PostgresAgentJobWorkerRepository } from "./agent-job-worker-repository.js";
 
 // fixture_member is NOSUPERUSER NOBYPASSRLS, so every tenant policy binds it
 // exactly as forced row-level security binds the app role that owns the tables.
@@ -65,6 +66,7 @@ const profile = {
 
 it("lets the worker claim and run a tenant's job before it knows the tenant", async () => {
   const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
   const payloads = new AgentPayloadStore(member, "x".repeat(32));
   const promptReference = await payloads.save(tenantId, "Summarise the plan");
   const created = await repository.create({
@@ -76,34 +78,43 @@ it("lets the worker claim and run a tenant's job before it knows the tenant", as
   });
 
   // The worker polls across tenants: it holds only a job's id from here on.
-  const claimed = await repository.claim("worker-1", 30_000);
+  const claimed = await worker.claim("worker-1", 30_000);
   expect(claimed?.id).toBe(created.id);
   expect(await payloads.load(claimed!.promptReference)).toBe(
     "Summarise the plan",
   );
-  expect(await repository.transition(created.id, ["claimed"], "starting")).toBe(
+  expect(await worker.transition(created.id, ["claimed"], "starting")).toBe(
     true,
   );
-  await repository.setSessionId(created.id, "session-1");
-  const appended = await repository.appendEvent(created.id, {
+  await worker.setSessionId(created.id, "session-1");
+  const appended = await worker.appendEvent(created.id, {
     type: "started",
     sessionId: "session-1",
   });
   expect(appended.sequence).toBe(1);
   const resultReference = await payloads.save(tenantId, '"done"');
-  await repository.setResultReference(created.id, resultReference);
+  await worker.setResultReference(created.id, resultReference);
 
-  const stored = await repository.get(tenantId, created.id);
+  const stored = await worker.get(tenantId, created.id);
   expect(stored).toMatchObject({
     status: "starting",
     sessionId: "session-1",
     resultReference,
   });
+  // The job's events are tenant-owned rows: its tenant reads them, no other.
+  expect(
+    (await repository.eventsAfter(tenantId, created.id, 0)).map(
+      (persisted) => persisted.event,
+    ),
+  ).toEqual([{ type: "started", sessionId: "session-1" }]);
+  expect(await repository.eventsAfter(otherTenantId, created.id, 0)).toEqual(
+    [],
+  );
   // The tenant boundary still holds for everything that is not the worker.
   expect(await repository.get(otherTenantId, created.id)).toBeUndefined();
 });
 
-it("finds the tenant of a job addressed only by its id, so it can be cancelled", async () => {
+it("cancels a job only inside its own tenant", async () => {
   const repository = new PostgresAgentJobRepository(member);
   const created = await repository.create({
     tenantId: otherTenantId,
@@ -113,26 +124,83 @@ it("finds the tenant of a job addressed only by its id, so it can be cancelled",
     promptReference: "agent-payload:unused",
   });
 
-  expect(await repository.tenantOf(created.id)).toBe(otherTenantId);
-  expect(await repository.tenantOf(crypto.randomUUID())).toBeUndefined();
+  expect(await repository.requestCancellation(tenantId, created.id)).toBe(
+    false,
+  );
+  expect(await repository.requestCancellation(otherTenantId, created.id)).toBe(
+    true,
+  );
+  expect(await repository.get(otherTenantId, created.id)).toMatchObject({
+    status: "cancelling",
+  });
 });
 
-it("reads a payload only by its reference and removes it within its tenant", async () => {
+it("never lets the worker move a job to another tenant or rewrite what it runs", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:original",
+  });
+  // Exactly the worker's own cross-tenant transaction.
+  const asWorker = (statement: string, values: unknown[]) =>
+    member.transaction(async (client) => {
+      await client.query("SELECT set_config('app.agent_worker', 'on', true)");
+      return client.query(statement, values);
+    });
+
+  for (const [column, value] of [
+    ["id", crypto.randomUUID()],
+    ["tenant_id", otherTenantId],
+    ["user_id", crypto.randomUUID()],
+    ["product_id", "omnitech.presentation"],
+    ["profile_snapshot", { ...profile, sandbox: "danger-full-access" }],
+    ["prompt_reference", "agent-payload:someone-elses"],
+  ] as const) {
+    await expect(
+      asWorker(`UPDATE ai.agent_jobs SET ${column} = $2 WHERE id = $1`, [
+        created.id,
+        value,
+      ]),
+      column,
+    ).rejects.toThrow("immutable");
+  }
+  // Its lifecycle still advances.
+  await asWorker("UPDATE ai.agent_jobs SET status = 'claimed' WHERE id = $1", [
+    created.id,
+  ]);
+  expect(await repository.get(tenantId, created.id)).toMatchObject({
+    tenantId,
+    status: "claimed",
+    promptReference: "agent-payload:original",
+  });
+  // Its own tenant resumes it with a new prompt.
+  await asWorker(
+    "UPDATE ai.agent_jobs SET status = 'awaiting-input', session_id = 's' WHERE id = $1",
+    [created.id],
+  );
+  expect(
+    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+  ).toBe(true);
+});
+
+it("reads a payload only by its reference", async () => {
   const payloads = new AgentPayloadStore(member, "x".repeat(32));
   const reference = await payloads.save(tenantId, "secret prompt");
 
-  await payloads.remove(otherTenantId, reference);
   expect(await payloads.load(reference)).toBe("secret prompt");
-  await payloads.remove(tenantId, reference);
-  await expect(payloads.load(reference)).rejects.toThrow(
+  await expect(payloads.load("agent-payload:missing")).rejects.toThrow(
     "Agent job payload is unavailable.",
   );
 });
 
 it("lets another worker reclaim a running job whose lease has expired", async () => {
   const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
   // Drain any job an earlier test left queued.
-  while (await repository.claim("drain", 60_000)) {}
+  while (await worker.claim("drain", 60_000)) {}
   const created = await repository.create({
     tenantId,
     userId,
@@ -141,10 +209,10 @@ it("lets another worker reclaim a running job whose lease has expired", async ()
     promptReference: "agent-payload:lease",
   });
 
-  const first = await repository.claim("worker-1", 1);
-  await repository.transition(created.id, ["claimed"], "running");
+  const first = await worker.claim("worker-1", 1);
+  await worker.transition(created.id, ["claimed"], "running");
   await new Promise((resolve) => setTimeout(resolve, 20));
-  const reclaimed = await repository.claim("worker-2", 30_000);
+  const reclaimed = await worker.claim("worker-2", 30_000);
 
   expect(first).toMatchObject({ id: created.id, claimedBy: "worker-1" });
   expect(reclaimed).toMatchObject({
@@ -154,11 +222,12 @@ it("lets another worker reclaim a running job whose lease has expired", async ()
   });
   expect(reclaimed?.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
   // A live lease is not handed to a third worker.
-  expect(await repository.claim("worker-3", 30_000)).toBeUndefined();
+  expect(await worker.claim("worker-3", 30_000)).toBeUndefined();
 });
 
 it("replays a job's events after a sequence, in order", async () => {
   const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
   const created = await repository.create({
     tenantId,
     userId,
@@ -166,14 +235,18 @@ it("replays a job's events after a sequence, in order", async () => {
     profile,
     promptReference: "agent-payload:events",
   });
-  await repository.appendEvent(created.id, { type: "started", sessionId: "s" });
-  await repository.appendEvent(created.id, { type: "text-delta", text: "Hi" });
-  await repository.appendEvent(created.id, {
+  await worker.appendEvent(created.id, { type: "started", sessionId: "s" });
+  await worker.appendEvent(created.id, { type: "text-delta", text: "Hi" });
+  await worker.appendEvent(created.id, {
     type: "completed",
     result: { sessionId: "s", output: "Hi" },
   });
 
-  const events = await repository.eventsAfter(created.id, 1);
+  const events = await repository.eventsAfter(tenantId, created.id, 1);
+  // Another tenant sees none of a job's events.
+  expect(await repository.eventsAfter(otherTenantId, created.id, 0)).toEqual(
+    [],
+  );
 
   expect(events.map((event) => [event.sequence, event.event.type])).toEqual([
     [2, "text-delta"],
@@ -181,7 +254,7 @@ it("replays a job's events after a sequence, in order", async () => {
   ]);
   expect(events[0]?.createdAt).toBeInstanceOf(Date);
   await expect(
-    repository.appendEvent(crypto.randomUUID(), {
+    worker.appendEvent(crypto.randomUUID(), {
       type: "text-delta",
       text: "",
     }),
@@ -190,6 +263,7 @@ it("replays a job's events after a sequence, in order", async () => {
 
 it("cancels and resumes a job only within its tenant and from a resumable state", async () => {
   const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
   const created = await repository.create({
     tenantId,
     userId,
@@ -202,14 +276,14 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
     false,
   );
   expect(await repository.requestCancellation(tenantId, created.id)).toBe(true);
-  expect(
-    await repository.transition(created.id, ["cancelling"], "cancelled"),
-  ).toBe(true);
+  expect(await worker.transition(created.id, ["cancelling"], "cancelled")).toBe(
+    true,
+  );
   // A cancelled job without a session has nothing to resume.
   expect(
     await repository.requestResume(tenantId, created.id, "agent-payload:next"),
   ).toBe(false);
-  await repository.setSessionId(created.id, "session-9");
+  await worker.setSessionId(created.id, "session-9");
   expect(
     await repository.requestResume(
       otherTenantId,
@@ -227,7 +301,7 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
     sessionId: "session-9",
   });
   // A transition from a state the job is not in changes nothing.
-  expect(await repository.transition(created.id, ["running"], "failed")).toBe(
+  expect(await worker.transition(created.id, ["running"], "failed")).toBe(
     false,
   );
 });

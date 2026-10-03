@@ -41,8 +41,16 @@ export async function startTerminalGateway(
       return;
     }
     const jobId = query.get("session");
-    if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) {
-      socket.close(1008, "A valid agent job id is required.");
+    // A job's events are tenant-owned, so the platform reads them only inside
+    // the tenant the observer names.
+    const tenantId = query.get("tenant");
+    if (
+      !jobId ||
+      !/^[0-9a-f-]{36}$/i.test(jobId) ||
+      !tenantId ||
+      !/^[0-9a-f-]{36}$/i.test(tenantId)
+    ) {
+      socket.close(1008, "A valid agent job and tenant id are required.");
       return;
     }
     let sequence = 0;
@@ -53,7 +61,7 @@ export async function startTerminalGateway(
       if (closed) return;
       try {
         const response = await fetch(
-          `${platformUrl}/api/platform/v1/agent-jobs/${jobId}/events?after=${sequence}`,
+          `${platformUrl}/api/platform/v1/agent-jobs/${jobId}/events?after=${sequence}&tenantId=${tenantId}`,
           {
             headers: options.serviceToken
               ? { authorization: `Bearer ${options.serviceToken}` }

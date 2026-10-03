@@ -5,10 +5,8 @@ import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
 import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
 import type { AgentRuntimeAdapter } from "@omnitech/agent-runtime-contracts";
 import { createPlatformDatabase } from "@omnitech/database";
-import {
-  AgentPayloadStore,
-  PostgresAgentJobRepository,
-} from "@omnitech/platform-storage";
+import { AgentPayloadStore } from "@omnitech/platform-storage";
+import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
 import { runAgentWorker } from "./index.js";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -61,7 +59,7 @@ export async function runConfiguredAgentWorker(
         // Interactive turns (the assistant) wait on this; an idle claim is one
         // cheap indexed query.
         pollIntervalMs: Number(env["AGENT_WORKER_POLL_MS"] ?? 100),
-        repository: new PostgresAgentJobRepository(database),
+        repository: new PostgresAgentJobWorkerRepository(database),
         loadPrompt: (reference) => payloads.load(reference),
         storeResult: (tenantId, result) =>
           payloads.save(tenantId, JSON.stringify(result)),

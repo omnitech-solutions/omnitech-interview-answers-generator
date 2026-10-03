@@ -24,6 +24,8 @@ import { briefingScope } from "./briefing-access.js";
 import { loadLocalDefaultProfile } from "./local-default-profile.js";
 import { createInterviewStudio } from "./studio/host.js";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** The platform services Interview Studio's backend runs on. */
 export interface InterviewBackendServices {
   ai: AiExecutionGateway;
@@ -146,10 +148,16 @@ async function build(
     },
     queue,
     resolveScope: scopeResolver(services),
+    // Memberships are tenant-owned rows: read inside the scope's tenant.
     isMember: async (scope) => {
-      const result = await platform.query(
-        "SELECT 1 FROM platform.tenant_memberships WHERE tenant_id::text=$1 AND user_id::text=$2",
-        [scope.tenantId, scope.actorId],
+      if (!UUID.test(scope.tenantId)) return false;
+      const result = await platform.tenantTransaction(
+        scope.tenantId,
+        (client) =>
+          client.query(
+            "SELECT 1 FROM platform.tenant_memberships WHERE tenant_id::text=$1 AND user_id::text=$2",
+            [scope.tenantId, scope.actorId],
+          ),
       );
       return result.rows.length > 0;
     },

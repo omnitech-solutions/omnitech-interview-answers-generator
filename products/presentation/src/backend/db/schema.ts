@@ -14,6 +14,7 @@ import {
   boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { tenantReference, tenantUnique } from "@omnitech/database";
 import { tenants, users } from "@omnitech/platform-storage/schema";
 
 export const presentation = pgSchema("presentation");
@@ -28,12 +29,7 @@ export const agentConversations = presentation.table.withRLS(
         name: "agent_conversations_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "agent_conversations_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id, {
@@ -47,6 +43,12 @@ export const agentConversations = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "agent_conversations_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -69,17 +71,18 @@ export const documentFavorites = presentation.table.withRLS(
         name: "document_favorites_user_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "document_favorites_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "document_favorites_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     primaryKey({
       columns: [table.tenantId, table.userId, table.documentId],
       name: "document_favorites_pkey",
@@ -118,6 +121,7 @@ export const documents = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    tenantUnique("documents", table.tenantId, table.id),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -135,12 +139,7 @@ export const exports = presentation.table.withRLS(
         name: "exports_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "exports_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     requestedBy: uuid("requested_by")
       .notNull()
       .references(() => users.id, { name: "exports_requested_by_fkey" }),
@@ -157,6 +156,12 @@ export const exports = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "exports_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     unique("exports_tenant_id_idempotency_key_key").on(
       table.tenantId,
       table.idempotencyKey,
@@ -241,10 +246,7 @@ export const generationSessions = presentation.table.withRLS(
         name: "generation_sessions_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id").references(() => documents.id, {
-      name: "generation_sessions_document_id_fkey",
-      onDelete: "cascade",
-    }),
+    documentId: uuid("document_id"),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id, {
@@ -261,6 +263,12 @@ export const generationSessions = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "generation_sessions_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -271,12 +279,7 @@ export const generationSessions = presentation.table.withRLS(
 export const presentations = presentation.table.withRLS(
   "presentations",
   {
-    documentId: uuid("document_id")
-      .primaryKey()
-      .references(() => documents.id, {
-        name: "presentations_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").primaryKey(),
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id, {
@@ -298,6 +301,12 @@ export const presentations = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "presentations_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -315,12 +324,7 @@ export const recordings = presentation.table.withRLS(
         name: "recordings_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "recordings_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id, { name: "recordings_owner_user_id_fkey" }),
@@ -331,6 +335,12 @@ export const recordings = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "recordings_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -348,12 +358,7 @@ export const shares = presentation.table.withRLS(
         name: "shares_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "shares_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     tokenHash: text("token_hash").notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -365,6 +370,12 @@ export const shares = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "shares_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     unique("shares_token_hash_key").on(table.tokenHash),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -390,12 +401,7 @@ export const slides = presentation.table.withRLS(
         name: "slides_tenant_id_fkey",
         onDelete: "cascade",
       }),
-    documentId: uuid("document_id")
-      .notNull()
-      .references(() => documents.id, {
-        name: "slides_document_id_fkey",
-        onDelete: "cascade",
-      }),
+    documentId: uuid("document_id").notNull(),
     position: integer().notNull(),
     sourceXml: text("source_xml").notNull(),
     content: jsonb().default({}).notNull(),
@@ -408,6 +414,12 @@ export const slides = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
+    ...tenantReference(
+      "slides_document_id_fkey",
+      [table.tenantId, table.documentId],
+      [documents.tenantId, documents.id],
+      { onDelete: "cascade" },
+    ),
     unique("slides_document_id_position_key").on(
       table.documentId,
       table.position,

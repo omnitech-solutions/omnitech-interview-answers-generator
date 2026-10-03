@@ -241,7 +241,9 @@ export const productInstallations = platform.table.withRLS(
   ],
 );
 
-export const tenantMemberships = platform.table(
+// Memberships are read inside the tenant they belong to (ADR-0005): a member
+// is resolved by entering the slug's tenant and finding their own row.
+export const tenantMemberships = platform.table.withRLS(
   "tenant_memberships",
   {
     tenantId: uuid("tenant_id").notNull(),
@@ -268,6 +270,10 @@ export const tenantMemberships = platform.table(
     primaryKey({
       columns: [table.tenantId, table.userId],
       name: "tenant_memberships_pkey",
+    }),
+    pgPolicy("tenant_scope", {
+      using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+      withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
     }),
   ],
 );

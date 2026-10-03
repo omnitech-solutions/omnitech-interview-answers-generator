@@ -29,6 +29,8 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "force_rls_platform_ai_presentation",
     "worker_and_link_lookup_policies",
     "remove_workflow_seam",
+    "agent_job_tenant_rows_and_composite_keys",
+    "forced_rls_job_identity_and_catalog_tenancy",
   ]);
 
   // No workflow engine exists: no thread table, no conversation link to one,
@@ -87,6 +89,69 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
         ORDER BY 1`,
     ),
   ).toEqual([]);
+  // Every tenant-owned table, in any schema, has row-level security enabled
+  // and forced (ADR-0005 Decision 3), so its policies bind the app role.
+  expect(
+    await rows(
+      `SELECT DISTINCT n.nspname || '.' || c.relname FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         JOIN pg_attribute a ON a.attrelid = c.oid
+        WHERE c.relkind = 'r' AND a.attname = 'tenant_id' AND NOT a.attisdropped
+          AND NOT (c.relrowsecurity AND c.relforcerowsecurity)
+        ORDER BY 1`,
+    ),
+  ).toEqual([]);
+  // Every reference between two tenant-owned tables is a composite
+  // (tenant_id, …) foreign key, so a row can never reference another
+  // workspace's row (ADR-0005 Decision 3). A theme or an exercise may be a
+  // tenant-less shared catalog row, which a composite key cannot reach; those
+  // references keep their single-column key, and a catalog_in_tenant trigger
+  // admits only a shared row or one of the referencing row's own tenant.
+  expect(
+    await rows(
+      `SELECT c.conname FROM pg_constraint c
+        WHERE c.contype = 'f'
+          AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.conrelid
+                AND a.attname = 'tenant_id' AND NOT a.attisdropped)
+          AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.confrelid
+                AND a.attname = 'tenant_id' AND NOT a.attisdropped)
+          AND NOT EXISTS (
+            SELECT 1 FROM unnest(c.conkey, c.confkey) AS k(child, parent)
+              JOIN pg_attribute ca ON ca.attrelid = c.conrelid AND ca.attnum = k.child
+              JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = k.parent
+             WHERE ca.attname = 'tenant_id' AND pa.attname = 'tenant_id')
+        ORDER BY 1`,
+    ),
+  ).toEqual([
+    "exercise_attempts_exercise_id_exercises_id_fkey",
+    "presentations_theme_fk",
+    "theme_favorites_theme_id_fkey",
+    "theme_likes_theme_id_fkey",
+  ]);
+  expect(
+    await rows(
+      `SELECT t.tgrelid::regclass::text FROM pg_trigger t
+        WHERE t.tgname = 'catalog_in_tenant' ORDER BY 1`,
+    ),
+  ).toEqual([
+    "practice.exercise_attempts",
+    "presentation.presentations",
+    "presentation.theme_favorites",
+    "presentation.theme_likes",
+  ]);
+  // A job's events and artifacts are tenant-owned rows too; only the shared
+  // model and profile catalog has no tenant.
+  expect(
+    await rows(
+      `SELECT c.relname FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'ai' AND c.relkind = 'r'
+          AND NOT EXISTS (SELECT 1 FROM pg_attribute a
+            WHERE a.attrelid = c.oid AND a.attname = 'tenant_id'
+              AND NOT a.attisdropped)
+        ORDER BY 1`,
+    ),
+  ).toEqual(["model_definitions", "profiles", "provider_configurations"]);
   expect(
     await rows(
       `SELECT c.relname FROM pg_class c
@@ -109,6 +174,69 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
 
   await migrateDatabase(pg.owner);
   expect(await applied()).toEqual(first);
+});
+
+it("refuses a row that references another workspace's row", async () => {
+  // The fixture owner is a superuser, so row-level security is out of the
+  // way: only the keys and triggers themselves stand between the tenants.
+  const one = async (sql: string, values: unknown[] = []) =>
+    (await pg.owner.query<{ id: string }>(sql, values)).rows[0]!.id;
+  const user = await one(
+    "INSERT INTO platform.users (email, display_name) VALUES ('fk@example.test', 'Fk') RETURNING id",
+  );
+  const north = await one(
+    "INSERT INTO platform.tenants (slug, name) VALUES ('fk-north', 'North') RETURNING id",
+  );
+  const south = await one(
+    "INSERT INTO platform.tenants (slug, name) VALUES ('fk-south', 'South') RETURNING id",
+  );
+  const northDocument = await one(
+    "INSERT INTO presentation.documents (tenant_id, owner_user_id, title) VALUES ($1, $2, 'Plan') RETURNING id",
+    [north, user],
+  );
+  const northTheme = await one(
+    "INSERT INTO presentation.themes (tenant_id, name, definition) VALUES ($1, 'Private', '{}') RETURNING id",
+    [north],
+  );
+  const builtIn = await one(
+    "INSERT INTO presentation.themes (tenant_id, name, definition, built_in) VALUES (NULL, 'Built-in', '{}', true) RETURNING id",
+  );
+  const northJob = await one(
+    `INSERT INTO ai.agent_jobs (tenant_id, user_id, product_id, status, profile_snapshot, prompt_reference)
+     VALUES ($1, $2, 'omnitech.presentation', 'queued', '{}', 'agent-payload:x') RETURNING id`,
+    [north, user],
+  );
+
+  await expect(
+    pg.owner.query(
+      "INSERT INTO presentation.shares (tenant_id, document_id, token_hash, created_by) VALUES ($1, $2, 'h', $3)",
+      [south, northDocument, user],
+    ),
+  ).rejects.toThrow("foreign key");
+  await expect(
+    pg.owner.query(
+      "INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event) VALUES ($1, $2, 1, '{}')",
+      [south, northJob],
+    ),
+  ).rejects.toThrow("foreign key");
+  await expect(
+    pg.owner.query(
+      "INSERT INTO presentation.theme_favorites (tenant_id, user_id, theme_id) VALUES ($1, $2, $3)",
+      [south, user, northTheme],
+    ),
+  ).rejects.toThrow("another workspace");
+  // A shared built-in theme stays reachable from every workspace.
+  await pg.owner.query(
+    "INSERT INTO presentation.theme_favorites (tenant_id, user_id, theme_id) VALUES ($1, $2, $3)",
+    [south, user, builtIn],
+  );
+  // A job's identity is fixed once it exists, whoever updates it.
+  await expect(
+    pg.owner.query("UPDATE ai.agent_jobs SET tenant_id = $2 WHERE id = $1", [
+      northJob,
+      south,
+    ]),
+  ).rejects.toThrow("immutable");
 });
 
 it("reports a schema file that no longer matches the migrated database", async () => {

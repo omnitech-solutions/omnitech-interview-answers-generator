@@ -4,7 +4,11 @@ import type {
   UserPreferences,
 } from "@omnitech/platform-contracts";
 import type { EncryptedValue } from "./connected-account-vault.js";
-import type { PlatformDatabase } from "@omnitech/database";
+import {
+  type DatabaseClient,
+  enterTenant,
+  type PlatformDatabase,
+} from "@omnitech/database";
 
 type ContextRow = {
   user_id: string;
@@ -70,19 +74,35 @@ export class PlatformRepository {
     email: string,
     tenantSlug: string,
   ): Promise<PlatformContext | null> {
-    const result = await this.database.query<ContextRow>(
-      `SELECT
-         u.id AS user_id, u.email, u.display_name, u.avatar_url,
-         t.id AS tenant_id, t.slug AS tenant_slug, t.name AS tenant_name,
-         m.role, p.theme, p.locale, p.ai_profile_id
-       FROM platform.users u
-       JOIN platform.tenant_memberships m ON m.user_id = u.id
-       JOIN platform.tenants t ON t.id = m.tenant_id
-       LEFT JOIN platform.user_preferences p ON p.user_id = u.id
-       WHERE u.email = $1 AND t.slug = $2`,
-      [email, tenantSlug],
-    );
-    const row = result.rows[0];
+    // [SAFETY] Memberships are tenant-owned rows under forced row-level
+    // security: the person and the slug's tenant are found first, then the
+    // membership is read inside that tenant.
+    const row = await this.database.transaction(async (client) => {
+      const candidate = await client.query<Omit<ContextRow, "role">>(
+        `SELECT
+           u.id AS user_id, u.email, u.display_name, u.avatar_url,
+           t.id AS tenant_id, t.slug AS tenant_slug, t.name AS tenant_name,
+           p.theme, p.locale, p.ai_profile_id
+         FROM platform.users u
+         CROSS JOIN platform.tenants t
+         LEFT JOIN platform.user_preferences p ON p.user_id = u.id
+         WHERE u.email = $1 AND t.slug = $2`,
+        [email, tenantSlug],
+      );
+      const found = candidate.rows[0];
+      if (!found) return undefined;
+      await enterTenant(client, {
+        tenantId: found.tenant_id,
+        actorId: found.user_id,
+      });
+      const membership = await client.query<Pick<ContextRow, "role">>(
+        `SELECT role FROM platform.tenant_memberships
+         WHERE tenant_id = $1 AND user_id = $2`,
+        [found.tenant_id, found.user_id],
+      );
+      const role = membership.rows[0]?.role;
+      return role ? { ...found, role } : undefined;
+    });
     if (!row) return null;
     const products = await this.listInstalledProducts(row.tenant_id);
     return {

@@ -18,17 +18,6 @@ function makeRepository(): AgentJobRepository & {
     async get() {
       return undefined;
     },
-    async setResultReference() {},
-    async setSessionId() {},
-    async claim() {
-      return undefined;
-    },
-    async transition() {
-      return true;
-    },
-    async appendEvent() {
-      throw new Error("not used");
-    },
     async eventsAfter() {
       return [];
     },
@@ -102,8 +91,8 @@ describe("agent job service", () => {
       async get(tenantId, jobId) {
         return tenantId === job.tenantId && jobId === job.id ? job : undefined;
       },
-      async eventsAfter(jobId, sequence) {
-        asked.push([jobId, sequence]);
+      async eventsAfter(tenantId, jobId, sequence) {
+        asked.push([tenantId, jobId, sequence]);
         return [event];
       },
     });
@@ -121,8 +110,8 @@ describe("agent job service", () => {
     expect(await service.events("tenant-1", "job-1", 1)).toEqual([event]);
     expect(await service.events("tenant-1", "job-1")).toEqual([event]);
     expect(asked).toEqual([
-      ["job-1", 1],
-      ["job-1", 0],
+      ["tenant-1", "job-1", 1],
+      ["tenant-1", "job-1", 0],
     ]);
     // Another tenant cannot read the job's events.
     await expect(service.events("tenant-2", "job-1")).rejects.toThrow(
