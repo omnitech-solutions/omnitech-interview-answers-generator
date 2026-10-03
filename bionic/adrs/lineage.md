@@ -17,6 +17,10 @@ graph TD
   ADR_0006["ADR-0006"]
   ADR_0007["ADR-0007"]
   ADR_0008["ADR-0008"]
+  ADR_0009["ADR-0009"]
+  ADR_0010["ADR-0010"]
+  ADR_0011["ADR-0011"]
+  ADR_0011 -.-> ADR_0010
 ```
 
 ## Lineage table
@@ -32,12 +36,20 @@ graph TD
 | ADR-0006 | Keep login identities separate from connected provider accounts | Proposed | — | — | — |
 | ADR-0007 | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | — | — | — |
 | ADR-0008 | Interview answers are structured guides that render their Markdown | Accepted | — | — | — |
+| ADR-0009 | Keep candidate documents in the Interview product | Accepted | — | — | — |
+| ADR-0010 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | — | — | — |
+| ADR-0011 | Keep Active Session data private to the actor and enforce locality before dispatch | Proposed | — | ADR-0010 | — |
 
 ## Topic clusters
 
 ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cluster to find the current decision on a topic.
 
+- **active-session** — ADR-0010, ADR-0011
 - **agents** — ADR-0001, ADR-0007
+- **ai** — ADR-0007, ADR-0009
 - **architecture** — ADR-0002, ADR-0004
+- **contracts** — ADR-0008, ADR-0010
+- **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011
+- **privacy** — ADR-0007, ADR-0009, ADR-0010, ADR-0011
 - **process** — ADR-0000, ADR-0001
 - **security** — ADR-0005, ADR-0006
