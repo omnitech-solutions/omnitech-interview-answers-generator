@@ -1,10 +1,10 @@
 ---
 id: ADR-0013
 title: Pause rather than end an Active Session on credential expiry or companion stop
-status: Proposed
+status: Accepted
 date: 2026-10-03
 proposed_date: 2026-10-03
-accepted_date: null
+accepted_date: 2026-10-03
 deprecated_date: null
 superseded_date: null
 supersedes: []

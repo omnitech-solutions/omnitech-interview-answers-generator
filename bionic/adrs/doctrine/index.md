@@ -23,14 +23,17 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0011/no-promotion | rule:no-promotion | Session output and transcript content are never written into the experience matrix or exercise catalogue. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/no-undetectability-or-evasion | rule:no-undetectability-or-evasion | Active Session assistance makes no undetectability claim and adds no detection evasion. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/pause-end-suppression | rule:pause-end-suppression | Pause or end refuses new dispatch and cancels the session's in-flight jobs. | ADR-0011 | Accepted | decided | run-bound |
-| ADR-0011/stop-authority | rule:stop-authority | Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/structured-field-decisions | rule:structured-field-decisions | Job, retrieval and publish decisions come only from validated structured fields. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/tenant-scoped-worker-access | rule:tenant-scoped-worker-access | The worker reads and writes session data only inside a tenant-scoped transaction after a minimal cross-tenant claim. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/three-concept-split | rule:three-concept-split | An Interview, an Active Session and an Agent Job are separate records. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/versioned-wire-contract | rule:versioned-wire-contract | The companion and Studio exchange only versioned active-session-contracts schemas. | ADR-0011 | Accepted | decided | run-bound |
 | ADR-0011/worker-hosted-processor | rule:worker-hosted-processor | The session processor runs in apps/agent-worker as its own loop beside the agent-job loop. | ADR-0011 | Accepted | decided | run-bound |
-| ADR-0013/owner-starts-and-resumes | rule:owner-starts-and-resumes | Only the owner's session control starts or resumes a session. | ADR-0013 | Proposed | decided | not-run-bound |
-| ADR-0013/pause-only-credential-stop | rule:pause-only-credential-stop | Credential expiry and a companion's local stop only pause a session; only owner control, owner delete or the duration cap end it. | ADR-0013 | Proposed | decided | not-run-bound |
+| ADR-0013/advisory-capability-report | rule:advisory-capability-report | The stored companion capability report is advisory: it never blocks a session start and no server decision reads it. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/offline-local-stop | rule:offline-local-stop | The owner's local stop on the capture companion stops capture and drops its buffers without waiting for Studio; any farewell call is best effort. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/outage-never-stops-capture | rule:outage-never-stops-capture | A Studio outage alone never stops capture on the capture companion. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/owner-or-cap-ends | rule:owner-or-cap-ends | Only the owner's session control, an owner delete or the duration cap ends a session. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/owner-starts-and-resumes | rule:owner-starts-and-resumes | Only the owner's session control starts or resumes a session. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/pause-only-credential-stop | rule:pause-only-credential-stop | An expired, revoked or missing credential, a heartbeat reporting `capturing: false`, or silence past the heartbeat limit after prior contact pauses an active session and never ends it. | ADR-0013 | Accepted | decided | run-bound |
 
 ## active-session-locality — no-applicable-invariant
 
@@ -52,7 +55,6 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0012/bounded-ingest | rule:bounded-ingest | Ingest refuses over-limit content with a content-free outcome and writes nothing. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/captured-input-untrusted | rule:captured-input-untrusted | Captured text, images and pre-loaded role text are untrusted data that cannot grant tools, change policy, request secrets or override allowed actions. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/claim-writes-lease-and-fence-only | rule:claim-writes-lease-and-fence-only | Under the session claim setting the database permits changing only lease and fence columns. | ADR-0012 | Accepted | decided | run-bound |
-| ADR-0012/complete-session-purge | rule:complete-session-purge | One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/composite-owner-references | rule:composite-owner-references | Every table that references a session does so by tenant, owner and session id. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/credential-held-securely | rule:credential-held-securely | The companion holds the credential only in the keychain or memory. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/credential-lifetime-and-renewal | rule:credential-lifetime-and-renewal | The session credential expires no later than the session duration cap and extends only by owner-initiated replacement. | ADR-0012 | Accepted | decided | run-bound |
@@ -78,6 +80,8 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0012/screenshots-as-private-artifacts | rule:screenshots-as-private-artifacts | Selected screenshots live only as owner-private image artifacts with payloads, checked by leading bytes and served inert. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/session-claim-setting | rule:session-claim-setting | The session worker claims sessions across tenants through one named setting with one owning file listed in the tenant-context-boundary test (scripts/tenant-context-boundary.test.ts). | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/transcripts-in-observations | rule:transcripts-in-observations | Final transcript text lives only in session observation rows. | ADR-0012 | Accepted | decided | run-bound |
+| ADR-0013/complete-purge-except-retained-drafts | rule:complete-purge-except-retained-drafts | A session purge deletes its observations, actions, jobs, payloads, relay rows and other session records, with retained Workspace drafts that may contain captured session content as the explicit exception. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0013/purge-keeps-adopted-drafts | rule:purge-keeps-adopted-drafts | The purge deletes a session-created draft only while it is unchanged since the session last published it and no saved answer revision or revert record names it; retained drafts may contain session content. | ADR-0013 | Accepted | decided | run-bound |
 
 ## active-session-rehearsal — no-applicable-invariant
 
@@ -114,7 +118,7 @@ _None._
 
 _Freshness is the deterministic input digests below; no wall-clock timestamp enters this file._
 
-- `adr_frontmatter_sha256`: `0641e274aa089b812ce1d230398fb34f4f8026b3acfe9efefe4793db102016ad`
+- `adr_frontmatter_sha256`: `34e5bec6f3d72bfa73be44182b1f2c8146c6c530dc6f7a939aec3360e13578af`
 - `governs_from`: `None`
 - `invariants_sha256`: `57179ec45e978a0ccce122a1a659de4748a13c0b5afdc3c9eaf2bf8d06696201`
 - `observations_sha256`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`

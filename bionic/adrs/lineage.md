@@ -45,7 +45,7 @@ graph TD
 | ADR-0010 | Write documents in a few parallel calls on any language profile | Accepted | — | ADR-0009 | — |
 | ADR-0011 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | — | — | — |
 | ADR-0012 | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | — | ADR-0011 | — |
-| ADR-0013 | Pause rather than end an Active Session on credential expiry or companion stop | Proposed | — | ADR-0011, ADR-0012 | — |
+| ADR-0013 | Pause rather than end an Active Session on credential expiry or companion stop | Accepted | — | ADR-0011, ADR-0012 | — |
 
 ## Topic clusters
 

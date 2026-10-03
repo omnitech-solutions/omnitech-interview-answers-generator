@@ -25,7 +25,6 @@ _Handle -> governing rule, projected from ADR `governs` blocks. Regenerated; edi
 | ADR-0011/no-promotion | active-session | Session output and transcript content are never written into the experience matrix or exercise catalogue. | session actions, Workspace publication and interview policy | authored | ADR-0011 |
 | ADR-0011/no-undetectability-or-evasion | active-session | Active Session assistance makes no undetectability claim and adds no detection evasion. | the whole Active Session capability | authored | ADR-0011 |
 | ADR-0011/pause-end-suppression | active-session | Pause or end refuses new dispatch and cancels the session's in-flight jobs. | session processor | authored | ADR-0011 |
-| ADR-0011/stop-authority | active-session | Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it. | session control and capture companion | authored | ADR-0011 |
 | ADR-0011/structured-field-decisions | active-session | Job, retrieval and publish decisions come only from validated structured fields. | session processor and interview policy | authored | ADR-0011 |
 | ADR-0011/tenant-scoped-worker-access | active-session | The worker reads and writes session data only inside a tenant-scoped transaction after a minimal cross-tenant claim. | session processor persistence access | authored | ADR-0011 |
 | ADR-0011/three-concept-split | active-session | An Interview, an Active Session and an Agent Job are separate records. | products/interview active-session persistence and services | authored | ADR-0011 |
@@ -37,7 +36,6 @@ _Handle -> governing rule, projected from ADR `governs` blocks. Regenerated; edi
 | ADR-0012/bounded-ingest | active-session-privacy | Ingest refuses over-limit content with a content-free outcome and writes nothing. | active-session-contracts constants and ingest routes | authored | ADR-0012 |
 | ADR-0012/captured-input-untrusted | active-session-privacy | Captured text, images and pre-loaded role text are untrusted data that cannot grant tools, change policy, request secrets or override allowed actions. | session processor and interview policy | authored | ADR-0012 |
 | ADR-0012/claim-writes-lease-and-fence-only | active-session-privacy | Under the session claim setting the database permits changing only lease and fence columns. | active_sessions | authored | ADR-0012 |
-| ADR-0012/complete-session-purge | active-session-privacy | One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone. | products/interview session purge and the worker session loop | authored | ADR-0012 |
 | ADR-0012/composite-owner-references | active-session-privacy | Every table that references a session does so by tenant, owner and session id. | products/interview active-session persistence | authored | ADR-0012 |
 | ADR-0012/credential-held-securely | active-session-privacy | The companion holds the credential only in the keychain or memory. | apps/capture-companion | authored | ADR-0012 |
 | ADR-0012/credential-lifetime-and-renewal | active-session-privacy | The session credential expires no later than the session duration cap and extends only by owner-initiated replacement. | session credential | authored | ADR-0012 |
@@ -72,8 +70,14 @@ _Handle -> governing rule, projected from ADR `governs` blocks. Regenerated; edi
 | ADR-0012/tombstone-keeps-hint-count | active-session-rehearsal | The tombstone keeps owner, rehearsal run id, strict flag and a content-free count of shown drafts. | active_sessions tombstone and the Rehearsal save | authored | ADR-0012 |
 | ADR-0012/transcripts-in-observations | active-session-privacy | Final transcript text lives only in session observation rows. | session content storage | authored | ADR-0012 |
 | ADR-0012/unlisted-stage-refused | active-session-locality | A stage with no device implementation is refused in device-only mode. | the session processor and interview policy | authored | ADR-0012 |
+| ADR-0013/advisory-capability-report | active-session | The stored companion capability report is advisory: it never blocks a session start and no server decision reads it. | Studio Setup and the companion capability row | authored | ADR-0013 |
+| ADR-0013/complete-purge-except-retained-drafts | active-session-privacy | A session purge deletes its observations, actions, jobs, payloads, relay rows and other session records, with retained Workspace drafts that may contain captured session content as the explicit exception. | session purge and Studio retention disclosure | authored | ADR-0013 |
+| ADR-0013/offline-local-stop | active-session | The owner's local stop on the capture companion stops capture and drops its buffers without waiting for Studio; any farewell call is best effort. | capture companion | authored | ADR-0013 |
+| ADR-0013/outage-never-stops-capture | active-session | A Studio outage alone never stops capture on the capture companion. | capture companion | authored | ADR-0013 |
+| ADR-0013/owner-or-cap-ends | active-session | Only the owner's session control, an owner delete or the duration cap ends a session. | session status machine and purge sweep | authored | ADR-0013 |
 | ADR-0013/owner-starts-and-resumes | active-session | Only the owner's session control starts or resumes a session. | session status machine and capture companion | authored | ADR-0013 |
-| ADR-0013/pause-only-credential-stop | active-session | Credential expiry and a companion's local stop only pause a session; only owner control, owner delete or the duration cap end it. | session status machine, ingest and the capture companion | authored | ADR-0013 |
+| ADR-0013/pause-only-credential-stop | active-session | An expired, revoked or missing credential, a heartbeat reporting `capturing: false`, or silence past the heartbeat limit after prior contact pauses an active session and never ends it. | session status machine, ingest and the capture companion | authored | ADR-0013 |
+| ADR-0013/purge-keeps-adopted-drafts | active-session-privacy | The purge deletes a session-created draft only while it is unchanged since the session last published it and no saved answer revision or revert record names it; retained drafts may contain session content. | session draft purger | authored | ADR-0013 |
 
 ## Retired handles
 
@@ -82,3 +86,5 @@ _Handles a later decision displaced: dropped from the live rows above and from t
 | handle | rule | source ADR | retired by |
 |--------|------|------------|------------|
 | ADR-0009/structured-document-generation | Document generation uses one structured AiExecutionGateway call against a template revision and an immutable candidate-profile revision. | ADR-0009 | ADR-0010 |
+| ADR-0011/stop-authority | Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it. | ADR-0011 | ADR-0013 |
+| ADR-0012/complete-session-purge | One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone. | ADR-0012 | ADR-0013 |

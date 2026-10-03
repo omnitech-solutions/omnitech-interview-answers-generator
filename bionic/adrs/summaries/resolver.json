@@ -188,15 +188,6 @@
     "source_adr": "ADR-0011",
     "source_status": "Accepted"
   },
-  "ADR-0011/stop-authority": {
-    "authority": "prescriptive",
-    "disposition": "decided",
-    "provenance": "authored",
-    "review_state": "accepted-with-adr",
-    "rule": "Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it.",
-    "source_adr": "ADR-0011",
-    "source_status": "Accepted"
-  },
   "ADR-0011/structured-field-decisions": {
     "authority": "prescriptive",
     "disposition": "decided",
@@ -293,15 +284,6 @@
     "provenance": "authored",
     "review_state": "accepted-with-adr",
     "rule": "Under the session claim setting the database permits changing only lease and fence columns.",
-    "source_adr": "ADR-0012",
-    "source_status": "Accepted"
-  },
-  "ADR-0012/complete-session-purge": {
-    "authority": "prescriptive",
-    "disposition": "decided",
-    "provenance": "authored",
-    "review_state": "accepted-with-adr",
-    "rule": "One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone.",
     "source_adr": "ADR-0012",
     "source_status": "Accepted"
   },
@@ -611,6 +593,51 @@
     "source_adr": "ADR-0012",
     "source_status": "Accepted"
   },
+  "ADR-0013/advisory-capability-report": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The stored companion capability report is advisory: it never blocks a session start and no server decision reads it.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
+  },
+  "ADR-0013/complete-purge-except-retained-drafts": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A session purge deletes its observations, actions, jobs, payloads, relay rows and other session records, with retained Workspace drafts that may contain captured session content as the explicit exception.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
+  },
+  "ADR-0013/offline-local-stop": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The owner's local stop on the capture companion stops capture and drops its buffers without waiting for Studio; any farewell call is best effort.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
+  },
+  "ADR-0013/outage-never-stops-capture": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A Studio outage alone never stops capture on the capture companion.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
+  },
+  "ADR-0013/owner-or-cap-ends": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Only the owner's session control, an owner delete or the duration cap ends a session.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
+  },
   "ADR-0013/owner-starts-and-resumes": {
     "authority": "prescriptive",
     "disposition": "decided",
@@ -618,18 +645,35 @@
     "review_state": "accepted-with-adr",
     "rule": "Only the owner's session control starts or resumes a session.",
     "source_adr": "ADR-0013",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0013/pause-only-credential-stop": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Credential expiry and a companion's local stop only pause a session; only owner control, owner delete or the duration cap end it.",
+    "rule": "An expired, revoked or missing credential, a heartbeat reporting `capturing: false`, or silence past the heartbeat limit after prior contact pauses an active session and never ends it.",
     "source_adr": "ADR-0013",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
+  },
+  "ADR-0013/purge-keeps-adopted-drafts": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The purge deletes a session-created draft only while it is unchanged since the session last published it and no saved answer revision or revert record names it; retained drafts may contain session content.",
+    "source_adr": "ADR-0013",
+    "source_status": "Accepted"
   },
   "retired_slugs": {
+    "complete-session-purge": [
+      "ADR-0013/complete-purge-except-retained-drafts"
+    ],
+    "stop-authority": [
+      "ADR-0013/owner-or-cap-ends",
+      "ADR-0013/owner-starts-and-resumes",
+      "ADR-0013/pause-only-credential-stop"
+    ],
     "structured-document-generation": [
       "ADR-0010/parallel-document-generation"
     ]
@@ -637,12 +681,13 @@
   "slugs": {
     "action-before-job": "ADR-0012/action-before-job",
     "actor-private-session-rows": "ADR-0012/actor-private-session-rows",
+    "advisory-capability-report": "ADR-0013/advisory-capability-report",
     "agent-profiles-write-documents": "ADR-0010/agent-profiles-write-documents",
     "assistance-counts-as-hints": "ADR-0012/assistance-counts-as-hints",
     "bounded-ingest": "ADR-0012/bounded-ingest",
     "captured-input-untrusted": "ADR-0012/captured-input-untrusted",
     "claim-writes-lease-and-fence-only": "ADR-0012/claim-writes-lease-and-fence-only",
-    "complete-session-purge": "ADR-0012/complete-session-purge",
+    "complete-purge-except-retained-drafts": "ADR-0013/complete-purge-except-retained-drafts",
     "composite-owner-references": "ADR-0012/composite-owner-references",
     "credential-held-securely": "ADR-0012/credential-held-securely",
     "credential-ingest-scope": "ADR-0011/credential-ingest-scope",
@@ -679,8 +724,11 @@
     "no-resume-after-end": "ADR-0012/no-resume-after-end",
     "no-second-scorecard": "ADR-0012/no-second-scorecard",
     "no-undetectability-or-evasion": "ADR-0011/no-undetectability-or-evasion",
+    "offline-local-stop": "ADR-0013/offline-local-stop",
+    "outage-never-stops-capture": "ADR-0013/outage-never-stops-capture",
     "owner-checked-read-paths": "ADR-0012/owner-checked-read-paths",
     "owner-chooses-retention": "ADR-0012/owner-chooses-retention",
+    "owner-or-cap-ends": "ADR-0013/owner-or-cap-ends",
     "owner-starts-and-resumes": "ADR-0013/owner-starts-and-resumes",
     "parallel-document-generation": "ADR-0010/parallel-document-generation",
     "pause-end-suppression": "ADR-0011/pause-end-suppression",
@@ -688,13 +736,13 @@
     "private-session-artifact-types": "ADR-0012/private-session-artifact-types",
     "private-session-jobs": "ADR-0012/private-session-jobs",
     "purge-delete-setting": "ADR-0012/purge-delete-setting",
+    "purge-keeps-adopted-drafts": "ADR-0013/purge-keeps-adopted-drafts",
     "raw-audio-never-persisted": "ADR-0012/raw-audio-never-persisted",
     "retention-modes": "ADR-0012/retention-modes",
     "running-jobs-keep-their-lease": "ADR-0010/running-jobs-keep-their-lease",
     "screenshots-as-private-artifacts": "ADR-0012/screenshots-as-private-artifacts",
     "session-claim-setting": "ADR-0012/session-claim-setting",
     "session-processing-policy": "ADR-0012/session-processing-policy",
-    "stop-authority": "ADR-0011/stop-authority",
     "strict-rehearsal-no-assistance": "ADR-0012/strict-rehearsal-no-assistance",
     "structured-field-decisions": "ADR-0011/structured-field-decisions",
     "tenant-scoped-worker-access": "ADR-0011/tenant-scoped-worker-access",
