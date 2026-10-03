@@ -119,6 +119,18 @@ describe("agent runtime environment", () => {
   });
 });
 
+describe("agent runtime environment per adapter", () => {
+  it("gives only the codex adapter OPENAI_API_KEY", () => {
+    const env = { PATH: "/bin", OPENAI_API_KEY: "o", DATABASE_URL: "x" };
+    expect(Object.keys(agentEnvironment(env, "codex")).sort()).toEqual([
+      "OPENAI_API_KEY",
+      "PATH",
+    ]);
+    expect(Object.keys(agentEnvironment(env, "claude-code"))).toEqual(["PATH"]);
+    expect(Object.keys(agentEnvironment(env))).toEqual(["PATH"]);
+  });
+});
+
 describe("session loop registration", () => {
   it("is not started, with a content-free line, when no model is configured", () => {
     const lines: string[] = [];

@@ -35,7 +35,8 @@ function installedCodex(env: Environment): string | undefined {
 // [SAFETY] What a Codex or Claude Code process may inherit: the account and
 // shell basics the CLIs need and their own CODEX_* / ANTHROPIC_* / CLAUDE_*
 // settings. The database URL, payload and connected-account secrets and the
-// worker's model keys never reach an agent process.
+// worker's model keys never reach an agent process, except that the Codex
+// adapter alone also inherits OPENAI_API_KEY, the key its CLI signs in with.
 const AGENT_ENV_NAMES = new Set([
   "PATH",
   "HOME",
@@ -55,12 +56,18 @@ const AGENT_ENV_NAMES = new Set([
 ]);
 const AGENT_ENV_PREFIXES = ["LC_", "CODEX_", "ANTHROPIC_", "CLAUDE_"];
 
-export function agentEnvironment(env: Environment): Record<string, string> {
+const CODEX_ENV_NAMES = new Set(["OPENAI_API_KEY"]);
+
+export function agentEnvironment(
+  env: Environment,
+  runtime?: "codex" | "claude-code",
+): Record<string, string> {
   const allowed: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (
       value !== undefined &&
       (AGENT_ENV_NAMES.has(name) ||
+        (runtime === "codex" && CODEX_ENV_NAMES.has(name)) ||
         AGENT_ENV_PREFIXES.some((prefix) => name.startsWith(prefix)))
     )
       allowed[name] = value;
@@ -72,13 +79,14 @@ function agentRuntimes(
   env: Environment,
 ): Readonly<Record<string, AgentRuntimeAdapter>> {
   const codexPath = installedCodex(env);
-  const environment = agentEnvironment(env);
   return {
     codex: createCodexRuntimeAdapter({
-      environment,
+      environment: agentEnvironment(env, "codex"),
       ...(codexPath ? { codexPathOverride: codexPath } : {}),
     }),
-    "claude-code": createClaudeRuntimeAdapter({ environment }),
+    "claude-code": createClaudeRuntimeAdapter({
+      environment: agentEnvironment(env, "claude-code"),
+    }),
   };
 }
 
