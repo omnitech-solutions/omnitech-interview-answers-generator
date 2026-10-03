@@ -160,6 +160,9 @@ export async function ingestObservation(
   return outcome.ack;
 }
 
+// Roles that hold interview.write, the permission starting a session needs.
+const WRITE_ROLES: ReadonlySet<string> = new Set(["admin", "owner"]);
+
 async function ingestLocked(
   tx: TenantDatabase,
   scope: OwnerScope,
@@ -174,15 +177,18 @@ async function ingestLocked(
     cancelJobs,
   });
 
-  // [SAFETY] Membership is re-verified before any domain write
-  // (rule:ingest-membership-recheck). A removed member's credential is revoked.
-  const member = await firstRow(
+  // [SAFETY] Membership and the permission that starting a session requires
+  // (interview.write: the admin and owner roles, see rolePermissions in
+  // platform-storage) are re-verified before any domain write
+  // (rule:ingest-membership-recheck). A removed or demoted member's credential
+  // is revoked and refused like any other bad credential.
+  const member = await firstRow<{ role: string }>(
     tx,
-    sql`SELECT 1 AS ok FROM platform.tenant_memberships
+    sql`SELECT role FROM platform.tenant_memberships
         WHERE tenant_id = ${scope.tenantId}::uuid
           AND user_id = ${scope.actorId}::uuid`,
   );
-  if (!member) {
+  if (!member || !WRITE_ROLES.has(member.role)) {
     await tx.execute(sql`
       UPDATE interview.active_sessions
       SET credential_revoked_at = COALESCE(credential_revoked_at, now())
@@ -242,7 +248,7 @@ async function ingestLocked(
   const observation = validated.value;
 
   // [SAFETY] The companion cannot broaden the sources fixed at start
-  // (ADR-0011 agreed-visible-assistance): a screenshot needs the screen source
+  // (rule:versioned-wire-contract, ADR-0011): a screenshot needs the screen source
   // and a transcript needs an audio source. Refused by path and code only.
   const permitted = row.sources?.captureSources ?? [];
   const needed =

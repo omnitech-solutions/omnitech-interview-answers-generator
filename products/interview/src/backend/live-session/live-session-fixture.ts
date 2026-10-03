@@ -67,7 +67,7 @@ export async function startFixture(): Promise<Fixture> {
       [`${name}-${counter}-${randomUUID().slice(0, 6)}@live.test`, name],
     );
     await pg.owner.query(
-      "INSERT INTO platform.tenant_memberships(tenant_id,user_id,role) VALUES($1,$2,'member')",
+      "INSERT INTO platform.tenant_memberships(tenant_id,user_id,role) VALUES($1,$2,'admin')",
       [tenant, id],
     );
     const company = await one(

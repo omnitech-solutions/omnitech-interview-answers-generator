@@ -226,6 +226,29 @@ describe("membership is re-verified before any write (rule:ingest-membership-rec
   });
 });
 
+describe("the start permission is re-verified at ingest", () => {
+  it("refuses a demoted member's ingest and revokes the credential, writing nothing", async () => {
+    const { person, session, credential } = await begin("dee");
+    expect(
+      (await ingest(credential, transcript("mic", 0, "before", "e-1"))).status,
+    ).toBe("accepted");
+    // A member holds no interview.write (rolePermissions in platform-storage).
+    await fx.owner.query(
+      "UPDATE platform.tenant_memberships SET role='member' WHERE tenant_id=$1 AND user_id=$2",
+      [tenant, person.id],
+    );
+    expect(
+      await ingest(credential, transcript("mic", 1, "after", "e-2")),
+    ).toEqual({ version: 1, status: "refused", code: "credential_refused" });
+    expect(await count("session_observations", session.id)).toBe(1);
+    const stored = await fx.owner.query(
+      "SELECT credential_revoked_at FROM interview.active_sessions WHERE id=$1",
+      [session.id],
+    );
+    expect(stored.rows[0].credential_revoked_at).not.toBeNull();
+  });
+});
+
 describe("bounded ingest writes nothing over a limit (rule:bounded-ingest)", () => {
   it("refuses an oversized envelope", async () => {
     const { session, credential } = await begin("ida");
