@@ -52,15 +52,48 @@ const isAdapter = (pkg: WorkspacePackage) =>
   /^@omnitech\/(ai-provider-|agent-runtime-)/.test(pkg.name) &&
   !contracts.has(pkg.name);
 
+// The capture companion (ADR-0011, ADR-0012) consumes only the versioned wire
+// contract. Its fixture subpath is the one thing a product's TESTS may import,
+// so conformance tests can drive a real companion against the real backend.
+const companionName = "@omnitech/capture-companion";
+const companionFixture = `${companionName}/fixture`;
+const companionDir = "apps/capture-companion";
+const companionRule = "rule:versioned-wire-contract, ADR-0011";
+const contractsName = "@omnitech/active-session-contracts";
+
+// Where an import sits: the allowed-direction table needs to know whether it
+// is test code and which specifier it names.
+type ImportSite = { isTest: boolean; specifier: string };
+
 // The allowed-direction table: each row names a forbidden edge and why.
 const directionRules: Array<{
   rule: string;
-  forbids: (from: WorkspacePackage, to: WorkspacePackage) => boolean;
+  forbids: (
+    from: WorkspacePackage,
+    to: WorkspacePackage,
+    site: ImportSite,
+  ) => boolean;
 }> = [
   {
     // Apps are deployment shells that compose everything; nothing composes them.
+    // The one narrow exception: product TEST files may import the companion's
+    // fixture subpath (declared as a devDependency).
     rule: "nothing imports an apps/* package",
-    forbids: (_from, to) => isApp(to),
+    forbids: (from, to, site) =>
+      isApp(to) &&
+      !(
+        site.isTest &&
+        isProduct(from) &&
+        to.name === companionName &&
+        site.specifier === companionFixture
+      ),
+  },
+  {
+    // The companion holds no database or provider credentials, so it can
+    // depend on nothing but the wire contract (rule:versioned-wire-contract).
+    rule: "apps/capture-companion depends only on active-session-contracts",
+    forbids: (from, to) =>
+      from.dir === companionDir && to.name !== contractsName,
   },
   {
     // Products are verticals built on packages, never the reverse (ADR-0004).
@@ -199,7 +232,12 @@ describe("package boundaries", () => {
         const target = byName.get(packageNameOf(found.specifier));
         if (!target || target === pkg) continue;
         for (const { rule, forbids } of directionRules) {
-          if (forbids(pkg, target)) {
+          if (
+            forbids(pkg, target, {
+              isTest: found.isTest,
+              specifier: found.specifier,
+            })
+          ) {
             violations.push(
               `${pkg.name}: ${found.file}:${found.line} imports ${target.name} [${rule}]`,
             );
@@ -262,14 +300,175 @@ describe("package boundaries", () => {
       neutralCoreViolations('import "../../a.js";', "sub", false),
     ).toHaveLength(1);
   });
+
+  it("keeps the capture companion's TypeScript importing only the wire contract and node built-ins", () => {
+    const srcRoot = join(repoRoot, companionDir, "src");
+    const violations: string[] = [];
+    for (const file of sourceFiles(srcRoot)) {
+      const isTest = /\.test\.ts$/.test(file);
+      for (const issue of companionImportViolations(
+        readFileSync(file, "utf8"),
+        relative(srcRoot, dirname(file)),
+        isTest,
+      )) {
+        violations.push(
+          `${relative(repoRoot, file)}:${issue.line} imports ${issue.specifier} [${companionRule}: ${companionDir}/src may import only its own files, node: built-ins and ${contractsName}]`,
+        );
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("detects a companion import of anything but the contract and node built-ins", () => {
+    const source = [
+      'import { a } from "./ok.js";',
+      'import { fs } from "node:fs";',
+      'import type { C } from "@omnitech/active-session-contracts";',
+      'import { z } from "zod";',
+      'import { db } from "@omnitech/database";',
+      'import { p } from "@omnitech/product-interview";',
+      'import { x } from "../outside.js";',
+      'const lazy = await import("fs");',
+      'import { it } from "vitest";',
+    ].join("\n");
+    expect(
+      companionImportViolations(source, "", false).map((v) => v.specifier),
+    ).toEqual([
+      "zod",
+      "@omnitech/database",
+      "@omnitech/product-interview",
+      "../outside.js",
+      "fs",
+      "vitest",
+    ]);
+    expect(
+      companionImportViolations(source, "", true).map((v) => v.specifier),
+    ).not.toContain("vitest");
+  });
+
+  it("lets only a product's test files import the companion's fixture subpath", () => {
+    const apps = packages.find((pkg) => pkg.dir === companionDir);
+    const interview = packages.find(
+      (pkg) => pkg.name === "@omnitech/product-interview",
+    );
+    expect(apps?.exports).toHaveProperty("./fixture");
+    const rule = directionRules.find((row) =>
+      row.rule.startsWith("nothing imports"),
+    );
+    if (!apps || !interview || !rule) throw new Error("fixture missing");
+    const at = (isTest: boolean, specifier: string) => ({ isTest, specifier });
+    expect(rule.forbids(interview, apps, at(true, companionFixture))).toBe(
+      false,
+    );
+    // Production code, the root entrypoint and other importers stay refused.
+    expect(rule.forbids(interview, apps, at(false, companionFixture))).toBe(
+      true,
+    );
+    expect(rule.forbids(interview, apps, at(true, companionName))).toBe(true);
+    const web = packages.find((pkg) => pkg.dir === "apps/web");
+    if (!web) throw new Error("web missing");
+    expect(rule.forbids(web, apps, at(true, companionFixture))).toBe(true);
+    const library = packages.find((pkg) => pkg.dir.startsWith("packages/"));
+    if (!library) throw new Error("library missing");
+    expect(rule.forbids(library, apps, at(true, companionFixture))).toBe(true);
+    // And the other apps are never importable, even from product tests.
+    const worker = packages.find((pkg) => pkg.dir === "apps/agent-worker");
+    if (!worker) throw new Error("worker missing");
+    expect(
+      rule.forbids(interview, worker, at(true, "@omnitech/agent-worker")),
+    ).toBe(true);
+  });
 });
 
-// Pure over a source string so the detector itself can be tested. `relativeDir`
-// is the file's directory relative to the core directory ("" at its root).
-function neutralCoreViolations(
+describe("the macOS companion's Swift sources", () => {
+  const macosRoot = join(repoRoot, companionDir, "macos");
+  // Absent until the Swift package exists; then every rule below applies.
+  // Package.swift is SwiftPM's manifest (it imports PackageDescription), not
+  // companion code.
+  const files = (existsSync(macosRoot) ? swiftFiles(macosRoot) : []).filter(
+    (file) => !file.endsWith(`${sep}Package.swift`),
+  );
+  // Tests may name the forbidden words to assert their absence; only shipped
+  // code (Sources/) is scanned for them.
+  const shipped = files.filter((file) => file.includes(`${sep}Sources${sep}`));
+  const ownModules = existsSync(macosRoot)
+    ? swiftOwnModules(macosRoot)
+    : new Set<string>();
+
+  it("imports only system frameworks the companion needs and its own modules", () => {
+    const violations = files.flatMap((file) =>
+      swiftImportViolations(readFileSync(file, "utf8"), ownModules).map(
+        (issue) =>
+          `${relative(repoRoot, file)}:${issue.line} imports ${issue.module} [rule:locality-by-stage, ADR-0012: only ${[...SWIFT_ALLOWED_IMPORTS].join(", ")} and the package's own modules]`,
+      ),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("names no database or provider credential in shipped code", () => {
+    const violations = shipped.flatMap((file) =>
+      swiftCredentialWords(readFileSync(file, "utf8")).map(
+        (issue) =>
+          `${relative(repoRoot, file)}:${issue.line} mentions ${issue.word} [rule:credential-storage, ADR-0012: the companion holds no database or provider credentials]`,
+      ),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it("does not log from CaptureCore", () => {
+    const violations = files
+      .filter((file) => file.includes(`${sep}CaptureCore${sep}`))
+      .flatMap((file) =>
+        swiftLoggingCalls(readFileSync(file, "utf8")).map(
+          (issue) =>
+            `${relative(repoRoot, file)}:${issue.line} calls ${issue.call} [rule:id-only-traces, ADR-0011: CaptureCore never logs]`,
+        ),
+      );
+    expect(violations).toEqual([]);
+  });
+
+  it("detects disallowed imports, credential words and logging calls", () => {
+    const own = new Set(["CaptureCore", "capture_companion"]);
+    const source = [
+      "import Foundation",
+      "@preconcurrency import Security",
+      "@testable import CaptureCore",
+      "import ScreenCaptureKit",
+      "import Network",
+      "import struct Foundation.Data",
+      "import PostgresNIO",
+      'let a = "DATABASE_URL"',
+      "let b = openai_key // OPENAI",
+      "// the api key is never stored",
+      'print("x")',
+      'NSLog("x")',
+      "let l = Logger(subsystem: s, category: c)",
+      'os_log("x")',
+      "let blueprint = 1",
+    ].join("\n");
+    expect(swiftImportViolations(source, own).map((v) => v.module)).toEqual([
+      "Network",
+      "PostgresNIO",
+    ]);
+    expect(
+      swiftCredentialWords(source).map((v) => v.word.toLowerCase()),
+    ).toEqual(["postgres", "database_url", "openai", "openai", "api key"]);
+    expect(swiftLoggingCalls(source).map((v) => v.call)).toEqual([
+      "print(",
+      "NSLog(",
+      "Logger(",
+      "os_log(",
+    ]);
+  });
+});
+
+// Shared by the neutral core and the companion: relative imports must stay
+// inside `root`, and a bare specifier must pass `allowsBare`. Pure over a
+// source string so each detector itself can be tested.
+function scopedImportViolations(
   source: string,
   relativeDir: string,
-  isTest: boolean,
+  allowsBare: (specifier: string) => boolean,
 ): Array<{ line: number; specifier: string }> {
   const pattern =
     /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
@@ -277,15 +476,133 @@ function neutralCoreViolations(
   for (const match of source.matchAll(pattern)) {
     const specifier = match[1] ?? "";
     const line = source.slice(0, match.index).split("\n").length;
-    const insideCore = (): boolean => {
-      const target = resolve("/core", relativeDir, specifier);
-      return target === "/core" || target.startsWith("/core/");
+    const insideRoot = (): boolean => {
+      const target = resolve("/root", relativeDir, specifier);
+      return target === "/root" || target.startsWith("/root/");
     };
     const allowed = specifier.startsWith(".")
-      ? insideCore()
-      : specifier === "@omnitech/active-session-contracts" ||
-        (isTest && specifier === "vitest");
+      ? insideRoot()
+      : allowsBare(specifier);
     if (!allowed) found.push({ line, specifier });
+  }
+  return found;
+}
+
+// `relativeDir` is the file's directory relative to the core directory ("" at
+// its root).
+function neutralCoreViolations(
+  source: string,
+  relativeDir: string,
+  isTest: boolean,
+): Array<{ line: number; specifier: string }> {
+  return scopedImportViolations(
+    source,
+    relativeDir,
+    (specifier) =>
+      specifier === contractsName || (isTest && specifier === "vitest"),
+  );
+}
+
+function companionImportViolations(
+  source: string,
+  relativeDir: string,
+  isTest: boolean,
+): Array<{ line: number; specifier: string }> {
+  return scopedImportViolations(
+    source,
+    relativeDir,
+    (specifier) =>
+      specifier === contractsName ||
+      specifier.startsWith("node:") ||
+      (isTest && specifier === "vitest"),
+  );
+}
+
+// System frameworks the companion may import (ScreenCaptureKit, Speech and
+// the rest of its capture path); anything else, notably a network or database
+// library, is a boundary change that needs a decision.
+const SWIFT_ALLOWED_IMPORTS = new Set([
+  "Foundation",
+  "Security",
+  "ScreenCaptureKit",
+  "Speech",
+  "AVFoundation",
+  "CoreMedia",
+  "CoreImage",
+  "CoreGraphics",
+  "ImageIO",
+  "UniformTypeIdentifiers",
+  "Dispatch",
+  "os",
+  "CryptoKit",
+]);
+
+function swiftFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === ".build" || entry.name === ".swiftpm") return [];
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return swiftFiles(path);
+    return entry.name.endsWith(".swift") ? [path] : [];
+  });
+}
+
+// The package's own modules: one per directory under Sources/ and Tests/
+// (SwiftPM turns a hyphen in a target name into an underscore).
+function swiftOwnModules(macosRoot: string): Set<string> {
+  const modules = new Set<string>();
+  for (const parent of ["Sources", "Tests"]) {
+    const dir = join(macosRoot, parent);
+    if (!existsSync(dir)) continue;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) modules.add(entry.name.replaceAll("-", "_"));
+    }
+  }
+  return modules;
+}
+
+function swiftImportViolations(
+  source: string,
+  ownModules: ReadonlySet<string>,
+): Array<{ line: number; module: string }> {
+  const found: Array<{ line: number; module: string }> = [];
+  const pattern =
+    /^\s*(?:@\w+(?:\([^)]*\))?\s+)*import\s+(?:(?:typealias|struct|class|enum|protocol|let|var|func)\s+)?([A-Za-z_]\w*)/gm;
+  for (const match of source.matchAll(pattern)) {
+    const module = match[1] ?? "";
+    if (!SWIFT_ALLOWED_IMPORTS.has(module) && !ownModules.has(module)) {
+      found.push({
+        line: source.slice(0, match.index).split("\n").length,
+        module,
+      });
+    }
+  }
+  return found;
+}
+
+function swiftCredentialWords(
+  source: string,
+): Array<{ line: number; word: string }> {
+  const found: Array<{ line: number; word: string }> = [];
+  const pattern = /DATABASE_URL|postgres|OPENAI|ANTHROPIC|api[ _-]?key/gi;
+  for (const match of source.matchAll(pattern)) {
+    found.push({
+      line: source.slice(0, match.index).split("\n").length,
+      word: match[0],
+    });
+  }
+  return found;
+}
+
+function swiftLoggingCalls(
+  source: string,
+): Array<{ line: number; call: string }> {
+  const found: Array<{ line: number; call: string }> = [];
+  for (const [index, line] of source.split("\n").entries()) {
+    // A comment may mention a call; only code can make one.
+    const code = line.replace(/\/\/.*$/, "");
+    for (const match of code.matchAll(/\b(print|NSLog|Logger|os_log)\s*\(/g)) {
+      found.push({ line: index + 1, call: `${match[1]}(` });
+    }
   }
   return found;
 }
