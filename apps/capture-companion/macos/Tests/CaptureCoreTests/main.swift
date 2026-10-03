@@ -4,6 +4,9 @@ import Foundation
 let harness = Harness()
 await wireTests(harness)
 await limitsTests(harness)
+await policyTests(harness)
+await sessionTests(harness)
+await sourceScanTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("capture-core-tests: \(harness.passed) passed, \(harness.failures.count) failed")
