@@ -132,20 +132,6 @@ export class PresentationService {
     return this.repository.revokeShare(context, shareId);
   }
 
-  requestExport(
-    context: TenantContext,
-    documentId: string,
-    format: "pptx" | "pdf",
-    idempotencyKey: string,
-  ) {
-    return this.repository.requestExport(
-      context,
-      documentId,
-      format,
-      idempotencyKey,
-    );
-  }
-
   async export(
     context: TenantContext,
     documentId: string,

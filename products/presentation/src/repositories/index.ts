@@ -563,7 +563,7 @@ export class PresentationRepository {
         [
           duplicateId,
           context.tenantId,
-          row.outline,
+          JSON.stringify(row.outline),
           row.theme_id,
           row.settings,
           row.generation_state,
@@ -679,7 +679,8 @@ export class PresentationRepository {
       const result = await client.query<{ id: string }>(
         `INSERT INTO presentation.shares
            (tenant_id, document_id, token_hash, created_by)
-         VALUES ($1, $2, $3, $4)
+         SELECT $1, d.id, $3, $4 FROM presentation.documents d
+         WHERE d.tenant_id = $1 AND d.id = $2
          RETURNING id`,
         [context.tenantId, documentId, tokenHash, context.userId],
       );
@@ -710,7 +711,8 @@ export class PresentationRepository {
         `INSERT INTO presentation.exports
            (tenant_id, document_id, requested_by, format, status,
             idempotency_key)
-         VALUES ($1, $2, $3, $4, 'queued', $5)
+         SELECT $1, d.id, $3, $4, 'queued', $5 FROM presentation.documents d
+         WHERE d.tenant_id = $1 AND d.id = $2
          ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET
            updated_at = presentation.exports.updated_at
          RETURNING id`,
@@ -747,7 +749,8 @@ export class PresentationRepository {
       const result = await client.query<{ id: string }>(
         `INSERT INTO presentation.recordings
            (tenant_id, document_id, owner_user_id, asset_reference, metadata)
-         VALUES ($1, $2, $3, $4, $5)
+         SELECT $1, d.id, $3, $4, $5 FROM presentation.documents d
+         WHERE d.tenant_id = $1 AND d.id = $2
          RETURNING id`,
         [
           context.tenantId,
