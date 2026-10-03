@@ -9,6 +9,7 @@
       "!.dev-local",
       "!**/dist",
       "!**/.turbo",
+      "!**/.build",
       "!coverage",
       "!packages/database/drizzle",
       "!bionic",

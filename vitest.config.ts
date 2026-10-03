@@ -30,6 +30,7 @@ export default defineConfig({
             "scripts/**/*.test.ts",
             "apps/terminal-gateway/src/**/*.test.ts",
             "apps/agent-worker/src/**/*.test.ts",
+            "apps/capture-companion/src/**/*.test.ts",
             "products/*/src/**/*.test.ts",
           ],
           // Product frontend tests run in the jsdom project below.
