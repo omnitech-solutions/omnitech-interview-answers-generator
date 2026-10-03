@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 16
+current_prompt: 17
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -115,15 +115,15 @@ prompts:
   artifacts: ["ADR-0011", "ADR-0012"]
 - n: 16
   title: 'Develop #2: internal review'
-  state: "running"
+  state: "done"
   started: "2026-10-03T12:41:03Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T13:05:06Z"
+  result: "Independent review BLOCKED then fixed: 3 MUST-FIX + 6 SHOULD-FIX confirmed findings resolved with regression tests (4 commits); F10 deferred with rationale. pnpm verify one command exit 0, 202 files/1876 tests."
+  artifacts: ["ADR-0011", "ADR-0012"]
 - n: 17
   title: 'Develop #3: derive an implementation plan for slice 1-3 Studio UI: the persistent session control and session view (source status, processing locality, pause and stop, current activity, current question and answer with evidence and transcript beneath) extending the existing Workspace, Briefings, Knowledge, Rehearsal and Assistant surfaces per the Active Session.html reference, surviving navigation between Studio pages (session lifetime not tied to a React component), with Workspace job progress and test output'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T13:05:06Z"
   completed: null
   result: ''
   artifacts: []
@@ -338,6 +338,13 @@ notes: |
   - Security analysis: no separate SAST tool configured; RLS/security suites, no-content canary, no-promotion, prompt-injection corpus and sandbox tests pass inside the full run.
   - verify-code-docs: not regenerated; code/arch docs known to drift until the prep prompt (see bionic/log.md).
   - Real Docker egress check (sandbox.test.ts) ran with the php runtime image because node:22-alpine is absent locally; node path unobserved.
+
+  ## Dev loop #2 review deferrals (prompt 16; independent crux:reviewer, first verdict BLOCKED, 3 MUST-FIX)
+  The code-review skill was not invoked; an independent crux:reviewer agent (did not write the code) probed the real modules, as in loop 1. Fixed (CONFIRMED, each with a regression test that failed before): F1 published draft text had no grounding outside logistics (spoken figures, salary/notice in an `other` category) (5ec305e); F2 leaving-role draft carried a generated reason beside the placeholder (5ec305e); F3 STAR element text unverified (5ec305e); F4 appended fabrication passed the 50% share (risk terms, one unmatched term max) (5ec305e); F5 pooling across employers (single-role refs, company check) (5ec305e); F6 figures in non-matrix kinds and % stripping (5ec305e); F7 purger deleted owner-edited drafts (notes/progress): now deletes only a draft whose revision equals the last revision the session wrote (dde5cb9); F8 orphaned agent prompt payload on refused job creation: AgentPayloadStore.delete (tenant-scoped, no migration) and discardPrompt (cd36625); F9 fullyVerified from self-reported coverage: a distinct passing test per constraint, constraint_shared_test (03088c0).
+  Deferred with rationale (PLAUSIBLE/by design): F10 the rehearsal hint penalty is counted only when the client sends rehearsalRunId: ADR-0012 designs the run id as client-minted and trusted only for the same owner, so a client can decline the penalty on its own scorecard; no server-side way to bind a scorecard to a session without a protocol change; revisit with the Studio UI (loop 3), which will always send the id.
+  Residual limits (not defects, recorded): draft-level employer checking is company-name based, so a first-person sentence without a company name and a small figure passes; the leaving-role lexicon catches reasons expressed with cue words only; stricter support rules may raise unsupported_reference suppressions with real model paraphrase (unmeasurable without a live model); no second independent review pass after the fixes, the regression tests and full gates stand in for it.
+  Gates after the fixes: pnpm verify as one command -> exit 0 (typecheck 52/52, 202 files / 1876 tests, build 28/28); pnpm vitest run scripts -> 18 passed.
+  Evidence dispositions for this loop (E-A1 verified: session-replay-fixtures.test.ts 40 tests and scan over all sets; E-A2 verified: session-replay-evidence.test.ts 28 tests, latency p50/p95 1x and 4x recorded above; E-A3 verified: cases h and i; book Evidence for loop 2: matrix-backed vs interpretation vs general with an eval case where an existing unsupporting entry is rejected -> verified grounding-eval.test.ts and claims-hardening.test.ts; no promotion -> verified no-promotion.test.ts; coding expected-revision publish and three distinct states -> verified session-drafts.test.ts, coding-path.test.ts, code-states.test.ts; captured text cannot grant tools/policy/secrets -> verified prompt-injection.test.ts; sandbox controls -> verified sandbox.test.ts with the real runner flags, real container egress check ran on php image, node image path unobserved; real model compliance, real call workload, ScreenCaptureKit -> unobserved).
 
 pr_draft: ""
 summary: ""
