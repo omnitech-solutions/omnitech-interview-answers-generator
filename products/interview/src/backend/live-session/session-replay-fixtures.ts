@@ -214,14 +214,20 @@ export const allFixtureTexts = (): string[] =>
     ...phase.segments.map((segment) => segment.text),
   ]);
 
-// The canned, closed-schema model output the fake gateway returns.
+// The canned, closed-schema model output the fake gateway returns: a technical
+// concept answer with one general-knowledge claim and no structured extras.
 export const CANNED_DRAFT = {
+  category: "technical-concept",
   draft:
     "Open with the situation, name the two or three trade-offs, then close with what was measured afterwards.",
-  sections: [
+  claims: [
     {
       kind: "general-knowledge",
       text: "A staged cutover with both paths live trades extra cost for a safe rollback.",
+      refs: [],
     },
   ],
+  star: null,
+  logistics: null,
+  codingBrief: null,
 } as const;
