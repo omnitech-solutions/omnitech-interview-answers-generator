@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+import { agentEnvironment, runWorkerLoops, sessionLoop } from "./main.js";
+
+const CANARY = "canary-question-text";
+const gate = () => {
+  let open!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { promise, open };
+};
+const pause = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+describe("worker loops", () => {
+  it("keeps the other loop running and closes the shared database only after both settle", async () => {
+    const order: string[] = [];
+    const sessionDone = gate();
+    const lines: string[] = [];
+    const outcome = runWorkerLoops(
+      [
+        {
+          name: "agent-job",
+          run: async () => {
+            order.push("job-rejected");
+            throw new RangeError(CANARY);
+          },
+        },
+        {
+          name: "session",
+          run: async () => {
+            await sessionDone.promise;
+            order.push("session-ended");
+          },
+        },
+      ],
+      new AbortController().signal,
+      {
+        close: async () => {
+          order.push("closed");
+        },
+      },
+      (line) => lines.push(line),
+    ).catch((error: Error) => error);
+    await pause();
+    // The job loop failed but the session loop still runs: nothing closed.
+    expect(order).toEqual(["job-rejected"]);
+    sessionDone.open();
+    const error = await outcome;
+    expect(order).toEqual(["job-rejected", "session-ended", "closed"]);
+    expect((error as Error).message).toBe("Worker loops failed: agent-job.");
+    expect(lines.join("")).toContain("agent-job (RangeError)");
+    expect(lines.join("")).not.toContain(CANARY);
+  });
+
+  it("a failing session loop does not stop the job loop", async () => {
+    const order: string[] = [];
+    const jobDone = gate();
+    const run = runWorkerLoops(
+      [
+        {
+          name: "agent-job",
+          run: async () => {
+            await jobDone.promise;
+            order.push("job-ended");
+          },
+        },
+        {
+          name: "session",
+          run: async () => {
+            throw new Error("down");
+          },
+        },
+      ],
+      new AbortController().signal,
+      { close: async () => void order.push("closed") },
+      () => undefined,
+    ).catch(() => order.push("reported"));
+    await pause();
+    expect(order).toEqual([]);
+    jobDone.open();
+    await run;
+    expect(order).toEqual(["job-ended", "closed", "reported"]);
+  });
+
+  it("closes the shared database and resolves when every loop ends cleanly", async () => {
+    const order: string[] = [];
+    await runWorkerLoops(
+      [{ name: "a", run: async () => void order.push("a") }],
+      new AbortController().signal,
+      { close: async () => void order.push("closed") },
+    );
+    expect(order).toEqual(["a", "closed"]);
+  });
+});
+
+describe("agent runtime environment", () => {
+  it("passes the CLI basics and its own settings, never database or secrets", () => {
+    const allowed = agentEnvironment({
+      PATH: "/bin",
+      HOME: "/h",
+      LC_ALL: "C",
+      CODEX_HOME: "/c",
+      ANTHROPIC_API_KEY: "a",
+      CLAUDE_CONFIG_DIR: "/cl",
+      DATABASE_URL: "postgres://x",
+      AGENT_PAYLOAD_SECRET: "s",
+      CONNECTED_ACCOUNT_SECRET: "s",
+      OPENAI_API_KEY: "o",
+      AI_API_KEY: "k",
+    });
+    expect(Object.keys(allowed).sort()).toEqual([
+      "ANTHROPIC_API_KEY",
+      "CLAUDE_CONFIG_DIR",
+      "CODEX_HOME",
+      "HOME",
+      "LC_ALL",
+      "PATH",
+    ]);
+  });
+});
+
+describe("session loop registration", () => {
+  it("is not started, with a content-free line, when no model is configured", () => {
+    const lines: string[] = [];
+    expect(sessionLoop({}, {} as never, (line) => lines.push(line))).toBeNull();
+    expect(lines).toEqual([
+      "session loop disabled: no language model configured",
+    ]);
+  });
+
+  it("is not started when the configured model is unusable", () => {
+    const lines: string[] = [];
+    const env = {
+      AI_BASE_URL: "https://models.example.test/v1",
+      AI_MODEL: "m",
+    };
+    expect(
+      sessionLoop(env, {} as never, (line) => lines.push(line)),
+    ).toBeNull();
+    expect(lines).toEqual(["session loop disabled: language model unusable"]);
+  });
+
+  it("is started for a configured model", () => {
+    const env = {
+      AI_BASE_URL: "https://models.example.test/v1",
+      AI_MODEL: "m",
+      AI_API_KEY: "test-key",
+    };
+    expect(sessionLoop(env, {} as never, () => undefined)?.name).toBe(
+      "session",
+    );
+  });
+});

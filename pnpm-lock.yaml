@@ -83,12 +83,24 @@ importers:
       '@omnitech/agent-runtime-contracts':
         specifier: workspace:*
         version: link:../../packages/agent-runtime-contracts
+      '@omnitech/ai-contracts':
+        specifier: workspace:*
+        version: link:../../packages/ai-contracts
+      '@omnitech/ai-provider-openai':
+        specifier: workspace:*
+        version: link:../../packages/ai-provider-openai
+      '@omnitech/ai-runtime':
+        specifier: workspace:*
+        version: link:../../packages/ai-runtime
       '@omnitech/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@omnitech/platform-storage':
         specifier: workspace:*
         version: link:../../packages/platform-storage
+      '@omnitech/product-interview':
+        specifier: workspace:*
+        version: link:../../products/interview
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -540,7 +552,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.1))
 
   packages/interview-contracts:
     dependencies:
@@ -596,7 +608,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.1))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
 
   packages/interview-storage:
     dependencies:
@@ -8206,7 +8218,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.1))
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
 
   '@vitest/expect@4.1.10':
     dependencies:
