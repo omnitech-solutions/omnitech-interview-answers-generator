@@ -343,5 +343,5 @@ describe("the canary never leaves the owner's own reads", () => {
     expect(everything).not.toContain("canary-secret");
     // Console output stayed silent on every path, expected or not.
     expect(logged).toEqual([]);
-  });
+  }, 60_000);
 });

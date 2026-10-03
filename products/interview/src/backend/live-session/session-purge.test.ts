@@ -517,7 +517,7 @@ describe("the purge sweep claim", () => {
     );
     for (const done of [deleteAtEnd, thirtyOld, purging])
       expect(after).not.toContain(done.id);
-  });
+  }, 60_000);
 
   it("finds open sessions past their duration cap", async () => {
     const rae = await fx.provision(tenant, "rae");

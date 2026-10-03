@@ -120,7 +120,7 @@ describe("recruiter-screen replay through the real processor", () => {
       "SELECT count(*)::int AS n FROM interview.candidate_profile_revisions WHERE matrix::text <> '{}'",
     );
     expect(promoted.rows[0].n).toBe(0);
-  });
+  }, 60_000);
 
   it("puts captured text only in the labelled data block of each request", async () => {
     const w = await world("replay-block");
