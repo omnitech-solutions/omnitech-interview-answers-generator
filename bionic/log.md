@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] promptbook | archived PB-0002-active-session-capability-for-interview-studio
+
+RUN-001 delivered: 29/29 prompts terminal (29 done, 0 skipped, 0 blocked). [[promptbooks/archive/PB-0002-active-session-capability-for-interview-studio]]
+
 ## [2026-10-03] journal | review: PB-0002 revised logistics authority and review closure
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-03T15:49-06:00. Refs: [[promptbooks/PB-0002-active-session-capability-for-interview-studio]] rule:captured-input-untrusted

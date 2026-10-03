@@ -1,11 +1,11 @@
 format_version: '1'
 id: PB-0002
 title: 'Cycle: Active Session capability for Interview Studio'
-status: active
+status: archived
 created_at: '2026-10-03'
 total_prompts: 29
-current_run: RUN-001
-current_prompt: 29
+current_run: null
+current_prompt: null
 forked_from: null
 tags:
 - cycle
@@ -1163,3 +1163,9 @@ prompts:
   side_effects:
   - archive-promptbook
   - forge-skill
+
+archive_note:
+  archived_at: '2026-10-03'
+  final_run: RUN-001
+  note: |
+    Archived 2026-10-03 as delivered. Final run: [[promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/RUN-001]] (29/29 prompts terminal; 29 done, 0 skipped, 0 blocked).
