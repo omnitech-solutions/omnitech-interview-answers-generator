@@ -76,6 +76,24 @@ export type DispatchStandingOutcome =
   | Refused;
 
 export type PublishOutcome = { outcome: "published" } | Refused;
+
+// Work that must commit or roll back WITH the publish (a session-owned
+// Workspace draft write). It runs inside the publish transaction, after the
+// holder, status and revision checks passed, with the session row still locked.
+// The object it returns is merged into the stored action result. A throw rolls
+// the whole publish back, leaving the action in flight; an outcome the caller
+// should keep (a revision conflict) is returned, never thrown.
+export type PublishEffectContext = {
+  tx: TenantDatabase;
+  scope: OwnerScope;
+  sessionId: string;
+  actionId: string;
+  taskId: string;
+  taskRevision: number;
+};
+export type PublishEffect = (
+  context: PublishEffectContext,
+) => Promise<Record<string, unknown> | undefined>;
 export type SettleOutcome = { outcome: "recorded" } | Refused;
 
 const REASON_CODE = /^[a-z0-9_.-]{1,64}$/;
@@ -291,6 +309,7 @@ export class FencedSessionWrites {
     result: unknown;
     // The draft was shown to the owner: it counts as a hint on the tombstone.
     show?: boolean;
+    effect?: PublishEffect;
   }): Promise<PublishOutcome> {
     assertUuid(input.sessionId);
     assertUuid(input.actionId);
@@ -345,10 +364,23 @@ export class FencedSessionWrites {
             AND id = ${input.actionId}::uuid`);
         return refused(eligibility.reason, true);
       }
+      const merged = input.effect
+        ? await input.effect({
+            tx,
+            scope: input.scope,
+            sessionId: input.sessionId,
+            actionId: input.actionId,
+            taskId: action.task_id,
+            taskRevision: Number(action.task_revision),
+          })
+        : undefined;
+      const stored = merged
+        ? { ...(input.result as Record<string, unknown>), ...merged }
+        : input.result;
       const show = input.show === true;
       await tx.execute(sql`
         UPDATE interview.session_actions SET
-          dispatch_status = 'succeeded', result = ${JSON.stringify(input.result)}::jsonb,
+          dispatch_status = 'succeeded', result = ${JSON.stringify(stored)}::jsonb,
           shown = ${show}
         WHERE tenant_id = ${input.scope.tenantId}::uuid
           AND owner_user_id = ${input.scope.actorId}::uuid

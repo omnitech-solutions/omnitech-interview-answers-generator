@@ -9,6 +9,8 @@ export {
   createSessionJob,
   FencedSessionWrites,
   type FenceHolder,
+  type PublishEffect,
+  type PublishEffectContext,
   type PublishOutcome,
   type RecordActionOutcome,
   reserveJobId,
@@ -47,6 +49,11 @@ export {
   type MintedCredential,
   mintSessionCredential,
 } from "./session-credential.js";
+export {
+  sessionDraftKey,
+  sessionDraftPurger,
+  sessionWorkspaceId,
+} from "./session-drafts.js";
 export { cancelSessionJobs, type SessionJobs } from "./session-jobs.js";
 export {
   noSessionDraftPurger,

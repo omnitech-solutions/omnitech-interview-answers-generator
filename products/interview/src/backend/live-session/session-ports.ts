@@ -16,11 +16,8 @@ import {
   renewLease,
 } from "./session-claim.js";
 import { cancelSessionJobs, type SessionJobs } from "./session-jobs.js";
-import {
-  noSessionDraftPurger,
-  purgeSession,
-  type SessionDraftPurger,
-} from "./session-purge.js";
+import { sessionDraftPurger } from "./session-drafts.js";
+import { purgeSession, type SessionDraftPurger } from "./session-purge.js";
 
 export type DatabasePortOptions = {
   workerId: string;
@@ -75,7 +72,7 @@ export function createDatabaseStorePort(
     purge: (target) =>
       purgeSession(database, target, {
         jobs,
-        drafts: options.drafts ?? noSessionDraftPurger,
+        drafts: options.drafts ?? sessionDraftPurger,
       }),
   };
 }

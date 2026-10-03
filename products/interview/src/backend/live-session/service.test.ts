@@ -267,7 +267,7 @@ describe("unsupported references", () => {
     expect(JSON.stringify(w.trace.events)).not.toContain("Led the migration");
   }, 60_000);
 
-  it("records a coding category without building a coding path", async () => {
+  it("records a coding category and owes a second solve-code action for the same revision", async () => {
     const gateway = createFakeGateway({
       result: () =>
         output({
@@ -284,10 +284,21 @@ describe("unsupported references", () => {
     for (const segment of opening()) await w.ingestor.ingest(segment);
     await settle(w.processor);
     const stored = await w.actions();
-    expect(stored.map((action) => action.actionKind)).toEqual(["draft-answer"]);
+    expect(stored.map((action) => action.actionKind)).toEqual([
+      "draft-answer",
+      "solve-code",
+    ]);
     expect(stored[0]?.result).toMatchObject({
       category: "coding",
       codingBrief: { language: "typescript" },
+    });
+    // This scripted model answers the solution call in the prose-draft shape,
+    // which the closed solution schema refuses: nothing is published for it.
+    expect(stored[1]).toMatchObject({
+      taskRevision: stored[0]?.taskRevision,
+      dispatchStatus: "suppressed",
+      suppressionReason: "invalid_output",
+      result: null,
     });
   }, 60_000);
 });

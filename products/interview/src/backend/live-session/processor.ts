@@ -11,6 +11,7 @@
 // handle of its own - every read and write goes through the injected ports,
 // each of which opens an actor-scoped transaction for the session owner.
 
+import { dispatchCoding } from "./coding-path.js";
 import { revisionStanding } from "./core/index.js";
 import { SessionError } from "./errors.js";
 import type {
@@ -18,10 +19,11 @@ import type {
   SessionProcessorPorts,
 } from "./processor-ports.js";
 import type { SessionTarget } from "./session-claim.js";
-import { dispatchTask } from "./session-dispatch.js";
+import { type DispatchDeps, dispatchTask } from "./session-dispatch.js";
 import {
   createRun,
   nextPending,
+  nextPendingCoding,
   processUtterances,
   type RunSnapshot,
   type RunTracer,
@@ -65,6 +67,16 @@ export function createSessionProcessor(
   options: SessionProcessorOptions,
 ): SessionProcessor {
   const { claim, store, gateway, policy, clock, trace } = ports;
+  const deps: DispatchDeps = {
+    store,
+    gateway,
+    policy,
+    clock,
+    ...(ports.codeRunner ? { codeRunner: ports.codeRunner } : {}),
+    ...(ports.runnerDeviceLocal === undefined
+      ? {}
+      : { runnerDeviceLocal: ports.runnerDeviceLocal }),
+  };
   const settings = { ...DEFAULTS, ...options };
   const runs = new Map<string, SessionRun>();
   let firstClaim = true;
@@ -218,29 +230,32 @@ export function createSessionProcessor(
     );
 
     // At most one model call per session at a time; replay keeps going while
-    // it runs, so a newer revision makes an in-flight result stale.
+    // it runs, so a newer revision makes an in-flight result stale. The prose
+    // draft is always first: a coding solution is owed only when no draft is
+    // pending, so coding never delays an answer.
     let started = false;
     if (view.liveAssistance && run.inflight === null) {
-      const pending = nextPending(
+      const prose = nextPending(
         run,
         policy.assist.actionKind,
         settings.maxAttempts,
       );
-      if (pending) {
+      const coding = prose
+        ? null
+        : nextPendingCoding(run, settings.maxAttempts);
+      const next = prose
+        ? { key: prose.key, start: () => dispatchTask(run, prose.task, deps) }
+        : coding
+          ? { key: coding.key, start: () => dispatchCoding(run, coding, deps) }
+          : null;
+      if (next) {
         started = true;
-        const flight = dispatchTask(run, pending.task, {
-          store,
-          gateway,
-          policy,
-          clock,
-        })
+        const flight = next
+          .start()
           .catch((error: unknown) => {
             run.trace({ event: "dispatch.error", outcome: errorCode(error) });
             // A thrown dispatch is retried by the bound, not forgotten.
-            run.failures.set(
-              pending.key,
-              (run.failures.get(pending.key) ?? 0) + 1,
-            );
+            run.failures.set(next.key, (run.failures.get(next.key) ?? 0) + 1);
           })
           .finally(() => {
             if (run.inflight === flight) run.inflight = null;

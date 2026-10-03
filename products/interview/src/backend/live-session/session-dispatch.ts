@@ -1,12 +1,14 @@
-// One task revision's assistance: record the action, re-check the session row,
-// make the ONE structured gateway call, validate the closed output and publish
-// through the fenced write. Prompt assembly, context selection and output
-// validation live in service.ts; this file is the fenced skeleton around them.
-// Every decision rests on the session row and on
-// validated structured fields (rule:structured-field-decisions): the processing
-// policy comes from the row alone (rule:session-processing-policy), never from
-// ingest or model content, and nothing here creates an agent job - the coding
-// and repository-navigation path is loop 2.
+// The fenced dispatch skeleton every action kind shares: record the action,
+// re-check the session row, make gateway calls, and publish through the fenced
+// write. `beginDispatch` is the shared front (record, standing, profile) and
+// the `Dispatch` it returns carries the rest (the gateway call and the
+// publish), so the prose draft (dispatchTask, below) and the coding path
+// (coding-path.ts) run the SAME skeleton. Prompt assembly, context selection and
+// output validation live in service.ts and coding-stage.ts.
+//
+// Every decision rests on the session row and on validated structured fields
+// (rule:structured-field-decisions): the processing policy comes from the row
+// alone (rule:session-processing-policy), never from ingest or model content.
 //
 // Locality: the gateway refuses a non-device profile for a device-only request
 // at resolution and again inside the call (rule:device-only-enforced-twice).
@@ -20,12 +22,18 @@ import {
   type AiExecutionRequest,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
-import type { Clock, Task } from "./core/index.js";
+import type { Clock, ProcessingPolicy, Task } from "./core/index.js";
+import type { PublishEffect } from "./fenced-writes.js";
 import { sessionGatewayContext } from "./gateway-context.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
 import type { SessionStorePort } from "./processor-ports.js";
-import { keyOf, type SessionRun } from "./session-run.js";
 import { planAssist } from "./service.js";
+import {
+  keyOf,
+  noteCodingTask,
+  type SessionCodeRunner,
+  type SessionRun,
+} from "./session-run.js";
 import type { LocalityDecision } from "./trace.js";
 
 export type DispatchDeps = {
@@ -33,6 +41,12 @@ export type DispatchDeps = {
   gateway: AiExecutionGateway;
   policy: InterviewSessionPolicy;
   clock: Clock;
+  // The host's test runner, when it configured one; its absence is an outcome
+  // of the coding path (tests passed stays false), never an error.
+  codeRunner?: SessionCodeRunner;
+  // The host declares the runner executes on the person's own device. Without
+  // it a device-only session never uses the runner.
+  runnerDeviceLocal?: boolean;
 };
 
 // Refusals that mean this holder is no longer the holder: it stops and writes
@@ -45,13 +59,75 @@ const isPolicyRefusal = (error: unknown): boolean =>
     error !== null &&
     (error as { code?: unknown }).code === "policy-refused");
 
-export async function dispatchTask(
+// What the skeleton needs of a stage: its action kind and its profiles.
+export type DispatchStage = {
+  readonly actionKind: string;
+  readonly profileId: string;
+  readonly deviceProfileId?: string;
+};
+
+export type DispatchPrompt = {
+  system: string;
+  prompt: string;
+  schema: Readonly<Record<string, unknown>>;
+  byteCount: number;
+};
+
+export type DispatchDetail = Record<string, string | number | boolean>;
+
+// One recorded, standing-checked dispatch. Every method that ends the dispatch
+// traces its own outcome; a caller returns when one reports it is over.
+export type Dispatch = {
+  readonly run: SessionRun;
+  readonly task: Task;
+  readonly key: string;
+  readonly actionId: string;
+  readonly attempt: number;
+  readonly profileId: string;
+  readonly processingPolicy: ProcessingPolicy;
+  readonly deviceOnly: boolean;
+  // Any mode but "running" means this dispatch began under a standing that is
+  // gone: its result is never published (rule:pause-end-suppression).
+  stopped(): boolean;
+  // Records a finished-for-good dispatch without publishing: the action is
+  // settled as suppressed with a code, and the key is never dispatched again.
+  refuse(
+    reason: string,
+    traceOutcome: string,
+    detail?: DispatchDetail,
+  ): Promise<void>;
+  // A retryable failure: recorded failed, counted toward the retry bound.
+  failRetryably(outcome: string): Promise<void>;
+  trace(event: string, outcome: string, detail?: DispatchDetail): void;
+  // Counts bytes that would have left the process (a refused oversize prompt).
+  noteBytesIn(count: number): void;
+  // One gateway call of a stage (a repair is a second, tagged call). Its errors
+  // are classified by code only; the message is never read. When it returns
+  // not-ok the dispatch is over and has traced its own outcome.
+  call(
+    prompt: DispatchPrompt,
+    tag?: string,
+  ): Promise<{ ok: true; result: unknown } | { ok: false }>;
+  // Publishes through the fenced write against the processor's CURRENT task
+  // state: a newer revision, a superseded source, a newer fence, or a session
+  // that is no longer active suppresses the result. True when published.
+  publish(
+    result: Record<string, unknown>,
+    options?: {
+      show?: boolean;
+      effect?: PublishEffect;
+      detail?: DispatchDetail;
+    },
+  ): Promise<boolean>;
+};
+
+export async function beginDispatch(
   run: SessionRun,
   task: Task,
   deps: DispatchDeps,
-): Promise<void> {
-  const { store, gateway, policy, clock } = deps;
-  const stage = policy.assist;
+  stage: DispatchStage,
+): Promise<Dispatch | null> {
+  const { store, gateway, clock } = deps;
   const sessionId = run.claim.sessionId;
   const revision = task.revision;
   const startedAt = clock.nowMs();
@@ -61,11 +137,7 @@ export async function dispatchTask(
   let bytesIn = 0;
   let bytesOut = 0;
 
-  const finish = (
-    event: string,
-    outcome: string,
-    detail?: Record<string, string | number | boolean>,
-  ) =>
+  const finish = (event: string, outcome: string, detail?: DispatchDetail) =>
     run.trace({
       event,
       outcome,
@@ -87,10 +159,6 @@ export async function dispatchTask(
     finish("dispatch.stopped", reason);
     return true;
   };
-  // Any mode but "running" (superseded, or quiescing for a pause, end, purge or
-  // close) means this dispatch began under a standing that is gone: its result
-  // is never published, even if the session was resumed since
-  // (rule:pause-end-suppression, rule:fenced-current-publish, ADR-0011).
   const stopped = () => run.mode !== "running";
 
   // 1. Record the action (the core decides: status, revision, dedup by
@@ -109,12 +177,12 @@ export async function dispatchTask(
       run.settled.add(key);
       finish("dispatch.refused", recorded.reason);
     }
-    return;
+    return null;
   }
   if (recorded.outcome === "duplicate") {
     run.settled.add(key);
     finish("dispatch.duplicate", "duplicate", { existing: recorded.existing });
-    return;
+    return null;
   }
   if (recorded.outcome === "suppressed") {
     // A stale revision or source will not become current again; a paused or
@@ -125,7 +193,7 @@ export async function dispatchTask(
     )
       run.settled.add(key);
     finish("dispatch.suppressed", recorded.reason);
-    return;
+    return null;
   }
   const actionId = recorded.actionId;
   const attempt = recorded.attempt;
@@ -161,126 +229,188 @@ export async function dispatchTask(
   });
   if (standing.outcome === "refused") {
     lost(standing.reason);
-    return;
+    return null;
   }
   locality = standing.processingPolicy;
   if (standing.status !== "active") {
     if (!stopped()) await settle(`session_${standing.status}`);
     finish("dispatch.suppressed", `session_${standing.status}`);
-    return;
+    return null;
   }
   if (!standing.liveAssistance) {
     run.settled.add(key);
     if (!stopped()) await settle("assistance_disabled");
     finish("dispatch.suppressed", "assistance_disabled");
-    return;
+    return null;
   }
 
   // 3. The stage's profile for this session's policy. A device-only session
-  // uses the device profile alone; a stage without one is refused.
+  // uses the device profile alone; a stage without one is refused
+  // (rule:unlisted-stage-refused), and there is never a fallback.
   const deviceOnly = standing.processingPolicy === "device-only";
   profileId = deviceOnly ? stage.deviceProfileId : stage.profileId;
   if (profileId === undefined) {
     run.settled.add(key);
     if (!stopped()) await settle("stage_unlisted");
     finish("dispatch.refused", "stage-unlisted");
-    return;
+    return null;
   }
+  const chosenProfile = profileId;
+
+  return {
+    run,
+    task,
+    key,
+    actionId,
+    attempt,
+    profileId: chosenProfile,
+    processingPolicy: standing.processingPolicy,
+    deviceOnly,
+    stopped,
+    trace: finish,
+    noteBytesIn(count) {
+      bytesIn += count;
+    },
+    failRetryably,
+    async refuse(reason, traceOutcome, detail) {
+      run.settled.add(key);
+      if (!stopped()) await settle(reason);
+      finish("dispatch.suppressed", traceOutcome, detail);
+    },
+    async call(prompt, tag = "") {
+      bytesIn += prompt.byteCount;
+      const request: AiExecutionRequest = {
+        context: sessionGatewayContext(run.scope),
+        profileId: chosenProfile,
+        task: {
+          type: "structured-generation",
+          system: prompt.system,
+          prompt: prompt.prompt,
+          schema: prompt.schema,
+        },
+        processingPolicy: standing.processingPolicy,
+        idempotencyKey: `${sessionId}:${task.taskId}:${revision}:${stage.actionKind}:${attempt}${tag}`,
+        signal: run.abort.signal,
+      };
+      try {
+        const execution = await gateway.execute(request);
+        const result: unknown = execution.result;
+        bytesOut += Buffer.byteLength(
+          typeof result === "string" ? result : (JSON.stringify(result) ?? ""),
+        );
+        if (stopped()) return { ok: false };
+        return { ok: true, result };
+      } catch (error) {
+        if (stopped()) return { ok: false };
+        if (isPolicyRefusal(error)) {
+          // Non-retryable: change the policy or the profile, never try again.
+          run.settled.add(key);
+          await settle("policy_refused");
+          finish("dispatch.refused", "policy-refused");
+          return { ok: false };
+        }
+        // Unavailable (or cancelled): retried against the same profile, with
+        // no fallback to another.
+        await failRetryably(
+          run.abort.signal.aborted ? "cancelled" : "unavailable",
+        );
+        return { ok: false };
+      }
+    },
+    async publish(result, options = {}) {
+      let published: Awaited<ReturnType<SessionStorePort["publishResult"]>>;
+      try {
+        published = await store.publishResult({
+          scope: run.scope,
+          sessionId,
+          holder: run.holder,
+          actionId,
+          tasks: run.tasks,
+          result,
+          show: options.show ?? true,
+          ...(options.effect ? { effect: options.effect } : {}),
+        });
+      } catch (error) {
+        // An effect that threw rolled the whole publish back and left the
+        // action in flight; it is failed here so the bounded retry may record
+        // it again. Without an effect, a throw is a database error and
+        // propagates as it always did.
+        if (!options.effect) throw error;
+        await failRetryably("publish_failed");
+        return false;
+      }
+      if (published.outcome === "published") {
+        run.settled.add(key);
+        finish("dispatch.published", "published", options.detail);
+        return true;
+      }
+      if (lost(published.reason)) return false;
+      if (
+        published.reason === "revision_stale" ||
+        published.reason === "source_superseded"
+      )
+        run.settled.add(key);
+      finish("dispatch.suppressed", published.reason);
+      return false;
+    },
+  };
+}
+
+// One task revision's prose assistance: the ONE structured gateway call,
+// validated against the closed output and published through the fenced write.
+// A coding category is only RECORDED here (result.category, result.codingBrief)
+// and remembered on the run; the solution is a separate action kind that never
+// delays this draft.
+export async function dispatchTask(
+  run: SessionRun,
+  task: Task,
+  deps: DispatchDeps,
+): Promise<void> {
+  const { store, policy } = deps;
+  const stage = policy.assist;
+  const d = await beginDispatch(run, task, deps, stage);
+  if (d === null) return;
+
   // The pinned context is read once per run through the store port; a failed
   // read is a retryable outcome (the stage never answers from a stale or
   // unverified context), an oversize prompt is a settled refusal.
-  const plan = await planAssist(run, task, { store, stage, deviceOnly });
-  if (stopped()) return;
+  const plan = await planAssist(run, task, {
+    store,
+    stage,
+    deviceOnly: d.deviceOnly,
+  });
+  if (d.stopped()) return;
   if (plan.outcome === "context_unavailable") {
-    await failRetryably("context_unavailable");
+    await d.failRetryably("context_unavailable");
     return;
   }
   if (plan.outcome === "prompt_too_large") {
-    bytesIn = plan.byteCount;
-    run.settled.add(key);
-    await settle("prompt_too_large");
-    finish("dispatch.suppressed", "prompt_too_large");
+    d.noteBytesIn(plan.byteCount);
+    await d.refuse("prompt_too_large", "prompt_too_large");
     return;
   }
-  const prepared = plan.prompt;
-  bytesIn = prepared.byteCount;
-  const request: AiExecutionRequest = {
-    context: sessionGatewayContext(run.scope),
-    profileId,
-    task: {
-      type: "structured-generation",
-      system: prepared.system,
-      prompt: prepared.prompt,
-      schema: prepared.schema,
-    },
-    processingPolicy: standing.processingPolicy,
-    idempotencyKey: `${sessionId}:${task.taskId}:${revision}:${stage.actionKind}:${attempt}`,
-    signal: run.abort.signal,
-  };
 
-  // 4. The one gateway call. Its errors are classified by code only; the
-  // message is never read or kept, so content cannot ride out in a trace.
-  let result: unknown;
-  try {
-    const execution = await gateway.execute(request);
-    result = execution.result;
-    bytesOut = Buffer.byteLength(
-      typeof result === "string" ? result : (JSON.stringify(result) ?? ""),
-    );
-  } catch (error) {
-    if (stopped()) return;
-    if (isPolicyRefusal(error)) {
-      // Non-retryable: change the policy or the profile, never try again.
-      run.settled.add(key);
-      await settle("policy_refused");
-      finish("dispatch.refused", "policy-refused");
-      return;
-    }
-    // Unavailable (or cancelled): retried against the same profile, with no
-    // fallback to another.
-    await failRetryably(run.abort.signal.aborted ? "cancelled" : "unavailable");
-    return;
-  }
-  if (stopped()) return;
+  // The one gateway call.
+  const called = await d.call(plan.prompt);
+  if (!called.ok) return;
 
-  // 5. Validate against the closed schema. A violation records a suppression by
+  // Validate against the closed schema. A violation records a suppression by
   // ids and publishes nothing; the violation paths go to the trace, no values.
-  const checked = plan.validate(result);
+  const checked = plan.validate(called.result);
   if (!checked.ok) {
-    run.settled.add(key);
-    await settle("invalid_output");
-    finish("dispatch.suppressed", "invalid-output", {
+    await d.refuse("invalid_output", "invalid-output", {
       violationCount: checked.violations.length,
       firstViolation: checked.violations[0] ?? "$",
     });
     return;
   }
 
-  // 6. Publish through the fenced write against the processor's CURRENT task
-  // state: a newer revision, a superseded source, a newer fence, or a session
-  // that is no longer active suppresses the result and nothing is published.
-  const published = await store.publishResult({
-    scope: run.scope,
-    sessionId,
-    holder: run.holder,
-    actionId,
-    tasks: run.tasks,
-    result: plan.resultFor(checked.draft, {
-      profileId,
-      processingPolicy: standing.processingPolicy,
+  const published = await d.publish(
+    plan.resultFor(checked.draft, {
+      profileId: d.profileId,
+      processingPolicy: d.processingPolicy,
     }),
-    show: true,
-  });
-  if (published.outcome === "published") {
-    run.settled.add(key);
-    finish("dispatch.published", "published", plan.detailFor(checked.draft));
-    return;
-  }
-  if (lost(published.reason)) return;
-  if (
-    published.reason === "revision_stale" ||
-    published.reason === "source_superseded"
-  )
-    run.settled.add(key);
-  finish("dispatch.suppressed", published.reason);
+    { detail: plan.detailFor(checked.draft) },
+  );
+  if (published) noteCodingTask(run, task, checked.draft);
 }

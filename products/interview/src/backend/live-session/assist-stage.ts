@@ -163,11 +163,12 @@ const logisticsSchema = z.strictObject({
     .max(LOGISTICS_FIELDS.length),
   missing: z.array(z.enum(LOGISTICS_FIELDS)).max(LOGISTICS_FIELDS.length),
 });
-const codingBriefSchema = z.strictObject({
+export const codingBriefSchema = z.strictObject({
   language: z.enum(CODING_LANGUAGES),
   restatement: z.string().min(1).max(1_000),
   constraints: z.array(z.string().min(1).max(300)).max(10),
 });
+export type CodingBrief = z.infer<typeof codingBriefSchema>;
 
 const outputSchema = z.strictObject({
   category: z.enum(ASSIST_CATEGORIES),
@@ -343,7 +344,7 @@ export interface AssistStage {
 }
 
 // Newest lines win when the captured text exceeds the bound.
-function boundedLines(lines: readonly CapturedLine[]): CapturedLine[] {
+export function boundedLines(lines: readonly CapturedLine[]): CapturedLine[] {
   const kept: CapturedLine[] = [];
   let used = 0;
   for (let index = lines.length - 1; index >= 0; index -= 1) {

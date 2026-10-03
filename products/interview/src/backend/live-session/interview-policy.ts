@@ -15,6 +15,7 @@
 // replay set (session-replay-fixtures.test.ts) is run through it.
 
 import { type AssistStage, createAssistStage } from "./assist-stage.js";
+import { type CodingStage, createCodingStage } from "./coding-stage.js";
 import {
   isOpaqueHandle,
   type PolicyInput,
@@ -27,6 +28,8 @@ export interface InterviewSessionPolicy extends TaskPolicy {
   // Used to coalesce a split question across an interjected backchannel.
   isBackchannel(text: string): boolean;
   readonly assist: AssistStage;
+  // The solution stage a coding task owes after its prose draft.
+  readonly coding: CodingStage;
 }
 
 // An utterance of at least this many words with no explicit question mark is
@@ -175,10 +178,11 @@ export function decideBaseline(input: PolicyInput): PolicyVerdict {
 }
 
 export function createInterviewSessionPolicy(
-  options: { assist?: AssistStage } = {},
+  options: { assist?: AssistStage; coding?: CodingStage } = {},
 ): InterviewSessionPolicy {
   return {
     assist: options.assist ?? createAssistStage(),
+    coding: options.coding ?? createCodingStage(),
     isBackchannel: (text) => isBackchannel(text) || isFiller(text),
     decide: async (input) => decideBaseline(input),
   };

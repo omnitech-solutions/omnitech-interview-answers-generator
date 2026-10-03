@@ -296,6 +296,9 @@ export type ProcessorBuild = {
   sweeps?: boolean;
   // A virtual clock for timing replays; defaults to the wall clock.
   clock?: SessionProcessorPorts["clock"];
+  // The coding path's runner and its device-local declaration.
+  codeRunner?: SessionProcessorPorts["codeRunner"];
+  runnerDeviceLocal?: boolean;
 };
 
 export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
@@ -318,6 +321,10 @@ export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
     policy: build.policy ?? createInterviewSessionPolicy(),
     clock: build.clock ?? { nowMs: () => Date.now() },
     trace: build.trace ?? collectTraces(),
+    ...(build.codeRunner ? { codeRunner: build.codeRunner } : {}),
+    ...(build.runnerDeviceLocal === undefined
+      ? {}
+      : { runnerDeviceLocal: build.runnerDeviceLocal }),
   };
   return createSessionProcessor(ports, {
     workerId: build.workerId,

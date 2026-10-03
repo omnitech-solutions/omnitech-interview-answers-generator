@@ -18,6 +18,7 @@ import type { SessionContext } from "./session-context.js";
 import type { PurgeResult } from "./session-purge.js";
 import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionView } from "./session-record.js";
+import type { SessionCodeRunner } from "./session-run.js";
 import type { TraceSink } from "./trace.js";
 
 // The worker's cross-tenant claim: ids and a fence only. Lease and fence are
@@ -73,6 +74,12 @@ export type SessionProcessorPorts = {
   policy: InterviewSessionPolicy;
   clock: Clock;
   trace: TraceSink;
+  // The host's sandboxed test runner for the coding path. Absent: a solution
+  // still publishes, as generated, with tests never claimed passed.
+  codeRunner?: SessionCodeRunner;
+  // The host declares the runner runs on the person's own device; without it a
+  // device-only session never uses the runner.
+  runnerDeviceLocal?: boolean;
 };
 
 export type SessionProcessorOptions = {

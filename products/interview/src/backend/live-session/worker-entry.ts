@@ -13,6 +13,7 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { Clock } from "./core/index.js";
+import type { SessionCodeRunner } from "./session-run.js";
 import {
   createInterviewSessionPolicy,
   type InterviewSessionPolicy,
@@ -35,6 +36,7 @@ export {
   sessionGatewayContext,
 } from "./gateway-context.js";
 export type { SessionProcessor } from "./processor.js";
+export type { SessionCodeRunner } from "./session-run.js";
 export type { SessionProcessorOptions } from "./processor-ports.js";
 export {
   createLoggerTraceSink,
@@ -53,6 +55,12 @@ export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
     log?: (line: string) => void;
     policy?: InterviewSessionPolicy;
     clock?: Clock;
+    // The sandboxed test runner for coding tasks (a DockerCodeRunner in the
+    // agent worker). Absent: solutions publish with tests never claimed passed.
+    codeRunner?: SessionCodeRunner;
+    // The host declares the runner runs on the person's own device; without it
+    // a device-only session never uses the runner.
+    runnerDeviceLocal?: boolean;
   };
 
 export type SessionWorker = SessionProcessor;
@@ -62,8 +70,18 @@ const systemClock: Clock = { nowMs: () => Date.now() };
 export function createSessionWorker(
   options: SessionWorkerOptions,
 ): SessionWorker {
-  const { database, gateway, workerId, policy, clock, trace, log, ...rest } =
-    options;
+  const {
+    database,
+    gateway,
+    workerId,
+    policy,
+    clock,
+    trace,
+    log,
+    codeRunner,
+    runnerDeviceLocal,
+    ...rest
+  } = options;
   const portOptions: DatabasePortOptions = {
     workerId,
     ...(rest.leaseMs === undefined ? {} : { leaseMs: rest.leaseMs }),
@@ -80,6 +98,8 @@ export function createSessionWorker(
       policy: policy ?? createInterviewSessionPolicy(),
       clock: clock ?? systemClock,
       trace: sink,
+      ...(codeRunner ? { codeRunner } : {}),
+      ...(runnerDeviceLocal === undefined ? {} : { runnerDeviceLocal }),
     },
     {
       workerId,

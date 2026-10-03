@@ -11,6 +11,14 @@
 // stored by ingest but not interpreted here: image interpretation is refused in
 // device-only and belongs to loop 2.
 import { transcriptFinalSchema } from "@omnitech/active-session-contracts";
+import type { CodeRunner } from "@omnitech/code-runner";
+import {
+  ASSIST_ACTION_KIND,
+  type AssistDraft,
+  type CodingBrief,
+  codingBriefSchema,
+} from "./assist-stage.js";
+import { CODING_ACTION_KIND, type PriorSolution } from "./coding-stage.js";
 import {
   applyTranscriptFinal,
   applyVerdict,
@@ -39,6 +47,19 @@ import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionTraceEvent } from "./trace.js";
 
 export type RunMode = "running" | "quiescing" | "superseded";
+
+// The host's test runner as the coding path uses it: runAll is required, the
+// syntax check is optional (without it a solution cannot be fully verified).
+export type SessionCodeRunner = Pick<CodeRunner, "runAll"> &
+  Partial<Pick<CodeRunner, "checkSyntax">>;
+
+// A task revision whose prose draft named it a coding challenge: the solution
+// action is owed for exactly this revision.
+export type CodingCandidate = {
+  taskId: string;
+  revision: number;
+  brief: CodingBrief;
+};
 
 // Fills the ids a trace event always carries; the caller names the rest.
 export type RunTracer = (
@@ -72,6 +93,10 @@ export type SessionRun = {
   // the run: a new fence builds a new run and reloads it, and the pinned
   // profile revision cannot change inside a session.
   context: SessionContext | null;
+  // Coding candidates by `${taskId}:${revision}` (the draft-answer result with
+  // category coding), and the newest published solution per task.
+  coding: Map<string, CodingCandidate>;
+  solutions: Map<string, PriorSolution>;
   inflight: Promise<void> | null;
   abort: AbortController;
   trace: RunTracer;
@@ -99,6 +124,8 @@ export function createRun(
     settled: new Set(),
     failures: new Map(),
     context: null,
+    coding: new Map(),
+    solutions: new Map(),
     inflight: null,
     abort: new AbortController(),
     trace,
@@ -142,6 +169,68 @@ function fromCore(run: SessionRun, core: TraceEvent): void {
   });
 }
 
+const codingKey = (taskId: string, revision: number) => `${taskId}:${revision}`;
+
+// A published prose draft that classified its task as coding makes the
+// solution action pending for that task revision.
+export function noteCodingTask(
+  run: SessionRun,
+  task: Task,
+  draft: Pick<AssistDraft, "category" | "codingBrief">,
+): void {
+  if (draft.category !== "coding" || draft.codingBrief === null) return;
+  run.coding.set(codingKey(task.taskId, task.revision), {
+    taskId: task.taskId,
+    revision: task.revision,
+    brief: draft.codingBrief,
+  });
+}
+
+// The newest published solution of a task, kept as the prior solution a later
+// revision's prompt may carry.
+export function noteSolution(
+  run: SessionRun,
+  taskId: string,
+  solution: PriorSolution,
+): void {
+  const existing = run.solutions.get(taskId);
+  if (!existing || solution.revision >= existing.revision)
+    run.solutions.set(taskId, solution);
+}
+
+// Restart safety: what a succeeded stored action says about coding is read
+// back from its result (data this worker wrote, parsed defensively), so a fresh
+// run knows which task revisions are owed a solution and which prior solution
+// a later revision may carry.
+function rememberCodingFacts(run: SessionRun, action: StoredAction): void {
+  const result = action.result as Record<string, unknown> | null;
+  if (!result || typeof result !== "object") return;
+  if (action.actionKind === ASSIST_ACTION_KIND) {
+    const brief = codingBriefSchema.safeParse(result["codingBrief"]);
+    if (result["category"] === "coding" && brief.success)
+      run.coding.set(codingKey(action.taskId, action.taskRevision), {
+        taskId: action.taskId,
+        revision: action.taskRevision,
+        brief: brief.data,
+      });
+    return;
+  }
+  if (action.actionKind === CODING_ACTION_KIND) {
+    const { language, code, testCode } = result;
+    if (
+      typeof language === "string" &&
+      typeof code === "string" &&
+      typeof testCode === "string"
+    )
+      noteSolution(run, action.taskId, {
+        revision: action.taskRevision,
+        language,
+        code,
+        testCode,
+      });
+  }
+}
+
 // Seeds dispatch memory from the stored actions when a run is built. An action
 // still in flight under an OLDER fence belongs to a holder that is gone (it
 // could never publish), so it is failed and may be retried; succeeded and
@@ -158,8 +247,10 @@ export async function seedFromActions(
       action.taskRevision,
       action.actionKind,
     );
-    if (action.dispatchStatus === "succeeded") run.settled.add(key);
-    else if (action.dispatchStatus === "suppressed") {
+    if (action.dispatchStatus === "succeeded") {
+      run.settled.add(key);
+      rememberCodingFacts(run, action);
+    } else if (action.dispatchStatus === "suppressed") {
       // A pause or not-yet-started suppression is not final: the task is
       // retried once the session is active again, matching the dispatcher,
       // which leaves these unsettled (rule:pause-end-suppression).
@@ -341,6 +432,29 @@ export function nextPending(
     if (run.settled.has(key)) continue;
     if ((run.failures.get(key) ?? 0) >= maxAttempts) continue;
     return { task, key };
+  }
+  return null;
+}
+
+// The next coding task revision owed a solution: its prose draft named it a
+// coding challenge, it is still the task's CURRENT revision with a standing
+// source, and this run has not finished or retried it out. A revision a newer
+// one replaced is never solved (its solution would be stale).
+export function nextPendingCoding(
+  run: SessionRun,
+  maxAttempts: number,
+): { task: Task; candidate: CodingCandidate; key: string } | null {
+  for (const candidate of run.coding.values()) {
+    const task = run.tasks.tasks[candidate.taskId];
+    if (!task || task.revision !== candidate.revision) continue;
+    const current = task.revisions.find(
+      (entry) => entry.revision === task.revision,
+    );
+    if (!current || current.sourceSuperseded) continue;
+    const key = keyOf(run, task.taskId, task.revision, CODING_ACTION_KIND);
+    if (run.settled.has(key)) continue;
+    if ((run.failures.get(key) ?? 0) >= maxAttempts) continue;
+    return { task, candidate, key };
   }
   return null;
 }
