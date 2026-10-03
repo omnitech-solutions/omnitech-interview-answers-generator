@@ -1,8 +1,8 @@
 import type { AiExecutionGateway, AiUsage } from "@omnitech/ai-contracts";
 import {
-  documentValuesSchema,
   type DocumentField,
   type DocumentFieldError,
+  documentValuesSchema,
   validateDocumentValues,
 } from "@omnitech/interview-contracts";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
@@ -166,7 +166,7 @@ export async function generateDocumentValues(
       tenantId: input.tenantId,
       userId: input.actorId,
       productId: INTERVIEW_PRODUCT_ID,
-      permissions: ["interview.documents.write"],
+      permissions: ["interview.read", "interview.documents.write"],
     },
     profileId: input.profileId,
     targetId: input.targetId,

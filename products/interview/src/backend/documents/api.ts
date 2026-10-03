@@ -323,7 +323,7 @@ export function createDocumentsApi(options: {
         tenantId: scope.tenantId,
         userId: scope.actorId,
         productId: INTERVIEW_PRODUCT_ID,
-        permissions: ["interview.documents.write"],
+        permissions: ["interview.read", "interview.documents.write"],
       },
       { taskType: "structured-generation" },
     );
@@ -355,7 +355,10 @@ export function createDocumentsApi(options: {
             WHERE i.tenant_id=${scope.tenantId}::uuid AND mp.user_id=${scope.actorId}::uuid ORDER BY i.ordinal`),
           ]);
           return {
-            profiles: profiles.rows,
+            profiles: profiles.rows.map((profile) => ({
+              ...profile,
+              revision: Number(profile["revision"]),
+            })),
             candidacies: candidacies.rows,
             interviews: interviews.rows,
           };
@@ -369,7 +372,7 @@ export function createDocumentsApi(options: {
               tenantId: scope.tenantId,
               userId: scope.actorId,
               productId: INTERVIEW_PRODUCT_ID,
-              permissions: ["interview.documents.write"],
+              permissions: ["interview.read", "interview.documents.write"],
             },
             { taskType: "structured-generation" },
           ),

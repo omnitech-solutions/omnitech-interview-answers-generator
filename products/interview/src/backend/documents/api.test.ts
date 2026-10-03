@@ -36,6 +36,8 @@ let saveGenerationGate: { entered: () => void; release: Promise<void> } | null =
   null;
 const ai = {
   async execute(request: AiExecutionRequest) {
+    if (!request.context.permissions.includes("interview.read"))
+      throw new Error("AI profile not authorized");
     output.push(request);
     if (concurrentGate) {
       const gate = concurrentGate;
@@ -71,7 +73,10 @@ const ai = {
       ),
     };
   },
-  async listAvailableTargets() {
+  async listAvailableTargets(
+    context: Parameters<AiExecutionGateway["listAvailableTargets"]>[0],
+  ) {
+    if (!context.permissions.includes("interview.read")) return [];
     return [
       {
         id: "test-model",
@@ -245,6 +250,18 @@ describe("Documents private API", () => {
   });
 
   it("requires the narrow write permission and same-origin mutation", async () => {
+    const writableContext = await app(ownerId).request(`${url}/context`, {
+      headers,
+    });
+    const writableBody = (await writableContext.json()) as {
+      targets: Array<{ id: string }>;
+      profiles: Array<{ revision: unknown }>;
+    };
+    expect(writableBody.targets).toEqual([
+      expect.objectContaining({ id: "test-model" }),
+    ]);
+    expect(writableBody.profiles[0]?.revision).toBe(1);
+    expect(typeof writableBody.profiles[0]?.revision).toBe("number");
     const readOnly = app(ownerId, ["interview.read"]);
     const templates = await readOnly.request(`${url}/templates`, { headers });
     expect(templates.status).toBe(200);
