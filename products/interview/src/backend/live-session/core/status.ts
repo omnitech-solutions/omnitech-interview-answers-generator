@@ -58,7 +58,7 @@ const TRANSITIONS: Record<
   resume: { from: ["paused"], to: "active" },
   pause: { from: ["active"], to: "paused" },
   end: { from: ["created", "active", "paused"], to: "ended" },
-  // A purge may follow an end (delete at end) or an owner delete.
+  // An owner delete may start from any open status; a sweep needs an end.
   "begin-purge": {
     from: ["created", "active", "paused", "ended"],
     to: "purging",
@@ -83,6 +83,15 @@ export function transitionStatus(
   // [GUARD] Authority is checked before state so a forbidden actor learns nothing.
   if (!PERMITTED_ACTORS[command].includes(actor))
     return refuse("actor_not_permitted");
+  // [SAFETY] The sweep may begin purging only after an end. Owner delete is a
+  // separate authorized act and may begin while the session is still open.
+  if (
+    command === "begin-purge" &&
+    actor === "purge" &&
+    from !== "ended" &&
+    from !== "purging"
+  )
+    return refuse("invalid_transition");
   const rule = TRANSITIONS[command];
   // A repeated pause/end/purge is idempotent: races between expiry, stop and
   // the owner must not turn into errors.

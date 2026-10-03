@@ -30,6 +30,7 @@ const target = (person: Person, id: string) => ({
   sessionId: id,
 });
 const instant = { waitMs: 0, pollMs: 1, sleep: async () => {} };
+const ownerDelete = { ...instant, trigger: "owner-delete" as const };
 
 async function seeded(name: string, extra: Record<string, unknown> = {}) {
   const person = await fx.provision(tenant, name);
@@ -120,6 +121,27 @@ beforeAll(async () => {
 afterAll(() => fx?.stop());
 
 describe("purge removes everything and leaves a content-free tombstone", () => {
+  it("refuses a sweep of an active session without changing its content", async () => {
+    const { person, id } = await seeded("sweep-refused");
+    await expect(
+      purgeSession(fx.member, target(person, id), instant),
+    ).rejects.toMatchObject({ code: "status_refused" });
+    expect(
+      await rows("SELECT status FROM interview.active_sessions WHERE id=$1", [
+        id,
+      ]),
+    ).toMatchObject([{ status: "active" }]);
+    expect(
+      await rows(
+        "SELECT 1 FROM interview.session_observations WHERE session_id=$1",
+        [id],
+      ),
+    ).toHaveLength(2);
+    expect(
+      (await purgeSession(fx.member, target(person, id), ownerDelete)).outcome,
+    ).toBe("complete");
+  });
+
   it("deletes observations, screenshots, actions, jobs and their payloads, then tombstones", async () => {
     const { person, id } = await seeded("amy", {
       rehearsal: { runId: "run-9", strict: false },
@@ -143,7 +165,11 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
       ),
     ).toHaveLength(1);
 
-    const result = await purgeSession(fx.member, target(person, id), instant);
+    const result = await purgeSession(
+      fx.member,
+      target(person, id),
+      ownerDelete,
+    );
     expect(result).toMatchObject({
       outcome: "complete",
       counts: {
@@ -229,7 +255,7 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
   it("is idempotent: a second purge changes nothing", async () => {
     const { person, id } = await seeded("cy");
     expect(
-      (await purgeSession(fx.member, target(person, id), instant)).outcome,
+      (await purgeSession(fx.member, target(person, id), ownerDelete)).outcome,
     ).toBe("complete");
     const before = (
       await rows("SELECT * FROM interview.active_sessions WHERE id=$1", [id])
@@ -247,8 +273,8 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
   it("resolves two racing purges to one complete purge", async () => {
     const { person, id } = await seeded("dee");
     const outcomes = await Promise.all([
-      purgeSession(fx.member, target(person, id), instant),
-      purgeSession(fx.member, target(person, id), instant),
+      purgeSession(fx.member, target(person, id), ownerDelete),
+      purgeSession(fx.member, target(person, id), ownerDelete),
     ]);
     expect(outcomes.map((o) => o.outcome).sort()).toEqual([
       "already-purged",
@@ -295,7 +321,11 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
   it("records a partial outcome when a named job never became terminal, and still deletes it", async () => {
     const { person, id } = await seeded("fin");
     const job = await withJob(person, id, "repair", "running");
-    const result = await purgeSession(fx.member, target(person, id), instant);
+    const result = await purgeSession(
+      fx.member,
+      target(person, id),
+      ownerDelete,
+    );
     expect(result.outcome).toBe("partial");
     expect(
       await rows("SELECT 1 FROM ai.agent_jobs WHERE id=$1", [job.jobId]),
@@ -315,6 +345,7 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
     const job = await withJob(person, id, "repair", "running");
     let slept = 0;
     const result = await purgeSession(fx.member, target(person, id), {
+      trigger: "owner-delete",
       waitMs: 100,
       pollMs: 10,
       sleep: async () => {
@@ -351,7 +382,7 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
     const result = await purgeSession(
       fx.member,
       target(hal, started.session.id),
-      { ...instant, drafts },
+      { ...ownerDelete, drafts },
     );
     expect(seen).toEqual([{ workspaceId: "ws", artifactId: "art" }]);
     expect(result).toMatchObject({ counts: { drafts: 1 } });
@@ -375,7 +406,7 @@ describe("the final check (rule:complete-session-purge)", () => {
       GRANT SELECT, INSERT, UPDATE, DELETE ON interview.zz_session_probe TO fixture_member;`);
     try {
       await expect(
-        purgeSession(fx.member, target(person, id), instant),
+        purgeSession(fx.member, target(person, id), ownerDelete),
       ).rejects.toMatchObject({
         code: "purge_incomplete",
         uncoveredTables: ["interview.zz_session_probe"],
@@ -417,7 +448,7 @@ describe("the final check (rule:complete-session-purge)", () => {
       GRANT SELECT, INSERT, UPDATE, DELETE ON ai.zz_job_probe TO fixture_member;`);
     try {
       await expect(
-        purgeSession(fx.member, target(person, id), instant),
+        purgeSession(fx.member, target(person, id), ownerDelete),
       ).rejects.toMatchObject({
         code: "purge_incomplete",
         uncoveredTables: ["ai.zz_job_probe"],
@@ -450,7 +481,7 @@ describe("the final check (rule:complete-session-purge)", () => {
         FOR EACH ROW EXECUTE FUNCTION interview.zz_hold_action();`);
     try {
       await expect(
-        purgeSession(fx.member, target(person, id), instant),
+        purgeSession(fx.member, target(person, id), ownerDelete),
       ).rejects.toMatchObject({ code: "purge_incomplete" });
       expect(
         (
@@ -480,7 +511,11 @@ describe("the companion capability is not session content", () => {
          VALUES($1,$2,'en-US',true,true,'authorized','granted','granted')`,
         [tenant, user.id],
       );
-    const result = await purgeSession(fx.member, target(person, id), instant);
+    const result = await purgeSession(
+      fx.member,
+      target(person, id),
+      ownerDelete,
+    );
     expect(result.outcome).toBe("complete");
     expect(
       await rows(

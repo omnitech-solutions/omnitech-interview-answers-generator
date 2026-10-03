@@ -65,16 +65,23 @@ describe("stop authority (rule:stop-authority, ADR-0012 amendment)", () => {
     expect(transitionStatus("active", "pause", "purge").ok).toBe(false);
   });
 
-  it("purges on the purge module or the owner's delete, and completes only as purge", () => {
-    for (const from of ["created", "active", "paused", "ended"] as const) {
+  it("lets the sweep purge only an ended session, but owner delete at any open status", () => {
+    for (const from of ["created", "active", "paused"] as const) {
       expect(transitionStatus(from, "begin-purge", "purge")).toMatchObject({
+        ok: false,
+        reason: "invalid_transition",
+      });
+      expect(
+        transitionStatus(from, "begin-purge", "owner-control"),
+      ).toMatchObject({
         ok: true,
         status: "purging",
       });
     }
-    expect(transitionStatus("active", "begin-purge", "owner-control").ok).toBe(
-      true,
-    );
+    expect(transitionStatus("ended", "begin-purge", "purge")).toMatchObject({
+      ok: true,
+      status: "purging",
+    });
     expect(transitionStatus("active", "begin-purge", "companion-stop").ok).toBe(
       false,
     );
