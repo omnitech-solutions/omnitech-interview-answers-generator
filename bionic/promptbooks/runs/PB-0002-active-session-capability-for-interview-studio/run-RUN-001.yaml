@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 4
+current_prompt: 5
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -31,15 +31,15 @@ prompts:
   artifacts: ["bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md"]
 - n: 4
   title: 'Plan #1: accept the ADR'
-  state: "running"
+  state: "done"
   started: "2026-10-03T06:50:12Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T06:50:36Z"
+  result: "ADR-0010 accepted (status Accepted, accepted_date 2026-10-03; adr|accept log entry and index updated by hand-applying the transition-adr procedure; summaries regenerated). log-work journal entry appended to bionic/journal/2026-10.md with 3 council rounds, key debates, deferred questions, and friction. Council was Claude review sub-agents, not the multi-model council."
+  artifacts: ["bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md", "bionic/journal/2026-10.md"]
 - n: 5
   title: 'Plan #2: spawn planning team, propose ADR for private Active Session data and locality: actor-level row security for active_sessions, session_observations and session_actions, composite tenant+owner references and explicit linked-resource authorization, PostgreSQL storage of final transcripts and selected screenshots with bounded raw-audio memory, retention, the device-only versus permitted-remote processing policy enforced at profile resolution and before dispatch, and the rule that captured text and images are untrusted input'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T06:50:36Z"
   completed: null
   result: ''
   artifacts: []

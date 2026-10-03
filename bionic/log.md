@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | Active Session core ADR accepted after three review rounds
+
+Entry added to bionic/journal/2026-10.md.
+
+## [2026-10-03] adr | ADR-0010: accepted
+
+Host the Active Session processor in the agent worker behind a versioned wire contract. Accepted after 3 review rounds (Claude review sub-agents, not the multi-model council).
+
 ## [2026-10-03] adr | ADR-0010: Host the Active Session processor in the agent worker behind a versioned wire contract
 
 Proposed. File `bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md`. Tags: active-session, worker, contracts, privacy, interview.

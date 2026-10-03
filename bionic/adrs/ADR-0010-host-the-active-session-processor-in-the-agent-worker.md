@@ -1,10 +1,10 @@
 ---
 id: ADR-0010
 title: Host the Active Session processor in the agent worker behind a versioned wire contract
-status: Proposed
+status: Accepted
 date: 2026-10-03
 proposed_date: 2026-10-03
-accepted_date: null
+accepted_date: 2026-10-03
 deprecated_date: null
 superseded_date: null
 supersedes: []

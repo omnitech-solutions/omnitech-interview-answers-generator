@@ -42,7 +42,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session credential grants ingest for one session only and has a short hard maximum lifetime.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/credential-storage": {
     "authority": "prescriptive",
@@ -51,7 +51,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session credential is stored hashed and is never logged or placed in a URL.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/fast-path-no-tools": {
     "authority": "prescriptive",
@@ -60,7 +60,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The fast-path model call has no tools.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/fenced-current-publish": {
     "authority": "prescriptive",
@@ -69,7 +69,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A result publishes only while its session lease fence, session status and task revision are all current.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/idempotent-dispatch": {
     "authority": "prescriptive",
@@ -78,7 +78,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Dispatch is deduplicated by session, logical task, task revision and action kind.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/idempotent-observation": {
     "authority": "prescriptive",
@@ -87,7 +87,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Observations are deduplicated by source and event id.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/identity-from-credential": {
     "authority": "prescriptive",
@@ -96,7 +96,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Ingest identity comes only from the session credential, and stream and control identity only from the user's session, never from request or observation content.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/loop-isolation": {
     "authority": "prescriptive",
@@ -105,7 +105,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A failure in one worker loop never stops the other.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/neutral-core-imports": {
     "authority": "prescriptive",
@@ -114,7 +114,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session core imports only active-session-contracts.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/no-external-interface-operation": {
     "authority": "prescriptive",
@@ -123,7 +123,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Active Session assistance never submits, messages or operates an external interview interface.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/no-promotion": {
     "authority": "prescriptive",
@@ -132,7 +132,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Session output and transcript content are never written into the experience matrix or exercise catalogue.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/no-undetectability-or-evasion": {
     "authority": "prescriptive",
@@ -141,7 +141,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Active Session assistance makes no undetectability claim and adds no detection evasion.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/pause-end-suppression": {
     "authority": "prescriptive",
@@ -150,7 +150,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Pause or end refuses new dispatch and cancels the session's in-flight jobs.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/stop-authority": {
     "authority": "prescriptive",
@@ -159,7 +159,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Only the authenticated user's session control starts or resumes capture; only that control, credential expiry or the companion's local stop ends it.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/structured-field-decisions": {
     "authority": "prescriptive",
@@ -168,7 +168,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Job, retrieval and publish decisions come only from validated structured fields.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/tenant-scoped-worker-access": {
     "authority": "prescriptive",
@@ -177,7 +177,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The worker reads and writes session data only inside a tenant-scoped transaction after a minimal cross-tenant claim.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/three-concept-split": {
     "authority": "prescriptive",
@@ -186,7 +186,7 @@
     "review_state": "accepted-with-adr",
     "rule": "An Interview, an Active Session and an Agent Job are separate records.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/versioned-wire-contract": {
     "authority": "prescriptive",
@@ -195,7 +195,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The companion and Studio exchange only versioned active-session-contracts schemas.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0010/worker-hosted-processor": {
     "authority": "prescriptive",
@@ -204,7 +204,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session processor runs in apps/agent-worker as its own loop beside the agent-job loop.",
     "source_adr": "ADR-0010",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "retired_slugs": {},
   "slugs": {
