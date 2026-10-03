@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 14
+current_prompt: 15
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -101,15 +101,15 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 14
   title: 'Develop #2: spawn implementation team'
-  state: "running"
+  state: "done"
   started: "2026-10-03T11:26:52Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T12:35:20Z"
+  result: "Implemented via 5 foreground agents in 4 waves: grounding, claims, fixtures, rehearsal hints, sandbox test, assist stage v2, service, coding path, escalation, replay evidence, latency, injection corpus. 12 commits; live-session suite 473 passed."
+  artifacts: ["ADR-0011", "ADR-0012"]
 - n: 15
   title: 'Develop #2: run quality gates; loop until clean'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T12:35:20Z"
   completed: null
   result: ''
   artifacts: []
@@ -320,6 +320,16 @@ notes: |
   Risks specific to implementation: a fabricated quote that happens to be a substring of a different entry (support rule checks the cited entry, never a global search); quote normalisation (case and whitespace only, never fuzzy); the prompt window of the device profile (bounded context must shrink, not truncate a claim mid-quote); the publish effect inside the fenced transaction must not strand the action in-flight on a draft conflict (conflict is an outcome, not an exception); InterviewWorkspaceRepository takes string-query transactions while the fenced write holds a drizzle transaction (adapter required); the injection corpus must not hit a real model (scripted fake gateway returning adversarial closed-schema AND out-of-schema output); coding latency must not block the prose draft (separate action kind, single in-flight call per session means the draft goes first); Docker may be unavailable for real container checks; tenant-context allowlist and package boundaries unchanged (no new setting, no new package).
 
   Quality gates before review (prompt 15): pnpm lint, pnpm format, pnpm typecheck, pnpm test:coverage --maxWorkers=3 (full suite, Docker suites), pnpm vitest run scripts (package-boundaries, tenant-context-boundary), pnpm build, then pnpm verify as one command if the machine allows; no separate SAST tool is configured, the RLS/security suites and the no-content canary are the security analysis; verify-code-docs recorded as declared side effect (regeneration deferred to the prep prompt unless it runs clean).
+
+  ## Outcome narrowing #2
+  None. Every dispatch received the book's Outcome, Evidence and Constraint verbatim (file dev2-common.md in the orchestrator scratchpad) plus E-A1..E-A3 as added Evidence; units named their slice as scope only.
+
+  ## Dev loop #2 implementation reports (prompt 14)
+  Five foreground agents in four waves (grounding ‖ fixtures/rehearsal/sandbox; assist stage and service; coding path and escalation; replay evidence, latency, injection corpus). Commits: 94eba6e (fixtures; also swept in context-snapshot.ts), 0752c59 (claims verification), 3fb8666 (rehearsal hints), 0adef11 (sandbox test), 12baca4 + 70094b5 (assist stage v2, service; 12baca4 alone does not typecheck, 70094b5 is the green point), 77018e6 (coding path), 797b5f1 (escalation, worker wiring), e71ee14 (replay evidence), 0b13a43 (latency), e2fdadf (injection corpus).
+  Decisions: overlap rule for support = pooled cited quotes hold >=50% of the claim's significant stemmed words and every figure; any rejected claim suppresses the whole draft (fail closed); snapshot holds all citable leaves, task view bounded 40 sources/400 chars/5000 (device 2500) by dropping whole low-ranked sources; coding is a second action kind solve-code scheduled restart-safely after the prose draft; publish effect runs inside the fenced publish transaction; session draft key active-session:<id>, artifact coding:<taskId>, provenance session:<id>; owner edit gives held result with conflict, never an overwrite; purger deletes unedited session drafts; agent job only from validated escalation enum, opt-in ACTIVE_SESSION_AGENT_ESCALATION=on, job result publisher deferred; DockerCodeRunner only with ACTIVE_SESSION_CODE_RUNNER=docker; rehearsal: second save of one run id refused 409, hints capped 7, stored as sessionHints not reveals; session gateway now registers interview-answers (remote) profile.
+  Known limits recorded: employer material and non-logistics preferences can be crowded out of the task view by a large matrix (candidate sources rank first); spoken-answer figures (candidate's own aloud statements) do not reach the model prompt, only the question segment does; MIN_SUPPORT_SHARE 0.5 and disparagement/first-person lexicons are unvalidated heuristics; no real model, so compliance is unobserved; node:22-alpine absent so the real-container check used the php runtime image.
+  Latency (virtual clock, fake instant model, settle 1500 ms): 1x all sets 36 questions paced p50 2400 p95 2400 ms, processing p50 113 p95 129 ms; 4x 34 questions paced p50 2400 p95 2462.5, processing p50 115 p95 135; coding solve p50 6400 (simulated 4000 ms model) after prose 2400.
+  Evidence so far (live-session suite 33 files / 473 passed; scripts 18 passed): E-A1 verified (session-replay-fixtures.test.ts, 40 tests, scan covers all sets), E-A2 verified (session-replay-evidence.test.ts 28 tests; latency above), E-A3 verified (cases h and i).
 
 pr_draft: ""
 summary: ""
