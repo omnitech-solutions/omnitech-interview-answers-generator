@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "sourceId": "mic-1",
+  "eventId": "evt-d-error",
+  "occurredAt": "2026-10-03T10:00:00.000Z",
+  "sequence": 2,
+  "kind": "source.disconnected",
+  "content": {
+    "source": "microphone",
+    "reason": "error"
+  }
+}

@@ -1,0 +1,398 @@
+{
+  "wireVersion": 1,
+  "entries": [
+    {
+      "file": "invalid/audio-kind.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "audio.chunk",
+      "issueCodes": ["unknown_kind"]
+    },
+    {
+      "file": "invalid/bad-disconnect-source.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "source.disconnected",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/bad-media-type.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "screen.snapshot",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/bad-timestamp.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["invalid_format"]
+    },
+    {
+      "file": "invalid/bad-transcript-source.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/byte-length-over-cap.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "screen.snapshot",
+      "issueCodes": ["too_large"]
+    },
+    {
+      "file": "invalid/capability-report-bad-locale.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "capability.report",
+      "issueCodes": ["invalid_format"]
+    },
+    {
+      "file": "invalid/capability-report-extra-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "capability.report",
+      "issueCodes": ["unknown_field"]
+    },
+    {
+      "file": "invalid/end-before-start.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/heartbeat-extra-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "heartbeat",
+      "issueCodes": ["unknown_field"]
+    },
+    {
+      "file": "invalid/identity-capability-report.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "capability.report",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-heartbeat.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "heartbeat",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-nested-session-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-nested-tenant-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-nested-token.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-nested-user-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-session-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-tenant-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-token.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/identity-user-id.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["identity_field_forbidden"]
+    },
+    {
+      "file": "invalid/missing-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["invalid_type"]
+    },
+    {
+      "file": "invalid/negative-sequence.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["too_small"]
+    },
+    {
+      "file": "invalid/oversize-text.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["too_large"]
+    },
+    {
+      "file": "invalid/unknown-content-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["unknown_field"]
+    },
+    {
+      "file": "invalid/unknown-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["unknown_field"]
+    },
+    {
+      "file": "invalid/unknown-kind.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.partial",
+      "issueCodes": ["unknown_kind"]
+    },
+    {
+      "file": "invalid/unknown-version.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "transcript.final",
+      "issueCodes": ["unsupported_version"]
+    },
+    {
+      "file": "valid/ack-accepted-capability.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
+      "file": "valid/ack-accepted-heartbeat.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
+      "file": "valid/ack-accepted-paused.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
+      "file": "valid/ack-accepted.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
+      "file": "valid/ack-duplicate.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.duplicate"
+    },
+    {
+      "file": "valid/ack-refused-credential-refused.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-envelope-too-large.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-event-conflict.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-invalid-observation.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-limit-reached.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-payload-too-large.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-rate-limited.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-session-ended.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-session-paused.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-session-purging.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/ack-refused-unsupported-version.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
+    },
+    {
+      "file": "valid/capability-report-ready.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capability.report"
+    },
+    {
+      "file": "valid/capability-report-unavailable.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capability.report"
+    },
+    {
+      "file": "valid/capture-gap-buffer-overflow.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.gap"
+    },
+    {
+      "file": "valid/capture-gap-error.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.gap"
+    },
+    {
+      "file": "valid/capture-gap-paused.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.gap"
+    },
+    {
+      "file": "valid/capture-gap-source-interrupted.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.gap"
+    },
+    {
+      "file": "valid/heartbeat-capturing.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "heartbeat"
+    },
+    {
+      "file": "valid/heartbeat-idle.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "heartbeat"
+    },
+    {
+      "file": "valid/screen-snapshot-jpeg-empty-label.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "screen.snapshot"
+    },
+    {
+      "file": "valid/screen-snapshot-png.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "screen.snapshot"
+    },
+    {
+      "file": "valid/source-disconnected-device-lost.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "source.disconnected"
+    },
+    {
+      "file": "valid/source-disconnected-error.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "source.disconnected"
+    },
+    {
+      "file": "valid/source-disconnected-permission-revoked.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "source.disconnected"
+    },
+    {
+      "file": "valid/source-disconnected-user-stopped.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "source.disconnected"
+    },
+    {
+      "file": "valid/transcript-final-minimal.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "transcript.final"
+    },
+    {
+      "file": "valid/transcript-final-source-application-audio.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "transcript.final"
+    },
+    {
+      "file": "valid/transcript-final-source-microphone.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "transcript.final"
+    },
+    {
+      "file": "valid/transcript-final-supersedes.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "transcript.final"
+    }
+  ]
+}

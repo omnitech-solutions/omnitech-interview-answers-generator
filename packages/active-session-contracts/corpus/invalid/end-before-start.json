@@ -1,0 +1,21 @@
+{
+  "description": "endMs is before startMs",
+  "message": {
+    "version": 1,
+    "sourceId": "mic-1",
+    "eventId": "evt-t1",
+    "occurredAt": "2026-10-03T10:00:00.000Z",
+    "sequence": 0,
+    "kind": "transcript.final",
+    "content": {
+      "speaker": "microphone",
+      "text": "Tell me about a project you led.",
+      "startMs": 5000,
+      "endMs": 4000
+    }
+  },
+  "expect": {
+    "ok": false,
+    "issueCodes": ["invalid_value"]
+  }
+}

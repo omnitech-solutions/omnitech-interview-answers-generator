@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "status": "refused",
+  "code": "envelope_too_large",
+  "control": {
+    "state": "active",
+    "credentialExpiresAt": "2026-10-03T12:00:00.000Z"
+  }
+}

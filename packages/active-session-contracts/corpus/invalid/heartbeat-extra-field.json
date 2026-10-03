@@ -1,0 +1,15 @@
+{
+  "description": "A heartbeat with an extra field",
+  "message": {
+    "version": 1,
+    "kind": "heartbeat",
+    "sourceId": "mic-1",
+    "sentAt": "2026-10-03T10:00:05Z",
+    "capturing": true,
+    "text": "hello"
+  },
+  "expect": {
+    "ok": false,
+    "issueCodes": ["unknown_field"]
+  }
+}

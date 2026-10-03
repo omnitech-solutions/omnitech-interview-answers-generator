@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "sourceId": "mic-1",
+  "eventId": "evt-s1",
+  "occurredAt": "2026-10-03T10:00:00.000Z",
+  "sequence": 1,
+  "kind": "screen.snapshot",
+  "content": {
+    "payloadRef": "shot-1",
+    "mediaType": "image/png",
+    "byteLength": 20480,
+    "windowLabel": "Editor"
+  }
+}

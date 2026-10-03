@@ -1,0 +1,20 @@
+{
+  "description": "transcript text is missing",
+  "message": {
+    "version": 1,
+    "sourceId": "mic-1",
+    "eventId": "evt-t1",
+    "occurredAt": "2026-10-03T10:00:00.000Z",
+    "sequence": 0,
+    "kind": "transcript.final",
+    "content": {
+      "speaker": "microphone",
+      "startMs": 0,
+      "endMs": 2500
+    }
+  },
+  "expect": {
+    "ok": false,
+    "issueCodes": ["invalid_type"]
+  }
+}

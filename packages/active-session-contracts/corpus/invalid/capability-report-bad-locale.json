@@ -1,0 +1,23 @@
+{
+  "description": "A locale with a space is not a language tag",
+  "message": {
+    "version": 1,
+    "kind": "capability.report",
+    "sourceId": "companion-1",
+    "sentAt": "2026-10-03T10:00:00Z",
+    "speech": {
+      "locale": "en GB",
+      "onDeviceAvailable": true,
+      "recognizerAvailable": true,
+      "authorizationStatus": "authorized"
+    },
+    "permissions": {
+      "microphone": "granted",
+      "screen": "granted"
+    }
+  },
+  "expect": {
+    "ok": false,
+    "issueCodes": ["invalid_format"]
+  }
+}

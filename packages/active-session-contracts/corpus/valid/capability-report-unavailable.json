@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "kind": "capability.report",
+  "sourceId": "companion-1",
+  "sentAt": "2026-10-03T10:00:00Z",
+  "speech": {
+    "locale": "en_GB",
+    "onDeviceAvailable": false,
+    "recognizerAvailable": false,
+    "authorizationStatus": "denied"
+  },
+  "permissions": {
+    "microphone": "not-determined",
+    "screen": "denied"
+  }
+}

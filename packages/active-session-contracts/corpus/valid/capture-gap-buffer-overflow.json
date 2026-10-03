@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "sourceId": "mic-1",
+  "eventId": "evt-g-buffer-overflow",
+  "occurredAt": "2026-10-03T10:00:00.000Z",
+  "sequence": 3,
+  "kind": "capture.gap",
+  "content": {
+    "source": "application-audio",
+    "durationMs": 4000,
+    "reason": "buffer-overflow"
+  }
+}
