@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@material-symbols/svg-400": "0.47.5",
+    "@omnitech/capture-companion": "workspace:*",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

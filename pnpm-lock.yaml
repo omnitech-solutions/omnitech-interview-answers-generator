@@ -881,6 +881,9 @@ importers:
       '@material-symbols/svg-400':
         specifier: 0.47.5
         version: 0.47.5
+      '@omnitech/capture-companion':
+        specifier: workspace:*
+        version: link:../../apps/capture-companion
       '@testing-library/jest-dom':
         specifier: ^7.0.0
         version: 7.0.0(@testing-library/dom@10.4.1)
