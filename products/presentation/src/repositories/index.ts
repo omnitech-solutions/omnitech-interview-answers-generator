@@ -12,7 +12,10 @@ import type {
   Slide,
   TenantContext,
 } from "../domain/index.js";
-import { PresentationConflictError } from "../domain/index.js";
+import {
+  PresentationConflictError,
+  PresentationNotFoundError,
+} from "../domain/index.js";
 
 type SummaryRow = {
   id: string;
@@ -718,12 +721,12 @@ export class PresentationRepository {
         `INSERT INTO presentation.shares
            (tenant_id, document_id, token_hash, created_by)
          SELECT $1, d.id, $3, $4 FROM presentation.documents d
-         WHERE d.tenant_id = $1 AND d.id = $2
+         WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
          RETURNING id`,
         [context.tenantId, documentId, tokenHash, context.userId],
       );
       const id = result.rows[0]?.id;
-      if (!id) throw new Error("Share creation failed.");
+      if (!id) throw new PresentationNotFoundError();
       return { id, token };
     });
   }
@@ -750,14 +753,14 @@ export class PresentationRepository {
            (tenant_id, document_id, requested_by, format, status,
             idempotency_key)
          SELECT $1, d.id, $3, $4, 'queued', $5 FROM presentation.documents d
-         WHERE d.tenant_id = $1 AND d.id = $2
+         WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
          ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET
            updated_at = presentation.exports.updated_at
          RETURNING id`,
         [context.tenantId, documentId, context.userId, format, idempotencyKey],
       );
       const id = result.rows[0]?.id;
-      if (!id) throw new Error("Export request failed.");
+      if (!id) throw new PresentationNotFoundError();
       return id;
     });
   }
@@ -788,7 +791,7 @@ export class PresentationRepository {
         `INSERT INTO presentation.recordings
            (tenant_id, document_id, owner_user_id, asset_reference, metadata)
          SELECT $1, d.id, $3, $4, $5 FROM presentation.documents d
-         WHERE d.tenant_id = $1 AND d.id = $2
+         WHERE d.tenant_id = $1 AND d.id = $2 AND d.deleted_at IS NULL
          RETURNING id`,
         [
           context.tenantId,
@@ -799,7 +802,7 @@ export class PresentationRepository {
         ],
       );
       const id = result.rows[0]?.id;
-      if (!id) throw new Error("Recording persistence failed.");
+      if (!id) throw new PresentationNotFoundError();
       return id;
     });
   }

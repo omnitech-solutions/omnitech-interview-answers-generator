@@ -4,6 +4,7 @@ import type {
   Slide,
   TenantContext,
 } from "../domain/index.js";
+import { PresentationNotFoundError } from "../domain/index.js";
 import { exportPresentation } from "../export/index.js";
 import { PresentationRepository } from "../repositories/index.js";
 
@@ -145,7 +146,7 @@ export class PresentationService {
       idempotencyKey,
     );
     const document = await this.repository.get(context, documentId);
-    if (!document) throw new Error("Presentation not found.");
+    if (!document) throw new PresentationNotFoundError();
     const assetReference = await exportPresentation(document, format);
     await this.repository.completeExport(context, exportId, assetReference);
     return { id: exportId, assetReference };

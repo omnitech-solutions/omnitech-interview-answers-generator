@@ -344,7 +344,7 @@ describe("documents", () => {
     ).toBe(400);
     expect(
       (await call("south", "POST", `/documents/${id}/shares`, {})).status,
-    ).toBe(400);
+    ).toBe(404);
     expect(
       (
         await call("south", "PUT", `/documents/${id}/slides`, {
@@ -711,7 +711,7 @@ describe("images and recordings", () => {
     expect(
       (await call("south", "POST", path, { assetReference: "recording://x" }))
         .status,
-    ).toBe(400);
+    ).toBe(404);
   });
 });
 
@@ -1027,6 +1027,58 @@ describe("sharing", () => {
     ).toBe(404);
   });
 
+  it("refuses shares, recordings and exports for deleted or unknown documents", async () => {
+    const deleted = await createDocument("north", "Deleted deck");
+    const existing = await call(
+      "north",
+      "POST",
+      `/documents/${deleted["id"]}/shares`,
+      {},
+    );
+    expect(existing.status).toBe(201);
+    expect(
+      (await call("north", "DELETE", `/documents/${deleted["id"]}`)).status,
+    ).toBe(204);
+
+    const notFound = { status: 404, body: { error: "Not found" } };
+    for (const id of [deleted["id"], "00000000-0000-4000-8000-000000000000"]) {
+      expect(
+        await call("north", "POST", `/documents/${id}/shares`, {}),
+      ).toEqual(notFound);
+      expect(
+        await call("north", "POST", `/documents/${id}/recordings`, {
+          assetReference: "recording://late",
+        }),
+      ).toEqual(notFound);
+      expect(
+        await call("north", "POST", `/documents/${id}/exports`, {
+          format: "pdf",
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      ).toEqual(notFound);
+    }
+    // Another tenant's document is as unknown as a missing one.
+    const northOnly = await createDocument("north", "North deck");
+    expect(
+      await call("south", "POST", `/documents/${northOnly["id"]}/shares`, {}),
+    ).toEqual(notFound);
+
+    // Nothing was written against the deleted document after its deletion.
+    const written = await pg.owner.query<{ count: string }>(
+      `SELECT (SELECT count(*) FROM presentation.shares WHERE document_id = $1)
+            + (SELECT count(*) FROM presentation.recordings WHERE document_id = $1)
+            + (SELECT count(*) FROM presentation.exports WHERE document_id = $1)
+         AS count`,
+      [deleted["id"]],
+    );
+    expect(Number(written.rows[0]!.count)).toBe(1);
+    // The share made before the deletion no longer resolves.
+    expect(
+      (await app.request(`/presentation/v1/shared/${existing.body!["token"]}`))
+        .status,
+    ).toBe(404);
+  });
+
   it("rejects malformed tokens and members without the share permission", async () => {
     const malformed = await app.request("/presentation/v1/shared/short");
     expect(malformed.status).toBe(400);
@@ -1123,7 +1175,7 @@ describe("exports", () => {
       "/documents/00000000-0000-4000-8000-000000000000/exports",
       { format: "pdf", idempotencyKey: "export-key-0003" },
     );
-    expect(missing.status).toBe(400);
+    expect(missing.status).toBe(404);
     const document = await createDocument("north", "Remote image");
     expect(
       (
@@ -1158,7 +1210,7 @@ describe("exports", () => {
           idempotencyKey: "export-key-0007",
         })
       ).body,
-    ).toEqual({ error: "Presentation not found." });
+    ).toEqual({ error: "Not found" });
     const other = await call(
       "south",
       "POST",
@@ -1168,7 +1220,7 @@ describe("exports", () => {
         idempotencyKey: "export-key-0006",
       },
     );
-    expect(other.status).toBe(400);
+    expect(other.status).toBe(404);
   });
 });
 
@@ -1222,10 +1274,7 @@ describe("cross-tenant references", () => {
       `/documents/${document["id"]}/exports`,
       { format: "pdf", idempotencyKey: "cross-tenant-export" },
     );
-    expect(exported).toEqual({
-      status: 400,
-      body: { error: "Export request failed." },
-    });
+    expect(exported).toEqual({ status: 404, body: { error: "Not found" } });
 
     // No row of another tenant may point at north's records.
     const stray = await pg.owner.query<{ count: string }>(

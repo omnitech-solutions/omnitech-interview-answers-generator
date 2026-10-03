@@ -4,7 +4,10 @@ import type { PlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
 import { PresentationService } from "../application/index.js";
-import { PresentationConflictError } from "../domain/index.js";
+import {
+  PresentationConflictError,
+  PresentationNotFoundError,
+} from "../domain/index.js";
 import { PresentationRepository } from "../repositories/index.js";
 import { importPowerPointTheme } from "../theme-import.js";
 
@@ -607,7 +610,10 @@ export function createPresentationApi(options: PresentationApiOptions) {
         context.req.param("id"),
       );
       return context.json(token, 201);
-    } catch {
+    } catch (error) {
+      if (error instanceof PresentationNotFoundError) {
+        return context.json({ error: "Not found" }, 404);
+      }
       return context.json({ error: "Unable to create share." }, 400);
     }
   });
@@ -634,6 +640,9 @@ export function createPresentationApi(options: PresentationApiOptions) {
       );
       return context.json({ ...result, status: "succeeded" }, 201);
     } catch (error) {
+      if (error instanceof PresentationNotFoundError) {
+        return context.json({ error: "Not found" }, 404);
+      }
       return context.json(
         { error: error instanceof Error ? error.message : "Export failed." },
         400,
@@ -652,7 +661,10 @@ export function createPresentationApi(options: PresentationApiOptions) {
         input.metadata,
       );
       return context.json({ id }, 201);
-    } catch {
+    } catch (error) {
+      if (error instanceof PresentationNotFoundError) {
+        return context.json({ error: "Not found" }, 404);
+      }
       return context.json({ error: "Invalid recording." }, 400);
     }
   });

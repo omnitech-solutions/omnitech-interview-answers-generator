@@ -74,6 +74,14 @@ export interface SavePresentationInput {
   expectedRevision: number;
 }
 
+/** The document is missing, deleted, or belongs to another tenant. */
+export class PresentationNotFoundError extends Error {
+  constructor() {
+    super("Presentation not found.");
+    this.name = "PresentationNotFoundError";
+  }
+}
+
 export class PresentationConflictError extends Error {
   constructor() {
     super("The presentation changed since it was loaded.");
