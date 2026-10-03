@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | review: PB-0002 revised logistics authority and review closure
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T15:49-06:00. Refs: [[promptbooks/PB-0002-active-session-capability-for-interview-studio]] rule:captured-input-untrusted
+
 ## [2026-10-03] arch | Regenerated Active Session architecture docs
 
 Regenerated bionic/arch from source at c4dfbc4: API, module graph and decision index populated; data model stubbed because the extractor does not support this Drizzle schema.

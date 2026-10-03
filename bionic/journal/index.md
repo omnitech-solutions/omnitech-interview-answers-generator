@@ -4,4 +4,4 @@ _Last updated: 2026-10-03_
 
 | month | first entry | last entry | entries | top categories |
 |-------|-------------|------------|---------|----------------|
-| 2026-10 | 2026-10-02 | 2026-10-03 | 10 | decision, review, implementation |
+| 2026-10 | 2026-10-02 | 2026-10-03 | 11 | decision, review, implementation |

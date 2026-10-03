@@ -183,6 +183,13 @@ revision or revert, remains in Workspace. It may still contain a captured
 question and generated answer or code. Delete that draft separately in
 Workspace if you want to remove it. Copies in backups remain until they rotate.
 
+**Logistics grounding.** Structured notice, compensation and work-arrangement
+answers use pinned approved candidate preferences. The missing list shows every
+field without a matching approved preference line, including fields the question
+did not ask about.
+Suggested drafts and interpretations do not set or confirm preferences; review
+personal commitments before saying or copying them.
+
 **Running the companion.** `pnpm dev` does not start the companion. Build and
 run it from `apps/capture-companion/macos` with SwiftPM: `swift run
 capture-companion pair` stores the credential Studio shows (in the Keychain),
