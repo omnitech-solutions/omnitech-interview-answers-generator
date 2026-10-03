@@ -5,6 +5,12 @@
 // Triggers, the claim view, the credential-lookup and purge settings and the
 // session artifact policies are hand-appended to the migration, as in
 // Documents; this file declares the columns, keys and policies they sit on.
+
+import {
+  artifacts,
+  tenantMemberships,
+  tenants,
+} from "@omnitech/platform-storage/schema";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -22,7 +28,6 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { artifacts, tenants } from "@omnitech/platform-storage/schema";
 import { candidacies, interviews } from "./schema.js";
 import { interview } from "./studio.js";
 
@@ -399,6 +404,80 @@ export const sessionActions = interview.table.withRLS(
     pgPolicy("session_actions_owner_delete", {
       for: "delete",
       using: sql`${ownerScope} AND ${purgeOn}`,
+    }),
+  ],
+);
+
+export const capabilityPermissionStates = [
+  "granted",
+  "denied",
+  "not-determined",
+] as const;
+export const speechAuthorizationStates = [
+  "authorized",
+  "denied",
+  "restricted",
+  "not-determined",
+] as const;
+
+// The capture companion's latest self-reported readiness for its owner: speech
+// support and OS permission states, never content (a locale is a language tag).
+// One row per (tenant, owner), replaced by each report. It is device capability,
+// not session content, so a session purge deliberately leaves it; it is
+// readable and writable only by its owner under forced row security. There is
+// no delete policy: membership removal removes it through the composite
+// reference to the tenant membership.
+export const companionCapabilities = interview.table.withRLS(
+  "companion_capabilities",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    ownerUserId: uuid("owner_user_id").notNull(),
+    reportedAt: timestamptz("reported_at").notNull().defaultNow(),
+    speechLocale: text("speech_locale").notNull(),
+    speechOnDeviceAvailable: boolean("speech_on_device_available").notNull(),
+    speechRecognizerAvailable: boolean("speech_recognizer_available").notNull(),
+    speechAuthorizationStatus: text("speech_authorization_status").notNull(),
+    microphone: text("microphone").notNull(),
+    screen: text("screen").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      name: "companion_capabilities_pkey",
+      columns: [t.tenantId, t.ownerUserId],
+    }),
+    foreignKey({
+      name: "companion_capabilities_membership_fkey",
+      columns: [t.tenantId, t.ownerUserId],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.userId],
+    }).onDelete("cascade"),
+    check(
+      "companion_capabilities_locale_check",
+      sql`speech_locale ~ '^[A-Za-z0-9_-]{1,35}$'`,
+    ),
+    check(
+      "companion_capabilities_speech_auth_check",
+      inList("speech_authorization_status", speechAuthorizationStates),
+    ),
+    check(
+      "companion_capabilities_microphone_check",
+      inList("microphone", capabilityPermissionStates),
+    ),
+    check(
+      "companion_capabilities_screen_check",
+      inList("screen", capabilityPermissionStates),
+    ),
+    pgPolicy("companion_capabilities_owner_select", {
+      for: "select",
+      using: ownerScope,
+    }),
+    pgPolicy("companion_capabilities_owner_insert", {
+      for: "insert",
+      withCheck: ownerScope,
+    }),
+    pgPolicy("companion_capabilities_owner_update", {
+      for: "update",
+      using: ownerScope,
+      withCheck: ownerScope,
     }),
   ],
 );

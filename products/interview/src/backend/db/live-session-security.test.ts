@@ -1850,6 +1850,124 @@ describe("session artifacts (rule:private-session-artifact-types, rule:purge-del
   });
 });
 
+// The companion's capability row is device capability, not session content: it
+// is the owner's alone under forced row security, bound to the tenant membership
+// by a composite reference, and a session purge does not touch it (the purge
+// itself is covered in session-purge.test.ts).
+describe("companion capability (device capability, owner-only)", () => {
+  const insertFor = (tenant: string, owner: string, locale = "en-US") => ({
+    text: `INSERT INTO interview.companion_capabilities
+      (tenant_id,owner_user_id,speech_locale,speech_on_device_available,speech_recognizer_available,speech_authorization_status,microphone,screen)
+      VALUES($1,$2,$3,true,true,'authorized','granted','denied')`,
+    values: [tenant, owner, locale],
+  });
+
+  it("forces row security and has no delete policy", async () => {
+    const forced = await pg.owner.query<{ force: boolean }>(
+      "SELECT relforcerowsecurity AS force FROM pg_class WHERE oid = 'interview.companion_capabilities'::regclass",
+    );
+    expect(forced.rows[0]?.force).toBe(true);
+    const policies = await pg.owner.query<{ cmd: string }>(
+      "SELECT cmd FROM pg_policies WHERE tablename = 'companion_capabilities' ORDER BY cmd",
+    );
+    expect(policies.rows.map((p) => p.cmd)).toEqual([
+      "INSERT",
+      "SELECT",
+      "UPDATE",
+    ]);
+  });
+
+  it("lets the owner write and read their own row, and nobody else read or write it", async () => {
+    const mine = insertFor(tenantA, alice.id);
+    await asActor(tenantA, alice.id, (c) => c.query(mine.text, mine.values));
+    expect(
+      (
+        await asActor(tenantA, alice.id, (c) =>
+          c.query("SELECT speech_locale FROM interview.companion_capabilities"),
+        )
+      ).rows,
+    ).toEqual([{ speech_locale: "en-US" }]);
+    // The same-tenant other user sees nothing, cannot write for the owner and
+    // cannot update the owner's row.
+    expect(
+      (
+        await asActor(tenantA, carol.id, (c) =>
+          c.query("SELECT 1 FROM interview.companion_capabilities"),
+        )
+      ).rows,
+    ).toEqual([]);
+    await refused(
+      asActor(tenantA, carol.id, (c) => c.query(mine.text, mine.values)),
+      /row-level security/,
+    );
+    expect(
+      (
+        await asActor(tenantA, carol.id, (c) =>
+          c.query(
+            "UPDATE interview.companion_capabilities SET speech_locale='xx-XX'",
+          ),
+        )
+      ).rowCount,
+    ).toBe(0);
+    // Another tenant's actor sees nothing and cannot write into tenant A.
+    expect(
+      (
+        await asActor(tenantB, bob.id, (c) =>
+          c.query("SELECT 1 FROM interview.companion_capabilities"),
+        )
+      ).rows,
+    ).toEqual([]);
+    await refused(
+      asActor(tenantB, bob.id, (c) => c.query(mine.text, mine.values)),
+      /row-level security/,
+    );
+    // Nobody deletes (there is no delete policy), the owner included.
+    expect(
+      (
+        await asActor(tenantA, alice.id, (c) =>
+          c.query("DELETE FROM interview.companion_capabilities"),
+        )
+      ).rowCount,
+    ).toBe(0);
+  });
+
+  it("holds one row per owner, replaced in place", async () => {
+    const dup = insertFor(tenantA, alice.id, "fr-CA");
+    await refused(
+      asActor(tenantA, alice.id, (c) => c.query(dup.text, dup.values)),
+      /duplicate key/,
+    );
+    await asActor(tenantA, alice.id, (c) =>
+      c.query(
+        "UPDATE interview.companion_capabilities SET speech_locale='fr-CA'",
+      ),
+    );
+    expect(
+      (
+        await pg.owner.query(
+          "SELECT speech_locale FROM interview.companion_capabilities WHERE owner_user_id=$1",
+          [alice.id],
+        )
+      ).rows,
+    ).toEqual([{ speech_locale: "fr-CA" }]);
+  });
+
+  it("refuses an owner who is not a member of the tenant, and unknown states", async () => {
+    // alice is a member of tenant A only: the composite membership reference.
+    const outsider = insertFor(tenantB, alice.id);
+    await refused(
+      pg.owner.query(outsider.text, outsider.values),
+      /companion_capabilities_membership_fkey/,
+    );
+    await refused(
+      pg.owner.query(
+        "UPDATE interview.companion_capabilities SET microphone='maybe'",
+      ),
+      /companion_capabilities_microphone_check/,
+    );
+  });
+});
+
 it("selects the claim projection through the claim file's own SELECT list", async () => {
   expect(CLAIM_SELECT).toBe(
     `SELECT ${CLAIM_COLUMNS.join(", ")} FROM interview.active_session_claims`,
