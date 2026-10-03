@@ -75,7 +75,7 @@ function observationRow(
 ): TranscriptRow | null {
   const { sequence, receivedAt } = observation;
   if (observation.kind === "transcript.final") {
-    const content = parseTranscriptContent(observation.content);
+    const content = parseTranscriptContent(observation.content.body);
     if (!content) return null;
     const source = index.sourceOf(observation);
     return {
@@ -92,7 +92,7 @@ function observationRow(
     };
   }
   if (observation.kind === "screen.snapshot") {
-    const content = parseSnapshotContent(observation.content);
+    const content = parseSnapshotContent(observation.content.body);
     if (!content) return null;
     return {
       type: "screenshot",
@@ -103,7 +103,7 @@ function observationRow(
     };
   }
   if (observation.kind === "capture.gap") {
-    const content = parseGapContent(observation.content);
+    const content = parseGapContent(observation.content.body);
     if (!content) return null;
     return {
       type: "gap",
@@ -116,7 +116,7 @@ function observationRow(
     };
   }
   if (observation.kind === "source.disconnected") {
-    const content = parseDisconnectedContent(observation.content);
+    const content = parseDisconnectedContent(observation.content.body);
     if (!content) return null;
     return {
       type: "disconnect",
@@ -141,7 +141,7 @@ export function transcriptRows(
   const corrected = new Set<string>();
   for (const observation of observations) {
     if (observation.kind !== "transcript.final") continue;
-    const content = parseTranscriptContent(observation.content);
+    const content = parseTranscriptContent(observation.content.body);
     if (content?.supersedes) corrected.add(content.supersedes);
   }
   const rows = observations

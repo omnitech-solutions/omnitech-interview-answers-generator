@@ -5,6 +5,7 @@ import {
   minutesAfter,
   sessionView,
   snapshot,
+  stored,
   transcript,
 } from "./session-fixtures";
 import {
@@ -179,7 +180,7 @@ describe("source health", () => {
   it("does not guess from malformed observation content", () => {
     const broken = {
       ...disconnected(1, "microphone", "device-lost"),
-      content: { source: 3 },
+      content: stored(1, { source: 3 }),
     };
     expect(health([broken]).microphone).toBe("waiting");
   });

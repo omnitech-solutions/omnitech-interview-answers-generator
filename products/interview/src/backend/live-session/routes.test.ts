@@ -23,6 +23,7 @@ import {
   startFixture,
   transcript,
 } from "./live-session-fixture.js";
+import { deriveLiveModel } from "../../frontend/studio/live/session-state.js";
 import { createSessionRoutes } from "./routes.js";
 
 let fx: Fixture;
@@ -876,5 +877,104 @@ describe("action cursor", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({ error: { code: "not_found" } });
+  });
+});
+
+// The Live view reads the stream exactly as the server stores it: this feeds a
+// REAL stream page of every observation kind through the browser's derivation,
+// so a mismatch between what ingest stores and what the parsers expect (an
+// empty transcript, a revoked source shown as Receiving) cannot hide behind
+// hand-written fixtures.
+describe("the stream as the Live view reads it", () => {
+  const signal = (
+    kind: "source.disconnected" | "capture.gap",
+    sourceId: string,
+    sequence: number,
+    eventId: string,
+    content: Record<string, unknown>,
+  ) => ({
+    version: 1,
+    kind,
+    sourceId,
+    eventId,
+    occurredAt: "2026-10-03T10:00:00.000Z",
+    sequence,
+    content,
+  });
+
+  it("shows transcript rows, stats, lost permission and banners from stored observations", async () => {
+    const owner = await begin("ui-stream");
+    const shot = new FormData();
+    shot.set(
+      "envelope",
+      JSON.stringify(
+        screenshot("screen", 1, "image/png", PNG_BYTES.byteLength, "ui-s1"),
+      ),
+    );
+    shot.set("payload", new File([PNG_BYTES], "p.png", { type: "image/png" }));
+    expect(
+      (
+        await app().request(`${base()}/ingest`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${owner.credential}` },
+          body: shot,
+        })
+      ).status,
+    ).toBe(200);
+    for (const envelope of [
+      transcript("microphone", 0, "A real question.", "ui-t1"),
+      signal("capture.gap", "screen", 2, "ui-g1", {
+        source: "screen",
+        durationMs: 4000,
+        reason: "source-interrupted",
+      }),
+      signal("source.disconnected", "microphone", 1, "ui-d1", {
+        source: "microphone",
+        reason: "permission-revoked",
+      }),
+    ])
+      expect((await ingest(owner.credential, envelope)).status).toBe(200);
+
+    as(owner.person);
+    const page = liveStreamResponseSchema.parse(
+      await (await get(`/${owner.id}/stream`)).json(),
+    );
+    const model = deriveLiveModel({
+      session: page.session,
+      observations: page.observations,
+      actions: page.actions,
+      serverClockOffsetMs: 0,
+      nowMs: Date.parse(page.serverNow),
+    });
+
+    expect(
+      model.transcript.map((row) =>
+        row.type === "utterance" ? row.text : row.type,
+      ),
+    ).toEqual(["screenshot", "A real question.", "gap", "disconnect"]);
+    const shotRow = model.transcript.find((row) => row.type === "screenshot");
+    expect(shotRow).toMatchObject({
+      type: "screenshot",
+      windowLabel: "Shared window",
+      artifactId: page.observations[0]?.screenshotArtifactId,
+    });
+    expect(shotRow?.type === "screenshot" && shotRow.artifactId).toMatch(
+      /^[0-9a-f-]{36}$/,
+    );
+    expect(model.stats).toMatchObject({
+      utterances: 1,
+      screenshots: 1,
+      gaps: 1,
+    });
+    expect(model.sources.find((s) => s.source === "microphone")).toMatchObject({
+      health: "lost-permission",
+      lost: true,
+    });
+    expect(model.sources.find((s) => s.source === "screen")).toMatchObject({
+      health: "gap",
+    });
+    expect(model.banners.map((b) => b.kind)).toEqual(
+      expect.arrayContaining(["permission-revoked"]),
+    );
   });
 });

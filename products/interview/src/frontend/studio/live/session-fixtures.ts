@@ -46,6 +46,19 @@ export function sessionView(
   };
 }
 
+// The shape the server stores and the stream returns: the companion's own
+// clock and sequence around the wire content (ingest.ts).
+export function stored(
+  sequence: number,
+  body: unknown,
+): LiveObservation["content"] {
+  return {
+    occurredAt: minutesAfter(0, sequence),
+    sourceSequence: sequence,
+    body,
+  };
+}
+
 export function transcript(
   sequence: number,
   text: string,
@@ -65,12 +78,12 @@ export function transcript(
     eventId: `evt-${sequence}`,
     kind: "transcript.final",
     receivedAt: minutesAfter(0, sequence),
-    content: {
+    content: stored(sequence, {
       speaker,
       text,
       startMs: sequence * 1000,
       endMs: sequence * 1000 + 800,
-    },
+    }),
     screenshotArtifactId: null,
     ...rest,
   };
@@ -88,7 +101,7 @@ export function disconnected(
     eventId: `evt-${sequence}`,
     kind: "source.disconnected",
     receivedAt: minutesAfter(0, sequence),
-    content: { source, reason },
+    content: stored(sequence, { source, reason }),
     screenshotArtifactId: null,
   };
 }
@@ -106,7 +119,7 @@ export function gap(
     eventId: `evt-${sequence}`,
     kind: "capture.gap",
     receivedAt: minutesAfter(0, sequence),
-    content: { source, durationMs, reason },
+    content: stored(sequence, { source, durationMs, reason }),
     screenshotArtifactId: null,
   };
 }
@@ -121,12 +134,12 @@ export function snapshot(
     eventId: `evt-${sequence}`,
     kind: "screen.snapshot",
     receivedAt: minutesAfter(0, sequence),
-    content: {
+    content: stored(sequence, {
       payloadRef: `shot-${sequence}`,
       mediaType: "image/png",
       byteLength: 1200,
       windowLabel,
-    },
+    }),
     screenshotArtifactId: `artifact-${sequence}`,
   };
 }

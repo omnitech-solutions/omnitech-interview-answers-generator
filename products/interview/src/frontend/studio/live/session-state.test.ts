@@ -12,6 +12,7 @@ import {
   minutesAfter,
   sessionView,
   snapshot,
+  stored,
   transcript,
 } from "./session-fixtures";
 import {
@@ -364,13 +365,13 @@ describe("transcript rows", () => {
     const corrected = transcript(1, "npm audit", { eventId: "e1" });
     const fix = {
       ...transcript(2, "npm adit corrected"),
-      content: {
+      content: stored(2, {
         speaker: "speaker-1",
         text: "npm audit",
         startMs: 0,
         endMs: 5,
         supersedes: "e1",
-      },
+      }),
     };
     const rows = model(online(), [corrected, fix]).transcript;
     expect(rows[0]).toMatchObject({ type: "utterance", superseded: true });
@@ -382,7 +383,10 @@ describe("transcript rows", () => {
   });
 
   it("drops observations whose content is malformed", () => {
-    const broken = { ...transcript(1, "x"), content: { speaker: 3 } };
+    const broken = {
+      ...transcript(1, "x"),
+      content: stored(1, { speaker: 3 }),
+    };
     expect(model(online(), [broken]).transcript).toEqual([]);
   });
 

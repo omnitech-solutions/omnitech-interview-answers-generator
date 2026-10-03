@@ -15,6 +15,7 @@ import {
   gap,
   minutesAfter,
   snapshot,
+  stored,
   transcript,
 } from "./session-fixtures";
 import { answerResult, codeResult } from "./session-result-fixtures";
@@ -77,13 +78,13 @@ describe("transcript", () => {
         transcript(2, "Tell me about a migraine.", { sourceId: "microphone" }),
         {
           ...transcript(3, "Tell me about a migration, please."),
-          content: {
+          content: stored(3, {
             speaker: "speaker-1",
             text: "Tell me about a migration, please.",
             startMs: 3000,
             endMs: 3800,
             supersedes: "evt-2",
-          },
+          }),
         },
         gap(4, "application-audio", "buffer-overflow", 3000),
         disconnected(5, "microphone", "user-stopped"),

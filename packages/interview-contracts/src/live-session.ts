@@ -189,9 +189,15 @@ export const liveObservationSchema = z.object({
   eventId: z.string(),
   kind: z.string(),
   receivedAt: isoTime,
-  // The wire observation's content (a transcript segment, a screen snapshot
-  // reference, a source or gap notice). Render only as inert text.
-  content: z.unknown(),
+  // What the server stored for the observation: the companion's own clock and
+  // sequence, and the wire content as `body` (a transcript segment, a screen
+  // snapshot reference, a source or gap notice). Render `body` only as inert
+  // text.
+  content: z.object({
+    occurredAt: z.string(),
+    sourceSequence: z.number().int().nonnegative(),
+    body: z.unknown(),
+  }),
   screenshotArtifactId: z.string().nullable(),
 });
 export type LiveObservation = z.infer<typeof liveObservationSchema>;

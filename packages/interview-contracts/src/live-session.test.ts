@@ -78,6 +78,37 @@ describe("live session contract", () => {
     );
   });
 
+  it("types a stored observation as the companion clock and sequence around the wire body", () => {
+    const observation = {
+      sequence: 1,
+      sourceId: "microphone",
+      eventId: "e1",
+      kind: "transcript.final",
+      receivedAt: "2026-10-03T10:00:00.000Z",
+      screenshotArtifactId: null,
+    };
+    const page = (content: unknown) =>
+      liveStreamResponseSchema.safeParse({
+        session: view,
+        observations: [{ ...observation, content }],
+        actions: [],
+        nextAfterSequence: 1,
+        nextActionCursor: "c",
+        hasMoreObservations: false,
+        hasMoreActions: false,
+        serverNow: "2026-10-03T10:00:01.000Z",
+      });
+    expect(
+      page({
+        occurredAt: "2026-10-03T10:00:00.000Z",
+        sourceSequence: 0,
+        body: { text: "x" },
+      }).success,
+    ).toBe(true);
+    // The flat wire shape is not what is stored: it is refused, not guessed at.
+    expect(page({ text: "x" }).success).toBe(false);
+  });
+
   it("accepts a stream page with its cursors and the server clock", () => {
     const page = {
       session: view,

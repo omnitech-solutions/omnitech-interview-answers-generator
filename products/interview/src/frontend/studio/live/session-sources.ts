@@ -79,9 +79,9 @@ export function sourceIndex(
   for (const observation of observations) {
     const named =
       observation.kind === "source.disconnected"
-        ? parseDisconnectedContent(observation.content)?.source
+        ? parseDisconnectedContent(observation.content.body)?.source
         : observation.kind === "capture.gap"
-          ? parseGapContent(observation.content)?.source
+          ? parseGapContent(observation.content.body)?.source
           : undefined;
     if (named) learned.set(observation.sourceId, named);
   }
@@ -120,7 +120,7 @@ function unresolvedBySource(
     const source = index.sourceOf(observation);
     if (!source) continue;
     if (observation.kind === "source.disconnected") {
-      const content = parseDisconnectedContent(observation.content);
+      const content = parseDisconnectedContent(observation.content.body);
       if (!content) continue;
       state.set(content.source, {
         health:
@@ -134,7 +134,7 @@ function unresolvedBySource(
         gapMs: null,
       });
     } else if (observation.kind === "capture.gap") {
-      const content = parseGapContent(observation.content);
+      const content = parseGapContent(observation.content.body);
       if (!content || content.reason === "paused") continue;
       state.set(content.source, {
         health: "gap",
