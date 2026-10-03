@@ -1,11 +1,13 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   LiveObservation,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionBar } from "./session-bar";
 import {
   disconnected,
   jsonResponse,
@@ -15,7 +17,6 @@ import {
   transcript,
 } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
-import { SessionBar } from "./session-bar";
 import { createTestServer } from "./session-test-server";
 import { resetTargetTitles } from "./use-session-target";
 
@@ -529,11 +530,9 @@ describe("target title", () => {
 });
 
 describe("phone width", () => {
+  // Resolved from this file, so it holds from the repo root or a package dir.
   const css = readFileSync(
-    join(
-      process.cwd(),
-      "products/interview/src/frontend/studio/live/session-bar.css",
-    ),
+    join(dirname(fileURLToPath(import.meta.url)), "session-bar.css"),
     "utf8",
   );
   it("wraps instead of scrolling", () => {
