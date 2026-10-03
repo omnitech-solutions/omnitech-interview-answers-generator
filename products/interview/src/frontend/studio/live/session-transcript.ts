@@ -20,6 +20,8 @@ export type TranscriptRow =
   | {
       type: "utterance";
       sequence: number;
+      // Event ids are unique per source, not per session (dedup is by both).
+      sourceId: string;
       eventId: string;
       receivedAt: string;
       source: LiveCaptureSource | null;
@@ -68,6 +70,9 @@ export type TranscriptRow =
       at: string;
     };
 
+const segmentKey = (ids: { sourceId: string; eventId: string }): string =>
+  `${ids.sourceId}\u0000${ids.eventId}`;
+
 function observationRow(
   observation: LiveObservation,
   index: SourceIndex,
@@ -81,13 +86,14 @@ function observationRow(
     return {
       type: "utterance",
       sequence,
+      sourceId: observation.sourceId,
       eventId: observation.eventId,
       receivedAt,
       source,
       sourceLabel: source ? SOURCE_LABEL[source] : "Audio",
       speakerLabel: content.speaker,
       text: content.text,
-      superseded: corrected.has(observation.eventId),
+      superseded: corrected.has(segmentKey(observation)),
       correctsEventId: content.supersedes ?? null,
     };
   }
@@ -139,10 +145,31 @@ export function transcriptRows(
 ): TranscriptRow[] {
   const index = sourceIndex(observations);
   const corrected = new Set<string>();
+  const known = new Set(
+    observations
+      .filter((observation) => observation.kind === "transcript.final")
+      .map(segmentKey),
+  );
   for (const observation of observations) {
     if (observation.kind !== "transcript.final") continue;
     const content = parseTranscriptContent(observation.content.body);
-    if (content?.supersedes) corrected.add(content.supersedes);
+    if (!content?.supersedes) continue;
+    // Event ids are unique per source, so a correction names a segment of its
+    // own source. The server resolves a bare event id session-wide, so when
+    // the source has no such segment, any source's segment with that id is it.
+    const sameSource = {
+      sourceId: observation.sourceId,
+      eventId: content.supersedes,
+    };
+    if (known.has(segmentKey(sameSource)))
+      corrected.add(segmentKey(sameSource));
+    else
+      for (const other of observations)
+        if (
+          other.kind === "transcript.final" &&
+          other.eventId === content.supersedes
+        )
+          corrected.add(segmentKey(other));
   }
   const rows = observations
     .map((observation) => observationRow(observation, index, corrected))

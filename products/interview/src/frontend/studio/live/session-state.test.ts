@@ -382,6 +382,39 @@ describe("transcript rows", () => {
     });
   });
 
+  it("marks only the corrected segment of the same source: event ids repeat across sources", () => {
+    const mic = transcript(1, "npm adit", {
+      eventId: "e1",
+      sourceId: "microphone",
+    });
+    const app = transcript(2, "A different line", {
+      eventId: "e1",
+      sourceId: "application-audio",
+    });
+    const fix = {
+      ...transcript(3, "npm audit", {
+        eventId: "e2",
+        sourceId: "microphone",
+      }),
+      content: stored(3, {
+        speaker: "speaker-1",
+        text: "npm audit",
+        startMs: 0,
+        endMs: 5,
+        supersedes: "e1",
+      }),
+    };
+    const rows = model(online(), [mic, app, fix]).transcript;
+    expect(
+      rows.map((row) => row.type === "utterance" && row.superseded),
+    ).toEqual([true, false, false]);
+    // Rows are keyed by source and event together.
+    const keys = rows.map((row) =>
+      row.type === "utterance" ? `${row.sourceId}:${row.eventId}` : "",
+    );
+    expect(new Set(keys).size).toBe(3);
+  });
+
   it("drops observations whose content is malformed", () => {
     const broken = {
       ...transcript(1, "x"),

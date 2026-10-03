@@ -115,7 +115,7 @@ function Row({
 
 const keyOf = (row: TranscriptRow): string =>
   row.type === "utterance"
-    ? row.eventId
+    ? `${row.sourceId}:${row.eventId}`
     : row.type === "new-task"
       ? `task-${row.taskId}-${row.revision}`
       : `${row.type}-${row.sequence}`;
