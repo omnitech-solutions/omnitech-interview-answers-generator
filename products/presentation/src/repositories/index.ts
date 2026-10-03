@@ -30,6 +30,38 @@ function escapeSourceText(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
+type TenantClient = Parameters<
+  Parameters<PlatformDatabase["tenantTransaction"]>[1]
+>[0];
+
+// Foreign keys reference ids alone and ignore row-level security, so every
+// write naming another record first proves the tenant can see that record.
+async function requireDocument(
+  client: TenantClient,
+  tenantId: string,
+  documentId: string,
+): Promise<void> {
+  const found = await client.query(
+    "SELECT 1 FROM presentation.documents WHERE tenant_id = $1 AND id = $2",
+    [tenantId, documentId],
+  );
+  if (!found.rows[0]) throw new Error("Presentation not found.");
+}
+
+// A tenant may use a built-in theme (no tenant) or one of its own.
+async function requireTheme(
+  client: TenantClient,
+  tenantId: string,
+  themeId: string,
+): Promise<void> {
+  const found = await client.query(
+    `SELECT 1 FROM presentation.themes
+     WHERE id = $2 AND (tenant_id IS NULL OR tenant_id = $1)`,
+    [tenantId, themeId],
+  );
+  if (!found.rows[0]) throw new Error("Theme not found.");
+}
+
 export class PresentationRepository {
   constructor(private readonly database: PlatformDatabase) {}
 
@@ -75,6 +107,8 @@ export class PresentationRepository {
         [context.tenantId, context.userId, input.idempotencyKey],
       );
       if (existing.rows[0]) return existing.rows[0].subject_id;
+      if (input.themeId)
+        await requireTheme(client, context.tenantId, input.themeId);
       const document = await client.query<{ id: string }>(
         `INSERT INTO presentation.documents
            (tenant_id, owner_user_id, title)
@@ -282,6 +316,8 @@ export class PresentationRepository {
       );
       const revision = result.rows[0]?.revision;
       if (!revision) throw new PresentationConflictError();
+      if (input.themeId)
+        await requireTheme(client, context.tenantId, input.themeId);
       await client.query(
         `UPDATE presentation.presentations SET
            outline = COALESCE($3, outline),
@@ -588,6 +624,7 @@ export class PresentationRepository {
   ): Promise<void> {
     await this.database.tenantTransaction(context.tenantId, async (client) => {
       if (favorite) {
+        await requireDocument(client, context.tenantId, documentId);
         await client.query(
           `INSERT INTO presentation.document_favorites
              (tenant_id, user_id, document_id)
@@ -654,6 +691,7 @@ export class PresentationRepository {
           ? "presentation.theme_favorites"
           : "presentation.theme_likes";
       if (enabled) {
+        await requireTheme(client, context.tenantId, themeId);
         await client.query(
           `INSERT INTO ${table} (tenant_id, user_id, theme_id)
            VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,

@@ -1171,3 +1171,110 @@ describe("exports", () => {
     expect(other.status).toBe(400);
   });
 });
+
+describe("cross-tenant references", () => {
+  it("refuses to favorite, theme or export another tenant's records", async () => {
+    const document = await createDocument("north", "North secrets", ["A"]);
+    const northTheme = await call("north", "POST", "/themes", {
+      name: "North brand",
+      definition: { background: "#000000" },
+    });
+    const themeId = northTheme.body!["id"];
+
+    expect(
+      (
+        await call("south", "PUT", `/documents/${document["id"]}/favorite`, {
+          enabled: true,
+        })
+      ).status,
+    ).toBe(400);
+    for (const reaction of ["favorite", "like"] as const) {
+      expect(
+        (
+          await call("south", "PUT", `/themes/${themeId}/${reaction}`, {
+            enabled: true,
+          })
+        ).status,
+      ).toBe(400);
+    }
+    expect(
+      (
+        await call("south", "POST", "/documents", {
+          title: "Borrowed theme",
+          themeId,
+          idempotencyKey: crypto.randomUUID(),
+        })
+      ).status,
+    ).not.toBe(201);
+    const own = await createDocument("south", "South deck");
+    expect(
+      (
+        await call("south", "PATCH", `/documents/${own["id"]}`, {
+          themeId,
+          expectedRevision: own["revision"],
+        })
+      ).status,
+    ).not.toBe(200);
+
+    const exported = await call(
+      "south",
+      "POST",
+      `/documents/${document["id"]}/exports`,
+      { format: "pdf", idempotencyKey: "cross-tenant-export" },
+    );
+    expect(exported).toEqual({
+      status: 400,
+      body: { error: "Export request failed." },
+    });
+
+    // No row of another tenant may point at north's records.
+    const stray = await pg.owner.query<{ count: string }>(
+      `SELECT (SELECT count(*) FROM presentation.document_favorites WHERE document_id = $1 AND tenant_id <> d.tenant_id)
+            + (SELECT count(*) FROM presentation.exports WHERE document_id = $1 AND tenant_id <> d.tenant_id)
+            + (SELECT count(*) FROM presentation.theme_favorites WHERE theme_id = $2)
+            + (SELECT count(*) FROM presentation.theme_likes WHERE theme_id = $2)
+            + (SELECT count(*) FROM presentation.presentations WHERE theme_id = $2) AS count
+         FROM presentation.documents d WHERE d.id = $1`,
+      [document["id"], themeId],
+    );
+    expect(Number(stray.rows[0]!.count)).toBe(0);
+  });
+
+  it("still applies a built-in theme and the tenant's own theme", async () => {
+    const themes = (await call("south", "GET", "/themes")).body as any[];
+    const builtIn = themes.find((theme) => theme.builtIn);
+    const own = await call("south", "POST", "/themes", {
+      name: "South brand",
+      definition: { background: "#ffffff" },
+    });
+    for (const themeId of [builtIn?.id, own.body!["id"]].filter(Boolean)) {
+      const created = await call("south", "POST", "/documents", {
+        title: "Themed",
+        themeId,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      expect(created.status).toBe(201);
+      const document = await call(
+        "south",
+        "GET",
+        `/documents/${created.body!["id"]}`,
+      );
+      expect(document.body!["themeId"]).toBe(themeId);
+      expect(
+        (
+          await call("south", "PATCH", `/documents/${created.body!["id"]}`, {
+            themeId,
+            expectedRevision: document.body!["revision"],
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await call("south", "PUT", `/themes/${themeId}/like`, {
+            enabled: true,
+          })
+        ).status,
+      ).toBe(204);
+    }
+  });
+});
