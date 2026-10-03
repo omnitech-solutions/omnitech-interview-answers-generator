@@ -24,7 +24,7 @@ See [[research/index]].
 
 | id | title | status | date |
 |---|---|---|---|
-| [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] | Use worker-owned agent sessions with one terminal outcome | Proposed | 2026-10-03 |
+| [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 |
 | [[adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent]] | Pause rather than end an Active Session on credential expiry or companion stop | Accepted | 2026-10-03 |
 | [[adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and]] | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | 2026-10-03 |
 | [[adrs/ADR-0011-host-the-active-session-processor-in-the-agent-worker]] | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | 2026-10-03 |

@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | decision: ADR-0014 worker-owned runtime decision accepted
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T17:18-06:00. Refs: [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] rule:one-terminal-outcome
+
+## [2026-10-03] adr | ADR-0014: accept (accepted)
+
+Use worker-owned agent sessions with one terminal outcome. Accepted after the third council fix-and-review loop resolved unclaimed cancellation and provider-session restart boundaries.
+
 ## [2026-10-03] adr | ADR-0014: Use worker-owned agent sessions with one terminal outcome
 
 Proposed. File `bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md`. Tags: ai, agents, runtime, reliability, streaming.

@@ -672,34 +672,52 @@
     "review_state": "accepted-with-adr",
     "rule": "Claude uses only the installed TypeScript Agent SDK's supported session lifecycle; isolated structured jobs remain one-shot, and persistent sessions require measured benefit and safe closure.",
     "source_adr": "ADR-0014",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0014/codex-transport-parity": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "A Codex App Server migration requires a pinned, tested protocol and parity for structured output, streaming, interruption, recovery, and local authentication before replacing the SDK path.",
+    "rule": "Codex App Server may replace the SDK only through worker-owned private stdio, with a pinned protocol, parity checks, and a measured same-workload benefit.",
     "source_adr": "ADR-0014",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
+  },
+  "ADR-0014/fenced-terminal-publish": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Each closing event, matching job status, and applicable result reference commit atomically under a claim fence or row lock; a lost claim publishes nothing further.",
+    "source_adr": "ADR-0014",
+    "source_status": "Accepted"
   },
   "ADR-0014/one-terminal-outcome": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Each agent execution emits exactly one terminal outcome after all accepted events, including failure, cancellation, and stream exceptions.",
+    "rule": "Each logical execution publishes exactly one terminal outcome; each claimed attempt publishes at most one closing outcome, including an awaiting-input suspension.",
     "source_adr": "ADR-0014",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
+  },
+  "ADR-0014/provider-history-isolation": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Provider history and model-readable files are isolated per owner; a session cannot read another tenant's history or shared credentials.",
+    "source_adr": "ADR-0014",
+    "source_status": "Accepted"
   },
   "ADR-0014/worker-owned-isolated-sessions": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The agent worker owns bounded provider processes and sessions; no session or process may carry private context across tenants or independent jobs.",
+    "rule": "The worker bounds provider processes, and each persistent session is bound to one tenant, actor, job, and runtime profile; only the current lease claim may resume it.",
     "source_adr": "ADR-0014",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "retired_slugs": {
     "complete-session-purge": [
@@ -738,6 +756,7 @@
     "device-only-enforced-twice": "ADR-0012/device-only-enforced-twice",
     "fast-path-no-tools": "ADR-0011/fast-path-no-tools",
     "fenced-current-publish": "ADR-0011/fenced-current-publish",
+    "fenced-terminal-publish": "ADR-0014/fenced-terminal-publish",
     "generation-limits-are-configured": "ADR-0010/generation-limits-are-configured",
     "generation-stops-with-its-reader": "ADR-0010/generation-stops-with-its-reader",
     "id-only-traces": "ADR-0012/id-only-traces",
@@ -774,6 +793,7 @@
     "pause-only-credential-stop": "ADR-0013/pause-only-credential-stop",
     "private-session-artifact-types": "ADR-0012/private-session-artifact-types",
     "private-session-jobs": "ADR-0012/private-session-jobs",
+    "provider-history-isolation": "ADR-0014/provider-history-isolation",
     "purge-delete-setting": "ADR-0012/purge-delete-setting",
     "purge-keeps-adopted-drafts": "ADR-0013/purge-keeps-adopted-drafts",
     "raw-audio-never-persisted": "ADR-0012/raw-audio-never-persisted",

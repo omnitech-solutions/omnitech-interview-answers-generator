@@ -1,10 +1,10 @@
 ---
 id: ADR-0014
 title: "Use worker-owned agent sessions with one terminal outcome"
-status: Proposed
+status: Accepted
 date: 2026-10-03
 proposed_date: 2026-10-03
-accepted_date: null
+accepted_date: 2026-10-03
 deprecated_date: null
 superseded_date: null
 supersedes: []
@@ -16,17 +16,27 @@ related_briefs: []
 related_research: [references/ai-execution-boundaries]
 governs:
   - domain: agent-runtime
-    rule: "Each agent execution emits exactly one terminal outcome after all accepted events, including failure, cancellation, and stream exceptions."
-    scope: packages/agent-runtime-contracts and packages/agent-runtime-*
+    rule: "Each logical execution publishes exactly one terminal outcome; each claimed attempt publishes at most one closing outcome, including an awaiting-input suspension."
+    scope: packages/agent-runtime-contracts, packages/agent-runtime-*, and apps/agent-worker
     handle: ADR-0014/one-terminal-outcome
     provenance: authored
   - domain: agent-runtime
-    rule: "The agent worker owns bounded provider processes and sessions; no session or process may carry private context across tenants or independent jobs."
+    rule: "Each closing event, matching job status, and applicable result reference commit atomically under a claim fence or row lock; a lost claim publishes nothing further."
+    scope: apps/agent-worker and agent-job repositories
+    handle: ADR-0014/fenced-terminal-publish
+    provenance: authored
+  - domain: agent-runtime
+    rule: "The worker bounds provider processes, and each persistent session is bound to one tenant, actor, job, and runtime profile; only the current lease claim may resume it."
     scope: apps/agent-worker and packages/agent-runtime-*
     handle: ADR-0014/worker-owned-isolated-sessions
     provenance: authored
   - domain: agent-runtime
-    rule: "A Codex App Server migration requires a pinned, tested protocol and parity for structured output, streaming, interruption, recovery, and local authentication before replacing the SDK path."
+    rule: "Provider history and model-readable files are isolated per owner; a session cannot read another tenant's history or shared credentials."
+    scope: apps/agent-worker and packages/agent-runtime-*
+    handle: ADR-0014/provider-history-isolation
+    provenance: authored
+  - domain: agent-runtime
+    rule: "Codex App Server may replace the SDK only through worker-owned private stdio, with a pinned protocol, parity checks, and a measured same-workload benefit."
     scope: packages/agent-runtime-codex
     handle: ADR-0014/codex-transport-parity
     provenance: authored
@@ -47,13 +57,17 @@ The current Codex SDK starts a CLI execution for each turn. OpenAI documents App
 
 ## Decision
 
-The shared runtime contract requires exactly one terminal outcome per execution. Success, failure, cancellation, stream exhaustion, and exceptions must be distinguished without contradictory terminal events. Consumers must not infer success merely because a provider stream closed. A terminal event closes that execution's event stream; later provider messages are ignored or treated as an internal diagnostic without private content.
+An execution is the logical job lifecycle from start through one final `completed` or `failed` outcome; `failed` with `error.code: "cancelled"` maps to durable `cancelled` status. One execution may contain several claimed worker attempts. An attempt is a `run` or `resume` adapter invocation under one lease claim and publishes at most one closing event: `completed`, `failed`, or `awaiting-input`. While it owns the lease, an attempt must close with one such event; lease loss supersedes the attempt without a committed close. `awaiting-input` closes that invocation but suspends the logical execution without ending it; a later explicit resume continues the same execution in a new attempt. The reader-visible stream groups events by execution ID and attempt/lease epoch, selecting only the committed closing event from the current claim. The final history contains exactly one terminal outcome per execution. A provider stream that closes without an outcome while the claim is held becomes `failed`; an exception after a closing outcome cannot append another one. A lost claim publishes nothing further; its new owner completes recovery with a terminal outcome, never fabricating a result under the stale claim.
 
-The agent worker owns provider process and session lifecycles. It bounds concurrent executions, closes them on cancellation or lost lease, and keeps private context isolated by tenant and job. Products continue to use profiles through `AiExecutionGateway`; the adapter interface and worker-only execution boundary remain in place. Neither provider transport may broaden user-controlled CLI arguments, environment, directories, tools, or permissions, or log interview content by default.
+For every closing outcome, including `awaiting-input`, the job repository commits the event, matching status, and applicable result reference atomically. A live claimant is fenced by its lease epoch. Cancellation of an unclaimed, queued, or suspended job uses a row-locked compare-and-set finalization with the same execution identity; it cannot require a live lease. A cancellation that wins this ordering cannot leave a stored `completed` event; a completion that wins cannot acquire a later `failed` event for the same execution. Product and worker readers use the committed outcome, not a provisional provider event, as authority.
 
-Codex App Server is the target transport for persistent sessions. Migration is gated by a version-pinned protocol and demonstrated parity with the SDK path for structured output, streaming, interruption, recovery after process restart, local authentication, and terminal-event behavior. Until that evidence passes, the SDK path remains the supported implementation. A failed parity check blocks the migration; it is not hidden by a silent fallback within an execution.
+The worker owns lifecycle policy and concurrency bounds; provider adapters own their transport and process handles. A worker process may host several provider sessions, but each thread/session belongs to one tenant, actor, job, and runtime profile, with those bindings checked against the stored job and current lease claim before every resume. No product or tenant input can call thread listing, history, or arbitrary provider RPC. Only an explicitly resumed `awaiting-input` job may resume its owner-bound provider session after worker restart if the provider confirms it; otherwise that attempt fails without blending histories. An expired lease on a `running` document job instead reclaims and runs the job from the beginning, as ADR-0010 requires: its stale provider session is quarantined and cannot contribute output. Completion, cancellation, lease loss, or retention expiry releases the live process handle. The existing explicit `requestResume` path for failed or cancelled jobs remains authorized by the tenant and actor, with an active-session guard for private jobs; it starts a new logical execution with a fresh provider session and never silently revives a cancellation or reuses its history.
 
-Claude uses the installed TypeScript Agent SDK's supported `query()` lifecycle. Persistent streaming input is reserved for a session that benefits from multiple turns and can be closed safely; isolated structured document calls remain one-shot. No session is pooled across independent jobs or tenants. A persistent path must show a measured improvement on the same workload before becoming the default.
+The existing shared worker home is a privacy hazard: a model tool may be able to read provider history or credentials outside its job. Provider state and history must live in a root scoped to one tenant, actor, and job; model tools must be denied the worker's shared home and credentials. Existing local authentication remains available to the provider through a separate, model-inaccessible channel. This is a required isolation postcondition, not permission to copy or edit credentials. Negative file-read tests must prove that another tenant's history, another job's history under the same actor, and shared credentials are inaccessible; if the installed SDK cannot enforce the boundary, persistent reuse and migration stay disabled and the current SDK exposure is reported as an unresolved security blocker. The current no-content-logging rule remains; protocol stderr cannot expose content or credentials by default. Neither transport may broaden user-controlled CLI arguments, environment, directories, tools, or permissions. Credential changes require separate authorization.
+
+Codex App Server is an optional worker-owned transport over private stdio, never a public listener or tenant-controlled endpoint. It may replace the SDK path only after a version-pinned protocol proves structured output, streaming, interruption, recovery after process restart, local authentication, thread ownership, and terminal behavior. Before measurements, the migration plan selects either first response or turn completion as its primary latency endpoint. A paired same-model, same-input benchmark must then show at least a 20% median reduction on that endpoint over ten runs, with no failure increase or more than 10% p95 regression. The measurements, costs, and chosen threshold are recorded before migration. Until both parity and benefit pass, the SDK path remains supported; a failed parity check blocks migration instead of triggering a silent fallback within an execution.
+
+Claude retains the installed TypeScript Agent SDK `query()` path for isolated structured jobs. Its supported resume and streaming-input lifecycle may back a persistent session only after owner isolation, closing behavior, failure recovery, and same-workload benefit are measured. The worker releases live query handles on completion, cancellation, and lease loss; it does not assume the Python `ClaudeSDKClient` API exists in TypeScript.
 
 ## Alternatives Considered
 
@@ -74,9 +88,9 @@ Claude uses the installed TypeScript Agent SDK's supported `query()` lifecycle. 
 
 ## Consequences
 
-**Positive:** Adapter consumers receive one coherent terminal outcome. The worker remains the process and privacy boundary. Persistent transport work has explicit, testable entry criteria.
+**Positive:** Adapter consumers receive one coherent outcome per claimed attempt and a matching durable status. The worker remains the lifecycle and privacy boundary. Persistent transport work has explicit, testable entry criteria.
 
-**Negative:** Codex may continue to pay per-turn startup cost until App Server parity passes. Claude's isolated structured jobs will still start a query each time. Provider-boundary tests and version tracking add maintenance.
+**Negative:** Codex may continue to pay per-turn startup cost until App Server parity and benefit pass. Claude's isolated structured jobs will still start a query each time. Attempt identity, fenced persistence, provider-boundary tests, and version tracking add maintenance.
 
 **Follow-on:** The runtime development loop must test terminal races and provider process death, measure one-shot and persistent paths on the same input, and report which live provider behaviors remain unobserved.
 

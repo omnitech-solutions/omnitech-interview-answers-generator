@@ -5,7 +5,7 @@ book_content_hash: sha256:127b071b96eba5747128421926780f0e9c2fc4f20980526ded5053
 started_at: '2026-10-03T22:48:09Z'
 completed_at: null
 status: in_progress
-current_prompt: 2
+current_prompt: 5
 base_commit: fe8ed2071462a2d09b4881f982a18728bcd407ea
 prompts:
 - n: 1
@@ -18,29 +18,29 @@ prompts:
   artifacts: ["bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md", "bionic/adrs/index.md", "bionic/adrs/summaries/rule-table.md"]
 - n: 2
   title: 'Plan #1: convene LLM council to review the ADR'
-  state: "running"
+  state: "done"
   started: "2026-10-03T22:52:51Z"
-  completed: null
-  result: ''
+  completed: "2026-10-03T23:01:32Z"
+  result: "Council round 1: all five dimensions REQUEST_CHANGES. SRDE resolved 0/6 dissent themes; deep architecture reviewer REQUEST_CHANGES. Surviving findings: pause vs terminal unit, atomic fenced stored finalization, session owner/retention, private App Server control, measured-benefit gate, cancellation shape and package ownership."
   artifacts: []
 - n: 3
   title: 'Plan #1: address council findings, re-convene the council'
-  state: pending
-  started: null
-  completed: null
-  result: ''
-  artifacts: []
+  state: "done"
+  started: "2026-10-03T23:01:32Z"
+  completed: "2026-10-03T23:17:51Z"
+  result: "ADR-0014 council converged after three finding-addressing loops: completeness, clarity, correctness, consistency, and security APPROVE. Atomic unclaimed cancellation and fresh sessions after failed/cancelled resumes resolved final findings; code implementation remains future work."
+  artifacts: ["bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md"]
 - n: 4
   title: 'Plan #1: accept the ADR'
-  state: pending
-  started: null
-  completed: null
-  result: ''
-  artifacts: []
+  state: "done"
+  started: "2026-10-03T23:17:51Z"
+  completed: "2026-10-03T23:19:16Z"
+  result: "ADR-0014 accepted after five-dimension council consensus; transition status/date, indexes, summaries and decision journal written. Runtime behavior and live-provider parity remain unobserved until development."
+  artifacts: ["bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md", "bionic/journal/2026-10.md"]
 - n: 5
   title: 'Plan #2: spawn planning team, propose ADR for grounded and measured interview document generation'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T23:19:16Z"
   completed: null
   result: ''
   artifacts: []

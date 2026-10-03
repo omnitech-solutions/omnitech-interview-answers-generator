@@ -2,7 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
-| ADR-0014 | Use worker-owned agent sessions with one terminal outcome | Proposed | 2026-10-03 | — | — | ai, agents, runtime, reliability, streaming |
+| ADR-0014 | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 | — | — | ai, agents, runtime, reliability, streaming |
 | ADR-0013 | Pause rather than end an Active Session on credential expiry or companion stop | Accepted | 2026-10-03 | — (amends ADR-0011, ADR-0012) | — | active-session, privacy, credential, interview |
 | ADR-0012 | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | 2026-10-03 | — (amends ADR-0011) | — | active-session, privacy, row-security, locality, retention, interview |
 | ADR-0011 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | 2026-10-03 | — | — | active-session, worker, contracts, privacy, interview |
