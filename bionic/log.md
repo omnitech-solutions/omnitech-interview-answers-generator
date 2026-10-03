@@ -2,6 +2,16 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] arch | Regenerated Active Session architecture docs
+
+Regenerated bionic/arch from source at c4dfbc4: API, module graph and decision index populated; data model stubbed because the extractor does not support this Drizzle schema.
+Recorded at 2026-10-03T14:46-06:00.
+
+## [2026-10-03] extract | Regenerated Active Session code docs
+
+Regenerated bionic/code from source at c4dfbc4: 662 pages, 302 added, 28 changed, 2 removed. The removed ai-config source files no longer exist.
+Recorded at 2026-10-03T14:46-06:00.
+
 ## [2026-10-03] journal | review: PB-0002 remains open on logistics preference grounding
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-03T14:39-06:00. Refs: [[promptbooks/PB-0002-active-session-capability-for-interview-studio]] [[adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent]] rule:captured-input-untrusted

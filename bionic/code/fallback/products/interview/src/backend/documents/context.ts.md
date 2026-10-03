@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/context.ts` (header-comment fallback)_
 
-_No leading comment block found._
+"Calgary, AB" is a city and a province.

@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/documents/template-intake.ts` (header-comment fallback)_
 
-Read the ZIP directory before inflating anything, so ordinary ZIP bombs are
-rejected without allocating their advertised expanded size.
+Canonical field key to the heading it sits under, when the template has
+at least two headings.

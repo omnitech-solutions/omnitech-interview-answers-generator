@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/frontend/studio/rehearsal/scorecard.tsx` (header-comment fallback)_
 
-The finished session: its score, what was missed, and where to go next.
-It is saved once, when the scorecard first shows.
+What to tell the owner about the live session's hints. Only what the server
+confirmed is stated as a count; nothing is claimed before the save returns.

@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-contracts/src/documents.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The template's own heading the field sits under, when it has headings.

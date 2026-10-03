@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/context.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+The matrix names no contact details, so none are invented or filled.

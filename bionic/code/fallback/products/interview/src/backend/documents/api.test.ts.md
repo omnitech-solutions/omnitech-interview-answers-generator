@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/api.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A reload closes the connection: the reader cancels the stream.

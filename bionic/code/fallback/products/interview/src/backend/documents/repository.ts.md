@@ -2,5 +2,5 @@
 
 _Source: `products/interview/src/backend/documents/repository.ts` (header-comment fallback)_
 
-Called only by server-controlled catalog seeding. The key and artifact
-come from application code; neither is accepted from a member request.
+jsonb hands object keys back in its own order, so equal fields must be
+compared without regard to key order.

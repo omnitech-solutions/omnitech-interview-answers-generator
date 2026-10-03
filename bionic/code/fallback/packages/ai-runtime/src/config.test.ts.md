@@ -1,6 +1,6 @@
-# apps/web/src/platform/ai-config.test.ts
+# packages/ai-runtime/src/config.test.ts
 
-_Source: `apps/web/src/platform/ai-config.test.ts` (header-comment fallback)_
+_Source: `packages/ai-runtime/src/config.test.ts` (header-comment fallback)_
 
 ADR-0007 Decision 4: a profile's bounds are pinned to its version. A
 change to any bound here without bumping that profile's version fails, so

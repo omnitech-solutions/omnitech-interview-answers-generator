@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/renderers.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A field the values lack is an empty, tagged span the UI marks as missing.

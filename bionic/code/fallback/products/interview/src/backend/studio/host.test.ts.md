@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/studio/host.test.ts` (header-comment fallback)_
 
-The test names the member in a header the way the host's session does.
+A second member of the same tenant (the cross-user case).

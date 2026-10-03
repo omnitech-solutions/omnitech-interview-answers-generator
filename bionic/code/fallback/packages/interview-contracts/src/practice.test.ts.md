@@ -2,4 +2,4 @@
 
 _Source: `packages/interview-contracts/src/practice.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+Absent stays valid and unchanged.

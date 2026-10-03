@@ -2,4 +2,5 @@
 
 _Source: `packages/agent-job-service/src/index.ts` (header-comment fallback)_
 
-Everything a member's request does to a job, always inside its tenant.
+[SAFETY] Immutable; set only by the session dispatch path. A private job
+is visible and cancellable only by its creator (userId) or the worker.

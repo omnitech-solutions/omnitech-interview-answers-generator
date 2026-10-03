@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/rehearsal/rehearsal-view.test.tsx` (header-comment fallback)_
 
-Lets pending fetches settle while fake timers are installed.
+The server already derived hints for this run id (a save before a reload).

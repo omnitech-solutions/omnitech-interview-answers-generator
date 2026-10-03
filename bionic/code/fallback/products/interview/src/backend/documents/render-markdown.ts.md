@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/render-markdown.ts` (header-comment fallback)_
 
-_No leading comment block found._
+Each value is tagged with its field, so a click can select it.

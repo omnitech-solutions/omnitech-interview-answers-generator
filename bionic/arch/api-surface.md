@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (70)
+## Routes (73)
 
 | method | path | handler |
 |---|---|---|
@@ -31,6 +31,8 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/api/v1/library/items/:idOrSlug` | — |
 | GET | `/api/v1/library/search` | — |
 | GET | `/api/v1/playground-control` | — |
+| GET | `/companion-capability` | — |
+| GET | `/current` | — |
 | GET | `/platform/v1/agent-jobs/:id` | — |
 | GET | `/platform/v1/agent-jobs/:id/events` | — |
 | GET | `/platform/v1/agent-profiles` | — |
@@ -41,6 +43,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/presentation/v1/images` | — |
 | GET | `/presentation/v1/shared/:token` | — |
 | GET | `/presentation/v1/themes` | — |
+| GET | `/unrelated` | — |
 | PATCH | `/api/v1/playground-control` | — |
 | PATCH | `/presentation/v1/documents/:id` | — |
 | PATCH | `/presentation/v1/documents/:id/slides/:slideId` | — |
@@ -76,3 +79,7 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | PUT | `/presentation/v1/documents/:id/favorite` | — |
 | PUT | `/presentation/v1/documents/:id/slides` | — |
 | PUT | `/presentation/v1/themes/:id/:reaction` | — |
+
+## Residuals
+
+- 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 117, 122, 140, 141, 153, 207, 210, 216, 246; `products/interview/src/backend/live-session/hardening/world.ts` line 172.
