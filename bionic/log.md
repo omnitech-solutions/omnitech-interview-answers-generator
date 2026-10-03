@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | review: PB-0002 review-1 decisions: capability report advisory, ADR-0013 proposed
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T11:54-06:00. Refs: [[adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent]] [[adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and]] [[promptbooks/PB-0002-active-session-capability-for-interview-studio]] rule:pause-only-credential-stop rule:stop-authority
+
 ## [2026-10-03] adr | ADR-0013: Pause rather than end an Active Session on credential expiry or companion stop
 
 Proposed. File `bionic/adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent.md`. Tags: active-session, privacy, credential, interview. Amends ADR-0011 and ADR-0012; one governs rule (ADR-0013/pause-only-credential-stop) retiring ADR-0011/stop-authority on acceptance. Summaries, doctrine, lineage, ADR index and rollup regenerated. Not accepted: awaits the operator or council gate.
