@@ -3,7 +3,7 @@
 // start, pairing, the live stream, navigation, reload, the degraded states,
 // End and Delete. Browser rendering, the real companion and a real model are
 // outside what this can show.
-import type { AssistantConfig } from "@omnitech/assistant-react";
+import type { AssistantConfig } from "@omnitech-assistant/react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";

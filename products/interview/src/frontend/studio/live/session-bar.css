@@ -98,7 +98,7 @@
 .live-bar-button.danger {
   border: 0;
   background: var(--red);
-  color: var(--on-accent, #fff);
+  color: var(--on-accent);
 }
 .live-bar-button.danger:hover {
   background: var(--red);

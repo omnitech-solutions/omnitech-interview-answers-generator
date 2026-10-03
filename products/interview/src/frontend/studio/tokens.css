@@ -35,6 +35,7 @@
   --amber-soft: oklch(0.965 0.04 85);
   --code-bg: oklch(0.2 0.018 260);
   --code-border: oklch(0.28 0.02 260);
+  --code-text: oklch(0.93 0.005 260);
   --shadow: 0 1px 2px oklch(0.2 0.02 255 / 0.05), 0 4px 16px oklch(0.2 0.02 255 / 0.05);
   --pop: 0 12px 40px oklch(0.2 0.02 255 / 0.18), 0 1px 3px oklch(0.2 0.02 255 / 0.08);
 }
@@ -63,6 +64,7 @@
   --amber-soft: oklch(0.29 0.05 75);
   --code-bg: oklch(0.15 0.01 260);
   --code-border: oklch(0.26 0.01 260);
+  --code-text: oklch(0.93 0.005 260);
   --shadow: 0 1px 2px oklch(0 0 0 / 0.3);
   --pop: 0 12px 40px oklch(0 0 0 / 0.5);
 }

@@ -13,23 +13,9 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
 import { installScriptedService } from "./live-script-kit";
-import {
-  action,
-  disconnected,
-  gap,
-  minutesAfter,
-  SESSION_ID,
-  sessionView,
-  transcript,
-} from "./session-fixtures";
+import { LIVE, SCENARIOS } from "./live-scenarios";
+import { minutesAfter, sessionView } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
-import {
-  answerResult,
-  codeResult,
-  codingAnswer,
-  logisticsResult,
-  starResult,
-} from "./session-result-fixtures";
 
 vi.mock("@omnitech-assistant/react", () => ({
   AssistantRoot: ({
@@ -137,179 +123,6 @@ async function readEverything(): Promise<string> {
   return text;
 }
 
-type Scenario = {
-  name: string;
-  path?: string;
-  prepare(service: ReturnType<typeof installScriptedService>): void;
-  // Claims that must hold in this state.
-  must?: RegExp[];
-  // Wording that would be false in this state.
-  mustNot?: RegExp[];
-};
-
-const LIVE = "/t/local/p/interview/live";
-const fresh = () => ({ lastHeartbeatAt: minutesAfter(1) });
-
-const SCENARIOS: Scenario[] = [
-  {
-    name: "setup, defaults",
-    prepare: () => undefined,
-    must: [/Device only/, /Raw audio/, /Memory only, never saved/],
-    mustNot: [/connected/i, /receiving/i],
-  },
-  {
-    name: "just started: no contact recorded",
-    prepare: ({ script }) => {
-      script.session = sessionView({ status: "created" });
-    },
-    must: [/Waiting for first contact/],
-    mustNot: [
-      /connected/i,
-      /receiving/i,
-      /In contact/,
-      /Listening for a question/,
-    ],
-  },
-  {
-    name: "live and listening",
-    prepare: ({ script }) => {
-      script.session = sessionView(fresh());
-    },
-    must: [/Listening for a question/, /In contact/],
-    mustNot: [/Waiting for the capture companion/],
-  },
-  {
-    name: "paused",
-    prepare: ({ script }) => {
-      script.session = sessionView({ status: "paused", ...fresh() });
-    },
-    must: [/Paused/, /any result that arrives while paused is discarded/],
-    mustNot: [/Listening for a question/],
-  },
-  {
-    name: "permission revoked and a dropped gap",
-    prepare: ({ script }) => {
-      script.session = sessionView(fresh());
-      script.observations = [
-        disconnected(1, "microphone", "permission-revoked"),
-        gap(2, "application-audio", "buffer-overflow", 4000),
-      ];
-    },
-    must: [/Permission revoked/, /recorded in the transcript/],
-    mustNot: [/Receiving/],
-  },
-  {
-    name: "companion out of contact",
-    prepare: ({ script }) => {
-      script.session = sessionView({ lastHeartbeatAt: minutesAfter(-3) });
-      script.observations = [transcript(1, "Words from earlier.")];
-    },
-    must: [/No contact for/, /can't tell whether anything is being captured/],
-    mustNot: [
-      /Receiving/,
-      /In contact/,
-      /connected/i,
-      /Listening for a question/,
-    ],
-  },
-  {
-    name: "credential expired",
-    prepare: ({ script }) => {
-      script.session = sessionView({
-        credentialExpiresAt: minutesAfter(0, 30),
-        ...fresh(),
-      });
-    },
-    must: [/credential has expired/],
-  },
-  {
-    name: "credential revoked",
-    prepare: ({ script }) => {
-      script.session = sessionView({ credentialRevoked: true, ...fresh() });
-    },
-    must: [/credential was revoked/],
-  },
-  {
-    name: "answers of every kind, withheld and refused work, remote policy",
-    prepare: ({ script }) => {
-      script.session = sessionView({
-        processingPolicy: "permitted-remote",
-        ...fresh(),
-      });
-      script.observations = [transcript(1, "Question one.")];
-      script.actions = [
-        action({ taskId: "a", result: answerResult() }),
-        action({ taskId: "b", result: starResult() }),
-        action({ taskId: "c", result: logisticsResult() }),
-        action({ taskId: "d", result: codingAnswer(["Single thread"]) }),
-        action({
-          taskId: "d",
-          actionKind: "solve-code",
-          result: codeResult(),
-        }),
-        action({
-          taskId: "e",
-          dispatchStatus: "suppressed",
-          suppressionReason: "invalid_output",
-          result: { withheld: { rejectedClaimCount: 1 } },
-        }),
-      ];
-    },
-    must: [/Remote allowed/, /Profile fast · device-only policy/],
-    // Remote is allowed here, so nothing may say content stays on this Mac.
-    mustNot: [
-      /On this Mac only/,
-      /never sent elsewhere/,
-      /Refused: needs a remote model/,
-    ],
-  },
-  {
-    name: "device-only refusing coding work",
-    prepare: ({ script }) => {
-      script.session = sessionView(fresh());
-      script.actions = [
-        action({
-          taskId: "x",
-          actionKind: "solve-code",
-          dispatchStatus: "suppressed",
-          suppressionReason: "policy_refused",
-        }),
-      ];
-    },
-    must: [/On this Mac only/, /Refused: needs a remote model/],
-    mustNot: [/Remote allowed/, /Remote model, through Studio/],
-  },
-  {
-    name: "ended summary",
-    path: `${LIVE}/${SESSION_ID}`,
-    prepare: ({ script }) => {
-      script.session = sessionView({
-        status: "ended",
-        endedAt: minutesAfter(5),
-      });
-      script.actions = [action({ taskId: "a", result: answerResult() })];
-    },
-    must: [
-      /Nothing was submitted or sent for you/,
-      /Raw audio is never stored/,
-      /not deleted with it/,
-    ],
-    mustNot: [/nothing is running/i],
-  },
-  {
-    name: "deleted session tombstone",
-    path: `${LIVE}/${SESSION_ID}`,
-    prepare: ({ script }) => {
-      script.session = sessionView({
-        status: "ended",
-        endedAt: minutesAfter(5),
-        purged: true,
-      });
-    },
-    must: [/Session data deleted/, /were not deleted|not part of the session/],
-  },
-];
-
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(minutesAfter(1)));
@@ -371,7 +184,9 @@ describe("source scan", () => {
   const files = [
     ...readdirSync(here)
       .filter((file) => /\.(ts|tsx)$/.test(file) && !/\.test\./.test(file))
-      .filter((file) => !/fixtures|test-server|script-kit/.test(file))
+      .filter(
+        (file) => !/fixtures|test-server|script-kit|live-scenarios/.test(file),
+      )
       .map((file) => join(here, file)),
     join(here, "..", "rehearsal", "scorecard.tsx"),
   ];

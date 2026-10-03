@@ -80,6 +80,7 @@
   min-width: min(220px, 100%);
 }
 .live-banner-action {
+  min-height: 40px;
   height: 28px;
   padding: 0 12px;
   border-radius: 7px;
@@ -175,9 +176,16 @@
   gap: 6px;
 }
 .live-chip-button {
+  position: relative;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+/* The chip stays 22 px; its touch target is 40 px. */
+.live-chip-button::before {
+  content: "";
+  position: absolute;
+  inset: -9px -4px;
 }
 .live-chip-button:hover {
   background: var(--hover);

@@ -49,6 +49,7 @@
   color: var(--amber);
 }
 .setup-link {
+  position: relative;
   border: 0;
   padding: 0;
   background: none;
@@ -56,6 +57,12 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+/* An inline link keeps its look; its touch target is 40 px. */
+.setup-link::before {
+  content: "";
+  position: absolute;
+  inset: -12px -4px;
 }
 
 /* Target cards: auto-fill so a phone gets one column. */
@@ -153,6 +160,12 @@
   background: var(--subtle);
   cursor: pointer;
 }
+/* The switch stays 36 x 20; its touch target is 40 px. */
+.setup-switch::before {
+  content: "";
+  position: absolute;
+  inset: -10px -4px;
+}
 .setup-switch span {
   position: absolute;
   top: 2px;
@@ -162,6 +175,11 @@
   border-radius: 50%;
   background: var(--faint);
   transition: transform 0.15s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-switch span {
+    transition: none;
+  }
 }
 .setup-switch.on {
   border-color: var(--accent);
@@ -207,6 +225,7 @@
   background: var(--subtle);
 }
 .setup-segment {
+  min-height: 40px;
   height: 28px;
   padding: 0 12px;
   border: 0;

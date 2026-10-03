@@ -39,8 +39,8 @@
   border: 1px solid var(--code-border);
   border-radius: 8px;
   background: var(--code-bg);
-  color: oklch(0.93 0.005 260);
-  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--code-text);
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
   font-size: 12.5px;
   overflow-wrap: anywhere;
 }
