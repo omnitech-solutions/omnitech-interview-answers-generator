@@ -24,6 +24,7 @@ import type {
   SessionStorePort,
 } from "./processor-ports.js";
 import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
+import { capturedText } from "./replay-evidence-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
 import {
   createDatabaseClaimPort,
@@ -31,6 +32,7 @@ import {
 } from "./session-ports.js";
 import {
   CANNED_DRAFT,
+  CANNED_LOGISTICS_DRAFT,
   FIXTURE_SOURCES,
   type FixtureSegment,
 } from "./session-replay-fixtures.js";
@@ -98,7 +100,12 @@ export function createFakeGateway(
         executionId: `exec-${requests.length}`,
         family: "direct-model",
         targetId: "fake",
-        result: (behaviour.result?.(request) ?? CANNED_DRAFT) as T,
+        result: (behaviour.result?.(request) ??
+          (/\b(?:notice|salary|pay|compensation|available|availability|start|join|remote|onsite|hybrid)\b/i.test(
+            capturedText(request),
+          )
+            ? CANNED_LOGISTICS_DRAFT
+            : CANNED_DRAFT)) as T,
       };
     },
     streamStructured: unsupported,

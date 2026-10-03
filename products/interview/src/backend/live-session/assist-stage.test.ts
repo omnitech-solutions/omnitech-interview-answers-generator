@@ -522,14 +522,14 @@ describe("STAR outline (leadership-behavioural)", () => {
         ["We have 2500 engineers"],
       ),
     ).toEqual(["draft:spoken_figure", "draft:personal_claim_unsourced"]);
-    expect(
-      violationsOf(
-        output({
-          category: "other",
-          draft: "My expected salary is 150k and my notice period is 3 months.",
-        }),
-      ),
-    ).toEqual(["draft:preference_only_topic"]);
+    const disguised = violationsOf(
+      output({
+        category: "other",
+        draft: "My expected salary is 150k and my notice period is 3 months.",
+      }),
+    );
+    expect(disguised).toContain("draft:preference_only_topic");
+    expect(disguised).toContain("category:logistics_required");
   });
 
   it("requires a STAR object for leadership-behavioural", () => {
@@ -623,6 +623,47 @@ describe("logistics", () => {
 
   it("accepts found fields backed by candidate preferences", () => {
     expect(check(logistics())).toMatchObject({ ok: true });
+  });
+
+  it("publishes only exact preference source text for logistics, never a model paraphrase", () => {
+    const result = check(
+      logistics({ draft: "I am available whenever you need me." }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.draft).toContain("Notice period: two weeks.");
+    expect(result.draft.draft).not.toContain("available whenever");
+    expect(result.draft.claims[0]?.text).toBe("Notice period: two weeks.");
+  });
+
+  it("publishes fixed neutral logistics copy when no preference is cited", () => {
+    const result = check(
+      logistics({
+        draft: "I am available whenever you need me.",
+        claims: [],
+        logistics: { found: [], missing: ["notice-period"] },
+      }),
+      snapshotOf({ preferences: "" }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.draft).toBe(
+      "Ask the candidate to confirm this directly; no preference was cited for this answer.",
+    );
+    expect(result.draft.claims).toEqual([]);
+  });
+
+  it("refuses a model category that hides an availability answer", () => {
+    expect(
+      violationsOf(
+        output({
+          category: "other",
+          draft: "I am available whenever you need me.",
+          claims: [],
+        }),
+        snapshotOf({ preferences: "" }),
+      ),
+    ).toContain("category:logistics_required");
   });
 
   it("requires the logistics object and refuses it for other categories", () => {

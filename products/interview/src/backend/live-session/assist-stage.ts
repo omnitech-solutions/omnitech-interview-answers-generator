@@ -516,6 +516,83 @@ function crossFieldViolations(output: Output): string[] {
   return violations;
 }
 
+// [SAFETY] Logistics wording is assembled from pinned preference sources after
+// verification. The model may classify fields and cite sources, but none of
+// its candidate-specific prose is published: a lexical figure detector cannot
+// prove that every unstated number or availability paraphrase was caught.
+function renderLogistics(
+  output: Output,
+  snapshot: ContextSnapshot,
+): AssistDraft | null {
+  if (output.logistics === null) return null;
+  const claims: Claim[] = [];
+  const found: NonNullable<Output["logistics"]>["found"] = [];
+  for (const entry of output.logistics.found) {
+    if (found.some((item) => item.field === entry.field)) continue;
+    const modelClaim = output.claims[entry.claimIndex];
+    const source = modelClaim?.refs
+      .map((ref) => snapshot.sources.find((item) => item.id === ref.sourceId))
+      .find(
+        (item) =>
+          item?.sourceKind === "candidate-preference" &&
+          (entry.field === "notice-period"
+            ? isNoticePeriodText(item.text)
+            : entry.field === "compensation"
+              ? isCompensationText(item.text)
+              : true),
+      );
+    if (!source || source.text.length > MAX_QUOTE_CHARS) return null;
+    claims.push({
+      kind: "preference-backed",
+      text: source.text,
+      refs: [
+        {
+          sourceId: source.id,
+          revision: source.revision,
+          pointer: source.pointer,
+          quote: source.text,
+        },
+      ],
+    });
+    found.push({ field: entry.field, claimIndex: claims.length - 1 });
+  }
+  const draft =
+    claims.length === 0
+      ? "Ask the candidate to confirm this directly; no preference was cited for this answer."
+      : `From your stated preferences: ${claims.map((claim) => claim.text).join(" ")}`;
+  if (draft.length > MAX_DRAFT_CHARS) return null;
+  return {
+    ...output,
+    draft,
+    claims,
+    logistics: { found, missing: output.logistics.missing },
+    sections: claims.map(({ kind, text }) => ({ kind, text })),
+  };
+}
+
+// [GUARD] A model-selected category is not authority to turn a candidate's
+// logistics answer into unrestricted prose. These cues cover the ordinary
+// notice, pay and availability wording seen in captured questions and drafts;
+// the final logistics renderer still uses only pinned preference text.
+function hasLogisticsCue(output: Output, captured: readonly string[]): boolean {
+  const text = [
+    ...captured,
+    output.draft,
+    ...output.claims.map((claim) => claim.text),
+  ].join("\n");
+  return (
+    isNoticePeriodText(text) ||
+    isCompensationText(text) ||
+    /\b(?:i(?: am|'m)|my)\s+(?:available|availability|ready to start|ready to join|can start|could start|will start|would start|can join|could join)\b/i.test(
+      text,
+    ) ||
+    /\b(?:when|how soon|are you|you are|your)\b.{0,40}\b(?:available|join|start|work arrangement|remote|onsite|hybrid)\b/i.test(
+      text,
+    ) ||
+    output.claims.some((claim) => claim.kind === "preference-backed")
+  );
+}
+
 export function createAssistStage(
   options: { deviceImplementation?: boolean } = {},
 ): AssistStage {
@@ -567,6 +644,11 @@ export function createAssistStage(
         return { ok: false, violations: zodViolations(parsed.error) };
       const output = parsed.data;
       const violations = crossFieldViolations(output);
+      if (
+        output.category !== "logistics" &&
+        hasLogisticsCue(output, ctx.captured)
+      )
+        violations.push("category:logistics_required");
       const verified = verifyClaims(output.claims, {
         snapshot: ctx.snapshot,
         captured: ctx.captured,
@@ -587,6 +669,12 @@ export function createAssistStage(
       if (!verified.ok) violations.unshift(...verified.violations);
       if (violations.length > 0)
         return { ok: false, violations: violations.slice(0, 30) };
+      if (output.category === "logistics") {
+        const rendered = renderLogistics(output, ctx.snapshot);
+        return rendered
+          ? { ok: true, draft: rendered }
+          : { ok: false, violations: ["logistics:unrenderable"] };
+      }
       return {
         ok: true,
         draft: {

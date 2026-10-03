@@ -70,6 +70,8 @@ const GAPS = [
   "I want half a mil.",
   "I could join in one and a half.",
   "eıght weeks will do.",
+  "I can start in one.",
+  "I can start mon.",
 ];
 
 describe("logistics allowlist, review round 5 gaps", () => {

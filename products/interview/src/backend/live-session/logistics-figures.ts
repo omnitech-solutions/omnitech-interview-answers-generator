@@ -27,14 +27,13 @@ const UNIT_WORDS = new Set(
     "annual annually annum k dollar dollars buck bucks pound pounds quid euro euros usd gbp eur cad aud " +
     "january february march april june july august september october november december " +
     "jan feb mar apr jun jul aug sep sept oct nov dec " +
-    "monday tuesday wednesday thursday friday saturday sunday wed tue tues thu thur thurs fri " +
+    "monday tuesday wednesday thursday friday saturday sunday mon tue tues wed thu thur thurs fri sat sun " +
     "tomorrow tonight today weekend weekends midyear immediately asap christmas holidays eoy " +
     "summer autumn winter spring teens digit digits twice double triple mil lakh lakhs crore"
   ).split(" "),
 );
-// Decade plurals ("fifties") and capitalised short weekday names.
+// Decade plurals ("fifties").
 const DECADES = /^(?:twen|thir|for|fif|six|seven|eigh|nine)ties$/;
-const SHORT_DAYS = new Set(["Mon", "Sat", "Sun"]);
 // Letters NFKD leaves alone that read as Latin figures ("sıx", "ƒifty").
 const LOOKALIKES: Record<string, string> = { ı: "i", ƒ: "f", ſ: "s" };
 const ROMAN_LOWER = new Set(
@@ -71,7 +70,6 @@ const figureBearingToken = (token: string, index: number, all: string[]) => {
   const lower = token.toLowerCase();
   if (/\p{N}/u.test(token)) return true;
   if (DECADES.test(lower)) return true;
-  if (SHORT_DAYS.has(token)) return true;
   if (NUMBER_WORDS.has(lower) || UNIT_WORDS.has(lower)) return true;
   if (ROMAN_LOWER.has(lower)) return true;
   if (
@@ -85,6 +83,8 @@ const figureBearingToken = (token: string, index: number, all: string[]) => {
     return true;
   const before = (all[index - 1] ?? "").toLowerCase();
   const after = (all[index + 1] ?? "").toLowerCase();
+  // "one" is a quantity unless it is part of these ordinary idioms.
+  if (lower === "one") return after !== "of" && after !== "part";
   // "may" is a month only in a date position.
   if (lower === "may")
     return (

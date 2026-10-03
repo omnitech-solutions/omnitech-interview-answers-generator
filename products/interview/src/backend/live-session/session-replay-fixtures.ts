@@ -231,3 +231,17 @@ export const CANNED_DRAFT = {
   logistics: null,
   codingBrief: null,
 } as const;
+
+// A captured logistics question needs a logistics-shaped fake model response.
+// No preference citation is invented by test support.
+export const CANNED_LOGISTICS_DRAFT = {
+  category: "logistics",
+  draft: "Ask the candidate to confirm this directly.",
+  claims: [],
+  star: null,
+  logistics: {
+    found: [],
+    missing: ["notice-period", "compensation", "work-arrangement"],
+  },
+  codingBrief: null,
+} as const;
