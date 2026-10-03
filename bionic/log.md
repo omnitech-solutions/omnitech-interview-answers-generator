@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] lint | check-drift (9 clean / 2 drift / 1 broken / 0 crash; 9 not applicable)
+
+Clean: ADR summaries, doctrine, lineage, ADR index, index rollup, reviews index, journal index, observations, rule citations. DRIFT: `bionic/code/` (new Active Session sources not yet extracted; regenerate with `uv run --no-config extract-code-docs.py --config bionic/manifest.yml` at the prep prompt) and `bionic/arch/` (module graph and decision index changed; regenerate with `derive-arch.py --docs-dir bionic`; the data-model concern stays stubbed for this Drizzle repository). BROKEN: `check-promptbook-index.py` reports CHK-PB-11 missing-row for PB-0001 and PB-0002 though the index lists both; it reports the same for PB-0001 on master, so it predates this branch (fix the row format the checker expects, then rebuild the index). Plugin-authoring gates (catalog, opencode, readme footer, writing rules, runtime compat, routing table, rules catalog) report not applicable outside the plugin checkout.
+
 ## [2026-10-03] journal | Active Session private data ADR accepted after three review rounds
 
 Entry added to bionic/journal/2026-10.md.
