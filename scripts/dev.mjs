@@ -16,9 +16,8 @@ const localEnvironment = {
   AUTH_SECRET:
     process.env.AUTH_SECRET ??
     "development-only-auth-secret-change-before-deployment",
-  DATABASE_URL:
-    process.env.DATABASE_URL ??
-    "postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech",
+  // The compose.yaml database, as its application role.
+  DATABASE_URL: "postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech",
   // This fallback is scoped to the local `pnpm dev` launcher. Production and
   // direct worker starts still require an explicitly configured secret.
   AGENT_PAYLOAD_SECRET:
@@ -59,16 +58,14 @@ if (localEnvironment.LM_STUDIO_MODEL && !localEnvironment.AI_MODEL) {
   }
 }
 
-// The local database runs in Docker Compose unless DATABASE_URL names another.
-if (!process.env.DATABASE_URL) {
-  const database = spawnSync(
-    "docker",
-    ["compose", "up", "--detach", "--wait", "postgres"],
-    { stdio: "inherit" },
-  );
-  if (database.status !== 0) {
-    process.exit(database.status ?? 1);
-  }
+// The database runs in Docker Compose; wait until it accepts connections.
+const database = spawnSync(
+  "docker",
+  ["compose", "up", "--detach", "--wait", "postgres"],
+  { stdio: "inherit" },
+);
+if (database.status !== 0) {
+  process.exit(database.status ?? 1);
 }
 
 for (const [workspace, command] of [

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // The structured answer behind the Workspace stages. answerMarkdown is
-// rendered from it, so everything that reads Markdown keeps working.
+// rendered from it for every view that shows the answer as Markdown.
 const line = (max: number) => z.string().trim().min(1).max(max);
 
 export const answerGuideSchema = z.object({

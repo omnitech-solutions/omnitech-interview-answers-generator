@@ -8,24 +8,14 @@ import { createPlatformAiGateway } from "./ai";
 import { resolvePlatformContext } from "./context";
 import { getInterviewStudio } from "./interview-studio";
 
-const localDatabaseUrl =
-  "postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech";
-if (process.env["NODE_ENV"] !== "production" && !process.env["DATABASE_URL"]) {
-  process.env["DATABASE_URL"] = localDatabaseUrl;
-}
-
 export function createApplicationApi() {
   const api = new Hono();
-  const ai =
-    process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production"
-      ? createPlatformAiGateway()
-      : undefined;
+  const ai = createPlatformAiGateway();
   api.route(
     "/",
     createPlatformApi({
       resolveContext: resolvePlatformContext,
       savePreferences: async (context, preferences) => {
-        if (!process.env["DATABASE_URL"]) return;
         const [{ getPlatformDatabase }, { PlatformRepository }] =
           await Promise.all([
             import("@omnitech/database"),
@@ -43,7 +33,6 @@ export function createApplicationApi() {
       request.req.query("tenant") ?? "",
     );
     if (!context) return request.json({ error: "Context not found." }, 404);
-    if (!ai) return request.json({ error: "AI is not configured." }, 503);
     return request.json(
       await ai.listAvailableTargets({
         tenantId: context.tenant.id,
@@ -56,22 +45,18 @@ export function createApplicationApi() {
   api.route("/", createInterviewApi());
   // Interview Studio: the assistant, drafts, plan, briefs, briefing packs
   // and rehearsals, each scoped to the signed-in member of the tenant.
-  if (process.env["DATABASE_URL"] && ai) {
-    const forward = async (request: Request) =>
-      (await getInterviewStudio(ai)).app.fetch(request);
-    api.all("/api/assistant/*", (context) => forward(context.req.raw));
-    api.all("/api/interview/*", (context) => forward(context.req.raw));
-  }
-  if (process.env["DATABASE_URL"] || process.env["NODE_ENV"] !== "production") {
-    api.route("/api", createAgentApi());
-    api.route(
-      "/api",
-      createPresentationApi({
-        database: getPlatformDatabase(),
-        resolveContext: resolvePlatformContext,
-        ...(ai === undefined ? {} : { ai }),
-      }),
-    );
-  }
+  const forward = async (request: Request) =>
+    (await getInterviewStudio(ai)).app.fetch(request);
+  api.all("/api/assistant/*", (context) => forward(context.req.raw));
+  api.all("/api/interview/*", (context) => forward(context.req.raw));
+  api.route("/api", createAgentApi());
+  api.route(
+    "/api",
+    createPresentationApi({
+      database: getPlatformDatabase(),
+      resolveContext: resolvePlatformContext,
+      ai,
+    }),
+  );
   return api;
 }

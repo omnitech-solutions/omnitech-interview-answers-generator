@@ -110,8 +110,8 @@ the assistant's history and output limits fit.
 | `AI_BASE_URL` | Base URL for an OpenAI-compatible `/v1` API | Required |
 | `AI_MODEL` | Model sent to the provider | Required |
 | `AI_API_KEY` | Optional bearer token for the AI provider | Unset |
-| `AI_PROVIDER_ID` | Previous provider identifier | Inferred as `openai` or `lm-studio` |
-| `AI_PROVIDER_LABEL` | Previous provider display label | Inferred from its URL |
+| `AI_PROVIDER_ID` | Identifier for the `AI_*` provider | Inferred as `openai` or `lm-studio` |
+| `AI_PROVIDER_LABEL` | Display label for the `AI_*` provider | Inferred from its URL |
 | `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
 | `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
 | `OPENAI_MODEL` | OpenAI model offered when choosing a provider | Unset |

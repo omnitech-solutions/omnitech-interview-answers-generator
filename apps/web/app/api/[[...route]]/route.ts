@@ -1,11 +1,12 @@
-import { handle } from "hono/vercel";
-
 import { createApplicationApi } from "@/src/platform/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const handler = handle(createApplicationApi());
+// Built on the first request, so `next build` never needs the database.
+let api: ReturnType<typeof createApplicationApi> | undefined;
+const handler = (request: Request) =>
+  (api ??= createApplicationApi()).fetch(request);
 
 export {
   handler as DELETE,

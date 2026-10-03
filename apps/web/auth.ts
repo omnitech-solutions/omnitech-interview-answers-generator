@@ -52,8 +52,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ...(process.env["NODE_ENV"] === "production"
     ? {}
     : {
-        // Ignore cookies minted by an older local secret after a dev reset.
-        cookies: { sessionToken: { name: "omnitech-dev.session-token.v2" } },
+        // Development sessions never share production's cookie.
+        cookies: { sessionToken: { name: "omnitech.dev-session" } },
       }),
   trustHost: true,
   session: { strategy: "jwt" },
@@ -61,7 +61,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ account, user }) {
       if (
-        !process.env["DATABASE_URL"] ||
         !account ||
         !user.email ||
         (account.provider !== "google" && account.provider !== "linkedin")

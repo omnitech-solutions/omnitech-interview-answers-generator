@@ -30,11 +30,11 @@ export function resolveLanguageModels(
 ): ResolvedLanguageModel[] {
   const models: ResolvedLanguageModel[] = [];
   const timeoutMs = Number(environment.AI_TIMEOUT_MS) || 120_000;
-  const previousBaseUrl = environment.AI_BASE_URL?.trim();
-  const previousModel = environment.AI_MODEL?.trim();
+  const configuredBaseUrl = environment.AI_BASE_URL?.trim();
+  const configuredModel = environment.AI_MODEL?.trim();
 
-  if (previousBaseUrl && previousModel) {
-    const isLmStudio = /localhost|127\.0\.0\.1/.test(previousBaseUrl);
+  if (configuredBaseUrl && configuredModel) {
+    const isLmStudio = /localhost|127\.0\.0\.1/.test(configuredBaseUrl);
     models.push({
       id:
         environment.AI_PROVIDER_ID?.trim() ||
@@ -42,8 +42,8 @@ export function resolveLanguageModels(
       label:
         environment.AI_PROVIDER_LABEL?.trim() ||
         (isLmStudio ? "LM Studio" : "OpenAI"),
-      baseUrl: previousBaseUrl,
-      model: previousModel,
+      baseUrl: configuredBaseUrl,
+      model: configuredModel,
       ...(environment.AI_API_KEY === undefined
         ? {}
         : { apiKey: environment.AI_API_KEY }),

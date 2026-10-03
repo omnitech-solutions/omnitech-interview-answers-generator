@@ -73,7 +73,7 @@ describe("host structured adapter", () => {
       usage: { status: "unavailable", cost: { status: "unavailable" } },
     });
   });
-  it("fails invalid final output after text and uses full validation for the compatibility structured output seam", async () => {
+  it("fails invalid final output after text and validates streamed structured output against the schema", async () => {
     vi.stubGlobal("fetch", async () => stream('{"value":1}'));
     const adapter = createOpenAiModelAdapter({
       id: "local",

@@ -38,8 +38,8 @@ const localContext: PlatformContext = {
   products: [localInterviewInstallation, localPresentationInstallation],
 };
 
-async function resolveLocalContext(): Promise<PlatformContext> {
-  if (!process.env["DATABASE_URL"]) return localContext;
+// The bootstrapped local owner and tenant, for fake sign-in in development.
+async function resolveLocalContext(): Promise<PlatformContext | null> {
   const { getPlatformDatabase } = await import("@omnitech/database");
   const result = await getPlatformDatabase().query<{
     user_id: string;
@@ -60,7 +60,7 @@ async function resolveLocalContext(): Promise<PlatformContext> {
     [localContext.user.email, localContext.tenant.slug],
   );
   const row = result.rows[0];
-  if (!row) return localContext;
+  if (!row) return null;
   return {
     ...localContext,
     user: { ...localContext.user, id: row.user_id },
@@ -94,21 +94,7 @@ export async function resolvePlatformContext(
       : null;
   }
 
-  let session: { user?: { email?: string | null } | null } | null;
-  try {
-    session = await auth();
-  } catch (reason) {
-    // Local fake auth can recover from a stale JWT after a development secret changes.
-    if (localFakeAuth) {
-      return tenantSlug === localContext.tenant.slug
-        ? await resolveLocalContext()
-        : null;
-    }
-    throw reason;
-  }
-  if (!process.env["DATABASE_URL"]) {
-    return tenantSlug === localContext.tenant.slug ? localContext : null;
-  }
+  const session = await auth();
   if (!session?.user?.email) return null;
   const [{ getPlatformDatabase }, { PlatformRepository }] = await Promise.all([
     import("@omnitech/database"),

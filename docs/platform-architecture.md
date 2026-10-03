@@ -95,8 +95,8 @@ features must remain disabled until approval is confirmed.
 - Duplicate products or routes fail during application composition.
 - Missing or disabled installations return 404 without loading product code.
 - Missing permissions return 404 to avoid disclosing installed capabilities.
-- Database configuration is mandatory for deployed persistence. A deterministic
-  `local` context is available only when `DATABASE_URL` is absent.
+- `DATABASE_URL` is required; without it the app fails at its first database
+  call.
 - OAuth configuration failures return 503 before redirect. Invalid, expired, or
   cross-tenant callback state is rejected.
 - Product frontend chunks use route-level loading states; one product does not
@@ -113,8 +113,8 @@ applies migrations (`pnpm --filter @omnitech/database db:migrate`) and seeds the
 local owner and tenant (`pnpm --filter @omnitech/platform-storage
 db:bootstrap`). The app connects as `omnitech`, which owns the database but is
 neither a superuser nor exempt from row-level security; the container's
-administrator is `postgres`. Set `DATABASE_URL` to use another database
-instead.
+administrator is `postgres`. Tests start a throwaway container from the same
+image for each test file, so Docker is the only database dependency.
 
 Schemas are declared with Drizzle in the package that owns them and migrated by
 one Drizzle stream in `packages/database/drizzle`. After changing a schema file,

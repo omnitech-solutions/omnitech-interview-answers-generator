@@ -175,5 +175,3 @@ export function createOpenAiModelAdapter(
     },
   };
 }
-
-export const createOpenAiCompatibleModelAdapter = createOpenAiModelAdapter;

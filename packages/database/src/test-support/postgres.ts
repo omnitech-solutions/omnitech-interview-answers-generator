@@ -1,15 +1,14 @@
-import { execFileSync, spawn } from "node:child_process";
-import { once } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
 } from "../connection.js";
 
-const bin =
-  process.env["POSTGRES_BIN"] ?? "/opt/homebrew/opt/postgresql@15/bin";
+const docker = promisify(execFile);
+
+// The image compose.yaml runs, so tests see the same PostgreSQL as `pnpm dev`.
+const image = "postgres:17-alpine";
 
 export interface DisposablePostgres {
   ownerUrl: string;
@@ -18,84 +17,74 @@ export interface DisposablePostgres {
   stop(): Promise<void>;
 }
 
-// A throwaway cluster for one test file.
-// fixture_owner is the bootstrap superuser (it bypasses row-level security even
-// under FORCE); fixture_member is NOSUPERUSER NOBYPASSRLS, like the application
-// role must be.
+// A throwaway PostgreSQL container for one test file, on a free local port
+// with its data in memory. fixture_owner is the bootstrap superuser (it
+// bypasses row-level security even under FORCE); fixture_member is NOSUPERUSER
+// NOBYPASSRLS, like the application role.
 export async function startDisposablePostgres(): Promise<DisposablePostgres> {
-  const root = await mkdtemp(`${tmpdir()}/omnitech-assistant-pg-`);
-  const server = createServer();
-  server.listen(0, "127.0.0.1");
-  await once(server, "listening");
-  const address = server.address();
-  if (!address || typeof address === "string")
-    throw new Error("No fixture port");
-  const port = address.port;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  execFileSync(
-    `${bin}/initdb`,
-    [
-      "-D",
-      `${root}/data`,
-      "--auth=trust",
-      "--username=fixture_owner",
-      "--no-locale",
-    ],
-    { stdio: "pipe" },
-  );
-  const child = spawn(
-    `${bin}/postgres`,
-    ["-D", `${root}/data`, "-p", String(port), "-k", root, "-h", "127.0.0.1"],
-    {
-      stdio: ["ignore", "pipe", "pipe"],
-      // macOS postgres aborts ("became multithreaded") without a valid locale.
-      env: { ...process.env, LC_ALL: "C" },
-    },
-  );
-  let log = "";
-  child.stdout.on("data", (chunk: Buffer) => {
-    log += chunk.toString();
-  });
-  child.stderr.on("data", (chunk: Buffer) => {
-    log += chunk.toString();
-  });
-  const ownerUrl = `postgresql://fixture_owner@127.0.0.1:${port}/postgres`;
-  const memberUrl = `postgresql://fixture_member@127.0.0.1:${port}/postgres`;
-  const owner = createPlatformDatabase(ownerUrl);
+  const { stdout } = await docker("docker", [
+    "run",
+    "--detach",
+    "--rm",
+    "--publish",
+    "127.0.0.1::5432",
+    "--tmpfs",
+    "/var/lib/postgresql/data",
+    "--env",
+    "POSTGRES_USER=fixture_owner",
+    "--env",
+    "POSTGRES_DB=postgres",
+    "--env",
+    "POSTGRES_HOST_AUTH_METHOD=trust",
+    image,
+    // Durability is irrelevant for a database that lives for one test file.
+    "-c",
+    "fsync=off",
+    "-c",
+    "synchronous_commit=off",
+    "-c",
+    "full_page_writes=off",
+  ]);
+  const container = stdout.trim();
+  let owner: PlatformDatabase | undefined;
+  // `docker stop` asks PostgreSQL for a smart shutdown and kills the
+  // container if it has not exited within five seconds.
   const stop = async () => {
-    await owner.close().catch(() => undefined);
-    if (child.exitCode === null) {
-      // Smart shutdown waits for clients to disconnect. A client left open
-      // escalates it to fast shutdown after five seconds, then to a kill, so
-      // a test can never hang here.
-      const exited = once(child, "exit");
-      child.kill("SIGTERM");
-      const fast = setTimeout(() => child.kill("SIGINT"), 5_000);
-      const kill = setTimeout(() => child.kill("SIGKILL"), 10_000);
-      await exited;
-      clearTimeout(fast);
-      clearTimeout(kill);
-    }
-    await rm(root, { recursive: true, force: true });
+    await owner?.close().catch(() => undefined);
+    await docker("docker", ["stop", "--time", "5", container]).catch(
+      () => undefined,
+    );
   };
-  const deadline = Date.now() + 10_000;
   try {
+    const { stdout: published } = await docker("docker", [
+      "port",
+      container,
+      "5432/tcp",
+    ]);
+    const port = Number(published.trim().split("\n")[0]?.split(":").pop());
+    const ownerUrl = `postgresql://fixture_owner@127.0.0.1:${port}/postgres`;
+    const memberUrl = `postgresql://fixture_member@127.0.0.1:${port}/postgres`;
+    owner = createPlatformDatabase(ownerUrl);
+    // The image initialises the cluster before it accepts TCP connections.
+    const deadline = Date.now() + 30_000;
     for (;;) {
       try {
         await owner.query("SELECT 1");
         break;
       } catch (error) {
-        if (Date.now() >= deadline || child.exitCode !== null)
-          throw new Error(`Fixture startup failed: ${log}`, { cause: error });
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        if (Date.now() >= deadline)
+          throw new Error(`PostgreSQL container ${container} did not start`, {
+            cause: error,
+          });
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
     await owner.query(
       "CREATE ROLE fixture_member LOGIN NOSUPERUSER NOBYPASSRLS",
     );
+    return { ownerUrl, memberUrl, owner, stop };
   } catch (error) {
     await stop();
     throw error;
   }
-  return { ownerUrl, memberUrl, owner, stop };
 }
