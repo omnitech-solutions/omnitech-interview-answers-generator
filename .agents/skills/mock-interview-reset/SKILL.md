@@ -1,6 +1,6 @@
 ---
+name: mock-interview-reset
 description: Reset the current timed mock interview session
-targets: ["*"]
 ---
 
 # Reset mock interview

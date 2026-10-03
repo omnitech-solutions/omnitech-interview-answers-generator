@@ -12,35 +12,10 @@ coverage/
 .DS_Store
 .idea/
 
-# Rulesync targets are generated and must not be committed.
-/.agents/
-/.claude/
-/.cursor/
-/.opencode/
-/AGENTS.md
-
-# Codex output is generated apart from the shared project configuration.
-/.codex/*
-!/.codex/config.toml
-
-# Other Rulesync-compatible generated targets.
-/.continue/
-/.gemini/
-/.windsurf/
-
-# Local Rulesync state.
-rulesync.local.jsonc
-rulesync-apm.lock.yaml
-rulesync-gh.lock.yaml
-
-# Negate matching global ignore rules for canonical source and shared config.
-!.rulesync/
-!.rulesync/**
-!.codex/
-!/.codex/config.toml
-
-# Rulesync's canonical source stays committed; only its local cache is ignored.
-.rulesync/.installed/
+# Machine-local agent settings.
+/.claude/settings.local.json
+/.claude/worktrees/
+/.superpowers/
 
 # State of the local development launcher.
 /.dev-local/

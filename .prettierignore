@@ -2,14 +2,10 @@ node_modules
 dist
 .next
 .data
-.rulesync
 .agents
 .claude
-.codex
-.cursor
 .opencode
 .windsurf
 AGENTS.md
 CLAUDE.md
-opencode.jsonc
 pnpm-lock.yaml

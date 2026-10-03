@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.data/)",
+      "Read(.next/)",
+      "Read(dist/)",
+      "Read(node_modules/)"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": false
+  }
+}

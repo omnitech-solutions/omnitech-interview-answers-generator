@@ -1,6 +1,6 @@
 ---
+name: mock-interview-show
 description: Show the current mock interview control state
-targets: ["*"]
 ---
 
 # Show mock interview

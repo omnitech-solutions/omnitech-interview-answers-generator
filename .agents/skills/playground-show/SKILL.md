@@ -1,6 +1,6 @@
 ---
+name: playground-show
 description: Show the current open Playground control state
-targets: ["*"]
 ---
 
 # Show Playground

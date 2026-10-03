@@ -1,6 +1,6 @@
 ---
+name: explain
 description: Explain an interview topic with concise talking points and open it in Concept Lab
-targets: ["*"]
 ---
 
 # Explain workflow

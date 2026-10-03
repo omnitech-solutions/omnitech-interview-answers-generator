@@ -10,10 +10,7 @@
     "**/dist/**",
     "**/.next/**",
     "**/node_modules/**",
-    ".rulesync/**",
     ".claude/**",
-    ".codex/**",
-    ".cursor/**",
     ".windsurf/**",
     "apps/web/next-env.d.ts"
   ]

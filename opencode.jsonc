@@ -1,9 +1,0 @@
-{
-  "instructions": [
-    ".opencode/memories/ai-execution.md",
-    ".opencode/memories/overview.md",
-    ".opencode/memories/packages.md",
-    ".opencode/memories/platform-architecture.md",
-    ".opencode/memories/simplicity-first.md"
-  ]
-}

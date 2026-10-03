@@ -1,6 +1,6 @@
 ---
+name: playground
 description: Inspect, update, or clear the open Interview Answers Playground
-targets: ["*"]
 ---
 
 # Playground control

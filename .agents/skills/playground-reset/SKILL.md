@@ -1,6 +1,6 @@
 ---
+name: playground-reset
 description: Reset the open Playground to its initial state
-targets: ["*"]
 ---
 
 # Reset Playground

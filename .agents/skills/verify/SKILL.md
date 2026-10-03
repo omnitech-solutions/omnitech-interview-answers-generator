@@ -1,6 +1,6 @@
 ---
+name: verify
 description: Run the complete repository verification gate
-targets: ["*"]
 ---
 
 # Verify

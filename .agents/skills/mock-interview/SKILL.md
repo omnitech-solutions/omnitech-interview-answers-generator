@@ -1,6 +1,6 @@
 ---
+name: mock-interview
 description: Start a timed question-first mock interview session
-targets: ["*"]
 ---
 
 # Mock interview workflow

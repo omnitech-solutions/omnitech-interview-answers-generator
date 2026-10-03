@@ -1,6 +1,6 @@
 ---
+name: answer
 description: Answer a coding-interview question and place the complete result in the open Playground
-targets: ["*"]
 ---
 
 # Answer workflow

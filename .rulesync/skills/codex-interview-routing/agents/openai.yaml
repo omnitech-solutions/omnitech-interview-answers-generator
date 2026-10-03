@@ -1,3 +1,0 @@
-interface:
-  display_name: "Codex Interview Routing"
-  short_description: "Route interview commands and Playground requests"
