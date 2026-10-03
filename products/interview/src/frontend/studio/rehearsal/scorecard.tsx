@@ -1,4 +1,7 @@
-import { createRehearsalClient } from "@omnitech/interview-api-client";
+import {
+  createRehearsalClient,
+  InterviewApiError,
+} from "@omnitech/interview-api-client";
 import {
   CHECK_POINTS,
   REVEAL_COST,
@@ -28,10 +31,13 @@ function liveSessionNote(
   link: RehearsalRunLink,
   saved: "saving" | "saved" | "failed",
   sessionHints: number,
+  alreadyCounted: boolean,
 ): string | null {
   if (link.kind === "strictness-mismatch")
-    return "Your live session used a different strictness, so its hints were not counted.";
+    return "Your live session used a different strictness, so this session's hints were NOT applied to the score.";
   if (link.kind !== "linked" || saved !== "saved") return null;
+  if (alreadyCounted)
+    return "This live session's hints were already counted by an earlier save, so this save adds none.";
   const count =
     sessionHints === 0
       ? "No drafts from your live session were counted as hints."
@@ -65,6 +71,8 @@ export function Scorecard({
   const [saved, setSaved] = useState<"saving" | "saved" | "failed">("saving");
   // What the server stored: its score includes any live-session hints.
   const [result, setResult] = useState<RehearsalSession | null>(null);
+  // The server had already derived this run id's hints: saved without them.
+  const [alreadyCounted, setAlreadyCounted] = useState(false);
   const saving = useRef(false);
   // [SAFETY] Chosen once, when the save starts: the session's run id is sent
   // only when its strictness matches this rehearsal's.
@@ -77,8 +85,9 @@ export function Scorecard({
     saving.current = true;
     link.current = currentRehearsalLink(settings.strict);
     const linked = link.current;
-    createRehearsalClient({ baseUrl: "", fetch: studioFetch })
-      .save({
+    const client = createRehearsalClient({ baseUrl: "", fetch: studioFetch });
+    const save = (runId: string | null) =>
+      client.save({
         format: settings.format,
         strict: settings.strict,
         followUps: settings.followUps,
@@ -89,16 +98,34 @@ export function Scorecard({
         activeSeconds: session.elapsed,
         startedAt: session.startedAt,
         endedAt: new Date().toISOString(),
-        ...(linked.kind === "linked" ? { rehearsalRunId: linked.runId } : {}),
+        ...(runId ? { rehearsalRunId: runId } : {}),
+      });
+    const stored = (result: RehearsalSession) => {
+      setResult(result);
+      setSaved("saved");
+    };
+    save(linked.kind === "linked" ? linked.runId : null)
+      .then((result) => {
+        if (linked.kind === "linked") markRehearsalRunSaved(linked.runId);
+        stored(result);
       })
-      .then(
-        (stored) => {
-          if (linked.kind === "linked") markRehearsalRunSaved(linked.runId);
-          setResult(stored);
-          setSaved("saved");
-        },
-        () => setSaved("failed"),
-      );
+      .catch((error: unknown) => {
+        // [SAFETY] A run id derives hints once. If the server already did (a
+        // save this page no longer remembers), remember it and save once more
+        // without it, rather than leaving the scorecard failed forever.
+        if (
+          linked.kind === "linked" &&
+          error instanceof InterviewApiError &&
+          error.status === 409 &&
+          error.message === "rehearsal-run-already-saved"
+        ) {
+          markRehearsalRunSaved(linked.runId);
+          setAlreadyCounted(true);
+          return save(null).then(stored);
+        }
+        throw error;
+      })
+      .catch(() => setSaved("failed"));
   }, [settings, material, session]);
 
   // [DOMAIN] Practise the first two missed habits on the coding question,
@@ -131,7 +158,12 @@ export function Scorecard({
     ];
   const hints = session.reveals.length;
   const sessionHints = result?.sessionHints ?? 0;
-  const linkNote = liveSessionNote(link.current, saved, sessionHints);
+  const linkNote = liveSessionNote(
+    link.current,
+    saved,
+    sessionHints,
+    alreadyCounted,
+  );
 
   return (
     <div className="rehearsal-score">

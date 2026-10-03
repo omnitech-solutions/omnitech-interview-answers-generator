@@ -70,6 +70,8 @@ const brief = {
 
 let saves: unknown[];
 let saveFails: boolean;
+// The server already derived hints for this run id (a save before a reload).
+let runAlreadySaved = false;
 // What the server adds to a saved rehearsal (the derived session hints).
 let saveExtra: Record<string, unknown> = {};
 // The Active Session the store holds (null: none open).
@@ -83,6 +85,11 @@ function installServer() {
       if (input === "/api/interview/rehearsals" && init?.method === "POST") {
         const body = JSON.parse(String(init.body));
         saves.push(body);
+        if (runAlreadySaved && body.rehearsalRunId)
+          return Response.json(
+            { error: { code: "rehearsal-run-already-saved" } },
+            { status: 409 },
+          );
         return saveFails
           ? Response.json({ error: { code: "boom" } }, { status: 500 })
           : Response.json({
@@ -174,6 +181,7 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   saveFails = false;
+  runAlreadySaved = false;
   loadFails = false;
   saveExtra = {};
   liveSession = null;
@@ -443,7 +451,25 @@ describe("Rehearsal with a live session", () => {
     await screen.findByText("Saved to your rehearsal history.");
     expect(saves[0]).not.toHaveProperty("rehearsalRunId");
     expect(
-      screen.getByText(/different strictness, so its hints were not counted/),
+      screen.getByText(
+        /different strictness, so this session's hints were NOT applied to the score/,
+      ),
+    ).toBeVisible();
+  });
+
+  it("retries once without the run id when the server already derived it, and says so", async () => {
+    // E.g. a save before a reload that this page no longer remembers.
+    runAlreadySaved = true;
+    await holdSession({ rehearsalRunId: "run-1" });
+    await finishConceptSprint();
+    expect(
+      await screen.findByText("Saved to your rehearsal history."),
+    ).toBeVisible();
+    expect(saves).toHaveLength(2);
+    expect(saves[0]).toHaveProperty("rehearsalRunId", "run-1");
+    expect(saves[1]).not.toHaveProperty("rehearsalRunId");
+    expect(
+      screen.getByText(/already counted by an earlier save/),
     ).toBeVisible();
   });
 
