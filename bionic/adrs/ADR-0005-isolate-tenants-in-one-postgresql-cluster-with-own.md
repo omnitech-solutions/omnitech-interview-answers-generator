@@ -56,6 +56,27 @@ The tables, helpers and tests that implement this model are described in
    Drizzle cannot declare (forced row-level security, immutability triggers).
    Schema files and migrations agree, and drift tests enforce it.
 
+6. **Narrow access outside a tenant.** A path that cannot know its tenant
+   up front opens only the rows it must, through a named policy, never by
+   disabling row-level security or widening a tenant policy:
+   - the assistant run worker leases queued runs across members
+     (`app.run_worker`);
+   - the agent worker advances jobs by id, and may append events, through
+     `agent_worker_read`, `agent_worker_update` and `agent_worker_append`
+     (`app.agent_worker`), set only by the worker-only repository that only
+     `apps/agent-worker` constructs; a job's tenant, owner, product, profile and
+     prompt never change after creation;
+   - an agent payload is read by its unguessable reference
+     (`payload_reference_lookup`);
+   - a public share link resolves one share by its token hash
+     (`share_token_lookup`), then continues inside the share's tenant;
+   - shared catalog rows with no tenant (built-in themes, exercises) are
+     readable by every tenant and never written through one; a tenant row may
+     reference a catalog row or its own tenant's row, and a `catalog_in_tenant`
+     trigger refuses a reference to another tenant's row.
+   A test fails if any file outside `packages/database` sets the tenant or
+   actor context, or if the worker setting is used outside its one owner.
+
 ## Consequences
 
 **Positive:**
