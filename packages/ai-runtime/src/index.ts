@@ -59,24 +59,6 @@ export interface CreateAiExecutionGatewayOptions {
   authorize(context: AiAccessContext, profile: AiProfile): Promise<boolean>;
 }
 
-export function composeInstructions(parts: {
-  platform: readonly string[];
-  worker: readonly string[];
-  product: readonly string[];
-  tenant: readonly string[];
-  task: string;
-}): string {
-  return [
-    ...parts.platform,
-    ...parts.worker,
-    ...parts.product,
-    ...parts.tenant,
-    parts.task,
-  ]
-    .filter((value) => value.trim().length > 0)
-    .join("\n\n");
-}
-
 export function createAiExecutionGateway(
   options: CreateAiExecutionGatewayOptions,
 ): AiExecutionGateway {
