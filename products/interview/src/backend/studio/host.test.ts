@@ -4,6 +4,7 @@ import {
   PgBossRunQueue,
 } from "@omnitech-assistant/storage-postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { InterviewWorkspaceRepository } from "../assistant/workspace.js";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { disposablePostgres } from "../assistant/workspace-fixture.js";
 import { createInterviewStudio } from "./host.js";
@@ -17,6 +18,8 @@ const alice: Scope = {
   actorId: "alice",
   productId: INTERVIEW_PRODUCT_ID,
 };
+// A second member of the same tenant (the cross-user case).
+const bob: Scope = { ...alice, actorId: "bob" };
 const generate = vi.fn(async () => ({}));
 const runner = { runAll: vi.fn() };
 
@@ -36,8 +39,8 @@ beforeAll(async () => {
     queue,
     // The test names the member in a header the way the host's session does.
     resolveScope: async (request) =>
-      request.headers.get("x-member") === "alice" ? alice : null,
-    isMember: async (scope) => scope.actorId === "alice",
+      ({ alice, bob })[request.headers.get("x-member") ?? ""] ?? null,
+    isMember: async (scope) => ["alice", "bob"].includes(scope.actorId),
     model: { async *stream() {} },
     modelVersion: "test",
     generate,
@@ -184,6 +187,46 @@ describe("Interview Studio host", () => {
     expect(threads.status).toBe(200);
     expect(await threads.json()).toEqual([]);
     expect(typeof studio.worker.tick).toBe("function");
+  });
+
+  it("serves a session-owned draft to its owner only and never starts one", async () => {
+    const workspace = new InterviewWorkspaceRepository(pg.database);
+    const key = "active-session:11111111-1111-4111-8111-111111111111";
+    const list = `/api/interview/workspaces/${encodeURIComponent(key)}/artifacts`;
+    const path = `${list}/${encodeURIComponent("coding:task-1")}`;
+
+    // [GUARD] Opening a draft the session has not written yet must not create
+    // a placeholder: one would block the session's own later publish.
+    expect((await call(path)).status).toBe(404);
+    expect(await (await call(list)).json()).toEqual([]);
+
+    await workspace.create(
+      alice,
+      { workspaceId: key, artifactId: "coding:task-1", artifactRevision: 0 },
+      { question: "Rate limiter", notes: "" },
+    );
+    const owned = await call(path);
+    expect(owned.status).toBe(200);
+    expect((await owned.json()).value.question).toBe("Rate limiter");
+
+    // [SAFETY] The same tenant's other member cannot read, edit or list it, and
+    // reading never starts one in their own namespace either.
+    const origin = {
+      workspaceId: key,
+      artifactId: "coding:task-1",
+      artifactRevision: 1,
+    };
+    expect((await call(path, { member: "bob" })).status).toBe(404);
+    expect(
+      (
+        await call(path, {
+          member: "bob",
+          method: "PATCH",
+          body: { origin, patch: { notes: "x" } },
+        })
+      ).status,
+    ).toBe(404);
+    expect(await (await call(list, { member: "bob" })).json()).toEqual([]);
   });
 
   it("denies everything once a source the member relies on is restricted", async () => {

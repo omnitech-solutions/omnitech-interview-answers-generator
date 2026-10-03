@@ -40,6 +40,8 @@ import {
 } from "../../assistant-profile.js";
 
 const NEW_QUESTION = "New interview question";
+// The Workspace id prefix of a session-owned draft (live-session/session-drafts.ts).
+const SESSION_WORKSPACE_PREFIX = "active-session:";
 
 type StructuredInput = {
   system: string;
@@ -309,6 +311,11 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
       );
     } catch (error) {
       if (productOperationFailure(error)?.code !== "not-found") throw error;
+      // [GUARD] A session's Workspace is written only by the session, inside
+      // its publish transaction. A placeholder made by opening it would make
+      // that publish see "a draft this session never wrote" and refuse it
+      // (session-drafts.ts), so a missing one is simply not found.
+      if (origin.workspaceId.startsWith(SESSION_WORKSPACE_PREFIX)) throw error;
       return context.json(
         await workspace.create(scope, origin, {
           question: NEW_QUESTION,
