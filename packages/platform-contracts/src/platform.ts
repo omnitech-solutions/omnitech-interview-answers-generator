@@ -6,29 +6,6 @@ export const userPreferencesSchema = z.object({
   aiProfileId: z.string().trim().min(1).nullable().optional(),
 });
 
-export interface PlatformUser {
-  id: string;
-  email: string;
-  displayName: string;
-  avatarUrl: string | null;
-}
-
-export interface AuthenticatedUser extends PlatformUser {
-  sessionId: string;
-}
-
-export interface PlatformTenant {
-  id: string;
-  slug: string;
-  name: string;
-}
-
-export interface TenantMembership {
-  tenantId: string;
-  userId: string;
-  role: "owner" | "admin" | "member";
-}
-
 export type UserPreferences = z.infer<typeof userPreferencesSchema>;
 
 const productNavigationRouteConfigurationSchema = z.object({
@@ -94,33 +71,3 @@ export const platformContextSchema = z.object({
 });
 
 export type PlatformContext = z.infer<typeof platformContextSchema>;
-
-export const connectedAccountSummarySchema = z.object({
-  provider: z.enum(["google", "linkedin"]),
-  status: z.enum(["connected", "expired", "revoked"]),
-  scopes: z.array(z.string()),
-  expiresAt: z.string().datetime().nullable(),
-});
-
-export type ConnectedAccountSummary = z.infer<
-  typeof connectedAccountSummarySchema
->;
-
-export const artifactMetadataSchema = z.object({
-  tags: z.array(z.string()),
-  summary: z.string().nullable(),
-  thumbnailUrl: z.string().url().nullable(),
-});
-
-export type ArtifactMetadata = z.infer<typeof artifactMetadataSchema>;
-
-export const apiErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    requestId: z.string(),
-    issues: z.array(z.string()).optional(),
-  }),
-});
-
-export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
