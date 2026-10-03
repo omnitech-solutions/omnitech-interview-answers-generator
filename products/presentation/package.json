@@ -15,7 +15,8 @@
     "./manifest": {
       "types": "./dist/manifest.d.ts",
       "import": "./dist/manifest.js"
-    }
+    },
+    "./presentation.css": "./src/frontend/presentation.css"
   },
   "scripts": {
     "build": "tsc -b",

@@ -6,6 +6,7 @@ import "@oc-tech/omni-ui-components/styles.css";
 import "@omnitech-assistant/react/styles.css";
 import "./styles.css";
 import "@omnitech/product-interview/studio.css";
+import "@omnitech/product-presentation/presentation.css";
 
 import type { Metadata } from "next";
 import React, { type ReactNode } from "react";
