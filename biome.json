@@ -6,12 +6,12 @@
       "!**/node_modules",
       "!**/.next",
       "!**/.data",
-      "!.assistant-local",
       "!.dev-local",
       "!**/dist",
       "!**/.turbo",
       "!coverage",
-      "!packages/database/drizzle"
+      "!packages/database/drizzle",
+      "!bionic"
     ]
   },
   "formatter": {

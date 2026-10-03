@@ -2,8 +2,8 @@
 
 Omnitech Studio is a pluggable, tenant-aware product catalog. Next.js provides
 the cohesive delivery shell while product frontend and backend logic lives in
-`products/*`. See [Platform architecture](docs/platform-architecture.md) and
-[Adding a product](docs/adding-a-product.md).
+`products/*`. See [Platform architecture](bionic/research/concepts/platform-architecture.md)
+and [Adding a product](bionic/research/references/adding-a-product.md).
 
 Its interview product is **Interview Studio**, served at
 `/t/<tenant>/p/interview`:
@@ -232,19 +232,22 @@ answer.
 
 ## Agent workflows
 
-Generated Rulesync commands provide the same workflow to supported coding
-agents:
+Project skills live once in `.agents/skills/`; `.claude/skills` and
+`.opencode/skills` link to it, so Claude Code, Codex, and OpenCode load the same
+copy. `AGENTS.md` is the single instruction file for all three. Edit those
+files directly — nothing generates them.
 
 - `/answer` solves a supplied question and updates the live Playground.
 - `/explain` creates a concise briefing and shows it in Briefings.
 - `/playground` routes show, reset, and question-update requests.
 - `/playground-show` displays the current Playground state.
 - `/playground-reset` clears the Playground.
-- `/verify` verifies an interview answer.
+- `/mock-interview`, `/mock-interview-show`, and `/mock-interview-reset` drive
+  Rehearsal.
+- `/verify` runs the repository verification gate.
 
-Run `pnpm rulesync:generate` after changing the canonical `.rulesync` commands,
-skills, or rules. Run `pnpm rulesync:verify` to confirm the generated `.codex`
-artifacts are current.
+Development work follows crux: decisions, research, the journal, promptbooks,
+and invariants live in `bionic/` (see `bionic/AGENTS.md` and `USER_GUIDE.md`).
 
 ## Workspace structure
 
@@ -271,8 +274,6 @@ artifacts are current.
 - `@omnitech/interview-answers-cli`: global CLI and configured client factories.
 - `@omnitech/interview-playground-control`: typed `get`, `set`,
   `appendExplanation`, and `reset` client for the live Playground.
-- `@omnitech/interview-rulesync-codex`: validates and generates Codex-facing
-  Rulesync artifacts.
 
 ## Quality gates
 

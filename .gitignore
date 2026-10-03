@@ -15,7 +15,6 @@ coverage/
 # Machine-local agent settings.
 /.claude/settings.local.json
 /.claude/worktrees/
-/.superpowers/
 
 # State of the local development launcher.
 /.dev-local/

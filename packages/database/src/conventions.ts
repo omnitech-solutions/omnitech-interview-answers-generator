@@ -10,9 +10,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// Plain helpers for tenant-owned tables (see docs/architecture/interview-domain.md).
-// The platform tables are arguments, so this package never imports
-// @omnitech/platform-storage.
+// Plain helpers for tenant-owned tables (see
+// bionic/research/concepts/interview-domain-model.md). The platform tables
+// are arguments, so this package never imports @omnitech/platform-storage.
 export interface PlatformTables {
   tenants: { id: AnyPgColumn };
   users: { id: AnyPgColumn };
