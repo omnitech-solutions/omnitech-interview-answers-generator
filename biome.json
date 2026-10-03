@@ -11,7 +11,8 @@
       "!**/.turbo",
       "!coverage",
       "!packages/database/drizzle",
-      "!bionic"
+      "!bionic",
+      "!.claude/worktrees"
     ]
   },
   "formatter": {
