@@ -31,29 +31,64 @@ governs:
     handle: ADR-0011/linked-resource-authorization
     provenance: authored
   - domain: active-session-privacy
-    rule: "Every session read path opens an actor-scoped transaction for the session's owner."
+    rule: "The database refuses loosening the processing policy, lengthening retention, and changing tenant, owner, links or the sources snapshot."
+    scope: active_sessions
+    handle: ADR-0011/immutable-privacy-columns
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "Every session read path opens an actor-scoped transaction for the session owner."
     scope: session streams, downloads, context assembly, job results and artifact discovery
     handle: ADR-0011/owner-checked-read-paths
     provenance: authored
   - domain: active-session-privacy
-    rule: "Rows of ai.agent_jobs and their child tables are readable and cancellable only by the job's user or the agent worker."
-    scope: packages/platform-storage ai schema and agent-job repository
-    handle: ADR-0011/actor-guarded-agent-jobs
+    rule: "A job created by a session is private to its creator, and the agent worker alone may act on it as a non-owner."
+    scope: packages/platform-storage ai schema and agent-job repositories
+    handle: ADR-0011/private-session-jobs
     provenance: authored
   - domain: active-session-privacy
-    rule: "Session artifact types are named in the artifact owner-only policies in the same migration that introduces them."
+    rule: "Session artifact types are named in the artifact owner-only policies in the migration that introduces them."
     scope: platform.artifacts policies
     handle: ADR-0011/private-session-artifact-types
     provenance: authored
   - domain: active-session-privacy
-    rule: "The session worker claims sessions across tenants through one setting, one owning file and lease and fence columns only."
-    scope: app.session_worker policy and its single owning file
-    handle: ADR-0011/session-claim-policy
+    rule: "The session worker claims sessions across tenants through one named setting with one owning file listed in the tenant-context-boundary test."
+    scope: app.session_worker and its owning file
+    handle: ADR-0011/session-claim-setting
     provenance: authored
   - domain: active-session-privacy
-    rule: "Final transcript text lives only in session observation rows, and selected screenshots only as owner-private artifacts with payloads."
+    rule: "Under the session claim setting the database permits changing only lease and fence columns."
+    scope: active_sessions
+    handle: ADR-0011/claim-writes-lease-and-fence-only
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "A named policy admits only the one session row whose credential hash is presented, after which access is tenant-and-actor scoped."
+    scope: ingest credential resolution
+    handle: ADR-0011/credential-lookup-policy
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "Deleting session artifacts requires a named setting with one owning file, plus matching owner and session artifact type."
+    scope: platform.artifacts delete policy and the purge module
+    handle: ADR-0011/purge-delete-setting
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "The session credential expires no later than session end, extends only by owner-initiated replacement, and is revoked on end, purge, membership removal or owner request."
+    scope: session credential
+    handle: ADR-0011/credential-lifetime-and-renewal
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "Ingest rechecks membership every time, and the companion holds the credential only in the keychain or memory."
+    scope: ingest routes and apps/capture-companion
+    handle: ADR-0011/credential-held-securely
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "Final transcript text lives only in session observation rows."
     scope: session content storage
-    handle: ADR-0011/content-storage-of-record
+    handle: ADR-0011/transcripts-in-observations
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "Selected screenshots live only as owner-private image artifacts with payloads, checked by leading bytes and served inert."
+    scope: session content storage and download routes
+    handle: ADR-0011/screenshots-as-private-artifacts
     provenance: authored
   - domain: active-session-privacy
     rule: "Raw audio is held only in a bounded companion memory buffer and is never sent, stored or logged."
@@ -66,17 +101,22 @@ governs:
     handle: ADR-0011/bounded-ingest
     provenance: authored
   - domain: active-session-privacy
-    rule: "Retention is one of delete at end, thirty days or until deleted, defaults to delete at end and is chosen only by the owner."
+    rule: "Retention is delete at end, thirty days from end, or until deleted, defaulting to delete at end."
     scope: session start and retention control
     handle: ADR-0011/retention-modes
     provenance: authored
   - domain: active-session-privacy
-    rule: "One idempotent purge deletes all session content, job payloads included, and records a content-free receipt."
+    rule: "Only the session owner chooses or shortens retention."
+    scope: session start and retention control
+    handle: ADR-0011/owner-chooses-retention
+    provenance: authored
+  - domain: active-session-privacy
+    rule: "One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone."
     scope: products/interview session purge and the worker session loop
     handle: ADR-0011/complete-session-purge
     provenance: authored
   - domain: active-session-privacy
-    rule: "Traces and logs hold ids, revisions, profiles, durations, outcomes, byte counts and validation paths, never content or content hashes."
+    rule: "Traces and logs hold ids, revisions, profiles, durations, outcomes, byte counts and validation paths, never content, credentials or content hashes."
     scope: session core, processor and routes
     handle: ADR-0011/id-only-traces
     provenance: authored
@@ -85,9 +125,14 @@ governs:
     scope: session processor and interview policy
     handle: ADR-0011/captured-input-untrusted
     provenance: authored
+  - domain: active-session-privacy
+    rule: "Session-authored drafts render without fetching external resources."
+    scope: Studio session view and Workspace draft rendering
+    handle: ADR-0011/inert-draft-rendering
+    provenance: authored
   - domain: active-session-locality
-    rule: "Every AI profile declares its locality in host configuration, and a missing or unknown value is treated as remote."
-    scope: packages/ai-runtime profiles and apps/web profile configuration
+    rule: "Every AI profile declares its locality in the shared profile configuration source, and a missing or unknown value is treated as remote."
+    scope: packages/ai-runtime profiles and shared host configuration
     handle: ADR-0011/declared-profile-locality
     provenance: authored
   - domain: active-session-locality
@@ -101,9 +146,9 @@ governs:
     handle: ADR-0011/device-only-enforced-twice
     provenance: authored
   - domain: active-session-locality
-    rule: "A device-only session refuses a stage that has no device-locality implementation instead of degrading it."
-    scope: transcription, image interpretation, coding inference and agent jobs
-    handle: ADR-0011/refuse-not-degrade
+    rule: "Every model call carrying session content goes through the gateway with the session policy, and a stage with no device implementation is refused in device-only mode."
+    scope: the session processor and interview policy
+    handle: ADR-0011/model-calls-gateway-routed
     provenance: authored
   - domain: active-session-locality
     rule: "A session may tighten its processing policy to device-only but never loosen it."
@@ -111,12 +156,17 @@ governs:
     handle: ADR-0011/tighten-only-locality
     provenance: authored
   - domain: active-session-rehearsal
-    rule: "A session never writes a Rehearsal scorecard, and live assistance in a strict rehearsal is disabled."
+    rule: "A session never writes a Rehearsal scorecard."
     scope: session start and the Rehearsal flow
     handle: ADR-0011/no-second-scorecard
     provenance: authored
   - domain: active-session-rehearsal
-    rule: "In a non-strict rehearsal each shown assistance draft is counted as a hint at the existing hint cost."
+    rule: "Live assistance is disabled in a strict rehearsal."
+    scope: session start
+    handle: ADR-0011/strict-rehearsal-no-assistance
+    provenance: authored
+  - domain: active-session-rehearsal
+    rule: "In a non-strict rehearsal each shown assistance draft counts as a hint at the existing hint cost, keyed by the rehearsal run id."
     scope: session actions and the Rehearsal scorecard
     handle: ADR-0011/assistance-counts-as-hints
     provenance: authored
@@ -128,50 +178,50 @@ governs:
 
 ADR-0010 fixes where the Active Session processor runs and how it talks to the companion, and defers private data, retention, locality and untrusted input to this decision. A transcript of the candidate and the interviewer, and screenshots of their screen, are the most private data Interview Studio holds; OBJ-5 requires them to stay inside the owner's view, and OBJ-3 requires a rehearsal to keep one scorecard.
 
-The code facts that shape the decision, verified in this branch:
+Terms. The owner is the user who started the session. A request's actor is its authenticated user, and row security binds tenant and actor to a row's tenant and owner. The claim is the worker's cross-tenant lookup of sessions to process (ADR-0010). Retention is the policy chosen at start; a purge is the deletion act, triggered by session end, owner delete or retention expiry. The tombstone is the purged session row, content-free, holding the purge outcome, counts and time.
 
-- Interview tables and `ai.agent_jobs` with its child tables are scoped by tenant only; a teammate in the same tenant can read them. Foreign keys are checked without row security, so a session could be pointed at another member's resource.
-- The Documents migration is the precedent: owner-scoped forced policies, composite tenant and owner keys, trigger-based linked-resource checks, and restrictive `platform.artifacts` policies that list only the three document types. Any other artifact type is discoverable by the whole tenant.
-- Artifact payload rows are owner-only bytea up to 10 MiB. The assistant draft table uses text keys, so a UUID session table cannot reference it by foreign key.
-- `AiProfile` has no locality. The word "local" in profiles and the picker is display metadata, and locality inferred from a base-URL pattern is unreliable. The vendored on-device model reaches the server through a relay to an open browser tab and does not pass through `AiExecutionGateway`; it is text-only with an 8k window and has no speech, vision or OCR.
-- `ai.agent_jobs` payload rows have an expiry that no process deletes, and there is no retention or purge job anywhere. `ai.agent_jobs` has an unused text `session_id`; this decision does not use it, so ADR-0010's rule that a job never carries session identity holds.
-- Rehearsal writes one scorecard at the end of a run, from the client, and prices a hint (`REVEAL_COST`).
+Code facts, verified in this branch:
 
-Binding limits: ADR-0002 to ADR-0010, exactly one new package and one new app, no new service or storage engine, `omnitech-assistant` unchanged. ADR-0004 to ADR-0007 are still Proposed and this decision depends on them.
+- Candidacy, interview and `ai.agent_jobs` rows, and the job event and artifact tables, are scoped by tenant only. Foreign keys are checked without row security, so a session could be pointed at another member's resource.
+- Documents (ADR-0009) is the precedent: owner-scoped forced policies, composite tenant and owner keys, trigger-based link checks, and restrictive `platform.artifacts` policies that list only three document types, so any other type is discoverable by the whole tenant.
+- Artifact payloads are owner-only bytea up to 10 MiB. The assistant draft table uses text keys, so a UUID session table cannot reference it by foreign key.
+- `AiProfile` has no locality; "local" is display metadata, and a URL-pattern guess in the host is unreliable. The on-device model reaches the server through a Postgres-backed relay to an open browser tab, outside `AiExecutionGateway`; it is text-only with an 8k window. The relay stores each call's input until the same scope next opens a call.
+- `ai.agent_jobs.session_id` is the agent runtime's resume id and gates job resume; it is not an Active Session link. The worker's per-event cancellation check and the terminal gateway's event route read jobs with a tenant and no actor. Job payloads have an expiry that no process deletes, and no retention or purge job exists.
+- Rehearsal writes one scorecard at the end, from the client, with a strict input schema and a priced hint.
+
+Binding limits: ADR-0002 to ADR-0010, one new package and one new app, no new service or storage engine, `omnitech-assistant` unchanged. ADR-0004 to ADR-0007 are still Proposed and this decision depends on them; it extends the narrow-access list of ADR-0005 section 6.
 
 ## Decision
 
-**Ownership and row security.** The three session records, `active_sessions`, `session_observations` and `session_actions`, are product-owned tables in the interview schema with tenant and owner ids. Forced row security binds tenant and owner for every command, as in Documents, with check equal to using. Children reference `(tenant, owner, session)` so a child can never name another owner's session. The session row holds status, lease, fence, retention, processing policy and a start-time snapshot of the allowed sources; the fence and lease are columns of the session row (ADR-0010). Observation and action rows hold content and are the only places it lives.
+**Ownership and row security.** `active_sessions`, `session_observations` and `session_actions` are product-owned tables with tenant and owner ids, under forced row security binding both, as in Documents. Children reference tenant, owner and session so a child cannot name another owner's session. The session row holds status, lease, fence, retention, processing policy, the credential hash and expiry, and a start-time snapshot of the permitted sources. The database refuses loosening the processing policy, lengthening retention, and changing tenant, owner, links or the sources snapshot.
 
-**Linked resources.** A session may link an interview, candidacy, candidate-profile revision, Workspace draft, agent job or artifact only when the database confirms that tenant, owner, product and, for artifacts, type match; the check is a database trigger on insert, in the Documents manner, not a foreign key. Draft ids are text keys, so the check reads the owner's draft row in the same tenant transaction, and the publish port repeats it. Linked ids are immutable after insert. A candidacy qualifies only through the actor's own person record, as in ADR-0009. The security suite tests a foreign actor's id and a nonexistent id for each link kind.
+**Linked resources.** A session may link an interview, candidacy, candidate-profile revision, Workspace draft, agent job or artifact only after the database confirms tenant, owner, product and, for artifacts, type. A composite foreign key is used where the target has a tenant key; drafts, being text-keyed, are checked in the same transaction and again by the publish port. A candidacy qualifies through the actor's own person record (ADR-0009), and an interview only through that candidacy. Linked ids are immutable. The security suite tests a foreign and a nonexistent id for each link kind. The link check never uses `ai.agent_jobs.session_id`.
 
-**Read paths.** Streams, downloads, context assembly, job results and artifact discovery each open a tenant-and-actor transaction for the session owner and read only owner-scoped tables. No path calls an owner-blind agent-job read for a session.
+**Read paths.** Streams, downloads, context assembly, job results and artifact discovery each open an actor-scoped transaction for the owner and read only owner-scoped data.
 
-**Agent jobs.** The platform, not the product, owns the actor guard: a restrictive policy on `ai.agent_jobs` and its child tables lets only the job's user, or the agent worker setting, read, update or cancel a row. The agent-job repository therefore carries the actor on every read, event stream and cancellation, and the dev module migrates every existing caller in the same change. A session action references a job by id; the job carries no session id and a failed link check refuses the action.
+**Agent jobs.** A job created by a session carries an immutable private marker set only by the session dispatch path. A restrictive policy admits a private job's rows to its creator or to the agent worker; child event and artifact rows are admitted through their parent job. Non-session jobs are unchanged, and a caller with no actor sees no private rows. Payload rows stay reference-bound, as in ADR-0005 section 6: the reference is unguessable and disclosed only through a guarded job. The worker repository's reads run under the existing worker setting in its one owning file, and the terminal gateway's service-token event route sees no private rows; whether it learns the owner is a dev-module decision. A job exists only if a session action names it.
 
-**Artifacts.** Screenshots are artifacts of a session type and the session type list is named in the restrictive owner-only select, insert, update and delete policies in the migration that introduces it; update is immutable and delete is allowed only on the purge path, which sets a transaction-local setting that one module owns. A same-tenant non-owner artifact listing returns no session artifact, and that is tested. The type list has one definition mirrored in code and tested for equality with the policy.
+**Artifacts.** Screenshots are artifacts of a session type, named in the restrictive owner-only select, insert, update and delete policies in the migration that introduces them. Artifact rows are never updated, and deletion needs a named purge setting with one owning file and matching owner and type. A same-tenant non-owner listing returns no session artifact, and a test proves it.
 
-**Worker claim.** The worker finds sessions across tenants through one new setting, `app.session_worker`, with one owning file named in the tenant-context-boundary allowlist (ADR-0005). Its policy is limited to the session table and column privileges limit it to lease and fence columns; it returns tenant, owner and session ids only and cannot read observations or actions. It runs as the existing application role and never as an owner or BYPASSRLS role. After the claim every read and write is tenant-and-actor scoped (ADR-0010). Purge sweeps use the same claim.
+**Claim and credential lookup.** The worker claims sessions across tenants through one named setting, `app.session_worker`, with one owning file listed in the tenant-context-boundary test. Under it the database permits changing only lease and fence columns; the claim port projects tenant, owner and session ids, which refines ADR-0010's projection because the owner id makes the actor-scoped transaction possible. It runs as the application role, never an owner or BYPASSRLS role, and purge sweeps use it. After the claim the worker acts as the owner only in the processor and purge paths. Ingest resolves its session by credential hash through a named policy that admits that one row, then continues tenant-and-actor scoped.
 
-**Content storage.** Final transcript text lives only in observation rows; interim text is never stored. A selected screenshot is stored once as a compressed image artifact with its payload, keyed to the session by content digest so a resent frame returns the original acknowledgement, and linked from its observation by tenant and artifact id. The server validates type and size from headers and never decodes the image content. No other row holds frame bytes or transcript text. Derived context and summaries are session content and are purge targets.
+**Credential.** The ingest-only credential (ADR-0010, not a login token, ADR-0006) is stored hashed with one live credential per session. It expires no later than session end and has no sliding extension. Renewal is owner-initiated from Studio: it mints a replacement and revokes the old one, and the companion never renews itself. Revocation happens on end, purge, membership removal or owner request, and ingest rechecks membership every time. The companion holds it only in the keychain or memory. There is no device binding; a stolen credential can only append observations to one session, an accepted risk. The expiry value, dependency pinning and rotation UX are dev-loop decisions.
 
-**Raw audio.** Raw audio exists only in the companion's memory, bounded in time and bytes, and is dropped on pause, stop and credential expiry. The wire contract has no audio kind, and this decision does not allow retaining audio; allowing it needs an amendment and a new contract kind.
+**Content storage.** Final transcript text lives only in observation rows; interim text is never stored. A selected screenshot is stored once as a compressed PNG, JPEG or WebP artifact, accepted by its leading bytes, never SVG and never decoded by the server, and served with its stored type, no sniffing and a restrictive content policy. A digest unique per tenant, owner and session dedupes stored bytes only; observations stay keyed by source and event id (ADR-0010). No other row holds frame bytes or transcript text. Derived context and summaries are session content.
 
-**Bounds.** `active-session-contracts` carries hard maxima for observation text, screenshot size, envelope size, observations and screenshots per session, ingest rate and session duration, and one active session per owner. Over a limit the route refuses with a code and writes nothing; the values are contract constants, changed only by amendment of this decision.
+**Raw audio.** Raw audio exists only in the companion's bounded memory and is dropped on pause, stop and credential expiry. The wire contract has no audio kind; retaining audio needs an amendment.
 
-**Retention and purge.** The owner chooses delete at end, thirty days or until deleted when starting a session; the default is delete at end, and a later change may only shorten retention. One purge module deletes in a tenant-and-actor transaction per session: it marks the session purging (refusing ingest and dispatch, cancelling jobs, revoking the credential), deletes screenshot artifacts so payloads cascade, deletes observations, actions, derived context and session-created Workspace drafts, deletes the prompt and result payloads of the jobs its actions name, and leaves a tombstone and a receipt. A draft the owner promoted or exported to a Document is outside the purge, and the UI says so. It runs from the worker's session loop on end, on owner delete, and in a periodic sweep of sessions past their retention; a crash resumes in the next sweep, and a session is purged only when a final check finds zero content rows. The receipt holds ids, mode, outcome and counts only. A test enumerates every table with a session reference and fails if one is not purged. Backups are outside this decision and the receipt text says deleted rows persist until backup rotation.
+**Bounds.** `active-session-contracts` carries hard maxima for text, screenshot and envelope size, per-session counts, ingest rate and session duration, with one active session per owner. Over a limit ingest refuses with a code and writes nothing. The dev module sets the values; they are frozen as contract constants, and raising one needs an amendment.
 
-**Traces.** Traces and logs hold ids, revisions, fence, profile and locality decision, durations, outcomes, byte counts and validation paths. A canary string passed through ingest, dispatch, failure and purge must be absent from every collected trace and log line.
+**Retention and purge.** The owner chooses delete at end, thirty days from end or until deleted at start, and may only shorten it later; the default is delete at end. Owner end, credential expiry and companion stop end a session; pause does not. One purge module runs in the worker session loop on end, on owner delete and in a periodic sweep past retention. It marks the session purging (refusing ingest and dispatch, cancelling jobs, revoking the credential), waits until its named jobs are terminal, and deletes, in an order that respects references, observations, actions, derived context, session-created Workspace drafts, screenshot artifacts with their payloads, the session's jobs with their events and artifacts, every payload those jobs referenced, and the relay rows its actions name. A job resume must supersede the payload it replaces. A draft the owner promoted or exported to a Document is outside the purge, and the UI says so. A crash resumes at the next sweep, and a session becomes a tombstone only when a final check finds zero content rows. A check enumerates every table that references a session and every job-reachable table and fails on one the purge does not cover. Deleted rows persist in backups until rotation.
 
-**Untrusted input.** Captured text, screen text, images and any pre-loaded role description are observation data only. Prompts carry them in labelled blocks outside policy text, and model output is parsed against a closed schema that rejects tool, locality, privacy and retention fields and records a suppression by ids. Together with ADR-0010's tool-free fast path, captured content cannot select a profile, a tool, a retention mode or a recipient. Fixtures are synthetic and a test scans them for real names, employers and compensation figures.
+**Traces and untrusted input.** Traces and logs hold ids, revisions, fence, profile and locality decision, durations, outcomes, byte counts and validation paths, never content, credentials or content hashes; a canary check across ingest, dispatch, failure and purge proves it. Captured text, screen text, images and pre-loaded role text are observation data only. They sit in labelled blocks outside policy text, and model output is parsed against a closed schema that rejects tool, locality, privacy, retention and credential fields and records a suppression by ids. With ADR-0010's tool-free fast path, captured content cannot select a profile, tool, retention mode or recipient. Session-authored drafts render without fetching external resources (ADR-0008). Fixtures are synthetic and a test scans them for real names, employers and compensation figures.
 
-**Locality.** Locality is declared on each AI profile (device, private-network or remote) only by host configuration; a missing or unknown value is remote, and it is never inferred from a URL. Private-network does not satisfy device-only unless the operator declares it device. The vendored on-device model joins the gateway as a device profile, or its relay is wrapped by the same check, so it is not a bypass. A session records its processing policy, `device-only` or `permitted-remote`, at start; the processor derives each request's policy from the session row and never from ingest or model content. `AiExecutionGateway` rejects a non-device profile for a device-only request at resolution and again inside each method just before dispatch; an unmet policy is a typed, non-retryable `policy-refused` outcome naming ids only, never a fallback. Cancellation stays allowed.
+**Locality.** Each AI profile declares device, private-network or remote locality in the shared profile configuration source, never inferred from a URL; missing or unknown is remote. Device-only admits only the device class; permitted-remote admits all three; private-network is an operator-controlled host and is not device unless declared so. A declared-device profile with a URL must resolve to loopback by hostname parse, and a mis-declared profile is accepted operator trust. A session records its processing policy at start; the processor derives each request's policy from the session row, never from ingest or model content. `AiExecutionGateway` rejects a non-device profile for a device-only request at resolution and again inside each method just before dispatch, covering target listing and resume; an unmet policy is a non-retryable `policy-refused` outcome naming ids only, and there is no fallback. Cancellation stays allowed. A session may tighten to device-only, flipping status first, never loosen.
 
-**Locality by stage.** In device-only mode: transcription runs only in the companion with OS on-device recognition and a visible capability check, and a failed check turns transcription off with a visible refusal; image interpretation is refused because no device profile can read images, so screenshots may be stored but are not interpreted; answer generation uses only a device profile and a prompt over its context window is refused, not truncated or sent elsewhere; coding inference and agent-job dispatch are refused; code-runner execution is refused unless the host declares the runner device-local. Storing content in the owner's tenant database is not model egress and stays allowed in both modes. A session may tighten to device-only, flipping status first, but never loosen, since content already sent cannot be recalled. Studio shows the policy and the profile used per stage.
+**Locality by stage.** Every model call carrying session content, including retrieval ranking, summarisation and classification, goes through the gateway with the session policy; database retrieval without a model is allowed, and any stage with no device implementation is refused, not degraded. Transcription runs only in the companion with OS on-device recognition and a visible capability check. Image interpretation, coding inference and agent jobs are refused; code-runner execution is refused unless the host declares the runner device-local. Answer generation uses a device profile, and a prompt over its window is refused. The on-device model reaches the worker as a relay-backed device profile composed in the worker-side gateway, scoped to the owner's tenant and actor; a missing device is a retryable `unavailable` outcome, never a fallback. If that cannot be composed within ADR-0002 and ADR-0003, or purge cannot remove relay rows without changing `omnitech-assistant`, the stage is refused in device-only mode and the dev module stops at the ADR-0002 checkpoint. Storing content in the owner's tenant database is not model egress and stays allowed. Studio shows the policy and the profile used per stage.
 
-**Rehearsal.** A session in rehearsal mode never writes `rehearsal_sessions`; the existing Rehearsal flow stays the only scorecard writer. A strict timed rehearsal disables live assistance at start. In a non-strict rehearsal each shown assistance draft is an action that counts as a hint at the existing cost, which the Rehearsal flow reads from the owner's own session when it ends; the reveal cap and de-duplication change is a dev-module task.
-
-**Migrations.** New migrations follow `20261003040000` in the single Drizzle stream: one for the session tables, triggers and forced policies, one for the platform artifact and agent-job policies, and one for the worker claim policy. The migration, schema and boundary tests that count tables and settings are updated with them.
+**Rehearsal.** A rehearsal session records the rehearsal run id and the strict flag at start, immutably, and never writes `rehearsal_sessions`; the Rehearsal flow stays the only scorecard writer. Live assistance is disabled in a strict rehearsal. In a non-strict one each shown draft is an action that counts as a hint at the existing cost, and the scorecard save carries the run id so the server derives the hints from that session, refusing a strictness mismatch; this changes the interview-contracts input. A save without a run id counts none. The hint cap and de-duplication are dev-module work.
 
 ## Alternatives Considered
 
@@ -185,10 +235,10 @@ Binding limits: ADR-0002 to ADR-0010, exactly one new package and one new app, n
 - **Cons:** puts Interview semantics in the platform or in the unchanged assistant.
 - **Why not:** ADR-0004 and the book Constraint.
 
-### Option C — Service-level job owner check only
-- **Pros:** no platform migration.
-- **Cons:** not enforced by the database; a forgotten caller leaks results.
-- **Why not:** the goal requires cross-user refusal on every path, and the policy already exists as a model in Documents.
+### Option C — Service-level job owner check, or a guard on every job
+- **Pros:** no policy change, or uniform protection.
+- **Cons:** a service check is not enforced by the database; a table-wide guard breaks the worker and terminal gateway reads.
+- **Why not:** a per-row private marker gives database enforcement with the least blast radius.
 
 ### Option D — Locality as a session flag or URL pattern only
 - **Pros:** no profile change.
@@ -204,28 +254,30 @@ Binding limits: ADR-0002 to ADR-0010, exactly one new package and one new app, n
 
 **Positive:**
 - Each read path, link, claim and purge has a database-level refusal that tests can prove (OBJ-5).
-- Device-only is a guarantee with a refusal outcome rather than a label, and the on-device relay no longer bypasses the gateway.
+- Device-only refuses any model dispatch to a non-device profile, and session requests no longer bypass the gateway; the assistant's own chat path is unchanged.
 - Rehearsal keeps one scorecard (OBJ-3), and the pattern serves another product's sessions (OBJ-6).
 
 **Negative:**
-- The `ai.agent_jobs` guard changes every existing job caller to pass an actor; a missed caller sees no rows. This is a platform change that warrants the ADR-0002 scope checkpoint.
-- Device-only answers are limited to a text-only 8k model, so coding, vision and agent assistance are unavailable there.
+- The private job marker touches the agent-job repository, worker and terminal-gateway routes; a missed caller sees no private rows. This platform change warrants the ADR-0002 scope checkpoint.
+- Device-only answers are limited to a text-only 8k model, and may be unavailable if the relay cannot be composed in the worker.
 - Screenshot bytea in the primary cluster adds bloat after purge; the caps bound it.
-- One more cross-tenant surface, `app.session_worker`, needs a column-level test.
-- The purge does not cover backups.
+- Three new narrow cross-tenant or delete settings (claim, credential lookup, purge) each need a column-level or type-level test.
+- The purge does not cover backups, and declared device locality rests on operator trust.
 
 **Follow-on work:**
-- Numeric limits, the hint cap and dedupe change, the code-runner device-local declaration, local OCR, account-deletion cascade and a general sweep of expired job payloads are dev-module decisions or later amendments.
-- Credential renewal and the per-dereference actor checks deferred by ADR-0010 are met here by read-path and link rules.
+- Dev-module decisions: numeric limits, credential expiry value, dependency pinning, hint cap and de-duplication, code-runner device-local declaration, local OCR, whether the terminal gateway learns the owner, account-deletion cascade, and a general sweep of expired job payloads.
 - Same-tenant cross-user, locality-egress and injection evidence are produced by the dev loops.
 
 ## References
 
+- [[objectives]]
 - [[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]]
 - [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]]
 - [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]]
 - [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]]
+- [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]]
 - [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]
+- [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]]
 - [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]]
 - [[adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker]]
 - [[research/concepts/interview-domain-model]]
