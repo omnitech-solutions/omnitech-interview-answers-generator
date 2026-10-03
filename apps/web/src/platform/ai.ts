@@ -479,7 +479,6 @@ export function createPlatformAiGateway() {
     profiles,
     models: modelAdapters,
     images: [imageAdapter],
-    workflows: [],
     agents: createAgentPort(),
     authorize: async (context) =>
       context.permissions.includes("presentation.read") ||

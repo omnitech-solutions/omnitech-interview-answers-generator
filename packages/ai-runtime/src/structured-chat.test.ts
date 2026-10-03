@@ -52,7 +52,6 @@ function gateway(allowed: boolean, enabled = true) {
       },
     ],
     images: [],
-    workflows: [],
     agents: {
       async execute() {
         throw new Error("unused");

@@ -1,5 +1,5 @@
 import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
-export type AiExecutionFamily = "direct-model" | "workflow" | "agent-runtime";
+export type AiExecutionFamily = "direct-model" | "agent-runtime";
 export type AiModelKind = "language" | "embedding" | "image" | "multimodal";
 export type AiTaskType =
   | "text-generation"
@@ -43,7 +43,6 @@ export interface InstructionBundle {
   platformRules: readonly InstructionSource[];
   productRules: readonly InstructionSource[];
   tenantRules: readonly InstructionSource[];
-  workflowInstructions: readonly InstructionSource[];
   taskPrompt: string;
   attachments: readonly AgentAttachment[];
   outputSchema?: Readonly<Record<string, unknown>>;
@@ -171,12 +170,6 @@ export interface ImageProviderAdapter {
   readonly capabilities: ImageCapabilities;
   generate(request: AiExecutionRequest): Promise<ImageResult>;
   edit?(request: AiExecutionRequest): Promise<ImageResult>;
-}
-
-export interface WorkflowEngine {
-  readonly engine: "direct" | "langchain" | "langgraph";
-  execute(request: AiExecutionRequest): Promise<AiExecution>;
-  stream(request: AiExecutionRequest): AsyncIterable<AiEvent>;
 }
 
 export interface AiExecutionGateway {

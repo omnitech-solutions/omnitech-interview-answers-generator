@@ -1,5 +1,5 @@
 // The platform's AI execution tables: provider configuration, profiles,
-// usage, agent jobs and workflow threads.
+// usage and agent jobs.
 import { sql } from "drizzle-orm";
 import {
   pgSchema,
@@ -238,7 +238,7 @@ export const profiles = ai.table(
   (table) => [
     check(
       "profiles_execution_family_check",
-      sql`(execution_family = ANY (ARRAY['direct-model'::text, 'workflow'::text, 'agent-runtime'::text]))`,
+      sql`(execution_family = ANY (ARRAY['direct-model'::text, 'agent-runtime'::text]))`,
     ),
   ],
 );
@@ -321,41 +321,6 @@ export const usageRecords = ai.table.withRLS(
       .notNull(),
   },
   (table) => [
-    pgPolicy("tenant_scope", {
-      using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
-      withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
-    }),
-  ],
-);
-
-export const workflowThreads = ai.table.withRLS(
-  "workflow_threads",
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, {
-        name: "workflow_threads_tenant_id_fkey",
-        onDelete: "cascade",
-      }),
-    productId: text("product_id").notNull(),
-    subjectId: text("subject_id").notNull(),
-    engine: text().notNull(),
-    engineThreadId: text("engine_thread_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`now()`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`now()`)
-      .notNull(),
-  },
-  (table) => [
-    unique("workflow_threads_tenant_id_product_id_subject_id_engine_key").on(
-      table.tenantId,
-      table.productId,
-      table.subjectId,
-      table.engine,
-    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,

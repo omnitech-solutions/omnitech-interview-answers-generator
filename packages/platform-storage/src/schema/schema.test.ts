@@ -18,6 +18,6 @@ afterAll(async () => pg?.stop());
 
 it("declares the platform and AI tables exactly as the migrations create them", async () => {
   const tables = [...tablesOf(platform), ...tablesOf(ai)];
-  expect(tables).toHaveLength(21);
+  expect(tables).toHaveLength(20);
   expect(await schemaDrift(pg.owner, tables)).toEqual([]);
 });

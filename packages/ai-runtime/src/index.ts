@@ -11,13 +11,12 @@ import type {
   AiStructuredChatRequest,
   ImageProviderAdapter,
   ModelProviderAdapter,
-  WorkflowEngine,
 } from "@omnitech/ai-contracts";
 
 export interface AiProfile {
   id: string;
   label: string;
-  family: "direct-model" | "workflow" | "agent-runtime";
+  family: "direct-model" | "agent-runtime";
   targetId: string;
   taskTypes: readonly string[];
   enabled: boolean;
@@ -40,7 +39,6 @@ export interface CreateAiExecutionGatewayOptions {
   profiles: readonly AiProfile[];
   models: readonly ModelProviderAdapter[];
   images: readonly ImageProviderAdapter[];
-  workflows: readonly WorkflowEngine[];
   agents: AgentExecutionPort;
   authorize(context: AiAccessContext, profile: AiProfile): Promise<boolean>;
 }
@@ -50,7 +48,6 @@ export function composeInstructions(parts: {
   worker: readonly string[];
   product: readonly string[];
   tenant: readonly string[];
-  workflow: readonly string[];
   task: string;
 }): string {
   return [
@@ -58,7 +55,6 @@ export function composeInstructions(parts: {
     ...parts.worker,
     ...parts.product,
     ...parts.tenant,
-    ...parts.workflow,
     parts.task,
   ]
     .filter((value) => value.trim().length > 0)
@@ -76,9 +72,6 @@ export function createAiExecutionGateway(
   );
   const images = new Map(
     options.images.map((adapter) => [adapter.providerId, adapter]),
-  );
-  const workflows = new Map<string, WorkflowEngine>(
-    options.workflows.map((engine) => [engine.engine, engine]),
   );
 
   async function resolve(request: AiExecutionRequest): Promise<AiProfile> {
@@ -119,11 +112,6 @@ export function createAiExecutionGateway(
       let execution: AiExecution;
       if (profile.family === "agent-runtime") {
         execution = await options.agents.execute(request, profile);
-      } else if (profile.family === "workflow") {
-        const engine = workflows.get(profile.targetId);
-        if (!engine)
-          throw new Error("The configured workflow engine is unavailable.");
-        execution = await engine.execute(request);
       } else if (request.task.type.startsWith("image-")) {
         const adapter = images.get(profile.targetId);
         if (!adapter)
@@ -151,9 +139,7 @@ export function createAiExecutionGateway(
       const source =
         profile.family === "agent-runtime"
           ? options.agents.stream(request, profile)
-          : profile.family === "workflow"
-            ? workflows.get(profile.targetId)?.stream(request)
-            : models.get(profile.targetId)?.stream(request);
+          : models.get(profile.targetId)?.stream(request);
       if (!source)
         throw new Error("The configured target cannot stream this task.");
       for await (const event of source) yield event as AiEvent<T>;

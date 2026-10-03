@@ -14,11 +14,7 @@ import {
   boolean,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import {
-  tenants,
-  users,
-  workflowThreads,
-} from "@omnitech/platform-storage/schema";
+import { tenants, users } from "@omnitech/platform-storage/schema";
 
 export const presentation = pgSchema("presentation");
 
@@ -38,13 +34,6 @@ export const agentConversations = presentation.table.withRLS(
         name: "agent_conversations_document_id_fkey",
         onDelete: "cascade",
       }),
-    workflowThreadId: uuid("workflow_thread_id").references(
-      () => workflowThreads.id,
-      {
-        name: "agent_conversations_workflow_thread_id_fkey",
-        onDelete: "set null",
-      },
-    ),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => users.id, {

@@ -28,6 +28,26 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "remove_presentation_import",
     "force_rls_platform_ai_presentation",
     "worker_and_link_lookup_policies",
+    "remove_workflow_seam",
+  ]);
+
+  // No workflow engine exists: no thread table, no conversation link to one,
+  // and profiles name only the execution families the runtime can dispatch.
+  expect(
+    await rows(
+      `SELECT table_schema || '.' || table_name || '.' || column_name
+         FROM information_schema.columns
+        WHERE (table_schema, table_name) = ('ai', 'workflow_threads')
+           OR column_name = 'workflow_thread_id'`,
+    ),
+  ).toEqual([]);
+  expect(
+    await rows(
+      `SELECT pg_get_constraintdef(oid) FROM pg_constraint
+        WHERE conname = 'profiles_execution_family_check'`,
+    ),
+  ).toEqual([
+    "CHECK ((execution_family = ANY (ARRAY['direct-model'::text, 'agent-runtime'::text])))",
   ]);
 
   // Every schema the app owns, plus the assistant package's own.

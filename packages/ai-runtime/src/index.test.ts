@@ -9,9 +9,8 @@ describe("composeInstructions", () => {
         worker: ["worker"],
         product: ["product"],
         tenant: ["tenant"],
-        workflow: ["workflow"],
         task: "task",
       }),
-    ).toBe("platform\n\nworker\n\nproduct\n\ntenant\n\nworkflow\n\ntask");
+    ).toBe("platform\n\nworker\n\nproduct\n\ntenant\n\ntask");
   });
 });
