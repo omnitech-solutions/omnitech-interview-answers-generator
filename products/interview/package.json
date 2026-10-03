@@ -20,6 +20,10 @@
       "types": "./dist/backend/assistant-entry.d.ts",
       "import": "./dist/backend/assistant-entry.js"
     },
+    "./session-worker": {
+      "types": "./dist/backend/session-worker-entry.d.ts",
+      "import": "./dist/backend/session-worker-entry.js"
+    },
     "./studio.css": "./src/frontend/studio/tokens.css"
   },
   "scripts": {

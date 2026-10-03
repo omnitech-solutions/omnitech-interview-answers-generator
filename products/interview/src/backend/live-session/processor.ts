@@ -50,6 +50,7 @@ const DEFAULTS = {
   maxAttempts: 3,
   sweepEveryMs: 30_000,
   sweepBatch: 10,
+  maxRenewFailures: 3,
   observationPage: 200,
 } as const;
 
@@ -146,7 +147,25 @@ export function createSessionProcessor(
     // Renew the lease each tick while healthy. A holder that finds a newer
     // fence stops this session at once and writes nothing.
     if (!run.justClaimed) {
-      const renewal = await claim.renew(run.claim);
+      let renewal: Awaited<ReturnType<typeof claim.renew>>;
+      try {
+        renewal = await claim.renew(run.claim);
+      } catch (error) {
+        // A renewal that keeps failing means the lease may have lapsed: after
+        // the bound the session is no longer treated as held (it stops and
+        // writes nothing; the lease expires on its own).
+        run.renewFailures += 1;
+        if (run.renewFailures < settings.maxRenewFailures) throw error;
+        run.mode = "superseded";
+        run.abort.abort();
+        run.trace({
+          event: "session.stopped",
+          outcome: "renewal_failed",
+        });
+        await drop(run, false);
+        return true;
+      }
+      run.renewFailures = 0;
       if (!renewal.renewed) {
         run.mode = "superseded";
         run.abort.abort();

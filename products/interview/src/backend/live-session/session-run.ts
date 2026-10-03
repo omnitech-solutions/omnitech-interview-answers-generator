@@ -53,6 +53,8 @@ export type SessionRun = {
   // True until the first tick has seeded dispatch memory from stored actions.
   seeded: boolean;
   justClaimed: boolean;
+  // Consecutive lease renewals that threw (reset by any answered renewal).
+  renewFailures: number;
   cursor: number;
   transcript: TranscriptView;
   tasks: TaskState;
@@ -82,6 +84,7 @@ export function createRun(
     mode: "running",
     seeded: false,
     justClaimed: true,
+    renewFailures: 0,
     cursor: 0,
     transcript: emptyTranscript(),
     tasks: emptyTaskState(),

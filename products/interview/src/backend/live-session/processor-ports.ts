@@ -85,5 +85,9 @@ export type SessionProcessorOptions = {
   // How often the cap and purge sweeps run (default 30000).
   sweepEveryMs?: number;
   sweepBatch?: number;
+  // Consecutive failed lease renewals after which a session is no longer
+  // treated as held and is dropped without writing (default 3). The lease
+  // expires on its own, so another worker can then take the session.
+  maxRenewFailures?: number;
   observationPage?: number;
 };

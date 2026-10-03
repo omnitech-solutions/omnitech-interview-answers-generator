@@ -94,6 +94,9 @@ export function createSessionWorker(
         ? {}
         : { sweepEveryMs: rest.sweepEveryMs }),
       ...(rest.sweepBatch === undefined ? {} : { sweepBatch: rest.sweepBatch }),
+      ...(rest.maxRenewFailures === undefined
+        ? {}
+        : { maxRenewFailures: rest.maxRenewFailures }),
       ...(rest.observationPage === undefined
         ? {}
         : { observationPage: rest.observationPage }),
