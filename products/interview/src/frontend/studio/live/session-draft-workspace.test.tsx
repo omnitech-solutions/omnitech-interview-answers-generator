@@ -438,6 +438,21 @@ describe("a session draft in the Workspace", () => {
     expect(patches).toHaveLength(0);
   });
 
+  it("does not say a purged session's draft will be created", async () => {
+    draft.exists = false;
+    actions = [];
+    session = sessionView({
+      status: "ended",
+      purged: true,
+      endedAt: minutesAfter(5),
+    });
+    await openDraft();
+    expect(screen.queryByText(/it creates a private draft here/)).toBeNull();
+    expect(
+      screen.getByText(/deleted with the session|was deleted/i),
+    ).toBeVisible();
+  });
+
   it("shows the draft when the session writes it while this is open", async () => {
     draft.exists = false;
     actions = [];

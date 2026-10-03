@@ -96,6 +96,7 @@ function Panel({
       facts={draftFacts(task)}
       target={target}
       resultsKnown={session !== null}
+      purged={session?.purged === true}
       onBack={onBack}
     />
   );

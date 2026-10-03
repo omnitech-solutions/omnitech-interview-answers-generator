@@ -96,8 +96,9 @@ export function PairingPanel() {
       {pairing ? (
         <div className="pairing-credential">
           <p className="setup-muted">
-            Give this one-time pairing credential to the capture companion.
-            Studio shows it now and won’t show it again once dismissed.
+            Give this pairing credential to the capture companion. It is shown
+            once and valid for up to 2 hours; Studio won’t show it again once
+            dismissed.
           </p>
           <div className="pairing-value-row">
             <code

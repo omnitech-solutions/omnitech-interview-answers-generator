@@ -7,7 +7,7 @@
 //     clears observations and actions while purging, and this view then shows
 //     only the tombstone's content-free facts (ADR-0012/tombstone-keeps-hint-count).
 import type { LiveSessionView } from "@omnitech/interview-contracts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { SessionHistory } from "./ended-history";
@@ -76,6 +76,16 @@ export function EndedView({ studio }: EndedViewProps) {
   const choices = useTargetChoices(
     session !== null && session.candidacyId !== null && !session.purged,
   );
+  // [SAFETY] The session bar unmounts when the session ends, so focus would
+  // fall to the page: it moves to the heading, unless the owner has already put
+  // it somewhere on purpose.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const arrived = session !== null;
+  useEffect(() => {
+    const active = document.activeElement;
+    if (arrived && (!active || active === document.body))
+      heading.current?.focus();
+  }, [arrived]);
   const answers = useMemo(() => answerRows(model.tasks), [model.tasks]);
   const withheld = useMemo(
     () => withheldNotice(snapshot.actions),
@@ -91,7 +101,9 @@ export function EndedView({ studio }: EndedViewProps) {
       <div className="ended">
         <header className="ended-head">
           <Icon name="stop_circle" />
-          <h2>{`Session ended · ${model.elapsedLabel}`}</h2>
+          <h2 ref={heading} tabIndex={-1}>
+            {`Session ended · ${model.elapsedLabel}`}
+          </h2>
           {!session.purged && (
             <p className="ended-target">{targetTitle(session, choices)}</p>
           )}

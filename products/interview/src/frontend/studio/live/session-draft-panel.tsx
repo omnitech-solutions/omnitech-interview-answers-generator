@@ -26,6 +26,8 @@ const EDITED_NOTE =
 const EMPTY_TITLE = "No session draft yet";
 const EMPTY_BODY =
   "When the session finds a coding task, it creates a private draft here and runs the tests. Your own edits are never overwritten.";
+const PURGED_BODY =
+  "This session’s data was deleted with the session, including any draft it kept here.";
 const CONFLICT_NOTE =
   "This draft changed since you last loaded it, so the suggestion was not applied. Reload the draft, then review the suggestion again.";
 
@@ -41,6 +43,8 @@ export type SessionDraftPanelProps = {
   target: string;
   // The session's results could be read (it is open or its summary loaded).
   resultsKnown: boolean;
+  // The session's content was deleted: nothing will be created here.
+  purged?: boolean;
   onBack(): void;
 };
 
@@ -50,6 +54,7 @@ export function SessionDraftPanel({
   facts,
   target,
   resultsKnown,
+  purged = false,
   onBack,
 }: SessionDraftPanelProps) {
   const { written, held } = facts;
@@ -92,7 +97,7 @@ export function SessionDraftPanel({
         <div className="sd-empty-body">
           <Icon name="code" size={28} />
           <p className="sd-empty-title">{EMPTY_TITLE}</p>
-          <p className="sd-empty-text">{EMPTY_BODY}</p>
+          <p className="sd-empty-text">{purged ? PURGED_BODY : EMPTY_BODY}</p>
         </div>
       </section>
     );

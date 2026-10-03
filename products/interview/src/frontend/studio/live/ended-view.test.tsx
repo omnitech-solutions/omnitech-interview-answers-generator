@@ -124,6 +124,13 @@ describe("the ended view: header and results", () => {
     expect(view).toHaveTextContent("No interview linked");
   });
 
+  it("moves focus to the heading when the bar goes away, so it does not fall to the page", async () => {
+    await mount(ended());
+    expect(
+      screen.getByRole("heading", { name: /Session ended/ }),
+    ).toHaveFocus();
+  });
+
   it("lists answer drafts by claim kind and the coding draft by its three states", async () => {
     draftLink.current = {
       target: {

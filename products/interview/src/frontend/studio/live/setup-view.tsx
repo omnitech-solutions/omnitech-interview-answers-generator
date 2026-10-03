@@ -167,9 +167,10 @@ export function SetupView({
       <section className="setup-section">
         <h3>Capture companion</h3>
         <p className="setup-muted" data-testid="setup-companion">
-          Pairing happens when you start: Studio shows a one-time pairing
-          credential for the capture companion. Studio can’t tell whether the
-          companion is running until it makes contact.
+          Pairing happens when you start: Studio shows a pairing credential,
+          shown once and valid for up to 2 hours, for the capture companion.
+          Studio can’t tell whether the companion is running until it makes
+          contact.
         </p>
       </section>
 
