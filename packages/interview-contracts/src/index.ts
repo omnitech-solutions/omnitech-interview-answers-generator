@@ -85,6 +85,24 @@ export {
   testResultSchema,
 } from "./guide.js";
 export {
+  type DocumentField,
+  type DocumentFieldError,
+  type DocumentFormat,
+  type DocumentTemplateKind,
+  type DocumentValues,
+  documentCreateSchema,
+  documentEditSchema,
+  documentExportSchema,
+  documentFieldSchema,
+  documentFieldsSchema,
+  documentFormatSchema,
+  documentRegenerateSchema,
+  documentTemplateCreateSchema,
+  documentTemplateKindSchema,
+  documentValuesSchema,
+  validateDocumentValues,
+} from "./documents.js";
+export {
   type InterviewPlan,
   type InterviewPlanInput,
   interviewPlanInputSchema,

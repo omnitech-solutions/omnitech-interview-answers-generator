@@ -165,7 +165,11 @@ describe("Interview Studio's backend as the platform mounts it", () => {
         tenantId: member.tenantId,
         userId: member.userId,
         productId: "omnitech.interview",
-        permissions: ["interview.read", "interview.write"],
+        permissions: [
+          "interview.read",
+          "interview.write",
+          "interview.documents.write",
+        ],
       },
       task: { type: "structured-generation" },
     });

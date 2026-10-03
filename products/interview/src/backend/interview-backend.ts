@@ -21,6 +21,7 @@ import { manifest } from "../manifest.js";
 import { createApi } from "./api.js";
 import { createAssistantModels } from "./assistant-models.js";
 import { briefingScope } from "./briefing-access.js";
+import { createDocumentsApi, resolveDocumentsScope } from "./documents/api.js";
 import { loadLocalDefaultProfile } from "./local-default-profile.js";
 import { createInterviewStudio } from "./studio/host.js";
 
@@ -208,6 +209,26 @@ export function createInterviewBackend(services: InterviewBackendServices) {
       ...(services.answersConfigured
         ? { generate: generator(services.ai, INTERVIEW_ANSWER_PROFILE) }
         : {}),
+    }),
+  );
+  // Candidate documents have their own member write permission and persist
+  // through the product's private repository and platform artifact boundary.
+  app.route(
+    "/",
+    createDocumentsApi({
+      database: services.database,
+      ai: services.ai,
+      resolveScope: async (request) => {
+        const slug =
+          request.headers.get(TENANT_HEADER) ??
+          new URL(request.url).searchParams.get("tenant") ??
+          "";
+        return resolveDocumentsScope(
+          await services.resolveContext(slug),
+          slug,
+          request.method,
+        );
+      },
     }),
   );
   // The assistant, drafts, plan, briefs, briefing packs and rehearsals,

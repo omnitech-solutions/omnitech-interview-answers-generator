@@ -24,7 +24,8 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "dev": "tsc -b --watch --preserveWatchOutput",
+    "postbuild": "node scripts/copy-document-assets.mjs",
+    "dev": "node scripts/copy-document-assets.mjs && tsc -b --watch --preserveWatchOutput",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
@@ -63,6 +64,7 @@
     "esbuild": "^0.27.0",
     "github-slugger": "^2.0.0",
     "hono": "^4.12.8",
+    "jszip": "^3.10.1",
     "mermaid": "^11.16.0",
     "react": "catalog:",
     "react-dom": "catalog:",

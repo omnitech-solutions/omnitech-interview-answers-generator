@@ -159,6 +159,7 @@ describe("platform repository", () => {
       "platform.read",
       "artifact.read",
       "interview.read",
+      "interview.documents.write",
       "presentation.read",
     ]);
   });

@@ -351,7 +351,7 @@ it("12: the live catalog forces RLS on every declared table and every tenant pol
   }>(
     `SELECT schemaname || '.' || tablename || '.' || policyname AS name, qual, with_check
        FROM pg_policies
-      WHERE schemaname IN ('interview', 'practice') AND policyname <> 'exercises_read'`,
+      WHERE schemaname IN ('interview', 'practice') AND cmd = 'ALL'`,
   );
   expect(policies.rows.length).toBeGreaterThan(0);
   for (const policy of policies.rows)

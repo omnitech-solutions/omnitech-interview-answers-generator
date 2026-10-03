@@ -1,0 +1,859 @@
+import { readFile } from "node:fs/promises";
+import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import { type PlatformDatabase, withTenant } from "@omnitech/database";
+import {
+  type DocumentField,
+  documentCreateSchema,
+  documentEditSchema,
+  documentExportSchema,
+  documentFieldsSchema,
+  documentRegenerateSchema,
+  documentTemplateCreateSchema,
+  validateDocumentValues,
+} from "@omnitech/interview-contracts";
+import type { PlatformContext } from "@omnitech/platform-contracts";
+import { DocumentArtifactRepository } from "@omnitech/platform-storage";
+import { sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { ZodError, z } from "zod";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { DocumentContextNotFound, resolveDocumentContext } from "./context.js";
+import { generateDocumentValues } from "./generate.js";
+import { renderDocxPreview, renderDocxTemplate } from "./render-docx.js";
+import { renderDocxAsMarkdown } from "./render-docx-markdown.js";
+import {
+  renderMarkdownPreview,
+  renderMarkdownTemplate,
+} from "./render-markdown.js";
+import {
+  DocumentAlreadyExists,
+  DocumentNotFound,
+  DocumentRevisionConflict,
+  DocumentSaveCancelled,
+  InterviewDocumentRepository,
+} from "./repository.js";
+import {
+  InvalidDocumentTemplateError,
+  inspectTemplate,
+} from "./template-intake.js";
+
+export type DocumentScope = {
+  tenantId: string;
+  actorId: string;
+  productId: typeof INTERVIEW_PRODUCT_ID;
+  canWrite?: boolean;
+};
+const prefix = "/api/interview/documents";
+const uuid = z.uuid();
+const positive = z.coerce.number().int().positive();
+const MAX_JSON = 128 * 1024;
+const MAX_UPLOAD = 5 * 1024 * 1024;
+const candidacyKeys = new Set([
+  "company_name",
+  "role_title",
+  "target_role",
+  "job_description",
+]);
+const interviewKeys = new Set(["interview_stage", "interview_kind"]);
+class RequestTooLarge extends Error {}
+class InvalidField extends Error {}
+class TargetUnavailable extends Error {}
+class GenerationFailed extends Error {}
+class RequestCancelled extends Error {}
+
+export function resolveDocumentsScope(
+  context: PlatformContext | null,
+  slug: string,
+  method: string,
+): DocumentScope | null {
+  if (
+    !context ||
+    context.tenant.slug !== slug ||
+    context.membership.tenantId !== context.tenant.id ||
+    context.membership.userId !== context.user.id ||
+    !context.products.some(
+      (product) =>
+        product.productId === INTERVIEW_PRODUCT_ID && product.enabled,
+    ) ||
+    !context.permissions.includes("interview.read") ||
+    (!["GET", "HEAD"].includes(method) &&
+      !context.permissions.includes("interview.documents.write"))
+  )
+    return null;
+  return {
+    tenantId: context.tenant.id,
+    actorId: context.user.id,
+    productId: INTERVIEW_PRODUCT_ID,
+    canWrite: context.permissions.includes("interview.documents.write"),
+  };
+}
+const scopeKey = (scope: DocumentScope) => ({
+  tenantId: scope.tenantId,
+  actorId: scope.actorId,
+});
+async function boundedBody(request: Request, limit: number): Promise<Buffer> {
+  if (Number(request.headers.get("content-length") ?? 0) > limit)
+    throw new RequestTooLarge();
+  const reader = request.body?.getReader();
+  if (!reader) throw new SyntaxError("Missing body");
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > limit) {
+      await reader.cancel();
+      throw new RequestTooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+async function jsonBody(request: Request): Promise<unknown> {
+  return JSON.parse((await boundedBody(request, MAX_JSON)).toString("utf8"));
+}
+async function upload(request: Request) {
+  const body = await boundedBody(request, MAX_UPLOAD + MAX_JSON);
+  const bounded = new Request(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: new Uint8Array(body),
+  });
+  const form = await bounded.formData();
+  const file = form.get("file");
+  if (!(file instanceof File)) throw new SyntaxError("Missing file");
+  if (file.size === 0 || file.size > MAX_UPLOAD) throw new RequestTooLarge();
+  return { form, bytes: Buffer.from(await file.arrayBuffer()) };
+}
+function formText(form: FormData, key: string): string {
+  const value = form.get(key);
+  if (typeof value !== "string") throw new SyntaxError(`Missing ${key}`);
+  return value;
+}
+function fieldSource(key: string): DocumentField["source"] {
+  return candidacyKeys.has(key)
+    ? "candidacy"
+    : interviewKeys.has(key)
+      ? "interview"
+      : "candidate-profile";
+}
+function fieldsFor(keys: readonly string[], form: FormData): DocumentField[] {
+  const raw = form.get("fields");
+  const defaults = keys.map((key) => ({
+    key,
+    label: key.replaceAll("_", " "),
+    source: fieldSource(key),
+    required: true,
+    maxLength: null,
+  }));
+  const fields = documentFieldsSchema.parse(
+    typeof raw === "string" ? JSON.parse(raw) : defaults,
+  );
+  if (
+    fields.length !== keys.length ||
+    fields.some(
+      (field, i) =>
+        field.key !== keys[i] ||
+        (field.source !== fieldSource(field.key) &&
+          !(
+            fieldSource(field.key) === "candidate-profile" &&
+            field.source === "manual"
+          )),
+    )
+  )
+    throw new InvalidField();
+  return fields;
+}
+function safeName(title: string, format: string) {
+  return `${
+    title
+      .replace(/[^a-zA-Z0-9._ -]/g, "_")
+      .trim()
+      .slice(0, 100) || "document"
+  }.${format}`;
+}
+
+export function createDocumentsApi(options: {
+  database: PlatformDatabase;
+  ai: AiExecutionGateway;
+  resolveScope: (request: Request) => Promise<DocumentScope | null>;
+}) {
+  const app = new Hono<{ Variables: { documentScope: DocumentScope } }>();
+  const repo = new InterviewDocumentRepository(options.database);
+  const artifacts = new DocumentArtifactRepository(options.database);
+  const builtInReady = new Map<string, Promise<void>>();
+  async function provisionBuiltIns(scope: DocumentScope) {
+    let pending = builtInReady.get(scope.tenantId);
+    if (!pending) {
+      pending = (async () => {
+        for (const template of [
+          {
+            key: "resume",
+            name: "Resume",
+            kind: "resume",
+            format: "docx",
+          },
+          {
+            key: "cover-letter",
+            name: "Cover letter",
+            kind: "cover_letter",
+            format: "docx",
+          },
+          {
+            key: "interview-prep",
+            name: "Interview prep",
+            kind: "interview_prep",
+            format: "md",
+          },
+        ] as const) {
+          const source =
+            template.key === "resume"
+              ? new URL("./assets/resume.docx", import.meta.url)
+              : template.key === "cover-letter"
+                ? new URL("./assets/cover-letter.docx", import.meta.url)
+                : new URL("./assets/interview-prep.md", import.meta.url);
+          const bytes = await readFile(source);
+          const inspected = await inspectTemplate({
+            format: template.format,
+            bytes,
+          });
+          const fields = fieldsFor(inspected.fields, new FormData());
+          await repo.provisionBuiltInTemplate(scopeKey(scope), {
+            key: template.key,
+            name: template.name,
+            kind: template.kind,
+            format: template.format,
+            sourceBytes: bytes,
+            fields,
+            instructions:
+              "Use only the candidate profile and selected candidacy as evidence. Leave unsupported details empty.",
+          });
+        }
+      })().catch((error: unknown) => {
+        builtInReady.delete(scope.tenantId);
+        throw error;
+      });
+      builtInReady.set(scope.tenantId, pending);
+    }
+    await pending;
+  }
+  app.use(`${prefix}/*`, async (c, next) => {
+    const scope = await options.resolveScope(c.req.raw);
+    if (!scope) return c.json({ error: { code: "unauthorized" } }, 401);
+    if (!["GET", "HEAD"].includes(c.req.method)) {
+      const origin = c.req.header("origin");
+      const host = c.req.header("host");
+      const own = host
+        ? new URL(`${new URL(c.req.url).protocol}//${host}`).origin
+        : new URL(c.req.url).origin;
+      if (
+        c.req.header("sec-fetch-site") === "cross-site" ||
+        (origin && origin !== own)
+      )
+        return c.json({ error: { code: "origin-forbidden" } }, 403);
+    }
+    c.set("documentScope", scope);
+    await next();
+  });
+  app.onError((error, c) => {
+    if (
+      error instanceof DocumentNotFound ||
+      error instanceof DocumentContextNotFound
+    )
+      return c.json({ error: { code: "not-found" } }, 404);
+    if (error instanceof DocumentRevisionConflict)
+      return c.json({ error: { code: "revision-conflict" } }, 409);
+    if (error instanceof RequestTooLarge)
+      return c.json({ error: { code: "body-too-large" } }, 413);
+    if (error instanceof TargetUnavailable)
+      return c.json({ error: { code: "generation-unavailable" } }, 503);
+    if (error instanceof GenerationFailed)
+      return c.json({ error: { code: "generation-failed" } }, 502);
+    if (
+      error instanceof RequestCancelled ||
+      error instanceof DocumentSaveCancelled
+    )
+      return c.json({ error: { code: "cancelled" } }, 409);
+    if (
+      error instanceof InvalidField ||
+      error instanceof InvalidDocumentTemplateError
+    )
+      return c.json({ error: { code: "invalid-field-or-template" } }, 400);
+    if (error instanceof ZodError)
+      return c.json({ error: { code: "invalid-request" } }, 400);
+    if (error instanceof SyntaxError)
+      return c.json({ error: { code: "invalid-request" } }, 400);
+    throw error;
+  });
+  async function load(scope: DocumentScope, id: string, revision?: number) {
+    const item = await repo.getDocument(
+      scopeKey(scope),
+      uuid.parse(id),
+      revision,
+    );
+    if (!item) throw new DocumentNotFound();
+    await resolveDocumentContext(options.database, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      profileId: item.document.profileId,
+      profileRevision: item.document.profileRevision,
+      candidacyId: item.document.candidacyId,
+      interviewId: item.document.interviewId,
+    });
+    return item;
+  }
+  async function source(
+    scope: DocumentScope,
+    item: NonNullable<Awaited<ReturnType<typeof repo.getTemplateRevision>>>,
+  ) {
+    const bytes = await artifacts.read({
+      ...scopeKey(scope),
+      artifactId: item.revision.sourceArtifactId,
+      expectedType: item.template.ownerUserId
+        ? "interview.document-template-source"
+        : "interview.document-template-builtin",
+    });
+    if (!bytes) throw new DocumentNotFound();
+    return bytes;
+  }
+  async function authorizedTarget(scope: DocumentScope, targetId: string) {
+    const targets = await options.ai.listAvailableTargets(
+      {
+        tenantId: scope.tenantId,
+        userId: scope.actorId,
+        productId: INTERVIEW_PRODUCT_ID,
+        permissions: ["interview.documents.write"],
+      },
+      { taskType: "structured-generation" },
+    );
+    if (
+      !targets.some(
+        (target) => target.id === targetId && target.kind === "language",
+      )
+    )
+      throw new TargetUnavailable();
+  }
+  app.get(`${prefix}/context`, async (c) => {
+    const scope = c.get("documentScope");
+    const [lists, targets] = await Promise.all([
+      withTenant(
+        scope,
+        async (db) => {
+          const [profiles, candidacies, interviews] = await Promise.all([
+            db.execute(sql`SELECT id, name, revision, updated_at FROM interview.candidate_profiles
+            WHERE tenant_id=${scope.tenantId} AND actor_id=${scope.actorId}
+              AND product_id=${INTERVIEW_PRODUCT_ID} AND revoked_at IS NULL ORDER BY updated_at DESC`),
+            db.execute(sql`SELECT c.id, c.title, c.job_description, co.name AS company_name
+            FROM interview.candidacies c
+            JOIN interview.member_people mp ON mp.tenant_id=c.tenant_id AND mp.person_id=c.candidate_person_id
+            JOIN interview.companies co ON co.tenant_id=c.tenant_id AND co.id=c.company_id
+            WHERE c.tenant_id=${scope.tenantId}::uuid AND mp.user_id=${scope.actorId}::uuid ORDER BY c.created_at DESC`),
+            db.execute(sql`SELECT i.id, i.candidacy_id, i.label, i.kind FROM interview.interviews i
+            JOIN interview.candidacies c ON c.tenant_id=i.tenant_id AND c.id=i.candidacy_id
+            JOIN interview.member_people mp ON mp.tenant_id=c.tenant_id AND mp.person_id=c.candidate_person_id
+            WHERE i.tenant_id=${scope.tenantId}::uuid AND mp.user_id=${scope.actorId}::uuid ORDER BY i.ordinal`),
+          ]);
+          return {
+            profiles: profiles.rows,
+            candidacies: candidacies.rows,
+            interviews: interviews.rows,
+          };
+        },
+        { database: options.database },
+      ),
+      scope.canWrite === false
+        ? Promise.resolve([])
+        : options.ai.listAvailableTargets(
+            {
+              tenantId: scope.tenantId,
+              userId: scope.actorId,
+              productId: INTERVIEW_PRODUCT_ID,
+              permissions: ["interview.documents.write"],
+            },
+            { taskType: "structured-generation" },
+          ),
+    ]);
+    return c.json({
+      ...lists,
+      targets: targets
+        .filter((target) => target.kind === "language")
+        .map(({ id, label }) => ({ id, label })),
+    });
+  });
+  app.patch(`${prefix}/candidacies/:id/job-description`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const { jobDescription } = z
+      .object({ jobDescription: z.string().max(20_000) })
+      .parse(await jsonBody(c.req.raw));
+    const saved = await withTenant(
+      scope,
+      async (db) =>
+        (
+          await db.execute(sql`UPDATE interview.candidacies AS c
+            SET job_description=${jobDescription.trim() || null}
+            WHERE c.tenant_id=${scope.tenantId}::uuid AND c.id=${id}::uuid
+              AND EXISTS (
+                SELECT 1 FROM interview.member_people mp
+                WHERE mp.tenant_id=c.tenant_id
+                  AND mp.person_id=c.candidate_person_id
+                  AND mp.user_id=${scope.actorId}::uuid
+              )
+            RETURNING c.job_description`)
+        ).rows[0],
+      { database: options.database },
+    );
+    if (!saved) throw new DocumentContextNotFound();
+    return c.json({ jobDescription: saved["job_description"] });
+  });
+  app.get(`${prefix}/templates`, async (c) => {
+    const scope = c.get("documentScope");
+    await provisionBuiltIns(scope);
+    return c.json({ templates: await repo.listTemplates(scopeKey(scope)) });
+  });
+  app.get(`${prefix}/templates/:id`, async (c) => {
+    const scope = c.get("documentScope");
+    const selected = c.req.query("revision");
+    const item = await repo.getTemplateRevision(
+      scopeKey(scope),
+      uuid.parse(c.req.param("id")),
+      selected ? positive.parse(selected) : undefined,
+    );
+    if (!item) throw new DocumentNotFound();
+    return c.json(item);
+  });
+  app.post(`${prefix}/templates/intake`, async (c) => {
+    const { form, bytes } = await upload(c.req.raw);
+    const format = z.enum(["docx", "md"]).parse(formText(form, "format"));
+    const inspection = await inspectTemplate({ format, bytes });
+    return c.json({ fields: fieldsFor(inspection.fields, new FormData()) });
+  });
+  app.post(`${prefix}/templates`, async (c) => {
+    const scope = c.get("documentScope");
+    const { form, bytes } = await upload(c.req.raw);
+    const metadata = documentTemplateCreateSchema.parse({
+      name: formText(form, "name"),
+      kind: formText(form, "kind"),
+      format: formText(form, "format"),
+      instructions: formText(form, "instructions"),
+    });
+    const inspection = await inspectTemplate({
+      format: metadata.format,
+      bytes,
+    });
+    const fields = fieldsFor(inspection.fields, form);
+    return c.json(
+      await repo.createTemplate(scopeKey(scope), {
+        ...metadata,
+        fields,
+        sourceBytes: bytes,
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/templates/:id/revisions`, async (c) => {
+    const scope = c.get("documentScope");
+    const templateId = uuid.parse(c.req.param("id"));
+    const existing = await repo.getTemplateRevision(
+      scopeKey(scope),
+      templateId,
+    );
+    if (!existing || existing.template.ownerUserId !== scope.actorId)
+      throw new DocumentNotFound();
+    const { form, bytes } = await upload(c.req.raw);
+    const expectedRevision = positive.parse(formText(form, "expectedRevision"));
+    const instructions = z
+      .string()
+      .max(16_000)
+      .parse(formText(form, "instructions"));
+    if (expectedRevision !== existing.revision.revision)
+      throw new DocumentRevisionConflict();
+    const inspection = await inspectTemplate({
+      format: existing.template.format as "md" | "docx",
+      bytes,
+    });
+    const fields = fieldsFor(inspection.fields, form);
+    return c.json(
+      await repo.addTemplateRevision(scopeKey(scope), {
+        templateId,
+        expectedRevision,
+        instructions,
+        fields,
+        sourceBytes: bytes,
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/templates/:id/duplicate`, async (c) => {
+    const scope = c.get("documentScope");
+    const sourceTemplateId = uuid.parse(c.req.param("id"));
+    const original = await repo.getTemplateRevision(
+      scopeKey(scope),
+      sourceTemplateId,
+    );
+    if (!original) throw new DocumentNotFound();
+    const { name } = z
+      .strictObject({ name: z.string().trim().min(1).max(200) })
+      .parse(await jsonBody(c.req.raw));
+    const bytes = await source(scope, original);
+    return c.json(
+      await repo.duplicateTemplate(scopeKey(scope), {
+        sourceTemplateId,
+        name,
+        sourceBytes: bytes,
+      }),
+      201,
+    );
+  });
+  app.get(prefix, async (c) =>
+    c.json({
+      documents: await repo.listDocuments(scopeKey(c.get("documentScope"))),
+    }),
+  );
+  app.post(prefix, async (c) => {
+    const scope = c.get("documentScope");
+    const input = documentCreateSchema.parse(await jsonBody(c.req.raw));
+    const template = await repo.getTemplateRevision(
+      scopeKey(scope),
+      input.templateId,
+      input.templateRevision,
+    );
+    if (!template) throw new DocumentNotFound();
+    const candidate = await resolveDocumentContext(options.database, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      profileId: input.profileId,
+      profileRevision: input.profileRevision,
+      candidacyId: input.candidacyId,
+      interviewId: input.interviewId,
+    });
+    candidate.candidacyValues["target_role"] =
+      candidate.candidacyValues["role_title"] ?? "";
+    const existing = await repo.findMatchingDocument(scopeKey(scope), input);
+    if (existing)
+      return c.json({ existingDocumentId: existing.id, offer: "open-it" }, 409);
+    await authorizedTarget(scope, input.aiTargetId);
+    const generated = await generateDocumentValues(options.ai, {
+      ...scopeKey(scope),
+      profileId: input.aiTargetId,
+      targetId: input.aiTargetId,
+      templateId: input.templateId,
+      templateRevision: input.templateRevision,
+      candidateProfileRevisionId: `${input.profileId}:${input.profileRevision}`,
+      fields: template.fields,
+      instructions: template.revision.instructions,
+      candidateProfile: candidate.candidateProfile,
+      candidacyValues: candidate.candidacyValues,
+      interviewValues: candidate.interviewValues,
+      missingProfileKeys: candidate.missingProfileKeys,
+      signal: c.req.raw.signal,
+    }).catch(() => {
+      throw c.req.raw.signal.aborted
+        ? new RequestCancelled()
+        : new GenerationFailed();
+    });
+    if (c.req.raw.signal.aborted) throw new RequestCancelled();
+    const created = await repo
+      .createDocument(scopeKey(scope), {
+        ...input,
+        signal: c.req.raw.signal,
+        values: generated.values,
+        provenance: { kind: "generated", targetId: input.aiTargetId },
+        aiUsage: generated.usage,
+      })
+      .catch(async (error: unknown) => {
+        if (error instanceof DocumentAlreadyExists) {
+          await resolveDocumentContext(options.database, {
+            tenantId: scope.tenantId,
+            actorId: scope.actorId,
+            profileId: input.profileId,
+            profileRevision: input.profileRevision,
+            candidacyId: input.candidacyId,
+            interviewId: input.interviewId,
+          });
+          const winner = await repo.findMatchingDocument(
+            scopeKey(scope),
+            input,
+          );
+          if (winner) return { existingDocumentId: winner.id };
+        }
+        throw error;
+      });
+    if ("existingDocumentId" in created)
+      return c.json(
+        { existingDocumentId: created.existingDocumentId, offer: "open-it" },
+        409,
+      );
+    return c.json({ ...created, errors: generated.errors }, 201);
+  });
+  app.get(`${prefix}/:id`, async (c) => {
+    const selected = c.req.query("revision");
+    return c.json(
+      await load(
+        c.get("documentScope"),
+        c.req.param("id"),
+        selected ? positive.parse(selected) : undefined,
+      ),
+    );
+  });
+  app.post(`${prefix}/:id/revisions`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = documentEditSchema.parse(await jsonBody(c.req.raw));
+    const current = await load(scope, id);
+    if (input.baseRevision !== current.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    for (const field of current.fields)
+      if (
+        ((field.source === "candidacy" && current.document.candidacyId) ||
+          (field.source === "interview" && current.document.interviewId)) &&
+        input.values[field.key] !==
+          (current.revision.values as Record<string, string>)[field.key]
+      )
+        throw new InvalidField();
+    return c.json(
+      await repo.appendRevision(scopeKey(scope), {
+        documentId: id,
+        baseRevision: input.baseRevision,
+        values: input.values,
+        provenance: { kind: "edited" },
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/:id/regenerate`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = z
+      .union([
+        documentRegenerateSchema.extend({
+          aiTargetId: z.string().min(1).max(256),
+        }),
+        z.strictObject({
+          baseRevision: z.number().int().positive(),
+          mode: z.enum(["all", "fix"]),
+          aiTargetId: z.string().min(1).max(256),
+        }),
+      ])
+      .parse(await jsonBody(c.req.raw));
+    const current = await load(scope, id);
+    if (input.baseRevision !== current.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    const fields =
+      "fieldKey" in input
+        ? current.fields.filter(
+            (item) =>
+              item.key === input.fieldKey &&
+              item.source === "candidate-profile",
+          )
+        : input.mode === "all"
+          ? current.fields.filter((item) => item.source === "candidate-profile")
+          : current.fields.filter(
+              (item) =>
+                item.source === "candidate-profile" &&
+                Array.isArray(current.revision.validation) &&
+                current.revision.validation.some(
+                  (issue) =>
+                    typeof issue === "object" &&
+                    issue !== null &&
+                    "key" in issue &&
+                    issue.key === item.key,
+                ),
+            );
+    if (!fields.length) throw new InvalidField();
+    await authorizedTarget(scope, input.aiTargetId);
+    const candidate = await resolveDocumentContext(options.database, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      profileId: current.document.profileId,
+      profileRevision: current.document.profileRevision,
+      candidacyId: current.document.candidacyId,
+      interviewId: current.document.interviewId,
+    });
+    const generated = await generateDocumentValues(options.ai, {
+      ...scopeKey(scope),
+      profileId: input.aiTargetId,
+      targetId: input.aiTargetId,
+      templateId: current.document.templateId,
+      templateRevision: current.document.templateRevision,
+      candidateProfileRevisionId: `${current.document.profileId}:${current.document.profileRevision}`,
+      fields,
+      instructions: current.templateRevision.instructions,
+      candidateProfile: candidate.candidateProfile,
+      candidacyValues: candidate.candidacyValues,
+      interviewValues: candidate.interviewValues,
+      missingProfileKeys: candidate.missingProfileKeys,
+      signal: c.req.raw.signal,
+    }).catch(() => {
+      throw c.req.raw.signal.aborted
+        ? new RequestCancelled()
+        : new GenerationFailed();
+    });
+    if (c.req.raw.signal.aborted) throw new RequestCancelled();
+    return c.json(
+      await repo.appendRevision(scopeKey(scope), {
+        documentId: id,
+        baseRevision: input.baseRevision,
+        values: {
+          ...(current.revision.values as Record<string, string>),
+          ...generated.values,
+        },
+        provenance: {
+          kind: "regenerated",
+          fieldKeys: fields.map((field) => field.key),
+          targetId: input.aiTargetId,
+        },
+        aiUsage: generated.usage,
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/:id/restore`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    await load(scope, id);
+    const input = z
+      .strictObject({
+        baseRevision: z.number().int().positive(),
+        sourceRevision: z.number().int().positive(),
+      })
+      .parse(await jsonBody(c.req.raw));
+    return c.json(
+      await repo.restoreRevision(scopeKey(scope), { documentId: id, ...input }),
+      201,
+    );
+  });
+  app.get(`${prefix}/:id/preview`, async (c) => {
+    const scope = c.get("documentScope");
+    const selected = c.req.query("revision");
+    const item = await load(
+      scope,
+      c.req.param("id"),
+      selected ? positive.parse(selected) : undefined,
+    );
+    const template = await repo.getTemplateRevision(
+      scopeKey(scope),
+      item.document.templateId,
+      item.document.templateRevision,
+    );
+    if (!template) throw new DocumentNotFound();
+    const bytes = await source(scope, template);
+    const values = item.revision.values as Record<string, string>;
+    const html =
+      item.template.format === "docx"
+        ? await renderDocxPreview(bytes, values)
+        : renderMarkdownPreview(bytes.toString("utf8"), values);
+    return c.json({
+      html,
+      revision: item.revision.revision,
+      validation: item.revision.validation,
+    });
+  });
+  app.post(`${prefix}/:id/preview`, async (c) => {
+    const scope = c.get("documentScope");
+    const input = documentEditSchema.parse(await jsonBody(c.req.raw));
+    const item = await load(scope, c.req.param("id"));
+    if (input.baseRevision !== item.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    for (const field of item.fields)
+      if (
+        ((field.source === "candidacy" && item.document.candidacyId) ||
+          (field.source === "interview" && item.document.interviewId)) &&
+        input.values[field.key] !==
+          (item.revision.values as Record<string, string>)[field.key]
+      )
+        throw new InvalidField();
+    const template = await repo.getTemplateRevision(
+      scopeKey(scope),
+      item.document.templateId,
+      item.document.templateRevision,
+    );
+    if (!template) throw new DocumentNotFound();
+    const bytes = await source(scope, template);
+    const html =
+      item.template.format === "docx"
+        ? await renderDocxPreview(bytes, input.values)
+        : renderMarkdownPreview(bytes.toString("utf8"), input.values);
+    return c.json({
+      html,
+      validation: validateDocumentValues(item.fields, input.values),
+    });
+  });
+  app.post(`${prefix}/:id/exports`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = documentExportSchema.parse(await jsonBody(c.req.raw));
+    const item = await load(scope, id, input.revision);
+    if (item.template.format === "md" && input.format !== "md")
+      return c.json({ error: { code: "unsupported-format" } }, 400);
+    const template = await repo.getTemplateRevision(
+      scopeKey(scope),
+      item.document.templateId,
+      item.document.templateRevision,
+    );
+    if (!template) throw new DocumentNotFound();
+    const bytes = await source(scope, template);
+    const values = item.revision.values as Record<string, string>;
+    const rendered =
+      input.format === "docx"
+        ? await renderDocxTemplate(bytes, values, { missing: "blank" })
+        : Buffer.from(
+            item.template.format === "docx"
+              ? await renderDocxAsMarkdown(bytes, values)
+              : renderMarkdownTemplate(bytes.toString("utf8"), values, {
+                  missing: "blank",
+                }),
+            "utf8",
+          );
+    const exported = await repo.recordExport(scopeKey(scope), {
+      documentId: id,
+      revision: input.revision,
+      format: input.format,
+      bytes: rendered,
+      title: item.document.title,
+      metadata: { revision: input.revision, format: input.format },
+    });
+    return c.json({ ...exported, warnings: item.revision.validation }, 201);
+  });
+  app.get(`${prefix}/:id/exports`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    await load(scope, id);
+    return c.json({ exports: await repo.listExports(scopeKey(scope), id) });
+  });
+  app.get(`${prefix}/:id/exports/:exportId/download`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const item = await load(scope, id);
+    const exportId = uuid.parse(c.req.param("exportId"));
+    const record = (await repo.listExports(scopeKey(scope), id)).find(
+      (entry) => entry.id === exportId,
+    );
+    if (!record) throw new DocumentNotFound();
+    const artifactId = await repo.getExportArtifactId(
+      scopeKey(scope),
+      exportId,
+    );
+    if (!artifactId) throw new DocumentNotFound();
+    const bytes = await artifacts.read({
+      ...scopeKey(scope),
+      artifactId,
+      expectedType: "interview.document-export",
+    });
+    if (!bytes) throw new DocumentNotFound();
+    c.header(
+      "content-type",
+      record.format === "docx"
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : "text/markdown; charset=utf-8",
+    );
+    c.header(
+      "content-disposition",
+      `attachment; filename="${safeName(item.document.title, record.format)}"`,
+    );
+    c.header("x-content-type-options", "nosniff");
+    return c.body(new Uint8Array(bytes));
+  });
+  return app;
+}

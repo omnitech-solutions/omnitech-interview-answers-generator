@@ -5,6 +5,7 @@ import {
   WorkspaceView,
 } from "../workspace/workspace-view";
 import { BriefingsView } from "../briefings/briefings-view";
+import { DocumentsView } from "../documents/documents-view";
 import { HomeView } from "../home/home-view";
 import { RehearsalView } from "../rehearsal/rehearsal-view";
 import type { IconName } from "../icon";
@@ -67,6 +68,19 @@ export const views: readonly ViewDefinition[] = [
         actions={actions}
         lists={lists}
         explanations={control.explanations}
+        onDirtyChange={onDirtyChange}
+      />
+    ),
+  },
+  {
+    id: "documents",
+    label: "Documents",
+    icon: "upload_file",
+    goKey: "D",
+    render: ({ route, actions, onDirtyChange }) => (
+      <DocumentsView
+        rest={route.rest}
+        actions={actions}
         onDirtyChange={onDirtyChange}
       />
     ),

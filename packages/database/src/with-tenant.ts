@@ -10,6 +10,7 @@ import {
 export interface TenantContext {
   tenantId: string;
   actorId: string;
+  productId?: string;
 }
 export type TenantDatabase<R extends AnyRelations = EmptyRelations> =
   PgAsyncTransaction<NodePgQueryResultHKT, R>;
@@ -40,6 +41,10 @@ export async function withTenant<T, R extends AnyRelations = EmptyRelations>(
       await tx.execute(
         sql`select set_config('app.tenant_id', ${context.tenantId}, true), set_config('app.actor_id', ${context.actorId}, true)`,
       );
+      if (context.productId !== undefined)
+        await tx.execute(
+          sql`select set_config('app.product_id', ${context.productId}, true)`,
+        );
       return work(tx);
     }),
   );

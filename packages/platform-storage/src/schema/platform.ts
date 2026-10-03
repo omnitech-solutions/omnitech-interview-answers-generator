@@ -7,6 +7,7 @@ import {
   uuid,
   timestamp,
   boolean,
+  bytea,
   integer,
   jsonb,
   index,
@@ -34,7 +35,7 @@ export const artifacts = platform.table.withRLS(
   {
     id: uuid().defaultRandom().primaryKey(),
     tenantId: uuid("tenant_id").notNull(),
-    ownerUserId: uuid("owner_user_id").notNull(),
+    ownerUserId: uuid("owner_user_id"),
     productId: text("product_id").notNull(),
     artifactType: text("artifact_type").notNull(),
     title: text().notNull(),
@@ -64,10 +65,71 @@ export const artifacts = platform.table.withRLS(
       table.productId.asc().nullsLast(),
       table.updatedAt.desc().nullsFirst(),
     ),
-
+    unique("artifacts_tenant_id_id_key").on(table.tenantId, table.id),
+    check(
+      "artifacts_ownerless_builtin_check",
+      sql`(owner_user_id IS NOT NULL AND artifact_type <> 'interview.document-template-builtin') OR (owner_user_id IS NULL AND product_id = 'omnitech.interview' AND artifact_type = 'interview.document-template-builtin')`,
+    ),
     pgPolicy("tenant_artifacts", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+    }),
+    pgPolicy("document_artifacts_select", {
+      as: "restrictive",
+      for: "select",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export') OR owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR (artifact_type = 'interview.document-template-builtin' AND owner_user_id IS NULL))`,
+    }),
+    pgPolicy("document_artifacts_insert", {
+      as: "restrictive",
+      for: "insert",
+      withCheck: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export') OR (owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid AND artifact_type <> 'interview.document-template-builtin') OR (artifact_type = 'interview.document-template-builtin' AND owner_user_id IS NULL AND current_setting('app.document_catalog_provisioner', true) = 'on'))`,
+    }),
+    pgPolicy("document_artifacts_update", {
+      as: "restrictive",
+      for: "update",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export'))`,
+      withCheck: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export'))`,
+    }),
+    pgPolicy("document_artifacts_delete", {
+      as: "restrictive",
+      for: "delete",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export'))`,
+    }),
+  ],
+);
+
+export const artifactPayloads = platform.table.withRLS(
+  "artifact_payloads",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    artifactId: uuid("artifact_id").notNull(),
+    bytes: bytea().notNull(),
+    byteLength: integer("byte_length").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .default(sql`now()`)
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.artifactId],
+      name: "artifact_payloads_pkey",
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.artifactId],
+      foreignColumns: [artifacts.tenantId, artifacts.id],
+      name: "artifact_payloads_artifact_fkey",
+    }).onDelete("cascade"),
+    check(
+      "artifact_payloads_size_check",
+      sql`byte_length >= 0 AND byte_length <= 10485760 AND octet_length(bytes) = byte_length`,
+    ),
+    pgPolicy("artifact_payloads_select", {
+      for: "select",
+      using: sql`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (SELECT 1 FROM platform.artifacts a WHERE a.tenant_id = artifact_payloads.tenant_id AND a.id = artifact_payloads.artifact_id AND a.product_id = 'omnitech.interview' AND (a.owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR (a.artifact_type = 'interview.document-template-builtin' AND a.owner_user_id IS NULL)))`,
+    }),
+    pgPolicy("artifact_payloads_insert", {
+      for: "insert",
+      withCheck: sql`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (SELECT 1 FROM platform.artifacts a WHERE a.tenant_id = artifact_payloads.tenant_id AND a.id = artifact_payloads.artifact_id AND a.product_id = 'omnitech.interview' AND (a.owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR (a.artifact_type = 'interview.document-template-builtin' AND a.owner_user_id IS NULL AND current_setting('app.document_catalog_provisioner', true) = 'on')))`,
     }),
   ],
 );

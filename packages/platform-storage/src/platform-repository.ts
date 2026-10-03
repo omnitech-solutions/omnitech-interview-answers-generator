@@ -216,6 +216,7 @@ function rolePermissions(role: ContextRow["role"]): string[] {
     "platform.read",
     "artifact.read",
     "interview.read",
+    "interview.documents.write",
     "presentation.read",
   ];
   if (role === "member") return common;

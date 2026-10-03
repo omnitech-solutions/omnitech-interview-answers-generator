@@ -154,6 +154,7 @@ export const candidacies = interview.table.withRLS(
     companyId: uuid("company_id").notNull(),
     candidatePersonId: uuid("candidate_person_id").notNull(),
     title: text("title").notNull(),
+    jobDescription: text("job_description"),
     status: candidacyStatus("status").notNull().default("exploring"),
     source: candidacySource("source"),
     postingUrl: text("posting_url"),
@@ -191,6 +192,11 @@ export const interviews = interview.table.withRLS(
   },
   (t) => [
     tenantUnique("interviews", t.tenantId, t.id),
+    unique("interviews_tenant_id_id_candidacy_id_key").on(
+      t.tenantId,
+      t.id,
+      t.candidacyId,
+    ),
     unique("interviews_candidacy_ordinal_key").on(t.candidacyId, t.ordinal),
     ...tenantReference(
       "interviews_candidacy_fkey",
