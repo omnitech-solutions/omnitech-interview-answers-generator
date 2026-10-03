@@ -177,6 +177,22 @@ describe("the agent jobs API", () => {
       body,
     });
 
+  // INV-0004: a job is started for a product the member has installed and may
+  // use; anything else is a 404 before a payload or job is written.
+  it("refuses a job for a product that is not installed", async () => {
+    const jobsBefore = (await pg.owner.query("SELECT 1 FROM ai.agent_jobs"))
+      .rowCount;
+    const response = await job({
+      productId: "omnitech.not-installed",
+      profileId: "coding-fast",
+      prompt: "Fix the build.",
+    });
+    expect(response.status).toBe(404);
+    expect((await pg.owner.query("SELECT 1 FROM ai.agent_jobs")).rowCount).toBe(
+      jobsBefore,
+    );
+  });
+
   it("lists the profiles a product may start a job with", async () => {
     const response = await call("/api/platform/v1/agent-profiles?tenant=local");
     expect((await response.json()).map(({ id }: { id: string }) => id)).toEqual(

@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { resolveAgentProfiles } from "./ai-config";
 import { resolvePlatformContext } from "./context";
+import { getProductRegistry } from "./registry";
 
 const createSchema = z.object({
   productId: z.string().trim().min(1),
@@ -76,6 +77,20 @@ export function createAgentApi() {
     }
     try {
       const input = createSchema.parse(await context.req.json());
+      // [SAFETY] A job is started for a product the member has installed and
+      // may use (INV-0004); every miss is a 404, before anything is written.
+      const installed = platformContext.products.some(
+        (product) => product.productId === input.productId && product.enabled,
+      );
+      const product = getProductRegistry()
+        .list()
+        .find(({ manifest }) => manifest.id === input.productId);
+      const permitted = product?.manifest.routes.some((route) =>
+        platformContext.permissions.includes(route.requiredPermission),
+      );
+      if (!installed || !permitted) {
+        return context.json({ error: "Not found." }, 404);
+      }
       const profile = profiles().get(input.profileId);
       if (!profile) return context.json({ error: "Unknown profile." }, 400);
       validateAgentProfile(profile);
