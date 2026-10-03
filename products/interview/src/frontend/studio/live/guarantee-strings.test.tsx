@@ -249,12 +249,14 @@ describe("source scan", () => {
 // must not be shown. A claim that is shown but not listed here fails.
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 type Fact = { file: string; test: string };
-// The handles the ADRs' governs blocks declare, read from the ADR files.
-const ADR_HANDLES = ["ADR-0011", "ADR-0012"].flatMap((id) => {
+// The handles the ADRs' governs blocks declare, read from the ADR files. A
+// retired handle stays declared in its own ADR, so a citation stays truthful
+// before and after ADR-0013 is accepted.
+const ADR_HANDLES = ["ADR-0011", "ADR-0012", "ADR-0013"].flatMap((id) => {
   const dir = join(REPO, "bionic/adrs");
   const file = readdirSync(dir).find((name) => name.startsWith(`${id}-`));
   const text = file ? readFileSync(join(dir, file), "utf8") : "";
-  return [...text.matchAll(/handle: (ADR-001[12]\/[a-z0-9-]+)/g)].map(
+  return [...text.matchAll(/handle: (ADR-001[123]\/[a-z0-9-]+)/g)].map(
     (match) => match[1] as string,
   );
 });

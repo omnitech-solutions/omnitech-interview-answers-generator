@@ -4,9 +4,10 @@
 // fetch is `app.request`, so every companion message crosses the real ingest
 // route, the real credential check and the real stores. Tests, not production
 // code, import this.
+
+import type { CaptureSource } from "@omnitech/active-session-contracts";
 import { liveStreamResponseSchema } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
-import type { CaptureSource } from "@omnitech/active-session-contracts";
 import { deriveLiveModel } from "../../../frontend/studio/live/session-state.js";
 import {
   type Fixture,
@@ -131,7 +132,7 @@ export async function startWorld<K extends CompanionKit>(
     resolveContext,
     ...(ingestLimits ? { ingestLimits } : {}),
   });
-  const base = `http://studio.test/api/interview/t/${slug}/sessions`;
+  const base = `https://studio.test/api/interview/t/${slug}/sessions`;
   const world: World<K> = {
     fx,
     slug,
@@ -184,7 +185,7 @@ export async function startWorld<K extends CompanionKit>(
     companion(started, options = {}) {
       const clock = options.clock ?? new kit.VirtualClock(Date.now());
       const { companion, capture } = kit.createFixtureCompanion({
-        baseUrl: "http://studio.test",
+        baseUrl: "https://studio.test",
         tenantSlug: slug,
         credential: started.credential,
         fetch:

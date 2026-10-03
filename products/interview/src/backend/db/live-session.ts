@@ -329,6 +329,11 @@ export const sessionActions = interview.table.withRLS(
     // The published result (a structured guide or draft); session content.
     result: jsonb("result"),
     fenceAtDispatch: bigint("fence_at_dispatch", { mode: "number" }).notNull(),
+    // The transcript segment ids (event ids, never text) this task revision
+    // was built on. A rebuilt run restores its task state and utterance
+    // boundaries from them, so it closes exactly the utterances the live run
+    // closed (null: a row written before the column existed).
+    sourceEventIds: text("source_event_ids").array(),
     // Ids and codes only, never content (rule:id-only-traces).
     suppressionReason: text("suppression_reason"),
     shown: boolean("shown").notNull().default(false),

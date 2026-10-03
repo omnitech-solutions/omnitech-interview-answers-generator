@@ -268,8 +268,8 @@ export function ProcessingSection({
             <div>{advisory.body}</div>
             {advisoryAge && (
               <div>
-                The companion’s last report ({advisoryAge}); it doesn’t block
-                Start.
+                This is the companion’s last report, {advisoryAge}. It doesn’t
+                block Start.
               </div>
             )}
           </div>

@@ -198,3 +198,22 @@ describe("Setup and the companion's last report", () => {
     expect(capability().textContent).toMatch(/reported .+ ago/);
   });
 });
+
+describe("Setup and the audio source that questions are read from", () => {
+  it("warns, without blocking, when live assistance has no application audio, and not once it is selected", async () => {
+    withReport(null);
+    await open();
+    readyToStart();
+    // Default: microphone and application audio, assistance on.
+    expect(screen.queryByTestId("app-audio-advisory")).toBeNull();
+    fireEvent.click(screen.getByLabelText(/App audio/));
+    const advisory = screen.getByTestId("app-audio-advisory");
+    expect(advisory).toHaveTextContent(
+      "Questions are read from the other side’s audio (application audio); with the microphone only, no question will be answered.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(start()).toBeEnabled();
+    fireEvent.click(screen.getByLabelText(/App audio/));
+    expect(screen.queryByTestId("app-audio-advisory")).toBeNull();
+  });
+});

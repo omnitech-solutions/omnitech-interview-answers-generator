@@ -538,7 +538,13 @@ if (process.argv[2] === "run") setInterval(() => {}, 1000);
         stdin: "",
       });
       expect(result.timedOut).toBe(true);
-      expect(names().filter((name) => !before.has(name))).toEqual([]);
+      // Poll with a bounded wait: the daemon may still be finishing removal.
+      const leaked = () => names().filter((name) => !before.has(name));
+      const deadline = Date.now() + 10_000;
+      while (leaked().length > 0 && Date.now() < deadline) {
+        await new Promise((done) => setTimeout(done, 250));
+      }
+      expect(leaked(), JSON.stringify(result)).toEqual([]);
     },
     60_000,
   );

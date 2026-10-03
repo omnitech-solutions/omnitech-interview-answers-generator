@@ -472,7 +472,7 @@ export class ActiveSessionRepository {
   ): Promise<SessionView> {
     assertUuid(sessionId);
     if (!isProcessingPolicy(requested)) throw new SessionError("invalid_input");
-    return inOwnerScope(this.database, scope, async (tx) => {
+    const tightened = await inOwnerScope(this.database, scope, async (tx) => {
       const row = await lockSession(tx, scope, sessionId);
       if (!row || row.purgedAt !== null) throw new SessionError("not_found");
       const decision = tightenPolicy(row.policy, requested);
@@ -486,6 +486,14 @@ export class ActiveSessionRepository {
       const after = await readSession(tx, scope, sessionId);
       return toView(after as SessionRecord);
     });
+    // The agent worker claims any queued job without a policy check, so a
+    // remote job queued before the tighten would still launch. Once the policy
+    // is device-only the session's jobs are cancelled, as for a pause; running
+    // it whenever the policy is device-only (not only on a change) lets a
+    // retry after a failed cancellation finish the job.
+    if (tightened.processingPolicy === "device-only")
+      await this.afterStatusChange(scope, sessionId, true);
+    return tightened;
   }
 
   // Only the owner shortens retention, never lengthens it

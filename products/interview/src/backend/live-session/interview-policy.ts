@@ -16,6 +16,7 @@
 // (rule:id-only-traces); no utterance text rides in a decision. Every synthetic
 // replay set (session-replay-fixtures.test.ts) is run through it.
 
+import { createHash } from "node:crypto";
 import { type AssistStage, createAssistStage } from "./assist-stage.js";
 import { type CodingStage, createCodingStage } from "./coding-stage.js";
 import {
@@ -114,11 +115,15 @@ const words = (text: string): string[] => {
 
 // An opaque handle from an event id; characters outside the handle alphabet
 // are replaced so a hostile id cannot become a policy decision.
+// A short id keeps its readable form; a longer one is cut and given a hash of
+// the whole id, so two long ids that share a prefix never share a handle.
+const HANDLE_MAX = 128;
 const handleOf = (prefix: string, id: string): string => {
-  const handle = `${prefix}-${id.replace(/[^A-Za-z0-9._:-]/g, "_")}`.slice(
-    0,
-    128,
-  );
+  const cleaned = `${prefix}-${id.replace(/[^A-Za-z0-9._:-]/g, "_")}`;
+  const handle =
+    cleaned.length <= HANDLE_MAX
+      ? cleaned
+      : `${cleaned.slice(0, HANDLE_MAX - 17)}-${createHash("sha256").update(id).digest("hex").slice(0, 16)}`;
   return isOpaqueHandle(handle) ? handle : `${prefix}-x`;
 };
 

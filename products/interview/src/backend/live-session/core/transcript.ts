@@ -3,15 +3,13 @@
 // on the superseded segment is marked stale elsewhere, never edited. The text
 // is stored only to be handed to the policy port and is never inspected here.
 import type { TranscriptFinal } from "@omnitech/active-session-contracts";
-import type { Utterance } from "./ports.js";
-
-export type CaptureSource = "microphone" | "application-audio";
+import type { AudioSource, Utterance } from "./ports.js";
 
 // The wire's content.source, else the observation's source id when that names
 // one of the two captured sources (older senders omit content.source).
 const captureSourceOf = (
   observation: TranscriptFinal,
-): CaptureSource | undefined => {
+): AudioSource | undefined => {
   const named = observation.content.source ?? observation.sourceId;
   return named === "microphone" || named === "application-audio"
     ? named
@@ -23,7 +21,7 @@ export type Segment = {
   sourceId: string;
   speaker: string;
   // Which captured audio source produced the text; a label, never an identity.
-  source?: CaptureSource;
+  source?: AudioSource;
   startMs: number;
   endMs: number;
   text: string;

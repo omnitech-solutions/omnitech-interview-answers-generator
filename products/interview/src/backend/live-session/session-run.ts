@@ -32,6 +32,9 @@ import {
   type IdGenerator,
   markSegmentsSuperseded,
   processUtterance,
+  type RememberedRevision,
+  restoreTasks,
+  TASK_ID_PREFIX,
   type Task,
   type TaskState,
   type TraceEvent,
@@ -167,6 +170,25 @@ const idsOf = (run: SessionRun): IdGenerator => ({
       : `${prefix}-${stableKey}`,
 });
 
+// What the stored actions remember of the tasks a previous holder opened: the
+// source segments of every task revision it recorded an action for.
+function rememberedRevisions(
+  actions: readonly StoredAction[],
+): RememberedRevision[] {
+  const remembered: RememberedRevision[] = [];
+  for (const action of actions) {
+    if (!action.sourceEventIds || action.sourceEventIds.length === 0) continue;
+    if (!action.taskId.startsWith(`${TASK_ID_PREFIX}-`)) continue;
+    remembered.push({
+      taskId: action.taskId,
+      taskKey: action.taskId.slice(TASK_ID_PREFIX.length + 1),
+      revision: action.taskRevision,
+      basedOn: action.sourceEventIds,
+    });
+  }
+  return remembered;
+}
+
 // A core trace event as a processor trace event: ids, codes and counts only.
 function fromCore(run: SessionRun, core: TraceEvent): void {
   const { taskId, revision, reason, ...rest } = core.ids;
@@ -252,6 +274,17 @@ export async function seedFromActions(
   store: SessionStorePort,
   actions: readonly StoredAction[],
 ): Promise<void> {
+  // [STATE] Rebuild what the previous holder had already decided: its tasks
+  // at their stored revisions (so a follow-up to a corrected question is the
+  // next revision, never a repeat of one that already has an answer) and the
+  // segments they rest on as closed utterances (so a question one second after
+  // an answered one is its own utterance, as it was live, and never merges
+  // into the answered task). Segments no action names stay open; replay
+  // evaluates them again.
+  const remembered = rememberedRevisions(actions);
+  run.tasks = restoreTasks(run.tasks, remembered);
+  for (const entry of remembered)
+    for (const id of entry.basedOn) run.processed.add(id);
   for (const action of actions) {
     const key = keyOf(
       run,

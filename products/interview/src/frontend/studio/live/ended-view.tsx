@@ -1,6 +1,6 @@
 // The ended view: what a finished session left behind, truthfully.
-//   - Ending revokes the credential and cancels running work (ADR-0011
-//     rule:stop-authority); the view makes no "nothing is running" claim, as
+//   - Ending revokes the credential and cancels running work (ADR-0012
+//     rule:credential-revocation; ADR-0011 rule:pause-end-suppression); the view makes no "nothing is running" claim, as
 //     the worker may still be finishing a cancelled job.
 //   - "Nothing was submitted or sent for you": no route of this product
 //     operates an external interview interface, and the session sends nothing.
@@ -17,6 +17,7 @@ import { EndedRetention } from "./ended-retention";
 import {
   answerRows,
   codingRows,
+  DRAFTS_KEPT,
   formatDayTime,
   type TargetChoices,
   targetTitle,
@@ -133,8 +134,8 @@ export function EndedView({ studio }: EndedViewProps) {
             </h3>
             <p className="live-note">
               {session.purged
-                ? "The transcript, screenshots and the session drafts you did not edit are gone; only these facts remain. Drafts you edited, promoted or exported stay in your Workspace."
-                : "The transcript, screenshots and the session drafts you did not edit are no longer shown here. Drafts you edited, promoted or exported stay in your Workspace."}
+                ? `The transcript, screenshots and the session drafts you did not edit are gone; only these facts remain. ${DRAFTS_KEPT}.`
+                : `The transcript, screenshots and the session drafts you did not edit are no longer shown here. ${DRAFTS_KEPT}.`}
             </p>
             <dl className="ended-facts">
               <div>

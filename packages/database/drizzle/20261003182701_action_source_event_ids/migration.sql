@@ -1,0 +1,1 @@
+ALTER TABLE "interview"."session_actions" ADD COLUMN "source_event_ids" text[];

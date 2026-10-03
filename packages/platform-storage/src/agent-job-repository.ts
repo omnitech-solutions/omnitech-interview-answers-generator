@@ -168,7 +168,9 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
   // before the job row is touched (session row, then job row). A private
   // (session) job resumes only through such a guard: without one the update
   // matches no private row, so the generic resume path cannot revive a job
-  // of an ended or paused session (ADR-0012 no-resume-after-end).
+  // of an ended or paused session (ADR-0012 no-resume-after-end). Trust point:
+  // the repository only checks that a guard was supplied, not what it checks;
+  // the caller's guard is responsible for verifying the session is active.
   async requestResume(
     tenantId: string,
     actorId: JobActor,

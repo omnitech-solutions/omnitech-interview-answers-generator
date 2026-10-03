@@ -53,12 +53,13 @@ export const RETENTION_LABEL: Record<LiveRetentionMode, string> = {
   "thirty-days": "30 days",
   "until-deleted": "Until I delete",
 };
-// What a purge does not reach, and what is never stored at all. ADR-0012: the
-// purge keeps a draft the owner edited, promoted or exported, and a draft an
-// answer revision or revert refers to (session-drafts.ts); raw audio is never
-// stored.
-export const PROMOTED_NOTE =
-  "Raw audio is never stored. Drafts you edited, promoted or exported, and drafts an answer revision refers to, stay in your Workspace and are not deleted with the session.";
+// What a purge does not reach, and what is never stored at all. ADR-0012 keeps
+// a draft the owner edited, promoted or exported; ADR-0013 Decision 3 adds a
+// draft an answer revision or revert refers to (session-drafts.ts); raw audio
+// is never stored.
+export const DRAFTS_KEPT =
+  "Drafts you edited, promoted or exported, and drafts an answer revision refers to, stay in your Workspace";
+export const PROMOTED_NOTE = `Raw audio is never stored. ${DRAFTS_KEPT} and are not deleted with the session.`;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // What the chosen mode means for this session, in one sentence.

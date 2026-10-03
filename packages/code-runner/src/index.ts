@@ -433,17 +433,30 @@ export class DockerCodeRunner implements CodeRunner {
       });
       child.on("error", reject);
 
+      const cleanupTimeoutMs = 5_000;
       const timer = setTimeout(() => {
         timedOut = true;
         // Stop the container, then the client; `rm -f` covers a container the
         // kill raced with, so none outlives its run (or its mounted temp dir).
-        spawnSync(docker, ["kill", containerName], { stdio: "ignore" });
-        spawnSync(docker, ["rm", "-f", containerName], { stdio: "ignore" });
+        // Bounded: a hung Docker daemon must not freeze the worker event loop
+        // (and with it lease renewal) indefinitely.
+        const bounded = { stdio: "ignore", timeout: cleanupTimeoutMs } as const;
+        spawnSync(docker, ["kill", containerName], bounded);
+        spawnSync(docker, ["rm", "-f", containerName], bounded);
         child.kill("SIGKILL");
       }, timeoutMs);
 
       child.on("close", (exitCode) => {
         clearTimeout(timer);
+        if (timedOut) {
+          // The timer may have fired before the daemon created the container,
+          // so the first kill/rm found nothing and a Created-state container
+          // would remain; the client has exited now, so remove it again.
+          spawnSync(docker, ["rm", "-f", containerName], {
+            stdio: "ignore",
+            timeout: cleanupTimeoutMs,
+          });
+        }
         if (isDockerDaemonUnavailable(stderr)) {
           reject(new Error("Docker daemon is unavailable."));
           return;

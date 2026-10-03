@@ -110,6 +110,10 @@ export type StoredAction = {
   fenceAtDispatch: number;
   jobId: string | null;
   jobCreated: boolean;
+  // The transcript segment ids the task revision was built on. Read only for
+  // the worker (listActions), never for the browser's changes feed; null for
+  // a row written before the column existed.
+  sourceEventIds?: readonly string[] | null;
   result: unknown;
   shown: boolean;
   suppressionReason: string | null;
@@ -145,6 +149,13 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),
     updatedAt: new Date(row["updated_at"] as string).toISOString(),
+    ...("source_event_ids" in row
+      ? {
+          sourceEventIds: Array.isArray(row["source_event_ids"])
+            ? (row["source_event_ids"] as string[])
+            : null,
+        }
+      : {}),
   };
 }
 
@@ -164,7 +175,7 @@ export async function listActions(
       throw new SessionError("not_found");
     const rows = await rowsOf<Record<string, unknown>>(
       tx,
-      sql`SELECT ${ACTION_COLUMNS}
+      sql`SELECT ${ACTION_COLUMNS}, source_event_ids
           FROM interview.session_actions
           WHERE tenant_id = ${scope.tenantId}::uuid
             AND owner_user_id = ${scope.actorId}::uuid

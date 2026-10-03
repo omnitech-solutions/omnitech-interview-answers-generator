@@ -224,6 +224,18 @@ export function SetupView({
             : {})}
           onChange={(on) => patch({ assistance: on })}
         >
+          {!strict &&
+            form.assistance &&
+            !form.sources.includes("application-audio") && (
+              <div
+                role="status"
+                className="setup-muted setup-reason"
+                data-testid="app-audio-advisory"
+              >
+                Questions are read from the other side’s audio (application
+                audio); with the microphone only, no question will be answered.
+              </div>
+            )}
           {rehearsal && !strict && form.assistance && (
             <div className="setup-muted setup-reason">
               Each draft shown counts as a hint at the usual hint cost.

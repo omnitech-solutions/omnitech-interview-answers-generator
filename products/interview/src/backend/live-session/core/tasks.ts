@@ -15,6 +15,10 @@ import {
   type Utterance,
 } from "./ports.js";
 
+// Task ids are `${TASK_ID_PREFIX}-${taskKey}`: named after the question's own
+// source, so a rebuilt run names a task as the live run did.
+export const TASK_ID_PREFIX = "task";
+
 export type TaskRevision = {
   revision: number;
   // Segment ids this revision was built on.
@@ -145,7 +149,7 @@ export function applyVerdict(
       // One logical task per question: a repeated key is not a second task.
       const existing = state.byKey[decision.taskKey];
       if (existing) return refuse("task_exists", existing);
-      const taskId = ids.next("task", decision.taskKey);
+      const taskId = ids.next(TASK_ID_PREFIX, decision.taskKey);
       const task: Task = {
         taskId,
         taskKey: decision.taskKey,
@@ -258,6 +262,67 @@ export async function processUtterance(
     verdict.decision,
     ids,
   );
+}
+
+// The segment ids a task revision is built on, or null for an unknown one.
+export function sourceIdsOf(
+  state: TaskState,
+  taskId: string,
+  revision: number,
+): readonly string[] | null {
+  const entry = state.tasks[taskId]?.revisions.find(
+    (candidate) => candidate.revision === revision,
+  );
+  return entry ? entry.basedOn : null;
+}
+
+// What a rebuilt run remembers of one task revision: the ids of its source
+// segments, exactly as the live run recorded them.
+export type RememberedRevision = {
+  taskId: string;
+  taskKey: string;
+  revision: number;
+  basedOn: readonly string[];
+};
+
+// Rebuilds the tasks a previous holder had opened from what it remembered, so
+// a later utterance revises the same task at the next revision instead of
+// opening it again from revision 1. Pure; the revision reason is not part of
+// what is remembered (nothing downstream reads it), so an earlier revision
+// than the first is "opened" and the rest are "follow_up".
+export function restoreTasks(
+  state: TaskState,
+  remembered: readonly RememberedRevision[],
+): TaskState {
+  const grouped = new Map<string, RememberedRevision[]>();
+  for (const entry of remembered)
+    grouped.set(entry.taskId, [...(grouped.get(entry.taskId) ?? []), entry]);
+  const tasks: Record<string, Task> = { ...state.tasks };
+  const byKey: Record<string, string> = { ...state.byKey };
+  for (const [taskId, entries] of grouped) {
+    const byRevision = new Map<number, RememberedRevision>();
+    for (const entry of entries)
+      if (!byRevision.has(entry.revision))
+        byRevision.set(entry.revision, entry);
+    const ordered = [...byRevision.values()].sort(
+      (a, b) => a.revision - b.revision,
+    );
+    const first = ordered[0] as RememberedRevision;
+    const last = ordered[ordered.length - 1] as RememberedRevision;
+    tasks[taskId] = {
+      taskId,
+      taskKey: first.taskKey,
+      revision: last.revision,
+      revisions: ordered.map((entry, index) => ({
+        revision: entry.revision,
+        basedOn: entry.basedOn,
+        reason: index === 0 ? "opened" : "follow_up",
+        sourceSuperseded: false,
+      })),
+    };
+    byKey[first.taskKey] = taskId;
+  }
+  return { ...state, tasks, byKey };
 }
 
 export type StaleRevision = { taskId: string; revision: number };

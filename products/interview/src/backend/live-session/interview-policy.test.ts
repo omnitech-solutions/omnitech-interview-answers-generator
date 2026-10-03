@@ -46,6 +46,37 @@ const verdict = (
     deferredTopics: [],
   });
 
+describe("task handles from long event ids", () => {
+  const keyFor = (id: string) => {
+    const result = decideBaseline({
+      utterance: {
+        id,
+        speaker: "speaker-1",
+        segmentIds: [id],
+        startMs: 0,
+        endMs: 1,
+        text: "What is your notice period?",
+      },
+      openTasks: [],
+      deferredTopics: [],
+    });
+    return result.decision.kind === "open" ? result.decision.taskKey : "";
+  };
+
+  it("keeps two long ids that share a prefix apart", () => {
+    const shared = "e".repeat(140);
+    const a = keyFor(`${shared}-one`);
+    const b = keyFor(`${shared}-two`);
+    expect(a).not.toBe(b);
+    expect(a.length).toBeLessThanOrEqual(128);
+    expect(b.length).toBeLessThanOrEqual(128);
+  });
+
+  it("leaves a short id readable and unchanged", () => {
+    expect(keyFor("u1")).toBe("q-u1");
+  });
+});
+
 describe("baseline classification", () => {
   it.each(["mm-hm", "Right.", "Okay", "Yeah", "uh huh", "Thank you."])(
     "treats %j as a backchannel that never opens a task",

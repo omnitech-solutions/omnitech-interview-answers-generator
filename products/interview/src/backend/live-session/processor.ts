@@ -276,6 +276,9 @@ export function createSessionProcessor(
                 .catch(() => undefined);
           })
           .finally(() => {
+            // The dispatch has settled (or failed above): no action stays
+            // open, so a later failure cannot settle one that finished.
+            run.openActionId = null;
             if (run.inflight === flight) run.inflight = null;
           });
         run.inflight = flight;

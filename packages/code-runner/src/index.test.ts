@@ -376,6 +376,58 @@ describe("DockerCodeRunner", () => {
     );
   });
 
+  it("bounds the timeout cleanup calls so a hung daemon cannot freeze the worker", async () => {
+    vi.useFakeTimers();
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ timeoutMs: 25 });
+    const resultPromise = runner.run({ language: "php", code: "1", stdin: "" });
+
+    await vi.advanceTimersByTimeAsync(25);
+    for (const call of childProcessMocks.spawnSync.mock.calls) {
+      expect(call[2]).toEqual(
+        expect.objectContaining({ timeout: expect.any(Number) }),
+      );
+    }
+    expect(childProcessMocks.spawnSync).toHaveBeenCalled();
+    child.emit("close", null);
+    await resultPromise;
+  });
+
+  it("removes the container again after close when the run timed out", async () => {
+    vi.useFakeTimers();
+    const child = createChildProcess();
+    const runner = new DockerCodeRunner({ timeoutMs: 25 });
+    const resultPromise = runner.run({ language: "php", code: "1", stdin: "" });
+
+    await vi.advanceTimersByTimeAsync(25);
+    const [, runArguments] = childProcessMocks.spawn.mock.calls[0] as [
+      string,
+      string[],
+    ];
+    const name = runArguments[runArguments.indexOf("--name") + 1];
+    const removals = () =>
+      childProcessMocks.spawnSync.mock.calls.filter(
+        (call) => call[1][0] === "rm" && call[1][2] === name,
+      ).length;
+    expect(removals()).toBe(1);
+    // The daemon may have created the container after the first rm found none.
+    child.emit("close", null);
+    await resultPromise;
+    expect(removals()).toBe(2);
+  });
+
+  it("does not remove the container after close when the run did not time out", async () => {
+    const child = createChildProcess();
+    const resultPromise = new DockerCodeRunner().run({
+      language: "php",
+      code: "1",
+      stdin: "",
+    });
+    child.emit("close", 0);
+    await resultPromise;
+    expect(childProcessMocks.spawnSync).not.toHaveBeenCalled();
+  });
+
   it("rejects when the container process cannot be started", async () => {
     vi.useFakeTimers();
     const child = createChildProcess();

@@ -27,6 +27,7 @@ import {
   type PublishSuppression,
   revisionStanding,
   type SessionStatus,
+  sourceIdsOf,
   type TaskState,
 } from "./core/index.js";
 import { assertUuid, SessionError } from "./errors.js";
@@ -164,6 +165,12 @@ function ledgerOf(request: DispatchRequest, rows: ActionRow[]): DispatchLedger {
   return { entries: { [key]: { key, status, attempts } } };
 }
 
+// A text[] value from ids (never text content); null stays null.
+const textArray = (ids: readonly string[] | null) =>
+  ids === null
+    ? sql`NULL::text[]`
+    : sql`ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb))`;
+
 export class FencedSessionWrites {
   constructor(private readonly database: PlatformDatabase) {}
 
@@ -217,20 +224,27 @@ export class FencedSessionWrites {
       if (decision.decision === "duplicate")
         return { outcome: "duplicate", existing: decision.existing };
       if (decision.decision === "suppressed") {
-        await this.insertSuppression(tx, input.scope, row, request, {
-          reason: decision.suppression.reason,
-        });
+        await this.insertSuppression(
+          tx,
+          input.scope,
+          row,
+          request,
+          { reason: decision.suppression.reason },
+          sourceIdsOf(input.tasks, input.taskId, input.revision),
+        );
         return { outcome: "suppressed", reason: decision.suppression.reason };
       }
       const inserted = await firstRow<{ id: string }>(
         tx,
         sql`INSERT INTO interview.session_actions
               (tenant_id, owner_user_id, session_id, task_id, task_revision,
-               action_kind, dispatch_status, attempt, job_id, fence_at_dispatch)
+               action_kind, dispatch_status, attempt, job_id, fence_at_dispatch,
+               source_event_ids)
             VALUES (${input.scope.tenantId}::uuid, ${input.scope.actorId}::uuid,
               ${input.sessionId}::uuid, ${input.taskId}, ${input.revision},
               ${input.actionKind}, 'in_flight', ${decision.attempt},
-              ${input.jobId ?? null}::uuid, ${row.fence})
+              ${input.jobId ?? null}::uuid, ${row.fence},
+              ${textArray(sourceIdsOf(input.tasks, input.taskId, input.revision))})
             RETURNING id`,
       );
       return {
@@ -248,6 +262,7 @@ export class FencedSessionWrites {
     row: SessionRecord,
     request: DispatchRequest,
     suppression: { reason: string },
+    sourceEventIds: readonly string[] | null,
   ): Promise<void> {
     // The purging mark refuses every new action at the database; the purge is
     // about to delete them all, so nothing is recorded.
@@ -256,10 +271,11 @@ export class FencedSessionWrites {
       INSERT INTO interview.session_actions
         (tenant_id, owner_user_id, session_id, task_id, task_revision,
          action_kind, dispatch_status, attempt, fence_at_dispatch,
-         suppression_reason)
+         suppression_reason, source_event_ids)
       VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${row.id}::uuid,
         ${request.taskId}, ${request.revision}, ${request.actionKind},
-        'suppressed', 1, ${row.fence}, ${suppression.reason})`);
+        'suppressed', 1, ${row.fence}, ${suppression.reason},
+        ${textArray(sourceEventIds)})`);
   }
 
   // A suppression the processor's own policy decided (for example a locality
@@ -268,6 +284,9 @@ export class FencedSessionWrites {
     scope: OwnerScope;
     sessionId: string;
     holder: FenceHolder;
+    // The processor's task state, when it has one: the suppressed revision's
+    // source segments are remembered for a rebuilt run.
+    tasks?: TaskState;
     taskId: string;
     revision: number;
     actionKind: string;
@@ -295,6 +314,9 @@ export class FencedSessionWrites {
           actionKind: input.actionKind,
         },
         { reason: input.reason },
+        input.tasks
+          ? sourceIdsOf(input.tasks, input.taskId, input.revision)
+          : null,
       );
       return { outcome: "recorded" };
     });

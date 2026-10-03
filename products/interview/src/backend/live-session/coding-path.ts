@@ -215,8 +215,9 @@ export async function dispatchCoding(
     return;
   }
 
-  // 2. The tests (and syntax check) through the host's runner, which a session
-  // tightened to device-only since the call must not reach (re-read first).
+  // 2. Run the tests (and syntax check) through the host's runner. Re-read the
+  // session first: one tightened to device-only since the call must not reach
+  // a runner that is not on the person's own device.
   if (!(await d.stillStanding())) return;
   let verification = await verify(deps.codeRunner, solution);
   if (d.stopped()) return;

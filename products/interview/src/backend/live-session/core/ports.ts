@@ -1,6 +1,11 @@
 // Ports the neutral session core needs from its host (rule:neutral-core-imports).
 // The product supplies implementations; the core never reaches for I/O, time or
 // randomness itself, and never decides what an utterance means.
+import type { TranscriptFinal } from "@omnitech/active-session-contracts";
+
+// The audio source a transcript segment names on the wire: a label for where
+// the sound was captured, never a verified identity.
+export type AudioSource = NonNullable<TranscriptFinal["content"]["source"]>;
 
 // Injected wall clock. Core functions take `nowMs` explicitly; callers read it here.
 export interface Clock {
@@ -40,10 +45,10 @@ export type TaskDecision =
 export type Utterance = {
   id: string;
   speaker: string;
-  // The captured audio source ("microphone" is the candidate's own voice,
-  // "application-audio" the call's other side). A label, not a verified
-  // identity; absent when the sender named none.
-  source?: "microphone" | "application-audio";
+  // Which captured audio source produced the text ("microphone" is the local
+  // capture, "application-audio" the far side of the call). A label, not a
+  // verified identity; absent when the sender named none.
+  source?: AudioSource;
   segmentIds: readonly string[];
   startMs: number;
   endMs: number;

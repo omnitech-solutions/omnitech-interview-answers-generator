@@ -171,8 +171,20 @@ schema with a short-lived, session-bound credential. Speech recognition runs in
 the companion, on the Mac, with the OS's on-device recogniser. The Active
 Session processor runs inside `apps/agent-worker`, so **the worker must be
 running** for questions to be understood and drafts, answers or coding
-solutions to appear; Studio only shows what the worker publishes. Studio never
-submits, sends or operates an external interview interface for you.
+solutions to appear; Studio only shows what the worker publishes. The
+worker's session loop is disabled when no language model is configured, so
+then no question is answered and the purge and the duration cap never run
+either. Studio never submits, sends or operates an external interview
+interface for you.
+
+**Running the companion.** `pnpm dev` does not start the companion. Build and
+run it from `apps/capture-companion/macos` with SwiftPM: `swift run
+capture-companion pair` stores the credential Studio shows (in the Keychain),
+`swift run capture-companion run` starts capture, and `stop` and `status` are
+the other commands. Running the Swift companion is **unverified**: this
+repository has no `Info.plist` for the binary and the SFSpeechRecognizer
+authorization prompt has not been exercised, so that work is deferred. The
+Swift core and the TypeScript companion logic are covered by their tests only.
 
 **Locality.** The owner picks a processing policy when starting a session.
 *Device only* means a model whose declared locality is `device`, which is a
@@ -180,12 +192,11 @@ loopback model on the worker's host (`AI_LOCALITY=device` with a
 `localhost`, `127.0.0.1` or `::1` base URL; any other URL is treated as
 `remote`). A stage with no such model is refused and never sent elsewhere.
 *Allow remote* lets remote models answer; speech still runs on the Mac. The
-policy can only be tightened after the session starts. Locality is declared,
-never inferred from the URL.
+policy can only be tightened after the session starts. Locality is declared;
+the URL can only lower a device declaration to remote.
 
 **Single-machine assumption.** Studio's wording "on this Mac" assumes the
-companion, the worker and the browser run on one machine, which is how
-`pnpm dev` runs them. If the worker runs elsewhere, "device" means that
+companion, the worker and the browser run on one machine. If the worker runs elsewhere, "device" means that
 worker's host, not the Mac you are looking at.
 
 The worker reads these variables (the locality variables also apply to the web
