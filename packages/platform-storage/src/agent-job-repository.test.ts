@@ -128,3 +128,106 @@ it("reads a payload only by its reference and removes it within its tenant", asy
     "Agent job payload is unavailable.",
   );
 });
+
+it("lets another worker reclaim a running job whose lease has expired", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  // Drain any job an earlier test left queued.
+  while (await repository.claim("drain", 60_000)) {}
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:lease",
+  });
+
+  const first = await repository.claim("worker-1", 1);
+  await repository.transition(created.id, ["claimed"], "running");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const reclaimed = await repository.claim("worker-2", 30_000);
+
+  expect(first).toMatchObject({ id: created.id, claimedBy: "worker-1" });
+  expect(reclaimed).toMatchObject({
+    id: created.id,
+    status: "claimed",
+    claimedBy: "worker-2",
+  });
+  expect(reclaimed?.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+  // A live lease is not handed to a third worker.
+  expect(await repository.claim("worker-3", 30_000)).toBeUndefined();
+});
+
+it("replays a job's events after a sequence, in order", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:events",
+  });
+  await repository.appendEvent(created.id, { type: "started", sessionId: "s" });
+  await repository.appendEvent(created.id, { type: "text-delta", text: "Hi" });
+  await repository.appendEvent(created.id, {
+    type: "completed",
+    result: { sessionId: "s", output: "Hi" },
+  });
+
+  const events = await repository.eventsAfter(created.id, 1);
+
+  expect(events.map((event) => [event.sequence, event.event.type])).toEqual([
+    [2, "text-delta"],
+    [3, "completed"],
+  ]);
+  expect(events[0]?.createdAt).toBeInstanceOf(Date);
+  await expect(
+    repository.appendEvent(crypto.randomUUID(), {
+      type: "text-delta",
+      text: "",
+    }),
+  ).rejects.toThrow("Agent job was not found.");
+});
+
+it("cancels and resumes a job only within its tenant and from a resumable state", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:first",
+  });
+
+  expect(await repository.requestCancellation(otherTenantId, created.id)).toBe(
+    false,
+  );
+  expect(await repository.requestCancellation(tenantId, created.id)).toBe(true);
+  expect(
+    await repository.transition(created.id, ["cancelling"], "cancelled"),
+  ).toBe(true);
+  // A cancelled job without a session has nothing to resume.
+  expect(
+    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+  ).toBe(false);
+  await repository.setSessionId(created.id, "session-9");
+  expect(
+    await repository.requestResume(
+      otherTenantId,
+      created.id,
+      "agent-payload:x",
+    ),
+  ).toBe(false);
+  expect(
+    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+  ).toBe(true);
+
+  expect(await repository.get(tenantId, created.id)).toMatchObject({
+    status: "queued",
+    promptReference: "agent-payload:next",
+    sessionId: "session-9",
+  });
+  // A transition from a state the job is not in changes nothing.
+  expect(await repository.transition(created.id, ["running"], "failed")).toBe(
+    false,
+  );
+});

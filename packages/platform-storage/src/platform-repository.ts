@@ -1,11 +1,10 @@
 import type {
-  ConnectedAccountSummary,
   InstalledProductSummary,
   PlatformContext,
   UserPreferences,
 } from "@omnitech/platform-contracts";
 import type { EncryptedValue } from "./connected-account-vault.js";
-import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
+import type { PlatformDatabase } from "@omnitech/database";
 
 type ContextRow = {
   user_id: string;
@@ -157,29 +156,6 @@ export class PlatformRepository {
     );
   }
 
-  async listConnectedAccounts(
-    userId: string,
-  ): Promise<ConnectedAccountSummary[]> {
-    const result = await this.database.query<{
-      provider: "google" | "linkedin";
-      status: "connected" | "expired" | "revoked";
-      scopes: string[];
-      expires_at: Date | null;
-    }>(
-      `SELECT provider, status, scopes, expires_at
-       FROM platform.connected_accounts
-       WHERE user_id = $1
-       ORDER BY provider`,
-      [userId],
-    );
-    return result.rows.map((row) => ({
-      provider: row.provider,
-      status: row.status,
-      scopes: row.scopes,
-      expiresAt: row.expires_at?.toISOString() ?? null,
-    }));
-  }
-
   async saveConnectedAccount(input: {
     userId: string;
     provider: "google" | "linkedin";
@@ -210,32 +186,6 @@ export class PlatformRepository {
         input.accessToken,
         input.refreshToken,
         input.expiresAt,
-      ],
-    );
-  }
-
-  async audit(
-    client: DatabaseClient,
-    input: {
-      tenantId: string;
-      actorUserId: string;
-      action: string;
-      subjectType: string;
-      subjectId: string;
-      metadata?: Readonly<Record<string, unknown>>;
-    },
-  ): Promise<void> {
-    await client.query(
-      `INSERT INTO platform.audit_events
-         (tenant_id, actor_user_id, action, subject_type, subject_id, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        input.tenantId,
-        input.actorUserId,
-        input.action,
-        input.subjectType,
-        input.subjectId,
-        input.metadata ?? {},
       ],
     );
   }
