@@ -183,7 +183,7 @@ export function deriveActivity(input: {
   const drafting = running.find(({ run }) => run.actionKind === "draft-answer");
   if (drafting)
     return drafting.task.kind === "programming-challenge"
-      ? { key: "reading-coding-task", text: "Reading the coding task" }
+      ? { key: "reading-coding-task", text: "Restating the coding task" }
       : { key: "drafting", text: "Drafting an answer" };
 
   // A ready result stands until a later line is heard.
@@ -226,7 +226,7 @@ export function localityModel(session: LiveSessionView): LocalityModel {
         label: "On this Mac only",
         tone: "green",
         meaning:
-          "Content is processed on this Mac only. Work that can't run here is refused, never sent elsewhere.",
+          "AI models run on this Mac only; nothing is sent to a remote model. Work that can't run here is refused, never sent elsewhere.",
         canTighten: false,
       }
     : {
@@ -234,7 +234,7 @@ export function localityModel(session: LiveSessionView): LocalityModel {
         label: "Remote allowed",
         tone: "amber",
         meaning:
-          "Remote AI models may process this session's content. You can switch to this Mac only, but not back.",
+          "Remote AI models may process this session's content. You can switch to on-device models only, but not back.",
         canTighten: open,
       };
 }

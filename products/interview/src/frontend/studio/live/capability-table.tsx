@@ -2,10 +2,8 @@
 // architecture supports are listed:
 //   Speech         the companion transcribes with the OS's on-device
 //                  recognition (ADR-0012 "Locality by stage"), in both policies
-//   Screen reading a model interprets the screenshots: refused in device-only
-//                  mode (no device implementation), remote through the gateway
-//                  otherwise (ADR-0012/unlisted-stage-refused,
-//                  ADR-0012/model-calls-gateway-routed)
+//   Screenshots    stored by ingest for the owner; no stage reads them
+//                  today (session-run.ts), so there is no model step to place
 //   Answer drafts  device-only: the on-device model (text-only); remote: the
 //                  gateway (ADR-0012/device-only-enforced-twice)
 //   Coding drafts  device-only: refused, coding inference needs a remote model
@@ -27,7 +25,11 @@ export function capabilityRows(policy: LiveProcessingPolicy): CapabilityRow[] {
       where: "On this Mac, in the companion",
       refused: false,
     },
-    { label: "Screen reading", where: remote(), refused: deviceOnly },
+    {
+      label: "Screenshots",
+      where: "Stored for you; no model reads them yet",
+      refused: false,
+    },
     {
       label: "Answer drafts",
       where: deviceOnly ? "On this Mac" : GATEWAY,

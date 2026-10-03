@@ -52,7 +52,8 @@ const SOURCES: readonly {
   {
     value: "screen",
     title: "Screen",
-    description: "Screenshots Studio chooses to keep, such as a coding task",
+    description:
+      "Screenshots the companion sends are stored for you; no model reads them yet",
     icon: "desktop_windows",
   },
 ];

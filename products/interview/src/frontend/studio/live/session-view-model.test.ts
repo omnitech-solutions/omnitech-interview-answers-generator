@@ -183,7 +183,11 @@ describe("capability table", () => {
     expect(where["Coding drafts and tests"]).toBe(
       "Refused: needs a remote model",
     );
-    expect(where["Screen reading"]).toBe("Refused: needs a remote model");
+    // No stage reads screenshots, so there is no model step to refuse.
+    expect(where["Screen reading"]).toBeUndefined();
+    expect(where["Screenshots"]).toBe(
+      "Stored for you; no model reads them yet",
+    );
     expect(where["Raw audio"]).toBe("Memory only, never saved");
   });
   it("names the gateway when remote processing is allowed", () => {

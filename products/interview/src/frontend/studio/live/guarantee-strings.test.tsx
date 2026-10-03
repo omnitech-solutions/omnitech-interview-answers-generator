@@ -80,6 +80,27 @@ export const FORBIDDEN: readonly [RegExp, string][] = [
     "raw audio is never persisted",
   ],
   [/hint count.{0,20}(client|browser)/i, "the server derives hints"],
+  // No stage reads screenshots (session-run.ts): they are stored for the owner
+  // and no model interprets them.
+  [/screen reading/i, "no model reads screenshots today"],
+  [/reading the coding task/i, "no stage reads the screen"],
+  [/coding tasks on your screen/i, "no stage reads the screen"],
+  [/screenshots studio chooses/i, "Studio does not choose or interpret them"],
+  // Device-only governs model calls only: the transcript still goes to
+  // Studio's server, is stored in Postgres and processed by the worker.
+  [
+    /(content|session|transcript)[^.]{0,40}(is |are )?processed on this mac/i,
+    "device-only is about AI models, not where content is stored or processed",
+  ],
+  [
+    /processes content on this mac/i,
+    "device-only is about AI models, not where content is processed",
+  ],
+  [
+    /stays? on this mac|never leaves this mac/i,
+    "the transcript is sent to Studio's server",
+  ],
+  [/tests could not run on this mac/i, "the runner is never on the Mac"],
 ];
 
 // Every attribute a screen reader or tooltip would speak, as well as the text.

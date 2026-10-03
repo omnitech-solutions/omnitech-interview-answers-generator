@@ -252,7 +252,7 @@ describe("activity by priority", () => {
           taskRevision: 2,
         }),
       ]).text,
-    ).toBe("Reading the coding task");
+    ).toBe("Restating the coding task");
     expect(
       withActions([action({ taskId: "q", dispatchStatus: "in_flight" })]).text,
     ).toBe("Drafting an answer");

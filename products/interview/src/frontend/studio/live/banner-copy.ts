@@ -26,7 +26,7 @@ const NAME: Record<LiveCaptureSource, string> = {
 const CONSEQUENCE: Record<LiveCaptureSource, string> = {
   microphone: "Your voice isn't being heard.",
   "application-audio": "The other side of the call isn't being heard.",
-  screen: "Coding tasks on your screen won't be read.",
+  screen: "Screenshots aren't being captured.",
 };
 const LOST_PHRASE: Record<string, string> = {
   "user-stopped": "was stopped",

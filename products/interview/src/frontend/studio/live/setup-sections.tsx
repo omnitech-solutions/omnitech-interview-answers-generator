@@ -208,7 +208,7 @@ const POLICY_COPY: Record<LiveProcessingPolicy, string> = {
   "device-only":
     "Only on-device models read your content. Any step with no on-device model, such as solving code, is refused and never sent elsewhere; the live session shows each refusal.",
   "permitted-remote":
-    "Remote models may be used for answers, screen reading and code. Speech recognition still runs on this Mac.",
+    "Remote models may be used for answers and code. Speech recognition still runs on this Mac.",
 };
 
 export type DeviceOnlyBlocker = { title: string; body: string };
@@ -284,7 +284,7 @@ export function RetentionSection({
       <dl className="setup-facts">
         <div>
           <dt>Kept</dt>
-          <dd>Transcript and chosen screenshots</dd>
+          <dd>Transcript and the screenshots the companion sends</dd>
         </div>
         <div>
           <dt>Visibility</dt>
