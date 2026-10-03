@@ -3,7 +3,8 @@
 // a new claim (a restart, or a successor after expiry) builds a fresh run and
 // replays the stored observations from the start, so nothing but the database
 // outlives a fence. Replay is deterministic for the baseline policy: task ids
-// come from a per-run counter, and the database's dispatch dedup (session, task,
+// come from the policy's task key (named after the question's own segment), and
+// the database's dispatch dedup (session, task,
 // revision, action kind) is the safety net if it ever were not.
 //
 // The core decides ordering, supersession, task identity and revisions; this
@@ -82,6 +83,8 @@ export type SessionRun = {
   tasks: TaskState;
   // Processor-clock time each segment was first replayed, for the settle rule.
   seenAtMs: Map<string, number>;
+  // Segment ids already handed to the policy: a processed utterance is
+  // closed, so a later segment (even the same speaker's) starts a new one.
   processed: Set<string>;
   taskCounter: number;
   // Dispatch keys finished for good in this run (published, refused,
@@ -152,7 +155,12 @@ export const requestOf = (
 });
 
 const idsOf = (run: SessionRun): IdGenerator => ({
-  next: (prefix) => `${prefix}-${(run.taskCounter += 1)}`,
+  // A task is named after its source (the policy's task key), never a
+  // per-run counter, so a rebuilt run names every question as the last did.
+  next: (prefix, stableKey) =>
+    stableKey === undefined
+      ? `${prefix}-${(run.taskCounter += 1)}`
+      : `${prefix}-${stableKey}`,
 });
 
 // A core trace event as a processor trace event: ids, codes and counts only.
@@ -383,20 +391,24 @@ export async function processUtterances(
   nowMs: number,
   settleMs: number,
 ): Promise<number> {
+  // [STATE] Closed utterances are out of the picture: what is left coalesces
+  // into new utterances, so a question that follows an already-handled
+  // statement of the same speaker is still evaluated.
   const utterances = coalesceSegments(
-    effectiveSegments(run.transcript),
+    effectiveSegments(run.transcript).filter(
+      (segment) => !run.processed.has(segment.eventId),
+    ),
     (segment) => policy.isBackchannel(segment.text),
   );
   let handled = 0;
   for (const utterance of utterances) {
-    if (run.processed.has(utterance.id)) continue;
     const lastSeen = Math.max(
       0,
       ...utterance.segmentIds.map((id) => run.seenAtMs.get(id) ?? 0),
     );
     // Order matters for revisions, so an unsettled utterance holds the rest.
     if (nowMs - lastSeen < settleMs) break;
-    run.processed.add(utterance.id);
+    for (const id of utterance.segmentIds) run.processed.add(id);
     const target = policy.isBackchannel(utterance.text)
       ? null
       : correctionTarget(run, utterance);

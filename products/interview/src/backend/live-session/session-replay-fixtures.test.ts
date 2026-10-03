@@ -342,6 +342,7 @@ function replay(phases: readonly ReplayPhase[]): Replayed {
       text: s.text,
       seq,
       supersededBy: null,
+      originId: s.eventId,
     }));
   const utterances = coalesceSegments(
     segments,

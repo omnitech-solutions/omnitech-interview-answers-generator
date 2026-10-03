@@ -145,7 +145,7 @@ export function applyVerdict(
       // One logical task per question: a repeated key is not a second task.
       const existing = state.byKey[decision.taskKey];
       if (existing) return refuse("task_exists", existing);
-      const taskId = ids.next("task");
+      const taskId = ids.next("task", decision.taskKey);
       const task: Task = {
         taskId,
         taskKey: decision.taskKey,

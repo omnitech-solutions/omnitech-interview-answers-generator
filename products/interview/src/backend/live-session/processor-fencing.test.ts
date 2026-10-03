@@ -33,6 +33,8 @@ afterEach(async () => {
 });
 afterAll(() => fx.stop());
 
+// The opening question's task is named after the segment that carries it.
+const FIRST_TASK = "task-q-s09";
 const opening = () => RECRUITER_SCREEN[0]?.segments ?? [];
 
 async function start(name: string) {
@@ -168,7 +170,7 @@ describe("pause and end suppression", () => {
     hold.release();
     await p.processor.idle();
 
-    const rows = (await actionsOf(w)).filter((a) => a.taskId === "task-1");
+    const rows = (await actionsOf(w)).filter((a) => a.taskId === FIRST_TASK);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       dispatchStatus: "suppressed",
@@ -274,7 +276,7 @@ describe("pause and end suppression", () => {
     await p.processor.idle();
 
     expect(
-      (await actionsOf(w)).filter((a) => a.taskId === "task-1")[0],
+      (await actionsOf(w)).filter((a) => a.taskId === FIRST_TASK)[0],
     ).toMatchObject({ dispatchStatus: "suppressed", result: null });
     expect(
       (
@@ -301,7 +303,7 @@ describe("pause and end suppression", () => {
     await repo.controlSession(w.scope, w.sessionId, "end");
     hold.release();
     await p.processor.idle();
-    const rows = (await actionsOf(w)).filter((a) => a.taskId === "task-1");
+    const rows = (await actionsOf(w)).filter((a) => a.taskId === FIRST_TASK);
     expect(rows[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "session_ended",
@@ -374,7 +376,7 @@ describe("isolation", () => {
 
     expect(
       (await actionsOf(good)).map((a) => [a.taskId, a.dispatchStatus]),
-    ).toEqual([["task-1", "succeeded"]]);
+    ).toEqual([[FIRST_TASK, "succeeded"]]);
     expect(await actionsOf(bad)).toHaveLength(0);
     const failure = p.trace.events.find((e) => e.event === "session.error");
     expect(failure).toMatchObject({

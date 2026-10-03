@@ -38,6 +38,7 @@ import {
   startSessionFor,
 } from "./processor-fixture.js";
 import { capturedLines } from "./replay-evidence-fixture.js";
+import { expectedPacedDrafts } from "./replay-expected-drafts.js";
 import { ALL_REPLAY_SETS } from "./replay-fixture-sets.js";
 import { LIVE_CODING_EXPECT } from "./replay-fixtures-coding.js";
 import { ActiveSessionRepository } from "./repository.js";
@@ -157,6 +158,7 @@ async function replayAt(
       });
     }
   };
+  let actions: Awaited<ReturnType<typeof repo.listActions>> = [];
   try {
     let lastIngestAt = virtualNow;
     for (const segment of segments) {
@@ -182,22 +184,29 @@ async function replayAt(
     }
     // Let the trailing utterance settle and be answered.
     for (let i = 0; i < QUIET_MS / TICK_MS + 40; i += 1) await step();
+    actions = await repo.listActions(started.scope, started.sessionId);
   } finally {
     await processor.close();
     await repo.controlSession(started.scope, started.sessionId, "end");
   }
   const arrivalOf = (eventId: string) => arrivals.get(eventId) ?? origin;
-  return { calls, arrivalOf, origin };
+  return { calls, arrivalOf, origin, actions };
 }
 
-type Measured = { name: string; paced: number[]; processing: number[] };
+type Measured = {
+  name: string;
+  paced: number[];
+  processing: number[];
+  // Succeeded prose drafts as (task, revision) pairs, one per stored action.
+  drafts: string[];
+};
 
 async function measureSet(
   speed: number,
   name: string,
   phases: readonly ReplayPhase[],
 ): Promise<Measured> {
-  const { calls, arrivalOf } = await replayAt(speed, name, phases);
+  const { calls, arrivalOf, actions } = await replayAt(speed, name, phases);
   const drafts = calls.filter(
     (call) => call.profileId === INTERVIEW_SESSION_FAST_PROFILE,
   );
@@ -207,6 +216,13 @@ async function measureSet(
       (call) => call.calledAt + SIMULATED_MODEL_MS - arrivalOf(call.triggerId),
     ),
     processing: drafts.map((call) => call.wallDone - call.triggerWall),
+    drafts: actions
+      .filter(
+        (action) =>
+          action.actionKind === "draft-answer" &&
+          action.dispatchStatus === "succeeded",
+      )
+      .map((action) => `${action.taskId}@r${action.taskRevision}`),
   };
 }
 
@@ -248,7 +264,11 @@ describe("question end to first draft, every set with questions", () => {
         QUESTION_SETS.map(([name]) => name),
       );
       for (const set of sets) {
-        expect(set.paced.length, set.name).toBeGreaterThan(0);
+        expect(set.paced.length, set.name).toBe(
+          expectedPacedDrafts(set.name, speed),
+        );
+        expect(new Set(set.drafts).size, set.name).toBe(set.drafts.length);
+        expect(set.drafts.length, set.name).toBe(set.paced.length);
         expect(summary(set.paced).p95, set.name).toBeLessThan(PACED_BUDGET_MS);
         expect(summary(set.processing).p95, set.name).toBeLessThan(
           PROCESSING_BUDGET_MS,

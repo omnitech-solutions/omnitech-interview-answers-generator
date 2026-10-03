@@ -291,6 +291,7 @@ describe("recruiter-screen replay through the neutral core", () => {
       text,
       seq: startMs,
       supersededBy: null,
+      originId: id,
     });
     const out = coalesceSegments(
       [

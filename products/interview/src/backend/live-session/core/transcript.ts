@@ -15,6 +15,9 @@ export type Segment = {
   // Accepted ordinal assigned by the observation ledger.
   seq: number;
   supersededBy: string | null;
+  // The first segment of the correction chain this one belongs to (its own id
+  // when it corrects nothing), so a corrected question keeps its identity.
+  originId: string;
 };
 
 export type TranscriptView = {
@@ -47,6 +50,11 @@ export function applyTranscriptFinal(
   // A correction that raced ahead of its target marks the target on arrival.
   const bornSuperseded = pending[observation.eventId] ?? null;
   delete pending[observation.eventId];
+  const corrected = content.supersedes;
+  const originId =
+    corrected && corrected !== observation.eventId
+      ? (view.segments[corrected]?.originId ?? corrected)
+      : observation.eventId;
   segments[observation.eventId] = {
     eventId: observation.eventId,
     sourceId: observation.sourceId,
@@ -56,6 +64,7 @@ export function applyTranscriptFinal(
     text: content.text,
     seq,
     supersededBy: bornSuperseded,
+    originId,
   };
   if (bornSuperseded) superseded.push(observation.eventId);
 
@@ -85,6 +94,11 @@ export function effectiveSegments(view: TranscriptView): readonly Segment[] {
 export const isSuperseded = (view: TranscriptView, eventId: string): boolean =>
   view.segments[eventId]?.supersededBy != null;
 
+// The longest media-time silence between two segments of one speaker that
+// still reads as one utterance. A longer pause starts a new utterance, so the
+// boundary is a fact of the transcript and not of when a worker looked at it.
+export const MERGE_GAP_MS = 1_500;
+
 // Merge consecutive same-speaker segments split by backchannel interleaving.
 // `isBackchannel` is the policy's verdict; the core never reads the text.
 export function coalesceSegments(
@@ -104,13 +118,28 @@ export function coalesceSegments(
       startMs: first.startMs,
       endMs: last.endMs,
       text: open.parts.map((part) => part.text).join(" "),
+      parts: open.parts.map((part) => ({
+        id: part.eventId,
+        originId: part.originId,
+        text: part.text,
+      })),
     });
     open = null;
   };
   for (const segment of segments) {
-    if (open && segment.speaker === open.speaker) {
+    const previous = open?.parts[open.parts.length - 1];
+    if (
+      open &&
+      previous &&
+      segment.speaker === open.speaker &&
+      segment.startMs - previous.endMs <= MERGE_GAP_MS
+    ) {
       open.parts.push(segment);
-    } else if (open && isBackchannel(segment)) {
+    } else if (
+      open &&
+      segment.speaker !== open.speaker &&
+      isBackchannel(segment)
+    ) {
       // The other speaker only interjected; the running utterance continues,
       // but the backchannel is itself kept as its own utterance.
       utterances.push({

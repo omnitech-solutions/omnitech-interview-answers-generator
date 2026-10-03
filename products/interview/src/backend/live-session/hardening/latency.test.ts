@@ -21,6 +21,7 @@ import {
   NEVER_ABORTED,
 } from "../processor-fixture.js";
 import { capturedLines } from "../replay-evidence-fixture.js";
+import { expectedPacedDrafts } from "../replay-expected-drafts.js";
 import { ALL_REPLAY_SETS } from "../replay-fixture-sets.js";
 import type {
   FixtureSegment,
@@ -213,7 +214,9 @@ describe("question end to first draft, replayed by the fixture companion", () =>
         QUESTION_SETS.map(([name]) => name),
       );
       for (const set of sets) {
-        expect(set.paced.length, set.name).toBeGreaterThan(0);
+        expect(set.paced.length, set.name).toBe(
+          expectedPacedDrafts(set.name, speed, "companion"),
+        );
         expect(summary(set.paced).p95, set.name).toBeLessThan(PACED_BUDGET_MS);
         expect(summary(set.processing).p95, set.name).toBeLessThan(
           PROCESSING_BUDGET_MS,

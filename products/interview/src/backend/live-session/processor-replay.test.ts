@@ -51,6 +51,10 @@ const actions = (w: {
   sessionId: string;
 }) => repo.listActions(w.scope, w.sessionId);
 
+// A task is named after the segment that carries its question.
+const Q1 = "task-q-s09";
+const Q2 = "task-q-s16";
+
 describe("recruiter-screen replay through the real processor", () => {
   it("opens no task for backchannel or monologue and one per question, with revisions", async () => {
     const w = await world("replay-full");
@@ -63,7 +67,7 @@ describe("recruiter-screen replay through the real processor", () => {
     await settle(w.processor);
     let snapshot = w.processor.snapshot(w.sessionId);
     expect(snapshot?.tasks.map((t) => [t.taskId, t.revision])).toEqual([
-      ["task-1", 1],
+      [Q1, 1],
     ]);
     expect(w.gateway.requests).toHaveLength(1);
 
@@ -75,19 +79,19 @@ describe("recruiter-screen replay through the real processor", () => {
     snapshot = w.processor.snapshot(w.sessionId);
     expect(snapshot?.tasks).toEqual([
       {
-        taskId: "task-1",
+        taskId: Q1,
         revision: 2,
         standing: { 1: "outdated", 2: "current" },
       },
     ]);
 
-    // 3. A deferred topic stays in task state; a second question opens task-2.
+    // 3. A deferred topic stays in task state; a second question opens its own task.
     for (const segment of deferred?.segments ?? [])
       await w.ingestor.ingest(segment);
     await settle(w.processor);
     snapshot = w.processor.snapshot(w.sessionId);
     expect(snapshot?.deferred).toHaveLength(1);
-    expect(snapshot?.tasks.map((t) => t.taskId)).toEqual(["task-1", "task-2"]);
+    expect(snapshot?.tasks.map((t) => t.taskId)).toEqual([Q1, Q2]);
 
     // 4. An ASR correction supersedes the second question's segment: the answer
     // built on it is marked stale and the corrected text becomes revision 2.
@@ -95,7 +99,7 @@ describe("recruiter-screen replay through the real processor", () => {
       await w.ingestor.ingest(segment);
     await settle(w.processor);
     snapshot = w.processor.snapshot(w.sessionId);
-    const second = snapshot?.tasks.find((t) => t.taskId === "task-2");
+    const second = snapshot?.tasks.find((t) => t.taskId === Q2);
     expect(second?.revision).toBe(2);
     expect(second?.standing[1]).toBe("outdated");
     expect(second?.standing[2]).toBe("current");
@@ -107,10 +111,10 @@ describe("recruiter-screen replay through the real processor", () => {
     expect(
       stored.map((a) => [a.taskId, a.taskRevision, a.dispatchStatus]),
     ).toEqual([
-      ["task-1", 1, "succeeded"],
-      ["task-1", 2, "succeeded"],
-      ["task-2", 1, "succeeded"],
-      ["task-2", 2, "succeeded"],
+      [Q1, 1, "succeeded"],
+      [Q1, 2, "succeeded"],
+      [Q2, 1, "succeeded"],
+      [Q2, 2, "succeeded"],
     ]);
     // Published results live in session_actions.result only and carry the
     // closed draft shape, the profile and the policy - no matrix write.

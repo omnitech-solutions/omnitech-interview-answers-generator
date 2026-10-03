@@ -8,8 +8,10 @@ export interface Clock {
 }
 
 // Injected id source so task ids are deterministic under test.
+// `stableKey`, when given, is a source-derived key the id must be built from,
+// so the same source yields the same id however the run was paced or rebuilt.
 export interface IdGenerator {
-  next(prefix: string): string;
+  next(prefix: string, stableKey?: string): string;
 }
 
 // An opaque, id-shaped handle. The policy names tasks and topics only by handle,
@@ -42,6 +44,10 @@ export type Utterance = {
   startMs: number;
   endMs: number;
   text: string;
+  // The coalesced segments one by one, so the policy can name a task after
+  // the segment that carries the question rather than the utterance's start.
+  // `originId` is the first segment of the segment's correction chain.
+  parts?: readonly { id: string; originId: string; text: string }[];
 };
 
 export type OpenTaskSummary = {

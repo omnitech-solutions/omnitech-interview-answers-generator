@@ -164,12 +164,21 @@ export function decideBaseline(input: PolicyInput): PolicyVerdict {
         };
   }
 
-  // A question opens one logical task, however many parts it has.
-  if (isQuestion(text, monologue))
+  // A question opens one logical task, however many parts it has. The task is
+  // named after the segment that carries the question (the first of its
+  // correction chain), so it keeps its name whether a context sentence before
+  // it was folded into the utterance or not, and whether the run saw the
+  // question before or after its ASR correction.
+  if (isQuestion(text, monologue)) {
+    const carrier =
+      utterance.parts?.find((part) =>
+        isQuestion(part.text, words(part.text).length >= MONOLOGUE_WORDS),
+      )?.originId ?? utterance.id;
     return {
       segmentClass: "substantive",
-      decision: { kind: "open", taskKey: handleOf("q", utterance.id) },
+      decision: { kind: "open", taskKey: handleOf("q", carrier) },
     };
+  }
 
   return {
     segmentClass: monologue ? "monologue" : "substantive",
