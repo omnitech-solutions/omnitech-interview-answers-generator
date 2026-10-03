@@ -704,7 +704,7 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     expect(results).toHaveLength(2);
     for (const result of results) {
       expect(result.category).toBe("logistics");
-      expect(result.logistics.missing).toEqual([]);
+      expect(result.logistics.missing).toEqual(["work-arrangement"]);
       for (const claim of result.claims) {
         expect(claim.kind).toBe("preference-backed");
         for (const ref of claim.refs)
@@ -728,8 +728,14 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     await replay(w, set.phases);
     const results = [...(await currentResults(w)).values()];
     expect(results.map((result) => result.logistics)).toEqual([
-      { found: [], missing: ["notice-period"] },
-      { found: [], missing: ["compensation"] },
+      {
+        found: [],
+        missing: ["notice-period", "compensation", "work-arrangement"],
+      },
+      {
+        found: [],
+        missing: ["notice-period", "compensation", "work-arrangement"],
+      },
     ]);
     for (const result of results) {
       expect(result.claims).toEqual([]);

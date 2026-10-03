@@ -355,7 +355,7 @@ describe("hazard 7d: notice period and compensation", () => {
     expect(first?.["category"]).toBe("logistics");
     expect(first?.["logistics"]).toEqual({
       found: [{ field: "notice-period", claimIndex: 0 }],
-      missing: [],
+      missing: ["work-arrangement"],
     });
     expect(first?.["claims"][0].kind).toBe("preference-backed");
     expect(second?.["logistics"].found[0].field).toBe("compensation");
@@ -377,11 +377,11 @@ describe("hazard 7d: notice period and compensation", () => {
     );
     expect(results[0]?.["logistics"]).toEqual({
       found: [],
-      missing: ["notice-period"],
+      missing: ["notice-period", "compensation", "work-arrangement"],
     });
     expect(results[1]?.["logistics"]).toEqual({
       found: [],
-      missing: ["compensation"],
+      missing: ["notice-period", "compensation", "work-arrangement"],
     });
     for (const result of results) {
       expect(result["claims"]).toEqual([]);

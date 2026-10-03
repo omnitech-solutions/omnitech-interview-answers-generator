@@ -676,18 +676,26 @@ describe("logistics", () => {
     ]);
   });
 
-  it("scopes missing to the captured question, not the model's missing list", () => {
-    const result = check(
-      logistics({
-        claims: [],
-        logistics: { found: [], missing: ["compensation"] },
-      }),
-      snapshotOf({ preferences: "Notice period: two weeks." }),
-      ["What is your notice period?"],
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.draft.logistics?.missing).toEqual([]);
+  it("reports every absent preference, independent of question phrasing and model omissions", () => {
+    for (const question of [
+      "What is your notice period and what would you want to earn?",
+      "Where do you want to work?",
+    ]) {
+      const result = check(
+        logistics({
+          claims: [],
+          logistics: { found: [], missing: [] },
+        }),
+        snapshotOf({ preferences: "Notice period: two weeks." }),
+        [question],
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.draft.logistics?.missing).toEqual([
+        "compensation",
+        "work-arrangement",
+      ]);
+    }
   });
 
   it("refuses to label an unrelated preference as a work arrangement", () => {

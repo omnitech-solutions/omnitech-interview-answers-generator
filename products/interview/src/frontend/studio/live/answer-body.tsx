@@ -92,6 +92,10 @@ function Logistics({ answer }: { answer: AnswerResult }) {
       {logistics.missing.length > 0 && (
         <section aria-label="What is missing" className="live-missing">
           <h4>What is missing</h4>
+          <p className="live-note">
+            These preferences are unset even if this question did not ask about
+            them.
+          </p>
           <ul>
             {logistics.missing.map((field) => (
               <li key={field}>
