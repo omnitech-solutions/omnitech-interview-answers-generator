@@ -1,6 +1,6 @@
 // Control pull. The companion holds no control credential: Studio's control
 // state reaches it only as `control.state` on every acknowledgement and
-// refusal, which the heartbeat loop keeps flowing (rule:stop-authority).
+// refusal, which the heartbeat loop keeps flowing (rule:pause-only-credential-stop).
 import type {
   CaptureSource,
   SessionControlState,

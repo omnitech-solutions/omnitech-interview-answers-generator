@@ -307,7 +307,7 @@ describe("the credential (rule:credential-storage, rule:credential-strength)", (
   });
 });
 
-describe("control authority (rule:stop-authority as amended)", () => {
+describe("control authority (rule:owner-starts-and-resumes)", () => {
   it("lets the owner pause, resume and end through the status machine", async () => {
     const sam = await fresh("sam");
     const { session } = await start(sam);

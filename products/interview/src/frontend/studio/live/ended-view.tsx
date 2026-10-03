@@ -6,7 +6,8 @@
 //     operates an external interview interface, and the session sends nothing.
 //   - A session being deleted, or deleted, holds no content here: the store
 //     clears observations and actions while purging, and this view then shows
-//     only the tombstone's content-free facts (ADR-0012 rule:complete-session-purge, tombstone-keeps-hint-count).
+//     only the tombstone's content-free facts (rule:complete-purge-except-retained-drafts,
+//     rule:tombstone-keeps-hint-count).
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";

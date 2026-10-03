@@ -1,4 +1,4 @@
-// The complete session purge (rule:complete-session-purge) on a disposable
+// The complete session purge (rule:complete-purge-except-retained-drafts) on a disposable
 // PostgreSQL as the member role: observations, screenshot artifacts and
 // payloads, actions, jobs with events, artifacts and payloads are all deleted in
 // one transaction; the final check reads the catalog and refuses to tombstone
@@ -395,7 +395,7 @@ describe("purge removes everything and leaves a content-free tombstone", () => {
   });
 });
 
-describe("the final check (rule:complete-session-purge)", () => {
+describe("the final check (rule:complete-purge-except-retained-drafts)", () => {
   it("fails and does not tombstone while an uncovered table references the session", async () => {
     const { person, id } = await seeded("ivy");
     await fx.owner.query(`

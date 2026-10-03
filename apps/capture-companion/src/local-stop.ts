@@ -1,6 +1,6 @@
-// LOCAL STOP (rule:stop-authority). It is local-first: synchronous, no
+// LOCAL STOP (rule:offline-local-stop). It is local-first: synchronous, no
 // network, final for the run. Everything that matters happens before the
-// function returns; only then does it make a bounded best-effort attempt to
+// function returns; only then does it make a best-effort attempt to
 // tell Studio, and a Studio that is down changes nothing.
 import type {
   CaptureSource,

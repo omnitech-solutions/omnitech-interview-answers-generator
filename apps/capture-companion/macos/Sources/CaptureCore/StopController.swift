@@ -12,7 +12,7 @@ public protocol StopMarkerStore {
     func persistStoppedLocally(at time: Date) throws
 }
 
-// [SAFETY] LOCAL STOP (rule:stop-authority). The person's stop never waits on
+// [SAFETY] LOCAL STOP (rule:offline-local-stop). The person's stop never waits on
 // Studio: it is synchronous, uses no network and cannot be refused. Order:
 // make the state visible, stop every source, zero the audio, persist the
 // marker, and only then queue the best-effort notices. A local stop is final

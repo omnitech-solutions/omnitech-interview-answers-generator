@@ -14,7 +14,7 @@ import {
   transitionStatus,
 } from "./index.js";
 
-describe("stop authority (rule:stop-authority, ADR-0012 amendment)", () => {
+describe("stop authority (rule:owner-starts-and-resumes)", () => {
   const ACTORS: StatusActor[] = [
     "owner-control",
     "credential-expiry",

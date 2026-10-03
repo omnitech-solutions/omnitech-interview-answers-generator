@@ -510,7 +510,7 @@ const rateLimited = (
 // it); every answer carries the control state. Heartbeats are spaced by
 // minHeartbeatIntervalMs against the last contact: a closer one is refused
 // rate_limited and stores nothing. A stop report (capturing: false) is never
-// delayed by the spacing (rule:stop-authority).
+// delayed by the spacing (rule:pause-only-credential-stop).
 async function heartbeatLocked(
   tx: TenantDatabase,
   scope: OwnerScope,

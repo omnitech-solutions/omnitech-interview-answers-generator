@@ -54,7 +54,7 @@ export type SessionStorePort = Pick<
   | "recordProcessedThrough"
 > & {
   // The time-derived standing: the duration cap ends, an expired credential or
-  // a silent companion pauses (rule:stop-authority). Cancels jobs on a change.
+  // a silent companion pauses (rule:pause-only-credential-stop). Cancels jobs on a change.
   reconcile(scope: OwnerScope, sessionId: string): Promise<SessionView>;
   observationsAfter(
     scope: OwnerScope,

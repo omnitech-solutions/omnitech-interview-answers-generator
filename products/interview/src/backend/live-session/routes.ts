@@ -151,7 +151,7 @@ const pageNumber = (value: string | undefined, fallback: number) => {
 };
 
 // Pause, end, credential revocation and delete: the stop class that the
-// session's owner may always perform (rule:stop-authority).
+// session's owner may always perform (rule:owner-or-cap-ends).
 async function isOwnerStop(request: Request, path: string): Promise<boolean> {
   if (request.method === "DELETE") return true;
   if (request.method !== "POST" || !path.endsWith("/control")) return false;
