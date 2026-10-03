@@ -122,6 +122,7 @@ export {
 } from "./plan.js";
 export {
   CHECK_POINTS,
+  MAX_SESSION_HINTS,
   REVEAL_COST,
   type RehearsalFormat,
   type RehearsalReveal,

@@ -7,8 +7,10 @@ import {
   planItemInputSchema,
   planItemPatchSchema,
   planResponseSchema,
+  MAX_SESSION_HINTS,
   rehearsalScore,
   rehearsalSessionInputSchema,
+  rehearsalSessionSchema,
 } from "./index.js";
 
 describe("rehearsal contract", () => {
@@ -49,6 +51,46 @@ describe("rehearsal contract", () => {
     expect(
       rehearsalSessionInputSchema.safeParse({ ...session, score: 100 }).success,
     ).toBe(false);
+  });
+
+  it("accepts an optional opaque rehearsal run id with the session's bounds", () => {
+    const parse = (runId: unknown) =>
+      rehearsalSessionInputSchema.safeParse({
+        ...session,
+        rehearsalRunId: runId,
+      });
+    expect(parse("run-1").success).toBe(true);
+    expect(parse("r".repeat(128)).success).toBe(true);
+    expect(parse("").success).toBe(false);
+    expect(parse("r".repeat(129)).success).toBe(false);
+    expect(parse(7).success).toBe(false);
+    // Absent stays valid and unchanged.
+    expect(rehearsalSessionInputSchema.parse(session)).toEqual(session);
+  });
+
+  it("never lets the client supply the derived session hint count", () => {
+    expect(
+      rehearsalSessionInputSchema.safeParse({ ...session, sessionHints: 0 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("reports the derived hint count on a saved session, within the cap", () => {
+    const saved = { ...session, id: "r1", score: 20 };
+    expect(rehearsalSessionSchema.parse(saved)).toEqual(saved);
+    expect(
+      rehearsalSessionSchema.parse({
+        ...saved,
+        sessionHints: MAX_SESSION_HINTS,
+      }),
+    ).toMatchObject({ sessionHints: MAX_SESSION_HINTS });
+    expect(
+      rehearsalSessionSchema.safeParse({
+        ...saved,
+        sessionHints: MAX_SESSION_HINTS + 1,
+      }).success,
+    ).toBe(false);
+    expect(MAX_SESSION_HINTS).toBe(7);
   });
 });
 

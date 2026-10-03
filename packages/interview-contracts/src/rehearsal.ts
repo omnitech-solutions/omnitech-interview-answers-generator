@@ -19,6 +19,11 @@ export const REVEAL_COST = 3;
 export const rehearsalScore = (checks: number, reveals: number) =>
   Math.max(0, Math.min(100, checks * CHECK_POINTS - reveals * REVEAL_COST));
 
+// Hints derived on the server from the owner's own Active Session assistance
+// (drafts shown during a non-strict rehearsal) cost like opened reveals but are
+// never stored as reveals; the cap matches the reveals array.
+export const MAX_SESSION_HINTS = 7;
+
 const questionRef = z.strictObject({
   // brief: a concept brief; question: a coding question's draft; prompt: one
   // of the built-in concept prompts.
@@ -43,10 +48,16 @@ export const rehearsalSessionInputSchema = z.strictObject({
     .max(4 * 60 * 60),
   startedAt: z.iso.datetime({ offset: true }),
   endedAt: z.iso.datetime({ offset: true }),
+  // The opaque run id a rehearsal's Active Sessions were started with (the
+  // same bounds as the session's own). The server derives the hint count from
+  // the owner's sessions with this id; the client never supplies a count.
+  rehearsalRunId: z.string().min(1).max(128).optional(),
 });
 export const rehearsalSessionSchema = rehearsalSessionInputSchema.extend({
   id: z.string(),
   score: z.number().int().min(0).max(100),
+  // Present when the server derived session hints for this save.
+  sessionHints: z.number().int().min(0).max(MAX_SESSION_HINTS).optional(),
 });
 export const rehearsalListResponseSchema = z.object({
   sessions: z.array(rehearsalSessionSchema),
