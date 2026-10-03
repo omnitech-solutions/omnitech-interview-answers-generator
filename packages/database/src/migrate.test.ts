@@ -25,6 +25,7 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "initial",
     "forced_rls_and_immutability",
     "foreign_key_indexes",
+    "remove_presentation_import",
   ]);
 
   // Every schema the app owns, plus the assistant package's own.

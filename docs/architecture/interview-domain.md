@@ -94,12 +94,10 @@ database to the current schema:
 1. The assistant package's migrations, then the run worker's policies on the
    assistant's tables.
 2. The Drizzle stream in `packages/database/drizzle`, recorded by name in
-   `drizzle.__drizzle_migrations`:
-   - `initial`: every app-owned schema, generated from the schema files
-   - `forced_rls_and_immutability`: forced row-level security, and the
-     triggers that keep recorded answers, evidence and finished effect
-     receipts immutable
-   - `foreign_key_indexes`: an index for each composite tenant reference
+   `drizzle.__drizzle_migrations`. Generated migrations come from the schema
+   files; a custom migration carries what Drizzle cannot declare (forced
+   row-level security and the triggers that keep recorded answers, evidence
+   and finished effect receipts immutable).
 
 After changing a schema file, run `pnpm --filter @omnitech/database
 db:generate` and commit the new migration.

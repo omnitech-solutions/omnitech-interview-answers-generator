@@ -120,7 +120,6 @@ export const documents = presentation.table.withRLS(
     documentType: text("document_type").default("presentation").notNull(),
     content: jsonb().default({}).notNull(),
     revision: integer().default(1).notNull(),
-    sourceImportId: text("source_import_id"),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`now()`)
@@ -130,10 +129,6 @@ export const documents = presentation.table.withRLS(
       .notNull(),
   },
   (table) => [
-    unique("documents_tenant_id_source_import_id_key").on(
-      table.tenantId,
-      table.sourceImportId,
-    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -235,16 +230,11 @@ export const generatedImages = presentation.table.withRLS(
     providerId: text("provider_id").notNull(),
     modelId: text("model_id").notNull(),
     metadata: jsonb().default({}).notNull(),
-    sourceImportId: text("source_import_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
   },
   (table) => [
-    unique("generated_images_tenant_id_source_import_id_key").on(
-      table.tenantId,
-      table.sourceImportId,
-    ),
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -274,61 +264,6 @@ export const generationSessions = presentation.table.withRLS(
     profileId: text("profile_id").notNull(),
     status: text().notNull(),
     state: jsonb().default({}).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`now()`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .default(sql`now()`)
-      .notNull(),
-  },
-  (table) => [
-    pgPolicy("tenant_scope", {
-      using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
-      withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
-    }),
-  ],
-);
-
-export const importLedger = presentation.table.withRLS(
-  "import_ledger",
-  {
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => importRuns.id, {
-        name: "import_ledger_run_id_fkey",
-        onDelete: "cascade",
-      }),
-    entityType: text("entity_type").notNull(),
-    sourceId: text("source_id").notNull(),
-    targetId: text("target_id").notNull(),
-    targetRevision: integer("target_revision"),
-    createdByRun: boolean("created_by_run").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`now()`)
-      .notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.runId, table.entityType, table.sourceId],
-      name: "import_ledger_pkey",
-    }),
-  ],
-);
-
-export const importRuns = presentation.table.withRLS(
-  "import_runs",
-  {
-    id: uuid().defaultRandom().primaryKey(),
-    tenantId: uuid("tenant_id")
-      .notNull()
-      .references(() => tenants.id, {
-        name: "import_runs_tenant_id_fkey",
-        onDelete: "cascade",
-      }),
-    status: text().notNull(),
-    sourceSchemaVersion: text("source_schema_version").notNull(),
-    configuration: jsonb().notNull(),
-    report: jsonb().default({}).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`now()`)
       .notNull(),
