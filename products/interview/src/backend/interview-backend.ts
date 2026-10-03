@@ -3,8 +3,8 @@ import { DockerCodeRunner } from "@omnitech/code-runner";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import {
-  productOperationFailure,
   type ModelRelay,
+  productOperationFailure,
   type Scope,
   type Transaction,
 } from "@omnitech-assistant/contracts";
@@ -20,10 +20,11 @@ import {
 import { manifest } from "../manifest.js";
 import { createApi } from "./api.js";
 import { createAssistantModels } from "./assistant-models.js";
+import { BriefingRepository } from "./briefing/repository.js";
 import { briefingScope } from "./briefing-access.js";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api.js";
 import { resolveDocumentsConfig } from "./documents/config.js";
-import { BriefingRepository } from "./briefing/repository.js";
+import { createSessionRoutes } from "./live-session/routes.js";
 import { loadLocalDefaultProfile } from "./local-default-profile.js";
 import { loadLocalTemplates, localMatrixPath } from "./local-seeds.js";
 import { createInterviewStudio } from "./studio/host.js";
@@ -219,6 +220,15 @@ export function createInterviewBackend(services: InterviewBackendServices) {
   // Read once, so a bad setting stops startup instead of the first document.
   const documentsConfig = resolveDocumentsConfig();
   const app = new Hono();
+  // Active Session ingest, stream and control (ADR-0011): mounted first so the
+  // studio's /api/interview/* catch-all never sees them.
+  app.route(
+    "/",
+    createSessionRoutes({
+      database: services.database,
+      resolveContext: services.resolveContext,
+    }),
+  );
   // Interview answers and explanations, generated on the gateway for the
   // member of the tenant the request names.
   app.route(
