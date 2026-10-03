@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 24
+current_prompt: 25
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -171,15 +171,15 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 24
   title: 'Develop #4: internal review'
-  state: "running"
+  state: "done"
   started: "2026-10-03T16:35:20Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T16:53:17Z"
+  result: "Independent crux:reviewer: first verdict BLOCKED (2 MUST-FIX: owner resume undone by companion heartbeat; named window falling back to display). Both fixed failing-first (0dda4d6) plus 2 SHOULD-FIX; 12 items deferred and recorded; pnpm verify exit 0 (259 files / 2694 tests), Swift harness 43/0."
+  artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 25
   title: 'Review : external team review (multi-dimension + dedicated security review) of the full Active Session cycle diff'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T16:53:17Z"
   completed: null
   result: ''
   artifacts: []
@@ -452,6 +452,13 @@ notes: |
   - Security analysis: no separate SAST tool configured; RLS and cross-user suites, no-content canary, egress and boundary/Swift-source scan tests passed inside the full run.
   - Deferred to the prep prompt (not trivial, README has no ACTIVE_SESSION rows at all): README env table rows for ACTIVE_SESSION_CODE_RUNNER, ACTIVE_SESSION_RUNNER_DEVICE_LOCAL, ACTIVE_SESSION_AGENT_ESCALATION. verify-code-docs not regenerated (code/arch docs known to drift until prep).
   - Unobserved: Swift adapters' runtime behaviour, packaged .app, real companion pairing, real call workload, real-model latency, browser rendering.
+
+  ## Dev loop #4 review deferrals (prompt 24; independent crux:reviewer, first verdict BLOCKED, 2 MUST-FIX)
+  The code-review skill was not invoked; an independent crux:reviewer agent (did not write the code) probed the real modules, ran gates and 12 mutation probes (all reverted; worktree clean). Handed: the book goal, E-A1..E-A3, the diff 811157c..HEAD, and the completion reports (no transcript).
+  Fixed (each with a test that failed first; commit 0dda4d6): MUST-FIX 1 an owner's resume was undone by the companion's next heartbeat (a companion paused only by Studio sent capturing:false, which Studio treats as a companion stop and pauses again) in both TS and Swift; the fake Studio had accepted capturing:false as active and the old test asserted the bug. Fix: capturing:false only when the companion itself stopped. Tests: TS companion test against Studio's real pause rule, a real-routes hardening case (hardening/pause-resume.test.ts, fails on the old companion build), a Swift harness test. MUST-FIX 2 a named screen window that is not found fell back silently to the whole display; now a pure ScreenTarget.choose in CaptureCore refuses (windowNotFound -> visible device-lost), with a harness test (mutation checked). SHOULD-FIX 3 the Swift run loop skipped the local-stop notices three times in four: one extra tick before exit (adapter loop, compile-checked only, not runnable here). SHOULD-FIX 4 nothing tested the Swift pause discarding queued content (mutation survived): test added.
+  Deferred with rationale: 5 URLSessionTransport follows redirects with the Bearer header (https is enforced, only the Studio origin can redirect; set a no-redirect delegate in the packaging pass); 6 heartbeat spacing is measured from any contact, so a heartbeat within 1 s of a transcript is 429 and holds the TS outbox up to 1 s (latency cost only, unmeasured; revisit if real-call latency shows it); 7 a transient Keychain read failure is treated as a refused credential and deletes it; 8 Swift ControlPull drops a refused source only when the issue path names source (a never-permitted screen source is refused at path kind, so Swift keeps sending refused screenshots; TS drops it); 9 Package.swift embeds no Info.plist, so SFSpeechRecognizer authorization from a bare tool likely aborts: `capture-companion run` is UNOBSERVED and not claimed to work; 10 the stop command signals a pid from the pid file after only kill(pid,0) (PID reuse); 11 rule:locality-by-stage is cited but is not an ADR-0012 handle and the guarantee test checks only /ADR-001[12]/; 12 capability.report widens the stolen-credential blast radius (a session credential can rewrite the owner-level capability row that drives later Setup blockers): record in ADR-0012 or scope down; 13 the device-only blocker ignores the selected sources (a screen-only session is blocked by speech) and "this Mac" means the Mac that reported last (no device identity); 14 TS ingestUrl admits plain http to any host (fixture only; Swift enforces https or loopback); 15 companion-path latency run produces 35 drafts at 1x vs 36 for direct ingest (cause not recorded); 16 no-promotion scan skips the whole hardening directory, so a future production file there would escape it (comment states why). Mutation M9 (gateway device-only check) inconclusive: tests load @omnitech/ai-runtime from dist and the rebuild was refused by the permission system; by reading, egress.test would fail without the check.
+  Gates after the fixes: pnpm verify as ONE command -> exit 0 (typecheck 54/54, 259 files / 2694 tests, build 29/29); Swift harness 43 passed, 0 failed. Re-review was not commissioned (the two MUST-FIX are closed with failing-first tests; the 3-round bound not reached).
+  Evidence dispositions (loop 4): resend dedup verified; companion holds no DB/provider credentials and imports only the wire schema verified (boundary test + Swift source scan); cannot broaden sources verified server-side and now locally for window selection; stops locally when Studio is down verified in TS and Swift cores (executable loop fix compile-only); Studio pause/resume with a real companion was CONTRADICTED by the review, fixed and now verified through real routes; cross-user capability refusal verified; no content in traces verified; device-only enforcement verified by egress tests (mutation unobserved); latency verified on the virtual clock with a simulated 800 ms model, real-model latency unobserved; E-A1 verified; E-A2 verified on the processor path (real model unobserved); E-A3 verified. UNOBSERVED: ScreenCaptureKit, on-device speech, Keychain, AVAudioEngine runtime and permission prompts, packaged signed .app, real pairing, real call workload.
 
 pr_draft: ""
 summary: ""
