@@ -40,7 +40,6 @@
     "@omnitech-assistant/provider-on-device": "file:../../../vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz",
     "@omnitech-assistant/react": "file:../../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz",
     "@omnitech-assistant/sdk": "file:../../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
-    "@omnitech/ai-sdk": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
     "@omnitech/database": "workspace:*",
     "@omnitech/interview-api-client": "workspace:*",

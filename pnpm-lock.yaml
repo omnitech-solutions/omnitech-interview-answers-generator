@@ -187,9 +187,6 @@ importers:
       '@omnitech/ai-runtime':
         specifier: workspace:*
         version: link:../../packages/ai-runtime
-      '@omnitech/ai-sdk':
-        specifier: workspace:*
-        version: link:../../packages/ai-sdk
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
@@ -417,9 +414,6 @@ importers:
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../ai-contracts
-      '@omnitech/ai-sdk':
-        specifier: workspace:*
-        version: link:../ai-sdk
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -443,31 +437,6 @@ importers:
         specifier: workspace:*
         version: link:../ai-contracts
     devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(@vitest/coverage-v8@4.1.10)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
-
-  packages/ai-sdk:
-    dependencies:
-      '@omnitech-assistant/contracts':
-        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
-      '@omnitech-assistant/providers':
-        specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz
-        version: file:vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz(undici@7.28.0)(ws@8.21.1)
-      openai:
-        specifier: 7.25.0
-        version: 7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.4.3)
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.20.1
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -815,9 +784,6 @@ importers:
       '@omnitech-assistant/sdk':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
-      '@omnitech/ai-sdk':
-        specifier: workspace:*
-        version: link:../../packages/ai-sdk
       '@omnitech/code-runner':
         specifier: workspace:*
         version: link:../../packages/code-runner
@@ -11089,12 +11055,6 @@ snapshots:
       oniguruma-parser: 0.12.2
       regex: 6.1.0
       regex-recursion: 6.0.2
-
-  openai@7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.4.3):
-    optionalDependencies:
-      undici: 7.28.0
-      ws: 8.21.1
-      zod: 4.4.3
 
   openai@7.25.0(undici@7.28.0)(ws@8.21.1)(zod@4.6.5):
     optionalDependencies:

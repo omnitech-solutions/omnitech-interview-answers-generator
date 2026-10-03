@@ -100,7 +100,8 @@ The web server reads the following variables from `apps/web/.env.local`.
 **One model configuration serves the whole application.** The interview API,
 the platform AI gateway and Interview Studio's assistant all resolve their
 model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below through
-`@omnitech/ai-sdk`, so changing a value changes it everywhere. When none is
+`apps/web/src/platform/ai-config.ts`, so changing a value changes it
+everywhere. When none is
 set, `pnpm dev` uses the model LM Studio already has loaded and says so on
 start, loading it with a 65,536-token window (`ASSISTANT_CONTEXT_TOKENS`) so
 the assistant's history and output limits fit.
@@ -196,6 +197,10 @@ interview-answers explain \
   --append
 ```
 
+`ask` and `explain` generate for a tenant you belong to (`--tenant`, default
+`local`): the server resolves your membership of that tenant and runs the
+model through the platform AI gateway.
+
 Push into the open Interview Studio (the Playground channel):
 
 ```bash
@@ -251,8 +256,8 @@ artifacts are current.
 
 ### Reusable packages
 
-- `@omnitech/ai-sdk`: provider-neutral AI client with an OpenAI-compatible
-  adapter and one public entrypoint.
+- `@omnitech/ai-provider-openai`: the OpenAI-compatible model adapter
+  (OpenAI and LM Studio) behind the platform AI gateway.
 - `@omnitech/interview-contracts`: shared Zod schemas, language routing, and
   prompt workflows.
 - `@omnitech/interview-storage`: JSON repositories for saved coding answers and

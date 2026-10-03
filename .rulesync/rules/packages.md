@@ -26,8 +26,6 @@ description: Reusable package and SDK boundaries
 - `agent-runtime-*` packages own Codex and Claude SDK translation.
 - `agent-job-service` owns the durable job lifecycle; `agent-worker` owns
   isolated execution.
-- `ai-sdk` remains a compatibility facade for migrated consumers and never
-  owns product semantics.
 - `interview-contracts` owns schemas, language routing, and answer workflows.
 - `interview-storage` owns persistence interfaces and adapters.
 - `code-runner` owns execution isolation.

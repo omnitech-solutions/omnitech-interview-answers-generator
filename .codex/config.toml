@@ -26,7 +26,7 @@ Interview workflow routing:
 """
 
 [[skills.config]]
-path = ".codex/skills/ai-sdk-maintainer/SKILL.md"
+path = ".codex/skills/ai-provider-maintainer/SKILL.md"
 enabled = true
 
 [[skills.config]]

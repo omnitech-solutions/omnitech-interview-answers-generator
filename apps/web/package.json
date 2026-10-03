@@ -31,7 +31,6 @@
     "@omnitech/ai-provider-images": "workspace:*",
     "@omnitech/ai-provider-openai": "workspace:*",
     "@omnitech/ai-runtime": "workspace:*",
-    "@omnitech/ai-sdk": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
     "@omnitech/database": "workspace:*",
     "@omnitech/interview-contracts": "workspace:*",

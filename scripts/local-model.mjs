@@ -1,6 +1,7 @@
 // Model settings for `pnpm dev`. The settings themselves are resolved by
-// @omnitech/ai-sdk (AI_*, OPENAI_*, LM_STUDIO_*); this only fills the gap when
-// nothing is configured, and makes sure LM Studio's window fits the assistant.
+// apps/web/src/platform/ai-config.ts (AI_*, OPENAI_*, LM_STUDIO_*); this only
+// fills the gap when nothing is configured, and makes sure LM Studio's window
+// fits the assistant.
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
