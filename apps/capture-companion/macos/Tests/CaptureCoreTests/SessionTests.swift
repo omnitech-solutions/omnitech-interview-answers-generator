@@ -154,6 +154,33 @@ func sessionTests(_ t: Harness) async {
         t.expectEqual(h.session.machine.state, .sourceLost)
     }
 
+    await t.test("while only Studio has paused it the companion still reports capturing: true, so an owner resume sticks") {
+        let h = makeSession(selection: [.microphone], responder: { request in acceptedResult(for: request, state: "paused") })
+        h.session.start(capability: readyCapability)
+        await h.session.tick()
+        t.expectEqual(h.session.machine.state, .paused)
+        h.clock.advance(h.session.heartbeatIntervalSeconds + 0.1)
+        await h.session.tick()
+        let requests = await h.transport.requests
+        let heartbeat = requests.last { stringField(envelopeJSON(of: $0), "kind") == "heartbeat" }
+        // Studio pauses an active session on capturing:false; saying it here would undo the next resume.
+        if case .object(let fields)? = envelopeJSON(of: heartbeat!) { t.expectEqual(fields["capturing"], .bool(true)) }
+        else { t.expect(false, "heartbeat was not an object") }
+    }
+
+    await t.test("content queued before a Studio pause is discarded, never sent after resume") {
+        let h = makeSession(selection: [.microphone], responder: { _ in .unreachable })
+        h.session.start(capability: readyCapability)
+        _ = h.session.submitTranscript(source: .microphone, text: "Queued before pause.", startMs: 0, endMs: 900)
+        t.expect(!h.session.outbox.isEmpty, "queued while Studio is unreachable")
+        await h.transport.set { acceptedResult(for: $0, state: "paused") }
+        await h.session.tick()
+        t.expectEqual(h.session.machine.state, .paused)
+        let kinds = (await h.transport.requests).compactMap { stringField(envelopeJSON(of: $0), "kind") }
+        t.expect(!kinds.contains("transcript.final") || h.session.outbox.isEmpty, "paused content is not delivered")
+        t.expect(h.session.outbox.isEmpty, "the outbox was discarded on pause")
+    }
+
     await t.test("a source Studio refuses is dropped for the run and never restarted") {
         let issues = #"[{"path":["content","source"],"code":"invalid_value"}]"#
         let h = makeSession(selection: [.microphone, .applicationAudio], responder: { request in

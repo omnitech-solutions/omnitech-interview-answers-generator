@@ -285,7 +285,16 @@ export class Companion {
   }
 
   // ---- Internals. ----------------------------------------------------------
-  private heartbeatNow(capturing = this.active.size > 0) {
+  // capturing:false asks Studio to pause the session, so it is sent only when
+  // the companion itself has stopped. While Studio alone has paused capture the
+  // companion is still doing what it was told, and says so; otherwise the
+  // owner's resume would be undone by the very next heartbeat.
+  private heartbeatNow(
+    capturing = this.active.size > 0 ||
+      (this.control.paused &&
+        !this.state.terminalPhase &&
+        !this.state.speechUnavailable),
+  ) {
     return heartbeatMessage({
       sourceId: COMPANION_SOURCE_ID,
       sentAt: isoAt(this.clock.now()),

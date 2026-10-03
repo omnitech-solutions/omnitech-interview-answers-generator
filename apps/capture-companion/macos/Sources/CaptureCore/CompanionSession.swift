@@ -169,7 +169,11 @@ public final class CompanionSession {
             return
         }
         lastHeartbeatAt = now
-        let beat = Heartbeat(sourceId: factory.companionId, sentAt: TimeText.iso(now), capturing: machine.isCapturing)
+        // capturing:false asks Studio to pause the session, so it is sent only when the companion itself
+        // has stopped. While Studio alone has paused it the companion is doing what it was told and says
+        // so; otherwise the owner's resume would be undone by the very next heartbeat.
+        let capturing = machine.isCapturing || machine.state == .paused
+        let beat = Heartbeat(sourceId: factory.companionId, sentAt: TimeText.iso(now), capturing: capturing)
         _ = await send(.heartbeat(beat), payload: nil, answering: nil)
     }
 

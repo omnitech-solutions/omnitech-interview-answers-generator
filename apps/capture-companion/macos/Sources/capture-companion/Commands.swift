@@ -241,7 +241,9 @@ private func runLoop(
             print(Status.queued(session.outbox.count))
         }
         if session.machine.isTerminal {
-            // The final tick above sent any best-effort stop notices once.
+            // Send the best-effort stop notices now: the periodic tick above runs only every fourth
+            // pass, so without this a local stop would usually exit before the goodbye is attempted.
+            if counter % 4 != 0 { await session.tick() }
             for transcriber in transcribers.values { transcriber.stop() }
             print(Status.state(session.machine.state))
             return 0

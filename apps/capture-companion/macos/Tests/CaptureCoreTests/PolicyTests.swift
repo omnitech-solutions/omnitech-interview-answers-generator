@@ -24,6 +24,14 @@ private struct StubPermissions: PermissionProbe {
 
 @MainActor
 func policyTests(_ t: Harness) async {
+    await t.test("a named window that is not on screen is refused, never widened to the display") {
+        let titles: [String?] = ["Mail", nil, "Interview Notes - Editor"]
+        t.expectEqual(ScreenTarget.choose(titleFragment: "interview notes", windowTitles: titles), .window(index: 2))
+        t.expectEqual(ScreenTarget.choose(titleFragment: nil, windowTitles: titles), .display)
+        t.expectEqual(ScreenTarget.choose(titleFragment: "Interveiw", windowTitles: titles), .windowNotFound)
+        t.expectEqual(ScreenTarget.choose(titleFragment: "Interview", windowTitles: []), .windowNotFound)
+    }
+
     await t.test("backoff doubles with jitter, caps, and honours Retry-After") {
         var low = Backoff(random: { 0 })
         t.expectEqual([low.nextDelay(), low.nextDelay(), low.nextDelay()], [0.5, 1.0, 2.0])

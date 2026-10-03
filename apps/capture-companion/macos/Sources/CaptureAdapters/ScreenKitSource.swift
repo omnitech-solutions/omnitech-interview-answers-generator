@@ -56,16 +56,18 @@ public final class ScreenKitSource: NSObject, SCStreamOutput, SCStreamDelegate, 
             let filter: SCContentFilter
             switch kind {
             case .screen(let titleFragment):
-                if let titleFragment,
-                    let window = content.windows.first(where: {
-                        $0.title?.localizedCaseInsensitiveContains(titleFragment) == true
-                    })
-                {
+                switch ScreenTarget.choose(titleFragment: titleFragment, windowTitles: content.windows.map(\.title)) {
+                case .window(let index):
+                    let window = content.windows[index]
                     filter = SCContentFilter(desktopIndependentWindow: window)
                     // [SAFETY] Only the application name is sent as the label, never a window title.
                     label = window.owningApplication?.applicationName ?? "window"
-                } else {
+                case .display:
                     filter = SCContentFilter(display: display, excludingWindows: [])
+                case .windowNotFound:
+                    // [SAFETY] Never widen a named window to the whole display: refuse visibly instead.
+                    onLost(.deviceLost)
+                    return false
                 }
                 configuration.width = min(display.width, 1920)
                 configuration.height = min(display.height, 1080)

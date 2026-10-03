@@ -234,12 +234,14 @@ describe("control pull", () => {
     const before = studio.requests.length;
     await say("while-paused");
     expect(studio.requests).toHaveLength(before);
-    // The heartbeat now says capturing:false.
+    // Paused by Studio, the companion still says capturing:true: Studio
+    // pauses a session on capturing:false, so reporting it here would undo the
+    // owner's next resume.
     await clock.advance(5000);
     await companion.heartbeat();
     expect(studio.requests.at(-1)?.message).toMatchObject({
       kind: "heartbeat",
-      capturing: false,
+      capturing: true,
     });
     studio.state = "active";
     await clock.advance(5000);
@@ -254,6 +256,35 @@ describe("control pull", () => {
     expect(gaps[0]?.message).toMatchObject({
       content: { reason: "paused", durationMs: 10_000 },
     });
+  });
+
+  it("an owner resume survives the companion's next heartbeat (Studio pauses on capturing:false)", async () => {
+    const { companion, studio, clock } = setup();
+    await companion.start();
+    // Studio's real rule: a heartbeat saying capturing:false pauses an active
+    // session and refuses with session_paused.
+    studio.script = (request) => {
+      const message = request.message;
+      if (
+        message.kind === "heartbeat" &&
+        message.capturing === false &&
+        studio.state === "active"
+      ) {
+        studio.state = "paused";
+        return refusedAck("session_paused", "paused");
+      }
+      return undefined;
+    };
+    studio.state = "paused";
+    await clock.advance(5000);
+    await companion.heartbeat();
+    studio.state = "active";
+    for (let i = 0; i < 3; i++) {
+      await clock.advance(5000);
+      await companion.heartbeat();
+    }
+    expect(studio.state).toBe("active");
+    expect(companion.snapshot().phase).toBe("listening");
   });
 
   it("resume restarts only locally selected sources, never ones Studio refused", async () => {
