@@ -72,6 +72,9 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
           busy={snapshot.pending.length > 0}
           commandError={snapshot.commandError}
           pairing={<PairingPanel />}
+          // A credential that was just issued is shown once: open the tab that
+          // holds it rather than leave it behind another.
+          initialTab={snapshot.pairing ? "sources" : "transcript"}
         />
       )}
     </div>
@@ -87,6 +90,7 @@ export function LiveSessionBody({
   busy,
   commandError,
   pairing,
+  initialTab = "transcript",
 }: {
   session: LiveSessionView;
   model: LiveViewModel;
@@ -94,8 +98,9 @@ export function LiveSessionBody({
   busy: boolean;
   commandError: string | null;
   pairing: ReactNode;
+  initialTab?: SessionTabId;
 }) {
-  const [tab, setTab] = useState<SessionTabId>("transcript");
+  const [tab, setTab] = useState<SessionTabId>(initialTab);
   // null follows the newest task; an id pins an earlier one.
   const [pinned, setPinned] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -179,7 +184,7 @@ export function LiveSessionBody({
         <div className="live-banner earlier" role="status">
           <Icon name="history" />
           <span className="live-banner-text">
-            Viewing an earlier task. The session is still listening.
+            Viewing an earlier task. Studio still tracks the newest one.
           </span>
           <button
             type="button"
