@@ -1,0 +1,948 @@
+format_version: '1'
+id: PB-0003
+title: 'Cycle: Agent runtime reliability and measured document generation'
+status: active
+created_at: '2026-10-03'
+total_prompts: 21
+current_run: null
+current_prompt: null
+forked_from: null
+tags:
+- cycle
+- workflow
+- feature
+- agent-runtime
+- documents
+- interview
+cycle_kind: adr
+modules:
+  adrs: 2
+  dev_loops: 2
+  review_cycles: 1
+goal: |
+  Outcome: Interview Studio generates reliable agent results and progressively usable, grounded interview documents with measured latency improvements across Codex and Claude. Evidence: each runtime execution emits exactly one terminal outcome; supported session, streaming, structured-output, cancellation, recovery, and concurrency behavior is proved against the installed TypeScript SDKs and pinned protocol; the same resume, template, and matrix are benchmarked with one, three, and five model groups, with before-and-after latency, cost, and visible-field timings recorded; revision and retry tests show that stale or partial results cannot overwrite newer or authoritative data; pnpm verify and an independent full-cycle review pass. Constraint: preserve AgentRuntimeAdapter and existing agent-worker isolation, profile bounds, subscription-style local authentication, tenant privacy, no content logging, direct-source document fields, and current generation contracts; do not invent candidate facts, introduce generic workflow infrastructure, change credentials, or make external sends, pushes, merges, or spend without task-specific authorization. The end state is a reviewed, tested, documented PR draft ready for human delivery.
+strategy: |
+  Plan two architectural decisions, then implement the two accepted slices: runtime lifecycle/transport and document generation. Run the independent full-cycle review only after both implementation loops. Close every MUST-FIX finding and record unobserved provider and real-workload behavior explicitly.
+
+  First inspect current code and measure a baseline. The original architectural proposal is a candidate design, not an implementation mandate: the Codex adapter currently uses @openai/codex-sdk, the installed TypeScript Claude Agent SDK exposes query() rather than a named ClaudeSDKClient, and the document path already has direct fields, grouping, bounded calls, and validated batch progress. Establish the remaining gaps before adding new layers. Verify any version-sensitive vendor claim against the installed packages and official docs.
+
+  Use the template council, three-round escalation, quality gates, independent reviewers, security review, documentation audit, journal, PR draft, and archival. No execution or external side effect begins merely because this book was authored.
+run_autonomy: |
+  Once this cycle's run is started, it runs to completion without human
+  review. Questions and decisions are resolved by the `council` skill and
+  dispatched `Agent`s; help comes from skills and tools. As long as the
+  prompts are followed and the cited ADRs are respected, no human is
+  involved. The only stops are (a) a module escalation loop firing (3-round
+  non-convergence on council, quality gates, or review fix-loop) and (b) a
+  genuinely irreversible/outward-facing action the plan did not authorize
+  (push/merge, deploy, external send, data deletion, spend). In-repo edits —
+  including `bionic/AGENTS.md`, skill files, and code — are never stop points.
+  See `docs/AGENTS.md` §11 (resolved in this repository as `bionic/AGENTS.md` §11) "Run execution autonomy" for the full contract
+  (authoritative).
+prompts:
+- title: 'Plan #1: spawn planning team, propose ADR for agent runtime lifecycle, transport,
+    and terminal-event semantics'
+  module_tag: adr-1
+  purpose: |
+    Establish the architectural commitment before any code lands.
+  prompt: |
+    Read the cycle's Goal and any prior Accepted ADRs in this cycle. Invoke
+    `query-docs` to surface existing ADRs, briefs, or research sources
+    relevant to agent runtime lifecycle, transport, and terminal-event semantics. Then dispatch 2–3 planning agents in parallel
+    via the `Agent` tool. Each agent reads the affected code paths and
+    returns a one-page proposal: problem statement, options considered (≥2),
+    recommendation, risks, open questions.
+
+    Synthesize the proposals into a single recommendation. Then invoke the
+    `propose-adr` skill with the synthesized content. The ADR must contain:
+    Context, Decision, Alternatives Considered (≥2), Consequences,
+    References (linking to any related ADRs/briefs/research via wiki-links).
+    Status starts at `Proposed`.
+
+    Record the ADR id (`ADR-NNNN`) in this run snapshot's Artifacts field
+    under the label `ADR #1`, and beside it the ADR's rule citations — one
+    `rule:<slug>` per `governs` entry, the slug being the part of the handle
+    after the slash. The id is the machine field the accept prompt reads;
+    the citations are what the dev and review modules implement and check.
+
+    Then run the rule-length advisory and read its `warnings` list:
+
+      uv run "${CRUX_PLUGIN_ROOT}/scripts/check-governs-coverage.py" --repo-root <repo-root>
+
+    A row naming this ADR means a `governs` rule is longer than the recommended
+    maximum; the row carries the handle, the length, that maximum, and the
+    guidance for shortening it. It is ADVISORY: it changes no exit code and
+    blocks nothing.
+
+    The principle it serves is `bionic/AGENTS.md` §11.D rule 7 — read it there;
+    this prompt names it and does not restate it. Either shorten the rule as
+    that rule and the row's own message direct, or say in this prompt's Result
+    why the length is what precision costs here. Do not truncate a rule to
+    clear a row. Saying so in the Result is a note in an existing free-text
+    field, not a waiver: there is no waiver field to fill and no approval step
+    to pass.
+
+    For this ADR, inspect packages/agent-runtime-contracts, packages/agent-runtime-codex, packages/agent-runtime-claude, and apps/agent-worker. Establish the exact terminal-event invariant and whether cancellation is a distinct event or a failed event with a cancelled code; test the Codex turn.failed then completed defect. Evaluate long-lived Codex App Server against the current SDK on installed versions: protocol generation/pinning, handshake, structured output, stream ordering, interrupt, thread resume, process ownership, backpressure, and bounded concurrency. Evaluate supported persistent TypeScript Claude Agent SDK query/session mechanisms; do not assume the Python ClaudeSDKClient symbol exists in TypeScript. Include a measured one-shot baseline, failure and recovery behavior, and an explicit migration/fallback decision. Preserve agent-worker isolation and current auth; do not modify credentials. Cite official vendor documentation and installed API definitions, with version and date.
+  expected_output: |
+    ADR file at `bionic/adrs/ADR-NNNN-<slug>.md` with `status: Proposed`;
+    `manifest.yml`'s `adr.next_number` incremented; `bionic/log.md` entry
+    appended.
+  side_effects:
+  - propose-adr
+  - query-docs
+  n: 1
+- title: 'Plan #1: convene LLM council to review the ADR'
+  module_tag: adr-1
+  purpose: |
+    Gate the ADR with multi-perspective review before acceptance.
+  prompt: |
+    Invoke the `council` skill (multi-model: Claude + Gemini + GPT, async)
+    — or, equivalently, dispatch 5 parallel review agents via the `Agent`
+    tool — each owning one quality dimension:
+      (1) Completeness — are Context/Decision/Alternatives/Consequences
+          all fleshed out? Any missing references?
+      (2) Correctness — does the proposal actually solve the problem?
+          Are the assumptions verifiable?
+      (3) Consistency — does this conflict with any prior `Accepted` ADRs
+          (INCLUDING any ADRs accepted earlier in this cycle), briefs, or
+          invariants in `bionic/AGENTS.md`?
+      (4) Clarity — would a new engineer (or future Claude) understand the
+          decision from this ADR alone?
+      (5) **Security** — does the decision introduce a security risk?
+          Evaluate: new attack surface or trust boundary; secret/credential
+          handling (does it touch `~/.crux/`, env vars, or log values?);
+          injection or authz implications; supply-chain exposure (new
+          dependency, external fetch, or unpinned source). Return
+          `REQUEST_CHANGES` if the ADR creates a security risk it does not
+          explicitly mitigate.
+
+    Each agent must read: the proposed ADR, `bionic/adrs/index.md`, and any
+    code paths or ADRs the proposal cites. Each returns a verdict
+    (`APPROVE` / `APPROVE_WITH_NITS` / `REQUEST_CHANGES`) plus a numbered
+    findings list.
+
+    Aggregate verdicts and route by exactly one of three cases:
+      - **Clean consensus** — ALL five `APPROVE`, zero findings → advance to
+        this module's accept prompt.
+      - **Minor nits only** — one or more `APPROVE_WITH_NITS` on
+        NON-safety-adjacent dimensions (Completeness, Clarity, or a
+        stylistic Consistency/Correctness nit), with NO `REQUEST_CHANGES`
+        and NO safety-adjacent dissent → advance directly to this module's
+        address-findings prompt (address the nits, re-convene). **No deeper
+        review** — a lone nit does not warrant the srde/deep-architecture pass.
+      - **Split verdict → deeper architectural review** (the case below).
+
+    **Deeper architectural review (auto-trigger, autonomous — part of the
+    hardened cycle contract).** A **split verdict** is,
+    operationally, ANY of: (i) any dimension returns `REQUEST_CHANGES`;
+    (ii) any `APPROVE_WITH_NITS` or dissent on a *safety-adjacent* dimension
+    (Security, or a Correctness dissent alleging a real defect rather than a
+    stylistic gap); (iii) the dimensions return verdict tokens spanning more
+    than one level AND at least one is `REQUEST_CHANGES` (a pure
+    APPROVE/APPROVE_WITH_NITS mix is "minor nits only" above, NOT a split).
+    On a split, deepen the review before looping, WITHOUT involving a
+    human: (a) collect the per-dimension dissents; (b) run the `srde` skill
+    to resolve dissents answerable from existing in-repo bionic/probes (resolved
+    → drop). **`srde` auto-drop is excluded for safety-adjacent dissents** —
+    Security, and Correctness dissents alleging a real defect, are NEVER
+    silently auto-resolved; they always route to (c) or the findings loop.
+    (c) For dissents `srde` cannot resolve, dispatch ONE dedicated
+    deep-architecture-review `Agent` that reads the full ADR graph
+    (`bionic/adrs/index.md`, every cited ADR, `bionic/AGENTS.md` invariants) and
+    renders a binding architectural verdict **using the same vocabulary as
+    the council** (`APPROVE` / `APPROVE_WITH_NITS` / `REQUEST_CHANGES` + a
+    findings list); its surviving findings → the address-findings prompt like
+    any other. The `srde`/deep-review probes are read-only over in-repo
+    content: they MUST NOT run untrusted code, fetch unpinned external
+    content, or read/expose secret values. The `--deep-review` flag (if the
+    book was authored with it) forces steps (a)–(c) on round 1 regardless of
+    verdict.
+  expected_output: |
+    Aggregated 5-dimension council verdict; srde/deep-review resolution if
+    the verdict split; findings list (if any).
+  side_effects:
+  - council
+  - srde
+  n: 2
+- title: 'Plan #1: address council findings, re-convene the council'
+  module_tag: adr-1
+  purpose: |
+    Close the planning loop until the council approves.
+  prompt: |
+    For each finding from the council (this module's council prompt), edit
+    the proposed ADR in place to address it. Do NOT change `status:` — the
+    ADR remains `Proposed` throughout this loop. Preserve the body structure
+    (Context / Decision / Alternatives Considered / Consequences /
+    References).
+
+    Resolve findings **autonomously** — use the council/`srde` outputs and
+    dispatched `Agent`s; do NOT ask a human.
+
+    A revision lengthens a rule as easily as it shortens one, so re-run the
+    advisory before the next round and read its `warnings` list again:
+
+      uv run "${CRUX_PLUGIN_ROOT}/scripts/check-governs-coverage.py" --repo-root <repo-root>
+
+    Handle any row naming this ADR exactly as the drafting prompt says: shorten
+    it per `bionic/AGENTS.md` §11.D rule 7, or say in this prompt's Result why the
+    length is necessary. Advisory throughout — it never blocks the round.
+
+    When every finding is resolved,
+    return to this module's council prompt to re-convene the council. After
+    3 full loops without convergence, STOP and escalate to the user — a
+    genuine fundamental disagreement (not a resolvable finding) is the only
+    thing that warrants human adjudication.
+  expected_output: |
+    Updated ADR; control returns to this module's council prompt.
+  side_effects: []
+  n: 3
+- title: 'Plan #1: accept the ADR'
+  module_tag: adr-1
+  purpose: |
+    Commit to the plan; freeze the body.
+  prompt: |
+    Invoke `transition-adr` with: `accept ADR-NNNN` (where `NNNN` is the
+    id recorded in this run snapshot's Artifacts under `ADR #1`). This
+    sets `status: Accepted`, stamps `accepted_at:`, and writes both the
+    `adr | accept` log entry and the index update.
+
+    Then invoke `log-work` to append a journal entry summarizing this
+    ADR's planning loop: number of council rounds, the key debate(s) that
+    shaped the final decision, and any open questions deferred to later
+    phases. Per the journal contract, name at least one thing that didn't
+    work on the first attempt or surprised the reviewers.
+  expected_output: |
+    ADR at `status: Accepted`; new entry under `bionic/journal/YYYY-MM.md`.
+  side_effects:
+  - transition-adr
+  - log-work
+  n: 4
+- title: 'Plan #2: spawn planning team, propose ADR for grounded and measured interview document
+    generation'
+  module_tag: adr-2
+  purpose: |
+    Establish the architectural commitment before any code lands.
+  prompt: |
+    Read the cycle's Goal and any prior Accepted ADRs in this cycle. Invoke
+    `query-docs` to surface existing ADRs, briefs, or research sources
+    relevant to grounded and measured interview document generation. Then dispatch 2–3 planning agents in parallel
+    via the `Agent` tool. Each agent reads the affected code paths and
+    returns a one-page proposal: problem statement, options considered (≥2),
+    recommendation, risks, open questions.
+
+    Synthesize the proposals into a single recommendation. Then invoke the
+    `propose-adr` skill with the synthesized content. The ADR must contain:
+    Context, Decision, Alternatives Considered (≥2), Consequences,
+    References (linking to any related ADRs/briefs/research via wiki-links).
+    Status starts at `Proposed`.
+
+    Record the ADR id (`ADR-NNNN`) in this run snapshot's Artifacts field
+    under the label `ADR #2`, and beside it the ADR's rule citations — one
+    `rule:<slug>` per `governs` entry, the slug being the part of the handle
+    after the slash. The id is the machine field the accept prompt reads;
+    the citations are what the dev and review modules implement and check.
+
+    Then run the rule-length advisory and read its `warnings` list:
+
+      uv run "${CRUX_PLUGIN_ROOT}/scripts/check-governs-coverage.py" --repo-root <repo-root>
+
+    A row naming this ADR means a `governs` rule is longer than the recommended
+    maximum; the row carries the handle, the length, that maximum, and the
+    guidance for shortening it. It is ADVISORY: it changes no exit code and
+    blocks nothing.
+
+    The principle it serves is `bionic/AGENTS.md` §11.D rule 7 — read it there;
+    this prompt names it and does not restate it. Either shorten the rule as
+    that rule and the row's own message direct, or say in this prompt's Result
+    why the length is what precision costs here. Do not truncate a rule to
+    clear a row. Saying so in the Result is a note in an existing free-text
+    field, not a waiver: there is no waiver field to fill and no approval step
+    to pass.
+
+    For this ADR, inspect products/interview/src/backend/documents/generate.ts, config.ts, api.ts, persistence, templates, and ADR-0010. Record which proposed features already exist: direct-source resolution, model-field batching, call limits, validated batch events, duplicate handling, and revision identity. A coordinator is justified only for a demonstrated gap and must be narrow. Design immutable generation identity, exclusive field ownership, complete-schema validation, stale-revision rejection, retry idempotency, progressive validated groups, and explicit authority for candidate facts. Specify a same-input/same-machine benchmark for one, three, and five groups, including first visible field, total wall time, model calls/tokens/cost, and failure rate; choose grouping from results, not a guessed optimum. Keep technical prose generation allowed without promoting it to authoritative candidate facts.
+  expected_output: |
+    ADR file at `bionic/adrs/ADR-NNNN-<slug>.md` with `status: Proposed`;
+    `manifest.yml`'s `adr.next_number` incremented; `bionic/log.md` entry
+    appended.
+  side_effects:
+  - propose-adr
+  - query-docs
+  n: 5
+- title: 'Plan #2: convene LLM council to review the ADR'
+  module_tag: adr-2
+  purpose: |
+    Gate the ADR with multi-perspective review before acceptance.
+  prompt: |
+    Invoke the `council` skill (multi-model: Claude + Gemini + GPT, async)
+    — or, equivalently, dispatch 5 parallel review agents via the `Agent`
+    tool — each owning one quality dimension:
+      (1) Completeness — are Context/Decision/Alternatives/Consequences
+          all fleshed out? Any missing references?
+      (2) Correctness — does the proposal actually solve the problem?
+          Are the assumptions verifiable?
+      (3) Consistency — does this conflict with any prior `Accepted` ADRs
+          (INCLUDING any ADRs accepted earlier in this cycle), briefs, or
+          invariants in `bionic/AGENTS.md`?
+      (4) Clarity — would a new engineer (or future Claude) understand the
+          decision from this ADR alone?
+      (5) **Security** — does the decision introduce a security risk?
+          Evaluate: new attack surface or trust boundary; secret/credential
+          handling (does it touch `~/.crux/`, env vars, or log values?);
+          injection or authz implications; supply-chain exposure (new
+          dependency, external fetch, or unpinned source). Return
+          `REQUEST_CHANGES` if the ADR creates a security risk it does not
+          explicitly mitigate.
+
+    Each agent must read: the proposed ADR, `bionic/adrs/index.md`, and any
+    code paths or ADRs the proposal cites. Each returns a verdict
+    (`APPROVE` / `APPROVE_WITH_NITS` / `REQUEST_CHANGES`) plus a numbered
+    findings list.
+
+    Aggregate verdicts and route by exactly one of three cases:
+      - **Clean consensus** — ALL five `APPROVE`, zero findings → advance to
+        this module's accept prompt.
+      - **Minor nits only** — one or more `APPROVE_WITH_NITS` on
+        NON-safety-adjacent dimensions (Completeness, Clarity, or a
+        stylistic Consistency/Correctness nit), with NO `REQUEST_CHANGES`
+        and NO safety-adjacent dissent → advance directly to this module's
+        address-findings prompt (address the nits, re-convene). **No deeper
+        review** — a lone nit does not warrant the srde/deep-architecture pass.
+      - **Split verdict → deeper architectural review** (the case below).
+
+    **Deeper architectural review (auto-trigger, autonomous — part of the
+    hardened cycle contract).** A **split verdict** is,
+    operationally, ANY of: (i) any dimension returns `REQUEST_CHANGES`;
+    (ii) any `APPROVE_WITH_NITS` or dissent on a *safety-adjacent* dimension
+    (Security, or a Correctness dissent alleging a real defect rather than a
+    stylistic gap); (iii) the dimensions return verdict tokens spanning more
+    than one level AND at least one is `REQUEST_CHANGES` (a pure
+    APPROVE/APPROVE_WITH_NITS mix is "minor nits only" above, NOT a split).
+    On a split, deepen the review before looping, WITHOUT involving a
+    human: (a) collect the per-dimension dissents; (b) run the `srde` skill
+    to resolve dissents answerable from existing in-repo bionic/probes (resolved
+    → drop). **`srde` auto-drop is excluded for safety-adjacent dissents** —
+    Security, and Correctness dissents alleging a real defect, are NEVER
+    silently auto-resolved; they always route to (c) or the findings loop.
+    (c) For dissents `srde` cannot resolve, dispatch ONE dedicated
+    deep-architecture-review `Agent` that reads the full ADR graph
+    (`bionic/adrs/index.md`, every cited ADR, `bionic/AGENTS.md` invariants) and
+    renders a binding architectural verdict **using the same vocabulary as
+    the council** (`APPROVE` / `APPROVE_WITH_NITS` / `REQUEST_CHANGES` + a
+    findings list); its surviving findings → the address-findings prompt like
+    any other. The `srde`/deep-review probes are read-only over in-repo
+    content: they MUST NOT run untrusted code, fetch unpinned external
+    content, or read/expose secret values. The `--deep-review` flag (if the
+    book was authored with it) forces steps (a)–(c) on round 1 regardless of
+    verdict.
+  expected_output: |
+    Aggregated 5-dimension council verdict; srde/deep-review resolution if
+    the verdict split; findings list (if any).
+  side_effects:
+  - council
+  - srde
+  n: 6
+- title: 'Plan #2: address council findings, re-convene the council'
+  module_tag: adr-2
+  purpose: |
+    Close the planning loop until the council approves.
+  prompt: |
+    For each finding from the council (this module's council prompt), edit
+    the proposed ADR in place to address it. Do NOT change `status:` — the
+    ADR remains `Proposed` throughout this loop. Preserve the body structure
+    (Context / Decision / Alternatives Considered / Consequences /
+    References).
+
+    Resolve findings **autonomously** — use the council/`srde` outputs and
+    dispatched `Agent`s; do NOT ask a human.
+
+    A revision lengthens a rule as easily as it shortens one, so re-run the
+    advisory before the next round and read its `warnings` list again:
+
+      uv run "${CRUX_PLUGIN_ROOT}/scripts/check-governs-coverage.py" --repo-root <repo-root>
+
+    Handle any row naming this ADR exactly as the drafting prompt says: shorten
+    it per `bionic/AGENTS.md` §11.D rule 7, or say in this prompt's Result why the
+    length is necessary. Advisory throughout — it never blocks the round.
+
+    When every finding is resolved,
+    return to this module's council prompt to re-convene the council. After
+    3 full loops without convergence, STOP and escalate to the user — a
+    genuine fundamental disagreement (not a resolvable finding) is the only
+    thing that warrants human adjudication.
+  expected_output: |
+    Updated ADR; control returns to this module's council prompt.
+  side_effects: []
+  n: 7
+- title: 'Plan #2: accept the ADR'
+  module_tag: adr-2
+  purpose: |
+    Commit to the plan; freeze the body.
+  prompt: |
+    Invoke `transition-adr` with: `accept ADR-NNNN` (where `NNNN` is the
+    id recorded in this run snapshot's Artifacts under `ADR #2`). This
+    sets `status: Accepted`, stamps `accepted_at:`, and writes both the
+    `adr | accept` log entry and the index update.
+
+    Then invoke `log-work` to append a journal entry summarizing this
+    ADR's planning loop: number of council rounds, the key debate(s) that
+    shaped the final decision, and any open questions deferred to later
+    phases. Per the journal contract, name at least one thing that didn't
+    work on the first attempt or surprised the reviewers.
+  expected_output: |
+    ADR at `status: Accepted`; new entry under `bionic/journal/YYYY-MM.md`.
+  side_effects:
+  - transition-adr
+  - log-work
+  n: 8
+- title: 'Develop #1: derive an implementation plan for Codex and Claude runtime adapters
+    and their shared event contract'
+  module_tag: dev-1
+  purpose: |
+    Convert the architectural commitment(s) into ordered work units.
+  prompt: |
+    Read the rules this loop implements: the accepted runtime ADR rule citations recorded in this run snapshot. Resolve each citation
+    through `bionic/adrs/doctrine/index.md` to its rule and its ADR; read the
+    ADR for the rationale. Produce an implementation plan scoped to Codex and Claude runtime adapters and their shared event contract
+    with:
+      - Files to create / modify (paths)
+      - Ordered work units (each ≤ ~200 LOC; each independently testable)
+      - Risks specific to implementation (not architecture)
+      - Quality gates: which tests, which linters, which static-analysis
+        and security tools must pass before review.
+
+    The plan is a working document — capture it in this run snapshot's
+    Notes field under the label `Implementation plan #1`. Do NOT write a
+    separate ADR for the implementation plan; the architectural decision
+    is already recorded.
+
+    Plan the smallest accepted runtime design and regression tests for exactly one terminal event on success, failure, cancellation, and stream exception. Prove generated protocol types and version pairing if App Server was chosen. Include start, resume, interrupt, process restart, and bounded concurrent sessions at the provider boundary where available; label any simulated or unobserved behavior. Keep provider processes owned by agent-worker and do not kill unrelated operator processes. Measure baseline and changed latency before tuning waits, retries, or concurrency.
+  expected_output: |
+    Implementation plan in this run's Notes; clear ordered work units.
+  side_effects: []
+  n: 9
+- title: 'Develop #1: spawn implementation team'
+  module_tag: dev-1
+  purpose: |
+    Implement the plan with parallel agents where independent.
+  prompt: |
+    Group the work units from this loop's planning prompt by independence.
+    Dispatch one `Agent` per independent group in parallel. Each agent
+    receives: the ADR(s), the implementation plan, its assigned work units,
+    and explicit conventions from `bionic/AGENTS.md`.
+
+    Each agent also receives the book's `goal` statements — the Outcome, the
+    Evidence, and the Constraint. A dispatch passes them forward verbatim, or
+    narrows the Outcome and says so: a narrowed Outcome is entailed by its
+    parent and names the parent it narrowed and what it dropped. The Evidence
+    and the Constraint pass whole — a dispatch may add an Evidence item or a
+    Constraint, saying which it added, and may drop neither. Record any
+    narrowing in this run snapshot's Notes under the label
+    `Outcome narrowing #1` — never by editing the book.
+
+    Each agent must make actual edits and run the relevant tests for its
+    scope. Each returns: files changed, tests added/updated, test results,
+    and any unilateral decisions with rationale.
+
+    After all agents return, integrate. If two agents edited overlapping
+    files (they should not have, given grouping), reconcile manually.
+
+    Implement the accepted runtime plan and preserve exactly one terminal event for each execution. Prove provider-boundary behavior where available; record simulated or unobserved cases explicitly.
+  expected_output: |
+    All work units implemented; per-agent reports collected.
+  side_effects: []
+  n: 10
+- title: 'Develop #1: run quality gates; loop until clean'
+  module_tag: dev-1
+  purpose: |
+    Verify the implementation passes every gate before review.
+  prompt: |
+    Run, in this order:
+      - The repo's **full test suite** — the COMPLETE run (e.g.
+        `python3 -m unittest discover -s crux/scripts/tests`, `mix test`,
+        `pytest`), NOT a hand-picked subset of "the tests that look relevant".
+        Capture the exact command from `bionic/AGENTS.md` or root AGENTS.md.
+        **The full run is mandatory whenever the change touches any shared or
+        enumerated surface** — the agent roster, model/router config, the
+        catalog, or anything a *different* file hardcodes a list or count of.
+        Rationale: a stale hardcoded enumeration in a file the diff never
+        touched is invisible to diff-review (you cannot see a missing edit by
+        reading the edits that were made) and only fails when its own assertion
+        runs — so the full suite is the only gate that catches it. Running a
+        curated subset here is exactly the gap that shipped a red suite in a
+        prior cycle.
+      - The linter / formatter (e.g. `mix format --check-formatted`,
+        `ruff check`, `eslint`).
+      - Static analysis (e.g. `mix credo --strict`, `mypy`, `tsc --noEmit`).
+      - Security analysis (e.g. `mix sobelow`, `bandit`, `npm audit`).
+      - `verify-code-docs` — ensure no docstring drift was introduced.
+      - **Release-content scan** — if the diff touches any distributed
+        surface (`crux/skills/`, `crux/agents/`, `crux/templates/`), run
+        `check-public-release-content.py` (the permanent release-content
+        scan) so a banned internal-reference leak fails IN-CYCLE, not only at
+        release time.
+        Read its exit code as a gate, not a log line: **exit 0 = clean;
+        exit 1 = FINDINGS** — one `<path>:<lineno>: <line>` row per hit on
+        stdout, each a real gate failure to FIX by re-editing the offending
+        surface (NOT an environment error — do not wave it through); a crash
+        / **exit ≥ 2 / non-zero with empty or unparseable stdout = an
+        environment-capability error** (surface stderr; a distinct lane, not
+        a findings result).
+
+    For any failure: fix it (re-edit code), then re-run the failed gate
+    AND every subsequent gate. Repeat until all gates return clean. After
+    3 full loops without convergence, STOP and escalate.
+
+    **Record each gate in the run snapshot Notes with its exact command AND
+    a concrete result token** (e.g. `validate-catalog --dry-run → exit 0`,
+    `unittest → 149 OK`) — NOT a bare "all gates green". The review module's
+    dev-practice conformance reviewer corroborates these tokens
+    against the diff; an unrecorded gate reads as fabrication-by-omission (a
+    Tier-1 conformance FAIL).
+
+    Run `pnpm verify` as the repository-wide quality gate and record its exit code and test/build counts.
+  expected_output: |
+    All gates green; each gate's command + result token captured in the run
+    snapshot Notes.
+  side_effects:
+  - verify-code-docs
+  n: 11
+- title: 'Develop #1: internal review'
+  module_tag: dev-1
+  purpose: |
+    First-pass self-review before external eyes.
+  prompt: |
+    Invoke the `code-review` skill (use the default effort level, no
+    `--comment` flag — this is a private dry-run). The skill produces a
+    ranked list of findings scoped to the diff this dev loop produced.
+
+    For each `CONFIRMED` finding, fix in place. For each `PLAUSIBLE`,
+    evaluate and decide. Do NOT exit this module until every `CONFIRMED`
+    finding is resolved or explicitly deferred with rationale captured in
+    the run snapshot Notes under `Dev loop #1 review deferrals`.
+  expected_output: |
+    Internal-review findings list and resolutions.
+  side_effects: []
+  n: 12
+- title: 'Develop #2: derive an implementation plan for document generation planning, grouping,
+    progress, and revision-safe merge'
+  module_tag: dev-2
+  purpose: |
+    Convert the architectural commitment(s) into ordered work units.
+  prompt: |
+    Read the rules this loop implements: the accepted document-generation ADR rule citations recorded in this run snapshot. Resolve each citation
+    through `bionic/adrs/doctrine/index.md` to its rule and its ADR; read the
+    ADR for the rationale. Produce an implementation plan scoped to document generation planning, grouping, progress, and revision-safe merge
+    with:
+      - Files to create / modify (paths)
+      - Ordered work units (each ≤ ~200 LOC; each independently testable)
+      - Risks specific to implementation (not architecture)
+      - Quality gates: which tests, which linters, which static-analysis
+        and security tools must pass before review.
+
+    The plan is a working document — capture it in this run snapshot's
+    Notes field under the label `Implementation plan #2`. Do NOT write a
+    separate ADR for the implementation plan; the architectural decision
+    is already recorded.
+
+    Plan only gaps demonstrated by the accepted document ADR. Preserve direct fields and the existing validated batch stream; include revision-checked, owned-field merge or scheduling changes where tests prove they are needed. Benchmark the same resume/template/matrix with one, three, and five groups using the same model and machine; record raw timings and tokens/cost or explicitly mark unavailable. Measure visible-field timing and total completion, and test retries, stale responses, overlapping ownership, partial output, and missing candidate values. Do not claim a speedup from simulated timing.
+  expected_output: |
+    Implementation plan in this run's Notes; clear ordered work units.
+  side_effects: []
+  n: 13
+- title: 'Develop #2: spawn implementation team'
+  module_tag: dev-2
+  purpose: |
+    Implement the plan with parallel agents where independent.
+  prompt: |
+    Group the work units from this loop's planning prompt by independence.
+    Dispatch one `Agent` per independent group in parallel. Each agent
+    receives: the ADR(s), the implementation plan, its assigned work units,
+    and explicit conventions from `bionic/AGENTS.md`.
+
+    Each agent also receives the book's `goal` statements — the Outcome, the
+    Evidence, and the Constraint. A dispatch passes them forward verbatim, or
+    narrows the Outcome and says so: a narrowed Outcome is entailed by its
+    parent and names the parent it narrowed and what it dropped. The Evidence
+    and the Constraint pass whole — a dispatch may add an Evidence item or a
+    Constraint, saying which it added, and may drop neither. Record any
+    narrowing in this run snapshot's Notes under the label
+    `Outcome narrowing #2` — never by editing the book.
+
+    Each agent must make actual edits and run the relevant tests for its
+    scope. Each returns: files changed, tests added/updated, test results,
+    and any unilateral decisions with rationale.
+
+    After all agents return, integrate. If two agents edited overlapping
+    files (they should not have, given grouping), reconcile manually.
+
+    Implement the accepted document plan, benchmark the same resume/template/matrix with one, three, and five groups, and record before-and-after timings, tokens, and cost. Preserve authoritative direct-source values.
+  expected_output: |
+    All work units implemented; per-agent reports collected.
+  side_effects: []
+  n: 14
+- title: 'Develop #2: run quality gates; loop until clean'
+  module_tag: dev-2
+  purpose: |
+    Verify the implementation passes every gate before review.
+  prompt: |
+    Run, in this order:
+      - The repo's **full test suite** — the COMPLETE run (e.g.
+        `python3 -m unittest discover -s crux/scripts/tests`, `mix test`,
+        `pytest`), NOT a hand-picked subset of "the tests that look relevant".
+        Capture the exact command from `bionic/AGENTS.md` or root AGENTS.md.
+        **The full run is mandatory whenever the change touches any shared or
+        enumerated surface** — the agent roster, model/router config, the
+        catalog, or anything a *different* file hardcodes a list or count of.
+        Rationale: a stale hardcoded enumeration in a file the diff never
+        touched is invisible to diff-review (you cannot see a missing edit by
+        reading the edits that were made) and only fails when its own assertion
+        runs — so the full suite is the only gate that catches it. Running a
+        curated subset here is exactly the gap that shipped a red suite in a
+        prior cycle.
+      - The linter / formatter (e.g. `mix format --check-formatted`,
+        `ruff check`, `eslint`).
+      - Static analysis (e.g. `mix credo --strict`, `mypy`, `tsc --noEmit`).
+      - Security analysis (e.g. `mix sobelow`, `bandit`, `npm audit`).
+      - `verify-code-docs` — ensure no docstring drift was introduced.
+      - **Release-content scan** — if the diff touches any distributed
+        surface (`crux/skills/`, `crux/agents/`, `crux/templates/`), run
+        `check-public-release-content.py` (the permanent release-content
+        scan) so a banned internal-reference leak fails IN-CYCLE, not only at
+        release time.
+        Read its exit code as a gate, not a log line: **exit 0 = clean;
+        exit 1 = FINDINGS** — one `<path>:<lineno>: <line>` row per hit on
+        stdout, each a real gate failure to FIX by re-editing the offending
+        surface (NOT an environment error — do not wave it through); a crash
+        / **exit ≥ 2 / non-zero with empty or unparseable stdout = an
+        environment-capability error** (surface stderr; a distinct lane, not
+        a findings result).
+
+    For any failure: fix it (re-edit code), then re-run the failed gate
+    AND every subsequent gate. Repeat until all gates return clean. After
+    3 full loops without convergence, STOP and escalate.
+
+    **Record each gate in the run snapshot Notes with its exact command AND
+    a concrete result token** (e.g. `validate-catalog --dry-run → exit 0`,
+    `unittest → 149 OK`) — NOT a bare "all gates green". The review module's
+    dev-practice conformance reviewer corroborates these tokens
+    against the diff; an unrecorded gate reads as fabrication-by-omission (a
+    Tier-1 conformance FAIL).
+
+    Run `pnpm verify` as the repository-wide quality gate and record its exit code and test/build counts.
+  expected_output: |
+    All gates green; each gate's command + result token captured in the run
+    snapshot Notes.
+  side_effects:
+  - verify-code-docs
+  n: 15
+- title: 'Develop #2: internal review'
+  module_tag: dev-2
+  purpose: |
+    First-pass self-review before external eyes.
+  prompt: |
+    Invoke the `code-review` skill (use the default effort level, no
+    `--comment` flag — this is a private dry-run). The skill produces a
+    ranked list of findings scoped to the diff this dev loop produced.
+
+    For each `CONFIRMED` finding, fix in place. For each `PLAUSIBLE`,
+    evaluate and decide. Do NOT exit this module until every `CONFIRMED`
+    finding is resolved or explicitly deferred with rationale captured in
+    the run snapshot Notes under `Dev loop #2 review deferrals`.
+  expected_output: |
+    Internal-review findings list and resolutions.
+  side_effects: []
+  n: 16
+- title: 'Review #1: external team review (multi-dimension + dedicated security review) of
+    the full runtime and document-generation cycle diff'
+  module_tag: review-1
+  purpose: |
+    Independent verification of correctness, consistency, clarity, and security.
+  prompt: |
+    Dispatch parallel `Agent` reviewers scoped to the full runtime and document-generation cycle diff, each blind to the
+    others. **Three quality-dimension reviewers:**
+      (a) Correctness — re-runs the dev module's **full quality-gate suite**
+          (the COMPLETE test run, not a subset — same mandate as the dev gate),
+          then reads the diff for behavior bugs the gates can't catch.
+      (b) Consistency — checks the change against the rules it cites: the
+          `rule:<slug>` citations recorded in this run's Artifacts
+          (INCLUDING every rule an ADR accepted earlier in this cycle
+          authored), read through `bionic/adrs/doctrine/index.md`; plus
+          existing conventions in `bionic/AGENTS.md` and adjacent code
+          patterns. A change that contradicts a cited rule is MUST-FIX
+          unless an ADR in this cycle retires that rule.
+      (c) Clarity — reads the code as a new engineer would; flags
+          confusing names, undocumented invariants, magic numbers.
+
+    Commission these reviewers yourself for the units you dispatched.
+    Where you integrated across those units, that integration is your own
+    authorship, so its review is commissioned by your delegator and not by
+    you.
+
+    **PLUS a dedicated multi-subagent security review** — one `Agent` per threat class
+    over the full runtime and document-generation cycle diff:
+      (S1) Injection & untrusted-input — SQL/command/template injection,
+           deserialization, path traversal, missing validation/encoding at
+           trust boundaries.
+      (S2) Secrets & credentials — hardcoded keys/tokens, secrets in
+           logs/errors/fixtures, anything bypassing the `~/.crux/`
+           contract (`bionic/AGENTS.md` §13 — values never committed or logged).
+      (S3) Authz & privilege — missing/incorrect access checks, scope
+           confusion, IDOR, privilege boundaries crossed without a check.
+      (S4) Supply-chain & dependency — new/bumped deps, lockfile changes,
+           install scripts, unpinned versions, typosquat-adjacent names.
+      (S5) Unsafe file/shell/path & resource ops — shell-out with
+           interpolation, unsafe temp files, broad perms, SSRF, unbounded
+           resource use.
+      Scope-adaptive with MANDATORY report: if a threat class has no relevant
+      surface in the full runtime and document-generation cycle diff (e.g. a docs-only change), that reviewer returns
+      "N/A — no executable surface" rather than being omitted (auditability).
+
+    Each reviewer (quality + security) returns a ranked findings list with
+    severity (MUST-FIX / SHOULD-CONSIDER / NIT). A `[SECURITY:Sn]` finding
+    exploitable on a reachable path is MUST-FIX and CANNOT be downgraded;
+    deferred (SHOULD-CONSIDER) security items go in run-snapshot Notes under
+    `Review #1 security deferrals` with residual-risk rationale.
+
+    Every reviewer receives the book's `goal` statements — the Outcome, the
+    Evidence, and the Constraint. Each judges the change against the Outcome
+    rather than against the diff alone.
+    Each returns one disposition per Evidence item:
+      - verified, with the command and the result token, or the observation
+        and where it is recorded when no command produced it;
+      - contradicted, which is a finding;
+      - unobserved, with what was attempted, what limited it, and what
+        would settle it.
+    Each states whether the Constraint held and what shows that. A result
+    token is an exit code, a pass count, or a named verdict — never raw
+    output, an environment value, or a secret.
+    A disposition is re-derived, never adopted from the author's report:
+    an item stands verified only where this reviewer ran the command and
+    read the result token, or re-read the observation where it is
+    recorded; anything it cannot re-derive is unobserved in its own report.
+
+    Assign at least one independent reviewer to the entire combined runtime and document diff. Require an explicit verdict against the terminal-event invariant, supported vendor API/protocol assumptions, generation authority, idempotent merge, measured benchmark evidence, and unchanged worker/auth/tenant boundaries. Treat an unsupported persistent Claude API claim, contradictory terminal events, stale overwrite, or invented candidate fact as MUST-FIX.
+  expected_output: |
+    Aggregated external-review + security findings for the full runtime and document-generation cycle diff, plus a
+    disposition per Evidence item.
+  side_effects: []
+  n: 17
+- title: 'Review #1: tests, docs, and dev-practice conformance audit of the full runtime and
+    document-generation cycle diff'
+  module_tag: review-1
+  purpose: |
+    Ensure the change is tested, documented, and that proper development
+    practices were followed.
+  prompt: |
+    Dispatch 3 parallel `Agent` reviewers scoped to the full runtime and document-generation cycle diff:
+      (a) Test coverage — for every code path the diff introduced or
+          changed within the full runtime and document-generation cycle diff, is there a test that exercises it? Are
+          edge cases covered? Are the tests reliable (no flakes, no
+          false-greens)?
+      (b) Comments and docs — are non-obvious decisions explained (per
+          `bionic/AGENTS.md` commenting rules: only for WHY, not WHAT)?
+          Are public APIs documented? Does `extract-code-docs --dry-run`
+          report drift?
+      (c) **Dev-practice conformance**
+          — inspect THIS run's snapshot cross-checked against the diff for
+          evidence proper practices were followed. **Corroboration-based and
+          tiered (it raises the cost of a violation; it is not a proof):**
+          - **Tier-1 (mandatory, directly checkable):** GOOD — every dev-loop
+            quality gate appears in Notes with a command + concrete result
+            token (`exit 0`, `149 OK`), not a bare "all green"; internal
+            reviews `done` with non-empty resolutions; prior-review MUST-FIX
+            closed. NOT-ALLOWED — a gate's claimed pass with no command/result
+            token (fabrication-by-omission); a schema/data change in the diff
+            with no migration file.
+          - **Tier-2 (best-effort heuristic, flag-not-block, reviewer judgment):**
+            tests added/changed disproportionate to the code (judgment call, no
+            fixed threshold — corroborate with the test-coverage reviewer);
+            an assertion weakened / `skip`/`xfail` added with no corresponding
+            code fix (e.g. `tests/x_test.py` loosened from `== 149` to `>= 1`,
+            or `@pytest.mark.skip` added, with no code change in the same loop);
+            prose indicating a hand-mutated DB / manual `UPDATE`/`ALTER`/`psql`
+            console edit (the motivating NOT-ALLOWED example — detectable only
+            if it left textual evidence); secrets committed (overlaps S2).
+          - **Deferred to the commit phase (Prep):** `--no-verify` on a commit
+            (no commit exists at review time).
+          Return a verdict in run-snapshot Notes under `Review #1 conformance`:
+          `CONFORMANCE: PASS|FAIL`, GOOD-present list (with tier + ✓/N/A),
+          NOT-ALLOWED hits (Tier-1 → MUST-FIX), SUSPECTED (Tier-2 →
+          SHOULD-CONSIDER unless clearly pass-forcing). Any Tier-1 NOT-ALLOWED
+          hit ⇒ FAIL ⇒ MUST-FIX ⇒ cycle blocked at this module's fix prompt.
+
+    Every reviewer receives the book's `goal` statements — the Outcome, the
+    Evidence, and the Constraint. Each judges the change against the Outcome
+    rather than against the diff alone.
+    Each returns one disposition per Evidence item:
+      - verified, with the command and the result token, or the observation
+        and where it is recorded when no command produced it;
+      - contradicted, which is a finding;
+      - unobserved, with what was attempted, what limited it, and what
+        would settle it.
+    Each states whether the Constraint held and what shows that. A result
+    token is an exit code, a pass count, or a named verdict — never raw
+    output, an environment value, or a secret.
+    A disposition is re-derived, never adopted from the author's report:
+    an item stands verified only where this reviewer ran the command and
+    read the result token, or re-read the observation where it is
+    recorded; anything it cannot re-derive is unobserved in its own report.
+
+    Each returns a findings list with severity.
+  expected_output: |
+    Aggregated test/doc/conformance findings + conformance verdict for the full runtime and document-generation cycle diff,
+    plus a disposition per Evidence item.
+  side_effects: []
+  n: 18
+- title: 'Review #1: implement feedback; loop until clean'
+  module_tag: review-1
+  purpose: |
+    Address all review findings before advancing.
+  prompt: |
+    Combine the findings from this module's two review prompts — quality,
+    **security (incl. any non-downgradable `[SECURITY:Sn]` MUST-FIX)**, and
+    **dev-practice conformance (any Tier-1 NOT-ALLOWED hit / `CONFORMANCE:
+    FAIL`)**. For each MUST-FIX, dispatch a fix `Agent` (or fix directly if
+    small). A fix dispatch is an assignment: it carries the finding, the book's
+    Outcome and Constraint, and the Evidence item the finding bears on. Narrow
+    the Outcome to the finding and say what the narrowing dropped; pass the
+    Evidence and the Constraint whole. A fixer that is told only what is broken
+    optimizes for the gate rather than for the user the fix is meant to serve.
+    For each SHOULD-CONSIDER, decide and document in the run snapshot
+    Notes under `Review #1 deferrals`.
+
+    Where you fixed a MUST-FIX yourself rather than dispatching it, that
+    fix is your own authorship: the re-review of it is commissioned by
+    your delegator, not by you, and you re-dispatch only the reviewers of
+    work you did not write. At the top of the chain the delegator is the
+    human who approved the run.
+
+    After fixes land, re-run the relevant quality gates from the most
+    recent dev module. If they still pass AND the original reviewers
+    (re-dispatched) report zero MUST-FIX findings within the full runtime and document-generation cycle diff, exit
+    this module. Otherwise loop back to this module's external-review prompt.
+
+    After 3 review-fix loops without convergence within this module,
+    STOP and escalate.
+
+    **Forge-log `used` recording (on this module's CONVERGED EXIT only).** When
+    this pass is the one that advances OUT of the module (NOT on each fix-loop
+    iteration — recording per-pass would triple-count a single use), then for
+    **each distinct forged skill this review module invoked** (a
+    `.claude/skills/<name>/` skill run during any of this module's review or
+    fix passes), do BOTH:
+      - Write one forge-log `used` entry conforming to forge-skill's locked
+        format: the forge-skill-validated slug `<name>`, an outcome token
+        `ok` or `partial`, with the `(same-session)` suffix when the skill was
+        forged this same session (so the literal forms are `ok (same-session)`
+        and `partial (same-session)`).
+      - Append one line to the run-snapshot Notes section `Forged skills used`
+        of the form `<skill-name> | <prompt n> | <outcome-token>`.
+    If this module invoked NO forged skill, write nothing — a clean no-op (the
+    empty `Forged skills used` section is the explicit "no forged use" signal,
+    distinguishable from a swallowed error). Injection/secret safety is
+    INHERITED from forge-skill's locked format — do not reinvent it: the
+    validated slug cannot contain `|`, `[`, or a newline; the outcome enum is
+    finite; the entry body is single-line and secret-free.
+  expected_output: |
+    Clean review cycle within the full runtime and document-generation cycle diff; quality gates still green. On converged
+    exit, one forge-log `used` entry + one `Forged skills used` Notes line per
+    distinct forged skill invoked (or a clean no-op if none).
+  side_effects:
+  - forge-skill
+  n: 19
+- n: 20
+  title: 'Prep: changelog, docs, journal, PR notes'
+  purpose: |
+    Make the change shippable to humans.
+  prompt: |
+    Do all of the following:
+
+    1. **Changelog**: update the repo-root `CHANGELOG.md`'s `## [Unreleased]`
+       section with a 1–3 line entry for this change. Include a wiki-link to
+       both Accepted ADR pages under `adrs/`. (If the repo's release
+       workflow promotes Unreleased entries into the versioned section
+       automatically on dispatch, do NOT hand-promote.)
+    2. **Documentation**: run `audit-docs`. Address every BROKEN finding.
+       If the change altered a documented contract in `bionic/AGENTS.md` or
+       `crux/templates/AGENTS.md.tmpl`, update both.
+    3. **Developer journal**: invoke `log-work` with a reflective entry:
+       what went well, what was hard, what to do differently next cycle.
+       These notes feed the agent's own improvement loop — be specific.
+    4. **Prose review**: run `prose-review` over the prose this prompt just
+       wrote — the changelog entry, any doc edits, the journal entry, and
+       the PR body. Apply every `fix` finding; resolve each `confirm`
+       finding by supplying the fact or dropping the claim. Findings are
+       advisory here (the release gate is where they bind), but an
+       unapplied `fix` should be a deliberate choice you can state, not an
+       oversight.
+    5. **PR notes**: draft a PR body (do NOT open the PR yet) containing:
+       Summary (3 bullets), both ADR links, Test plan (checklist), Risk notes,
+       Breaking changes (if any). Store the draft in the run snapshot's
+       `PR Draft` field.
+  expected_output: |
+    CHANGELOG updated; docs clean per audit-docs; journal entry written;
+    PR draft ready.
+  side_effects:
+  - audit-docs
+  - log-work
+- n: 21
+  title: 'Summary: completion report AND archive the book'
+  purpose: |
+    Hand off the completed cycle and archive its tracked promptbook.
+  prompt: |
+    Produce a markdown completion summary containing:
+      - One-paragraph outcome statement.
+      - Links: both Accepted ADR pages (wiki-link under `adrs/`), CHANGELOG entry,
+        journal entry (`[[journal/YYYY-MM/<entry>]]`), this promptbook
+        run (`[[promptbooks/runs/PB-NNNN-<slug>/RUN-NNN]]`).
+      - Stats: total prompts, council rounds, dev quality-gate loops,
+        review-fix loops, files changed, tests added.
+      - Outstanding deferred work (if any) — link to issues or briefs.
+      - Retrospective cadence: if several books have archived since the last retrospective ("Retrospective:" journal entries; see the cleanup rule CLN-RETRO-1 and the manifest key cleanup.retro_due_runs, default 5), name "run a retrospective" as the natural follow-on. Suggest only — never start a retrospective inside this run.
+      - The PR draft text from the Prep prompt — this run's `PR Draft`
+        field (ready to paste).
+
+    **Forge-log `evaluated` fold (before/at archival).** Read the
+    run-snapshot Notes section `Forged skills used`. For **each DISTINCT
+    forged skill name** in that section, write exactly ONE forge-log
+    `evaluated` entry (one per distinct skill, NOT one per use / per review
+    pass — one-per-distinct-skill is the structural defense against K-fold
+    duplicate entries that would inflate the promotion floor's distinct-dates
+    signal), conforming to forge-skill's locked two-line `evaluated` format.
+    Derive the `verdict` from that skill's recorded outcome tokens in the
+    section, ignoring any `(same-session)` suffix (treat `ok (same-session)`
+    as `ok` and `partial (same-session)` as `partial`):
+    all `ok` → `effective`; any `partial` → `mixed`. Write a
+    `fell-short` verdict ONLY when this session judges the skill genuinely
+    failed its task (a qualitative judgment, NOT derived from the `ok`/
+    `partial` outcome tokens — it routes the skill to forge-skill's revise
+    condition). If the `Forged skills used` section is empty (no forged skill
+    used anywhere in this cycle), write nothing — a clean no-op.
+
+    Write the summary to the run snapshot's `## Summary` section. THEN run
+    `uv run "${CRUX_PLUGIN_ROOT}/scripts/advance-run.py" <run-RUN-NNN.yaml>
+    --outcome done --result "summary written; archiving next"
+    --book <active-book.yaml>`. This prompt's `result` records the
+    hand-off, NOT "book archived" — the archive has not happened yet at
+    the instant that string is written. The run reaches `status:
+    completed`, `current_prompt` is nulled on both book and run, and the
+    book's `current_run` SURVIVES.
+
+    THEN invoke `archive-promptbook PB-NNNN` to finalize: this moves the book
+    to `bionic/promptbooks/archive/`, sets `status: archived`, nulls
+    `current_run` and `current_prompt`, appends the archive note, and
+    writes the `promptbook | archived ...` op entry to `bionic/log.md`.
+
+    Do NOT manually null `current_run` or `current_prompt` before
+    invoking archive-promptbook — that skill needs to read `current_run`
+    to finalize the snapshot. The cycle's Prep prompt already wrote the
+    journal entry; archive-promptbook does not re-journal. The archive act
+    itself is recorded in the archive note and the `promptbook | archived`
+    log entry, never in a prompt `result`.
+  expected_output: |
+    Completion summary written; one forge-log `evaluated` entry per distinct
+    forged skill used in the cycle (or a clean no-op if none); book archived;
+    new `promptbook | archived` entry in `bionic/log.md`.
+  side_effects:
+  - archive-promptbook
+  - forge-skill

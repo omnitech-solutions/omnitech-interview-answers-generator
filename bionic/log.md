@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] promptbook | authored PB-0003-agent-runtime-reliability-and-document-generation (cycle)
+
+PB-0003: Cycle: Agent runtime reliability and measured document generation. total_prompts: 21. Modules: 2×ADR, 2×dev, 1×review. Cycle: assembled from modular templates.
+
 ## [2026-10-03] promptbook | archived PB-0002-active-session-capability-for-interview-studio
 
 RUN-001 delivered: 29/29 prompts terminal (29 done, 0 skipped, 0 blocked). [[promptbooks/archive/PB-0002-active-session-capability-for-interview-studio]]

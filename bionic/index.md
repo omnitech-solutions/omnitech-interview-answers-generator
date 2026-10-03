@@ -47,7 +47,7 @@ _No briefs yet._
 
 See [[journal/index]].
 
-## Promptbooks (1 active, 1 archived)
+## Promptbooks (2 active, 1 archived)
 
 See [[promptbooks/index]].
 

@@ -83,7 +83,7 @@ adr:
 # Promptbook allocation. Same contract as adr.next_number — monotonic, never
 # reused. A successor book always allocates a fresh id.
 promptbook:
-  next_number: 3
+  next_number: 4
 
 # Observations concern. next_number has the same contract as adr.next_number —
 # monotonic, never reused. Allocated by propose-observation and by the
