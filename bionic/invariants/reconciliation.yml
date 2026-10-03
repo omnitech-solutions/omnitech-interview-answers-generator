@@ -1,0 +1,8 @@
+# invariants/reconciliation.yml — the invariants check↔pin reconciliation.
+# One entry per check: { check_id, pin_id, last_result, last_checked }.
+# The ledger frontmatter (invariants/<slug>.md, beside this file) is the source of
+# truth for identity/provenance/ratification; this manifest holds the check→pin
+# mapping + each check's last_result. It lives inside the invariants concern,
+# beside the ledger it reconciles.
+config_version: "1"
+checks: []
