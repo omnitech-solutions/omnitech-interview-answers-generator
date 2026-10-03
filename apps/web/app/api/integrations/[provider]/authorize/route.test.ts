@@ -47,3 +47,18 @@ it("redirects to the provider when it is configured", async () => {
     /^https:\/\/accounts\.google\.com\//,
   );
 });
+
+it("does not know providers other than Google and LinkedIn", async () => {
+  const response = await authorize("github");
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: "Integration not found." });
+});
+
+it("returns 503 when state signing is not configured", async () => {
+  vi.stubEnv("INTEGRATION_STATE_SECRET", "");
+  const response = await authorize("linkedin");
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({
+    error: "Integration state signing is not configured.",
+  });
+});

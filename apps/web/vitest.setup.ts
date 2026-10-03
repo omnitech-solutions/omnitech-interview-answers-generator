@@ -7,7 +7,11 @@ import { afterEach } from "vitest";
 // Node 25's experimental Web Storage global can shadow jsdom with an unusable
 // instance unless --localstorage-file is configured. Keep browser tests
 // deterministic without requiring callers or Git hooks to change NODE_OPTIONS.
-if (typeof window.localStorage?.getItem !== "function") {
+// Route handlers and server modules run in Node (no window) instead.
+if (
+  typeof window !== "undefined" &&
+  typeof window.localStorage?.getItem !== "function"
+) {
   const values = new Map<string, string>();
   const storage: Storage = {
     get length() {
