@@ -32,15 +32,15 @@ const stateSchema = z.object({
 
 export type IntegrationState = z.infer<typeof stateSchema>;
 
+// Undefined when INTEGRATION_<P>_ID or _SECRET is missing: an operator
+// configuration gap that callers report as 503 before redirecting (ADR-0006).
 export function getProviderConfiguration(
   provider: IntegrationProvider,
-): OAuthProviderConfiguration {
+): OAuthProviderConfiguration | undefined {
   const prefix = `INTEGRATION_${provider.toUpperCase()}`;
   const clientId = process.env[`${prefix}_ID`];
   const clientSecret = process.env[`${prefix}_SECRET`];
-  if (!clientId || !clientSecret) {
-    throw new Error(`${prefix}_ID and ${prefix}_SECRET are required.`);
-  }
+  if (!clientId || !clientSecret) return undefined;
   return provider === "google"
     ? {
         provider,

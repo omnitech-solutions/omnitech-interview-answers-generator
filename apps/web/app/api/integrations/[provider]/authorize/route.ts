@@ -34,6 +34,15 @@ export async function GET(
       { status: 503 },
     );
   }
+  // A missing client id or secret is an operator configuration gap: report it
+  // before sending the browser to the provider.
+  const configuration = getProviderConfiguration(provider);
+  if (!configuration) {
+    return NextResponse.json(
+      { error: `The ${provider} integration is not configured.` },
+      { status: 503 },
+    );
+  }
   const redirectUri = new URL(
     `/api/integrations/${provider}/callback`,
     requestUrl.origin,
@@ -49,10 +58,6 @@ export async function GET(
     secret,
   );
   return NextResponse.redirect(
-    createAuthorizationUrl(
-      getProviderConfiguration(provider),
-      redirectUri,
-      state,
-    ),
+    createAuthorizationUrl(configuration, redirectUri, state),
   );
 }

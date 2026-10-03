@@ -46,12 +46,21 @@ export async function GET(
       { status: 403 },
     );
   }
+  // The same operator configuration gap as authorize: report it before
+  // exchanging the code.
+  const configuration = getProviderConfiguration(provider);
+  if (!configuration) {
+    return NextResponse.json(
+      { error: `The ${provider} integration is not configured.` },
+      { status: 503 },
+    );
+  }
   const redirectUri = new URL(
     `/api/integrations/${provider}/callback`,
     url.origin,
   ).toString();
   const grant = await exchangeAuthorizationCode(
-    getProviderConfiguration(provider),
+    configuration,
     code,
     redirectUri,
   );

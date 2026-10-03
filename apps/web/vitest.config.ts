@@ -17,6 +17,8 @@ export default defineConfig({
       },
       { find: "react", replacement: require.resolve("react") },
       { find: "react-dom", replacement: require.resolve("react-dom") },
+      // tsconfig's "@/*" path, so route handlers under app/ can be tested.
+      { find: /^@\//, replacement: `${import.meta.dirname}/` },
     ],
   },
   test: {

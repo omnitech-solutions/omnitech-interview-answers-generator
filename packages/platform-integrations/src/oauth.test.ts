@@ -1,5 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { signIntegrationState, verifyIntegrationState } from "./oauth.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  getProviderConfiguration,
+  signIntegrationState,
+  verifyIntegrationState,
+} from "./oauth.js";
+
+describe("provider configuration", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is undefined when the client id or secret is missing", () => {
+    vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+    vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "");
+    expect(getProviderConfiguration("google")).toBeUndefined();
+  });
+});
 
 const secret = "integration-state-secret-at-least-32";
 const state = {
