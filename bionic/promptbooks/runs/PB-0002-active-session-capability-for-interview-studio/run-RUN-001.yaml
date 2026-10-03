@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 27
+current_prompt: 28
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -192,15 +192,15 @@ prompts:
   artifacts: ["bionic/adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent.md"]
 - n: 27
   title: 'Review : implement feedback; loop until clean'
-  state: "running"
+  state: "done"
   started: "2026-10-03T19:32:01Z"
-  completed: null
-  result: ''
+  completed: "2026-10-03T21:44:31Z"
+  result: "Revised S1 authority boundary passed independent review at fc918d4; pnpm verify passed 2,972 tests and build 29/29"
   artifacts: []
 - n: 28
   title: 'Prep: changelog, docs, journal, PR notes'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T21:44:31Z"
   completed: null
   result: ''
   artifacts: []
@@ -489,6 +489,11 @@ notes: |
 
   ## Operator decision on S1 and merge, 2026-10-03
   The operator chose to preserve open-ended model answers and leave the merge blocked. The strict preference-only logistics claim remains CONTRADICTED at c4dfbc4: with no approved preference, a model-selected non-logistics category accepts "I can be there whenever you need me." in the draft and in a suggested-interpretation claim and section. The deterministic renderer applies only when the model selects logistics; a finite cue check cannot prove the absence of logistics claims in arbitrary free text. Removing open-ended technical knowledge and suggested interpretation would narrow PB-0002's Outcome, which the operator did not choose. Prompt 27 remains in progress; no prompt 28/29 completion, PR, archive, push or merge is claimed.
+
+  ## Revised S1 acceptance and independent closure, 2026-10-03
+  The operator revised the acceptance invariant: authoritative candidate logistics values and commitments come only from approved preferences; missing values are never invented. Free-form technical and suggested-interpretation text remains allowed, but is not an authoritative logistics source and cannot update or satisfy candidate preferences. This supersedes the earlier universal free-form reading above without erasing that review history; the active book's frozen goal and prompts were not edited.
+  Code commits 0aea235 and fc918d4 render typed logistics found from pinned candidate-preference source text and compute all absent logistics fields from the pinned snapshot, ignoring model-supplied missing. The UI labels suggested drafts as unable to set preferences and labels the missing list as all unset approved-preference fields, including fields not asked. Backend and UI tests failed first on the old behavior. The final pnpm verify at fc918d4 passed lint/format (809 files), typecheck 54/54, 2,972 tests in 276 files and build 29/29; focused tests passed 120/120 (code worker output).
+  One independent review initially returned REQUEST_CHANGES at 0aea235 after directly reproducing an omitted missing compensation and work-arrangement value for paraphrased questions. After fc918d4, the same reviewer re-ran both exact probes: with only approved "Notice period: two weeks.", each returned found notice-period, missing compensation and work-arrangement, and draft "From your stated preferences: Notice period: two weeks." The reviewer also verified that category other can carry suggested-interpretation text without preference authority, while preference-backed claims and logistics objects under other are rejected. Targeted 83 tests in two files passed; final verdict APPROVE for the revised invariant. The reviewer did not rerun full pnpm verify and did not observe a real model or call workload. No forged skill was invoked in this review module.
 
 pr_draft: ""
 summary: ""
