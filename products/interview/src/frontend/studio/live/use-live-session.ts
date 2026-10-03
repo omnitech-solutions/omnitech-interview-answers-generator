@@ -45,6 +45,8 @@ export function useLiveSession(): LiveSessionHandle {
         actions: snapshot.actions,
         serverClockOffsetMs: snapshot.serverClockOffsetMs,
         nowMs,
+        lastReadAt: snapshot.lastReadAt,
+        streamError: snapshot.streamError,
       }),
     [snapshot, nowMs],
   );

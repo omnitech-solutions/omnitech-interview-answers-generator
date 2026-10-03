@@ -124,6 +124,30 @@ describe("states", () => {
     expect(bar()).toHaveTextContent("Listening");
   });
 
+  it("says Studio cannot be reached after the stream fails, keeping Pause and End offered", async () => {
+    await openBar();
+    expect(bar()).toHaveAttribute("data-state", "live");
+    // The service goes away: every further read fails.
+    server.on("GET /:id/stream", () =>
+      jsonResponse({ error: { code: "session_unavailable" } }, 503),
+    );
+    await advance(3_000);
+    expect(bar()).toHaveAttribute("data-state", "unreachable");
+    const state = within(bar())
+      .getAllByRole("status")
+      .find((element) => /Can't reach Studio/.test(element.textContent ?? ""));
+    expect(state).toBeDefined();
+    expect(bar()).not.toHaveTextContent(/\bLive\b/);
+    expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "End" })).toBeEnabled();
+    // Elapsed time does not run on while nothing can be read.
+    const elapsed = bar().querySelector(".live-bar-elapsed")?.textContent;
+    await advance(60_000);
+    expect(bar().querySelector(".live-bar-elapsed")?.textContent).toBe(elapsed);
+    // And a silent companion is not inferred from an unread stream.
+    expect(bar()).not.toHaveTextContent(/offline/i);
+  });
+
   it("shows Paused", async () => {
     session = sessionView({ status: "paused" });
     await openBar();

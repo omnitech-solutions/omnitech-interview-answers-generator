@@ -14,6 +14,7 @@ import type { TaskView } from "./session-tasks";
 export const CAP_NEAR_MS = 10 * 60 * 1000;
 
 export type BannerKind =
+  | "stream-unreachable"
   | "paused"
   | "permission-revoked"
   | "companion-offline"
@@ -68,10 +69,13 @@ export function deriveBanners(
   sources: readonly SourceStatus[],
   companion: CompanionModel,
   cap: CapModel,
+  streamStale = false,
 ): Banner[] {
   const open = session.status !== "ended" && session.status !== "purging";
   if (!open) return [];
   const banners: Banner[] = [];
+  // First: everything below is as of the last read.
+  if (streamStale) banners.push({ kind: "stream-unreachable", tone: "amber" });
   if (session.status === "paused")
     banners.push({ kind: "paused", tone: "amber" });
   for (const s of sources)
@@ -126,6 +130,7 @@ export function deriveBanners(
 // ---- Activity ----------------------------------------------------------------
 
 export type ActivityKey =
+  | "stream-unreachable"
   | "ended"
   | "paused"
   | "source-lost"
@@ -153,10 +158,14 @@ export function deriveActivity(input: {
   tasks: readonly TaskView[];
   // Server time of the newest transcript line, if any.
   lastUtteranceAt: string | null;
+  // The stream cannot be read: nothing below can be said to be current.
+  streamStale?: boolean;
 }): Activity {
   const { session, sources, companion, tasks } = input;
   if (session.status === "ended" || session.status === "purging")
     return { key: "ended", text: "Ended" };
+  if (input.streamStale)
+    return { key: "stream-unreachable", text: "Showing the last update" };
   if (session.status === "paused") return { key: "paused", text: "Paused" };
   const lost = sources.find((s) => s.lost);
   if (lost)

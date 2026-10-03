@@ -163,6 +163,81 @@ describe("source chips", () => {
   });
 });
 
+describe("when the session service cannot be read", () => {
+  // Contact was recorded 1.5 minutes before the last read (online then) and
+  // 2.5 minutes before now (offline, had this been a fresh read).
+  const stale = (overrides: Record<string, unknown> = {}) =>
+    deriveLiveModel({
+      session: sessionView({
+        lastHeartbeatAt: minutesAfter(-1, -30),
+        ...overrides,
+      }),
+      observations: [],
+      actions: [],
+      serverClockOffsetMs: 0,
+      nowMs: NOW,
+      lastReadAt: NOW - 60_000,
+      streamError: "network",
+    });
+
+  it("shows an amber unreachable state and banner instead of Live", () => {
+    const view = stale();
+    expect(stateView(view)).toMatchObject({
+      key: "unreachable",
+      label: "Can't reach Studio",
+      tone: "amber",
+      pulse: false,
+    });
+    expect(view.banners[0]).toMatchObject({
+      kind: "stream-unreachable",
+      tone: "amber",
+    });
+  });
+
+  it("does not call the companion offline: that needs a fresh read", () => {
+    const view = stale();
+    expect(view.companion.status).toBe("online");
+    expect(view.banners.map((b) => b.kind)).not.toContain("companion-offline");
+  });
+
+  it("stops the elapsed clock at the last read", () => {
+    const view = stale({ createdAt: minutesAfter(-10) });
+    expect(view.elapsedMs).toBe(NOW - 60_000 - Date.parse(minutesAfter(-10)));
+  });
+
+  it("also goes stale when reads simply stop arriving, with no error recorded", () => {
+    const view = deriveLiveModel({
+      session: sessionView({ lastHeartbeatAt: minutesAfter(1) }),
+      observations: [],
+      actions: [],
+      serverClockOffsetMs: 0,
+      nowMs: NOW,
+      lastReadAt: NOW - 60_000,
+      streamError: null,
+    });
+    expect(stateView(view).key).toBe("unreachable");
+  });
+
+  it("is fresh while reads keep arriving", () => {
+    const view = deriveLiveModel({
+      session: sessionView({ lastHeartbeatAt: minutesAfter(1) }),
+      observations: [],
+      actions: [],
+      serverClockOffsetMs: 0,
+      nowMs: NOW,
+      lastReadAt: NOW - 2_000,
+      streamError: null,
+    });
+    expect(stateView(view).key).toBe("live");
+    expect(view.banners).toEqual([]);
+  });
+
+  it("says nothing of it once the session has ended", () => {
+    const view = stale({ status: "ended", endedAt: minutesAfter(0) });
+    expect(view.banners).toEqual([]);
+  });
+});
+
 describe("copy", () => {
   it("maps every command failure to a fixed sentence", () => {
     expect(commandMessage("status_refused")).toMatch(/can.t be resumed/i);

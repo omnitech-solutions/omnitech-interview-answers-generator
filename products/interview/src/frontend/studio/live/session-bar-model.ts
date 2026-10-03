@@ -15,6 +15,7 @@ import type { LiveViewModel } from "./session-state";
 export type BarTone = "red" | "amber" | "neutral";
 
 export type BarStateKey =
+  | "unreachable"
   | "live"
   | "paused"
   | "permission-revoked"
@@ -36,6 +37,15 @@ export type BarStateView = {
 // absent companion, and otherwise live. A gap alone (audio dropped, capture
 // back) is shown on its chip and does not change the bar's state.
 export function stateView(model: LiveViewModel): BarStateView {
+  // What is shown may be out of date, so nothing below is claimed.
+  if (model.streamStale)
+    return {
+      key: "unreachable",
+      label: "Can't reach Studio",
+      tone: "amber",
+      pulse: false,
+      bordered: false,
+    };
   if (model.status === "paused")
     return {
       key: "paused",

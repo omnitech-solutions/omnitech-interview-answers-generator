@@ -58,6 +58,11 @@ export function bannerCopy(banner: Banner, model: CopyModel): BannerCopy {
     actionLabel: "",
   });
   switch (banner.kind) {
+    case "stream-unreachable":
+      return inform(
+        "Studio can't reach the session service.",
+        "Retrying. What you see may be out of date, and the elapsed time is paused. Pause and End are still offered; a command is confirmed only once Studio answers.",
+      );
     case "paused":
       return {
         title: "Paused.",

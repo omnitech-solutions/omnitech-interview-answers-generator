@@ -219,13 +219,16 @@ export type CompanionModel = {
 export function companionModel(
   session: LiveSessionView,
   serverNowMs: number,
+  // The time contact age is judged at: now, unless the stream could not be
+  // read, when only the last read can say how long contact has been quiet.
+  contactNowMs: number = serverNowMs,
 ): CompanionModel {
   const contact = session.lastHeartbeatAt
     ? Date.parse(session.lastHeartbeatAt)
     : Number.NaN;
   const ageMs = Number.isNaN(contact)
     ? null
-    : Math.max(0, serverNowMs - contact);
+    : Math.max(0, contactNowMs - contact);
   const status: CompanionStatus =
     ageMs === null
       ? "never-seen"

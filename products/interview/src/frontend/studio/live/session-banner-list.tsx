@@ -7,6 +7,7 @@ import type { BannerKind } from "./session-banners";
 import type { LiveViewModel } from "./session-state";
 
 const BANNER_ICON: Record<BannerKind, IconName> = {
+  "stream-unreachable": "wifi_off",
   paused: "pause_circle",
   "permission-revoked": "lock",
   "companion-offline": "wifi_off",

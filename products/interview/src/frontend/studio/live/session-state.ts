@@ -19,6 +19,7 @@ import {
   localityModel,
 } from "./session-banners";
 import { elapsedMs, formatElapsed } from "./session-merge";
+import type { SessionErrorCode } from "./session-client";
 import type { ActivityRun } from "./session-runs";
 import {
   type CompanionModel,
@@ -35,7 +36,19 @@ import { type TranscriptRow, transcriptRows } from "./session-transcript";
 //   source-lost  a source is disconnected, lost or its permission was revoked
 //   waiting      created, the companion has not made contact yet
 //   ended        finished (or being deleted)
-export type BarState = "live" | "paused" | "source-lost" | "waiting" | "ended";
+//   unreachable  Studio's session service cannot be read, so what is shown
+//                may be out of date
+export type BarState =
+  | "live"
+  | "paused"
+  | "source-lost"
+  | "waiting"
+  | "ended"
+  | "unreachable";
+
+// No successful read of the stream for this long (the store polls every second
+// while active) means what is on screen may be out of date.
+export const STREAM_STALE_AFTER_MS = 20_000;
 
 export type LiveStats = {
   utterances: number;
@@ -56,6 +69,10 @@ export type LiveViewModel = {
   status: LiveSessionStatus | null;
   barState: BarState;
   barLabel: string;
+  // The stream cannot be read (an error, or no read for a while): the model
+  // then draws no conclusion that needs a fresh read, such as a silent
+  // companion, and the elapsed clock stands still.
+  streamStale: boolean;
   // The server's time as the browser knows it (ms since the epoch).
   serverNowMs: number;
   elapsedMs: number;
@@ -79,6 +96,9 @@ export type LiveModelInput = {
   serverClockOffsetMs: number;
   // The browser clock; the model reads server time as now + offset.
   nowMs: number;
+  // The store's last successful read (browser clock) and its last failure.
+  lastReadAt?: number | null;
+  streamError?: SessionErrorCode | null;
 };
 
 const EMPTY_STATS: LiveStats = {
@@ -94,9 +114,11 @@ const EMPTY_STATS: LiveStats = {
 function barOf(
   session: LiveSessionView,
   sources: readonly SourceStatus[],
+  streamStale: boolean,
 ): { state: BarState; label: string } {
   if (session.status === "ended" || session.status === "purging")
     return { state: "ended", label: "Ended" };
+  if (streamStale) return { state: "unreachable", label: "Can't reach Studio" };
   if (session.status === "paused") return { state: "paused", label: "Paused" };
   if (sources.some((source) => source.lost))
     return { state: "source-lost", label: "Source lost" };
@@ -114,6 +136,7 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
       status: null,
       barState: "ended",
       barLabel: "",
+      streamStale: false,
       serverNowMs,
       elapsedMs: 0,
       elapsedLabel: "0:00",
@@ -135,7 +158,17 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
       stats: EMPTY_STATS,
     };
 
-  const companion = companionModel(session, serverNowMs);
+  const lastReadAt = input.lastReadAt ?? null;
+  const streamStale =
+    input.streamError != null ||
+    (lastReadAt !== null && input.nowMs - lastReadAt > STREAM_STALE_AFTER_MS);
+  // [SAFETY] Offline is only meaningful with a fresh read: while the stream
+  // cannot be read, contact age is judged at the last read, not at now.
+  const readNowMs =
+    streamStale && lastReadAt !== null
+      ? lastReadAt + input.serverClockOffsetMs
+      : serverNowMs;
+  const companion = companionModel(session, serverNowMs, readNowMs);
   const sources = sourceStatuses(
     session,
     observations,
@@ -144,14 +177,18 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
   const tasks = deriveTasks(actions, session.status);
   const transcript = transcriptRows(observations, tasks);
   const cap = capModel(session, serverNowMs);
-  const bar = barOf(session, sources);
+  const bar = barOf(session, sources, streamStale);
   const lastUtterance = [...observations]
     .reverse()
     .find((observation) => observation.kind === "transcript.final");
   const runs = tasks
     .flatMap((task) => task.revisions.flatMap((revision) => revision.runs))
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-  const elapsed = elapsedMs(session, input.serverClockOffsetMs, input.nowMs);
+  const elapsed = elapsedMs(
+    session,
+    input.serverClockOffsetMs,
+    streamStale && lastReadAt !== null ? lastReadAt : input.nowMs,
+  );
   const published = (kind: string) =>
     runs.filter((run) => run.actionKind === kind && run.state === "published")
       .length;
@@ -164,13 +201,15 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
     status: session.status,
     barState: bar.state,
     barLabel: bar.label,
+    streamStale,
     serverNowMs,
     elapsedMs: elapsed,
     elapsedLabel: formatElapsed(elapsed),
     sources,
     companion,
-    banners: deriveBanners(session, sources, companion, cap),
+    banners: deriveBanners(session, sources, companion, cap, streamStale),
     activity: deriveActivity({
+      streamStale,
       session,
       sources,
       companion,
