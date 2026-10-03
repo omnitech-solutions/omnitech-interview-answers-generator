@@ -37,7 +37,11 @@ vi.mock("@omnitech-assistant/react", () => ({
 }));
 
 // Views are stand-ins: the shell's job is routing, binding and chrome.
-const views = vi.hoisted(() => ({ throwLibrary: false }));
+const views = vi.hoisted(() => ({
+  throwLibrary: false,
+  // The hooks the open Workspace lends the assistant, to observe calls.
+  hooks: {} as Record<string, ReturnType<typeof vi.fn>>,
+}));
 vi.mock("./workspace/workspace-view", () => ({
   WorkspaceView: ({ assistant }: { assistant: { artifactId: string } }) => {
     const studio = useStudio();
@@ -48,7 +52,12 @@ vi.mock("./workspace/workspace-view", () => ({
         artifactRevision: 7,
       })),
       onApplied: vi.fn(async () => undefined),
+      beforeApply: vi.fn(async () => undefined),
+      onReverted: vi.fn(async () => undefined),
+      onPreview: vi.fn(),
+      onContextChange: vi.fn(),
     });
+    views.hooks = hooks.current;
     useEffect(
       () =>
         studio?.bindView({
@@ -349,6 +358,54 @@ describe("Studio shell", () => {
       artifactId: "q1",
       artifactRevision: 4,
     });
+  });
+
+  it("hands the assistant's edits to the open view and refreshes the lists", async () => {
+    await renderStudio("/t/local/p/interview/work?artifact=q1");
+    await waitFor(() =>
+      expect(host.config.origin).toMatchObject({ artifactRevision: 7 }),
+    );
+    const lists = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(
+          ([input]) =>
+            String(input) === "/api/interview/workspaces/interview/artifacts",
+        ).length;
+    const before = lists();
+    const record = { proposal: { origin: host.config.origin } } as never;
+    await act(() => host.config.host!.beforeApply!(record));
+    expect(views.hooks["beforeApply"]).toHaveBeenCalledWith(record);
+    await act(() => host.config.host!.onReverted!(record));
+    expect(views.hooks["onReverted"]).toHaveBeenCalledWith(record);
+    act(() => host.config.host!.onPreview!(record));
+    expect(views.hooks["onPreview"]).toHaveBeenCalledWith(record);
+    act(() => host.config.host!.onContextChange!([]));
+    expect(views.hooks["onContextChange"]).toHaveBeenCalledWith([]);
+    // An undone edit may rename the question: the sidebar reloads.
+    await waitFor(() => expect(lists()).toBe(before + 1));
+  });
+
+  it("opens the pack or brief an assistant thread belongs to", async () => {
+    await renderStudio();
+    act(() =>
+      host.config.host!.onOpenBinding!({
+        workspaceId: "briefings",
+        artifactId: "pack-1",
+      }),
+    );
+    expect(window.location.pathname).toBe(
+      "/t/local/p/interview/briefings/pack-1",
+    );
+    act(() =>
+      host.config.host!.onOpenBinding!({
+        workspaceId: "concept-briefs",
+        artifactId: "brief-9",
+      }),
+    );
+    expect(window.location.pathname).toBe(
+      "/t/local/p/interview/briefings/brief/brief-9",
+    );
   });
 
   it("toggles the docked assistant and opens threads it points at", async () => {
