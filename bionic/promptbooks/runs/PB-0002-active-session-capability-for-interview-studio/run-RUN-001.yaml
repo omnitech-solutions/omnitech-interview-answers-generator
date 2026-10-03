@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 20
+current_prompt: 21
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -143,15 +143,15 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 20
   title: 'Develop #3: internal review'
-  state: "running"
+  state: "done"
   started: "2026-10-03T14:38:39Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T15:22:20Z"
+  result: "Independent review (BLOCKED first): 4 MUST-FIX and 5 SHOULD-FIX fixed with failing tests first, F8 deferred with rationale; pnpm verify exit 0 (233 files/2349 tests, typecheck 52/52, build 28/28), scripts 18 passed."
+  artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 21
   title: 'Develop #4: derive an implementation plan for slices 1-3 capture companion and operational hardening: apps/capture-companion, a narrow macOS ScreenCaptureKit companion consuming only the versioned wire schema, with local transcription, an on-device capability check that fails visibly, source labels without speaker identity, bounded buffering and a local stop that works while Studio is down, plus a protocol-conformant fixture companion for what cannot run here; and the operational hardening tests (reconnection, worker restart, conflicting observations, permission revocation, same-tenant cross-user access, remote-egress blocking, retention, latency)'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T15:22:20Z"
   completed: null
   result: ''
   artifacts: []
@@ -391,6 +391,13 @@ notes: |
   - Security analysis: no separate SAST tool configured; RLS/security suites, no-content canary, ingest-forwarding test (apps/web) and the guarantee-strings test pass inside the full run.
   - verify-code-docs: not regenerated; code/arch docs known to drift until the prep prompt (see bionic/log.md).
   - Unobserved: browser rendering at phone width and dark mode (no dev server by operator rule; layout asserted from CSS text only), real companion, real model, real Next runtime.
+
+  ## Dev loop #3 review deferrals (prompt 20; independent crux:reviewer, first verdict BLOCKED)
+  The code-review skill was not invoked; an independent crux:reviewer agent (did not write the code) probed the real modules, as in loops 1-2. Fixed (CONFIRMED, each with a test that failed first): F1 the stream returns stored observation content as {occurredAt, sourceSequence, body}, but the UI parsers and every fixture used the flat wire shape, so in production the transcript was empty and permission-revoked/lost sources showed Receiving (a0ac627; now typed in the contract and covered by a test that feeds a real routes.ts stream page through deriveLiveModel); F2 a withheld reason over the 200-char store limit left the action in flight (3a179a8; encoder capped, refuse falls back to the plain reason); F3 saved rehearsal run ids lost on reload gave 409 forever (8623314); F4 false strings: no model reads screenshots, device-only governs model calls not storage (19881b0, 5a26e21; forbidden phrases added to guarantee-strings.test.tsx); F5 a held result shown as the task status (3259dc4); F6 stream failures never shown, companion wrongly offline (5a2050c); F7 purge of an ended delete-at-end session never observed (f71231b); F9 action cursor lost its overlap after a full page (e7e2f26); F10 withheld codes now from a closed list (3a179a8); F11-F14 nits (5a26e21, 9a85696, e25c520). Lesson for the loop-4 assignment: UI Evidence must include a test that runs a REAL backend stream page through the UI derivation (fake-server fixtures hid F1).
+  Deferred with rationale: F8 a live session whose strictness differs from the rehearsal's cannot be bound to the scorecard (the server refuses a mismatched save as a whole), so the client saves without the run id and the scorecard now says plainly that the session's hints were NOT applied; closing it needs a protocol change or Rehearsal adopting the session's strictness (ADR-0012 designs the run id as client-minted and owner-trusted). Residual: finding 2's plain-reason fallback is unit-tested only (unreachable through real stages); finding 7's backend half is simulated by the test server; the stale-stream banner may flash briefly when a hidden tab returns.
+  Strings that describe the loop-4 companion ("stops locally if Studio is unavailable", "can't add sources", "Speech: on this Mac, in the companion") are ADR-0011/0012 design claims, not observed; loop 4's Evidence must carry them.
+  Gates after the fixes: pnpm verify as ONE command -> exit 0 (typecheck 52/52, 233 files / 2349 tests, build 28/28); pnpm vitest run scripts -> 18 passed.
+  Evidence dispositions for this loop. Book Evidence for the UI "Studio session control shows source status, locality, pause and stop and survives navigation": verified at jsdom level (live-e2e.test.tsx: bar on five pages, one poll loop, pause/resume from any page, reload re-hydration; routes.test.ts real-stream-through-deriveLiveModel test; session-bar tests; apps/web session-ingest.test.ts 7 tests for credential-only ingest forwarding); real-browser rendering at phone width and dark mode: UNOBSERVED (no dev server by operator rule; layout asserted from CSS text in layout-rules.test.ts; a browser pass at 360 px in both themes would settle it). The real-call states (listening, paused, source lost, permission revoked, companion offline, mic/screen capture lost, device-only refusal, each claim-chip type, withheld notice, coding revisions with a late result discarded, ended, delete): verified with fixtures at component and shell level and with a real stream page; against a real companion, real model or real call workload: UNOBSERVED (companion is loop 4; settle by running it). E-A1..E-A3 unchanged and still verified from loop 2 (no fixture was altered; the privacy scan runs inside the full suite). Added Constraint (no dev server): held.
 
 pr_draft: ""
 summary: ""
