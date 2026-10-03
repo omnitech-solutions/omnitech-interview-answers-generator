@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 5
+current_prompt: 6
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -38,15 +38,15 @@ prompts:
   artifacts: ["bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md", "bionic/journal/2026-10.md"]
 - n: 5
   title: 'Plan #2: spawn planning team, propose ADR for private Active Session data and locality: actor-level row security for active_sessions, session_observations and session_actions, composite tenant+owner references and explicit linked-resource authorization, PostgreSQL storage of final transcripts and selected screenshots with bounded raw-audio memory, retention, the device-only versus permitted-remote processing policy enforced at profile resolution and before dispatch, and the rule that captured text and images are untrusted input'
-  state: "running"
+  state: "done"
   started: "2026-10-03T06:50:36Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T06:55:08Z"
+  result: "Dispatched 3 foreground planners (row security and migration; locality and rehearsal; content storage, retention, untrusted input), synthesized and proposed ADR-0011 (Proposed, 21 governs rules; body 95 narrative lines). Rule-length advisory: no warnings. Reconciled: ai.agent_jobs.session_id text column is left unused so ADR-0010 job-carries-no-session-id holds; agent-job actor guard owned by platform-storage."
+  artifacts: ["ADR #2: ADR-0011 (rule:actor-private-session-rows rule:composite-owner-references rule:linked-resource-authorization rule:owner-checked-read-paths rule:actor-guarded-agent-jobs rule:private-session-artifact-types rule:session-claim-policy rule:content-storage-of-record rule:raw-audio-never-persisted rule:bounded-ingest rule:retention-modes rule:complete-session-purge rule:id-only-traces rule:captured-input-untrusted rule:declared-profile-locality rule:session-processing-policy rule:device-only-enforced-twice rule:refuse-not-degrade rule:tighten-only-locality rule:no-second-scorecard rule:assistance-counts-as-hints)", "bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md"]
 - n: 6
   title: 'Plan #2: convene LLM council to review the ADR'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T06:55:08Z"
   completed: null
   result: ''
   artifacts: []

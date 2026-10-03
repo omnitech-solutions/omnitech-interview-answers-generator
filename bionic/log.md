@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] adr | ADR-0011: Keep Active Session data private to the actor and enforce locality before dispatch
+
+Proposed. File `bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md`. Tags: active-session, privacy, row-security, locality, retention, interview.
+
 ## [2026-10-03] journal | Active Session core ADR accepted after three review rounds
 
 Entry added to bionic/journal/2026-10.md.
