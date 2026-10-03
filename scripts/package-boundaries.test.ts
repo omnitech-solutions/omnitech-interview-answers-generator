@@ -399,7 +399,7 @@ describe("the macOS companion's Swift sources", () => {
     const violations = files.flatMap((file) =>
       swiftImportViolations(readFileSync(file, "utf8"), ownModules).map(
         (issue) =>
-          `${relative(repoRoot, file)}:${issue.line} imports ${issue.module} [rule:locality-by-stage, ADR-0012: only ${[...SWIFT_ALLOWED_IMPORTS].join(", ")} and the package's own modules]`,
+          `${relative(repoRoot, file)}:${issue.line} imports ${issue.module} [ADR-0012/declared-profile-locality: only ${[...SWIFT_ALLOWED_IMPORTS].join(", ")} and the package's own modules]`,
       ),
     );
     expect(violations).toEqual([]);
@@ -409,7 +409,7 @@ describe("the macOS companion's Swift sources", () => {
     const violations = shipped.flatMap((file) =>
       swiftCredentialWords(readFileSync(file, "utf8")).map(
         (issue) =>
-          `${relative(repoRoot, file)}:${issue.line} mentions ${issue.word} [rule:credential-storage, ADR-0012: the companion holds no database or provider credentials]`,
+          `${relative(repoRoot, file)}:${issue.line} mentions ${issue.word} [ADR-0011/credential-storage: the companion holds no database or provider credentials]`,
       ),
     );
     expect(violations).toEqual([]);
@@ -421,7 +421,7 @@ describe("the macOS companion's Swift sources", () => {
       .flatMap((file) =>
         swiftLoggingCalls(readFileSync(file, "utf8")).map(
           (issue) =>
-            `${relative(repoRoot, file)}:${issue.line} calls ${issue.call} [rule:id-only-traces, ADR-0011: CaptureCore never logs]`,
+            `${relative(repoRoot, file)}:${issue.line} calls ${issue.call} [ADR-0012/id-only-traces: CaptureCore never logs]`,
         ),
       );
     expect(violations).toEqual([]);

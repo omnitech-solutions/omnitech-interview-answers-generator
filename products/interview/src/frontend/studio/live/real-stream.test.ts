@@ -21,7 +21,7 @@ import {
 } from "../../../backend/live-session/live-session-fixture";
 import { createSessionRoutes } from "../../../backend/live-session/routes";
 import {
-  deviceOnlyBlockers,
+  capabilityAdvisories,
   permissionLines,
   speechState,
 } from "./companion-capability";
@@ -208,7 +208,7 @@ describe("a real capability report through the client and the screen state", () 
     const capability = await client().companionCapability();
     expect(capability).toBeNull();
     expect(speechState(capability).key).toBe("no-report");
-    expect(deviceOnlyBlockers(capability)).toEqual([]);
+    expect(capabilityAdvisories(capability)).toEqual([]);
   });
 
   const cases = [
@@ -256,7 +256,7 @@ describe("a real capability report through the client and the screen state", () 
       );
       expect(capability?.speech.locale).toBe("en-GB");
       expect(speechState(capability).key).toBe(key);
-      expect(deviceOnlyBlockers(capability).length > 0).toBe(blocked);
+      expect(capabilityAdvisories(capability).length > 0).toBe(blocked);
     },
   );
 

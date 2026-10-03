@@ -336,7 +336,7 @@ describe("retention", () => {
   it("explains delete at end", async () => {
     await mount(ended({ retention: "delete-at-end" }));
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
-      "Delete at end · Session data is deleted as soon as the session ends.",
+      "Delete at end · Session data is deleted shortly after the session ends, when the worker’s purge runs.",
     );
     expect(screen.getByTestId("ended-retention")).toHaveTextContent(
       "Raw audio is never stored.",

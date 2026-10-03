@@ -2,8 +2,8 @@ import Foundation
 
 // [SAFETY] Static guarantees about what the Swift sources can do. These scans
 // stand in for a SAST tool: they are cheap, grep-able, and fail loudly when a
-// forbidden capability appears (rule:locality-by-stage, rule:id-only-traces,
-// rule:credential-storage).
+// forbidden capability appears (ADR-0012/declared-profile-locality, ADR-0012/id-only-traces,
+// ADR-0011/credential-storage).
 
 private struct SourceFile {
     let name: String

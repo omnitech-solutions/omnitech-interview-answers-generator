@@ -3,13 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import {
-  deviceOnlyBlockers as capabilityBlockers,
+  capabilityAdvisories,
   NO_REPORT_DETAIL,
   permissionLines,
   reportAge,
   speechState,
 } from "./companion-capability";
 import type { SessionErrorCode } from "./session-client";
+import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import { SwitchRow } from "./setup-controls";
 import {
   buildStartRequest,
@@ -33,9 +34,8 @@ import { useSetupChoices } from "./use-setup-choices";
 export type SetupViewProps = {
   // Studio navigation, for the matrix link.
   studio: StudioActions;
-  // Extra reasons a device-only session cannot work on this machine. The
-  // companion's last capability report adds its own (unsupported on-device
-  // speech language, speech permission denied or restricted).
+  // Reasons a device-only session cannot work on this machine; these alone
+  // block Start. The companion's stored capability report is advisory only.
   deviceOnlyBlockers?: readonly DeviceOnlyBlocker[];
 };
 
@@ -79,7 +79,12 @@ export function SetupView({
   const { actions, snapshot } = useLiveSession();
   const companion = useCompanionCapability();
   const report = companion.status === "ready" ? companion.capability : null;
-  const blockers = [...capabilityBlockers(report), ...deviceOnlyBlockers];
+  // Only the passed blockers block Start. The stored report is owner-level and
+  // a session credential can post one, so it is shown as an advisory; the
+  // companion's own on-device check at start is the authority.
+  const blockers = deviceOnlyBlockers;
+  const advisories = capabilityAdvisories(report);
+  const advisoryAge = report ? reportAge(report, Date.now()) : null;
   const { state: choices, reload } = useSetupChoices();
   const [form, setForm] = useState<SetupForm>(initialForm);
   const [failure, setFailure] = useState<SessionErrorCode | null>(null);
@@ -178,9 +183,9 @@ export function SetupView({
         <h3>Capture companion</h3>
         <p className="setup-muted" data-testid="setup-companion">
           Pairing happens when you start: Studio shows a pairing credential,
-          shown once and valid for up to 2 hours, for the capture companion.
-          Studio can’t tell whether the companion is running until it makes
-          contact.
+          shown once and valid for up to {CREDENTIAL_LIFETIME_TEXT}, for the
+          capture companion. Studio can’t tell whether the companion is running
+          until it makes contact.
         </p>
         <CompanionReport state={companion} sources={form.sources} />
       </section>
@@ -198,9 +203,11 @@ export function SetupView({
           />
         ))}
         <p className="setup-muted">
-          Only these sources are captured. The companion cannot add sources, and
-          it stops locally if Studio is unavailable. Source labels aren’t
-          speaker identities, and app audio can contain several people.
+          Only these sources are captured. The companion cannot add sources. You
+          can stop it on the Mac at any time, even when Studio is unreachable;
+          until you do, it keeps capturing and sends what it holds when Studio
+          returns. Source labels aren’t speaker identities, and app audio can
+          contain several people.
         </p>
       </fieldset>
 
@@ -237,6 +244,8 @@ export function SetupView({
       <ProcessingSection
         value={form.policy}
         blockers={blockers}
+        advisories={advisories}
+        advisoryAge={advisoryAge}
         speechWarning={
           form.policy === "permitted-remote" &&
           report !== null &&

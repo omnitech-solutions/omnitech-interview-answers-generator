@@ -25,7 +25,7 @@ import {
 } from "./ended-summary";
 import { ageLabel, companionContact } from "./session-format";
 import type { SessionActions } from "./session-snapshot";
-import type { SourceHealth } from "./session-sources";
+import { CREDENTIAL_LIFETIME_TEXT, type SourceHealth } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
 import {
   CAPABILITY_LOADING,
@@ -171,9 +171,10 @@ function CompanionRow({
         </div>
         <p className="live-note">{credential[companion.credential]}</p>
         <p className="live-note">
-          The credential is bound to this session and can only add to it; the
-          companion can’t add sources. It lasts up to 2 hours and is renewed
-          here, by you.
+          The credential is bound to this session. It can add observations,
+          pause the session and post an advisory capability report; it can’t add
+          sources, resume, end or delete the session. It lasts up to{" "}
+          {CREDENTIAL_LIFETIME_TEXT} and is renewed here, by you.
         </p>
         <CompanionReport state={capability} />
       </div>

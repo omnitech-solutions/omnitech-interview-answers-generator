@@ -105,10 +105,12 @@ export function speechState(
   };
 }
 
-// A device-only session cannot start while the companion's last report says it
-// cannot recognise speech on this Mac. Studio does not offer "allow remote" as
-// the fix: speech stays on this Mac under both policies.
-export function deviceOnlyBlockers(
+// Advisories from the companion's last stored report when it says it cannot
+// recognise speech on this Mac. They never block Start: the report is
+// owner-level and a session credential can post one, so the companion's own
+// on-device check when it starts is the authority. Studio does not offer
+// "allow remote" as the fix: speech stays on this Mac under both policies.
+export function capabilityAdvisories(
   capability: LiveCompanionCapability | null,
 ): DeviceOnlyBlocker[] {
   const state = speechState(capability);
@@ -119,7 +121,7 @@ export function deviceOnlyBlockers(
         state.key === "denied"
           ? "Speech recognition isn’t allowed"
           : "Not available on this Mac",
-      body: `${state.detail} A device-only session won’t start until the companion reports that speech works here.`,
+      body: `${state.detail} The companion’s own check when it starts decides; if speech still can’t run here, it stops and says so.`,
     },
   ];
 }

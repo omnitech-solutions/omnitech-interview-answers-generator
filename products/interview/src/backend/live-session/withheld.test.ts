@@ -1,5 +1,5 @@
 // The withheld summary is content-free: a count and codes, nothing the model
-// controlled (ADR-0011 rule:id-only-traces, plan #2 D2).
+// controlled (ADR-0012/id-only-traces).
 import { describe, expect, it } from "vitest";
 import { SessionError } from "./errors.js";
 import {

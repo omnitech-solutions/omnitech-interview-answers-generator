@@ -1,11 +1,12 @@
 // The ended view: what a finished session left behind, truthfully.
-//   - "Capture stopped and nothing is running": ending revokes the credential
-//     and cancels running work (ADR-0011, ADR-0012/credential revocation).
+//   - Ending revokes the credential and cancels running work (ADR-0011
+//     rule:stop-authority); the view makes no "nothing is running" claim, as
+//     the worker may still be finishing a cancelled job.
 //   - "Nothing was submitted or sent for you": no route of this product
 //     operates an external interview interface, and the session sends nothing.
 //   - A session being deleted, or deleted, holds no content here: the store
 //     clears observations and actions while purging, and this view then shows
-//     only the tombstone's content-free facts (ADR-0012/tombstone-keeps-hint-count).
+//     only the tombstone's content-free facts (ADR-0012 rule:complete-session-purge, tombstone-keeps-hint-count).
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
@@ -132,8 +133,8 @@ export function EndedView({ studio }: EndedViewProps) {
             </h3>
             <p className="live-note">
               {session.purged
-                ? "The transcript, screenshots and session drafts are gone; only these facts remain. Drafts you promoted or exported to a Document are not part of the session and were not deleted."
-                : "The transcript, screenshots and session drafts are no longer shown here. Drafts you promoted or exported to a Document are not deleted."}
+                ? "The transcript, screenshots and the session drafts you did not edit are gone; only these facts remain. Drafts you edited, promoted or exported stay in your Workspace."
+                : "The transcript, screenshots and the session drafts you did not edit are no longer shown here. Drafts you edited, promoted or exported stay in your Workspace."}
             </p>
             <dl className="ended-facts">
               <div>

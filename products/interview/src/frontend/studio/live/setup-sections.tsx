@@ -216,11 +216,18 @@ export type DeviceOnlyBlocker = { title: string; body: string };
 export function ProcessingSection({
   value,
   blockers,
+  advisories = [],
+  advisoryAge = null,
   speechWarning = false,
   onChange,
 }: {
   value: LiveProcessingPolicy;
+  // Reasons that block Start in device-only mode.
   blockers: readonly DeviceOnlyBlocker[];
+  // From the companion's stored report: shown, never blocking, because the
+  // report is owner-level and the companion's own check is the authority.
+  advisories?: readonly DeviceOnlyBlocker[];
+  advisoryAge?: string | null;
   // The companion's last report says speech can't run here, and the policy
   // would not block Start: say that allowing remote does not fix speech.
   speechWarning?: boolean;
@@ -249,6 +256,24 @@ export function ProcessingSection({
             </div>
           </div>
         ))}
+      {value === "device-only" &&
+        advisories.map((advisory) => (
+          <div
+            key={advisory.title}
+            role="status"
+            className="setup-muted"
+            data-testid="capability-advisory"
+          >
+            <strong>{advisory.title}</strong>
+            <div>{advisory.body}</div>
+            {advisoryAge && (
+              <div>
+                The companion’s last report ({advisoryAge}); it doesn’t block
+                Start.
+              </div>
+            )}
+          </div>
+        ))}
       {speechWarning && value === "permitted-remote" && (
         <p className="setup-muted" data-testid="speech-warning">
           The companion’s last report says speech recognition can’t run on this
@@ -264,7 +289,8 @@ export function ProcessingSection({
 }
 
 const RETENTION_COPY: Record<LiveRetentionMode, string> = {
-  "delete-at-end": "Session data is deleted when you end the session.",
+  "delete-at-end":
+    "Session data is deleted shortly after you end the session, when the worker’s purge runs.",
   "thirty-days": "Session data is deleted 30 days after the session ends.",
   "until-deleted":
     "Kept until you delete it. Until then it blocks deleting the interview, candidacy or matrix revision it links.",

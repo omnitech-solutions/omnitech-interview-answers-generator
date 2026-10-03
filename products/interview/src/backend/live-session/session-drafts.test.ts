@@ -3,7 +3,7 @@
 // an expected-revision check, a conflict is an outcome that keeps the held
 // result on the action, a throwing effect rolls the publish back, a stale
 // revision never reaches the effect, and the purger deletes only the drafts the
-// session still marks (rule:complete-session-purge, ADR-0008).
+// session still marks (ADR-0012/complete-session-purge, ADR-0008).
 import { withTenant } from "@omnitech/database";
 import { renderGuideMarkdown } from "@omnitech/interview-contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";

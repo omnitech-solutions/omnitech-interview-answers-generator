@@ -120,6 +120,9 @@ the assistant's history and output limits fit.
 | `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `https://api.openai.com/v1` |
 | `LM_STUDIO_MODEL` | Loaded LM Studio model identifier | Unset |
 | `LM_STUDIO_BASE_URL` | LM Studio OpenAI-compatible endpoint | `http://127.0.0.1:1234/v1` |
+| `AI_LOCALITY` | Declared locality of the `AI_*` model: `device`, `private-network` or `remote` | `remote` |
+| `OPENAI_LOCALITY` | Declared locality of the OpenAI model (same values) | `remote` |
+| `LM_STUDIO_LOCALITY` | Declared locality of the LM Studio model (same values) | `remote` |
 | `INTERVIEW_API_TOKEN` | Bearer token required for non-same-origin API calls | Unset |
 | `INTERVIEW_DATA_DIR` | Directory used by the JSON answer repository | `.data` |
 | `INTERVIEW_EXPERIENCE_MATRIX_PATH` | Candidate evidence used for experience-based explanations | `~/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json` |
@@ -157,6 +160,43 @@ and name the variable):
 If `TERMINAL_GATEWAY_TOKEN` is enabled, include the same token in
 `NEXT_PUBLIC_TERMINAL_GATEWAY_URL`, for example
 `ws://localhost:3001/terminal?token=change-me`.
+
+## Active Session
+
+An Active Session is a live capture session for a rehearsal or an interview
+that everyone has agreed to be recorded. A small macOS capture companion
+(`apps/capture-companion`) sends microphone, application-audio and screen
+observations to Studio over the versioned `active-session-contracts` wire
+schema with a short-lived, session-bound credential. Speech recognition runs in
+the companion, on the Mac, with the OS's on-device recogniser. The Active
+Session processor runs inside `apps/agent-worker`, so **the worker must be
+running** for questions to be understood and drafts, answers or coding
+solutions to appear; Studio only shows what the worker publishes. Studio never
+submits, sends or operates an external interview interface for you.
+
+**Locality.** The owner picks a processing policy when starting a session.
+*Device only* means a model whose declared locality is `device`, which is a
+loopback model on the worker's host (`AI_LOCALITY=device` with a
+`localhost`, `127.0.0.1` or `::1` base URL; any other URL is treated as
+`remote`). A stage with no such model is refused and never sent elsewhere.
+*Allow remote* lets remote models answer; speech still runs on the Mac. The
+policy can only be tightened after the session starts. Locality is declared,
+never inferred from the URL.
+
+**Single-machine assumption.** Studio's wording "on this Mac" assumes the
+companion, the worker and the browser run on one machine, which is how
+`pnpm dev` runs them. If the worker runs elsewhere, "device" means that
+worker's host, not the Mac you are looking at.
+
+The worker reads these variables (the locality variables also apply to the web
+server):
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ACTIVE_SESSION_CODE_RUNNER` | `docker` lets the coding path run tests in the sandboxed Docker runner. Anything else means no tests ever run: a solution still publishes, but never as tests passed | Unset (off) |
+| `ACTIVE_SESSION_RUNNER_DEVICE_LOCAL` | `true` declares that the Docker runner runs on this device, so a device-only session may run tests. Only read when the runner is on | Unset (a device-only session never runs tests) |
+| `ACTIVE_SESSION_AGENT_ESCALATION` | `on` lets a validated coding task escalate to a bounded agent job; needs `AGENT_PAYLOAD_SECRET` or `CONNECTED_ACCOUNT_SECRET` | Unset (off) |
+| `AI_LOCALITY`, `OPENAI_LOCALITY`, `LM_STUDIO_LOCALITY` | See the model table above | `remote` |
 
 ## Code execution
 

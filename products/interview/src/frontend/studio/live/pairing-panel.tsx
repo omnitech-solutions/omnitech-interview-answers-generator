@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icon";
 import { ageLabel, companionContact } from "./session-format";
 import type { CommandResult } from "./session-snapshot";
-import type { CompanionModel } from "./session-sources";
+import {
+  CREDENTIAL_LIFETIME_TEXT,
+  type CompanionModel,
+} from "./session-sources";
 import { useLiveSession } from "./use-live-session";
 
 // Pairing the capture companion with the open session. The one-time credential
@@ -97,8 +100,8 @@ export function PairingPanel() {
         <div className="pairing-credential">
           <p className="setup-muted">
             Give this pairing credential to the capture companion. It is shown
-            once and valid for up to 2 hours; Studio won’t show it again once
-            dismissed.
+            once and valid for up to {CREDENTIAL_LIFETIME_TEXT}; Studio won’t
+            show it again once dismissed.
           </p>
           <div className="pairing-value-row">
             <code
@@ -130,7 +133,7 @@ export function PairingPanel() {
             {copied === "done" && "Copied. Paste it into the companion."}
             {copied === "failed" && "Couldn’t copy. Show it and copy by hand."}
             {copied === "idle" &&
-              `Expires at ${timeOf(pairing.expiresAt)}. A credential lasts up to 2 hours and never outlasts the session; renew it here before it expires.`}
+              `Expires at ${timeOf(pairing.expiresAt)}. A credential lasts up to ${CREDENTIAL_LIFETIME_TEXT} and never outlasts the session; renew it here before it expires.`}
           </p>
         </div>
       ) : (

@@ -200,8 +200,13 @@ export function sourceStatuses(
 // status-transition.ts): older than that, the companion is treated as offline.
 export const COMPANION_OFFLINE_AFTER_MS = 2 * 60 * 1000;
 // A credential within this long of expiring is flagged so the owner can renew
-// before capture pauses. The credential lives 2 hours (ADR-0012).
+// before capture pauses.
 export const CREDENTIAL_EXPIRING_SOON_MS = 10 * 60 * 1000;
+// The credential's lifetime as the copy states it. It mirrors
+// ACTIVE_SESSION_LIMITS.credentialLifetimeMs (the frontend does not import the
+// contracts package); session-sources.test.ts fails if the two drift.
+export const CREDENTIAL_LIFETIME_MS = 2 * 60 * 60 * 1000;
+export const CREDENTIAL_LIFETIME_TEXT = `${CREDENTIAL_LIFETIME_MS / (60 * 60 * 1000)} hours`;
 
 // never-seen: the server has recorded no contact, so nothing may say the
 // companion is connected. online: contact within the threshold. offline:

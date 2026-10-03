@@ -9,7 +9,7 @@
 // A pinned profile that cannot be read, whose matrix no longer parses, or
 // whose bytes no longer hash to the sha256 recorded at pin time is NOT replaced
 // by a stale or partial answer: the context is unavailable, a coded failure the
-// dispatcher records as retryable (rule:fail-closed). A session with no pinned
+// dispatcher records as retryable (the context fails closed). A session with no pinned
 // profile has a snapshot with profile null: the stage still answers with
 // interpretation and general knowledge, and no matrix-backed claim can verify.
 //

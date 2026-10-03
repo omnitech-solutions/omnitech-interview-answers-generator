@@ -41,8 +41,15 @@ function install(
 const withReport = (capability: LiveCompanionCapability | null) =>
   install(() => jsonResponse({ capability }));
 
-async function open() {
-  render(<SetupView studio={studio} />);
+async function open(
+  props: { blockers?: { title: string; body: string }[] } = {},
+) {
+  render(
+    <SetupView
+      studio={studio}
+      {...(props.blockers ? { deviceOnlyBlockers: props.blockers } : {})}
+    />,
+  );
   await screen.findByLabelText(/Recruiter screen/);
   // The report read settles with the choices.
   await screen.findByTestId("setup-capability");
@@ -96,55 +103,61 @@ describe("Setup and the companion's last report", () => {
     expect(start()).toBeEnabled();
   });
 
-  it("speech unavailable on this Mac: a device-only session is blocked with the honest copy", async () => {
+  it("speech unavailable on this Mac: shows a non-blocking advisory with the report's age, never an alert, and Start stays enabled", async () => {
     withReport(REPORTS.unsupported);
     await open();
     readyToStart();
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("Not available on this Mac");
-    expect(alert).toHaveTextContent(
+    const advisory = screen.getByTestId("capability-advisory");
+    expect(advisory).toHaveTextContent("Not available on this Mac");
+    expect(advisory).toHaveTextContent(
       "On-device recognition isn’t supported for en-GB on this Mac",
     );
-    expect(alert).toHaveTextContent(
+    expect(advisory).toHaveTextContent(
       "Studio won’t fall back to a remote service by itself",
     );
-    // Speech stays on the Mac under both policies, so "allow remote" is not
-    // offered as the fix.
-    expect(alert.textContent).not.toMatch(/allow remote|switch language/i);
-    expect(start()).toBeDisabled();
+    expect(advisory).toHaveTextContent(/reported .+ ago/);
+    expect(advisory).toHaveTextContent(
+      "The companion’s own check when it starts decides",
+    );
+    // The stored report is advisory: the companion's own check is the authority.
+    expect(advisory.textContent).not.toMatch(/won’t start until/);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(start()).toBeEnabled();
   });
 
   it.each([
-    ["denied", REPORTS.denied],
-    ["restricted", REPORTS.restricted],
+    ["denied", REPORTS.denied, "Speech recognition isn’t allowed"],
+    ["restricted", REPORTS.restricted, "Speech recognition isn’t allowed"],
+    ["recognizer down", REPORTS.recognizerDown, "Not available on this Mac"],
   ])(
-    "speech authorization %s blocks Start in device-only mode",
-    async (_n, report) => {
+    "a stored %s report leaves device-only Start enabled and shows the advisory",
+    async (_n, report, title) => {
       withReport(report);
       await open();
       readyToStart();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Speech recognition isn’t allowed",
+      expect(screen.getByTestId("capability-advisory")).toHaveTextContent(
+        title,
       );
-      expect(start()).toBeDisabled();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(start()).toBeEnabled();
     },
   );
 
-  it("an unavailable recognizer blocks device-only Start too", async () => {
-    withReport(REPORTS.recognizerDown);
-    await open();
+  it("an injected blocker still blocks device-only Start, whatever the report says", async () => {
+    withReport(REPORTS.ready);
+    await open({
+      blockers: [{ title: "Blocked here", body: "This machine can’t." }],
+    });
     readyToStart();
-    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Blocked here");
     expect(start()).toBeDisabled();
   });
 
-  it("remote allowed: Start is not blocked, and the page says allowing remote does not fix speech", async () => {
+  it("remote allowed: the page says allowing remote does not fix speech", async () => {
     withReport(REPORTS.unsupported);
     await open();
     readyToStart();
-    expect(start()).toBeDisabled();
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
-    expect(screen.queryByRole("alert")).toBeNull();
     expect(start()).toBeEnabled();
     expect(screen.getByTestId("speech-warning")).toHaveTextContent(
       "Allowing remote processing doesn’t change that",

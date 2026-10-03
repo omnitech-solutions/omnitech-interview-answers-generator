@@ -1,3 +1,4 @@
+import { ACTIVE_SESSION_LIMITS } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
 import {
   disconnected,
@@ -10,6 +11,7 @@ import {
 } from "./session-fixtures";
 import {
   COMPANION_OFFLINE_AFTER_MS,
+  CREDENTIAL_LIFETIME_MS,
   CREDENTIAL_EXPIRING_SOON_MS,
   companionModel,
   type SourceHealth,
@@ -257,5 +259,13 @@ describe("companion and credential", () => {
     expect(credential(-5_000)).toBe("expired");
     expect(credential(60 * 60_000, true)).toBe("revoked");
     expect(credential(null)).toBe("none");
+  });
+});
+
+describe("credential lifetime copy", () => {
+  it("mirrors the contract's credentialLifetimeMs", () => {
+    expect(CREDENTIAL_LIFETIME_MS).toBe(
+      ACTIVE_SESSION_LIMITS.credentialLifetimeMs,
+    );
   });
 });

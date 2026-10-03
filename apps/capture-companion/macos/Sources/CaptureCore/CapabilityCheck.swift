@@ -1,4 +1,4 @@
-// [DOMAIN] Visible on-device speech capability check (D5, rule:locality-by-stage).
+// [DOMAIN] Visible on-device speech capability check (ADR-0012/declared-profile-locality).
 // Transcription happens only in the companion with the OS's on-device
 // recogniser. If the locale, the on-device model, the recogniser or the
 // authorisation is missing, the check fails visibly: no audio source starts and

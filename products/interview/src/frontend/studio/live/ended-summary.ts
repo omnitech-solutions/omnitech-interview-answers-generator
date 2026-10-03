@@ -53,11 +53,12 @@ export const RETENTION_LABEL: Record<LiveRetentionMode, string> = {
   "thirty-days": "30 days",
   "until-deleted": "Until I delete",
 };
-// What a purge does not reach, and what is never stored at all. ADR-0012: a
-// draft the owner promoted or exported to a Document is outside the purge
-// (promotion clears its session provenance) and raw audio is never stored.
+// What a purge does not reach, and what is never stored at all. ADR-0012: the
+// purge keeps a draft the owner edited, promoted or exported, and a draft an
+// answer revision or revert refers to (session-drafts.ts); raw audio is never
+// stored.
 export const PROMOTED_NOTE =
-  "Raw audio is never stored. Drafts you promoted or exported to a Document are not part of the session and are not deleted with it.";
+  "Raw audio is never stored. Drafts you edited, promoted or exported, and drafts an answer revision refers to, stay in your Workspace and are not deleted with the session.";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // What the chosen mode means for this session, in one sentence.
@@ -66,7 +67,7 @@ export function retentionMeaning(
 ): string {
   switch (session.retention) {
     case "delete-at-end":
-      return "Session data is deleted as soon as the session ends.";
+      return "Session data is deleted shortly after the session ends, when the worker’s purge runs.";
     case "thirty-days": {
       const ended = session.endedAt ? Date.parse(session.endedAt) : Number.NaN;
       return Number.isNaN(ended)

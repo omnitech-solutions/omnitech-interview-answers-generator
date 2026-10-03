@@ -2,7 +2,7 @@
 // can be in, and that no state ever says the companion is connected.
 import { describe, expect, it } from "vitest";
 import {
-  deviceOnlyBlockers,
+  capabilityAdvisories,
   NO_REPORT_DETAIL,
   permissionLines,
   reportAge,
@@ -19,7 +19,7 @@ describe("speechState", () => {
       "No capability report yet: the companion checks on its first session and fails visibly if device-only speech is unavailable.",
     );
     expect(state.blocksSpeech).toBe(false);
-    expect(deviceOnlyBlockers(null)).toEqual([]);
+    expect(capabilityAdvisories(null)).toEqual([]);
   });
 
   it("is ready, and on this Mac, only when on-device recognition is available and authorised", () => {
@@ -29,7 +29,7 @@ describe("speechState", () => {
       label: "On this Mac, in the companion",
       blocksSpeech: false,
     });
-    expect(deviceOnlyBlockers(capabilityReport())).toEqual([]);
+    expect(capabilityAdvisories(capabilityReport())).toEqual([]);
   });
 
   it("blocks when on-device recognition is unsupported for the locale, naming it", () => {
@@ -38,7 +38,7 @@ describe("speechState", () => {
       key: "on-device-unavailable",
       blocksSpeech: true,
     });
-    const [blocker] = deviceOnlyBlockers(report);
+    const [blocker] = capabilityAdvisories(report);
     expect(blocker?.title).toBe("Not available on this Mac");
     expect(blocker?.body).toContain("en-GB");
     expect(blocker?.body).toContain(
@@ -54,14 +54,14 @@ describe("speechState", () => {
         key: "denied",
         blocksSpeech: true,
       });
-      expect(deviceOnlyBlockers(report)).toHaveLength(1);
+      expect(capabilityAdvisories(report)).toHaveLength(1);
     },
   );
 
   it("treats an unavailable recognizer as unavailable speech", () => {
     const report = capabilityReport({ speech: { recognizerAvailable: false } });
     expect(speechState(report).key).toBe("recognizer-unavailable");
-    expect(deviceOnlyBlockers(report)).toHaveLength(1);
+    expect(capabilityAdvisories(report)).toHaveLength(1);
   });
 
   it("does not block while permission is only not yet asked", () => {
@@ -72,7 +72,7 @@ describe("speechState", () => {
       key: "not-determined",
       blocksSpeech: false,
     });
-    expect(deviceOnlyBlockers(report)).toEqual([]);
+    expect(capabilityAdvisories(report)).toEqual([]);
   });
 
   it("puts a denied permission before an unsupported language", () => {
@@ -91,7 +91,7 @@ describe("speechState", () => {
     ]) {
       const text = JSON.stringify([
         speechState(report),
-        deviceOnlyBlockers(report),
+        capabilityAdvisories(report),
       ]);
       expect(text).not.toMatch(/connected|allow remote|switch language/i);
     }

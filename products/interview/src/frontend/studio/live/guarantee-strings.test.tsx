@@ -249,6 +249,15 @@ describe("source scan", () => {
 // must not be shown. A claim that is shown but not listed here fails.
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
 type Fact = { file: string; test: string };
+// The handles the ADRs' governs blocks declare, read from the ADR files.
+const ADR_HANDLES = ["ADR-0011", "ADR-0012"].flatMap((id) => {
+  const dir = join(REPO, "bionic/adrs");
+  const file = readdirSync(dir).find((name) => name.startsWith(`${id}-`));
+  const text = file ? readFileSync(join(dir, file), "utf8") : "";
+  return [...text.matchAll(/handle: (ADR-001[12]\/[a-z0-9-]+)/g)].map(
+    (match) => match[1] as string,
+  );
+});
 const COMPANION_CLAIMS: {
   claim: string;
   shown: RegExp;
@@ -257,9 +266,10 @@ const COMPANION_CLAIMS: {
   facts: Fact[];
 }[] = [
   {
-    claim: "stops locally if Studio is unavailable",
-    shown: /stops locally if Studio is unavailable/,
-    rule: "ADR-0012 rule:stop-authority (the local Stop works without Studio)",
+    claim:
+      "you can stop it on the Mac at any time, even when Studio is unreachable",
+    shown: /stop it on the Mac at any time, even when Studio is unreachable/,
+    rule: "ADR-0011/stop-authority (the person's local Stop works without Studio)",
     facts: [
       {
         file: "apps/capture-companion/src/companion.test.ts",
@@ -272,9 +282,21 @@ const COMPANION_CLAIMS: {
     ],
   },
   {
+    claim:
+      "until you stop it, it keeps capturing and sends what it holds when Studio returns",
+    shown: /keeps capturing and sends what it holds when Studio returns/,
+    rule: "ADR-0011/idempotent-observation (held messages resend with the same ids)",
+    facts: [
+      {
+        file: "apps/capture-companion/src/companion.test.ts",
+        test: "resends the SAME ids after a dropped connection",
+      },
+    ],
+  },
+  {
     claim: "the companion can't add sources",
     shown: /(can’t|cannot) add sources/,
-    rule: "ADR-0011 rule:credential-ingest-scope; ADR-0012 narrowing-only control",
+    rule: "ADR-0011/credential-ingest-scope; ADR-0012/tighten-only-locality (narrowing-only control)",
     facts: [
       {
         file: "products/interview/src/backend/live-session/ingest.test.ts",
@@ -294,7 +316,7 @@ const COMPANION_CLAIMS: {
     claim:
       "speech runs on this Mac, in the companion (only on an on-device report)",
     shown: /On this Mac, in the companion/,
-    rule: "ADR-0012 rule:locality-by-stage",
+    rule: "ADR-0012/declared-profile-locality (speech is on-device by declared locality)",
     facts: [
       {
         file: "apps/capture-companion/src/capability.test.ts",
@@ -320,7 +342,13 @@ describe("companion-side claims are backed or absent", () => {
   it.each(COMPANION_CLAIMS)(
     "$claim cites tests that exist",
     ({ facts, rule }) => {
-      expect(rule).toMatch(/ADR-001[12]/);
+      // Every cited handle must be a real governs handle of ADR-0011 or 0012.
+      const cited = rule.match(/ADR-001[12]\/[a-z0-9-]+/g) ?? [];
+      expect(cited.length, `${rule} cites an ADR handle`).toBeGreaterThan(0);
+      for (const handle of cited)
+        expect(ADR_HANDLES, `${handle} is not a governs handle`).toContain(
+          handle,
+        );
       for (const { file, test } of facts) {
         const path = join(REPO, file);
         expect(existsSync(path), `${file} exists`).toBe(true);
@@ -351,7 +379,7 @@ describe("companion-side claims are backed or absent", () => {
       // Every phrase that makes a companion-side claim must be one the table
       // lists, worded exactly as listed.
       const phrases = text.match(
-        /[^.\n]{0,40}(stops locally|(can’t|cannot) add sources|in the companion)[^.\n]{0,40}/g,
+        /[^.\n]{0,60}(stop it on the Mac|keeps capturing|(can’t|cannot) add sources|in the companion)[^.\n]{0,70}/g,
       );
       expect(phrases?.length ?? 0).toBeGreaterThan(0);
       for (const phrase of phrases ?? [])
