@@ -30,6 +30,7 @@ import {
   type TaskState,
 } from "./core/index.js";
 import { assertUuid, SessionError } from "./errors.js";
+import { MAX_REASON_CHARS } from "./withheld.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import type { SessionJobs } from "./session-jobs.js";
 import { lockSession, type SessionRecord } from "./session-record.js";
@@ -98,7 +99,7 @@ export type SettleOutcome = { outcome: "recorded" } | Refused;
 
 // Up to 200: a withheld draft's reason also carries its violation codes
 // (withheld.ts); the charset stays closed.
-const REASON_CODE = /^[a-z0-9_.-]{1,200}$/;
+const REASON_CODE = new RegExp(`^[a-z0-9_.-]{1,${MAX_REASON_CHARS}}$`);
 
 type Guarded =
   | { ok: true; row: SessionRecord }

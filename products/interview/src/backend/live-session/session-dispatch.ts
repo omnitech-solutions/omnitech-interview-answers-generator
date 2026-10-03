@@ -37,8 +37,7 @@ import {
 } from "./session-run.js";
 import type { LocalityDecision } from "./trace.js";
 import {
-  encodeWithheldReason,
-  INVALID_OUTPUT_REASON,
+  settleWithheld,
   summarizeWithheld,
   type WithheldSummary,
 } from "./withheld.js";
@@ -286,12 +285,7 @@ export async function beginDispatch(
     async refuse(reason, traceOutcome, detail, withheld) {
       run.settled.add(key);
       // A withheld draft carries its content-free summary on the reason.
-      if (!stopped())
-        await settle(
-          withheld && reason === INVALID_OUTPUT_REASON
-            ? encodeWithheldReason(withheld)
-            : reason,
-        );
+      if (!stopped()) await settleWithheld(settle, reason, withheld);
       finish("dispatch.suppressed", traceOutcome, detail);
     },
     async call(prompt, tag = "") {
