@@ -19,6 +19,7 @@ import {
   settle,
   startSessionForPerson,
 } from "./processor-fixture.js";
+import { answer, blockJson, refFor } from "./replay-evidence-fixture.js";
 import { CANDIDATE_PREFERENCES } from "./replay-fixture-matrix.js";
 import { HAZARD_FIXTURES } from "./replay-fixtures-hazards.js";
 import { ActiveSessionRepository } from "./repository.js";
@@ -39,42 +40,7 @@ afterAll(() => fx.stop());
 
 // ---- scripting the model from what its prompt actually carries ------------
 
-function blockJson(prompt: string, label: string) {
-  const lines = prompt.split("\n");
-  const start = lines.findIndex((line) => line.startsWith(`BEGIN ${label}`));
-  return JSON.parse(lines[start + 1] ?? "[]") as {
-    sourceId: string;
-    revision: number;
-    pointer: string;
-    text: string;
-  }[];
-}
-// A verbatim reference to an entry the prompt really carries.
-function refFor(
-  request: AiExecutionRequest,
-  label: "APPROVED EXPERIENCE" | "CANDIDATE PREFERENCES",
-  pointer: string,
-) {
-  const entry = blockJson(request.task.prompt, label).find(
-    (item) => item.pointer === pointer,
-  );
-  if (!entry) throw new Error(`prompt carries no entry at ${pointer}`);
-  return {
-    sourceId: entry.sourceId,
-    revision: entry.revision,
-    pointer: entry.pointer,
-    quote: entry.text,
-  };
-}
-const output = (overrides: Record<string, unknown>) => ({
-  category: "technical-concept",
-  draft: "A short spoken outline.",
-  claims: [],
-  star: null,
-  logistics: null,
-  codingBrief: null,
-  ...overrides,
-});
+const output = answer;
 
 // ---- a world: a person, optionally a pinned profile and a linked draft ---
 
