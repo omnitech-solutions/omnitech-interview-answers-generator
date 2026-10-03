@@ -6,7 +6,7 @@ import type {
   LiveAction,
   LiveSessionStatus,
 } from "@omnitech/interview-contracts";
-import { parseCodeResult } from "./session-results";
+import { parseCodeResult, parseWithheldResult } from "./session-results";
 
 export type RunState =
   // Its result is current and was published.
@@ -43,6 +43,9 @@ export type ActivityRun = {
   // The server's fixed reason code, and a sentence for it when known.
   reason: string | null;
   reasonLabel: string | null;
+  // A withheld draft: how many claims could not be checked (content-free).
+  // null when the server did not record a count.
+  rejectedClaimCount: number | null;
   // The run belongs to the task's current revision.
   current: boolean;
   attempt: number;
@@ -177,6 +180,10 @@ export function activityRun(
     tone: presentation.tone,
     reason: action.suppressionReason,
     reasonLabel: SUPPRESSION[action.suppressionReason ?? ""]?.label ?? null,
+    rejectedClaimCount:
+      action.suppressionReason === "invalid_output"
+        ? (parseWithheldResult(action.result)?.rejectedClaimCount ?? null)
+        : null,
     current: action.taskRevision >= context.currentRevision,
     attempt: action.attempt,
     shown: action.shown,

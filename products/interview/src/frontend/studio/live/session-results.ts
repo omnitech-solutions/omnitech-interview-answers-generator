@@ -280,6 +280,23 @@ export function parseAgentResult(raw: unknown): AgentResult | null {
   };
 }
 
+// ---- Withheld draft (a suppressed "draft-answer", reason invalid_output) ----
+
+// The backend records only a count of the claims verification rejected, never
+// their text (withheld.ts). Parsed leniently so a server without the count
+// shows the generic notice instead of failing.
+const withheldSchema = z.object({
+  withheld: z.object({ rejectedClaimCount: z.number().int().min(0) }),
+});
+export function parseWithheldResult(
+  raw: unknown,
+): { rejectedClaimCount: number } | null {
+  const parsed = withheldSchema.safeParse(raw);
+  return parsed.success
+    ? { rejectedClaimCount: parsed.data.withheld.rejectedClaimCount }
+    : null;
+}
+
 // ---- Observation content ----------------------------------------------------
 
 const sourceSchema = z.enum(["microphone", "application-audio", "screen"]);
