@@ -355,7 +355,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The database refuses changing a session's tenant, owner, links or sources snapshot, except the purge clearing them.",
+    "rule": "The database refuses changing a session's tenant, owner, links or sources snapshot, except setting links, snapshot and credential to null while the session is purging.",
     "source_adr": "ADR-0011",
     "source_status": "Proposed"
   },
@@ -374,6 +374,15 @@
     "provenance": "authored",
     "review_state": "accepted-with-adr",
     "rule": "Ingest rechecks tenant membership before any domain write.",
+    "source_adr": "ADR-0011",
+    "source_status": "Proposed"
+  },
+  "ADR-0011/job-creation-locked-to-session": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Job creation for a session verifies under a lock on the session row that it is active with a current fence, and cancellation fails closed on a job it cannot see.",
     "source_adr": "ADR-0011",
     "source_status": "Proposed"
   },
@@ -409,7 +418,16 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The database refuses content inserts for a session that is not active.",
+    "rule": "The database refuses new observations, screenshot artifacts and published results for a session that is ended or purging.",
+    "source_adr": "ADR-0011",
+    "source_status": "Proposed"
+  },
+  "ADR-0011/no-resume-after-end": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A session job is not resumed unless its session is active.",
     "source_adr": "ADR-0011",
     "source_status": "Proposed"
   },
@@ -530,6 +548,15 @@
     "source_adr": "ADR-0011",
     "source_status": "Proposed"
   },
+  "ADR-0011/tombstone-keeps-hint-count": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The tombstone keeps owner, rehearsal run id, strict flag and a content-free count of shown drafts.",
+    "source_adr": "ADR-0011",
+    "source_status": "Proposed"
+  },
   "ADR-0011/transcripts-in-observations": {
     "authority": "prescriptive",
     "disposition": "decided",
@@ -578,6 +605,7 @@
     "inert-draft-rendering": "ADR-0011/inert-draft-rendering",
     "ingest-membership-recheck": "ADR-0011/ingest-membership-recheck",
     "interview-owns-documents": "ADR-0009/interview-owns-documents",
+    "job-creation-locked-to-session": "ADR-0011/job-creation-locked-to-session",
     "linked-resource-authorization": "ADR-0011/linked-resource-authorization",
     "loop-isolation": "ADR-0010/loop-isolation",
     "member-private-documents": "ADR-0009/member-private-documents",
@@ -587,6 +615,7 @@
     "no-content-after-purging": "ADR-0011/no-content-after-purging",
     "no-external-interface-operation": "ADR-0010/no-external-interface-operation",
     "no-promotion": "ADR-0010/no-promotion",
+    "no-resume-after-end": "ADR-0011/no-resume-after-end",
     "no-second-scorecard": "ADR-0011/no-second-scorecard",
     "no-undetectability-or-evasion": "ADR-0010/no-undetectability-or-evasion",
     "owner-checked-read-paths": "ADR-0011/owner-checked-read-paths",
@@ -607,6 +636,7 @@
     "tenant-scoped-worker-access": "ADR-0010/tenant-scoped-worker-access",
     "three-concept-split": "ADR-0010/three-concept-split",
     "tighten-only-locality": "ADR-0011/tighten-only-locality",
+    "tombstone-keeps-hint-count": "ADR-0011/tombstone-keeps-hint-count",
     "transcripts-in-observations": "ADR-0011/transcripts-in-observations",
     "unlisted-stage-refused": "ADR-0011/unlisted-stage-refused",
     "versioned-wire-contract": "ADR-0010/versioned-wire-contract",
