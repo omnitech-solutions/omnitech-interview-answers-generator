@@ -36,6 +36,7 @@ function job(overrides: Partial<AgentJob> = {}): AgentJob {
     status: "claimed",
     profile,
     promptReference: "prompt:1",
+    private: false,
     createdAt: new Date(0),
     updatedAt: new Date(0),
     ...overrides,

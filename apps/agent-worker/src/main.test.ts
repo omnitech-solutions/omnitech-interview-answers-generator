@@ -124,12 +124,12 @@ async function runUntil(
     ...(runtimes ? [runtimes] : []),
   );
   const deadline = Date.now() + 15_000;
-  let current = await jobs.get(tenantId, job.id);
+  let current = await jobs.get(tenantId, userId, job.id);
   while (!current || !done(current)) {
     if (Date.now() > deadline)
       throw new Error(`Job stayed ${current?.status ?? "missing"}`);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    current = await jobs.get(tenantId, job.id);
+    current = await jobs.get(tenantId, userId, job.id);
   }
   controller.abort();
   await worker;
@@ -137,7 +137,7 @@ async function runUntil(
 }
 
 async function eventTypes(jobId: string) {
-  return (await jobs.eventsAfter(tenantId, jobId, 0)).map(
+  return (await jobs.eventsAfter(tenantId, userId, jobId, 0)).map(
     ({ event }) => event.type,
   );
 }
@@ -232,13 +232,15 @@ describe("configured agent worker", () => {
       controller.signal,
       { "claude-code": runtime },
     );
-    while ((await jobs.get(tenantId, job.id))?.status !== "running")
+    while ((await jobs.get(tenantId, userId, job.id))?.status !== "running")
       await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(await jobs.requestCancellation(tenantId, job.id)).toBe(true);
-    let current = await jobs.get(tenantId, job.id);
+    expect(await jobs.requestCancellation(tenantId, userId, job.id)).toBe(
+      "requested",
+    );
+    let current = await jobs.get(tenantId, userId, job.id);
     while (current?.status !== "cancelled") {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      current = await jobs.get(tenantId, job.id);
+      current = await jobs.get(tenantId, userId, job.id);
     }
     controller.abort();
     await worker;
@@ -266,7 +268,7 @@ describe("configured agent worker", () => {
 
     expect(done.status).toBe("failed");
     expect(
-      (await jobs.eventsAfter(tenantId, failing.id, 0)).at(-1)?.event,
+      (await jobs.eventsAfter(tenantId, userId, failing.id, 0)).at(-1)?.event,
     ).toEqual({
       type: "failed",
       error: { code: "provider", message: "Overloaded", retryable: true },
@@ -315,11 +317,11 @@ describe("configured agent worker", () => {
       child.on("exit", (code) => resolve(code)),
     );
     const deadline = Date.now() + 15_000;
-    let current = await jobs.get(tenantId, job.id);
+    let current = await jobs.get(tenantId, userId, job.id);
     while (current?.status !== "succeeded") {
       if (Date.now() > deadline) throw new Error(`Job ${current?.status}`);
       await new Promise((resolve) => setTimeout(resolve, 50));
-      current = await jobs.get(tenantId, job.id);
+      current = await jobs.get(tenantId, userId, job.id);
     }
 
     child.kill("SIGTERM");

@@ -103,15 +103,17 @@ it("lets the worker claim and run a tenant's job before it knows the tenant", as
   });
   // The job's events are tenant-owned rows: its tenant reads them, no other.
   expect(
-    (await repository.eventsAfter(tenantId, created.id, 0)).map(
+    (await repository.eventsAfter(tenantId, userId, created.id, 0)).map(
       (persisted) => persisted.event,
     ),
   ).toEqual([{ type: "started", sessionId: "session-1" }]);
-  expect(await repository.eventsAfter(otherTenantId, created.id, 0)).toEqual(
-    [],
-  );
+  expect(
+    await repository.eventsAfter(otherTenantId, userId, created.id, 0),
+  ).toEqual([]);
   // The tenant boundary still holds for everything that is not the worker.
-  expect(await repository.get(otherTenantId, created.id)).toBeUndefined();
+  expect(
+    await repository.get(otherTenantId, userId, created.id),
+  ).toBeUndefined();
 });
 
 it("cancels a job only inside its own tenant", async () => {
@@ -124,15 +126,17 @@ it("cancels a job only inside its own tenant", async () => {
     promptReference: "agent-payload:unused",
   });
 
-  expect(await repository.requestCancellation(tenantId, created.id)).toBe(
-    false,
+  expect(
+    await repository.requestCancellation(tenantId, userId, created.id),
+  ).toBe("not-found");
+  expect(
+    await repository.requestCancellation(otherTenantId, userId, created.id),
+  ).toBe("requested");
+  expect(await repository.get(otherTenantId, userId, created.id)).toMatchObject(
+    {
+      status: "cancelling",
+    },
   );
-  expect(await repository.requestCancellation(otherTenantId, created.id)).toBe(
-    true,
-  );
-  expect(await repository.get(otherTenantId, created.id)).toMatchObject({
-    status: "cancelling",
-  });
 });
 
 it("never lets the worker move a job to another tenant or rewrite what it runs", async () => {
@@ -171,7 +175,7 @@ it("never lets the worker move a job to another tenant or rewrite what it runs",
   await asWorker("UPDATE ai.agent_jobs SET status = 'claimed' WHERE id = $1", [
     created.id,
   ]);
-  expect(await repository.get(tenantId, created.id)).toMatchObject({
+  expect(await repository.get(tenantId, userId, created.id)).toMatchObject({
     tenantId,
     status: "claimed",
     promptReference: "agent-payload:original",
@@ -182,7 +186,12 @@ it("never lets the worker move a job to another tenant or rewrite what it runs",
     [created.id],
   );
   expect(
-    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+    await repository.requestResume(
+      tenantId,
+      userId,
+      created.id,
+      "agent-payload:next",
+    ),
   ).toBe(true);
 });
 
@@ -242,11 +251,11 @@ it("replays a job's events after a sequence, in order", async () => {
     result: { sessionId: "s", output: "Hi" },
   });
 
-  const events = await repository.eventsAfter(tenantId, created.id, 1);
+  const events = await repository.eventsAfter(tenantId, userId, created.id, 1);
   // Another tenant sees none of a job's events.
-  expect(await repository.eventsAfter(otherTenantId, created.id, 0)).toEqual(
-    [],
-  );
+  expect(
+    await repository.eventsAfter(otherTenantId, userId, created.id, 0),
+  ).toEqual([]);
 
   expect(events.map((event) => [event.sequence, event.event.type])).toEqual([
     [2, "text-delta"],
@@ -272,30 +281,43 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
     promptReference: "agent-payload:first",
   });
 
-  expect(await repository.requestCancellation(otherTenantId, created.id)).toBe(
-    false,
-  );
-  expect(await repository.requestCancellation(tenantId, created.id)).toBe(true);
+  expect(
+    await repository.requestCancellation(otherTenantId, userId, created.id),
+  ).toBe("not-found");
+  expect(
+    await repository.requestCancellation(tenantId, userId, created.id),
+  ).toBe("requested");
   expect(await worker.transition(created.id, ["cancelling"], "cancelled")).toBe(
     true,
   );
   // A cancelled job without a session has nothing to resume.
   expect(
-    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+    await repository.requestResume(
+      tenantId,
+      userId,
+      created.id,
+      "agent-payload:next",
+    ),
   ).toBe(false);
   await worker.setSessionId(created.id, "session-9");
   expect(
     await repository.requestResume(
       otherTenantId,
+      userId,
       created.id,
       "agent-payload:x",
     ),
   ).toBe(false);
   expect(
-    await repository.requestResume(tenantId, created.id, "agent-payload:next"),
+    await repository.requestResume(
+      tenantId,
+      userId,
+      created.id,
+      "agent-payload:next",
+    ),
   ).toBe(true);
 
-  expect(await repository.get(tenantId, created.id)).toMatchObject({
+  expect(await repository.get(tenantId, userId, created.id)).toMatchObject({
     status: "queued",
     promptReference: "agent-payload:next",
     sessionId: "session-9",

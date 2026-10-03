@@ -15,6 +15,7 @@ export type JobRow = {
   prompt_reference: string;
   result_reference: string | null;
   session_id: string | null;
+  private: boolean;
   claimed_by: string | null;
   lease_expires_at: Date | null;
   created_at: Date;
@@ -30,6 +31,7 @@ export function mapJob(row: JobRow): AgentJob {
     status: row.status,
     profile: row.profile_snapshot,
     promptReference: row.prompt_reference,
+    private: row.private,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.result_reference === null

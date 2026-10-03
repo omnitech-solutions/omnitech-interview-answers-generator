@@ -21,6 +21,17 @@ import { tenants, users } from "./platform.js";
 
 export const ai = pgSchema("ai");
 
+// ADR-0011 Agent jobs: a private job's row belongs to its creator (user_id is
+// the creator) and the agent worker; every other job is unchanged.
+const privateJobAdmitted = sql`(NOT private OR user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR current_setting('app.agent_worker', true) = 'on')`;
+
+// A child row of a private job is admitted only when its parent job is: the
+// subquery runs under the parent's own policies, so the rule is stated once.
+const parentJobVisible = (child: string) =>
+  sql.raw(
+    `(EXISTS (SELECT 1 FROM ai.agent_jobs j WHERE j.tenant_id = ${child}.tenant_id AND j.id = ${child}.job_id))`,
+  );
+
 // A job's artifacts and events are tenant-owned rows: each carries its job's
 // tenant, and the composite (tenant_id, job_id) key keeps the two equal.
 export const agentArtifacts = ai.table.withRLS(
@@ -45,6 +56,22 @@ export const agentArtifacts = ai.table.withRLS(
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+    }),
+    pgPolicy("agent_artifacts_private_parent_select", {
+      as: "restrictive",
+      for: "select",
+      using: parentJobVisible("agent_artifacts"),
+    }),
+    pgPolicy("agent_artifacts_private_parent_update", {
+      as: "restrictive",
+      for: "update",
+      using: parentJobVisible("agent_artifacts"),
+      withCheck: parentJobVisible("agent_artifacts"),
+    }),
+    pgPolicy("agent_artifacts_private_parent_delete", {
+      as: "restrictive",
+      for: "delete",
+      using: parentJobVisible("agent_artifacts"),
     }),
   ],
 );
@@ -80,6 +107,22 @@ export const agentJobEvents = ai.table.withRLS(
     pgPolicy("agent_worker_append", {
       for: "insert",
       withCheck: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
+    }),
+    pgPolicy("agent_job_events_private_parent_select", {
+      as: "restrictive",
+      for: "select",
+      using: parentJobVisible("agent_job_events"),
+    }),
+    pgPolicy("agent_job_events_private_parent_update", {
+      as: "restrictive",
+      for: "update",
+      using: parentJobVisible("agent_job_events"),
+      withCheck: parentJobVisible("agent_job_events"),
+    }),
+    pgPolicy("agent_job_events_private_parent_delete", {
+      as: "restrictive",
+      for: "delete",
+      using: parentJobVisible("agent_job_events"),
     }),
   ],
 );
@@ -133,6 +176,9 @@ export const agentJobs = ai.table.withRLS(
     promptReference: text("prompt_reference").notNull(),
     resultReference: text("result_reference"),
     sessionId: text("session_id"),
+    // Immutable and set only by the session dispatch path (ADR-0011 Agent
+    // jobs); the ai.guard_agent_job_private_marker trigger enforces both.
+    private: boolean().default(false).notNull(),
     claimedBy: text("claimed_by"),
     leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
     nextEventSequence: integer("next_event_sequence").default(1).notNull(),
@@ -167,6 +213,25 @@ export const agentJobs = ai.table.withRLS(
       for: "update",
       using: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
       withCheck: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
+    }),
+    // A private job's row is admitted only to its creator or the worker; a
+    // caller with no actor sees none. RESTRICTIVE, so it narrows the
+    // permissive tenant and worker policies above and never widens them.
+    pgPolicy("agent_job_private_select", {
+      as: "restrictive",
+      for: "select",
+      using: privateJobAdmitted,
+    }),
+    pgPolicy("agent_job_private_update", {
+      as: "restrictive",
+      for: "update",
+      using: privateJobAdmitted,
+      withCheck: privateJobAdmitted,
+    }),
+    pgPolicy("agent_job_private_delete", {
+      as: "restrictive",
+      for: "delete",
+      using: privateJobAdmitted,
     }),
     check(
       "agent_jobs_status_check",

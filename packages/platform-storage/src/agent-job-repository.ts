@@ -1,44 +1,107 @@
 import type {
   AgentJob,
   AgentJobRepository,
+  CancellationOutcome,
   CreateAgentJob,
+  CreateJobOptions,
+  JobActor,
   PersistedAgentEvent,
+  ResumeJobOptions,
 } from "@omnitech/agent-job-service";
 import type { AgentEvent } from "@omnitech/agent-runtime-contracts";
-import type { PlatformDatabase } from "@omnitech/database";
+import {
+  type DatabaseClient,
+  enterTenant,
+  type PlatformDatabase,
+} from "@omnitech/database";
 import { type JobRow, mapJob } from "./agent-job-row.js";
 import { ConnectedAccountVault } from "./connected-account-vault.js";
 
-// A member's jobs: every read and write runs inside the job's tenant.
+// A member's jobs: every read and write runs inside the job's tenant and as
+// an explicit actor, so a private job (ADR-0011 Agent jobs) is visible only
+// to its creator. A `null` actor is a caller with no user: it sees no private
+// row. Lock order for a session job is the session row, then the job row.
 export class PostgresAgentJobRepository implements AgentJobRepository {
   constructor(private readonly database: PlatformDatabase) {}
 
-  async create(input: CreateAgentJob): Promise<AgentJob> {
-    const result = await this.database.tenantTransaction(
-      input.tenantId,
-      (client) =>
-        client.query<JobRow>(
-          `INSERT INTO ai.agent_jobs
-             (tenant_id, user_id, product_id, status, profile_snapshot,
-              prompt_reference)
-           VALUES ($1, $2, $3, 'queued', $4, $5)
-           RETURNING *`,
-          [
-            input.tenantId,
-            input.userId,
-            input.productId,
-            input.profile,
-            input.promptReference,
-          ],
-        ),
-    );
-    const row = result.rows[0];
-    if (!row) throw new Error("Agent job creation failed.");
-    return mapJob(row);
+  // The transaction a request runs in: the tenant, plus the actor when there
+  // is one. The settings are set by @omnitech/database (ADR-0005).
+  private run<Result>(
+    tenantId: string,
+    actorId: JobActor,
+    work: (client: DatabaseClient) => Promise<Result>,
+  ): Promise<Result> {
+    if (actorId === null)
+      return this.database.tenantTransaction(tenantId, work);
+    return this.database.transaction(async (client) => {
+      await enterTenant(client, { tenantId, actorId });
+      return work(client);
+    });
   }
 
-  async get(tenantId: string, jobId: string): Promise<AgentJob | undefined> {
-    return this.database.tenantTransaction(tenantId, async (client) => {
+  // [SAFETY] The creating user is the actor, so the job row is the creator's
+  // to read back. `private` marks a session job: this is the session dispatch
+  // path, the one place that sets app.session_dispatch (the database refuses
+  // a private job otherwise, and refuses changing the marker later), and it
+  // sets it only after beforeInsert has run, so the hook cannot widen it. The
+  // caller's beforeInsert runs in this same transaction, so it can lock the
+  // session row and verify it is active before the insert. A repeated create
+  // with the same id returns the existing job instead of a second row.
+  async create(
+    input: CreateAgentJob,
+    options: CreateJobOptions = {},
+  ): Promise<AgentJob> {
+    return this.run(input.tenantId, input.userId, async (client) => {
+      await options.beforeInsert?.(client);
+      if (input.private) {
+        await client.query(
+          "SELECT set_config('app.session_dispatch', 'on', true)",
+        );
+      }
+      const inserted = await client.query<JobRow>(
+        `INSERT INTO ai.agent_jobs
+           (id, tenant_id, user_id, product_id, status, profile_snapshot,
+            prompt_reference, private)
+         VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, 'queued',
+                 $5, $6, $7)
+         ON CONFLICT (id) DO NOTHING
+         RETURNING *`,
+        [
+          input.id ?? null,
+          input.tenantId,
+          input.userId,
+          input.productId,
+          input.profile,
+          input.promptReference,
+          input.private === true,
+        ],
+      );
+      const created = inserted.rows[0];
+      if (created) return mapJob(created);
+      // Idempotent only for the same tenant, creator and marker; the actor
+      // cannot read a row of another tenant or a private row of another user.
+      const existing = await client.query<JobRow>(
+        `SELECT * FROM ai.agent_jobs WHERE tenant_id = $1 AND id = $2`,
+        [input.tenantId, input.id],
+      );
+      const row = existing.rows[0];
+      if (
+        !row ||
+        row.user_id !== input.userId ||
+        row.private !== (input.private === true)
+      ) {
+        throw new Error("Agent job id is already in use.");
+      }
+      return mapJob(row);
+    });
+  }
+
+  async get(
+    tenantId: string,
+    actorId: JobActor,
+    jobId: string,
+  ): Promise<AgentJob | undefined> {
+    return this.run(tenantId, actorId, async (client) => {
       const result = await client.query<JobRow>(
         `SELECT * FROM ai.agent_jobs WHERE tenant_id = $1 AND id = $2`,
         [tenantId, jobId],
@@ -50,10 +113,11 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
 
   async eventsAfter(
     tenantId: string,
+    actorId: JobActor,
     jobId: string,
     sequence: number,
   ): Promise<PersistedAgentEvent[]> {
-    const result = await this.database.tenantTransaction(tenantId, (client) =>
+    const result = await this.run(tenantId, actorId, (client) =>
       client.query<{
         sequence: number;
         event: AgentEvent;
@@ -74,8 +138,15 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     }));
   }
 
-  async requestCancellation(tenantId: string, jobId: string): Promise<boolean> {
-    return this.database.tenantTransaction(tenantId, async (client) => {
+  // [SAFETY] Fails closed: a job the actor cannot see reads as "not-found",
+  // the same as a job that does not exist, and is never touched. A job that
+  // is visible but already cancelling or finished counts as cancelled.
+  async requestCancellation(
+    tenantId: string,
+    actorId: JobActor,
+    jobId: string,
+  ): Promise<CancellationOutcome> {
+    return this.run(tenantId, actorId, async (client) => {
       const result = await client.query(
         `UPDATE ai.agent_jobs SET status = 'cancelling', updated_at = now()
          WHERE tenant_id = $1 AND id = $2
@@ -83,16 +154,27 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
              'awaiting-input')`,
         [tenantId, jobId],
       );
-      return (result.rowCount ?? 0) === 1;
+      if ((result.rowCount ?? 0) === 1) return "requested";
+      const visible = await client.query(
+        `SELECT 1 FROM ai.agent_jobs WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, jobId],
+      );
+      return visible.rows.length === 1 ? "already-ended" : "not-found";
     });
   }
 
+  // The optional guard runs first, in this transaction, so a session job's
+  // caller can take the session-row lock and verify the session is active
+  // before the job row is touched (session row, then job row).
   async requestResume(
     tenantId: string,
+    actorId: JobActor,
     jobId: string,
     promptReference: string,
+    options: ResumeJobOptions = {},
   ): Promise<boolean> {
-    return this.database.tenantTransaction(tenantId, async (client) => {
+    return this.run(tenantId, actorId, async (client) => {
+      if (options.guard && !(await options.guard(client))) return false;
       const result = await client.query(
         `UPDATE ai.agent_jobs SET
            status = 'queued', prompt_reference = $3,

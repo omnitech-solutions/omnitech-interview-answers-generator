@@ -137,21 +137,34 @@ export function createAgentApi() {
       if (!/^[0-9a-f-]{36}$/i.test(tenantId)) {
         return context.json({ error: "A tenant id is required." }, 400);
       }
+      // [SAFETY] The service token carries no user, so it reads as no actor
+      // and sees no private job's events (ADR-0011 Agent jobs). Decision: the
+      // gateway does not learn the owner, so session agent jobs (private) are
+      // not streamable through the terminal gateway; a permitted-remote
+      // session job reaches its owner only through a member's own request.
       return context.json(
         await repository.eventsAfter(
           tenantId,
+          null,
           jobId,
           Number(context.req.query("after") ?? "0"),
         ),
       );
     }
-    return context.json(
-      await service.events(
-        platformContext?.tenant.id ?? "",
-        jobId,
-        Number(context.req.query("after") ?? "0"),
-      ),
-    );
+    // A job the member cannot see (including another member's private job)
+    // is a 404, the same as one that does not exist.
+    try {
+      return context.json(
+        await service.events(
+          platformContext?.tenant.id ?? "",
+          platformContext?.user.id ?? null,
+          jobId,
+          Number(context.req.query("after") ?? "0"),
+        ),
+      );
+    } catch {
+      return context.json({ error: "Agent job was not found." }, 404);
+    }
   });
 
   api.get("/platform/v1/agent-jobs/:id", async (context) => {
@@ -160,6 +173,7 @@ export function createAgentApi() {
     if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
     const job = await service.get(
       platformContext.tenant.id,
+      platformContext.user.id,
       context.req.param("id"),
     );
     if (!job) return context.json({ error: "Agent job was not found." }, 404);
@@ -183,7 +197,17 @@ export function createAgentApi() {
       context.req.query("tenant") ?? "",
     );
     if (!platformContext) return context.json({ error: "Unauthorized" }, 401);
-    await service.cancel(platformContext.tenant.id, context.req.param("id"));
+    // A job the member cannot see (another tenant's, or another member's
+    // private job) is a 404, the same as one that does not exist.
+    try {
+      await service.cancel(
+        platformContext.tenant.id,
+        platformContext.user.id,
+        context.req.param("id"),
+      );
+    } catch {
+      return context.json({ error: "Agent job was not found." }, 404);
+    }
     return context.body(null, 204);
   });
 
@@ -203,6 +227,7 @@ export function createAgentApi() {
       );
       await service.resume(
         platformContext.tenant.id,
+        platformContext.user.id,
         context.req.param("id"),
         promptReference,
       );

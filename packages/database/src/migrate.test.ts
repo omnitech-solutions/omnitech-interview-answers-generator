@@ -32,6 +32,7 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "agent_job_tenant_rows_and_composite_keys",
     "forced_rls_job_identity_and_catalog_tenancy",
     "document_artifact_payloads_and_interview_documents",
+    "agent_job_private_marker",
   ]);
 
   // No workflow engine exists: no thread table, no conversation link to one,

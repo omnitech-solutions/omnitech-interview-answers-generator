@@ -366,6 +366,59 @@ describe("the agent jobs API", () => {
     ).toBe(401);
   });
 
+  // The test database role bypasses row security, so what the policy admits is
+  // proven in packages/platform-storage (agent-job-private.test.ts); here the
+  // routes' actor wiring is: members read as themselves, the service-token
+  // gateway as nobody, so it can never see a private session job.
+  it("reads a job's events as the member, and through the service token as no actor", async () => {
+    const me = (
+      await (await call("/api/platform/v1/context?tenant=local")).json()
+    ).user.id as string;
+    const { id } = await (
+      await job({
+        productId: "omnitech.presentation",
+        profileId: "coding-fast",
+        prompt: "Fix the build.",
+      })
+    ).json();
+    const actors: unknown[] = [];
+    const eventsAfter = PostgresAgentJobRepository.prototype.eventsAfter;
+    const spy = vi
+      .spyOn(PostgresAgentJobRepository.prototype, "eventsAfter")
+      .mockImplementation(function (this: unknown, ...args) {
+        actors.push(args[1]);
+        return eventsAfter.apply(this as PostgresAgentJobRepository, args);
+      });
+    try {
+      await call(`/api/platform/v1/agent-jobs/${id}/events?tenant=local`);
+      await call(
+        `/api/platform/v1/agent-jobs/${id}/events?tenantId=${tenantId}`,
+        {
+          headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
+        },
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(actors).toEqual([me, null]);
+    // A job the member cannot read is a 404, not an error.
+    expect(
+      (
+        await call(
+          `/api/platform/v1/agent-jobs/${crypto.randomUUID()}/events?tenant=local`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await call(
+          `/api/platform/v1/agent-jobs/${crypto.randomUUID()}?tenant=local`,
+          { method: "DELETE" },
+        )
+      ).status,
+    ).toBe(404);
+  });
+
   it("resumes only a job with an agent session", async () => {
     const { id } = await (
       await job({

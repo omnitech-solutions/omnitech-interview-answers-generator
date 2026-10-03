@@ -63,9 +63,11 @@ export class PostgresAgentJobWorkerRepository
     });
   }
 
-  // Once claimed, the worker knows the job's tenant and reads it there.
+  // Once claimed, the worker knows the job's tenant and reads it there. It
+  // reads as the worker (app.agent_worker), the one reader besides a private
+  // job's creator that the private-job policy admits (ADR-0011 Agent jobs).
   async get(tenantId: string, jobId: string): Promise<AgentJob | undefined> {
-    return this.database.tenantTransaction(tenantId, async (client) => {
+    return this.asWorker(async (client) => {
       const result = await client.query<JobRow>(
         `SELECT * FROM ai.agent_jobs WHERE tenant_id = $1 AND id = $2`,
         [tenantId, jobId],

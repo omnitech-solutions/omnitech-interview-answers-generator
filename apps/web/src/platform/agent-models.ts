@@ -122,6 +122,7 @@ export async function* streamAgentTurn(
       signal.throwIfAborted();
       for (const { sequence, event } of await jobs.eventsAfter(
         tenantId,
+        request.context.userId,
         job.id,
         after,
       )) {
@@ -146,6 +147,8 @@ export async function* streamAgentTurn(
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   } finally {
-    if (signal.aborted) await jobs.requestCancellation(tenantId, job.id);
+    if (signal.aborted) {
+      await jobs.requestCancellation(tenantId, request.context.userId, job.id);
+    }
   }
 }
