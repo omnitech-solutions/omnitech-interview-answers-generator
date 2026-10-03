@@ -205,6 +205,18 @@ it("reads a payload only by its reference", async () => {
   );
 });
 
+it("deletes a payload by reference for its own tenant only", async () => {
+  const payloads = new AgentPayloadStore(member, "x".repeat(32));
+  const reference = await payloads.save(tenantId, "orphaned prompt");
+  // Another tenant's delete leaves it in place.
+  await payloads.delete(otherTenantId, reference);
+  expect(await payloads.load(reference)).toBe("orphaned prompt");
+  await payloads.delete(tenantId, reference);
+  await expect(payloads.load(reference)).rejects.toThrow(
+    "Agent job payload is unavailable.",
+  );
+});
+
 it("lets another worker reclaim a running job whose lease has expired", async () => {
   const repository = new PostgresAgentJobRepository(member);
   const worker = new PostgresAgentJobWorkerRepository(member);

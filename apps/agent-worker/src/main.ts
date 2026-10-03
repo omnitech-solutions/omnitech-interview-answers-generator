@@ -223,6 +223,8 @@ export function sessionAgentEscalation(
   return {
     profileFor: () => profiles.get("coding-quality"),
     savePrompt: (tenantId, prompt) => payloads.save(tenantId, prompt),
+    discardPrompt: (tenantId, reference) =>
+      payloads.delete(tenantId, reference),
   };
 }
 

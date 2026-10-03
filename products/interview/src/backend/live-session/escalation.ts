@@ -62,6 +62,10 @@ export function decideEscalation(input: {
 export interface AgentEscalationPort {
   profileFor(kind: EscalationKind): SessionJobRequest["profile"] | undefined;
   savePrompt(tenantId: string, prompt: string): Promise<string>;
+  // Removes a stored prompt payload whose job was never created, so it cannot
+  // outlive the session outside every purge (the purge finds payloads only by a
+  // job row's reference).
+  discardPrompt?(tenantId: string, reference: string): Promise<void>;
 }
 
 // The recorded outcome of an escalation request, for the solution's result.
@@ -149,8 +153,9 @@ export async function requestAgentJob(input: {
   if (recorded.outcome !== "dispatched")
     return { jobRequested: false, kind, reason: "action_refused" };
 
+  let promptReference: string | undefined;
   try {
-    const promptReference = await port.savePrompt(
+    promptReference = await port.savePrompt(
       run.scope.tenantId,
       promptFor(kind, task, input.brief, input.solution, input.tests),
     );
@@ -164,6 +169,12 @@ export async function requestAgentJob(input: {
     });
   } catch {
     // [SAFETY] The error is never read: only that no job exists is recorded.
+    // A payload saved before the refused creation is orphaned (no job row names
+    // it, so the purge would never find it): discard it here.
+    if (promptReference !== undefined)
+      await port
+        .discardPrompt?.(run.scope.tenantId, promptReference)
+        .catch(() => undefined);
     await store
       .abandonAction({
         scope: run.scope,

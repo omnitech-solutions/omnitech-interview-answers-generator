@@ -128,7 +128,9 @@ const PROFILE: SessionJobRequest["profile"] = {
   webSearch: false,
 };
 function escalationPort() {
-  const saved: Array<{ tenantId: string; prompt: string }> = [];
+  const saved: Array<{ tenantId: string; prompt: string; reference: string }> =
+    [];
+  const discarded: string[] = [];
   const asked: string[] = [];
   const port: AgentEscalationPort = {
     profileFor: (kind) => {
@@ -136,11 +138,15 @@ function escalationPort() {
       return PROFILE;
     },
     savePrompt: async (tenantId, prompt) => {
-      saved.push({ tenantId, prompt });
-      return `agent-payload:${randomUUID()}`;
+      const reference = `agent-payload:${randomUUID()}`;
+      saved.push({ tenantId, prompt, reference });
+      return reference;
+    },
+    discardPrompt: async (_tenantId, reference) => {
+      discarded.push(reference);
     },
   };
-  return { port, saved, asked };
+  return { port, saved, discarded, asked };
 }
 
 async function world(
@@ -334,8 +340,8 @@ describe("a job from a validated repository-navigation field", () => {
     expect(await agentActions(w)).toHaveLength(0);
   }, 60_000);
 
-  it("records a refused job as no job: the action is abandoned, the solution still publishes", async () => {
-    const { port } = escalationPort();
+  it("records a refused job as no job: the action is abandoned, the solution still publishes, and the stored prompt payload is discarded", async () => {
+    const { port, saved, discarded } = escalationPort();
     const w = await world("esc-refused", {
       gateway: scriptedGateway({
         solution: (request) =>
@@ -353,6 +359,10 @@ describe("a job from a validated repository-navigation field", () => {
     await w.ingestor.ingest(QUESTION);
     await settle(w.processor);
     expect(await w.jobs()).toHaveLength(0);
+    // Review finding 8: the encrypted payload saved before the refused
+    // creation must not stay behind, outside every purge.
+    expect(saved).toHaveLength(1);
+    expect(discarded).toEqual(saved.map((entry) => entry.reference));
     expect((await solveResult(w)).agent).toMatchObject({
       jobRequested: false,
       reason: "job_refused",

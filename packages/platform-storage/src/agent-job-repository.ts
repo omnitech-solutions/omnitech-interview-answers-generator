@@ -216,6 +216,17 @@ export class AgentPayloadStore {
     return reference;
   }
 
+  // Removes one tenant's payload by reference (for a payload whose job was
+  // never created). Another tenant's payload is invisible to the transaction.
+  async delete(tenantId: string, reference: string): Promise<void> {
+    await this.database.tenantTransaction(tenantId, async (client) => {
+      await client.query(
+        "DELETE FROM ai.agent_job_payloads WHERE tenant_id = $1 AND reference = $2",
+        [tenantId, reference],
+      );
+    });
+  }
+
   // The reference is an unguessable id and the only key the worker and a
   // job's poller hold, so the payload_reference_lookup policy admits a read
   // of exactly the payload the transaction names.
