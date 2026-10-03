@@ -12,7 +12,10 @@ import {
   createOpenAiImageProvider,
   createTogetherImageProvider,
 } from "@omnitech/ai-provider-images";
-import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
+import {
+  createOpenAiCatalogAdapter,
+  createOpenAiModelAdapter,
+} from "@omnitech/ai-provider-openai";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_ASSISTANT_PROFILE,
@@ -28,6 +31,7 @@ import {
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
 import { resolveAgentProfiles, resolveDefaultLanguageModel } from "./ai-config";
+import { agentAssistantProfiles, streamAgentTurn } from "./agent-models";
 import { createLocalModelAdapter } from "./local-model";
 
 function createAgentPort(): AgentExecutionPort {
@@ -82,6 +86,11 @@ function createAgentPort(): AgentExecutionPort {
     async *resume(_request: AiResumeRequest): AsyncIterable<AiEvent> {
       throw new Error("Resume requires an existing agent session job.");
     },
+    // Assistant turns on Claude Code or Codex, as jobs the worker runs.
+    streamStructured(request, profile) {
+      if (!secret) throw new Error("AGENT_PAYLOAD_SECRET is not configured.");
+      return streamAgentTurn(database, secret, request, profile);
+    },
   };
 }
 
@@ -120,6 +129,10 @@ async function readImageResponse(response: Response, provider: string) {
 }
 
 const INTERVIEW_ASSISTANT_TARGET = "interview-assistant-model";
+const LM_STUDIO_CATALOG_TARGET = "lm-studio-models";
+const OPENROUTER_CATALOG_TARGET = "openrouter-models";
+const isLoopback = (url: string) =>
+  /^(localhost|127\.0\.0\.1)$/.test(new URL(url).hostname);
 const INTERVIEW_ANSWER_TARGET = "interview-answer-model";
 
 // How much the interview assistant may read and write per turn. A local
@@ -191,6 +204,49 @@ export function createPlatformAiGateway() {
   } else {
     modelAdapters.push(createLocalModelAdapter());
   }
+  // The assistant's picker also offers LM Studio's installed models and
+  // OpenRouter's free ones, each sized to the assistant's context budget.
+  const pickerSizing = {
+    minContextTokens: assistantBudget.contextTokens,
+    maxOutputTokens: assistantBudget.outputTokens,
+    temperature: 0.3,
+  };
+  const localDefault =
+    language && isLoopback(language.baseUrl) ? language.model : undefined;
+  const lmStudioUrl = localDefault
+    ? language?.baseUrl
+    : process.env["LM_STUDIO_MODEL"]
+      ? (process.env["LM_STUDIO_BASE_URL"] ?? "http://127.0.0.1:1234/v1")
+      : undefined;
+  if (lmStudioUrl)
+    modelAdapters.push(
+      createOpenAiCatalogAdapter({
+        ...pickerSizing,
+        id: LM_STUDIO_CATALOG_TARGET,
+        catalog: "lm-studio",
+        baseUrl: lmStudioUrl,
+        timeoutMs: language?.timeoutMs ?? 600_000,
+        // Briefing packs run on the configured model; switching the
+        // assistant never unloads it, and the picker offers it once.
+        keepLoaded: [
+          ...(localDefault ? [localDefault] : []),
+          ...(process.env["LM_STUDIO_MODEL"]
+            ? [process.env["LM_STUDIO_MODEL"]]
+            : []),
+        ],
+        exclude: localDefault ? [localDefault] : [],
+      }),
+    );
+  const openRouterKey = process.env["OPENROUTER_API_KEY"]?.trim();
+  if (openRouterKey)
+    modelAdapters.push(
+      createOpenAiCatalogAdapter({
+        ...pickerSizing,
+        id: OPENROUTER_CATALOG_TARGET,
+        catalog: "openrouter-free",
+        apiKey: openRouterKey,
+      }),
+    );
   if (process.env["ANTHROPIC_API_KEY"]) {
     modelAdapters.push(
       createAnthropicModelAdapter({
@@ -430,7 +486,55 @@ export function createPlatformAiGateway() {
       targetId: language ? INTERVIEW_ASSISTANT_TARGET : languageTargetId,
       taskTypes: ["structured-chat", "structured-generation"],
       enabled: true,
+      // The picker names the model itself; the provider heads its group.
+      listing: {
+        name: language?.model ?? "Draft model",
+        shortName: language?.model.split("/").at(-1) ?? "Default",
+        tags: localDefault ? ["loaded"] : [],
+        vision: false,
+        reasoning: false,
+        tools: true,
+        contextWindow: assistantBudget.contextTokens,
+        local: localDefault !== undefined,
+        provider: {
+          name: language?.label ?? "Draft model",
+          ...(language ? { endpoint: new URL(language.baseUrl).host } : {}),
+          local: localDefault !== undefined,
+        },
+      },
     },
+    // Model catalogs: each lists models as `<profile id>/<model>`.
+    ...(lmStudioUrl
+      ? [
+          {
+            id: "lm-studio",
+            label: "LM Studio",
+            family: "direct-model" as const,
+            targetId: LM_STUDIO_CATALOG_TARGET,
+            taskTypes: ["structured-chat"],
+            enabled: true,
+            catalog: true,
+          },
+        ]
+      : []),
+    ...(openRouterKey
+      ? [
+          {
+            id: "openrouter",
+            label: "OpenRouter · free",
+            family: "direct-model" as const,
+            targetId: OPENROUTER_CATALOG_TARGET,
+            taskTypes: ["structured-chat"],
+            enabled: true,
+            catalog: true,
+          },
+        ]
+      : []),
+    // Claude Code and Codex through their CLI logins, run by the agent worker.
+    ...((process.env["AGENT_PAYLOAD_SECRET"] ??
+    process.env["CONNECTED_ACCOUNT_SECRET"])
+      ? agentAssistantProfiles()
+      : []),
     {
       id: INTERVIEW_ANSWER_PROFILE,
       label: "Interview answers",

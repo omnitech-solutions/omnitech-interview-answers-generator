@@ -1,22 +1,17 @@
-import type {
-  ModelInput,
-  ModelInfo,
-  ModelPart,
-  Scope,
-} from "@omnitech-assistant/contracts";
-import type { ModelSource } from "@omnitech-assistant/providers";
+import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
+import type { AiStructuredChatRequest } from "@omnitech/ai-contracts";
+import type { AiProfile } from "@omnitech/ai-runtime";
 import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
-import { getPlatformDatabase } from "@omnitech/database";
+import type { getPlatformDatabase } from "@omnitech/database";
 import { resolveAgentProfiles } from "./ai-config";
 
-// The central profile each assistant agent model runs under.
+// The central agent profile each assistant agent model runs under.
 const profileOf = (runtime: Runtime) =>
   resolveAgentProfiles().get(`assistant-${runtime}`);
 
-const PREFIX = "agent/";
 const RUNTIMES = {
   "claude-code": { name: "Claude Code" },
   codex: { name: "Codex" },
@@ -64,18 +59,18 @@ const unavailable = {
 } as unknown as ModelPart;
 
 /**
- * Claude Code and Codex, signed in through their CLIs, as assistant models.
- * [SAFETY] Next.js never starts an agent: each turn is a bounded, read-only,
- * tool-less job that the isolated agent worker runs, and its text streams
- * back from the job's events. Stopping the reply cancels the job.
+ * Claude Code and Codex, signed in through their CLIs, as gateway profiles
+ * the assistant's picker lists (`agent/claude-code`, `agent/codex`).
  */
-export function createAgentModels(secret: string): ModelSource {
-  const database = getPlatformDatabase();
-  const jobs = new PostgresAgentJobRepository(database);
-  const payloads = new AgentPayloadStore(database, secret);
-  const models: ModelInfo[] = (Object.keys(RUNTIMES) as Runtime[]).map(
-    (runtime) => ({
-      id: `${PREFIX}${runtime}`,
+export function agentAssistantProfiles(): AiProfile[] {
+  return (Object.keys(RUNTIMES) as Runtime[]).map((runtime) => ({
+    id: `agent/${runtime}`,
+    label: RUNTIMES[runtime].name,
+    family: "agent-runtime",
+    targetId: runtime,
+    taskTypes: ["structured-chat"],
+    enabled: true,
+    listing: {
       name: RUNTIMES[runtime].name,
       description: `Runs ${profileOf(runtime)?.model} through your ${RUNTIMES[runtime].name} login. Answers questions; can't propose changes to your pack.`,
       tags: [],
@@ -84,73 +79,69 @@ export function createAgentModels(secret: string): ModelSource {
       reasoning: true,
       tools: false,
       local: false,
-    }),
-  );
-  return {
-    catalog: {
-      list: async () => ({
-        models,
-        provider: { name: "Agents · your CLI login", local: false },
-      }),
+      provider: { name: "Agents · your CLI login", local: false },
     },
-    port: {
-      async *stream(scope: Scope, input: ModelInput, signal: AbortSignal) {
-        const runtime = input.profileId.slice(PREFIX.length) as Runtime;
-        if (!(runtime in RUNTIMES))
-          throw new Error("Unknown agent model profile");
-        const central = profileOf(runtime);
-        if (!central) throw new Error("Unknown agent model profile");
-        // The turn's reply schema is the only per-run addition.
-        const profile = input.schema
-          ? {
-              ...central,
-              outputSchema: input.schema as Record<string, unknown>,
-            }
-          : central;
-        const job = await jobs.create({
-          tenantId: scope.tenantId,
-          userId: scope.actorId,
-          productId: scope.productId,
-          profile,
-          promptReference: await payloads.save(scope.tenantId, promptOf(input)),
-        });
-        // Follow the job's events until it finishes; cancel it if the turn stops.
-        let after = 0;
-        let streamed = false;
-        try {
-          for (;;) {
-            signal.throwIfAborted();
-            for (const { sequence, event } of await jobs.eventsAfter(
-              job.id,
-              after,
-            )) {
-              after = sequence;
-              if (event.type === "text-delta" && event.text) {
-                streamed = true;
-                yield { type: "text", text: event.text } as ModelPart;
-              } else if (event.type === "completed") {
-                const output = event.result.output;
-                if (!streamed && output !== undefined)
-                  yield {
-                    type: "text",
-                    text:
-                      typeof output === "string"
-                        ? output
-                        : JSON.stringify(output),
-                  } as ModelPart;
-                yield unavailable;
-                return;
-              } else if (event.type === "failed") {
-                throw new Error(`Agent run failed: ${event.error.code}`);
-              }
-            }
-            await new Promise((resolve) => setTimeout(resolve, 100));
-          }
-        } finally {
-          if (signal.aborted)
-            await jobs.requestCancellation(scope.tenantId, job.id);
+  }));
+}
+
+/**
+ * One assistant turn on an agent profile, as streamed model parts.
+ * [SAFETY] Next.js never starts an agent: each turn is a bounded, read-only,
+ * tool-less job that the isolated agent worker runs, and its text streams
+ * back from the job's events. Stopping the reply cancels the job.
+ */
+export async function* streamAgentTurn(
+  database: ReturnType<typeof getPlatformDatabase>,
+  secret: string,
+  request: AiStructuredChatRequest,
+  gatewayProfile: AiProfile,
+): AsyncIterable<ModelPart> {
+  const runtime = gatewayProfile.targetId as Runtime;
+  const central = runtime in RUNTIMES ? profileOf(runtime) : undefined;
+  if (!central) throw new Error("Unknown agent model profile");
+  // The turn's reply schema is the only per-run addition.
+  const profile = request.schema
+    ? { ...central, outputSchema: request.schema as Record<string, unknown> }
+    : central;
+  const signal = request.signal ?? new AbortController().signal;
+  const jobs = new PostgresAgentJobRepository(database);
+  const payloads = new AgentPayloadStore(database, secret);
+  const { tenantId } = request.context;
+  const job = await jobs.create({
+    tenantId,
+    userId: request.context.userId,
+    productId: request.context.productId,
+    profile,
+    promptReference: await payloads.save(tenantId, promptOf(request)),
+  });
+  // Follow the job's events until it finishes; cancel it if the turn stops.
+  let after = 0;
+  let streamed = false;
+  try {
+    for (;;) {
+      signal.throwIfAborted();
+      for (const { sequence, event } of await jobs.eventsAfter(job.id, after)) {
+        after = sequence;
+        if (event.type === "text-delta" && event.text) {
+          streamed = true;
+          yield { type: "text", text: event.text } as ModelPart;
+        } else if (event.type === "completed") {
+          const output = event.result.output;
+          if (!streamed && output !== undefined)
+            yield {
+              type: "text",
+              text:
+                typeof output === "string" ? output : JSON.stringify(output),
+            } as ModelPart;
+          yield unavailable;
+          return;
+        } else if (event.type === "failed") {
+          throw new Error(`Agent run failed: ${event.error.code}`);
         }
-      },
-    },
-  };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  } finally {
+    if (signal.aborted) await jobs.requestCancellation(tenantId, job.id);
+  }
 }

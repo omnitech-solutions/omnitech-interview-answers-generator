@@ -1,5 +1,10 @@
 import { scopeSchema } from "@omnitech-assistant/contracts";
-import type { ModelPort, Scope } from "@omnitech-assistant/contracts";
+import type {
+  ModelInfo,
+  ModelPart,
+  ModelPort,
+  Scope,
+} from "@omnitech-assistant/contracts";
 import type {
   AiAccessContext,
   AiEvent,
@@ -7,6 +12,7 @@ import type {
   AiExecutionGateway,
   AiExecutionRequest,
   AiResumeRequest,
+  AiTargetFilter,
   AiTargetSummary,
   AiStructuredChatRequest,
   ImageProviderAdapter,
@@ -20,6 +26,11 @@ export interface AiProfile {
   targetId: string;
   taskTypes: readonly string[];
   enabled: boolean;
+  // How a model picker presents this profile's model.
+  listing?: Omit<ModelInfo, "id">;
+  // The target is a model catalog: the profile serves every model its
+  // adapter lists whose id starts with `${id}/`.
+  catalog?: boolean;
 }
 
 export interface AgentExecutionPort {
@@ -33,6 +44,11 @@ export interface AgentExecutionPort {
   ): AsyncIterable<AiEvent>;
   cancel(executionId: string): Promise<void>;
   resume(request: AiResumeRequest): AsyncIterable<AiEvent>;
+  // Assistant turns on an agent runtime, as streamed model parts.
+  streamStructured?(
+    request: AiStructuredChatRequest,
+    profile: AiProfile,
+  ): AsyncIterable<ModelPart>;
 }
 
 export interface CreateAiExecutionGatewayOptions {
@@ -74,19 +90,72 @@ export function createAiExecutionGateway(
     options.images.map((adapter) => [adapter.providerId, adapter]),
   );
 
+  // The models a catalog profile offers now; a failed listing offers none.
+  async function catalogModels(
+    profile: AiProfile,
+    context: AiAccessContext,
+  ): Promise<readonly ModelInfo[]> {
+    const listed = await models
+      .get(profile.targetId)
+      ?.listModels?.(context)
+      .catch(() => []);
+    return (listed ?? []).filter((model) =>
+      model.id.startsWith(`${profile.id}/`),
+    );
+  }
+
   async function resolve(request: AiExecutionRequest): Promise<AiProfile> {
-    const profile = request.profileId
-      ? profiles.get(request.profileId)
-      : undefined;
-    if (!profile?.enabled || !profile.taskTypes.includes(request.task.type)) {
-      throw new Error("The requested AI profile is unavailable for this task.");
+    const unavailable = () =>
+      new Error("The requested AI profile is unavailable for this task.");
+    // A structured-chat id `<catalog>/<model>` names a model of a catalog
+    // profile when no profile has that exact id.
+    const id = request.profileId ?? "";
+    const catalog =
+      !profiles.has(id) && request.task.type === "structured-chat"
+        ? profiles.get(id.split("/")[0] ?? "")
+        : undefined;
+    const profile = catalog?.catalog ? catalog : profiles.get(id);
+    if (
+      !profile?.enabled ||
+      (profile.catalog && profile !== catalog) ||
+      !profile.taskTypes.includes(request.task.type)
+    ) {
+      throw unavailable();
     }
     if (!(await options.authorize(request.context, profile))) {
       throw new Error(
         "The current tenant is not authorized for this AI profile.",
       );
     }
+    // [SAFETY] Only a model the catalog lists now may run, so a key limited
+    // to free models never reaches an unlisted (paid) one.
+    if (
+      profile.catalog &&
+      !(await catalogModels(profile, request.context)).some(
+        (model) => model.id === id,
+      )
+    ) {
+      throw unavailable();
+    }
     return profile;
+  }
+
+  // A profile's own target summary, as listed before catalogs existed.
+  function summaryOf(profile: AiProfile): AiTargetSummary {
+    const modelId = models.get(profile.targetId)?.modelId;
+    return {
+      id: profile.id,
+      label: profile.label,
+      ...(modelId === undefined ? {} : { modelId }),
+      family: profile.family,
+      kind: profile.taskTypes.some((type) => type.startsWith("image-"))
+        ? "image"
+        : "language",
+      capabilities: [...profile.taskTypes],
+      ...(profile.listing
+        ? { listing: { id: profile.id, ...profile.listing } }
+        : {}),
+    };
   }
 
   return {
@@ -97,8 +166,13 @@ export function createAiExecutionGateway(
         profileId: request.profileId,
         task: { type: "structured-chat", prompt: "" },
       });
-      if (profile.family !== "direct-model")
-        throw new Error("The profile cannot execute structured chat.");
+      if (profile.family === "agent-runtime") {
+        if (!options.agents.streamStructured)
+          throw new Error("The profile cannot execute structured chat.");
+        request.signal?.throwIfAborted();
+        yield* options.agents.streamStructured(request, profile);
+        return;
+      }
       const adapter = models.get(profile.targetId);
       if (!adapter?.streamStructured)
         throw new Error(
@@ -147,22 +221,31 @@ export function createAiExecutionGateway(
     cancel: (executionId) => options.agents.cancel(executionId),
     resume: <T>(request: AiResumeRequest) =>
       options.agents.resume(request) as AsyncIterable<AiEvent<T>>,
-    async listAvailableTargets(context) {
+    async listAvailableTargets(context, filter?: AiTargetFilter) {
       const visible: AiTargetSummary[] = [];
       for (const profile of profiles.values()) {
-        if (!profile.enabled || !(await options.authorize(context, profile)))
+        if (
+          !profile.enabled ||
+          (filter?.taskType && !profile.taskTypes.includes(filter.taskType)) ||
+          // Catalogs list their models only for a task, never by default.
+          (profile.catalog && !filter?.taskType) ||
+          !(await options.authorize(context, profile))
+        )
           continue;
-        const modelId = models.get(profile.targetId)?.modelId;
-        visible.push({
-          id: profile.id,
-          label: profile.label,
-          ...(modelId === undefined ? {} : { modelId }),
-          family: profile.family,
-          kind: profile.taskTypes.some((type) => type.startsWith("image-"))
-            ? "image"
-            : "language",
-          capabilities: [...profile.taskTypes],
-        });
+        if (!profile.catalog) {
+          visible.push(summaryOf(profile));
+          continue;
+        }
+        for (const model of await catalogModels(profile, context))
+          visible.push({
+            id: model.id,
+            label: model.name,
+            modelId: model.id.slice(profile.id.length + 1),
+            family: profile.family,
+            kind: "language",
+            capabilities: [...profile.taskTypes],
+            listing: model,
+          });
       }
       return visible;
     },

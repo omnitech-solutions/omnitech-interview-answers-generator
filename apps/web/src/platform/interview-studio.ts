@@ -108,7 +108,13 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
     ) => platform.tenantTransaction(tenantId, (client) => fn(rowsOf(client))),
   };
   const relay = new PostgresModelRelay(database);
-  const assistantModels = createAssistantModels(ai, language, relay);
+  // The on-device model is offered only when a model is pinned; the panel
+  // hides it in browsers without WebGPU.
+  const assistantModels = createAssistantModels(
+    ai,
+    relay,
+    Boolean(process.env["NEXT_PUBLIC_ON_DEVICE_MODEL_SHA256"]),
+  );
   return createInterviewStudio({
     database,
     relay,

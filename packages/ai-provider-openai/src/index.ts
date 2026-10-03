@@ -159,3 +159,8 @@ export function createOpenAiModelAdapter(
     },
   };
 }
+
+export {
+  createOpenAiCatalogAdapter,
+  type OpenAiCatalogAdapterOptions,
+} from "./catalog.js";

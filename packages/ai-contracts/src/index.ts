@@ -1,4 +1,8 @@
-import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
+import type {
+  ModelInfo,
+  ModelInput,
+  ModelPart,
+} from "@omnitech-assistant/contracts";
 export type AiExecutionFamily = "direct-model" | "agent-runtime";
 export type AiModelKind = "language" | "embedding" | "image" | "multimodal";
 export type AiTaskType =
@@ -138,6 +142,13 @@ export interface AiTargetSummary {
   family: AiExecutionFamily;
   kind: AiModelKind;
   capabilities: readonly string[];
+  // How a model picker presents this target.
+  listing?: ModelInfo;
+}
+
+// Narrows a target listing to one task; catalog targets list only then.
+export interface AiTargetFilter {
+  taskType?: AiTaskType;
 }
 
 export interface AiStructuredChatRequest extends ModelInput {
@@ -150,6 +161,8 @@ export interface ModelProviderAdapter {
   streamStructured?(request: AiStructuredChatRequest): AsyncIterable<ModelPart>;
   readonly modelId?: string;
   readonly capabilities: ModelCapabilities;
+  // A catalog target (one endpoint, many models): the models it offers now.
+  listModels?(context: AiAccessContext): Promise<readonly ModelInfo[]>;
   execute(request: AiExecutionRequest): Promise<AiExecution>;
   stream(request: AiExecutionRequest): AsyncIterable<AiEvent>;
 }
@@ -178,7 +191,10 @@ export interface AiExecutionGateway {
   stream<T = unknown>(request: AiExecutionRequest): AsyncIterable<AiEvent<T>>;
   cancel(executionId: string): Promise<void>;
   resume<T = unknown>(request: AiResumeRequest): AsyncIterable<AiEvent<T>>;
-  listAvailableTargets(context: AiAccessContext): Promise<AiTargetSummary[]>;
+  listAvailableTargets(
+    context: AiAccessContext,
+    filter?: AiTargetFilter,
+  ): Promise<AiTargetSummary[]>;
 }
 
 /** Validate the portable JSON-schema subset used at the provider boundary. */
