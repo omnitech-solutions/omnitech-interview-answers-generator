@@ -398,8 +398,10 @@ describe("behavioural and logistics", () => {
     const missing = screen.getByRole("region", { name: "What is missing" });
     expect(missing).toHaveTextContent("Compensation");
     expect(missing).toHaveTextContent(
-      "These preferences are unset even if this question did not ask about them.",
+      "No matching approved preference line was found for these fields, even if this question did not ask about them.",
     );
-    expect(missing).toHaveTextContent("Add it to your candidate context");
+    expect(missing).toHaveTextContent(
+      "No matching approved preference line was found. Add it to your candidate context",
+    );
   });
 });

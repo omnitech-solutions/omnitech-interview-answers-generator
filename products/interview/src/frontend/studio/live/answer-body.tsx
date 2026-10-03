@@ -93,15 +93,15 @@ function Logistics({ answer }: { answer: AnswerResult }) {
         <section aria-label="What is missing" className="live-missing">
           <h4>What is missing</h4>
           <p className="live-note">
-            These preferences are unset even if this question did not ask about
-            them.
+            No matching approved preference line was found for these fields,
+            even if this question did not ask about them.
           </p>
           <ul>
             {logistics.missing.map((field) => (
               <li key={field}>
-                <strong>{LOGISTICS_LABEL[field]}</strong>: not in your approved
-                preferences. Add it to your candidate context, or answer in your
-                own words.
+                <strong>{LOGISTICS_LABEL[field]}</strong>: No matching approved
+                preference line was found. Add it to your candidate context, or
+                answer in your own words.
               </li>
             ))}
           </ul>
