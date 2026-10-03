@@ -39,10 +39,11 @@ Crux is the only development workflow (ADR-0001).
 
 ## Architecture rules — do not violate
 
-1. Compare small, intermediate, and distributed options and choose the smallest
-   that meets current requirements. Surface a scope checkpoint before a change
-   that adds infrastructure or exceeds 1,000 changed lines. Add an abstraction
-   only for a second implementation or an independent lifecycle. (ADR-0002)
+1. Simplicity first: choose the least complex design that meets current
+   requirements, with no speculative layers, libraries, or infrastructure.
+   Add an abstraction only for a second implementation or an independent
+   lifecycle. Surface a scope checkpoint before a change that adds
+   infrastructure or exceeds 1,000 changed lines. (ADR-0002)
 2. Each package has one responsibility and one public entrypoint per runtime
    surface; never import another package's internal files. `database` owns
    connectivity, `withTenant()`, and migrations; domain packages own their
