@@ -665,6 +665,42 @@
     "source_adr": "ADR-0013",
     "source_status": "Accepted"
   },
+  "ADR-0014/claude-supported-lifecycle": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Claude uses only the installed TypeScript Agent SDK's supported session lifecycle; isolated structured jobs remain one-shot, and persistent sessions require measured benefit and safe closure.",
+    "source_adr": "ADR-0014",
+    "source_status": "Proposed"
+  },
+  "ADR-0014/codex-transport-parity": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A Codex App Server migration requires a pinned, tested protocol and parity for structured output, streaming, interruption, recovery, and local authentication before replacing the SDK path.",
+    "source_adr": "ADR-0014",
+    "source_status": "Proposed"
+  },
+  "ADR-0014/one-terminal-outcome": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Each agent execution emits exactly one terminal outcome after all accepted events, including failure, cancellation, and stream exceptions.",
+    "source_adr": "ADR-0014",
+    "source_status": "Proposed"
+  },
+  "ADR-0014/worker-owned-isolated-sessions": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The agent worker owns bounded provider processes and sessions; no session or process may carry private context across tenants or independent jobs.",
+    "source_adr": "ADR-0014",
+    "source_status": "Proposed"
+  },
   "retired_slugs": {
     "complete-session-purge": [
       "ADR-0013/complete-purge-except-retained-drafts"
@@ -687,6 +723,8 @@
     "bounded-ingest": "ADR-0012/bounded-ingest",
     "captured-input-untrusted": "ADR-0012/captured-input-untrusted",
     "claim-writes-lease-and-fence-only": "ADR-0012/claim-writes-lease-and-fence-only",
+    "claude-supported-lifecycle": "ADR-0014/claude-supported-lifecycle",
+    "codex-transport-parity": "ADR-0014/codex-transport-parity",
     "complete-purge-except-retained-drafts": "ADR-0013/complete-purge-except-retained-drafts",
     "composite-owner-references": "ADR-0012/composite-owner-references",
     "credential-held-securely": "ADR-0012/credential-held-securely",
@@ -725,6 +763,7 @@
     "no-second-scorecard": "ADR-0012/no-second-scorecard",
     "no-undetectability-or-evasion": "ADR-0011/no-undetectability-or-evasion",
     "offline-local-stop": "ADR-0013/offline-local-stop",
+    "one-terminal-outcome": "ADR-0014/one-terminal-outcome",
     "outage-never-stops-capture": "ADR-0013/outage-never-stops-capture",
     "owner-checked-read-paths": "ADR-0012/owner-checked-read-paths",
     "owner-chooses-retention": "ADR-0012/owner-chooses-retention",
@@ -752,6 +791,7 @@
     "transcripts-in-observations": "ADR-0012/transcripts-in-observations",
     "unlisted-stage-refused": "ADR-0012/unlisted-stage-refused",
     "versioned-wire-contract": "ADR-0011/versioned-wire-contract",
-    "worker-hosted-processor": "ADR-0011/worker-hosted-processor"
+    "worker-hosted-processor": "ADR-0011/worker-hosted-processor",
+    "worker-owned-isolated-sessions": "ADR-0014/worker-owned-isolated-sessions"
   }
 }

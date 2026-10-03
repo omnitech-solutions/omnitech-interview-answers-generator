@@ -5,21 +5,21 @@ book_content_hash: sha256:127b071b96eba5747128421926780f0e9c2fc4f20980526ded5053
 started_at: '2026-10-03T22:48:09Z'
 completed_at: null
 status: in_progress
-current_prompt: 1
+current_prompt: 2
 base_commit: fe8ed2071462a2d09b4881f982a18728bcd407ea
 prompts:
 - n: 1
   title: 'Plan #1: spawn planning team, propose ADR for agent runtime lifecycle, transport, and terminal-event
     semantics'
-  state: pending
-  started: null
-  completed: null
-  result: ''
-  artifacts: []
+  state: "done"
+  started: "2026-10-03T22:52:51Z"
+  completed: "2026-10-03T22:52:51Z"
+  result: "Two independent runtime analyses and docs query synthesized; ADR-0014 Proposed with four governing rules. Codex and Claude terminal-event hazards identified; App Server and persistent Claude paths gated by supported API and measurement. Advisory returned no warnings."
+  artifacts: ["bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md", "bionic/adrs/index.md", "bionic/adrs/summaries/rule-table.md"]
 - n: 2
   title: 'Plan #1: convene LLM council to review the ADR'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T22:52:51Z"
   completed: null
   result: ''
   artifacts: []

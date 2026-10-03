@@ -78,6 +78,10 @@ _Handle -> governing rule, projected from ADR `governs` blocks. Regenerated; edi
 | ADR-0013/owner-starts-and-resumes | active-session | Only the owner's session control starts or resumes a session. | session status machine and capture companion | authored | ADR-0013 |
 | ADR-0013/pause-only-credential-stop | active-session | An expired, revoked or missing credential, a heartbeat reporting `capturing: false`, or silence past the heartbeat limit after prior contact pauses an active session and never ends it. | session status machine, ingest and the capture companion | authored | ADR-0013 |
 | ADR-0013/purge-keeps-adopted-drafts | active-session-privacy | The purge deletes a session-created draft only while it is unchanged since the session last published it and no saved answer revision or revert record names it; retained drafts may contain session content. | session draft purger | authored | ADR-0013 |
+| ADR-0014/claude-supported-lifecycle | agent-runtime | Claude uses only the installed TypeScript Agent SDK's supported session lifecycle; isolated structured jobs remain one-shot, and persistent sessions require measured benefit and safe closure. | packages/agent-runtime-claude | authored | ADR-0014 |
+| ADR-0014/codex-transport-parity | agent-runtime | A Codex App Server migration requires a pinned, tested protocol and parity for structured output, streaming, interruption, recovery, and local authentication before replacing the SDK path. | packages/agent-runtime-codex | authored | ADR-0014 |
+| ADR-0014/one-terminal-outcome | agent-runtime | Each agent execution emits exactly one terminal outcome after all accepted events, including failure, cancellation, and stream exceptions. | packages/agent-runtime-contracts and packages/agent-runtime-* | authored | ADR-0014 |
+| ADR-0014/worker-owned-isolated-sessions | agent-runtime | The agent worker owns bounded provider processes and sessions; no session or process may carry private context across tenants or independent jobs. | apps/agent-worker and packages/agent-runtime-* | authored | ADR-0014 |
 
 ## Retired handles
 

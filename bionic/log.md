@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] adr | ADR-0014: Use worker-owned agent sessions with one terminal outcome
+
+Proposed. File `bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md`. Tags: ai, agents, runtime, reliability, streaming.
+
 ## [2026-10-03] promptbook | started PB-0003-agent-runtime-reliability-and-document-generation/RUN-001
 
 PB-0003, RUN-001: 21 prompts; current_prompt: 1.
