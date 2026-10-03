@@ -33,6 +33,7 @@ const contracts = new Set([
   "@omnitech/ai-contracts",
   "@omnitech/interview-contracts",
   "@omnitech/agent-runtime-contracts",
+  "@omnitech/active-session-contracts",
 ]);
 const agentRuntimes = new Set([
   "@omnitech/agent-runtime-claude",
