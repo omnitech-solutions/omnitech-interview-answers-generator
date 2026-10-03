@@ -169,7 +169,7 @@ function agentJobLoop(
     run: (signal) =>
       runAgentWorker(
         {
-          workerId: env["AGENT_WORKER_ID"] ?? crypto.randomUUID(),
+          workerId: `${env["AGENT_WORKER_ID"] ?? "worker"}:${crypto.randomUUID()}`,
           // Interactive turns (the assistant) wait on this; an idle claim is one
           // cheap indexed query.
           ...workerSettings(env),

@@ -89,6 +89,51 @@ function repositoryFor(
 }
 
 describe("agent worker lifecycle", () => {
+  it("keeps claiming after one claim attempt fails", async () => {
+    const controller = new AbortController();
+    const repository = repositoryFor(job(), () => controller.abort());
+    const claim = repository.claim.bind(repository);
+    let attempts = 0;
+    repository.claim = async (...args) => {
+      if (++attempts === 1) throw new Error("transient claim error");
+      return claim(...args);
+    };
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository,
+        runtimes: {},
+        loadPrompt: async () => "unused",
+        pollIntervalMs: 1,
+        concurrency: 2,
+      },
+      controller.signal,
+    );
+    expect(attempts).toBeGreaterThan(1);
+    expect(repository.transitions).toContain("failed");
+  });
+
+  it("keeps sibling loops alive when a lifecycle write unexpectedly fails", async () => {
+    const controller = new AbortController();
+    const repository = repositoryFor(job(), () => controller.abort());
+    repository.appendEvent = async () => {
+      throw new Error("transient event write error");
+    };
+    await expect(
+      runAgentWorker(
+        {
+          workerId: "worker",
+          repository,
+          runtimes: {},
+          loadPrompt: async () => "unused",
+          pollIntervalMs: 1,
+          concurrency: 2,
+        },
+        controller.signal,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("persists awaiting-input instead of publishing a partial result", async () => {
     const controller = new AbortController();
     const repository = repositoryFor(job(), () => controller.abort());
@@ -126,6 +171,38 @@ describe("agent worker lifecycle", () => {
       "awaiting-input",
     ]);
     expect(repository.events.at(-1)?.type).toBe("awaiting-input");
+  });
+
+  it("fails a runtime that ends without a terminal event", async () => {
+    const controller = new AbortController();
+    const repository = repositoryFor(job(), () => controller.abort());
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository,
+        runtimes: {
+          "claude-code": {
+            runtime: "claude-code",
+            capabilities: {
+              resume: false,
+              structuredOutput: true,
+              attachments: false,
+              tools: false,
+            },
+            async *run(): AsyncIterable<AgentEvent> {},
+            async *resume(): AsyncIterable<AgentEvent> {},
+            async cancel() {},
+          },
+        },
+        loadPrompt: async () => "write",
+      },
+      controller.signal,
+    );
+    expect(repository.transitions.at(-1)).toBe("failed");
+    expect(repository.events.at(-1)).toMatchObject({
+      type: "failed",
+      error: { code: "infrastructure" },
+    });
   });
 
   it("resumes a checkpoint and stores the completed result", async () => {
@@ -572,6 +649,27 @@ describe("agent worker lease and cancellation", () => {
     ]);
   });
 
+  it("stops after two failed lease renewal attempts", async () => {
+    const cancelled: string[] = [];
+    let attempts = 0;
+    const { done, transitions } = run(
+      {
+        async renewLease() {
+          attempts += 1;
+          throw new Error("database unavailable");
+        },
+      },
+      quietRuntime(cancelled),
+    );
+    await done;
+    expect(attempts).toBe(2);
+    expect(cancelled).toHaveLength(1);
+    expect(transitions.map(([status]) => status)).toEqual([
+      "starting",
+      "running",
+    ]);
+  });
+
   it("notices a cancel on its heartbeat when the agent is quiet", async () => {
     const cancelled: string[] = [];
     const { done } = run(
@@ -615,7 +713,7 @@ describe("agent worker lease and cancellation", () => {
         transitions.push(next);
         return next !== "succeeded";
       },
-    } as AgentJobWorkerRepository;
+    } as AgentJobWorkerRepository & { events: AgentEvent[] };
     await runAgentWorker(
       {
         workerId: "worker",
@@ -642,5 +740,9 @@ describe("agent worker lease and cancellation", () => {
       controller.signal,
     );
     expect(transitions.slice(-2)).toEqual(["succeeded", "cancelled"]);
+    expect(repository.events.at(-1)).toMatchObject({
+      type: "failed",
+      error: { code: "cancelled" },
+    });
   });
 });

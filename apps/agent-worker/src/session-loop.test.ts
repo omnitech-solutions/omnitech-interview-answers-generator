@@ -83,10 +83,10 @@ describe("session loop", () => {
   });
 
   it("derives a unique session worker id from the same base as the job loop", () => {
-    expect(sessionWorkerId({ AGENT_WORKER_ID: "w1" })).toBe("w1:session");
-    const a = sessionWorkerId({});
-    const b = sessionWorkerId({});
-    expect(a).toMatch(/:session$/);
+    const a = sessionWorkerId({ AGENT_WORKER_ID: "w1" });
+    const b = sessionWorkerId({ AGENT_WORKER_ID: "w1" });
+    expect(a).toMatch(/^w1:[0-9a-f-]{36}:session$/);
     expect(a).not.toBe(b);
+    expect(sessionWorkerId({})).toMatch(/^worker:[0-9a-f-]{36}:session$/);
   });
 });

@@ -182,7 +182,7 @@ describe("configured agent worker", () => {
       status: "succeeded",
       sessionId: "thread-1",
       // One of the worker's loops, each under its own id.
-      claimedBy: expect.stringMatching(/^worker-codex(:\d+)?$/),
+      claimedBy: expect.stringMatching(/^worker-codex:[0-9a-f-]{36}:\d+$/),
     });
     expect(await eventTypes(job.id)).toEqual([
       "started",
@@ -287,6 +287,12 @@ describe("configured agent worker", () => {
     );
 
     expect(done.status).toBe("failed");
+    expect(
+      (await jobs.eventsAfter(tenantId, userId, job.id, 0)).at(-1)?.event,
+    ).toMatchObject({
+      type: "failed",
+      error: { code: "configuration" },
+    });
   });
 
   it("refuses to start without a payload secret", async () => {

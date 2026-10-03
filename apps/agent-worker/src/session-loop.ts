@@ -21,7 +21,7 @@ export type SessionLoopOptions = {
 
 export const sessionWorkerId = (
   env: Readonly<Record<string, string | undefined>>,
-): string => `${env["AGENT_WORKER_ID"] ?? randomUUID()}:session`;
+): string => `${env["AGENT_WORKER_ID"] ?? "worker"}:${randomUUID()}:session`;
 
 const NAME = /^[A-Za-z0-9_.-]{1,64}$/;
 // Only the error's name, and only when it is name-shaped; never its message.

@@ -134,7 +134,7 @@ The terminal gateway accepts:
 | --- | --- | --- |
 | `TERMINAL_GATEWAY_PORT` | Local terminal gateway port | `3001` |
 | `TERMINAL_GATEWAY_TOKEN` | Optional WebSocket query-string and HTTP bearer token | Unset |
-| `AGENT_WORKER_ID` | Stable identity used for job leases | Generated UUID |
+| `AGENT_WORKER_ID` | Optional worker name; each startup adds a unique UUID for job leases | `worker` plus UUID |
 | `AGENT_WORKER_CONCURRENCY` | Agent jobs run at once (1–16); keep above `DOCUMENTS_MAX_PARALLEL_CALLS` | `6` |
 | `AGENT_WORKER_LEASE_MS` | Job lease, renewed while a job runs (3000–600000) | `30000` |
 | `AGENT_WORKER_POLL_MS` | Idle claim interval (10–60000) | `100` |
