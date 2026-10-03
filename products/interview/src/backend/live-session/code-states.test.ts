@@ -38,6 +38,35 @@ describe("codeStates", () => {
     expect(states.reasons).toEqual(["constraint_uncovered"]);
   });
 
+  it("review finding 9: one passing test mapped to every constraint is not full verification", () => {
+    // A single empty test named "works" that the solution claims for both
+    // constraints must not verify either of them separately.
+    const states = codeStates({
+      ...base,
+      run: passing("works"),
+      coverage: [
+        { constraintIndex: 0, testName: "works" },
+        { constraintIndex: 1, testName: "works" },
+      ],
+    });
+    expect(states.testsPassed).toBe(true);
+    expect(states.fullyVerified).toBe(false);
+    expect(states.reasons).toEqual(["constraint_shared_test"]);
+  });
+
+  it("finds a distinct test per constraint even when a constraint lists several candidates", () => {
+    const states = codeStates({
+      ...base,
+      run: passing("window", "burst"),
+      coverage: [
+        { constraintIndex: 0, testName: "window" },
+        { constraintIndex: 0, testName: "burst" },
+        { constraintIndex: 1, testName: "window" },
+      ],
+    });
+    expect(states.fullyVerified).toBe(true);
+  });
+
   it("does not count coverage by a test name the runner never reported", () => {
     const states = codeStates({
       ...base,

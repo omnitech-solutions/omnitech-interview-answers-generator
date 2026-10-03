@@ -7,8 +7,11 @@
 //                  test and EVERY reported test passed (a skipped test is not a
 //                  pass);
 //   fullyVerified  testsPassed AND every stated constraint of the task revision
-//                  is covered by a NAMED test that passed AND the syntax check
-//                  was clean.
+//                  has its OWN distinct NAMED test that passed AND the syntax
+//                  check was clean. It means "every constraint has its own
+//                  passing named test", NOT that the tests are adequate: the
+//                  runner reports no assertion counts, so an empty test is not
+//                  distinguishable here and the person must still review them.
 //
 // Tests can pass while fullyVerified is false (a constraint no test names, a
 // syntax check that was not run). `reasons` is a code list that says why a state
@@ -24,6 +27,7 @@ export const CODE_STATE_REASONS = [
   "test_failed",
   "test_skipped",
   "constraint_uncovered",
+  "constraint_shared_test",
   "syntax_unchecked",
   "syntax_errors",
 ] as const;
@@ -91,15 +95,51 @@ export function codeStates(facts: CodeFacts): CodeStates {
       test.name,
       (names.get(test.name) ?? true) && test.status === "passed",
     );
-  const covered = (index: number) =>
-    facts.coverage.some(
-      (entry) =>
-        entry.constraintIndex === index && names.get(entry.testName) === true,
+  // [DOMAIN] And each constraint needs its OWN test: the passing names that
+  // cover constraint i are candidates, and the constraints must be matched to
+  // pairwise distinct names. One test claimed for every constraint verifies
+  // none of them separately. This is a structural check on the solution's own
+  // coverage claim, not a judgement of the tests: the runner reports no
+  // assertion counts, so a test with no assertion cannot be told from a real
+  // one here.
+  const candidates = Array.from(
+    { length: facts.constraintCount },
+    (_, index) => [
+      ...new Set(
+        facts.coverage
+          .filter(
+            (entry) =>
+              entry.constraintIndex === index &&
+              names.get(entry.testName) === true,
+          )
+          .map((entry) => entry.testName),
+      ),
+    ],
+  );
+  const everyConstraintHasATest = candidates.every((list) => list.length > 0);
+  // Distinct representatives by augmenting paths (constraints are few).
+  const owner = new Map<string, number>();
+  const assign = (constraint: number, seen: Set<string>): boolean => {
+    for (const name of candidates[constraint] ?? []) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const holder = owner.get(name);
+      if (holder === undefined || assign(holder, seen)) {
+        owner.set(name, constraint);
+        return true;
+      }
+    }
+    return false;
+  };
+  const allCovered =
+    everyConstraintHasATest &&
+    candidates.every((_, constraint) => assign(constraint, new Set()));
+  if (testsPassed && !allCovered)
+    reasons.push(
+      everyConstraintHasATest
+        ? "constraint_shared_test"
+        : "constraint_uncovered",
     );
-  let allCovered = true;
-  for (let index = 0; index < facts.constraintCount; index += 1)
-    if (!covered(index)) allCovered = false;
-  if (testsPassed && !allCovered) reasons.push("constraint_uncovered");
 
   if (facts.syntax === null) reasons.push("syntax_unchecked");
   else if (!facts.syntax.clean) reasons.push("syntax_errors");
