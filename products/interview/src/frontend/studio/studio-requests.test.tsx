@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSessionStores } from "./live/session-registry";
 import { StudioPage } from "./studio-page";
 
 // Every request the studio makes, and whether its effect later aborted it.
@@ -91,10 +92,18 @@ const SHELL = {
   "GET /api/interview/briefing/artifacts?tenant=local": 1,
   "GET /api/interview/briefs": 1,
   "GET /api/v1/playground-control": 1,
+  // The session store hydrates once for the whole shell (StrictMode included).
+  "GET /api/interview/t/local/sessions/current": 1,
 };
 
-beforeEach(installServer);
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => {
+  resetSessionStores();
+  installServer();
+});
+afterEach(() => {
+  resetSessionStores();
+  vi.unstubAllGlobals();
+});
 
 describe("Interview Studio requests on load", () => {
   it.each([

@@ -94,6 +94,9 @@ async function errorFrom(response: Response): Promise<SessionApiError> {
   } catch {
     // Not JSON: fall through to the status.
   }
+  // No contract body: the status alone still says missing or signed out.
+  if (response.status === 404) return new SessionApiError("not_found", 404);
+  if (response.status === 401) return new SessionApiError("unauthorized", 401);
   return new SessionApiError("invalid_response", response.status);
 }
 

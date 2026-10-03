@@ -118,7 +118,7 @@ export const views: readonly ViewDefinition[] = [
     icon: "sensors",
     goKey: "L",
     render: ({ route, actions }) => (
-      <LiveSessionView rest={route.rest} actions={actions} />
+      <LiveSessionView rest={route.rest} studio={actions} />
     ),
   },
 ];

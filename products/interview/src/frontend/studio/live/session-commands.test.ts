@@ -346,6 +346,27 @@ describe("session commands", () => {
     expect(store.getSnapshot().session?.id).toBe(SESSION_ID);
   });
 
+  it("dismisses a finished session for a fresh setup, but never an open one", async () => {
+    const server = controlledServer();
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await flush();
+    store.actions.dismissFinished();
+    expect(store.getSnapshot().session?.status).toBe("active");
+    await store.actions.end();
+    expect(storage.has("interview-studio.live.ended-session.local")).toBe(true);
+    store.actions.dismissFinished();
+    expect(store.getSnapshot()).toMatchObject({
+      session: null,
+      observations: [],
+      actions: [],
+      endedSessionId: null,
+    });
+    expect(storage.has("interview-studio.live.ended-session.local")).toBe(
+      false,
+    );
+  });
+
   it("reports an address the server does not know", async () => {
     const server = createTestServer();
     const store = boot(server);

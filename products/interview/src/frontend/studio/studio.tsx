@@ -30,6 +30,8 @@ import {
   type StudioViewBinding,
 } from "./context";
 import { Icon } from "./icon";
+import { SessionBar } from "./live/session-bar";
+import { useSessionStoreWatch } from "./live/use-live-session";
 import { Sidebar } from "./sidebar";
 import { studioFetch } from "./studio-fetch";
 import { useShortcuts } from "./use-shortcuts";
@@ -326,6 +328,9 @@ function StudioFrame({
   renderView(actions: StudioActions): ReactNode;
 }) {
   const host = useAssistantHost();
+  // The session store follows the stream for the whole shell lifetime, so the
+  // bar is live on every page and a session survives navigation.
+  useSessionStoreWatch();
   const view = viewById(route.view);
   const width = useWindowWidth();
   // The Workspace gives the room to the question and code: its sidebar is
@@ -431,6 +436,10 @@ function StudioFrame({
         />
       )}
       <main className="studio-main">
+        {/* The Live view carries its own header for the session. */}
+        {route.view !== "live" && (
+          <SessionBar variant="bar" onOpen={() => actions.go("live")} />
+        )}
         <header className="studio-header">
           <span className="studio-header-title">{view.label}</span>
           <div className="studio-header-slot" ref={setHeaderSlot} />

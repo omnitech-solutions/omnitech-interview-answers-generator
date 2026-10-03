@@ -309,6 +309,21 @@ export function createSessionStore(
     set,
     adopt,
     forget,
+    clearFinished() {
+      forget();
+      cursors = { afterSequence: 0 };
+      drained.clear();
+      settleAttempts = 0;
+      clearTimer();
+      set({
+        session: null,
+        observations: [],
+        actions: [],
+        pairing: null,
+        notFoundSessionId: null,
+        streamError: null,
+      });
+    },
     isOpen,
     markCommandAnswered: () => {
       commandEpoch += 1;

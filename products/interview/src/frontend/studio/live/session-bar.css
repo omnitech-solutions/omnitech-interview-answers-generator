@@ -1,0 +1,13 @@
+/* Session bar (live/session-bar.tsx): the persistent control above every
+   Studio page while a session is open. Owned by the session bar unit. */
+.live-session-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px 6px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+}

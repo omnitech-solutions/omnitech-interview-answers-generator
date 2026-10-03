@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useStudio } from "./context";
+import { resetSessionStores } from "./live/session-registry";
 import { Studio } from "./studio";
 
 // The assistant package, with a host the tests can observe and drive.
@@ -154,6 +155,9 @@ function installServer() {
     "fetch",
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const path = String(input);
+      // No Active Session is open: the store hydrates from this once.
+      if (path === "/api/interview/t/local/sessions/current")
+        return Response.json({ error: { code: "not_found" } }, { status: 404 });
       if (path === "/api/v1/playground-control")
         return control
           ? Response.json(control)
@@ -206,6 +210,8 @@ async function renderStudio(path = "/t/local/p/interview") {
 }
 
 beforeEach(() => {
+  // The session store is module-level: each test starts from a fresh page.
+  resetSessionStores();
   vi.unstubAllGlobals();
   listFails = false;
   control = null;

@@ -18,6 +18,8 @@ export type CommandContext = {
   set(patch: Partial<LiveSnapshot>): void;
   adopt(view: LiveSessionView): void;
   forget(): void;
+  // Drop the held finished session and everything read for it.
+  clearFinished(): void;
   isOpen(session: LiveSessionView | null): boolean;
   // Raised on every command response: a stream page that began earlier cannot
   // overwrite the newer session record.
@@ -140,6 +142,10 @@ export function createSessionActions(context: CommandContext): SessionActions {
       }),
     dismissPairing: () => {
       if (context.snapshot().pairing) context.set({ pairing: null });
+    },
+    dismissFinished: () => {
+      const held = context.snapshot().session;
+      if (held && !context.isOpen(held)) context.clearFinished();
     },
     async openSession(id) {
       const held = context.snapshot().session;

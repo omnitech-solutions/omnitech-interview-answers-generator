@@ -77,6 +77,9 @@ export type SessionActions = {
   deleteSession(): Promise<CommandResult>;
   // Forget the held credential (the owner has handed it over).
   dismissPairing(): void;
+  // Leave a finished session's summary for a fresh setup. Only a finished
+  // session is dismissed; an open one is never dropped from the browser.
+  dismissFinished(): void;
   // Track a session by id (a finished one addressed as live/<id>).
   openSession(sessionId: string): Promise<void>;
   // Read the current session again.
