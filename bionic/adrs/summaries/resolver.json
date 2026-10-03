@@ -35,11 +35,91 @@
     "source_adr": "ADR-0009",
     "source_status": "Accepted"
   },
+  "ADR-0010/agreed-visible-assistance": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Active Session assistance makes no undetectability claim, adds no detection evasion, and never submits, messages or operates an external interview interface.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/fenced-current-publish": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A result publishes only while its session lease fence, session status and task revision are all current.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/idempotent-observation-and-dispatch": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Observations are deduplicated by source and event id, and dispatch by session, logical task, task revision and action kind.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/identity-from-credential": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Tenant, actor and session identity come only from a short-lived session credential, never from observation content.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/pause-end-stop-authority": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Pause or end suppresses new dispatch and rejects late publication, and only the authenticated user's session control starts, pauses or stops capture.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/three-concept-split": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "An Interview, an Active Session and an Agent Job are separate records that reference one another and never stand in for one another.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/versioned-wire-contract": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The capture companion and Studio exchange only observations and commands that validate against versioned active-session-contracts schemas.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
+  "ADR-0010/worker-hosted-processor": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The session processor runs in apps/agent-worker as a separately bounded loop beside the agent-job loop, and the neutral session core imports only active-session-contracts.",
+    "source_adr": "ADR-0010",
+    "source_status": "Proposed"
+  },
   "retired_slugs": {},
   "slugs": {
+    "agreed-visible-assistance": "ADR-0010/agreed-visible-assistance",
+    "fenced-current-publish": "ADR-0010/fenced-current-publish",
+    "idempotent-observation-and-dispatch": "ADR-0010/idempotent-observation-and-dispatch",
+    "identity-from-credential": "ADR-0010/identity-from-credential",
     "immutable-document-revisions": "ADR-0009/immutable-document-revisions",
     "interview-owns-documents": "ADR-0009/interview-owns-documents",
     "member-private-documents": "ADR-0009/member-private-documents",
-    "structured-document-generation": "ADR-0009/structured-document-generation"
+    "pause-end-stop-authority": "ADR-0010/pause-end-stop-authority",
+    "structured-document-generation": "ADR-0009/structured-document-generation",
+    "three-concept-split": "ADR-0010/three-concept-split",
+    "versioned-wire-contract": "ADR-0010/versioned-wire-contract",
+    "worker-hosted-processor": "ADR-0010/worker-hosted-processor"
   }
 }

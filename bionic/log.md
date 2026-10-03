@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] adr | ADR-0010: Host the Active Session processor in the agent worker behind a versioned wire contract
+
+Proposed. File `bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md`. Tags: active-session, worker, contracts, privacy, interview.
+
 ## [2026-10-03] promptbook | started PB-0002-active-session-capability-for-interview-studio/RUN-001
 
 book PB-0002, run RUN-001, total_prompts: 29, current_prompt: 1. Base commit 4479e9d on feat/active-session (worktree omnitech-active-session).

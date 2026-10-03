@@ -5,20 +5,20 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 1
+current_prompt: 2
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
   title: 'Plan #1: spawn planning team, propose ADR for the Active Session capability: the bounded session core, the versioned active-session-contracts wire protocol between the capture companion and Studio, the worker-hosted session processor beside the agent-job loop, and the three-concept split between Interview, Active Session and Agent Job'
-  state: pending
-  started: null
-  completed: null
-  result: ''
-  artifacts: []
+  state: "done"
+  started: "2026-10-03T06:44:58Z"
+  completed: "2026-10-03T06:44:58Z"
+  result: "Dispatched 3 foreground planners (session core/contracts; processor placement/jobs; constraint fit/safety), synthesized and proposed ADR-0010 (Proposed, 8 governs rules). Rule-length advisory: no warnings. Body ~100 lines (under 120 budget)."
+  artifacts: ["ADR #1: ADR-0010 (rule:three-concept-split rule:versioned-wire-contract rule:identity-from-credential rule:worker-hosted-processor rule:idempotent-observation-and-dispatch rule:fenced-current-publish rule:pause-end-stop-authority rule:agreed-visible-assistance)", "bionic/adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker.md"]
 - n: 2
   title: 'Plan #1: convene LLM council to review the ADR'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T06:44:58Z"
   completed: null
   result: ''
   artifacts: []
@@ -238,3 +238,5 @@ notes: |
   - E-A2. The replay runs through the real processor and shows: no task opened by backchannel or monologue; one logical task per question with correct revisions; the unsupported-claim case labelled and not promoted; compensation and notice period drafts drawn only from approved candidate-set context; latency p50/p95 recorded at real timing and 4x.
   - E-A3. A leadership/behavioural policy outcome and an engineering-manager fixture set exist, and a live-coding fixture drives the slice 2 path including a mid-exercise constraint change that invalidates the earlier solution.
   - Each item gets verified / contradicted / unobserved with its command and result token in the dispatch reports, like the book's own Evidence.
+pr_draft: ""
+summary: ""
