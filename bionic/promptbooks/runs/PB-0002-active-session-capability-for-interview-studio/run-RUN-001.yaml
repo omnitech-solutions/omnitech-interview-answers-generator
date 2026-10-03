@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 17
+current_prompt: 18
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -122,15 +122,15 @@ prompts:
   artifacts: ["ADR-0011", "ADR-0012"]
 - n: 17
   title: 'Develop #3: derive an implementation plan for slice 1-3 Studio UI: the persistent session control and session view (source status, processing locality, pause and stop, current activity, current question and answer with evidence and transcript beneath) extending the existing Workspace, Briefings, Knowledge, Rehearsal and Assistant surfaces per the Active Session.html reference, surviving navigation between Studio pages (session lifetime not tied to a React component), with Workspace job progress and test output'
-  state: "running"
+  state: "done"
   started: "2026-10-03T13:05:06Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T13:07:40Z"
+  result: "Implementation plan #3 recorded in Notes: ordered units U1-U9, files, risks, gates; rules cited from ADR-0011/0012."
+  artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 18
   title: 'Develop #3: spawn implementation team'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T13:07:40Z"
   completed: null
   result: ''
   artifacts: []
@@ -345,6 +345,33 @@ notes: |
   Residual limits (not defects, recorded): draft-level employer checking is company-name based, so a first-person sentence without a company name and a small figure passes; the leaving-role lexicon catches reasons expressed with cue words only; stricter support rules may raise unsupported_reference suppressions with real model paraphrase (unmeasurable without a live model); no second independent review pass after the fixes, the regression tests and full gates stand in for it.
   Gates after the fixes: pnpm verify as one command -> exit 0 (typecheck 52/52, 202 files / 1876 tests, build 28/28); pnpm vitest run scripts -> 18 passed.
   Evidence dispositions for this loop (E-A1 verified: session-replay-fixtures.test.ts 40 tests and scan over all sets; E-A2 verified: session-replay-evidence.test.ts 28 tests, latency p50/p95 1x and 4x recorded above; E-A3 verified: cases h and i; book Evidence for loop 2: matrix-backed vs interpretation vs general with an eval case where an existing unsupporting entry is rejected -> verified grounding-eval.test.ts and claims-hardening.test.ts; no promotion -> verified no-promotion.test.ts; coding expected-revision publish and three distinct states -> verified session-drafts.test.ts, coding-path.test.ts, code-states.test.ts; captured text cannot grant tools/policy/secrets -> verified prompt-injection.test.ts; sandbox controls -> verified sandbox.test.ts with the real runner flags, real container egress check ran on php image, node image path unobserved; real model compliance, real call workload, ScreenCaptureKit -> unobserved).
+
+  ## Implementation plan #3 (Develop #3, prompt 17): Studio session UI (slices 1-3 browser side)
+
+  Rules implemented (ADR governs handles). ADR-0011: rule:three-concept-split, rule:identity-from-credential (the browser never holds identity or sends it), rule:stop-authority (owner Pause and End always available), rule:pause-end-suppression, rule:fenced-current-publish (the UI shows only current-revision results; a late result is shown as Discarded), rule:no-promotion, rule:no-undetectability-or-evasion and rule:no-external-interface-operation (copy states what Studio never does; no claim of being hidden). ADR-0012: rule:owner-checked-read-paths (every new read is owner-scoped; another member gets 404), rule:inert-draft-rendering (drafts, claims, quotes and transcript render as inert text through the existing markdown/code components, never as HTML or executable), rule:declared-profile-locality, rule:device-only-enforced-twice and rule:tighten-only-locality (the locality control only tightens after start; device-only refusals are shown, never worked around), rule:retention-modes and rule:owner-chooses-retention (delete-at-end default, 30 days, until deleted; only shorten), rule:raw-audio-never-persisted (no persistence toggle; capability row says Memory only on the companion), rule:credential-lifetime-and-renewal and rule:credential-revocation (pairing shows the credential once; lifetime up to 2 hours, owner renews), rule:strict-rehearsal-no-assistance and rule:assistance-counts-as-hints (rehearsal target: strict disables assistance, non-strict labels each shown draft as a hint), rule:complete-session-purge (delete session data), rule:id-only-traces (no content in browser-facing logs). Mission and goals: bionic/objectives.md OBJ-1 (runnable answers), OBJ-3 (rehearsal, one scorecard), OBJ-4 (drivable by agents through the same routes), OBJ-5 (private).
+
+  Findings that shape the plan (verified in the code): the user session routes (start, current, read, stream, control, credential, policy, retention, delete) already exist in live-session/routes.ts; missing are list sessions, interview and matrix-revision choices, an action cursor (actions are ordered by created_at and capped, so later rows and status changes are invisible; session_actions has updated_at to key on) and the ended-view summary. apps/web has no Next middleware: every /api/* request reaches one Hono catch-all, and the ingest route is mounted outside the user-session guard, so credential-only ingest should already pass; a test through createApplicationApi proves it. The credential lives 2 hours and is renewed by the owner (the design string "renews every 10 min" is false and is not used); the code-runner limits are to be read from packages/code-runner (the design's "512 MB, 10 s" is checked there before any number is shown). A session draft lives in Workspace id active-session:<sessionId>, artifact coding:<taskId>. The session is lifetime-independent of React through a module-level store.
+
+  Files to create / modify (paths):
+   Contract: packages/interview-contracts/src/live-session.ts (+ index export, tests): browser view contracts (session summary and detail, stream page with observation cursor and action cursor, choices, errors).
+   Backend: products/interview/src/backend/live-session/session-reads.ts, repository.ts, routes.ts (list sessions, choices, action cursor on updated_at plus id, ended summary), tests; products/interview/src/manifest.tsx (a live route, interview.read; no new permission: ADR-0004 membership first); apps/web/app/api/[[...route]]/route.test.ts or src/platform/api test (ingest forwarded without a user session; unknown credential refused uniformly; user routes 404/401 without membership).
+   Frontend (all under products/interview/src/frontend/studio/): live/ (new directory) with session-client.ts, session-store.ts (module-level store, re-hydrates from the current-session route, polls the stream with cursors, derives state), session-state.ts (pure derivation: source health, companion online, banners, tasks, activity), use-session.ts, live-view.tsx (switches setup, live, ended), setup-view.tsx, session-bar.tsx, live-session-view.tsx, task-panels.tsx, claim-chips.tsx, session-tabs.tsx, ended-view.tsx, workspace-handoff.tsx, live.css, tests beside each; modify use-studio-route.ts (live view id), config/views.tsx, config/commands.ts, sidebar.tsx, studio.tsx (bar mounted in StudioFrame for every view), icons via scripts/generate-studio-icons.mjs, tokens.css only for semantic aliases that already exist (reuse tokens; no second palette); workspace/*: open a session draft by workspace and artifact, show job progress and the three distinct states, offer held results as suggestions.
+   Docs: bionic journal/log entry via log-work at the end of prompt 20.
+
+  Ordered work units (sequential unless marked; each independently testable; one commit each or small group):
+   U1 [parallel group A] browser contract + backend reads (list, choices, action cursor, ended summary) + manifest live route, owner-checked, content-free logs, tests (DB-backed on the existing fixtures).
+   U2 [parallel group A] apps/web ingest forwarding without a user session: test and fix if needed; membership-first 404 on user routes.
+   U3 foundation: icons through the pipeline, live view id and nav entry, session client, store with re-hydration and stream subscription, pure state derivation incl. the four states the design lacks (permission revoked, companion offline, capture lost, locality), live-view shell with stubs, tests for the store and derivation (survives navigation, re-hydrates on mount).
+   U4 [parallel group B] session bar mounted for every view (state dot and label, target, elapsed, activity, source chips, locality, Pause/Resume, End with confirm popover, Open) with tests.
+   U5 [parallel group B] setup view (targets incl. rehearsal, consent gate, companion pairing and status, source and assistance toggles, pinned matrix selector, locality segmented control with blocking device-only errors, retention modes, start) with tests.
+   U6 [parallel group B] live session view (banners, idle, experience question panel with claim chips and removed-claim notice, programming challenge panel, leadership and logistics outcomes with what is missing, tabs Transcript, Activity, Sources and the capability table, copy buttons) with tests for each claim kind.
+   U7 [parallel group B] ended view with stats, results, retention row and delete session data; tests.
+   U8 Workspace hand-off: open the session draft in the existing Workspace editor, job progress and test output, generated / tests passed / fully verified distinct, held result as a suggestion when the owner edited (expected-revision conflict), never overwriting; tests.
+   U9 integration: phone-width and keyboard checks, accessible names, guarantee-string audit against ADR-0011/0012 and code, gap fixes, full gates.
+
+  Risks specific to implementation: a module-level store leaks between tests and tenants (reset hook, keyed by tenant slug); polling cadence versus load and a hidden tab; hydrating on mount must not start a session or show stale secrets (the credential is returned once at start and never re-read); elapsed time must come from the server clock offset, not Date.now alone; Workspace view assumes the fixed workspace id "interview", so the hand-off needs a bounded override rather than a fork; the existing Workspace owner-edit detection (provenance cleared by a user edit) decides suggestion versus apply; the design is a prototype whose strings include false guarantees (renew every 10 min, undetectable-sounding wording, raw audio toggle, resource limits) and each is checked or dropped; jsdom cannot prove real layout, so phone width is asserted through classes and CSS rules, and real browser rendering is unobserved; no dev server is started (operator rule).
+
+  Quality gates before review (prompt 19): pnpm lint, pnpm format, pnpm typecheck, pnpm test:coverage --maxWorkers=3 (full suite, Docker suites), pnpm vitest run scripts, pnpm build, then pnpm verify as one command; no separate SAST tool is configured (RLS and security suites and the no-content canary stand in); verify-code-docs recorded as the declared side effect (regeneration deferred to the prep prompt unless it runs clean).
 
 pr_draft: ""
 summary: ""
