@@ -15,6 +15,12 @@ import {
   isNoticePeriodText,
   type SourceKind,
 } from "./context-snapshot.js";
+import {
+  digitAvailability,
+  foldSpoken,
+  type SpokenQuantity,
+  spokenQuantities,
+} from "./spoken-figures.js";
 
 export const CLAIM_KINDS = [
   "matrix-backed",
@@ -59,9 +65,9 @@ const normalizeText = (text: string) =>
 // letter are identifiers (S3, ec2, k8s, x86, sha256, h264, p99), EXCEPT after a
 // currency code or an x multiplier (USD150000, GBP90k, x40), as a long run
 // (salary150000: five or more digits), after a money word (salary1500) and as
-// a suffixed run after three letters (base90k). Spelled-out numbers are out of
-// scope here; compensation and notice-period sentences check them separately
-// (numberWordsOf).
+// a suffixed run after three letters (base90k). Spelled-out numbers, roman
+// numerals, ordinal dates and "a month" are read by spoken-figures.ts and join
+// the same keys (figuresOf), so words get the same treatment as digits.
 const NUMBER =
   "\\d+(?:[.,]\\d+)*(?:%|[kKmMbB](?!\\p{L})|[xX](?!\\p{L})|\\s?times(?!\\p{L})|-?fold(?!\\p{L}))?\\+?";
 const CURRENCY_CODE = "usd|cad|eur|gbp|aud|nzd|chf|jpy|inr|cny|sek|nok|dkk";
@@ -81,18 +87,6 @@ const FIGURE_PATTERNS = [
   ),
   new RegExp(`(?<=\\p{L}{3})\\d+(?:%|[kKmMbB](?!\\p{L}))\\+?`, "gu"),
 ];
-
-// [DOMAIN] Spelled-out quantities. Notice period and compensation figures are
-// the candidate's own and may be written as words ("three months", "a hundred
-// and fifty grand"); inside those sentences any such word is a figure.
-const NUMBER_WORD =
-  /(?<!\p{L})(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|grand|million|billion|dozen|couple|few|several|half)(?!\p{L})/giu;
-export const numberWordsOf = (text: string): Set<string> =>
-  new Set(
-    (canonicalText(text).match(NUMBER_WORD) ?? []).map((word) =>
-      word.toLowerCase(),
-    ),
-  );
 
 // Canonical comparison key: lower case, no thousands commas, multiplier forms
 // unified ("40 times", "40-fold", "x40" -> "40x"). The percent sign is KEPT:
@@ -119,8 +113,26 @@ function figureMatches(text: string): FigureMatch[] {
   return found;
 }
 
+const sentencePartsOf = (text: string) => text.split(/[.!?\n]+/);
+
+// Spelled quantities of every sentence; only a compensation or notice-period
+// sentence counts a bare definite number word ("three") without a unit.
+function spokenOf(text: string): SpokenQuantity[] {
+  return sentencePartsOf(text).flatMap((sentence) =>
+    spokenQuantities(
+      sentence,
+      isCompensationText(sentence) || isNoticePeriodText(sentence),
+    ),
+  );
+}
+export const spokenKeysOf = (text: string): Set<string> =>
+  new Set(spokenOf(text).map((quantity) => quantity.key));
+
 export function figuresOf(text: string): Set<string> {
-  return new Set(figureMatches(text).map((match) => figureKey(match.raw)));
+  return new Set([
+    ...figureMatches(text).map((match) => figureKey(match.raw)),
+    ...spokenKeysOf(text),
+  ]);
 }
 
 // A quote "4m+" supports a claim of "4m+" and of "4m"; a quote "4m" does not
@@ -136,6 +148,14 @@ export function supportedFigureKeys(texts: readonly string[]): Set<string> {
         keys.add(base);
       }
       if (base.endsWith("%")) keys.add(base.slice(0, -1));
+      // "150k" and "150000" are the same figure: compare as numbers.
+      const scaled = base.match(/^(\d+(?:\.\d+)?)([kmb])$/);
+      if (scaled?.[1] && scaled[2])
+        keys.add(
+          String(
+            Number(scaled[1]) * ({ k: 1e3, m: 1e6, b: 1e9 }[scaled[2]] ?? 1),
+          ),
+        );
     }
   return keys;
 }
@@ -162,6 +182,11 @@ export function nonGeneralFigures(text: string): string[] {
     if (STANDARD_TOKEN_CONTEXT.test(clean.slice(0, index))) continue;
     found.push(figureKey(raw));
   }
+  // Spelled quantities meet the same allowance as digits: an integer up to ten
+  // that is not scaled (hundred, k, dozen) is ordinary; everything else is not.
+  for (const quantity of spokenOf(clean))
+    if (quantity.scaled || quantity.value > MAX_GENERAL_INTEGER)
+      found.push(quantity.key);
   return found;
 }
 
@@ -430,7 +455,6 @@ type DraftCheck = {
   matrixClaimTexts: readonly string[];
   groundedFigures: ReadonlySet<string>;
   preferenceFigures: ReadonlySet<string>;
-  preferenceWords: ReadonlySet<string>;
   capturedFigures: ReadonlySet<string>;
   sourceFigures: ReadonlySet<string>;
 };
@@ -441,6 +465,17 @@ type DraftCheck = {
 // matrix-backed claim already states, may carry them.
 const LEAVING_REASON_CUE =
   /\b(?:because|since|so that|left|leave|leaving|quit|resign\w*|fired|laid off|layoffs?|stopped|too|wanted|wants?|burn(?:ed|t)?[- ]?out|redundan\w*|restructur\w*|downsiz\w*|dismiss\w*)\b/i;
+const AVAILABILITY_WORDING =
+  /\b(?:join(?:ing)? (?:you|your|the team|us)|(?:can|could|able to|available to|free to|ready to|would|will|'d) start|start(?:ing)? (?:on|in|at|from|by|date)|available|notice)\b/;
+const availabilityKeysOf = (text: string): Set<string> =>
+  new Set([
+    ...digitAvailability(text),
+    ...spokenOf(text)
+      .filter(
+        (quantity) => quantity.kind === "duration" || quantity.kind === "date",
+      )
+      .map((quantity) => quantity.key),
+  ]);
 const sentencesOf = (text: string) =>
   text
     .split(/[.!?\n]+/)
@@ -461,16 +496,18 @@ function checkDraft(draft: string, check: DraftCheck): void {
     " ",
   );
   const sentences = sentencesOf(draft);
-  // [SAFETY] A spelled-out quantity in a notice-period or compensation sentence
-  // is a figure: only a word a verified preference quote carries may be spoken.
-  for (const sentence of sentences)
-    if (
-      (isCompensationText(sentence) || isNoticePeriodText(sentence)) &&
-      [...numberWordsOf(sentence)].some(
-        (word) => !check.preferenceWords.has(word),
-      )
-    )
-      flag("draft", "preference_only_topic");
+  // [SAFETY] Availability (notice period, start date, "join you in three
+  // months") is the candidate's own fact whatever the sentence's wording: any
+  // duration or date, spelled or digit, must be an approved preference figure.
+  if (
+    !check.logistics &&
+    AVAILABILITY_WORDING.test(foldSpoken(draft).toLowerCase())
+  )
+    for (const key of availabilityKeysOf(draft))
+      if (!check.preferenceFigures.has(key)) {
+        flag("draft", "preference_only_topic");
+        break;
+      }
   if (check.logistics) {
     for (const key of figuresOf(draft))
       if (!check.preferenceFigures.has(key)) {
@@ -549,7 +586,6 @@ export function verifyClaims(
   // Figures that a preference-backed claim legitimately carries, for the
   // logistics draft check.
   const preferenceFigures = new Set<string>();
-  const preferenceWords = new Set<string>();
   // Figures a VERIFIED matrix- or preference-backed claim carries (its quotes
   // and its own text): the only non-general figures a draft may speak.
   const groundedFigures = new Set<string>();
@@ -603,23 +639,22 @@ export function verifyClaims(
           structurallyValid = false;
         }
       }
-      const supported =
-        structurallyValid &&
-        supports(claim.text, refs, snapshot, claim.kind === "matrix-backed");
-      if (structurallyValid && !supported)
-        for (const refIndex of refs.keys())
-          flag(`${at}.refs.${refIndex}`, "unsupported_reference");
       // A spelled-out quantity in a notice-period or compensation claim must
       // come from the cited quotes.
-      const spokenWords = [...numberWordsOf(claim.text)];
-      const quoteNumberWords = numberWordsOf(
-        refs.map((ref) => ref.quote).join(" "),
-      );
-      const wordsGrounded =
+      const quoteKeys = supportedFigureKeys(refs.map((ref) => ref.quote));
+      const spokenGrounded =
         !preferenceOnlyTopic ||
-        spokenWords.every((word) => quoteNumberWords.has(word));
-      if (supported && !wordsGrounded) flag(at, "preference_only_topic");
-      if (supported && wordsGrounded) {
+        [...spokenKeysOf(claim.text)].every((key) => quoteKeys.has(key));
+      if (structurallyValid && !spokenGrounded)
+        flag(at, "preference_only_topic");
+      const supported =
+        structurallyValid &&
+        spokenGrounded &&
+        supports(claim.text, refs, snapshot, claim.kind === "matrix-backed");
+      if (structurallyValid && spokenGrounded && !supported)
+        for (const refIndex of refs.keys())
+          flag(`${at}.refs.${refIndex}`, "unsupported_reference");
+      if (supported) {
         if (claim.kind === "matrix-backed")
           matrixTexts.push(normalizeText(claim.text));
         for (const key of supportedFigureKeys([
@@ -631,8 +666,6 @@ export function verifyClaims(
           for (const ref of refs) {
             for (const key of supportedFigureKeys([ref.quote]))
               preferenceFigures.add(key);
-            for (const word of numberWordsOf(ref.quote))
-              preferenceWords.add(word);
           }
       }
       continue;
@@ -713,7 +746,6 @@ export function verifyClaims(
         .map((claim) => normalizeText(claim.text)),
       groundedFigures,
       preferenceFigures,
-      preferenceWords,
       capturedFigures,
       sourceFigures,
     });

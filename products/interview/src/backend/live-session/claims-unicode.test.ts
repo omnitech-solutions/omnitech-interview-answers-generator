@@ -330,7 +330,7 @@ describe("round 2: spelled-out notice period and compensation", () => {
     ).toContain("draft:preference_only_topic");
     expect(
       codes(run([], "logistics", "My salary expectation is one fifty grand.")),
-    ).toContain("draft:preference_only_topic");
+    ).toContain("draft:ungrounded_logistics_figure");
   });
   it("withholds a spelled figure in a compensation claim", () => {
     expect(

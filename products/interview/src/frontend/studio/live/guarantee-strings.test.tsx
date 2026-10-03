@@ -344,8 +344,8 @@ describe("companion-side claims are backed or absent", () => {
   it.each(COMPANION_CLAIMS)(
     "$claim cites tests that exist",
     ({ facts, rule }) => {
-      // Every cited handle must be a real governs handle of ADR-0011 or 0012.
-      const cited = rule.match(/ADR-001[12]\/[a-z0-9-]+/g) ?? [];
+      // Every cited handle must be a real governs handle of ADR-0011, 0012 or 0013.
+      const cited = rule.match(/ADR-001[123]\/[a-z0-9-]+/g) ?? [];
       expect(cited.length, `${rule} cites an ADR handle`).toBeGreaterThan(0);
       for (const handle of cited)
         expect(ADR_HANDLES, `${handle} is not a governs handle`).toContain(
