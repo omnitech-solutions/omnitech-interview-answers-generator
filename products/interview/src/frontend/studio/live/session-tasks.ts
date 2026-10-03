@@ -87,6 +87,13 @@ export type TaskView = {
   answerStale: boolean;
   code: CodeResult | null;
   codeStale: boolean;
+  // The newest solution that was written to the Workspace draft (or predates
+  // the write). Its states and tests are what the draft holds; a held result
+  // is never what the status grid describes.
+  draftCode: CodeResult | null;
+  // The current revision's held result: a suggestion the owner has not
+  // accepted, with its own states.
+  suggestion: CodeResult | null;
   constraints: ConstraintView[];
   // The Workspace draft the newest published solution wrote, if any.
   draft: {
@@ -222,7 +229,9 @@ export function deriveTasks(
       code !== null ||
       revisions.some((r) => r.codeRun || r.agentRun) ||
       answer?.category === "coding";
-    const codeRevision = [...revisions].reverse().find((r) => r.code);
+    const written = [...revisions]
+      .reverse()
+      .find((r) => r.code && r.code.workspace?.published !== false);
     tasks.push({
       taskId,
       kind: coding
@@ -239,12 +248,15 @@ export function deriveTasks(
       code,
       codeStale: code !== null && current.code === null,
       constraints: constraintHistory(revisions),
+      draftCode: written?.code ?? null,
+      suggestion:
+        current.codeRun?.state === "held-conflict" ? current.code : null,
       draft:
-        codeRevision?.code?.workspace?.published === true
+        written?.code?.workspace?.published === true
           ? {
-              workspaceId: codeRevision.code.workspace.workspaceId,
-              artifactId: codeRevision.code.workspace.artifactId,
-              artifactRevision: codeRevision.code.workspace.artifactRevision,
+              workspaceId: written.code.workspace.workspaceId,
+              artifactId: written.code.workspace.artifactId,
+              artifactRevision: written.code.workspace.artifactRevision,
             }
           : null,
       heldResult: current.codeRun?.state === "held-conflict",

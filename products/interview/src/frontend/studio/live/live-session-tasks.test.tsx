@@ -193,6 +193,62 @@ describe("programming challenge", () => {
     );
   });
 
+  it("keeps the written draft's states and chip when a later result is held, and labels the held one as a suggestion", () => {
+    const held = {
+      published: false,
+      conflict: true,
+      reason: "edited",
+      expectedRevision: 1,
+      foundRevision: 2,
+    };
+    const written = codeResult({
+      states: {
+        generated: true,
+        testsPassed: false,
+        fullyVerified: false,
+        reasons: [],
+      },
+      tests: { total: 5, passed: 2, failed: 3, skipped: 0, results: [] },
+      workspace: {
+        published: true,
+        workspaceId: "w1",
+        artifactId: "coding:task-1",
+        artifactRevision: 1,
+      },
+    });
+    show({
+      actions: [
+        coding(["a"], 1),
+        solve(written, 1, {
+          createdAt: minutesAfter(1, 5),
+          updatedAt: minutesAfter(1, 6),
+        }),
+        coding(["a"], 2, {
+          createdAt: minutesAfter(1, 20),
+          updatedAt: minutesAfter(1, 21),
+        }),
+        solve(codeResult({ workspace: held }), 2, {
+          createdAt: minutesAfter(1, 22),
+          updatedAt: minutesAfter(1, 23),
+        }),
+      ],
+    });
+    // The status grid and the chip describe what the draft holds (rev 1: 2/5).
+    const status = screen.getByRole("region", { name: "Status" });
+    expect(
+      within(status).getByText("Tests passed").closest("div"),
+    ).toHaveAttribute("data-state", "no");
+    expect(
+      within(status).getByText("2/5 tests passed · 3 failed"),
+    ).toBeVisible();
+    expect(screen.getByText("Draft ready · 2/5 tests")).toBeVisible();
+    // The held result is the suggestion's, labelled as such.
+    const suggestion = screen.getByRole("region", {
+      name: "Suggestion not written to your draft",
+    });
+    expect(within(suggestion).getByText("5/5 tests passed")).toBeVisible();
+  });
+
   it("shows a late result for an outdated revision as discarded", () => {
     show({
       actions: [

@@ -45,7 +45,15 @@ function stateValue(code: CodeResult | null, value: boolean): string {
   return code === null ? "Not yet" : value ? "Yes" : "No";
 }
 
-function Status({ code }: { code: CodeResult | null }) {
+// The three states of one solution. `heading` says whose they are: the draft's
+// (Status) or a held suggestion's, which was never written to the draft.
+function Status({
+  code,
+  heading = "Status",
+}: {
+  code: CodeResult | null;
+  heading?: string;
+}) {
   const states = code?.states;
   const rows: { label: string; value: boolean }[] = [
     { label: "Generated", value: states?.generated ?? false },
@@ -57,8 +65,8 @@ function Status({ code }: { code: CodeResult | null }) {
     .map((reason) => STATE_REASON[reason])
     .filter((text): text is string => text !== undefined);
   return (
-    <section className="live-block" aria-label="Status">
-      <h4>Status</h4>
+    <section className="live-block" aria-label={heading}>
+      <h4>{heading}</h4>
       <dl className="live-states">
         {rows.map((row) => (
           <div
@@ -118,8 +126,12 @@ export function CodingPanel({
   session: LiveSessionView | null;
 }) {
   const link = useSessionDraftLink(session, task.taskId);
-  const code = task.code;
-  const codeRevision = [...task.revisions].reverse().find((r) => r.code);
+  // The status grid and chip describe what the Workspace draft holds; a held
+  // result is shown separately as the suggestion it is.
+  const code = task.draftCode;
+  const codeRevision = [...task.revisions]
+    .reverse()
+    .find((r) => r.code !== null && r.code === code);
   const tests = code?.tests;
   const draftLabel =
     task.draft === null
@@ -151,6 +163,12 @@ export function CodingPanel({
       <div className="live-grid">
         <Constraints task={task} />
         <Status code={code} />
+        {task.suggestion && (
+          <Status
+            code={task.suggestion}
+            heading="Suggestion not written to your draft"
+          />
+        )}
       </div>
       {codeRevision && (
         <p className="live-note">
