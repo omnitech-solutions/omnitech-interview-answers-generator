@@ -299,10 +299,16 @@ export type ProcessorBuild = {
   // The coding path's runner and its device-local declaration.
   codeRunner?: SessionProcessorPorts["codeRunner"];
   runnerDeviceLocal?: boolean;
+  agentEscalation?: SessionProcessorPorts["agentEscalation"];
+  // The job repository the store port creates and cancels jobs through.
+  jobs?: NonNullable<Parameters<typeof createDatabaseStorePort>[1]>["jobs"];
 };
 
 export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
-  const store = createDatabaseStorePort(fx.member);
+  const store = createDatabaseStorePort(
+    fx.member,
+    build.jobs ? { jobs: build.jobs } : {},
+  );
   const claim = createDatabaseClaimPort(fx.member, {
     workerId: build.workerId,
     ...(build.leaseMs === undefined ? {} : { leaseMs: build.leaseMs }),
@@ -325,6 +331,9 @@ export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
     ...(build.runnerDeviceLocal === undefined
       ? {}
       : { runnerDeviceLocal: build.runnerDeviceLocal }),
+    ...(build.agentEscalation
+      ? { agentEscalation: build.agentEscalation }
+      : {}),
   };
   return createSessionProcessor(ports, {
     workerId: build.workerId,

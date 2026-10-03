@@ -13,6 +13,7 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { Clock } from "./core/index.js";
+import type { AgentEscalationPort } from "./escalation.js";
 import type { SessionCodeRunner } from "./session-run.js";
 import {
   createInterviewSessionPolicy,
@@ -28,6 +29,7 @@ import {
 import { createLoggerTraceSink, type TraceSink } from "./trace.js";
 
 export {
+  INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "../../assistant-profile.js";
@@ -36,6 +38,7 @@ export {
   sessionGatewayContext,
 } from "./gateway-context.js";
 export type { SessionProcessor } from "./processor.js";
+export type { AgentEscalationPort } from "./escalation.js";
 export type { SessionCodeRunner } from "./session-run.js";
 export type { SessionProcessorOptions } from "./processor-ports.js";
 export {
@@ -61,6 +64,9 @@ export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
     // The host declares the runner runs on the person's own device; without it
     // a device-only session never uses the runner.
     runnerDeviceLocal?: boolean;
+    // The typed agent profiles and prompt store for escalation jobs. Absent:
+    // an escalation request creates no job.
+    agentEscalation?: AgentEscalationPort;
   };
 
 export type SessionWorker = SessionProcessor;
@@ -80,6 +86,7 @@ export function createSessionWorker(
     log,
     codeRunner,
     runnerDeviceLocal,
+    agentEscalation,
     ...rest
   } = options;
   const portOptions: DatabasePortOptions = {
@@ -100,6 +107,7 @@ export function createSessionWorker(
       trace: sink,
       ...(codeRunner ? { codeRunner } : {}),
       ...(runnerDeviceLocal === undefined ? {} : { runnerDeviceLocal }),
+      ...(agentEscalation ? { agentEscalation } : {}),
     },
     {
       workerId,

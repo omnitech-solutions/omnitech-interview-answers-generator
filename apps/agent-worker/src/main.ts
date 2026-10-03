@@ -4,13 +4,19 @@ import { pathToFileURL } from "node:url";
 import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
 import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
 import type { AgentRuntimeAdapter } from "@omnitech/agent-runtime-contracts";
+import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
 } from "@omnitech/database";
 import { AgentPayloadStore } from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
-import { createSessionWorker } from "@omnitech/product-interview/session-worker";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import {
+  type AgentEscalationPort,
+  createSessionWorker,
+  type SessionCodeRunner,
+} from "@omnitech/product-interview/session-worker";
 import { runAgentWorker } from "./index.js";
 import { createSessionGateway } from "./session-gateway.js";
 import { runSessionLoop, sessionWorkerId } from "./session-loop.js";
@@ -184,6 +190,42 @@ function agentJobLoop(
   };
 }
 
+// The test runner of the coding path (ADR-0011): a sandboxed DockerCodeRunner,
+// only when the host asks for it. Without it a solution still publishes, with
+// tests never claimed passed. A device-only session may use the runner only if
+// the host also declares it runs on this device.
+export function sessionRunnerOptions(env: Environment): {
+  codeRunner?: SessionCodeRunner;
+  runnerDeviceLocal?: boolean;
+} {
+  if (env["ACTIVE_SESSION_CODE_RUNNER"] !== "docker") return {};
+  return {
+    codeRunner: new DockerCodeRunner(),
+    ...(env["ACTIVE_SESSION_RUNNER_DEVICE_LOCAL"] === "true"
+      ? { runnerDeviceLocal: true }
+      : {}),
+  };
+}
+
+// Agent jobs for a validated escalation (ADR-0011 D7): opt in with
+// ACTIVE_SESSION_AGENT_ESCALATION=on. The profile is a typed, versioned,
+// bounded one chosen by the host from the validated kind; the job carries only
+// a reference to its encrypted prompt payload.
+export function sessionAgentEscalation(
+  env: Environment,
+  database: PlatformDatabase,
+): AgentEscalationPort | undefined {
+  if (env["ACTIVE_SESSION_AGENT_ESCALATION"] !== "on") return undefined;
+  const secret = env["AGENT_PAYLOAD_SECRET"] ?? env["CONNECTED_ACCOUNT_SECRET"];
+  if (!secret) return undefined;
+  const profiles = resolveAgentProfiles(env);
+  const payloads = new AgentPayloadStore(database, secret);
+  return {
+    profileFor: () => profiles.get("coding-quality"),
+    savePrompt: (tenantId, prompt) => payloads.save(tenantId, prompt),
+  };
+}
+
 // The Active Session loop (ADR-0011) with its own gateway; null (loop not
 // started, job loop unaffected) when no language model is configured.
 export function sessionLoop(
@@ -203,6 +245,7 @@ export function sessionLoop(
     log("session loop disabled: no language model configured");
     return null;
   }
+  const escalation = sessionAgentEscalation(env, database);
   return {
     name: "session",
     run: (signal) =>
@@ -212,6 +255,8 @@ export function sessionLoop(
           gateway: session.gateway,
           workerId: sessionWorkerId(env),
           log,
+          ...sessionRunnerOptions(env),
+          ...(escalation ? { agentEscalation: escalation } : {}),
         }),
         signal,
         log,

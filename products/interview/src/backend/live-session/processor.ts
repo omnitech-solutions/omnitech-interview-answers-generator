@@ -76,6 +76,9 @@ export function createSessionProcessor(
     ...(ports.runnerDeviceLocal === undefined
       ? {}
       : { runnerDeviceLocal: ports.runnerDeviceLocal }),
+    ...(ports.agentEscalation
+      ? { agentEscalation: ports.agentEscalation }
+      : {}),
   };
   const settings = { ...DEFAULTS, ...options };
   const runs = new Map<string, SessionRun>();

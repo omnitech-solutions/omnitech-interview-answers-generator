@@ -23,6 +23,7 @@ import {
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
 import type { Clock, ProcessingPolicy, Task } from "./core/index.js";
+import type { AgentEscalationPort } from "./escalation.js";
 import type { PublishEffect } from "./fenced-writes.js";
 import { sessionGatewayContext } from "./gateway-context.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
@@ -47,6 +48,9 @@ export type DispatchDeps = {
   // The host declares the runner executes on the person's own device. Without
   // it a device-only session never uses the runner.
   runnerDeviceLocal?: boolean;
+  // Where an escalation job's typed profile and prompt reference come from; no
+  // port, no job.
+  agentEscalation?: AgentEscalationPort;
 };
 
 // Refusals that mean this holder is no longer the holder: it stops and writes

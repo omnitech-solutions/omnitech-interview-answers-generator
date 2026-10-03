@@ -28,6 +28,11 @@ import {
 } from "./coding-stage.js";
 import type { Task } from "./core/index.js";
 import {
+  type AgentOutcome,
+  decideEscalation,
+  requestAgentJob,
+} from "./escalation.js";
+import {
   beginDispatch,
   type Dispatch,
   type DispatchDeps,
@@ -253,7 +258,31 @@ export async function dispatchCoding(
     }
   }
 
-  // 4. The Workspace draft, validated BEFORE the publish so a draft that would
+  // 4a. Escalation: ONLY the validated enum, the observed repair outcome and the
+  // session row's policy decide whether an agent job is requested.
+  const tests = verification.run?.tests ?? [];
+  const escalation = decideEscalation({
+    stageEscalation: solution.escalation,
+    directRepairFailed: repairAttempted && !states.testsPassed,
+    processingPolicy: d.processingPolicy,
+    hasRunner: verification.run !== null,
+  });
+  const agent: AgentOutcome =
+    escalation === "none"
+      ? { jobRequested: false, reason: "not_requested" }
+      : await requestAgentJob({
+          run,
+          store: deps.store,
+          port: deps.agentEscalation,
+          task,
+          kind: escalation,
+          brief,
+          solution,
+          tests,
+        });
+  if (d.stopped()) return;
+
+  // 4b. The Workspace draft, validated BEFORE the publish so a draft that would
   // not fit the answer shape is an invalid output, never a rolled-back publish.
   const draft = buildSessionDraft({ brief, solution, states });
   if (!draft.ok) {
@@ -265,7 +294,6 @@ export async function dispatchCoding(
   }
 
   // 5. Publish: the result and the draft write commit together, or neither.
-  const tests = verification.run?.tests ?? [];
   const count = (status: string) =>
     tests.filter((test) => test.status === status).length;
   let workspace: WorkspaceOutcome | undefined;
@@ -303,6 +331,9 @@ export async function dispatchCoding(
         clean: verification.syntax?.clean ?? null,
       },
       repair: { attempted: repairAttempted, succeeded: repairSucceeded },
+      // Whether an agent job was requested for this solution (the validated
+      // enum and the observed repair outcome decided; see escalation.ts).
+      agent,
       // The earlier solution this revision replaces, when one existed: it was
       // built for constraints that have since changed.
       replacesRevision: previous?.revision ?? null,
@@ -325,6 +356,7 @@ export async function dispatchCoding(
         reasons: states.reasons.length,
         tests: tests.length,
         repairAttempted,
+        agentJob: agent.jobRequested,
       },
     },
   );

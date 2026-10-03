@@ -19,6 +19,7 @@
     "@omnitech/ai-contracts": "workspace:*",
     "@omnitech/ai-provider-openai": "workspace:*",
     "@omnitech/ai-runtime": "workspace:*",
+    "@omnitech/code-runner": "workspace:*",
     "@omnitech/database": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
     "@omnitech/product-interview": "workspace:*"

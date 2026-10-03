@@ -8,7 +8,6 @@
 // solution replaces the earlier one in the session draft; and a restart finds
 // the owed solution from the stored actions.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import type { RunResult } from "@omnitech/interview-contracts";
 import {
   afterAll,
   afterEach,
@@ -23,6 +22,20 @@ import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "../../assistant-profile.js";
+import {
+  BURSTS,
+  BUCKET,
+  fakeRunner,
+  NARRATE_1,
+  NARRATE_2,
+  passingTests,
+  QUESTION,
+  RESTATEMENT,
+  revisionOf,
+  runResult,
+  scriptedGateway,
+  solutionFor,
+} from "./coding-fixture.js";
 import { createCodingStage } from "./coding-stage.js";
 import { createInterviewSessionPolicy } from "./interview-policy.js";
 import {
@@ -43,7 +56,6 @@ import {
 } from "./processor-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
 import type { SessionCodeRunner } from "./session-run.js";
-import { seg } from "./session-replay-fixtures.js";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;
@@ -57,111 +69,6 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
 });
 afterAll(() => fx.stop());
-
-// ---- scripting --------------------------------------------------------------
-
-const RESTATEMENT = "Implement a rate limiter for a Node service.";
-const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {
-  1: ["a fixed number of requests per client in a sliding window"],
-  2: [
-    "a fixed number of requests per client in a sliding window",
-    "a small burst above the limit is allowed",
-  ],
-  3: [
-    "a token bucket with a refill rate replaces the sliding window",
-    "a small burst above the limit is allowed",
-  ],
-};
-const revisionOf = (request: AiExecutionRequest) =>
-  Number(/^REVISION: (\d+)$/m.exec(request.task.prompt)?.[1]);
-const briefOf = (request: AiExecutionRequest) => {
-  const lines = request.task.prompt.split("\n");
-  const at = lines.findIndex((line) => line.startsWith("BEGIN TASK BRIEF"));
-  return JSON.parse(lines[at + 1] ?? "{}") as { constraints: string[] };
-};
-const codingDraft = (request: AiExecutionRequest) => ({
-  category: "coding",
-  draft: "Restate the problem, then outline the approach.",
-  claims: [],
-  star: null,
-  logistics: null,
-  codingBrief: {
-    language: "typescript",
-    restatement: RESTATEMENT,
-    constraints: CONSTRAINTS_BY_REVISION[revisionOf(request)] ?? [],
-  },
-});
-const solutionFor = (
-  request: AiExecutionRequest,
-  overrides: Record<string, unknown> = {},
-) => {
-  const constraints = briefOf(request).constraints;
-  const revision = revisionOf(request);
-  return {
-    language: "typescript",
-    code: `export const allow = () => ${revision}; // CODE-CANARY-${revision}`,
-    testCode: constraints.map((_, i) => `it("t${i}", () => {});`).join("\n"),
-    coverage: constraints.map((_, constraintIndex) => ({
-      constraintIndex,
-      testName: `t${constraintIndex}`,
-    })),
-    escalation: "none",
-    notes: "A map of timestamps per client.",
-    ...overrides,
-  };
-};
-const scriptedGateway = (
-  options: {
-    solution?: (request: AiExecutionRequest, call: number) => unknown;
-  } = {},
-) => {
-  let solutionCalls = 0;
-  return createFakeGateway({
-    result: (request) => {
-      if (!request.task.prompt.startsWith("TASK: solve_code"))
-        return codingDraft(request);
-      solutionCalls += 1;
-      return options.solution?.(request, solutionCalls) ?? solutionFor(request);
-    },
-  });
-};
-
-const runResult = (overrides: Partial<RunResult> = {}): RunResult => ({
-  stdout: "",
-  stderr: "",
-  exitCode: 0,
-  durationMs: 12,
-  timedOut: false,
-  ...overrides,
-});
-// Reports every test the code declares as passed, unless told otherwise.
-const passingTests = (code: string) =>
-  [...code.matchAll(/it\("(t\d+)"/g)].map((match) => ({
-    name: String(match[1]),
-    status: "passed" as const,
-  }));
-const fakeRunner = (
-  script?: (
-    call: number,
-    input: Parameters<SessionCodeRunner["runAll"]>[0],
-  ) => RunResult,
-  syntax: "clean" | "none" = "clean",
-) => {
-  let calls = 0;
-  const runAll = vi.fn(
-    async (input: Parameters<SessionCodeRunner["runAll"]>[0]) => {
-      calls += 1;
-      return (
-        script?.(calls, input) ??
-        runResult({ tests: passingTests(input.testCode) })
-      );
-    },
-  );
-  const checkSyntax = vi.fn(async () => runResult());
-  const runner: SessionCodeRunner =
-    syntax === "clean" ? { runAll, checkSyntax } : { runAll };
-  return { runner, runAll, checkSyntax };
-};
 
 // ---- a world ------------------------------------------------------------------
 
@@ -215,54 +122,10 @@ async function world(
 }
 type World = Awaited<ReturnType<typeof world>>;
 
-const QUESTION = seg(
-  "q1",
-  "interviewer",
-  0,
-  "Can you implement a rate limiter in TypeScript for a Node service that allows a fixed number of requests per client in a sliding window?",
-);
-const BURSTS = seg(
-  "q2",
-  "interviewer",
-  20_000,
-  "Now handle bursts, so allow a small burst above the limit for a client.",
-);
-const BUCKET = seg(
-  "q3",
-  "interviewer",
-  40_000,
-  "Instead, make it a token bucket with a refill rate.",
-);
-// The candidate's narration between interviewer lines keeps them separate
-// utterances (adjacent same-source segments coalesce); it carries no
-// constraint cue, so only the interviewer's lines revise the task.
-const NARRATE_1 = seg(
-  "c1",
-  "candidate",
-  8_000,
-  "I will keep a map from client id to a list of timestamps.",
-);
-const NARRATE_2 = seg(
-  "c2",
-  "candidate",
-  28_000,
-  "That means a bucket per client and a clock passed in as a parameter.",
-);
 const kinds = (actions: { actionKind: string }[]) =>
   actions.map((action) => action.actionKind);
 const solveActions = async (w: World) =>
   (await w.actions()).filter((action) => action.actionKind === "solve-code");
-
-async function until(
-  condition: () => boolean | Promise<boolean>,
-  what: string,
-) {
-  for (let i = 0; i < 200; i += 1) {
-    if (await condition()) return;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error(`timed out waiting for ${what}`);
-}
 
 // ---- the happy path ---------------------------------------------------------
 

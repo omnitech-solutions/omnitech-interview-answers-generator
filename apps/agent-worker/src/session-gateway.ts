@@ -20,6 +20,7 @@ import {
   withDeclaredLocality,
 } from "@omnitech/ai-runtime/config";
 import {
+  INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "@omnitech/product-interview/session-worker";
@@ -85,6 +86,14 @@ export function createSessionGateway(env: Environment): SessionGateway | null {
     );
   const profiles = [
     profile(INTERVIEW_SESSION_FAST_PROFILE, "Interview session assistance"),
+    // The coding path's solution calls. Coding inference has no device
+    // implementation (rule:unlisted-stage-refused): the profile is always
+    // declared remote, so the gateway itself refuses it for a device-only
+    // request even when the model runs on this device.
+    withDeclaredLocality(
+      profile(INTERVIEW_ANSWER_PROFILE, "Interview session code solutions"),
+      "remote",
+    ),
     // Only a model declared to run on the device may serve a device-only session.
     ...(language.locality === "device"
       ? [

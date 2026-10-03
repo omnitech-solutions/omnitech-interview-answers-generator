@@ -6,7 +6,11 @@
 // host hands one in, and the processor names profiles, never providers.
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { Clock } from "./core/index.js";
-import type { FencedSessionWrites } from "./fenced-writes.js";
+import type { AgentEscalationPort } from "./escalation.js";
+import type {
+  FencedSessionWrites,
+  SessionJobRequest,
+} from "./fenced-writes.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
 import type { OwnerScope } from "./scope.js";
 import type {
@@ -64,6 +68,9 @@ export type SessionStorePort = Pick<
   // Requests cancellation of the session's in-flight jobs; a job already
   // terminal counts as cancelled (rule:pause-end-suppression).
   cancelJobs(scope: OwnerScope, sessionId: string): Promise<unknown>;
+  // Creates the session's private job for an action that already names its
+  // reserved id (rule:action-before-job, rule:job-creation-locked-to-session).
+  createJob(input: SessionJobRequest): Promise<unknown>;
   purge(target: SessionTarget): Promise<PurgeResult>;
 };
 
@@ -80,6 +87,9 @@ export type SessionProcessorPorts = {
   // The host declares the runner runs on the person's own device; without it a
   // device-only session never uses the runner.
   runnerDeviceLocal?: boolean;
+  // The host's typed agent profiles and prompt store for escalation jobs; no
+  // port, no job (the solution still publishes).
+  agentEscalation?: AgentEscalationPort;
 };
 
 export type SessionProcessorOptions = {

@@ -4,7 +4,7 @@
 // PlatformDatabase. The processor itself knows only the port interfaces.
 import type { PlatformDatabase } from "@omnitech/database";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
-import { FencedSessionWrites } from "./fenced-writes.js";
+import { createSessionJob, FencedSessionWrites } from "./fenced-writes.js";
 import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
 import { ActiveSessionRepository } from "./repository.js";
 import { loadSessionContext } from "./session-context.js";
@@ -69,6 +69,7 @@ export function createDatabaseStorePort(
       loadSessionContext(database, scope, sessionId),
     cancelJobs: (scope, sessionId) =>
       cancelSessionJobs(database, jobs, scope, sessionId),
+    createJob: (input) => createSessionJob(database, jobs, input),
     purge: (target) =>
       purgeSession(database, target, {
         jobs,

@@ -92,6 +92,9 @@ importers:
       '@omnitech/ai-runtime':
         specifier: workspace:*
         version: link:../../packages/ai-runtime
+      '@omnitech/code-runner':
+        specifier: workspace:*
+        version: link:../../packages/code-runner
       '@omnitech/database':
         specifier: workspace:*
         version: link:../../packages/database
