@@ -215,16 +215,16 @@ describe("companionChip", () => {
     credential: "valid" as const,
     credentialExpiresInMs: 1,
   };
-  it("is connected only after recorded contact, and offline when stale", () => {
+  it("is in contact only after a recorded heartbeat, and offline when stale", () => {
     expect(companionChip({ ...base, status: "never-seen" })).toEqual({
       tone: "amber",
       text: "Waiting for first contact",
     });
     expect(companionChip({ ...base, status: "online", ageMs: 20_000 })).toEqual(
-      { tone: "green", text: "Connected · last contact 20 s ago" },
+      { tone: "green", text: "In contact · last heard less than a minute ago" },
     );
     expect(
       companionChip({ ...base, status: "offline", ageMs: 5 * 60_000 }),
-    ).toEqual({ tone: "red", text: "Offline · last contact 5 min ago" });
+    ).toEqual({ tone: "red", text: "No contact for 5 min" });
   });
 });

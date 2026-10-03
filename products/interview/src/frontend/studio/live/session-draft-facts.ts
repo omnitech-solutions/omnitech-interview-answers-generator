@@ -109,6 +109,16 @@ export function ownerEdited(
   return provenance.draftRevision !== provenance.acceptedDraftRevision;
 }
 
+// True of every run that reports `runner.available`: packages/code-runner's
+// DockerCodeRunner.runAll (--network none, --memory 256m, --cpus 1,
+// --pids-limit 128, --read-only, a 20 s test budget, only NO_COLOR in the
+// environment, the run's own temporary directory mounted). The session worker
+// builds the runner with its defaults (apps/agent-worker main.ts). A result
+// from a worker without the runner says the tests did not run instead, and
+// nothing else is claimed about the sandbox.
+export const RUNNER_NOTE =
+  "Tests ran in the code-runner container: no network, a read-only filesystem, 256 MB memory, 1 CPU and a 20 s limit, with no credentials and only this run’s temporary files mounted.";
+
 // Plain sentences for the fixed reason codes behind a false state.
 export const STATE_REASON: Record<string, string> = {
   not_generated: "No solution was generated.",

@@ -10,7 +10,13 @@ import type {
 import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
-import { ageLabel } from "./session-format";
+import {
+  PROMOTED_NOTE,
+  RETENTION_LABEL,
+  retentionMeaning,
+  shorterRetentions,
+} from "./ended-summary";
+import { ageLabel, companionContact } from "./session-format";
 import type { SessionActions } from "./session-snapshot";
 import type { SourceHealth } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
@@ -30,21 +36,7 @@ const HEALTH: Record<SourceHealth, { text: string; tone: string }> = {
   "not-selected": { text: "Not selected", tone: "neutral" },
 };
 
-const RETENTION_ORDER: readonly LiveRetentionMode[] = [
-  "delete-at-end",
-  "thirty-days",
-  "until-deleted",
-];
-const RETENTION_LABEL: Record<LiveRetentionMode, string> = {
-  "delete-at-end": "Delete at end",
-  "thirty-days": "30 days",
-  "until-deleted": "Until I delete",
-};
-const RETENTION_MEANING: Record<LiveRetentionMode, string> = {
-  "delete-at-end": "Session data is deleted as soon as the session ends.",
-  "thirty-days": "Kept for 30 days after the session ends, then deleted.",
-  "until-deleted": "Kept until you delete it.",
-};
+const NO_RECENT_CONTACT = { text: "No recent contact", tone: "neutral" };
 
 // An irreversible change behind an inline confirmation. The failure is a fixed
 // code from the server, never a message.
@@ -108,18 +100,7 @@ function ConfirmAction({
 
 function CompanionRow({ model }: { model: LiveViewModel }) {
   const { companion } = model;
-  const contact =
-    companion.status === "never-seen"
-      ? { text: "No contact yet", tone: "neutral" }
-      : companion.status === "online"
-        ? {
-            text: `In contact · last heard ${ageLabel(companion.ageMs ?? 0)} ago`,
-            tone: "green",
-          }
-        : {
-            text: `No contact for ${ageLabel(companion.ageMs ?? 0)}`,
-            tone: "red",
-          };
+  const contact = companionContact(companion);
   const credential: Record<typeof companion.credential, string> = {
     none: "No credential recorded.",
     valid: `Credential valid for about ${ageLabel(companion.credentialExpiresInMs ?? 0)}.`,
@@ -161,15 +142,18 @@ export function SourcesTab({
   pairing: ReactNode;
 }) {
   const locality = model.locality;
-  const shorter = RETENTION_ORDER.slice(
-    0,
-    RETENTION_ORDER.indexOf(session.retention),
-  );
+  const shorter = shorterRetentions(session.retention);
   return (
     <>
       <ul className="live-sources" aria-label="Capture sources">
         {model.sources.map((source) => {
-          const health = HEALTH[source.health];
+          // "Receiving" was derived from earlier observations; it is only said
+          // while the companion is in contact (the bar's chips follow the same
+          // rule), never from history alone.
+          const health =
+            source.health === "receiving" && model.companion.status !== "online"
+              ? NO_RECENT_CONTACT
+              : HEALTH[source.health];
           return (
             <li
               key={source.source}
@@ -219,7 +203,8 @@ export function SourcesTab({
             {RETENTION_LABEL[session.retention]}
           </span>
         </p>
-        <p className="live-note">{RETENTION_MEANING[session.retention]}</p>
+        <p className="live-note">{retentionMeaning(session)}</p>
+        <p className="live-note">{PROMOTED_NOTE}</p>
         {shorter.map((mode) => (
           <ConfirmAction
             key={mode}

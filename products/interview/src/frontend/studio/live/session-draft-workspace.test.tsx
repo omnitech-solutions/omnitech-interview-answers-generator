@@ -329,7 +329,7 @@ describe("a session draft in the Workspace", () => {
     expect(within(tests).getByText("allows")).toBeVisible();
     expect(screen.getByText("GENERATED TESTS")).toBeVisible();
     expect(
-      screen.getByText(/Ran in the code-runner Docker container: no network/),
+      screen.getByText(/Tests ran in the code-runner container: no network/),
     ).toBeVisible();
   });
 

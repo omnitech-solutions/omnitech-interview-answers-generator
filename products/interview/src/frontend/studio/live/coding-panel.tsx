@@ -5,33 +5,10 @@
 // code-states.ts). The code itself lives in the Workspace draft, not here.
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { Icon } from "../icon";
+import { RUNNER_NOTE, STATE_REASON } from "./session-draft-facts";
 import type { CodeResult } from "./session-results";
 import type { TaskView } from "./session-tasks";
 import { useSessionDraftLink } from "./workspace-handoff";
-
-// The limits the session's test run sets: DockerCodeRunner.runAll in
-// packages/code-runner (no network, 256 MB, 1 CPU, 128 processes, read-only
-// root with a small tmpfs, and the 20 s test budget). The session worker builds
-// the runner with its defaults (apps/agent-worker main.ts), so these are the
-// numbers in force. Nothing else is claimed about the sandbox.
-export const RUNNER_NOTE =
-  "Tests ran in the code runner: no network, 256 MB memory, 1 CPU, a read-only filesystem and a 20 s limit.";
-
-// Why a state is false, from the fixed reason codes in code-states.ts.
-const REASON_TEXT: Record<string, string> = {
-  not_generated: "No solution was generated.",
-  runner_unavailable: "The code runner was not available, so no tests ran.",
-  timed_out: "The test run timed out.",
-  exit_nonzero: "The test run exited with an error.",
-  no_tests: "No tests ran.",
-  test_failed: "A test failed.",
-  test_skipped: "A test was skipped.",
-  constraint_uncovered: "A stated constraint has no test that covers it.",
-  constraint_shared_test:
-    "One test is claimed for several constraints, so none is verified separately.",
-  syntax_unchecked: "The syntax check was not run.",
-  syntax_errors: "The syntax check found errors.",
-};
 
 function Constraints({ task }: { task: TaskView }) {
   return (
@@ -77,7 +54,7 @@ function Status({ code }: { code: CodeResult | null }) {
   ];
   const tests = code?.tests;
   const why = (states?.reasons ?? [])
-    .map((reason) => REASON_TEXT[reason])
+    .map((reason) => STATE_REASON[reason])
     .filter((text): text is string => text !== undefined);
   return (
     <section className="live-block" aria-label="Status">

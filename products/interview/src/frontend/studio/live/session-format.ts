@@ -1,4 +1,5 @@
 // Small labels the live view shares. Pure.
+import type { CompanionModel } from "./session-sources";
 
 // How long ago, by the minute: a label that changed every second would be read
 // out again and again by a screen reader (the banners are live regions).
@@ -32,4 +33,19 @@ export function sinceMs(
   if (!iso) return null;
   const at = Date.parse(iso);
   return Number.isNaN(at) ? null : Math.max(0, serverNowMs - at);
+}
+
+// What the server's record says about the companion, in one place for the
+// pairing chip and the Sources row. "In contact" only on a recorded heartbeat
+// (never from a source's history): never-seen is never connected.
+export function companionContact(companion: CompanionModel): {
+  tone: "amber" | "green" | "red";
+  text: string;
+} {
+  if (companion.status === "never-seen")
+    return { tone: "amber", text: "Waiting for first contact" };
+  const age = ageLabel(companion.ageMs ?? 0);
+  return companion.status === "online"
+    ? { tone: "green", text: `In contact · last heard ${age} ago` }
+    : { tone: "red", text: `No contact for ${age}` };
 }

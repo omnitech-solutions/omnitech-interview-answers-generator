@@ -9,6 +9,7 @@ import type {
 import { useState } from "react";
 import { Icon } from "../icon";
 import {
+  PROMOTED_NOTE,
   RETENTION_LABEL,
   RETENTION_MODES,
   retentionMeaning,
@@ -86,10 +87,7 @@ export function EndedRetention({
             {" · "}
             {retentionMeaning(session)}
           </p>
-          <p className="live-note">
-            Raw audio is never stored. Drafts you promoted or exported to a
-            Document are not part of the session and are not deleted with it.
-          </p>
+          <p className="live-note">{PROMOTED_NOTE}</p>
           {shorter.length > 0 && !purging && (
             <div
               className="ended-shorten"

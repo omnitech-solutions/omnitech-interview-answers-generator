@@ -53,6 +53,11 @@ export const RETENTION_LABEL: Record<LiveRetentionMode, string> = {
   "thirty-days": "30 days",
   "until-deleted": "Until I delete",
 };
+// What a purge does not reach, and what is never stored at all. ADR-0012: a
+// draft the owner promoted or exported to a Document is outside the purge
+// (promotion clears its session provenance) and raw audio is never stored.
+export const PROMOTED_NOTE =
+  "Raw audio is never stored. Drafts you promoted or exported to a Document are not part of the session and are not deleted with it.";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // What the chosen mode means for this session, in one sentence.

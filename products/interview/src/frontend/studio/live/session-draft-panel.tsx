@@ -15,6 +15,7 @@ import {
   type DraftFacts,
   type HeldResult,
   ownerEdited,
+  RUNNER_NOTE,
   type StateLine,
   stateLines,
 } from "./session-draft-facts";
@@ -25,12 +26,6 @@ const EDITED_NOTE =
 const EMPTY_TITLE = "No session draft yet";
 const EMPTY_BODY =
   "When the session finds a coding task, it creates a private draft here and runs the tests. Your own edits are never overwritten.";
-// True of every run that reports `runner.available` (packages/code-runner's
-// DockerCodeRunner: --network none, --read-only, only NO_COLOR in the
-// environment, the run's own temporary directory mounted). A result from a
-// worker without the runner says the tests did not run instead.
-const RUNNER_NOTE =
-  "Ran in the code-runner Docker container: no network, a read-only root, no credentials, and only this run’s temporary files mounted.";
 const CONFLICT_NOTE =
   "This draft changed since you last loaded it, so the suggestion was not applied. Reload the draft, then review the suggestion again.";
 

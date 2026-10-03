@@ -86,7 +86,7 @@ describe("programming challenge", () => {
     expect(state("Fully verified")).toHaveAttribute("data-state", "no");
     expect(screen.getByText("5/5 tests passed")).toBeVisible();
     expect(screen.getByLabelText("Why not fully verified")).toHaveTextContent(
-      "A stated constraint has no test that covers it.",
+      "A stated constraint has no test of its own.",
     );
   });
 
@@ -265,7 +265,7 @@ describe("programming challenge", () => {
   it("states only the real sandbox limits, and only when the runner ran", () => {
     show({ actions: [coding(["a"]), solve(codeResult())] });
     expect(screen.getByTestId("runner-note")).toHaveTextContent(
-      "no network, 256 MB memory, 1 CPU, a read-only filesystem and a 20 s limit",
+      "no network, a read-only filesystem, 256 MB memory, 1 CPU and a 20 s limit",
     );
     cleanup();
     show({

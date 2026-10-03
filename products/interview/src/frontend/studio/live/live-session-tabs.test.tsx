@@ -286,10 +286,27 @@ describe("sources", () => {
     ).toBeVisible();
     expect(screen.getByText("Not selected")).toBeVisible();
     const companion = screen.getByTestId("companion-row");
-    expect(companion).toHaveTextContent("No contact yet");
+    expect(companion).toHaveTextContent("Waiting for first contact");
     expect(companion).not.toHaveTextContent(/connected/i);
     expect(companion).toHaveTextContent("renewed here, by you");
     expect(companion).not.toHaveTextContent(/10 min/);
+  });
+
+  it("never lists a source as receiving while the companion is out of contact", () => {
+    show({
+      session: { lastHeartbeatAt: minutesAfter(0, 10) },
+      observations: [
+        transcript(1, "Earlier words.", { sourceId: "microphone" }),
+      ],
+      nowMinutes: 5,
+    });
+    open();
+    const row = screen.getByText("Microphone").closest("li") as HTMLElement;
+    expect(row).not.toHaveTextContent("Receiving");
+    expect(row).toHaveTextContent("No recent contact");
+    expect(screen.getByTestId("companion-row")).toHaveTextContent(
+      "No contact for 4 min",
+    );
   });
 
   it("shows contact and credential state once heard from", () => {

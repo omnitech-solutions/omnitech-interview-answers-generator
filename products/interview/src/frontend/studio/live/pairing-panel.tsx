@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icon";
+import { ageLabel, companionContact } from "./session-format";
 import type { CommandResult } from "./session-snapshot";
 import type { CompanionModel } from "./session-sources";
 import { useLiveSession } from "./use-live-session";
@@ -13,26 +14,11 @@ import { useLiveSession } from "./use-live-session";
 
 const MASK = "••••••••••••••••";
 
-// "3 min", "45 s": ages and remaining times for the status line.
-function span(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 120) return `${minutes} min`;
-  return `${Math.round(minutes / 60)} h`;
-}
-
 export function companionChip(companion: CompanionModel): {
   tone: "amber" | "green" | "red";
   text: string;
 } {
-  // "Connected" only on a recorded contact: never-seen is never connected.
-  if (companion.status === "never-seen")
-    return { tone: "amber", text: "Waiting for first contact" };
-  const age = span(companion.ageMs ?? 0);
-  return companion.status === "online"
-    ? { tone: "green", text: `Connected · last contact ${age} ago` }
-    : { tone: "red", text: `Offline · last contact ${age} ago` };
+  return companionContact(companion);
 }
 
 function credentialLine(companion: CompanionModel): string | null {
@@ -42,7 +28,7 @@ function credentialLine(companion: CompanionModel): string | null {
     case "expired":
       return "The credential expired and capture is paused. Renew to continue.";
     case "expiring-soon":
-      return `The credential expires in ${span(companion.credentialExpiresInMs ?? 0)}. Renew before then.`;
+      return `The credential expires in ${ageLabel(companion.credentialExpiresInMs ?? 0)}. Renew before then.`;
     default:
       return null;
   }

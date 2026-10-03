@@ -6,6 +6,7 @@ import type {
   LiveSessionChoicesResponse,
 } from "@omnitech/interview-contracts";
 import { Icon } from "../icon";
+import { RETENTION_LABEL, RETENTION_MODES } from "./ended-summary";
 import { Segmented } from "./setup-controls";
 import { matrixOptions, type SetupTarget } from "./setup-model";
 import type { SetupChoices } from "./use-setup-choices";
@@ -273,9 +274,10 @@ export function RetentionSection({
         value={value}
         onChange={onChange}
         options={[
-          { value: "delete-at-end", label: "Delete at end" },
-          { value: "thirty-days", label: "30 days" },
-          { value: "until-deleted", label: "Until I delete" },
+          ...RETENTION_MODES.map((mode) => ({
+            value: mode,
+            label: RETENTION_LABEL[mode],
+          })),
         ]}
       />
       <p className="setup-muted">{RETENTION_COPY[value]}</p>
