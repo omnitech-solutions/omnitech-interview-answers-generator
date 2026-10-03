@@ -174,21 +174,6 @@ function ReferenceHeader({
   );
 }
 
-function ReferencePill({
-  icon,
-  children,
-}: {
-  icon: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <span className="presentation-reference-pill">
-      <span aria-hidden="true">{icon}</span>
-      {children}
-    </span>
-  );
-}
-
 function ReferenceThemeCard({
   theme,
   selected,
@@ -2021,7 +2006,12 @@ export function ThemeLibrary({ tenantSlug }: ProductPageProps) {
   useEffect(() => {
     void fetch(api(tenantSlug, "/themes"))
       .then(json<PresentationTheme[]>)
-      .then(setThemes);
+      .then(setThemes)
+      .catch((reason: unknown) =>
+        setThemeStatus(
+          reason instanceof Error ? reason.message : "Unable to load themes.",
+        ),
+      );
   }, [tenantSlug]);
   async function createTheme() {
     if (!name.trim()) return;
@@ -2221,7 +2211,12 @@ export function ImageStudio({ tenantSlug }: ProductPageProps) {
   useEffect(() => {
     void fetch(api(tenantSlug, "/images"))
       .then(json<GeneratedImage[]>)
-      .then(setImages);
+      .then(setImages)
+      .catch((reason: unknown) =>
+        setStatus(
+          reason instanceof Error ? reason.message : "Unable to load images.",
+        ),
+      );
   }, [tenantSlug]);
   async function generate() {
     setStatus("Generating…");
@@ -2365,7 +2360,12 @@ export function PresentationMode({
     if (!id) return;
     void fetch(api(tenantSlug, `/documents/${id}`))
       .then(json<PresentationDocument>)
-      .then(setDocument);
+      .then(setDocument)
+      .catch((reason: unknown) =>
+        setRecordingStatus(
+          reason instanceof Error ? reason.message : "Unable to load.",
+        ),
+      );
     void fetch(api(tenantSlug, `/documents/${id}/recordings`))
       .then(json<PresentationRecording[]>)
       .then(setRecordings)
