@@ -98,10 +98,6 @@ export type SessionRun = {
   // Task revisions (`${taskId}:${revision}`) with an action row: their source
   // segments are remembered by the database.
   recorded: Set<string>;
-  // Segments whose handling changed state no action remembers (a deferred or
-  // resumed topic): the stored marker never passes them, so a rebuilt run
-  // evaluates them again.
-  held: Set<string>;
   // True once a device-only session's queued jobs were swept (cancelled).
   jobsSwept: boolean;
   taskCounter: number;
@@ -147,7 +143,6 @@ export function createRun(
     restoredThrough: 0,
     persistedThrough: 0,
     recorded: new Set(),
-    held: new Set(),
     jobsSwept: false,
     taskCounter: 0,
     settled: new Set(),
@@ -510,8 +505,6 @@ export async function processUtterances(
       : await processUtterance(run.tasks, policy, utterance, idsOf(run));
     run.tasks = step.state;
     fromCore(run, step.trace);
-    if (step.outcome.kind === "deferred" || step.outcome.kind === "resumed")
-      for (const id of utterance.segmentIds) run.held.add(id);
     handled += 1;
   }
   return handled;
@@ -531,10 +524,13 @@ export function noteRecorded(
 // remembered: ignored by the policy, or part of a revision the database holds
 // an action for (or an earlier one of a task with a later recorded revision,
 // whose stored segment ids include it). A segment whose handling only lives in
-// memory (a revision not yet dispatched, a deferred topic) stops the marker,
-// so a rebuilt run evaluates it again instead of losing it.
+// memory (a revision not yet dispatched) stops the marker, so a rebuilt run
+// evaluates it again instead of losing it. A deferred topic does NOT stop it:
+// it opens no task, and holding the marker there made a rebuilt run re-judge
+// the later statements the live run ignored (they coalesced into the next
+// question and could revise it). The deferral itself is memory-only.
 export function handledThrough(run: SessionRun): number {
-  const unremembered = new Set<string>(run.held);
+  const unremembered = new Set<string>();
   for (const task of Object.values(run.tasks.tasks)) {
     const newestRecorded = Math.max(
       0,
