@@ -61,10 +61,31 @@ const aiTargets = [
   },
 ];
 
-async function mount(routeId: string, segments: string[] = []) {
-  const { Screen, props } = await routeScreen(routeId, segments);
+async function mount(
+  routeId: string,
+  segments: string[] = [],
+  products: Parameters<typeof routeScreen>[2] = [],
+) {
+  const { Screen, props } = await routeScreen(routeId, segments, products);
   return render(<Screen {...props} />);
 }
+
+const platformProducts = [
+  {
+    productId: "omnitech.interview",
+    name: "Interview Studio",
+    icon: "sparkles",
+    href: "/t/acme/p/interview",
+    current: false,
+  },
+  {
+    productId: "omnitech.presentation",
+    name: "Presentation Studio",
+    icon: "presentation",
+    href: "/t/acme/p/presentation",
+    current: true,
+  },
+];
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -73,6 +94,38 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe("the way to the other products", () => {
+  it.each(["presentation.library", "presentation.create"])(
+    "%s links the other installed products and not itself",
+    async (routeId) => {
+      installFakeApi({
+        [`GET ${docs}`]: summaries,
+        [`GET ${targets}`]: aiTargets,
+      });
+      await mount(routeId, [], platformProducts);
+      const nav = screen.getByRole("navigation", { name: "Products" });
+      expect(nav).toHaveTextContent("Interview Studio");
+      expect(
+        screen.getByRole("link", { name: "Interview Studio" }),
+      ).toHaveAttribute("href", "/t/acme/p/interview");
+      expect(
+        screen.queryByRole("link", { name: "Presentation Studio" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("shows no products section when there is nowhere else to go", async () => {
+    installFakeApi({
+      [`GET ${docs}`]: summaries,
+      [`GET ${targets}`]: aiTargets,
+    });
+    await mount("presentation.library", [], [platformProducts[1]!]);
+    expect(
+      screen.queryByRole("navigation", { name: "Products" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("presentation library", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ProductLink } from "@omnitech/platform-contracts";
 import { createAssistantClient } from "@omnitech-assistant/sdk";
 import { useEffect, useMemo, useState } from "react";
 import { INTERVIEW_ASSISTANT_PROFILE } from "../../assistant-profile";
@@ -9,7 +10,11 @@ import { studioFetch } from "./studio-fetch";
 // Interview Studio as the platform mounts it: every interview route renders
 // the whole studio, which routes within itself from the URL. It renders in
 // the browser only, where that URL and the person's settings are known.
-export function StudioPage() {
+export function StudioPage({
+  products = [],
+}: {
+  products?: readonly ProductLink[];
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const assistant = useMemo(
@@ -23,5 +28,5 @@ export function StudioPage() {
     }),
     [],
   );
-  return mounted ? <Studio assistant={assistant} /> : null;
+  return mounted ? <Studio assistant={assistant} products={products} /> : null;
 }

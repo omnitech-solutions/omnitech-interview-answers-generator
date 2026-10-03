@@ -1,10 +1,6 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 
 import { auth } from "@/auth";
-import {
-  localInterviewInstallation,
-  localPresentationInstallation,
-} from "./catalog";
 
 const localContext: PlatformContext = {
   user: {
@@ -35,7 +31,8 @@ const localContext: PlatformContext = {
     "presentation.share",
     "tenant.manage",
   ],
-  products: [localInterviewInstallation, localPresentationInstallation],
+  // The tenant's own installations replace these once it is resolved.
+  products: [],
 };
 
 // The bootstrapped local owner and tenant, for fake sign-in in development,
@@ -63,6 +60,7 @@ async function resolveLocalContext(): Promise<PlatformContext | null> {
       userId: resolved.user.id,
     },
     preferences: resolved.preferences,
+    products: resolved.products,
   };
 }
 

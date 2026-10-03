@@ -135,6 +135,7 @@ export function captureNavigation(): Mock<(path: string) => void> {
 export async function routeScreen(
   routeId: string,
   pathSegments: readonly string[] = [],
+  products: ProductPageProps["products"] = [],
 ) {
   const loader = frontendPlugin.routes[routeId];
   if (!loader) throw new Error(`No loader for ${routeId}`);
@@ -143,6 +144,7 @@ export async function routeScreen(
     tenantSlug: "acme",
     routeId,
     pathSegments,
+    products,
   };
   return { Screen, props };
 }

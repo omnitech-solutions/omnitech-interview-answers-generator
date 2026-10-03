@@ -1,3 +1,4 @@
+import type { ProductLink } from "@omnitech/platform-contracts";
 import { views } from "./config/views";
 import { Icon } from "./icon";
 import type { StudioTheme } from "./context";
@@ -17,6 +18,8 @@ export function Sidebar({
   onOpenArtifact,
   onOpenPalette,
   onToggleTheme,
+  products = [],
+  mayLeave,
   expanded,
   onToggleExpanded,
 }: {
@@ -28,6 +31,10 @@ export function Sidebar({
   onOpenArtifact(artifactId: string): void;
   onOpenPalette(): void;
   onToggleTheme(): void;
+  // The other products the member can switch to; leaving the studio first
+  // asks `mayLeave`, which protects unsaved preparation.
+  products?: readonly ProductLink[];
+  mayLeave?: () => boolean;
   // Views that can fold the sidebar to a rail (the Workspace) pass these.
   expanded?: boolean;
   onToggleExpanded?: () => void;
@@ -77,6 +84,28 @@ export function Sidebar({
           </button>
         ))}
       </nav>
+
+      {products.some((product) => !product.current) && (
+        <nav className="studio-nav" aria-label="Products">
+          <div className="studio-section-label">Products</div>
+          {products
+            .filter((product) => !product.current)
+            .map((product) => (
+              <a
+                key={product.productId}
+                className="studio-nav-item"
+                href={product.href}
+                title={product.name}
+                onClick={(event) => {
+                  if (mayLeave && !mayLeave()) event.preventDefault();
+                }}
+              >
+                <Icon name="grid_view" />
+                <span className="studio-nav-label">{product.name}</span>
+              </a>
+            ))}
+        </nav>
+      )}
 
       <div className="studio-section-label">Recent questions</div>
       <div className="studio-recent">

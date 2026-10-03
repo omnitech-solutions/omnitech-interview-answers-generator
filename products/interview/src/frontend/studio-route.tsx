@@ -13,12 +13,12 @@ const StudioPage = lazy(() =>
 
 // Every interview route renders the whole studio, which routes within
 // itself from the URL. It renders in the browser only.
-export function StudioRoute(_props: ProductPageProps) {
+export function StudioRoute({ products }: ProductPageProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   return mounted ? (
     <Suspense fallback={null}>
-      <StudioPage />
+      <StudioPage products={products} />
     </Suspense>
   ) : null;
 }

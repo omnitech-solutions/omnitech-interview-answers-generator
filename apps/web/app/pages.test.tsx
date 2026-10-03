@@ -89,10 +89,24 @@ describe("a product page", () => {
       }),
     )) as ReactElement;
     expect((page.type as { name: string }).name).toBe("StudioRoute");
+    // The page also receives the tenant's installed products, so Interview
+    // can offer a way to Presentation (and mark itself as the current one).
     expect(page.props).toEqual({
       pathSegments: ["briefings", "pack-1"],
       routeId: "interview.briefings",
       tenantSlug: "local",
+      products: [
+        expect.objectContaining({
+          productId: "omnitech.interview",
+          href: "/t/local/p/interview",
+          current: true,
+        }),
+        expect.objectContaining({
+          productId: "omnitech.presentation",
+          href: "/t/local/p/presentation",
+          current: false,
+        }),
+      ],
     });
 
     // The product's root is its home route.
@@ -179,6 +193,8 @@ describe("the tenant's pages", () => {
     )) as ReactElement;
     expect(page.props).toEqual({
       pathSegments: ["shared", "share-token"],
+      // A public link opens outside any tenant: no products to switch to.
+      products: [],
       routeId: "presentation.shared",
       tenantSlug: "",
     });

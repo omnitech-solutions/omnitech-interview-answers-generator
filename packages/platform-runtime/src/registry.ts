@@ -2,6 +2,7 @@ import type {
   PlatformContext,
   ProductFrontendPlugin,
   ProductInstallationConfiguration,
+  ProductLink,
   ProductManifest,
   ProductPageLoader,
   ProductRouteManifest,
@@ -47,6 +48,7 @@ export type ProductPageResolution =
       context: PlatformContext;
       route: ProductRouteManifest;
       page: Awaited<ReturnType<ProductPageLoader>>["default"];
+      products: readonly ProductLink[];
     };
 
 export class ProductRegistry {
@@ -149,6 +151,18 @@ export class ProductRegistry {
     // Only now is product code loaded.
     const module = await product.frontend.routes[route.id]?.();
     if (!module) return notFound;
-    return { status: 200, context, route, page: module.default };
+    // The products the member can switch to: enabled, not hidden, in the
+    // tenant's navigation order.
+    const products = context.products
+      .filter((installed) => installed.enabled && !installed.navigation.hidden)
+      .sort((a, b) => a.navigation.order - b.navigation.order)
+      .map((installed) => ({
+        productId: installed.productId,
+        name: installed.name,
+        icon: installed.icon,
+        href: `/t/${encodeURIComponent(request.tenantSlug)}${installed.routePrefix}`,
+        current: installed.productId === product.manifest.id,
+      }));
+    return { status: 200, context, route, page: module.default, products };
   }
 }

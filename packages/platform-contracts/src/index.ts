@@ -17,6 +17,7 @@ export {
   productFrameSchema,
   productManifestSchema,
   type ProductPageLoader,
+  type ProductLink,
   type ProductPageProps,
   type ProductRouteManifest,
   productRouteManifestSchema,

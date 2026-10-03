@@ -25,6 +25,7 @@ export default async function ProductPage({
   return (
     <Component
       pathSegments={productPath}
+      products={resolved.products}
       routeId={resolved.route.id}
       tenantSlug={tenantSlug}
     />

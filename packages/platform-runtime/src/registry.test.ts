@@ -187,6 +187,57 @@ describe("resolvePage", () => {
     expect(load).toHaveBeenCalledOnce();
   });
 
+  // The page receives the products the member can switch to, built from the
+  // tenant's installations: enabled, not hidden, in navigation order.
+  it("links the tenant's visible installed products, marking the current one", async () => {
+    const { product: notes } = product();
+    const registry = new ProductRegistry();
+    registry.register(notes);
+    const installed = (
+      productId: string,
+      order: number,
+      overrides: { enabled?: boolean; hidden?: boolean } = {},
+    ) => ({
+      ...installation(true),
+      productId,
+      name: productId.split(".")[1]!.toUpperCase(),
+      routePrefix: `/p/${productId.split(".")[1]}`,
+      enabled: overrides.enabled ?? true,
+      navigation: {
+        group: "Products",
+        order,
+        hidden: overrides.hidden ?? false,
+        routes: {},
+      },
+    });
+    const page = await registry.resolvePage(
+      async () => ({
+        ...platformContext,
+        permissions: ["notes.read"],
+        products: [
+          installed("omnitech.zeta", 30),
+          installed("omnitech.notes", 20),
+          installed("omnitech.alpha", 10),
+          installed("omnitech.off", 5, { enabled: false }),
+          installed("omnitech.secret", 6, { hidden: true }),
+        ],
+      }),
+      request,
+    );
+    if (page.status !== 200) throw new Error("expected a page");
+    expect(
+      page.products.map(({ productId, href, current }) => [
+        productId,
+        href,
+        current,
+      ]),
+    ).toEqual([
+      ["omnitech.alpha", "/t/acme/p/alpha", false],
+      ["omnitech.notes", "/t/acme/p/notes", true],
+      ["omnitech.zeta", "/t/acme/p/zeta", false],
+    ]);
+  });
+
   it.each([
     ["a non-member", async () => null],
     [

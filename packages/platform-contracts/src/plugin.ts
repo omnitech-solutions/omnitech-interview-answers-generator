@@ -54,10 +54,23 @@ export type NavigationManifest = z.infer<typeof navigationManifestSchema>;
 export type ProductManifest = z.infer<typeof productManifestSchema>;
 export type ProductFrame = z.infer<typeof productFrameSchema>;
 
+// A product the member can switch to, built from the tenant's installations.
+export interface ProductLink {
+  productId: string;
+  name: string;
+  icon: string;
+  href: string;
+  // The product the page belongs to.
+  current: boolean;
+}
+
 export interface ProductPageProps {
   tenantSlug: string;
   routeId: string;
   pathSegments: readonly string[];
+  // Every visible installed product, in navigation order, so a product can
+  // offer a way to the others without knowing which exist.
+  products: readonly ProductLink[];
 }
 
 export type ProductPageLoader = () => Promise<{

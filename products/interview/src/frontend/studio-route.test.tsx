@@ -42,6 +42,7 @@ describe("Interview Studio as a registered product", () => {
     render(
       <StudioRoute
         pathSegments={["rehearsal"]}
+        products={[]}
         routeId="interview.rehearsal"
         tenantSlug="local"
       />,

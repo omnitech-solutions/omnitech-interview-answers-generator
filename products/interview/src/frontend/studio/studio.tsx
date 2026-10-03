@@ -1,5 +1,6 @@
 "use client";
 
+import type { ProductLink } from "@omnitech/platform-contracts";
 import type { Origin } from "@omnitech-assistant/contracts";
 import {
   type AssistantConfig,
@@ -52,6 +53,8 @@ async function currentOrigin(shell: Origin): Promise<Origin> {
 export type StudioProps = {
   // The assistant connection; the artifact comes from the URL.
   assistant: Omit<WorkspaceAssistant, "artifactId">;
+  // The other products the member can switch to, from the platform.
+  products?: readonly ProductLink[];
 };
 
 // Below these widths the sidebar shrinks to icons: always, or while the
@@ -101,7 +104,7 @@ function onDeviceModels(): AssistantConfig["localModels"] {
   };
 }
 
-export function Studio({ assistant }: StudioProps) {
+export function Studio({ assistant, products = [] }: StudioProps) {
   const { theme, toggleTheme } = useStudioTheme();
   const { route, navigate } = useStudioRoute();
   const tenant = /^\/t\/([^/]+)/.exec(route.base)?.[1] ?? "local";
@@ -236,6 +239,8 @@ export function Studio({ assistant }: StudioProps) {
             setPaletteOpen={setPaletteOpen}
             setHeaderSlot={setHeaderSlot}
             leave={leave}
+            products={products}
+            mayLeave={mayLeave}
             runTests={() => binding.runTests?.()}
             toggleTheme={toggleTheme}
             dock={dock}
@@ -295,6 +300,8 @@ function StudioFrame({
   setPaletteOpen,
   setHeaderSlot,
   leave,
+  products,
+  mayLeave,
   runTests,
   toggleTheme,
   dock,
@@ -309,6 +316,8 @@ function StudioFrame({
   setPaletteOpen(open: boolean): void;
   setHeaderSlot(slot: HTMLElement | null): void;
   leave(next: StudioNavigation): void;
+  products: readonly ProductLink[];
+  mayLeave(): boolean;
   runTests(): void;
   toggleTheme(): void;
   dock: ReturnType<typeof useDockWidth>;
@@ -411,6 +420,8 @@ function StudioFrame({
             setPaletteOpen(true);
           }}
           onToggleTheme={toggleTheme}
+          products={products}
+          mayLeave={mayLeave}
           {...(collapsible
             ? {
                 expanded: !rail,

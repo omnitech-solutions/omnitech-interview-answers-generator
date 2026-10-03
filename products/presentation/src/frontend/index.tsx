@@ -183,10 +183,32 @@ const referenceTextOptions = [
   { id: "extensive", name: "Extensive", lines: 4 },
 ] as const;
 
+// The other products the member can switch to, from the platform's
+// installations; nothing renders when there is nowhere else to go.
+function ProductLinks({
+  products,
+}: {
+  products: ProductPageProps["products"];
+}) {
+  const others = products.filter((product) => !product.current);
+  if (others.length === 0) return null;
+  return (
+    <nav aria-label="Products" className="presentation-product-links">
+      {others.map((product) => (
+        <a href={product.href} key={product.productId}>
+          {product.name}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 function ReferenceHeader({
   title = "Presentation Studio",
+  products,
 }: {
   title?: string;
+  products: ProductPageProps["products"];
 }) {
   return (
     <header className="presentation-reference-header">
@@ -194,6 +216,7 @@ function ReferenceHeader({
         ◌
       </span>
       <span>{title}</span>
+      <ProductLinks products={products} />
     </header>
   );
 }
@@ -243,7 +266,10 @@ function ReferenceThemeCard({
   );
 }
 
-export function PresentationLibrary({ tenantSlug }: ProductPageProps) {
+export function PresentationLibrary({
+  tenantSlug,
+  products,
+}: ProductPageProps) {
   const [items, setItems] = useState<PresentationSummary[]>([]);
   const [error, setError] = useState("");
   const [prompt, setPrompt] = useState("");
@@ -312,7 +338,7 @@ export function PresentationLibrary({ tenantSlug }: ProductPageProps) {
   }
   return (
     <section className="presentation-reference-app">
-      <ReferenceHeader />
+      <ReferenceHeader products={products} />
       <main className="presentation-reference-main">
         <h1>What presentation would you like to create today?</h1>
         <div className="presentation-reference-prompt">
@@ -521,7 +547,7 @@ export function PresentationLibrary({ tenantSlug }: ProductPageProps) {
   );
 }
 
-export function PresentationCreate({ tenantSlug }: ProductPageProps) {
+export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [outline, setOutline] = useState<string[]>([]);
@@ -638,7 +664,10 @@ export function PresentationCreate({ tenantSlug }: ProductPageProps) {
   }
   return (
     <section className="presentation-reference-app presentation-reference-create">
-      <ReferenceHeader title={title || "New presentation"} />
+      <ReferenceHeader
+        products={products}
+        title={title || "New presentation"}
+      />
       <main className="presentation-reference-main">
         <section className="presentation-reference-summary">
           <input
@@ -863,6 +892,7 @@ function defaultSlide(position: number): Slide {
 export function PresentationEditor({
   tenantSlug,
   pathSegments,
+  products,
 }: ProductPageProps) {
   const id = pathSegments[1];
   const [document, setDocument] = useState<PresentationDocument>();
@@ -1398,6 +1428,7 @@ export function PresentationEditor({
           ☰
         </button>
         <span className="presentation-reference-editor-logo">◌</span>
+        <ProductLinks products={products} />
         <input
           aria-label="Presentation title"
           className="presentation-reference-editor-title"
