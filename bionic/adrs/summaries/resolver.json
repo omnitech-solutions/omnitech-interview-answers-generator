@@ -213,7 +213,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A session action and its pre-generated job id are committed before the job is created, and job creation is idempotent on that id.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/actor-private-session-rows": {
     "authority": "prescriptive",
@@ -222,7 +222,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Active Session tables are owned by products/interview and carry tenant and owner ids under forced row security that binds both.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/assistance-counts-as-hints": {
     "authority": "prescriptive",
@@ -231,7 +231,7 @@
     "review_state": "accepted-with-adr",
     "rule": "In a non-strict rehearsal each shown assistance draft counts as a hint at the existing hint cost, keyed by the rehearsal run id.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/bounded-ingest": {
     "authority": "prescriptive",
@@ -240,7 +240,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Ingest refuses over-limit content with a content-free outcome and writes nothing.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/captured-input-untrusted": {
     "authority": "prescriptive",
@@ -249,7 +249,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Captured text, images and pre-loaded role text are untrusted data that cannot grant tools, change policy, request secrets or override allowed actions.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/claim-writes-lease-and-fence-only": {
     "authority": "prescriptive",
@@ -258,7 +258,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Under the session claim setting the database permits changing only lease and fence columns.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/complete-session-purge": {
     "authority": "prescriptive",
@@ -267,7 +267,7 @@
     "review_state": "accepted-with-adr",
     "rule": "One idempotent purge deletes all session content, including its jobs, job payloads and relay rows, and leaves a content-free tombstone.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/composite-owner-references": {
     "authority": "prescriptive",
@@ -276,7 +276,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Every table that references a session does so by tenant, owner and session id.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/credential-held-securely": {
     "authority": "prescriptive",
@@ -285,7 +285,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The companion holds the credential only in the keychain or memory.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/credential-lifetime-and-renewal": {
     "authority": "prescriptive",
@@ -294,7 +294,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session credential expires no later than the session duration cap and extends only by owner-initiated replacement.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/credential-lookup-policy": {
     "authority": "prescriptive",
@@ -303,7 +303,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A named policy admits only the one session row whose credential hash is presented, after which access is tenant-and-actor scoped.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/credential-revocation": {
     "authority": "prescriptive",
@@ -312,7 +312,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session credential is revoked on end, purge, membership removal or owner request.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/credential-strength": {
     "authority": "prescriptive",
@@ -321,7 +321,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session credential is at least 128 random bits, and a failed lookup gives one refusal whether the credential is unknown, expired or revoked.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/declared-profile-locality": {
     "authority": "prescriptive",
@@ -330,7 +330,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Every AI profile declares its locality in the shared profile configuration source, and a missing or unknown value is treated as remote.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/device-only-enforced-twice": {
     "authority": "prescriptive",
@@ -339,7 +339,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A device-only session uses only device-locality profiles, enforced at profile resolution and again before dispatch, with no fallback.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/id-only-traces": {
     "authority": "prescriptive",
@@ -348,16 +348,16 @@
     "review_state": "accepted-with-adr",
     "rule": "Traces and logs hold ids, revisions, profiles, durations, outcomes, byte counts and validation paths, never content, credentials or content hashes.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/immutable-privacy-columns": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "The database refuses changing a session's tenant, owner, links or sources snapshot, except setting links, snapshot and credential to null while the session is purging.",
+    "rule": "The database refuses changing a session's tenant, owner, rehearsal run id, strict flag, links or sources snapshot once set at start, except setting links, snapshot and credential to null while the session is purging.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/inert-draft-rendering": {
     "authority": "prescriptive",
@@ -366,7 +366,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Session-authored drafts render without fetching external resources.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/ingest-membership-recheck": {
     "authority": "prescriptive",
@@ -375,7 +375,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Ingest rechecks tenant membership before any domain write.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/job-creation-locked-to-session": {
     "authority": "prescriptive",
@@ -384,7 +384,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Job creation for a session verifies under a lock on the session row that it is active with a current fence, and cancellation fails closed on a job it cannot see.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/linked-resource-authorization": {
     "authority": "prescriptive",
@@ -393,7 +393,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A session may link an interview, candidacy, profile revision, Workspace draft, agent job or artifact only after the database confirms the same tenant and owner.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/model-calls-gateway-routed": {
     "authority": "prescriptive",
@@ -402,7 +402,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Every model call carrying session content goes through the gateway with the session policy.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/monotonic-privacy-columns": {
     "authority": "prescriptive",
@@ -411,7 +411,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The database refuses loosening the processing policy and lengthening retention.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/no-content-after-purging": {
     "authority": "prescriptive",
@@ -420,16 +420,16 @@
     "review_state": "accepted-with-adr",
     "rule": "The database refuses new observations, screenshot artifacts and published results for a session that is ended or purging.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/no-resume-after-end": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "A session job is not resumed unless its session is active.",
+    "rule": "A session job is resumed only after verifying under the session-row lock that its session, found through the action naming the job, is active.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/no-second-scorecard": {
     "authority": "prescriptive",
@@ -438,7 +438,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A session never writes a Rehearsal scorecard.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/owner-checked-read-paths": {
     "authority": "prescriptive",
@@ -447,7 +447,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Every session read path opens an actor-scoped transaction for the session owner.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/owner-chooses-retention": {
     "authority": "prescriptive",
@@ -456,7 +456,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Only the session owner chooses or shortens retention.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/private-session-artifact-types": {
     "authority": "prescriptive",
@@ -465,7 +465,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Every session artifact type is covered by the artifact owner-only policies.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/private-session-jobs": {
     "authority": "prescriptive",
@@ -474,7 +474,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A job created by a session is visible and cancellable only by its creator and the agent worker.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/purge-delete-setting": {
     "authority": "prescriptive",
@@ -483,7 +483,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Deleting session artifacts requires a named setting with one owning file, plus matching owner and session artifact type.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/raw-audio-never-persisted": {
     "authority": "prescriptive",
@@ -492,7 +492,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Raw audio is held only in a bounded companion memory buffer and is never sent, stored or logged.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/retention-modes": {
     "authority": "prescriptive",
@@ -501,7 +501,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Retention is delete at end, thirty days from end, or until deleted, defaulting to delete at end.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/screenshots-as-private-artifacts": {
     "authority": "prescriptive",
@@ -510,7 +510,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Selected screenshots live only as owner-private image artifacts with payloads, checked by leading bytes and served inert.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/session-claim-setting": {
     "authority": "prescriptive",
@@ -519,7 +519,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The session worker claims sessions across tenants through one named setting with one owning file listed in the tenant-context-boundary test (scripts/tenant-context-boundary.test.ts).",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/session-processing-policy": {
     "authority": "prescriptive",
@@ -528,7 +528,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A session records its processing policy at start, and only the session row decides it.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/strict-rehearsal-no-assistance": {
     "authority": "prescriptive",
@@ -537,7 +537,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Live assistance is disabled in a strict rehearsal.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/tighten-only-locality": {
     "authority": "prescriptive",
@@ -546,7 +546,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A session may tighten its processing policy to device-only but never loosen it.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/tombstone-keeps-hint-count": {
     "authority": "prescriptive",
@@ -555,7 +555,7 @@
     "review_state": "accepted-with-adr",
     "rule": "The tombstone keeps owner, rehearsal run id, strict flag and a content-free count of shown drafts.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/transcripts-in-observations": {
     "authority": "prescriptive",
@@ -564,7 +564,7 @@
     "review_state": "accepted-with-adr",
     "rule": "Final transcript text lives only in session observation rows.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "ADR-0011/unlisted-stage-refused": {
     "authority": "prescriptive",
@@ -573,7 +573,7 @@
     "review_state": "accepted-with-adr",
     "rule": "A stage with no device implementation is refused in device-only mode.",
     "source_adr": "ADR-0011",
-    "source_status": "Proposed"
+    "source_status": "Accepted"
   },
   "retired_slugs": {},
   "slugs": {

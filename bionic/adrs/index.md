@@ -2,7 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
-| ADR-0011 | Keep Active Session data private to the actor and enforce locality before dispatch | Proposed | 2026-10-03 | — | — | active-session, privacy, row-security, locality, retention, interview |
+| ADR-0011 | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | 2026-10-03 | — | — | active-session, privacy, row-security, locality, retention, interview |
 | ADR-0010 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | 2026-10-03 | — | — | active-session, worker, contracts, privacy, interview |
 | ADR-0009 | Keep candidate documents in the Interview product | Accepted | 2026-10-02 | — | — | interview, documents, privacy, artifacts, ai |
 | ADR-0008 | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 | — | — | interview, answers, contracts, playground |

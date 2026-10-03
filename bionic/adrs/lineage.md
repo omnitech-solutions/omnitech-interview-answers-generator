@@ -38,7 +38,7 @@ graph TD
 | ADR-0008 | Interview answers are structured guides that render their Markdown | Accepted | — | — | — |
 | ADR-0009 | Keep candidate documents in the Interview product | Accepted | — | — | — |
 | ADR-0010 | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | — | — | — |
-| ADR-0011 | Keep Active Session data private to the actor and enforce locality before dispatch | Proposed | — | ADR-0010 | — |
+| ADR-0011 | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | — | ADR-0010 | — |
 
 ## Topic clusters
 

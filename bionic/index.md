@@ -24,7 +24,7 @@ See [[research/index]].
 
 | id | title | status | date |
 |---|---|---|---|
-| [[adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and]] | Keep Active Session data private to the actor and enforce locality before dispatch | Proposed | 2026-10-03 |
+| [[adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and]] | Keep Active Session data private to the actor and enforce locality before dispatch | Accepted | 2026-10-03 |
 | [[adrs/ADR-0010-host-the-active-session-processor-in-the-agent-worker]] | Host the Active Session processor in the agent worker behind a versioned wire contract | Accepted | 2026-10-03 |
 | [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]] | Keep candidate documents in the Interview product | Accepted | 2026-10-02 |
 | [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 |

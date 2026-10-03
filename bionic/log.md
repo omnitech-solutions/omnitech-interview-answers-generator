@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | Active Session private data ADR accepted after three review rounds
+
+Entry added to bionic/journal/2026-10.md.
+
+## [2026-10-03] adr | ADR-0011: accepted
+
+Keep Active Session data private to the actor and enforce locality before dispatch. Accepted after 3 review rounds plus a targeted correctness re-check (Claude review sub-agents, not the multi-model council).
+
 ## [2026-10-03] adr | ADR-0011: Keep Active Session data private to the actor and enforce locality before dispatch
 
 Proposed. File `bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md`. Tags: active-session, privacy, row-security, locality, retention, interview.
