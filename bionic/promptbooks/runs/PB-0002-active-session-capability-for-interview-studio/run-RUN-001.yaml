@@ -480,5 +480,9 @@ notes: |
   Prompt 27 remains running. The operator decided to keep it open if an independent reviewer cannot approve strict preference-only logistics publication; prompts 28 and 29 must not advance or archive before that gate closes. ADR-0013 is Accepted at ffea4eb, and the README and changelog disclose retained Workspace drafts at 722610e.
   Independent S1 probe: with no approved preferences, category other and draft "I can be there whenever you need me.", assist-stage.validate returned ok:true and published that availability promise. The model-selected category bypassed the deterministic logistics renderer. The code worker is addressing this; no independent APPROVE or final post-fix gate is recorded here yet.
 
+  ## Final code review and documentation preparation, 2026-10-03
+  At source commit c4dfbc4, pnpm verify passed 2,967 tests in 276 files, typecheck 54/54 and build 29/29 (code worker output). Independent direct probes with no approved preferences still returned ok:true for category other and draft "I can be there whenever you need me." A suggested-interpretation claim with the same text also returned ok:true and appeared in the published claims and sections. This is a MUST-FIX S1 under the operator's strict preference-only requirement, so prompt 27 remains running and no PR draft or archive is claimed.
+  Code docs and the architecture spine were regenerated from c4dfbc4 in commit 000aa12; both dry-run drift gates returned clean. The architecture data-model extractor remains stubbed for this Drizzle repository. Promptbook index CHK-PB-11 was repaired in 2310da1. A 427-page manual audit was not completed because the required Explore agent slot was unavailable; the vendored integrity gates run separately found no BROKEN or DRIFT after the index repair, with seven doctrine-pairing warnings.
+
 pr_draft: ""
 summary: ""
