@@ -1,8 +1,6 @@
-import { readFile } from "node:fs/promises";
 import type { Scope } from "@omnitech-assistant/contracts";
 import {
   assistantGrants,
-  assistantMigrations,
   PgBossRunQueue,
 } from "@omnitech-assistant/storage-postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -23,23 +21,7 @@ const runner = { runAll: vi.fn() };
 
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const file of [
-    "0004_assistant_interview.sql",
-    "0005_assistant_provenance.sql",
-    "0006_interview_briefings.sql",
-    "0007_assistant_reverts.sql",
-    "0008_interview_plans.sql",
-    "0009_concept_briefs.sql",
-    "0010_rehearsal_sessions.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${file}`,
-        import.meta.url,
-      ),
-    );
-  for (const migration of assistantMigrations)
-    await pg.admin.query(await readFile(migration, "utf8"));
+  await pg.migrate();
   await pg.admin.query(assistantGrants("fixture_member"));
   queue = new PgBossRunQueue({
     ...pg.config,

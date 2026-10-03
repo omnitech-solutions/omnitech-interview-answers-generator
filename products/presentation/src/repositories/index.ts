@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { PlatformDatabase } from "@omnitech/platform-storage";
+import type { PlatformDatabase } from "@omnitech/database";
 import type {
   CreatePresentationInput,
   GeneratedImage,

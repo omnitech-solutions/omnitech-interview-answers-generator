@@ -1,7 +1,4 @@
-import type {
-  DatabaseClient,
-  PlatformDatabase,
-} from "@omnitech/platform-storage";
+import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 import { createHash } from "node:crypto";
 
 export interface PresentationImportOptions {

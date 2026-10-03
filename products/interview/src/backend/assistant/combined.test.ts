@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import type {
   DatabasePort,
   ModelInput,
@@ -13,7 +12,6 @@ import {
 } from "@omnitech-assistant/server";
 import {
   assistantGrants,
-  assistantMigrations,
   PgBossRunQueue,
   RunRepository,
 } from "@omnitech-assistant/storage-postgres";
@@ -86,19 +84,7 @@ let failReceipt = false,
 const transactions: { table: string; id: string }[] = [];
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const file of [
-    "0004_assistant_interview.sql",
-    "0005_assistant_provenance.sql",
-    "0007_assistant_reverts.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${file}`,
-        import.meta.url,
-      ),
-    );
-  for (const migration of assistantMigrations)
-    await pg.admin.query(await readFile(migration, "utf8"));
+  await pg.migrate();
   await pg.admin.query(assistantGrants("fixture_member"));
   queue = new PgBossRunQueue({
     ...pg.config,

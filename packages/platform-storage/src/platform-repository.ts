@@ -5,7 +5,7 @@ import type {
   UserPreferences,
 } from "@omnitech/platform-contracts";
 import type { EncryptedValue } from "./connected-account-vault.js";
-import type { DatabaseClient, PlatformDatabase } from "./database.js";
+import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 
 type ContextRow = {
   user_id: string;

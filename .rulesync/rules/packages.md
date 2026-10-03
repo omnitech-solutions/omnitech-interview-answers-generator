@@ -12,8 +12,8 @@ description: Reusable package and SDK boundaries
 - `database` owns PostgreSQL connectivity, tenant-scoped transactions
   (`withTenant`) and migration execution; domain packages (`platform-storage`,
   `products/*`) own their schemas and repositories.
-- `platform-storage` owns the platform schema, platform repositories,
-  encryption boundaries and the legacy migration list.
+- `platform-storage` owns the `platform` and `ai` schemas, platform
+  repositories and encryption boundaries.
 - `platform-integrations` owns OAuth protocol behavior without UI or database
   access.
 - `products/*` own complete product verticals: manifest, frontend, backend,

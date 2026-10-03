@@ -1,7 +1,5 @@
-import {
-  getPlatformDatabase,
-  PlatformRepository,
-} from "@omnitech/platform-storage";
+import { PlatformRepository } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";

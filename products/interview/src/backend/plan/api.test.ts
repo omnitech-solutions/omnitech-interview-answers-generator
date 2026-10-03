@@ -48,18 +48,7 @@ const northwind = {
 
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const file of [
-    "0004_assistant_interview.sql",
-    "0005_assistant_provenance.sql",
-    "0006_interview_briefings.sql",
-    "0008_interview_plans.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${file}`,
-        import.meta.url,
-      ),
-    );
+  await pg.migrate();
   await pg.admin.query(
     "GRANT DELETE ON interview.interview_plan_items TO fixture_member",
   );

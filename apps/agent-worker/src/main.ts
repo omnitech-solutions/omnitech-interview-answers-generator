@@ -4,9 +4,9 @@ import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
 import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
 import {
   AgentPayloadStore,
-  getPlatformDatabase,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import { runAgentWorker } from "./index.js";
 
 // The person's installed Codex CLI (CODEX_PATH, else `codex` on PATH): the

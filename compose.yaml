@@ -1,14 +1,19 @@
+# Interview Studio's local database. `pnpm dev` starts it and waits for it.
+name: omnitech-interview
+
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: omnitech
-      POSTGRES_USER: omnitech
-      POSTGRES_PASSWORD: omnitech
+      # The container's administrator; the app connects as `omnitech`.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      # A port of its own, clear of other local Postgres servers.
+      - "54320:5432"
     volumes:
       - omnitech-postgres:/var/lib/postgresql/data
+      - ./docker/postgres/app-role.sql:/docker-entrypoint-initdb.d/app-role.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omnitech -d omnitech"]
       interval: 5s

@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { migrateDatabase } from "@omnitech/database/migrate";
 import { startDisposablePostgres } from "@omnitech/database/test-support";
 import type {
   WorkspaceDatabasePort as DatabasePort,
@@ -80,8 +80,10 @@ export async function disposablePostgres() {
     member,
     database,
     worker,
-    migrate: async (url: URL) => {
-      await admin.query(await readFile(url, "utf8"));
+    // The full current schema, as the app migrates it; the member role may
+    // read and write Interview Studio's tables (never delete).
+    migrate: async () => {
+      await migrateDatabase(server.owner);
       await admin.query(
         "GRANT USAGE ON SCHEMA interview TO fixture_member; GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA interview TO fixture_member",
       );

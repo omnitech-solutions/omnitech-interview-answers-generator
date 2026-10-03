@@ -22,9 +22,9 @@ import {
 } from "@omnitech/ai-runtime";
 import {
   AgentPayloadStore,
-  getPlatformDatabase,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import { createLocalModelAdapter } from "./local-model";
 
 function createAgentPort(): AgentExecutionPort {

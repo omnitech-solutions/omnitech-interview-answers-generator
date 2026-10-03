@@ -16,6 +16,7 @@
     "@omnitech/agent-runtime-claude": "workspace:*",
     "@omnitech/agent-runtime-codex": "workspace:*",
     "@omnitech/agent-runtime-contracts": "workspace:*",
+    "@omnitech/database": "workspace:*",
     "@omnitech/platform-storage": "workspace:*"
   },
   "devDependencies": {

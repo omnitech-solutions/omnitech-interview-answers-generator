@@ -1,6 +1,6 @@
 import type { AiExecutionGateway, ImageResult } from "@omnitech/ai-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
-import type { PlatformDatabase } from "@omnitech/platform-storage";
+import type { PlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
 import { PresentationService } from "../application/index.js";

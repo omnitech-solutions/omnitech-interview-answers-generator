@@ -1,5 +1,5 @@
 import { createPlatformApi } from "@omnitech/platform-api";
-import { getPlatformDatabase } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import { createInterviewApi } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
@@ -9,7 +9,7 @@ import { resolvePlatformContext } from "./context";
 import { getInterviewStudio } from "./interview-studio";
 
 const localDatabaseUrl =
-  "postgresql://omnitech:omnitech@127.0.0.1:5432/omnitech";
+  "postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech";
 if (process.env["NODE_ENV"] !== "production" && !process.env["DATABASE_URL"]) {
   process.env["DATABASE_URL"] = localDatabaseUrl;
 }
@@ -26,9 +26,11 @@ export function createApplicationApi() {
       resolveContext: resolvePlatformContext,
       savePreferences: async (context, preferences) => {
         if (!process.env["DATABASE_URL"]) return;
-        const { getPlatformDatabase, PlatformRepository } = await import(
-          "@omnitech/platform-storage"
-        );
+        const [{ getPlatformDatabase }, { PlatformRepository }] =
+          await Promise.all([
+            import("@omnitech/database"),
+            import("@omnitech/platform-storage"),
+          ]);
         await new PlatformRepository(getPlatformDatabase()).savePreferences(
           context.user.id,
           preferences,

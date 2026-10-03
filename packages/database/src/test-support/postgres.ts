@@ -65,8 +65,16 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
   const stop = async () => {
     await owner.close().catch(() => undefined);
     if (child.exitCode === null) {
+      // Smart shutdown waits for clients to disconnect. A client left open
+      // escalates it to fast shutdown after five seconds, then to a kill, so
+      // a test can never hang here.
+      const exited = once(child, "exit");
       child.kill("SIGTERM");
-      await once(child, "exit");
+      const fast = setTimeout(() => child.kill("SIGINT"), 5_000);
+      const kill = setTimeout(() => child.kill("SIGKILL"), 10_000);
+      await exited;
+      clearTimeout(fast);
+      clearTimeout(kill);
     }
     await rm(root, { recursive: true, force: true });
   };

@@ -14,18 +14,7 @@ let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 let repo: workspace.InterviewWorkspaceRepository;
 beforeAll(async () => {
   pg = await disposablePostgres();
-  await pg.migrate(
-    new URL(
-      "../../../../../packages/platform-storage/migrations/0004_assistant_interview.sql",
-      import.meta.url,
-    ),
-  );
-  await pg.migrate(
-    new URL(
-      "../../../../../packages/platform-storage/migrations/0005_assistant_provenance.sql",
-      import.meta.url,
-    ),
-  );
+  await pg.migrate();
   repo = new workspace.InterviewWorkspaceRepository(pg.database);
 });
 afterAll(async () => {

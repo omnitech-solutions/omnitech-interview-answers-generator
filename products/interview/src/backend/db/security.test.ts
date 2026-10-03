@@ -1,16 +1,14 @@
-import { readFile } from "node:fs/promises";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
   type TenantDatabase,
   withTenant,
 } from "@omnitech/database";
-import { runDrizzleMigrations } from "@omnitech/database/migrate";
+import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
-import { legacyMigrations } from "@omnitech/platform-storage";
 import { eq, getTableName, is, sql } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -23,9 +21,7 @@ const ids = { tenantA: "", tenantB: "", alice: "", bob: "", carol: "" };
 
 beforeAll(async () => {
   pg = await startDisposablePostgres();
-  for (const file of legacyMigrations())
-    await pg.owner.query(await readFile(file, "utf8"));
-  await runDrizzleMigrations(pg.owner);
+  await migrateDatabase(pg.owner);
   await pg.owner.query(`
     GRANT USAGE ON SCHEMA platform, interview, practice TO fixture_member;
     GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA interview, practice TO fixture_member;

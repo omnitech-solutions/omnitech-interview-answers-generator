@@ -29,7 +29,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { interview } from "./legacy.js";
+import { interview } from "./studio.js";
 
 const platform = { tenants, users };
 
@@ -112,7 +112,7 @@ export const people = interview.table.withRLS(
   },
   (t) => [
     tenantUnique("people", t.tenantId, t.id),
-    tenantReference(
+    ...tenantReference(
       "people_company_fkey",
       [t.tenantId, t.companyId],
       [companies.tenantId, companies.id],
@@ -138,7 +138,7 @@ export const memberPeople = interview.table.withRLS(
       columns: [t.tenantId, t.userId],
       foreignColumns: [tenantMemberships.tenantId, tenantMemberships.userId],
     }).onDelete("cascade"),
-    tenantReference(
+    ...tenantReference(
       "member_people_person_fkey",
       [t.tenantId, t.personId],
       [people.tenantId, people.id],
@@ -162,12 +162,12 @@ export const candidacies = interview.table.withRLS(
   },
   (t) => [
     tenantUnique("candidacies", t.tenantId, t.id),
-    tenantReference(
+    ...tenantReference(
       "candidacies_company_fkey",
       [t.tenantId, t.companyId],
       [companies.tenantId, companies.id],
     ),
-    tenantReference(
+    ...tenantReference(
       "candidacies_candidate_fkey",
       [t.tenantId, t.candidatePersonId],
       [people.tenantId, people.id],
@@ -192,7 +192,7 @@ export const interviews = interview.table.withRLS(
   (t) => [
     tenantUnique("interviews", t.tenantId, t.id),
     unique("interviews_candidacy_ordinal_key").on(t.candidacyId, t.ordinal),
-    tenantReference(
+    ...tenantReference(
       "interviews_candidacy_fkey",
       [t.tenantId, t.candidacyId],
       [candidacies.tenantId, candidacies.id],
@@ -221,12 +221,12 @@ export const interviewParticipants = interview.table.withRLS(
       t.personId,
       t.role,
     ),
-    tenantReference(
+    ...tenantReference(
       "interview_participants_interview_fkey",
       [t.tenantId, t.interviewId],
       [interviews.tenantId, interviews.id],
     ),
-    tenantReference(
+    ...tenantReference(
       "interview_participants_person_fkey",
       [t.tenantId, t.personId],
       [people.tenantId, people.id],
@@ -240,7 +240,8 @@ export const interviewParticipants = interview.table.withRLS(
 );
 
 // A standalone briefing pack, optionally linked into the domain. briefing_id
-// is the pack's existing artifact id (legacy per-actor key, so no FK).
+// is the pack's artifact id; packs are keyed per actor in Interview Studio's
+// tables, so it has no foreign key.
 export const briefingLinks = interview.table.withRLS(
   "briefing_links",
   {
@@ -252,12 +253,12 @@ export const briefingLinks = interview.table.withRLS(
   (t) => [
     tenantUnique("briefing_links", t.tenantId, t.id),
     unique("briefing_links_briefing_key").on(t.tenantId, t.briefingId),
-    tenantReference(
+    ...tenantReference(
       "briefing_links_candidacy_fkey",
       [t.tenantId, t.candidacyId],
       [candidacies.tenantId, candidacies.id],
     ),
-    tenantReference(
+    ...tenantReference(
       "briefing_links_interview_fkey",
       [t.tenantId, t.interviewId],
       [interviews.tenantId, interviews.id],
@@ -333,8 +334,9 @@ export const exercises = practice.table.withRLS(
   ],
 );
 
-// An attempt is one of the user's existing Workspace drafts (draft_id, legacy
-// per-actor key, so no FK) solving an exercise in a language. Private to its user.
+// An attempt is one of the user's Workspace drafts solving an exercise in a
+// language. Drafts are keyed per actor in Interview Studio's tables, so
+// draft_id has no foreign key. Private to its user.
 export const exerciseAttempts = practice.table.withRLS(
   "exercise_attempts",
   {
@@ -351,6 +353,7 @@ export const exerciseAttempts = practice.table.withRLS(
   (t) => [
     tenantUnique("exercise_attempts", t.tenantId, t.id),
     unique("exercise_attempts_draft_key").on(t.tenantId, t.userId, t.draftId),
+    index("exercise_attempts_exercise_idx").on(t.exerciseId),
     pgPolicy("tenant_user_exercise_attempts", {
       as: "permissive",
       for: "all",

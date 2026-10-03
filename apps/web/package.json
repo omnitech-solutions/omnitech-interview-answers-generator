@@ -33,6 +33,7 @@
     "@omnitech/ai-runtime": "workspace:*",
     "@omnitech/ai-sdk": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
+    "@omnitech/database": "workspace:*",
     "@omnitech/interview-contracts": "workspace:*",
     "@omnitech/interview-library": "workspace:*",
     "@omnitech/interview-playground-control": "workspace:*",

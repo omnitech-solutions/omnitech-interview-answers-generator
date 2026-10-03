@@ -6,9 +6,9 @@ import {
 } from "@omnitech/platform-integrations";
 import {
   ConnectedAccountVault,
-  getPlatformDatabase,
   PlatformRepository,
 } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import { NextResponse } from "next/server";
 
 import { resolvePlatformContext } from "@/src/platform/context";

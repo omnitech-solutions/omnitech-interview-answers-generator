@@ -40,7 +40,7 @@ const localContext: PlatformContext = {
 
 async function resolveLocalContext(): Promise<PlatformContext> {
   if (!process.env["DATABASE_URL"]) return localContext;
-  const { getPlatformDatabase } = await import("@omnitech/platform-storage");
+  const { getPlatformDatabase } = await import("@omnitech/database");
   const result = await getPlatformDatabase().query<{
     user_id: string;
     tenant_id: string;
@@ -110,9 +110,10 @@ export async function resolvePlatformContext(
     return tenantSlug === localContext.tenant.slug ? localContext : null;
   }
   if (!session?.user?.email) return null;
-  const { getPlatformDatabase, PlatformRepository } = await import(
-    "@omnitech/platform-storage"
-  );
+  const [{ getPlatformDatabase }, { PlatformRepository }] = await Promise.all([
+    import("@omnitech/database"),
+    import("@omnitech/platform-storage"),
+  ]);
   return new PlatformRepository(getPlatformDatabase()).resolveContext(
     session.user.email,
     tenantSlug,

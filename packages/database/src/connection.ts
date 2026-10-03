@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 import pg, { type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 
 const { Pool } = pg;
@@ -98,14 +96,6 @@ export function createPlatformDatabase(
 export function getPlatformDatabase(): PlatformDatabase {
   database ??= createPlatformDatabase();
   return database;
-}
-
-export async function migrateDatabase(
-  client: DatabaseClient,
-  migrationUrl: URL,
-): Promise<void> {
-  const sql = await readFile(migrationUrl, "utf8");
-  await client.query(sql);
 }
 
 // Internal: a checked-out client for code inside this package (withTenant).

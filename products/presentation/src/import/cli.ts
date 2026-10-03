@@ -1,4 +1,4 @@
-import { createPlatformDatabase } from "@omnitech/platform-storage";
+import { createPlatformDatabase } from "@omnitech/database";
 import { writeFile } from "node:fs/promises";
 import { importPresentationStudio } from "./index.js";
 

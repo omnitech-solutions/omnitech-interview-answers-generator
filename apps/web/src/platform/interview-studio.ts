@@ -1,6 +1,6 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { DockerCodeRunner } from "@omnitech/code-runner";
-import { getPlatformDatabase } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import {
   briefingScope,
   createInterviewStudio,

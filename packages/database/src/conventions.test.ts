@@ -38,7 +38,7 @@ const child = s.table.withRLS(
     note: text("note"),
   },
   (t) => [
-    tenantReference(
+    ...tenantReference(
       "child_parent_fkey",
       [t.tenantId, t.parentId],
       [parent.tenantId, parent.id],
@@ -62,6 +62,7 @@ it("gives tenant-owned tables the id, tenant, author, timestamps, unique key, po
   expect(p.policies.map((x) => x.name)).toEqual(["tenant_parent"]);
   expect(p.enableRLS).toBe(true);
   const c = getTableConfig(child);
+  expect(c.indexes.map((i) => i.config.name)).toContain("child_parent_idx");
   const composite = c.foreignKeys.find(
     (fk) => fk.getName() === "child_parent_fkey",
   );
@@ -136,7 +137,6 @@ it("exposes exactly the convention helpers from the package entrypoint", () => {
         ![
           "createPlatformDatabase",
           "getPlatformDatabase",
-          "migrateDatabase",
           "withTenant",
         ].includes(key),
     )

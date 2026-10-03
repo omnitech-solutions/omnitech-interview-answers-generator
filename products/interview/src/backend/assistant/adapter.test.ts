@@ -68,17 +68,7 @@ const proposal = (
   }) as unknown as Proposal;
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const filename of [
-    "0004_assistant_interview.sql",
-    "0005_assistant_provenance.sql",
-    "0007_assistant_reverts.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${filename}`,
-        import.meta.url,
-      ),
-    );
+  await pg.migrate();
   workspace = new InterviewWorkspaceRepository(pg.database);
   await workspace.create(scope, origin, {
     question: "Describe a synthetic improvement",

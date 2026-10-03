@@ -14,6 +14,7 @@
   },
   "references": [
     { "path": "../../packages/ai-sdk" },
+    { "path": "../../packages/database" },
     { "path": "../../packages/interview-contracts" },
     { "path": "../../packages/interview-library" },
     { "path": "../../packages/interview-storage" },

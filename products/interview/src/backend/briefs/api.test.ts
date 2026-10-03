@@ -56,16 +56,7 @@ async function request(
 
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const file of [
-    "0004_assistant_interview.sql",
-    "0009_concept_briefs.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${file}`,
-        import.meta.url,
-      ),
-    );
+  await pg.migrate();
   await pg.admin.query(
     "GRANT DELETE ON interview.concept_briefs TO fixture_member",
   );

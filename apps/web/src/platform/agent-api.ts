@@ -5,9 +5,9 @@ import {
 } from "@omnitech/agent-runtime-contracts";
 import {
   AgentPayloadStore,
-  getPlatformDatabase,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
 import { resolvePlatformContext } from "./context";

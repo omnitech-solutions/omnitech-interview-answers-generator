@@ -11,9 +11,9 @@ import type { ModelSource } from "@omnitech-assistant/providers";
 import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
 import {
   AgentPayloadStore,
-  getPlatformDatabase,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
+import { getPlatformDatabase } from "@omnitech/database";
 
 const PREFIX = "agent/";
 // The `model = "…"` line of ~/.codex/config.toml, if there is one.

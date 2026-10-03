@@ -50,16 +50,7 @@ const finished = (endedAt: string, checks: number[], reveals: string[]) => ({
 
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const file of [
-    "0004_assistant_interview.sql",
-    "0010_rehearsal_sessions.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${file}`,
-        import.meta.url,
-      ),
-    );
+  await pg.migrate();
 });
 afterAll(async () => {
   await pg?.close();

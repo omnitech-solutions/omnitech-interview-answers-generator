@@ -12,18 +12,7 @@ let pg: Awaited<ReturnType<typeof disposablePostgres>>,
   workspace: InterviewWorkspaceRepository;
 beforeAll(async () => {
   pg = await disposablePostgres();
-  await pg.migrate(
-    new URL(
-      "../../../../../packages/platform-storage/migrations/0004_assistant_interview.sql",
-      import.meta.url,
-    ),
-  );
-  await pg.migrate(
-    new URL(
-      "../../../../../packages/platform-storage/migrations/0005_assistant_provenance.sql",
-      import.meta.url,
-    ),
-  );
+  await pg.migrate();
   workspace = new InterviewWorkspaceRepository(pg.database);
   await workspace.create(scope, origin, {
     question: "Synthetic",

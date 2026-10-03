@@ -10,7 +10,7 @@ import type {
   AgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 import { ConnectedAccountVault } from "./connected-account-vault.js";
-import type { PlatformDatabase } from "./database.js";
+import type { PlatformDatabase } from "@omnitech/database";
 
 type JobRow = {
   id: string;

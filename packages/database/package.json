@@ -11,12 +11,12 @@
       "import": "./dist/index.js"
     },
     "./test-support": {
-      "types": "./dist/test-support/postgres.d.ts",
-      "import": "./dist/test-support/postgres.js"
+      "types": "./dist/test-support/index.d.ts",
+      "import": "./dist/test-support/index.js"
     },
     "./migrate": {
-      "types": "./dist/drizzle-migrations.d.ts",
-      "import": "./dist/drizzle-migrations.js"
+      "types": "./dist/migrate.d.ts",
+      "import": "./dist/migrate.js"
     }
   },
   "files": [
@@ -28,10 +28,11 @@
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts",
-    "db:pull": "drizzle-kit pull --init",
+    "db:migrate": "tsx src/migrate-command.ts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@omnitech-assistant/storage-postgres": "file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
     "drizzle-orm": "1.0.0-rc.4",
     "pg": "^8.16.3"
   },

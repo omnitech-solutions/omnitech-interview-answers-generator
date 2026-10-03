@@ -105,11 +105,20 @@ features must remain disabled until approval is confirmed.
 ## Local operations
 
 ```bash
-docker compose up -d postgres
-pnpm --filter @omnitech/platform-storage db:migrate
-pnpm --filter @omnitech/platform-storage db:bootstrap
 pnpm dev
 ```
+
+`pnpm dev` starts PostgreSQL with Docker Compose (`compose.yaml`, port 54320),
+applies migrations (`pnpm --filter @omnitech/database db:migrate`) and seeds the
+local owner and tenant (`pnpm --filter @omnitech/platform-storage
+db:bootstrap`). The app connects as `omnitech`, which owns the database but is
+neither a superuser nor exempt from row-level security; the container's
+administrator is `postgres`. Set `DATABASE_URL` to use another database
+instead.
+
+Schemas are declared with Drizzle in the package that owns them and migrated by
+one Drizzle stream in `packages/database/drizzle`. After changing a schema file,
+run `pnpm --filter @omnitech/database db:generate` and commit the migration.
 
 Use `PLATFORM_BOOTSTRAP_EMAIL`, `PLATFORM_BOOTSTRAP_TENANT`, and
 `PLATFORM_BOOTSTRAP_TENANT_NAME` to customize the initial owner and tenant.

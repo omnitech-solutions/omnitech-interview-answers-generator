@@ -31,8 +31,10 @@
   },
   "dependencies": {
     "@omnitech/ai-contracts": "workspace:*",
+    "@omnitech/database": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
+    "drizzle-orm": "1.0.0-rc.4",
     "hono": "^4.12.8",
     "jszip": "^3.10.1",
     "pdf-lib": "^1.17.1",

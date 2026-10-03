@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   foreignKey,
+  index,
   type PgColumn,
   pgPolicy,
   timestamp,
@@ -9,7 +10,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// Plain helpers for tenant-owned tables (see docs/specs/001-foundation.md).
+// Plain helpers for tenant-owned tables (see docs/architecture/interview-domain.md).
 // The platform tables are arguments, so this package never imports
 // @omnitech/platform-storage.
 export interface PlatformTables {
@@ -54,9 +55,14 @@ export const tenantUnique = (table: string, tenantId: PgColumn, id: PgColumn) =>
   unique(`${table}_tenant_id_id_key`).on(tenantId, id);
 
 // FOREIGN KEY (tenant_id, x_id) → parent (tenant_id, id): a row can never
-// reference a row in another workspace.
+// reference a row in another workspace. The index on the same columns keeps
+// lookups by parent and cascading deletes from scanning the table.
 export const tenantReference = (
   name: string,
   columns: [PgColumn, PgColumn],
   parent: [PgColumn, PgColumn],
-) => foreignKey({ name, columns, foreignColumns: parent });
+) =>
+  [
+    foreignKey({ name, columns, foreignColumns: parent }),
+    index(name.replace(/_fkey$/, "_idx")).on(...columns),
+  ] as const;

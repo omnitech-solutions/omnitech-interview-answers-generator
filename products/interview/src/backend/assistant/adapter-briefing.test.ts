@@ -66,19 +66,7 @@ const proposal = (patch: Record<string, unknown>, at = origin) =>
 
 beforeAll(async () => {
   pg = await disposablePostgres();
-  for (const filename of [
-    "0004_assistant_interview.sql",
-    "0005_assistant_provenance.sql",
-    "0006_interview_briefings.sql",
-    "0007_assistant_reverts.sql",
-    "0009_concept_briefs.sql",
-  ])
-    await pg.migrate(
-      new URL(
-        `../../../../../packages/platform-storage/migrations/${filename}`,
-        import.meta.url,
-      ),
-    );
+  await pg.migrate();
   workspace = new InterviewWorkspaceRepository(pg.database);
   await new BriefingRepository(pg.database).importProfile(scope, {
     name: "Synthetic",

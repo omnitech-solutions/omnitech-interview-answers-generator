@@ -1,4 +1,4 @@
-import { createPlatformDatabase } from "./database.js";
+import { createPlatformDatabase } from "@omnitech/database";
 
 const database = createPlatformDatabase();
 const userEmail =

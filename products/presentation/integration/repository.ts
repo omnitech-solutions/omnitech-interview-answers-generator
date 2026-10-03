@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   createPlatformDatabase,
   type PlatformDatabase,
-} from "@omnitech/platform-storage";
+} from "@omnitech/database";
 import { PresentationRepository } from "../src/repositories/index.js";
 
 if (!process.env["DATABASE_URL"])
