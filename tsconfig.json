@@ -4,6 +4,9 @@
   "files": [],
   "references": [
     {
+      "path": "packages/active-session-contracts"
+    },
+    {
       "path": "packages/agent-job-service"
     },
     {
