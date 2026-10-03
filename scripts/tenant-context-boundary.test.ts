@@ -27,6 +27,13 @@ const workerSettings = {
   // The session dispatch path: the one job-creation function that may set the
   // private marker on an agent job (ADR-0011 Agent jobs).
   session_dispatch: "packages/platform-storage/src/agent-job-repository.ts",
+  // The Active Session settings (ADR-0011): the worker's cross-tenant claim,
+  // ingest's credential lookup and the purge's delete permission.
+  session_worker:
+    "products/interview/src/backend/live-session/session-claim.ts",
+  session_credential_hash:
+    "products/interview/src/backend/live-session/credential-lookup.ts",
+  session_purge: "products/interview/src/backend/live-session/session-purge.ts",
 } as const;
 const setsSetting = (name: string) =>
   new RegExp(

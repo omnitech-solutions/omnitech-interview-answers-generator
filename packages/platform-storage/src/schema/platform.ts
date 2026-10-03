@@ -95,6 +95,30 @@ export const artifacts = platform.table.withRLS(
       for: "delete",
       using: sql`(product_id <> 'omnitech.interview' OR artifact_type NOT IN ('interview.document-template-source', 'interview.document-template-builtin', 'interview.document-export'))`,
     }),
+    // ADR-0011 rule:private-session-artifact-types: a stored screenshot is an
+    // owner-only artifact, never updated, deleted only by the purge, which
+    // sets app.session_purge in its one owning file.
+    pgPolicy("session_artifacts_select", {
+      as: "restrictive",
+      for: "select",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type <> 'interview.session-screenshot' OR owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid)`,
+    }),
+    pgPolicy("session_artifacts_insert", {
+      as: "restrictive",
+      for: "insert",
+      withCheck: sql`(product_id <> 'omnitech.interview' OR artifact_type <> 'interview.session-screenshot' OR owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid)`,
+    }),
+    pgPolicy("session_artifacts_update", {
+      as: "restrictive",
+      for: "update",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type <> 'interview.session-screenshot')`,
+      withCheck: sql`(product_id <> 'omnitech.interview' OR artifact_type <> 'interview.session-screenshot')`,
+    }),
+    pgPolicy("session_artifacts_delete", {
+      as: "restrictive",
+      for: "delete",
+      using: sql`(product_id <> 'omnitech.interview' OR artifact_type <> 'interview.session-screenshot' OR (owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid AND current_setting('app.session_purge', true) = 'on'))`,
+    }),
   ],
 );
 
@@ -130,6 +154,13 @@ export const artifactPayloads = platform.table.withRLS(
     pgPolicy("artifact_payloads_insert", {
       for: "insert",
       withCheck: sql`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (SELECT 1 FROM platform.artifacts a WHERE a.tenant_id = artifact_payloads.tenant_id AND a.id = artifact_payloads.artifact_id AND a.product_id = 'omnitech.interview' AND (a.owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid OR (a.artifact_type = 'interview.document-template-builtin' AND a.owner_user_id IS NULL AND current_setting('app.document_catalog_provisioner', true) = 'on')))`,
+    }),
+    // A session screenshot's bytes are deleted only by the purge, for the
+    // owner and the session artifact type (rule:purge-delete-setting). No
+    // other payload can be deleted, and none is ever updated.
+    pgPolicy("artifact_payloads_session_delete", {
+      for: "delete",
+      using: sql`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND current_setting('app.session_purge', true) = 'on' AND EXISTS (SELECT 1 FROM platform.artifacts a WHERE a.tenant_id = artifact_payloads.tenant_id AND a.id = artifact_payloads.artifact_id AND a.product_id = 'omnitech.interview' AND a.artifact_type = 'interview.session-screenshot' AND a.owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid)`,
     }),
   ],
 );

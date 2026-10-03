@@ -9,6 +9,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import * as domain from "./schema.js";
 import * as studio from "./studio.js";
 import * as documents from "./documents.js";
+import * as liveSession from "./live-session.js";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {
@@ -22,7 +23,8 @@ it("declares Interview Studio's and the domain's tables exactly as the migration
     ...tablesOf(studio),
     ...tablesOf(domain),
     ...tablesOf(documents),
+    ...tablesOf(liveSession),
   ];
-  expect(tables).toHaveLength(26);
+  expect(tables).toHaveLength(29);
   expect(await schemaDrift(pg.owner, tables)).toEqual([]);
 });
