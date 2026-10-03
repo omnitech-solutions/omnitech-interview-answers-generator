@@ -138,7 +138,9 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
           throw new Error(
             "Upload PNG or JPEG images before exporting. Remote image exports are not supported.",
           );
-        const bytes = Buffer.from(match[2], "base64");
+        // pdf-lib's JPEG reader ignores byteOffset, so give it an unshared copy
+        // (a small Buffer is a view into Node's shared pool).
+        const bytes = Uint8Array.from(Buffer.from(match[2], "base64"));
         const image =
           match[1]?.toLowerCase() === "png"
             ? await pdf.embedPng(bytes)
