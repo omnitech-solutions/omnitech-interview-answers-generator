@@ -37,7 +37,11 @@ import { studioFetch } from "./studio-fetch";
 import { useShortcuts } from "./use-shortcuts";
 import { usePlaygroundControl } from "./use-playground-control";
 import { useStudioLists } from "./use-studio-lists";
-import { type StudioNavigation, useStudioRoute } from "./use-studio-route";
+import {
+  SESSION_WORKSPACE_PREFIX,
+  type StudioNavigation,
+  useStudioRoute,
+} from "./use-studio-route";
 import { ViewBoundary } from "./view-boundary";
 
 // [GUARD] With no view lending a draft, the shell never loaded one, so it
@@ -148,8 +152,9 @@ export function Studio({ assistant, products = [] }: StudioProps) {
       bindView,
       refreshLists: lists.refresh,
       setFocus,
+      openRoute: leave,
     }),
-    [theme, toggleTheme, headerSlot, bindView, lists.refresh],
+    [theme, toggleTheme, headerSlot, bindView, lists.refresh, leave],
   );
 
   // `interview-answers playground …` pushes land here: drafts, views,
@@ -164,9 +169,16 @@ export function Studio({ assistant, products = [] }: StudioProps) {
       (focusRef.current !== null && plan.navigate?.view !== "rehearsal"),
   });
 
+  // A session's private Workspace replaces the workspace id for the Workspace
+  // view only (the route admits nothing else), so the draft, the shell's
+  // fallback origin and the assistant all name the same draft.
   const workspaceAssistant = useMemo(
-    () => ({ ...assistant, artifactId: route.artifact }),
-    [assistant, route.artifact],
+    () => ({
+      ...assistant,
+      artifactId: route.artifact,
+      workspaceId: route.workspace ?? assistant.workspaceId,
+    }),
+    [assistant, route.artifact, route.workspace],
   );
   const presenting = binding.assistant ?? questionAssistant;
   const localModels = useMemo(onDeviceModels, []);
@@ -175,7 +187,7 @@ export function Studio({ assistant, products = [] }: StudioProps) {
   const config: AssistantConfig = {
     client: assistant.client,
     origin: binding.origin ?? {
-      workspaceId: assistant.workspaceId,
+      workspaceId: workspaceAssistant.workspaceId,
       artifactId: route.artifact,
       artifactRevision: 0,
     },
@@ -219,6 +231,8 @@ export function Studio({ assistant, products = [] }: StudioProps) {
       onOpenBinding: ({ workspaceId, artifactId }) => {
         if (workspaceId === assistant.workspaceId)
           leave({ view: "work", artifact: artifactId });
+        else if (workspaceId.startsWith(SESSION_WORKSPACE_PREFIX))
+          leave({ view: "work", artifact: artifactId, workspace: workspaceId });
         else if (workspaceId === "briefings")
           leave({ view: "briefings", rest: [artifactId] });
         else if (workspaceId === "concept-briefs")

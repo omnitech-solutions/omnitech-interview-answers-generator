@@ -6,6 +6,7 @@ import type {
   Surface,
 } from "@omnitech-assistant/react";
 import { createContext, useContext } from "react";
+import type { StudioNavigation } from "./use-studio-route";
 
 export type StudioTheme = "light" | "dark";
 // A live rehearsal hides the sidebar; strict mode also keeps the assistant
@@ -44,6 +45,9 @@ export type StudioContextValue = {
   bindView(binding: StudioViewBinding): () => void;
   refreshLists(): void;
   setFocus(focus: StudioFocus): void;
+  // Moves the studio to a place, through the leave guard (unsaved preparation
+  // asks first). The Live session uses it to open its Workspace draft.
+  openRoute?(next: StudioNavigation): void;
 };
 
 export const StudioContext = createContext<StudioContextValue | null>(null);
