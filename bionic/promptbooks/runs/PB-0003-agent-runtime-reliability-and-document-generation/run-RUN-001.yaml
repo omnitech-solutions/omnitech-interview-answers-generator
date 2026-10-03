@@ -1,0 +1,165 @@
+format_version: '1'
+run_id: RUN-001
+book_id: PB-0003
+book_content_hash: sha256:127b071b96eba5747128421926780f0e9c2fc4f20980526ded5053bb1c4bfb67
+started_at: '2026-10-03T22:48:09Z'
+completed_at: null
+status: in_progress
+current_prompt: 1
+base_commit: fe8ed2071462a2d09b4881f982a18728bcd407ea
+prompts:
+- n: 1
+  title: 'Plan #1: spawn planning team, propose ADR for agent runtime lifecycle, transport, and terminal-event
+    semantics'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 2
+  title: 'Plan #1: convene LLM council to review the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 3
+  title: 'Plan #1: address council findings, re-convene the council'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 4
+  title: 'Plan #1: accept the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 5
+  title: 'Plan #2: spawn planning team, propose ADR for grounded and measured interview document generation'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 6
+  title: 'Plan #2: convene LLM council to review the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 7
+  title: 'Plan #2: address council findings, re-convene the council'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 8
+  title: 'Plan #2: accept the ADR'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 9
+  title: 'Develop #1: derive an implementation plan for Codex and Claude runtime adapters and their shared
+    event contract'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 10
+  title: 'Develop #1: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 11
+  title: 'Develop #1: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 12
+  title: 'Develop #1: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 13
+  title: 'Develop #2: derive an implementation plan for document generation planning, grouping, progress,
+    and revision-safe merge'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 14
+  title: 'Develop #2: spawn implementation team'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 15
+  title: 'Develop #2: run quality gates; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 16
+  title: 'Develop #2: internal review'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 17
+  title: 'Review #1: external team review (multi-dimension + dedicated security review) of the full runtime
+    and document-generation cycle diff'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 18
+  title: 'Review #1: tests, docs, and dev-practice conformance audit of the full runtime and document-generation
+    cycle diff'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 19
+  title: 'Review #1: implement feedback; loop until clean'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 20
+  title: 'Prep: changelog, docs, journal, PR notes'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+- n: 21
+  title: 'Summary: completion report AND archive the book'
+  state: pending
+  started: null
+  completed: null
+  result: ''
+  artifacts: []
+notes: ''
+pr_draft: ''
+summary: ''

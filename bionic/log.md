@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] promptbook | started PB-0003-agent-runtime-reliability-and-document-generation/RUN-001
+
+PB-0003, RUN-001: 21 prompts; current_prompt: 1.
+
 ## [2026-10-03] promptbook | authored PB-0003-agent-runtime-reliability-and-document-generation (cycle)
 
 PB-0003: Cycle: Agent runtime reliability and measured document generation. total_prompts: 21. Modules: 2×ADR, 2×dev, 1×review. Cycle: assembled from modular templates.
