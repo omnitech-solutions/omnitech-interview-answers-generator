@@ -60,7 +60,14 @@ const AGENT_ENV_NAMES = new Set([
   "NODE_EXTRA_CA_CERTS",
   "SSL_CERT_FILE",
 ]);
-const AGENT_ENV_PREFIXES = ["LC_", "CODEX_", "ANTHROPIC_", "CLAUDE_"];
+// Each runtime sees only its own vendor settings; LC_ locale variables are shared.
+const AGENT_ENV_PREFIXES: Readonly<
+  Record<"codex" | "claude-code" | "none", readonly string[]>
+> = {
+  codex: ["LC_", "CODEX_"],
+  "claude-code": ["LC_", "ANTHROPIC_", "CLAUDE_"],
+  none: ["LC_"],
+};
 
 const CODEX_ENV_NAMES = new Set(["OPENAI_API_KEY"]);
 
@@ -69,12 +76,13 @@ export function agentEnvironment(
   runtime?: "codex" | "claude-code",
 ): Record<string, string> {
   const allowed: Record<string, string> = {};
+  const prefixes = AGENT_ENV_PREFIXES[runtime ?? "none"];
   for (const [name, value] of Object.entries(env)) {
     if (
       value !== undefined &&
       (AGENT_ENV_NAMES.has(name) ||
         (runtime === "codex" && CODEX_ENV_NAMES.has(name)) ||
-        AGENT_ENV_PREFIXES.some((prefix) => name.startsWith(prefix)))
+        prefixes.some((prefix) => name.startsWith(prefix)))
     )
       allowed[name] = value;
   }

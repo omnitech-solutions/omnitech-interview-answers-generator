@@ -149,6 +149,8 @@ describe("wire client", () => {
       `https://user:${FAKE_CREDENTIAL}@studio.example.test`,
       `https://studio.example.test/?token=${FAKE_CREDENTIAL}`,
       "https://studio.example.test/#x",
+      "http://studio.example.test",
+      "http://localhost.example.test",
     ].map((baseUrl) => {
       try {
         createWireClient({ ...base, baseUrl });
@@ -158,7 +160,13 @@ describe("wire client", () => {
       }
       return "none";
     });
-    expect(codes).toEqual(Array(5).fill("invalid_endpoint"));
+    expect(codes).toEqual(Array(7).fill("invalid_endpoint"));
+    for (const baseUrl of [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://[::1]:3000",
+    ])
+      expect(() => createWireClient({ ...base, baseUrl })).not.toThrow();
     expect(() =>
       createWireClient({
         ...base,

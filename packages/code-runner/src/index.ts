@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   chmod,
   mkdir,
@@ -398,15 +399,26 @@ export class DockerCodeRunner implements CodeRunner {
     startedAt: number,
     timeoutMs = this.options.timeoutMs ?? 5_000,
   ): Promise<RunResult> {
+    // Every container gets a unique name so a timeout can kill the container
+    // itself: killing only the docker CLI client leaves it running. Images are
+    // never pulled at run time and every Linux capability is dropped.
+    const containerName = `interview-run-${randomUUID()}`;
+    const [subcommand, ...rest] = dockerArguments;
+    const namedArguments = [
+      subcommand as string,
+      "--name",
+      containerName,
+      "--pull=never",
+      "--cap-drop",
+      "ALL",
+      ...rest,
+    ];
+    const docker = this.options.dockerBinary ?? "docker";
     return new Promise((resolve, reject) => {
       const maximumOutput = this.options.maxOutputBytes ?? 64_000;
-      const child = spawn(
-        this.options.dockerBinary ?? "docker",
-        dockerArguments,
-        {
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      );
+      const child = spawn(docker, namedArguments, {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
@@ -423,6 +435,10 @@ export class DockerCodeRunner implements CodeRunner {
 
       const timer = setTimeout(() => {
         timedOut = true;
+        // Stop the container, then the client; `rm -f` covers a container the
+        // kill raced with, so none outlives its run (or its mounted temp dir).
+        spawnSync(docker, ["kill", containerName], { stdio: "ignore" });
+        spawnSync(docker, ["rm", "-f", containerName], { stdio: "ignore" });
         child.kill("SIGKILL");
       }, timeoutMs);
 

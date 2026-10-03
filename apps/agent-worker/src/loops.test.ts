@@ -108,14 +108,7 @@ describe("agent runtime environment", () => {
       OPENAI_API_KEY: "o",
       AI_API_KEY: "k",
     });
-    expect(Object.keys(allowed).sort()).toEqual([
-      "ANTHROPIC_API_KEY",
-      "CLAUDE_CONFIG_DIR",
-      "CODEX_HOME",
-      "HOME",
-      "LC_ALL",
-      "PATH",
-    ]);
+    expect(Object.keys(allowed).sort()).toEqual(["HOME", "LC_ALL", "PATH"]);
   });
 });
 
@@ -128,6 +121,35 @@ describe("agent runtime environment per adapter", () => {
     ]);
     expect(Object.keys(agentEnvironment(env, "claude-code"))).toEqual(["PATH"]);
     expect(Object.keys(agentEnvironment(env))).toEqual(["PATH"]);
+  });
+});
+
+describe("agent runtime environment scoping", () => {
+  const env = {
+    PATH: "/bin",
+    LC_ALL: "C",
+    CODEX_HOME: "/c",
+    OPENAI_API_KEY: "o",
+    ANTHROPIC_API_KEY: "a",
+    CLAUDE_CONFIG_DIR: "/cl",
+    DATABASE_URL: "postgres://x",
+    AGENT_PAYLOAD_SECRET: "s",
+  };
+  it("gives codex no ANTHROPIC_ or CLAUDE_ keys", () => {
+    expect(Object.keys(agentEnvironment(env, "codex")).sort()).toEqual([
+      "CODEX_HOME",
+      "LC_ALL",
+      "OPENAI_API_KEY",
+      "PATH",
+    ]);
+  });
+  it("gives claude-code no CODEX_ or OPENAI_ keys", () => {
+    expect(Object.keys(agentEnvironment(env, "claude-code")).sort()).toEqual([
+      "ANTHROPIC_API_KEY",
+      "CLAUDE_CONFIG_DIR",
+      "LC_ALL",
+      "PATH",
+    ]);
   });
 });
 

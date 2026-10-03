@@ -73,8 +73,15 @@ async function capture(call: (r: DockerCodeRunner) => Promise<unknown>) {
 }
 
 // ---- parsing the docker flags (strict: an unknown flag fails the test) -----
-const BOOLEAN_FLAGS = new Set(["--rm", "--interactive", "--read-only"]);
+const BOOLEAN_FLAGS = new Set([
+  "--rm",
+  "--interactive",
+  "--read-only",
+  "--pull=never",
+]);
 const VALUE_FLAGS = new Set([
+  "--name",
+  "--cap-drop",
   "--network",
   "--memory",
   "--cpus",
@@ -171,6 +178,12 @@ function expectSandboxed(
   // Privilege cannot be gained.
   expect(values(parsed, "--security-opt")).toEqual(["no-new-privileges"]);
   expect(has(parsed, "--rm")).toBe(true);
+  // Every capability is dropped, images are never pulled, and the container
+  // is named so a timeout can kill it rather than only the docker client.
+  expect(values(parsed, "--cap-drop")).toEqual(["ALL"]);
+  expect(has(parsed, "--pull=never")).toBe(true);
+  expect(values(parsed, "--name")).toHaveLength(1);
+  expect(values(parsed, "--name")[0]).toMatch(/^interview-run-[0-9a-f-]{36}$/);
 
   // Escalations are absent by construction: parse() rejects every flag outside
   // the allowlist above, and the vector never names them as values either.
@@ -332,6 +345,11 @@ describe("runAll with tests", () => {
 describe("the assertions are not vacuous", () => {
   const good = [
     "run",
+    "--name",
+    "interview-run-00000000-0000-0000-0000-000000000000",
+    "--pull=never",
+    "--cap-drop",
+    "ALL",
     "--rm",
     "--network",
     "none",
@@ -354,6 +372,14 @@ describe("the assertions are not vacuous", () => {
   const mutate = (replace: (v: string[]) => string[]) => () =>
     expectSandboxed(replace([...good]), PLAIN_BOUNDS);
   it.each([
+    [
+      "no cap-drop",
+      mutate((v) => {
+        const i = v.indexOf("--cap-drop");
+        return [...v.slice(0, i), ...v.slice(i + 2)];
+      }),
+    ],
+    ["pull allowed", mutate((v) => v.filter((x) => x !== "--pull=never"))],
     ["network host", mutate((v) => v.map((x) => (x === "none" ? "host" : x)))],
     ["more memory", mutate((v) => v.map((x) => (x === "128m" ? "512m" : x)))],
     ["more cpus", mutate((v) => v.map((x) => (x === "0.5" ? "4" : x)))],
@@ -461,5 +487,59 @@ echo $f === false ? "marker-unreadable\\n" : "MARKER-READ:" . $f . "\\n";`;
       }
     },
     90_000,
+  );
+});
+
+// ---- a timed-out run must not leave its container behind --------------------
+describe("timeout cleanup", () => {
+  it("kills and removes the named container, not only the docker client", async () => {
+    const hanging = join(workDirectory, "docker-hang");
+    const hangLog = join(workDirectory, "hang.jsonl");
+    writeFileSync(
+      hanging,
+      `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.appendFileSync(${JSON.stringify(hangLog)}, JSON.stringify(process.argv.slice(2)) + "\\n");
+if (process.argv[2] === "run") setInterval(() => {}, 1000);
+`,
+    );
+    chmodSync(hanging, 0o755);
+    const result = await new DockerCodeRunner({
+      dockerBinary: hanging,
+      timeoutMs: 300,
+    }).run({ language: "typescript", code: "1", stdin: "" });
+    expect(result.timedOut).toBe(true);
+    const calls = readFileSync(hangLog, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[]);
+    const run = calls.find((argv) => argv[0] === "run") as string[];
+    const name = run[run.indexOf("--name") + 1] as string;
+    expect(name).toMatch(/^interview-run-/);
+    expect(calls).toContainEqual(["kill", name]);
+    expect(calls).toContainEqual(["rm", "-f", name]);
+  });
+
+  const names = () =>
+    spawnSync("docker", ["ps", "-a", "--format", "{{.Names}}"], {
+      encoding: "utf8",
+    })
+      .stdout.split("\n")
+      .filter((name) => name.startsWith("interview-run-"));
+
+  it.skipIf(real === null)(
+    "leaves no container running after a real timeout",
+    async () => {
+      const before = new Set(names());
+      const result = await new DockerCodeRunner({ timeoutMs: 3_000 }).run({
+        language: real as "typescript" | "php",
+        code:
+          real === "typescript" ? "setTimeout(() => {}, 60000);" : "sleep(60);",
+        stdin: "",
+      });
+      expect(result.timedOut).toBe(true);
+      expect(names().filter((name) => !before.has(name))).toEqual([]);
+    },
+    60_000,
   );
 });

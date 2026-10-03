@@ -57,9 +57,15 @@ function ingestUrl(baseUrl: string, tenantSlug: string): string {
   } catch {
     throw new CompanionError("invalid_endpoint");
   }
-  const secure = parsed.protocol === "https:" || parsed.protocol === "http:";
+  // https, or http only for a loopback host (mirrors the Swift Endpoint rule):
+  // the bearer credential never travels in clear text to a remote host.
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(
+    parsed.hostname,
+  );
+  const transportAllowed =
+    parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback);
   if (
-    !secure ||
+    !transportAllowed ||
     parsed.username !== "" ||
     parsed.password !== "" ||
     parsed.search !== "" ||

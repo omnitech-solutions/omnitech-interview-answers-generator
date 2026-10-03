@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const childProcessMocks = vi.hoisted(() => ({
   spawn: vi.fn(),
+  spawnSync: vi.fn(),
 }));
 
 const fsMocks = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ const fsMocks = vi.hoisted(() => ({
 
 vi.mock("node:child_process", () => ({
   spawn: childProcessMocks.spawn,
+  spawnSync: childProcessMocks.spawnSync,
 }));
 
 vi.mock("node:fs/promises", () => fsMocks);
@@ -81,6 +83,11 @@ describe("DockerCodeRunner", () => {
         "podman",
         [
           "run",
+          "--name",
+          expect.stringMatching(/^interview-run-/),
+          "--pull=never",
+          "--cap-drop",
+          "ALL",
           "--rm",
           "--interactive",
           "--network",
@@ -342,6 +349,22 @@ describe("DockerCodeRunner", () => {
 
     await vi.advanceTimersByTimeAsync(25);
     expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+    // The container itself is killed and removed, by its unique name.
+    const [, runArguments] = childProcessMocks.spawn.mock.calls[0] as [
+      string,
+      string[],
+    ];
+    const name = runArguments[runArguments.indexOf("--name") + 1];
+    expect(childProcessMocks.spawnSync).toHaveBeenCalledWith(
+      "docker",
+      ["kill", name],
+      expect.anything(),
+    );
+    expect(childProcessMocks.spawnSync).toHaveBeenCalledWith(
+      "docker",
+      ["rm", "-f", name],
+      expect.anything(),
+    );
 
     child.emit("close", null);
 
