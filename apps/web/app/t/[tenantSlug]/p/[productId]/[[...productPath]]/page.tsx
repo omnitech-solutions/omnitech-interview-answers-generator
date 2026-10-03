@@ -1,4 +1,3 @@
-import { resolveProductPage } from "@omnitech/platform-api";
 import { notFound } from "next/navigation";
 import React from "react";
 
@@ -17,11 +16,8 @@ export default async function ProductPage({
   const { tenantSlug, productId, productPath = [] } = await params;
   // [SAFETY] Membership, installation and permission resolve before any
   // product code loads (ADR-0004); every miss is a 404.
-  const resolved = await resolveProductPage(
-    {
-      resolveContext: resolvePlatformContext,
-      products: getProductRegistry().list(),
-    },
+  const resolved = await getProductRegistry().resolvePage(
+    resolvePlatformContext,
     { tenantSlug, productId, path: productPath },
   );
   if (resolved.status === 404) notFound();

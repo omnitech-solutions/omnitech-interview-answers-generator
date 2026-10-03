@@ -1,8 +1,9 @@
 import type {
+  PlatformContext,
   ProductFrontendPlugin,
   ProductManifest,
 } from "@omnitech/platform-contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DuplicateProductError,
   DuplicateRouteError,
@@ -101,4 +102,108 @@ describe("ProductRegistry", () => {
       }),
     ).toThrow(ProductUnavailableError);
   });
+});
+
+const platformContext: PlatformContext = {
+  user: {
+    id: "00000000-0000-4000-8000-000000000001",
+    email: "user@example.com",
+    displayName: "User",
+    avatarUrl: null,
+  },
+  tenant: {
+    id: "00000000-0000-4000-8000-000000000002",
+    slug: "acme",
+    name: "Acme",
+  },
+  membership: {
+    tenantId: "00000000-0000-4000-8000-000000000002",
+    userId: "00000000-0000-4000-8000-000000000001",
+    role: "owner",
+  },
+  preferences: { theme: "system", locale: "en" },
+  permissions: ["platform.read"],
+  products: [],
+};
+
+// INV-0004: a product route resolves membership, then installation, then the
+// route's permission; any miss is a 404 before the product's loader runs.
+describe("resolvePage", () => {
+  const Page = () => null;
+  const product = (load = vi.fn(async () => ({ default: Page }))) => ({
+    load,
+    product: {
+      manifest: {
+        schemaVersion: 1 as const,
+        id: "omnitech.notes",
+        version: "1.0.0",
+        platformVersion: "^1.0.0",
+        defaultName: "Notes",
+        defaultDescription: "Notes",
+        icon: "notes",
+        permissions: ["notes.read"],
+        routes: [
+          {
+            id: "notes.home",
+            defaultPath: "/",
+            frontendEntry: "home.page",
+            requiredPermission: "notes.read",
+          },
+        ],
+        navigation: [],
+        configurationSchema: {},
+      },
+      frontend: { id: "omnitech.notes", routes: { "notes.home": load } },
+    },
+  });
+  const installation = (enabled: boolean) => ({
+    productId: "omnitech.notes",
+    name: "Notes",
+    description: "Notes",
+    icon: "notes",
+    enabled,
+    routePrefix: "/p/notes",
+    navigation: { group: "Products", order: 1, hidden: false, routes: {} },
+    featureFlags: {},
+    settings: {},
+    revision: 1,
+  });
+  const member = (enabled: boolean, permissions: string[]) => ({
+    ...platformContext,
+    permissions,
+    products: [installation(enabled)],
+  });
+  const request = { tenantSlug: "acme", productId: "notes", path: [] };
+
+  it("serves the route's page to a permitted member", async () => {
+    const { load, product: notes } = product();
+    const registry = new ProductRegistry();
+    registry.register(notes);
+    const page = await registry.resolvePage(
+      async () => member(true, ["notes.read"]),
+      request,
+    );
+    expect(page.status).toBe(200);
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["a non-member", async () => null],
+    [
+      "an uninstalled product",
+      async () => ({ ...platformContext, permissions: ["notes.read"] }),
+    ],
+    ["a disabled installation", async () => member(false, ["notes.read"])],
+    ["a missing permission", async () => member(true, [])],
+  ])(
+    "returns 404 for %s before product code loads",
+    async (_case, resolveContext) => {
+      const { load, product: notes } = product();
+      const registry = new ProductRegistry();
+      registry.register(notes);
+      const page = await registry.resolvePage(resolveContext, request);
+      expect(page).toEqual({ status: 404 });
+      expect(load).not.toHaveBeenCalled();
+    },
+  );
 });

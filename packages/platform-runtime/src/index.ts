@@ -1,6 +1,7 @@
 export {
   DuplicateProductError,
   DuplicateRouteError,
+  type ProductPageResolution,
   ProductRegistry,
   ProductUnavailableError,
   type RegisteredProduct,
