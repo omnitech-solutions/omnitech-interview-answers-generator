@@ -2375,6 +2375,7 @@ export function PresentationMode({
 }: ProductPageProps) {
   const id = pathSegments[1];
   const [document, setDocument] = useState<PresentationDocument>();
+  const [loadError, setLoadError] = useState("");
   const [index, setIndex] = useState(0);
   const [recording, setRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState("");
@@ -2387,8 +2388,10 @@ export function PresentationMode({
       api(tenantSlug, `/documents/${id}`),
       setDocument,
       (reason) =>
-        setRecordingStatus(
-          reason instanceof Error ? reason.message : "Unable to load.",
+        setLoadError(
+          reason instanceof Error
+            ? reason.message
+            : "Unable to load presentation.",
         ),
     );
     const stopRecordings = load<PresentationRecording[]>(
@@ -2478,7 +2481,9 @@ export function PresentationMode({
   return (
     <section className="presentation-mode" aria-label="Presentation mode">
       <div className="presentation-mode-slide">
-        {slide ? (
+        {loadError ? (
+          <p role="alert">{loadError}</p>
+        ) : slide ? (
           <SlideBlockView
             source={slide.sourceXml}
             appearance={slideAppearance(document?.settings ?? {})}
@@ -2505,13 +2510,20 @@ export function PresentationMode({
         >
           Next
         </button>
-        <button
-          onClick={() => (recording ? stopRecording() : void startRecording())}
-          type="button"
-        >
-          {recording ? "Stop recording" : "Record"}
-        </button>
-        <span aria-live="polite">{recordingStatus}</span>
+        {/* Only a loaded document can be recorded. */}
+        {document ? (
+          <>
+            <button
+              onClick={() =>
+                recording ? stopRecording() : void startRecording()
+              }
+              type="button"
+            >
+              {recording ? "Stop recording" : "Record"}
+            </button>
+            <span aria-live="polite">{recordingStatus}</span>
+          </>
+        ) : null}
       </nav>
       {recordings.length > 0 ? (
         <aside className="presentation-recordings">

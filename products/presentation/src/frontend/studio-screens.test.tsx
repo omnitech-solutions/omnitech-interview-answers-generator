@@ -364,8 +364,21 @@ describe("present mode", () => {
       ),
       [`GET ${api}/documents/doc-1/recordings`]: [],
     });
-    await mount("presentation.present", ["present", "doc-1"]);
-    expect(await screen.findByText("Not found.")).toBeInTheDocument();
+    const { container } = await mount("presentation.present", [
+      "present",
+      "doc-1",
+    ]);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not found.");
+    // The failure replaces the slide, which no longer waits on a load.
+    expect(
+      container.querySelector(".presentation-mode-slide"),
+    ).toContainElement(alert);
+    expect(screen.queryByText("Loading presentation…")).not.toBeInTheDocument();
+    // A document that did not load cannot be recorded.
+    expect(
+      screen.queryByRole("button", { name: "Record" }),
+    ).not.toBeInTheDocument();
   });
 
   describe("recording", () => {
