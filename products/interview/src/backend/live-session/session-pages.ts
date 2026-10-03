@@ -192,10 +192,11 @@ export async function listActionChanges(
       // More to read: continue exactly after the last row.
       next = { at: String(last["key_at"]), id: String(last["id"]) };
     } else {
-      // Caught up: start the next read just before now, never earlier than
-      // the cursor the caller already holds.
-      const margin = String(clock?.margin_text);
-      next = after && after.at > margin ? after : { at: margin, id: NIL_ID };
+      // Caught up: always restart from just before now, even when the caller
+      // holds a later cursor. After a hasMore page that cursor is the exact
+      // last row, and a transaction that started earlier but commits later
+      // would be skipped; repeated rows merge by id on the client.
+      next = { at: String(clock?.margin_text), id: NIL_ID };
     }
     return {
       actions: page.map(toStoredAction),

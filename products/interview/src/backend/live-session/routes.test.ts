@@ -845,6 +845,25 @@ describe("action cursor", () => {
     expect(quiet.actions.every((a) => a.id === ids[0])).toBe(true);
   });
 
+  it("restarts a caught-up reader from the overlap margin, never from the exact last row of a paged read", async () => {
+    const owner = await begin("cursor-overlap");
+    as(owner.person);
+    // A cursor sitting at "now": the row a hasMore page ended on. A transaction
+    // that started before it and commits after would be skipped by keeping it.
+    const now = new Date().toISOString().replace("Z", "000Z");
+    const held = Buffer.from(
+      JSON.stringify([now, "00000000-0000-0000-0000-000000000001"]),
+    ).toString("base64url");
+    const page = (await (
+      await get(`/${owner.id}/stream?actionCursor=${held}`)
+    ).json()) as StreamBody;
+    expect(page.hasMoreActions).toBe(false);
+    const [next] = JSON.parse(
+      Buffer.from(page.nextActionCursor, "base64url").toString("utf8"),
+    ) as [string, string];
+    expect(next < now).toBe(true);
+  });
+
   it("still serves the existing parameters, reports observation paging and rejects a malformed cursor", async () => {
     const owner = await begin("cursor-compat");
     as(null);
