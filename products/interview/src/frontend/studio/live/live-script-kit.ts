@@ -4,6 +4,7 @@
 // placeholders (Interviewer, Candidate, Example Corp).
 import type {
   LiveAction,
+  LiveCompanionCapability,
   LiveObservation,
   LiveSessionChoicesResponse,
   LiveSessionStartRequest,
@@ -61,6 +62,8 @@ export type Script = {
   started: LiveSessionStartRequest[];
   controls: string[];
   renewals: number;
+  // The companion's last capability report, as the route answers it.
+  capability: LiveCompanionCapability | null;
   // GET /:id answers seen since a delete began (the purge settles on the 2nd).
   purgeReads: number;
 };
@@ -86,6 +89,7 @@ export function installScriptedService(
     controls: [],
     renewals: 0,
     purgeReads: 0,
+    capability: null,
     ...initial,
   };
   const current = (): LiveSessionView => {
@@ -94,6 +98,9 @@ export function installScriptedService(
   };
   const server = createTestServer();
   server.on("GET /choices", () => jsonResponse(CHOICES));
+  server.on("GET /companion-capability", () =>
+    jsonResponse({ capability: script.capability }),
+  );
   server.on("GET /current", () =>
     script.session && !ENDED.has(script.session.status)
       ? jsonResponse({ session: script.session })

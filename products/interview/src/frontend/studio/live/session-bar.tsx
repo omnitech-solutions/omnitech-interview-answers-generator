@@ -1,6 +1,7 @@
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
+import { speechState } from "./companion-capability";
 import { EndConfirm } from "./end-confirm";
 import {
   commandMessage,
@@ -12,6 +13,7 @@ import {
 } from "./session-bar-model";
 import type { SessionErrorCode } from "./session-client";
 import type { SessionCommand } from "./session-snapshot";
+import { useCompanionCapability } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 import { useSessionTarget } from "./use-session-target";
 
@@ -25,6 +27,7 @@ export type SessionBarProps = {
 
 const NOTICE_MS = 5_000;
 const ERROR_MS = 10_000;
+const SPEECH_REFRESH_MS = 30_000;
 
 type Notice = { tone: "info" | "error"; text: string };
 
@@ -50,6 +53,9 @@ function OpenSessionBar({
   const [resuming, setResuming] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const endButton = useRef<HTMLButtonElement>(null);
+  const capability = useCompanionCapability(SPEECH_REFRESH_MS);
+  const speech =
+    capability.status === "ready" ? speechState(capability.capability) : null;
 
   // A notice clears itself; an error stays a little longer.
   useEffect(() => {
@@ -161,6 +167,17 @@ function OpenSessionBar({
             <span className="live-sr-only">{`, ${chip.state}`}</span>
           </li>
         ))}
+        {speech && (
+          <li
+            className={`live-chip ${speech.tone === "green" ? "" : speech.tone}`}
+            title={`From the companion's last capability report. ${speech.detail}`}
+            data-testid="speech-chip"
+            data-speech={speech.key}
+          >
+            <Icon name="mic" />
+            <span className="live-chip-text">{`Speech: ${speech.label}`}</span>
+          </li>
+        )}
         {model.locality && (
           <li
             className={`live-chip ${model.locality.tone}`}

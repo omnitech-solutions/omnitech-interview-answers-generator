@@ -216,10 +216,14 @@ export type DeviceOnlyBlocker = { title: string; body: string };
 export function ProcessingSection({
   value,
   blockers,
+  speechWarning = false,
   onChange,
 }: {
   value: LiveProcessingPolicy;
   blockers: readonly DeviceOnlyBlocker[];
+  // The companion's last report says speech can't run here, and the policy
+  // would not block Start: say that allowing remote does not fix speech.
+  speechWarning?: boolean;
   onChange(value: LiveProcessingPolicy): void;
 }) {
   return (
@@ -245,6 +249,13 @@ export function ProcessingSection({
             </div>
           </div>
         ))}
+      {speechWarning && value === "permitted-remote" && (
+        <p className="setup-muted" data-testid="speech-warning">
+          The companion’s last report says speech recognition can’t run on this
+          Mac. Allowing remote processing doesn’t change that: speech stays on
+          this Mac, so the companion will report it and stop.
+        </p>
+      )}
       <p className="setup-muted">
         After the session starts you can only tighten this, never loosen it.
       </p>

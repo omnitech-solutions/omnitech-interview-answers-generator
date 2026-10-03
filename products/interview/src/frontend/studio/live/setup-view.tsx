@@ -2,6 +2,13 @@ import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
+import {
+  deviceOnlyBlockers as capabilityBlockers,
+  NO_REPORT_DETAIL,
+  permissionLines,
+  reportAge,
+  speechState,
+} from "./companion-capability";
 import type { SessionErrorCode } from "./session-client";
 import { SwitchRow } from "./setup-controls";
 import {
@@ -19,15 +26,16 @@ import {
   RetentionSection,
   TargetSection,
 } from "./setup-sections";
+import { useCompanionCapability } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 import { useSetupChoices } from "./use-setup-choices";
 
 export type SetupViewProps = {
   // Studio navigation, for the matrix link.
   studio: StudioActions;
-  // Reasons a device-only session cannot work on this machine (for example an
-  // unsupported on-device speech language). Empty today: the real source is the
-  // companion's capability report, which arrives with the companion.
+  // Extra reasons a device-only session cannot work on this machine. The
+  // companion's last capability report adds its own (unsupported on-device
+  // speech language, speech permission denied or restricted).
   deviceOnlyBlockers?: readonly DeviceOnlyBlocker[];
 };
 
@@ -69,6 +77,9 @@ export function SetupView({
   deviceOnlyBlockers = NO_BLOCKERS,
 }: SetupViewProps) {
   const { actions, snapshot } = useLiveSession();
+  const companion = useCompanionCapability();
+  const report = companion.status === "ready" ? companion.capability : null;
+  const blockers = [...capabilityBlockers(report), ...deviceOnlyBlockers];
   const { state: choices, reload } = useSetupChoices();
   const [form, setForm] = useState<SetupForm>(initialForm);
   const [failure, setFailure] = useState<SessionErrorCode | null>(null);
@@ -99,8 +110,7 @@ export function SetupView({
 
   const rehearsal = form.target?.kind === "rehearsal";
   const strict = rehearsal && form.strict;
-  const blocked =
-    form.policy === "device-only" && deviceOnlyBlockers.length > 0;
+  const blocked = form.policy === "device-only" && blockers.length > 0;
   runId.current ??= newRehearsalRunId();
   const request = buildStartRequest(form, runId.current, profiles);
   const canStart = request !== null && !blocked && !pending;
@@ -172,6 +182,7 @@ export function SetupView({
           Studio can’t tell whether the companion is running until it makes
           contact.
         </p>
+        <CompanionReport state={companion} sources={form.sources} />
       </section>
 
       <fieldset className="setup-section">
@@ -225,7 +236,12 @@ export function SetupView({
       />
       <ProcessingSection
         value={form.policy}
-        blockers={deviceOnlyBlockers}
+        blockers={blockers}
+        speechWarning={
+          form.policy === "permitted-remote" &&
+          report !== null &&
+          speechState(report).blocksSpeech
+        }
         onChange={(policy) => patch({ policy })}
       />
       <RetentionSection
@@ -259,6 +275,67 @@ export function SetupView({
         </button>
         {missing && !pending && <span className="setup-muted">{missing}</span>}
       </div>
+    </div>
+  );
+}
+
+// The companion's LAST report, said as that: never "connected", never live.
+function CompanionReport({
+  state,
+  sources,
+}: {
+  state: ReturnType<typeof useCompanionCapability>;
+  sources: readonly LiveCaptureSource[];
+}) {
+  if (state.status === "loading")
+    return (
+      <p className="setup-muted" data-testid="setup-capability">
+        Reading the companion’s last capability report…
+      </p>
+    );
+  if (state.status === "error")
+    return (
+      <p className="setup-muted" data-testid="setup-capability">
+        Studio couldn’t read the companion’s last capability report, so nothing
+        is assumed about speech on this Mac. The companion checks when it starts
+        and fails visibly if it can’t listen.
+      </p>
+    );
+  const { capability } = state;
+  if (!capability)
+    return (
+      <p className="setup-muted" data-testid="setup-capability">
+        {NO_REPORT_DETAIL}
+      </p>
+    );
+  const speech = speechState(capability);
+  const denied = permissionLines(capability).filter(
+    (line) => line.state === "denied" && sources.includes(line.source),
+  );
+  return (
+    <div data-testid="setup-capability">
+      <p className="setup-muted">
+        The companion’s last report ({reportAge(capability, Date.now())}), not a
+        live connection.
+      </p>
+      <dl className="setup-facts">
+        <div>
+          <dt>Speech</dt>
+          <dd data-tone={speech.tone}>{speech.label}</dd>
+        </div>
+        {permissionLines(capability).map((line) => (
+          <div key={line.source}>
+            <dt>{line.label}</dt>
+            <dd data-tone={line.tone}>{line.text}</dd>
+          </div>
+        ))}
+      </dl>
+      {denied.map((line) => (
+        <p key={line.source} className="setup-muted">
+          {line.label} access was denied for the companion on this Mac, so it
+          can’t capture that source until you allow it in System Settings.
+        </p>
+      ))}
     </div>
   );
 }

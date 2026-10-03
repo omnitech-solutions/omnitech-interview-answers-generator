@@ -11,6 +11,13 @@ import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
 import {
+  NO_REPORT_DETAIL,
+  permissionLines,
+  reportAge,
+  type SpeechState,
+  speechState,
+} from "./companion-capability";
+import {
   PROMOTED_NOTE,
   RETENTION_LABEL,
   retentionMeaning,
@@ -20,6 +27,10 @@ import { ageLabel, companionContact } from "./session-format";
 import type { SessionActions } from "./session-snapshot";
 import type { SourceHealth } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
+import {
+  CAPABILITY_LOADING,
+  type CompanionCapabilityState,
+} from "./use-companion-capability";
 
 const SOURCE_ICON: Record<string, IconName> = {
   microphone: "mic",
@@ -98,7 +109,47 @@ function ConfirmAction({
   );
 }
 
-function CompanionRow({ model }: { model: LiveViewModel }) {
+// The companion's LAST capability report: its speech state and the OS
+// permissions it named. A report is history, not contact: it never says the
+// companion is connected (that is the row above, from the heartbeat).
+function CompanionReport({ state }: { state: CompanionCapabilityState }) {
+  if (state.status === "loading") return null;
+  if (state.status === "error")
+    return (
+      <p className="live-note" data-testid="companion-report">
+        Studio couldn’t read the companion’s last capability report just now.
+      </p>
+    );
+  const { capability } = state;
+  if (!capability)
+    return (
+      <p className="live-note" data-testid="companion-report">
+        {NO_REPORT_DETAIL}
+      </p>
+    );
+  const speech = speechState(capability);
+  return (
+    <div data-testid="companion-report">
+      <p className="live-note">
+        Last capability report ({reportAge(capability, Date.now())}):{" "}
+        {speech.detail}
+      </p>
+      <p className="live-note">
+        {permissionLines(capability)
+          .map((line) => `${line.label} ${line.text}`)
+          .join(" · ")}
+      </p>
+    </div>
+  );
+}
+
+function CompanionRow({
+  model,
+  capability,
+}: {
+  model: LiveViewModel;
+  capability: CompanionCapabilityState;
+}) {
   const { companion } = model;
   const contact = companionContact(companion);
   const credential: Record<typeof companion.credential, string> = {
@@ -124,6 +175,7 @@ function CompanionRow({ model }: { model: LiveViewModel }) {
           companion can’t add sources. It lasts up to 2 hours and is renewed
           here, by you.
         </p>
+        <CompanionReport state={capability} />
       </div>
     </li>
   );
@@ -134,13 +186,18 @@ export function SourcesTab({
   session,
   actions,
   pairing,
+  capability = CAPABILITY_LOADING,
 }: {
   model: LiveViewModel;
   session: LiveSessionView;
   actions: SessionActions;
   // The pairing panel (a credential just issued), when there is one to show.
   pairing: ReactNode;
+  // The companion's last capability report, read by the panel.
+  capability?: CompanionCapabilityState;
 }) {
+  const speech: SpeechState | null =
+    capability.status === "ready" ? speechState(capability.capability) : null;
   const locality = model.locality;
   const shorter = shorterRetentions(session.retention);
   return (
@@ -173,7 +230,7 @@ export function SourcesTab({
             </li>
           );
         })}
-        <CompanionRow model={model} />
+        <CompanionRow model={model} capability={capability} />
       </ul>
       {pairing}
       {locality && (
@@ -185,7 +242,7 @@ export function SourcesTab({
             </span>
           </p>
           <p className="live-note">{locality.meaning}</p>
-          <CapabilityTable policy={locality.policy} />
+          <CapabilityTable policy={locality.policy} speech={speech} />
           {locality.canTighten && (
             <ConfirmAction
               label="Switch to this Mac only"

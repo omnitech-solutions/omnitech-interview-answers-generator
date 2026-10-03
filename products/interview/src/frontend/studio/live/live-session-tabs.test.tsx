@@ -335,8 +335,10 @@ describe("sources", () => {
     show({ session: { processingPolicy: "device-only" } });
     open();
     const table = screen.getByRole("table");
+    // No capability report is read in this render, so speech is not claimed
+    // to be on this Mac (the ready and unavailable states: sources-capability).
     expect(within(table).getByText("Speech").closest("tr")).toHaveTextContent(
-      "On this Mac, in the companion",
+      "Not known: no capability report read",
     );
     expect(
       within(table).getByText("Answer drafts").closest("tr"),

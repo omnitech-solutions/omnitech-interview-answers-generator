@@ -112,6 +112,28 @@ describe("source health", () => {
     ).toBe("disconnected");
   });
 
+  it("keeps a disconnect standing when the companion's own gap follows it", () => {
+    // The companion records a lost source as a disconnect, then a zero-length
+    // capture.gap (source-interrupted). The gap must not replace the reason: a
+    // revoked permission stays "lost-permission", never a plain gap.
+    const lostThenGap = (reason: "permission-revoked" | "device-lost") => [
+      transcript(1, "before", { sourceId: "microphone" }),
+      disconnected(2, "microphone", reason),
+      gap(3, "microphone", "source-interrupted", 0),
+    ];
+    expect(health(lostThenGap("permission-revoked")).microphone).toBe(
+      "lost-permission",
+    );
+    expect(health(lostThenGap("device-lost")).microphone).toBe("lost");
+    // A later transcript still clears it.
+    expect(
+      health([
+        ...lostThenGap("permission-revoked"),
+        transcript(4, "back", { sourceId: "microphone" }),
+      ]).microphone,
+    ).toBe("receiving");
+  });
+
   it("keeps one source's problem off the others", () => {
     expect(
       health([

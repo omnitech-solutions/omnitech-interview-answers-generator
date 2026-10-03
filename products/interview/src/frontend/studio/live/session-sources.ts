@@ -136,6 +136,12 @@ function unresolvedBySource(
     } else if (observation.kind === "capture.gap") {
       const content = parseGapContent(observation.content.body);
       if (!content || content.reason === "paused") continue;
+      // [SAFETY] A source the companion reported lost keeps its reason: the
+      // companion follows every disconnect with its own capture.gap, and that
+      // gap must not turn a revoked permission into a plain "gap".
+      const standing = state.get(content.source);
+      if (standing && standing !== "clear" && standing.health !== "gap")
+        continue;
       state.set(content.source, {
         health: "gap",
         since: observation.receivedAt,

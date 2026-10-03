@@ -28,6 +28,10 @@ export function createTestServer(
   const handlers = new Map<string, Handler>();
   const calls: string[] = [];
   const streamQueries: URLSearchParams[] = [];
+  // No report until a test installs one.
+  handlers.set("GET /companion-capability", () =>
+    jsonResponse({ capability: null }),
+  );
   const server: TestServer = {
     calls,
     streamQueries,
@@ -39,7 +43,7 @@ export function createTestServer(
       const path = url.pathname.replace(PREFIX, "") || "/";
       // Session ids are normalised to ":id" in the call record and handlers.
       const normal = path.replace(
-        /^\/(?!(?:current|choices)(?:\/|$))[^/]+/,
+        /^\/(?!(?:current|choices|companion-capability)(?:\/|$))[^/]+/,
         "/:id",
       );
       calls.push(`${method} ${normal}`);

@@ -19,6 +19,10 @@ import { type SessionTabId, SessionTabs } from "./session-tabs";
 import { SourcesTab } from "./sources-tab";
 import { IdleState, TaskPanel, TaskSelector } from "./task-panels";
 import { TranscriptTab } from "./transcript-tab";
+import {
+  type CompanionCapabilityState,
+  useCompanionCapability,
+} from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 
 export type LiveSessionPanelProps = {
@@ -27,6 +31,7 @@ export type LiveSessionPanelProps = {
 };
 
 const TOAST_MS = 3_000;
+const CAPABILITY_REFRESH_MS = 15_000;
 
 // Copy with the async clipboard, falling back to a hidden selection for a page
 // that may not use it. True when the text was copied.
@@ -61,6 +66,8 @@ export async function copyText(text: string): Promise<boolean> {
 // and never move focus.
 export function LiveSessionPanel(_props: LiveSessionPanelProps) {
   const { snapshot, actions, model } = useLiveSession();
+  // The companion reports when it starts, after this panel is already open.
+  const capability = useCompanionCapability(CAPABILITY_REFRESH_MS);
   return (
     <div className="live-page" data-testid="live-panel">
       <SessionBar variant="header" onOpen={() => undefined} />
@@ -72,6 +79,7 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
           busy={snapshot.pending.length > 0}
           commandError={snapshot.commandError}
           pairing={<PairingPanel />}
+          capability={capability}
           // A credential that was just issued is shown once: open the tab that
           // holds it rather than leave it behind another.
           initialTab={snapshot.pairing ? "sources" : "transcript"}
@@ -90,6 +98,7 @@ export function LiveSessionBody({
   busy,
   commandError,
   pairing,
+  capability,
   initialTab = "transcript",
 }: {
   session: LiveSessionView;
@@ -98,6 +107,8 @@ export function LiveSessionBody({
   busy: boolean;
   commandError: string | null;
   pairing: ReactNode;
+  // The companion's last capability report; omitted when none was read.
+  capability?: CompanionCapabilityState;
   initialTab?: SessionTabId;
 }) {
   const [tab, setTab] = useState<SessionTabId>(initialTab);
@@ -233,6 +244,7 @@ export function LiveSessionBody({
               session={session}
               actions={actions}
               pairing={pairing}
+              {...(capability ? { capability } : {})}
             />
           )}
         </SessionTabs>

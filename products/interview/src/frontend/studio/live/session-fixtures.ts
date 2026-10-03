@@ -3,6 +3,7 @@
 // Corp. Nothing here is a real transcript, employer or figure.
 import type {
   LiveAction,
+  LiveCompanionCapability,
   LiveObservation,
   LiveSessionView,
   LiveStreamResponse,
@@ -193,3 +194,30 @@ export function jsonResponse(body: unknown, status = 200): Response {
     headers: { "content-type": "application/json" },
   });
 }
+
+// The companion's last capability report as the route returns it (the shape is
+// parsed by liveCompanionCapabilitySchema in the client, so a wrong one fails).
+export function capabilityReport(
+  overrides: {
+    speech?: Partial<LiveCompanionCapability["speech"]>;
+    permissions?: Partial<LiveCompanionCapability["permissions"]>;
+    reportedAt?: string;
+  } = {},
+): LiveCompanionCapability {
+  return {
+    reportedAt: overrides.reportedAt ?? minutesAfter(0),
+    speech: {
+      locale: "en-GB",
+      onDeviceAvailable: true,
+      recognizerAvailable: true,
+      authorizationStatus: "authorized",
+      ...overrides.speech,
+    },
+    permissions: {
+      microphone: "granted",
+      screen: "granted",
+      ...overrides.permissions,
+    },
+  };
+}
+export const READY_REPORT = capabilityReport();

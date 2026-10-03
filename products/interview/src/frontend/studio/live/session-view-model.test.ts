@@ -4,11 +4,13 @@
 import { describe, expect, it } from "vitest";
 import { bannerCopy } from "./banner-copy";
 import { capabilityRows } from "./capability-table";
+import { speechState } from "./companion-capability";
 import {
   action,
   disconnected,
   gap,
   minutesAfter,
+  READY_REPORT,
   sessionView,
 } from "./session-fixtures";
 import { ageLabel, clockLabel, plural } from "./session-format";
@@ -174,9 +176,18 @@ describe("banner copy", () => {
 });
 
 describe("capability table", () => {
-  it("shows an on-device answer and refuses code when the session is device-only", () => {
+  it("says nothing about speech until a report was read", () => {
     const where = Object.fromEntries(
       capabilityRows("device-only").map((r) => [r.label, r.where]),
+    );
+    expect(where["Speech"]).toBe("Not known: no capability report read");
+  });
+  it("shows an on-device answer and refuses code when the session is device-only", () => {
+    const where = Object.fromEntries(
+      capabilityRows("device-only", speechState(READY_REPORT)).map((r) => [
+        r.label,
+        r.where,
+      ]),
     );
     expect(where["Speech"]).toBe("On this Mac, in the companion");
     expect(where["Answer drafts"]).toBe("On this Mac");
@@ -192,7 +203,10 @@ describe("capability table", () => {
   });
   it("names the gateway when remote processing is allowed", () => {
     const where = Object.fromEntries(
-      capabilityRows("permitted-remote").map((r) => [r.label, r.where]),
+      capabilityRows("permitted-remote", speechState(READY_REPORT)).map((r) => [
+        r.label,
+        r.where,
+      ]),
     );
     expect(where["Answer drafts"]).toBe(
       "Remote model, through Studio's AI gateway",
