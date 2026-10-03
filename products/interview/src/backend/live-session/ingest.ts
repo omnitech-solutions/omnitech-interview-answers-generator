@@ -241,6 +241,25 @@ async function ingestLocked(
   }
   const observation = validated.value;
 
+  // [SAFETY] The companion cannot broaden the sources fixed at start
+  // (ADR-0011 agreed-visible-assistance): a screenshot needs the screen source
+  // and a transcript needs an audio source. Refused by path and code only.
+  const permitted = row.sources?.captureSources ?? [];
+  const needed =
+    observation.kind === "screen.snapshot"
+      ? ["screen"]
+      : observation.kind === "transcript.final"
+        ? ["microphone", "application-audio"]
+        : null;
+  if (needed && !needed.some((source) => permitted.includes(source)))
+    return done(
+      refusal("invalid_observation", {
+        control,
+        issues: [{ path: ["kind"], code: "invalid_value" }],
+      }),
+      cancelJobs,
+    );
+
   // Stored acknowledgement of a resend, and the session's running counts.
   const stored = await firstRow<{ sequence: string | number; ack: unknown }>(
     tx,

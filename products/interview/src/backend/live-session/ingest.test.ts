@@ -92,6 +92,25 @@ describe("accepted observations", () => {
     });
   });
 
+  it("refuses a source kind the session never agreed to, storing nothing", async () => {
+    const person = await fx.provision(tenant, "ann-sources");
+    const started = await repo.startSession(scopeOf(person), {
+      processingPolicy: "permitted-remote",
+      captureSources: ["microphone"],
+    });
+    const result = await ingest(started.credential.value, {
+      version: 1,
+      kind: "screen.snapshot",
+      sourceId: "scr",
+      eventId: "shot-1",
+      occurredAt: "2026-10-03T10:00:00.000Z",
+      sequence: 0,
+      content: { mediaType: "image/png", byteLength: 4, windowLabel: "w" },
+    });
+    expect(result.status).toBe("refused");
+    expect(await count("session_observations", started.session.id)).toBe(0);
+  });
+
   it("returns the ORIGINAL stored acknowledgement for a resend and stores nothing new", async () => {
     const { person, session, credential } = await begin("ben");
     const envelope = transcript("mic", 0, "once only", "e-dup");
