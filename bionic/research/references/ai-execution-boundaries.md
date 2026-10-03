@@ -27,7 +27,7 @@ state; until then, multi-step work runs as an agent job.
 
 ## Package map
 
-- `ai-contracts` — provider-neutral execution, model, image, workflow, and
+- `ai-contracts` — provider-neutral execution, model, image, and
   event contracts.
 - `ai-runtime` — profile resolution, authorization, and adapter delegation.
 - `ai-provider-*` — provider SDKs and request translation.

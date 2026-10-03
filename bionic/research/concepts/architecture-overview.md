@@ -137,7 +137,7 @@ and [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]], and
 | Schema | Owner | Notes |
 | --- | --- | --- |
 | `platform` | `platform-storage` | Tenants, users, memberships, login identities, auth sessions, connected accounts, product installations, artifacts, audit events, preferences |
-| `ai` | `platform-storage` | Agent jobs, sessions, events, payloads and artifacts; model definitions, profiles, provider configurations, tenant policies, usage records, workflow threads |
+| `ai` | `platform-storage` | Agent jobs, sessions, events, payloads and artifacts; model definitions, profiles, provider configurations, tenant policies, usage records |
 | `interview`, `practice` | `products/interview` | Companies, people, candidacies, interviews, plans, candidate profiles, concept briefs, briefings, rehearsals, answer drafts and revisions; exercises and attempts |
 | `presentation` | `products/presentation` | Documents, presentations, slides, themes, generated images, exports, recordings, shares, generation sessions |
 | `assistant` | the vendored interview assistant | Shipped with its own migrations; `database` runs them first |
