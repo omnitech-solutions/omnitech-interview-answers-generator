@@ -447,6 +447,29 @@ function supports(
 const allSourceFigures = (snapshot: ContextSnapshot) =>
   supportedFigureKeys(snapshot.sources.map((source) => source.text));
 
+// [SAFETY] A cited preference quote is approved for repetition only when it is
+// the preference line itself or its value after the "Label:" prefix. A
+// fragment of a longer line ("2 weeks" out of "4 weeks, or 2 weeks if bought
+// out") would drop the condition around it, so it approves nothing.
+function approvedQuote(
+  ref: { sourceId: string; quote: string },
+  snapshot: ContextSnapshot,
+): string[] {
+  const text = sourceById(snapshot, ref.sourceId)?.text;
+  if (text === undefined) return [];
+  const clean = (value: string) =>
+    foldSpoken(value)
+      .replace(/\s+/g, " ")
+      .replace(/[\s.,;:!?]+$/u, "")
+      .trim()
+      .toLowerCase();
+  const quote = clean(ref.quote);
+  const whole = clean(text);
+  const colon = whole.indexOf(":");
+  const value = colon < 0 ? "" : whole.slice(colon + 1).trim();
+  return quote && (quote === whole || quote === value) ? [ref.quote] : [];
+}
+
 type DraftCheck = {
   flag: (path: string, code: string) => void;
   logistics: boolean;
@@ -526,8 +549,18 @@ function checkDraft(draft: string, check: DraftCheck): void {
             flag("draft", "preference_only_topic");
             break;
           }
+        // [SAFETY] The model's category may be wrong or steered: a sentence
+        // about notice, pay or availability gets the logistics allowlist
+        // whatever the category says.
+        if (hasUnapprovedLogisticsFigure(sentence, check.preferenceQuotes))
+          flag("draft", "preference_only_topic");
         continue;
       }
+      if (
+        AVAILABILITY_WORDING.test(foldSpoken(sentence).toLowerCase()) &&
+        hasUnapprovedLogisticsFigure(sentence, check.preferenceQuotes)
+      )
+        flag("draft", "preference_only_topic");
       const loose = nonGeneralFigures(sentence).filter(
         (key) => !check.groundedFigures.has(key),
       );
@@ -608,7 +641,9 @@ export function verifyClaims(
     // Logistics: a claim that is not preference-backed carries no figure-like
     // text at all (the allowlist has no approved span for it).
     const logisticsFigure =
-      logistics && hasUnapprovedLogisticsFigure(claim.text, []);
+      logistics && claim.kind !== "preference-backed"
+        ? hasUnapprovedLogisticsFigure(claim.text, [])
+        : false;
     const preferenceOnlyTopic =
       isNoticePeriodText(claim.text) || isCompensationText(claim.text);
 
@@ -665,6 +700,18 @@ export function verifyClaims(
         for (const refIndex of refs.keys())
           flag(`${at}.refs.${refIndex}`, "unsupported_reference");
       if (supported) {
+        // [SAFETY] A preference-backed claim's own text is shown beside its
+        // provenance chip, so in a logistics answer it obeys the same
+        // allowlist as the draft: only spans of the quotes it cites.
+        if (
+          logistics &&
+          claim.kind === "preference-backed" &&
+          hasUnapprovedLogisticsFigure(
+            claim.text,
+            refs.flatMap((ref) => approvedQuote(ref, snapshot)),
+          )
+        )
+          flag(at, "ungrounded_logistics_figure");
         if (claim.kind === "matrix-backed")
           matrixTexts.push(normalizeText(claim.text));
         for (const key of supportedFigureKeys([
@@ -674,7 +721,7 @@ export function verifyClaims(
           groundedFigures.add(key);
         if (claim.kind === "preference-backed")
           for (const ref of refs) {
-            preferenceQuotes.push(ref.quote);
+            preferenceQuotes.push(...approvedQuote(ref, snapshot));
             for (const key of supportedFigureKeys([ref.quote]))
               preferenceFigures.add(key);
           }

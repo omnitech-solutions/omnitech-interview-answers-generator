@@ -1,12 +1,11 @@
 // Logistics outcome allowlist (review S1, round 5). Notice period,
 // compensation, start date and availability are the candidate's own facts, so
-// a logistics draft may carry a figure, unit or date expression ONLY when it
-// is a verbatim span of an approved preference quote. Anything else that looks
-// like a quantity, spelled or digit, ordinal, range, Roman numeral, month,
-// weekday or bare unit is refused, with or without a unit. This replaces the
-// blacklist of figure shapes for this one outcome: new spellings cannot slip
-// through because the check is "nothing figure-like remains", not "no known
-// figure shape".
+// a logistics draft may carry a detected figure, unit or date expression only
+// when it is a verbatim span of an approved preference quote. Approved spans
+// are removed first; the remainder is checked against named word classes
+// (numbers, units, months, weekdays, seasons, relative dates, magnitudes).
+// This is lexical coverage, not a proof that every possible paraphrase is
+// caught. Review findings extend the classes and their regression cases.
 //
 // Pure, no I/O, and no copy of the draft or a quote leaves it.
 import { foldSpoken } from "./spoken-figures.js";
@@ -24,21 +23,31 @@ const NUMBER_WORDS = new Set(
 // a modal verb first.
 const UNIT_WORDS = new Set(
   (
-    "day days weekday weekdays week weeks wk wks fortnight fortnights month months mo mos quarter quarters year years yr yrs " +
-    "annual annually annum k dollar dollars buck bucks pound pounds quid euro euros usd gbp eur cad aud figure figures " +
+    "day days weekday weekdays week weeks wk wks fortnight fortnights month months quarter quarters year years yr yrs " +
+    "annual annually annum k dollar dollars buck bucks pound pounds quid euro euros usd gbp eur cad aud " +
     "january february march april june july august september october november december " +
-    "monday tuesday wednesday thursday friday saturday sunday tomorrow tonight summer autumn winter spring"
+    "jan feb mar apr jun jul aug sep sept oct nov dec " +
+    "monday tuesday wednesday thursday friday saturday sunday wed tue tues thu thur thurs fri " +
+    "tomorrow tonight today weekend weekends midyear immediately asap christmas holidays eoy " +
+    "summer autumn winter spring teens digit digits twice double triple mil lakh lakhs crore"
   ).split(" "),
 );
+// Decade plurals ("fifties") and capitalised short weekday names.
+const DECADES = /^(?:twen|thir|for|fif|six|seven|eigh|nine)ties$/;
+const SHORT_DAYS = new Set(["Mon", "Sat", "Sun"]);
+// Letters NFKD leaves alone that read as Latin figures ("sıx", "ƒifty").
+const LOOKALIKES: Record<string, string> = { ı: "i", ƒ: "f", ſ: "s" };
 const ROMAN_LOWER = new Set(
   "ii iii iv vi vii viii ix xi xii xiii xiv xv xvi xx".split(" "),
 );
 const ROMAN_UPPER =
   /^(?=[MDCLXVI])M{0,3}(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3})$/;
 // "6months", "threeweeks": a number glued to a unit.
-const GLUED = /^(?:[a-z]+|\p{N}+)(?:days?|weeks?|months?|years?|wks?|yrs?)$/u;
+const GLUED = /^(?:[a-z]+|\p{N}+)(?:days?|weeks?|months?|years?|wks?|yrs?|k)$/u;
 const SPELLED_PREFIX =
-  /^(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)/;
+  /^(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)/;
+// Ordinary idioms that contain a unit word.
+const IDIOMS = /\b(?:day[- ]to[- ]day|annual leave|o\.k\.)/gi;
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -61,9 +70,16 @@ export function approvedSpans(quotes: readonly string[]): string[] {
 const figureBearingToken = (token: string, index: number, all: string[]) => {
   const lower = token.toLowerCase();
   if (/\p{N}/u.test(token)) return true;
+  if (DECADES.test(lower)) return true;
+  if (SHORT_DAYS.has(token)) return true;
   if (NUMBER_WORDS.has(lower) || UNIT_WORDS.has(lower)) return true;
   if (ROMAN_LOWER.has(lower)) return true;
-  if (token !== "I" && token === token.toUpperCase() && ROMAN_UPPER.test(token))
+  if (
+    token !== "I" &&
+    token === token.toUpperCase() &&
+    !/[CDM]/.test(token) &&
+    ROMAN_UPPER.test(token)
+  )
     return true;
   if (GLUED.test(lower) && (/\p{N}/u.test(lower) || SPELLED_PREFIX.test(lower)))
     return true;
@@ -76,17 +92,26 @@ const figureBearingToken = (token: string, index: number, all: string[]) => {
         before,
       ) || /^(?:\p{N}.*|first|second)$/u.test(after)
     );
+  // "half" is a quantity in "one and a half", not in "half as much".
+  if (lower === "half") return /^(?:a|an|and)$/.test(before);
+  // "fall" is a season only after an article or a preposition of time.
+  if (lower === "fall")
+    return /^(?:the|in|this|next|last|by|until)$/.test(before);
   // "first" and "second" are ordinary words except as a day of the month
-  // ("on the first", "the second of the month").
-  if (lower === "first" || lower === "second")
-    return (
+  // ("on the first", "the second of the month"): after a date preposition and
+  // before nothing or a connective, or before "of".
+  if (lower === "first" || lower === "second") {
+    const dated =
       /^(?:on|by|until|from|since)$/.test(before) ||
       (before === "the" &&
         /^(?:on|by|until|from|since)$/.test(
           (all[index - 2] ?? "").toLowerCase(),
-        )) ||
-      after === "of"
-    );
+        ));
+    const ends =
+      after === "" ||
+      /^(?:and|or|but|if|so|at|works?|would|is|please)$/.test(after);
+    return after === "of" || (dated && ends);
+  }
   return false;
 };
 
@@ -96,15 +121,27 @@ export function hasUnapprovedLogisticsFigure(
   draft: string,
   approvedQuotes: readonly string[],
 ): boolean {
-  let rest = ` ${squash(foldSpoken(draft))} `;
+  const lookalike = (text: string) =>
+    text.replace(/[ıƒſ]/g, (char) => LOOKALIKES[char] ?? char);
+  let rest = ` ${squash(lookalike(foldSpoken(draft))).replace(IDIOMS, " ")} `;
+  // A span approved once is repeated at most once ("twice 4 weeks" and
+  // "4 weeks plus 4 weeks" change what the candidate said).
+  const used = new Set<string>();
+  let repeated = false;
   for (const span of approvedSpans(approvedQuotes))
     rest = rest.replace(
       new RegExp(
         `(?<![\\p{L}\\p{N}])${escape(span).replace(/ /g, "\\s+")}(?![\\p{L}\\p{N}])`,
         "giu",
       ),
-      " ",
+      (match) => {
+        const key = squash(match).toLowerCase();
+        if (used.has(key)) repeated = true;
+        used.add(key);
+        return " ";
+      },
     );
+  if (repeated) return true;
   if (/[$£€%]/u.test(rest)) return true;
   const tokens = rest.match(/[\p{L}\p{M}\p{N}]+/gu) ?? [];
   return tokens.some((token, index) =>
