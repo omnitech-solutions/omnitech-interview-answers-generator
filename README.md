@@ -177,6 +177,12 @@ then no question is answered and the purge and the duration cap never run
 either. Studio never submits, sends or operates an external interview
 interface for you.
 
+**Retention.** Deleting a session removes its captured observations and
+session records. An edited Workspace draft, or a draft named by a saved answer
+revision or revert, remains in Workspace. It may still contain a captured
+question and generated answer or code. Delete that draft separately in
+Workspace if you want to remove it. Copies in backups remain until they rotate.
+
 **Running the companion.** `pnpm dev` does not start the companion. Build and
 run it from `apps/capture-companion/macos` with SwiftPM: `swift run
 capture-companion pair` stores the credential Studio shows (in the Keychain),
