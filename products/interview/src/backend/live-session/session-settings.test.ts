@@ -98,8 +98,11 @@ it("opens the purge in the owner's actor scope with the purge setting on", async
   );
   expect(statements.map((s) => s.text)).toEqual([
     "SELECT set_config('app.tenant_id', $1, true), set_config('app.actor_id', $2, true)",
+    // Product-scoped tables (the Workspace draft purger) need the product too.
+    "SELECT set_config('app.product_id', $1, true)",
     "SELECT set_config('app.session_purge', 'on', true)",
     "SELECT 1",
   ]);
   expect(statements[0]?.values).toEqual(["tenant-1", "owner-1"]);
+  expect(statements[1]?.values).toEqual(["omnitech.interview"]);
 });
