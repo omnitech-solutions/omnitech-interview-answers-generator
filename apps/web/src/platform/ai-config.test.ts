@@ -145,6 +145,105 @@ describe("resolveAgentProfiles", () => {
     }
   });
 
+  // ADR-0007 Decision 4: a profile's bounds are pinned to its version. A
+  // change to any bound here without bumping that profile's version fails, so
+  // every job snapshot names the exact revision it ran under. Only the model
+  // name comes from the environment, so it is left out of the pin.
+  it.each([
+    [
+      "coding-fast",
+      {
+        version: 1,
+        runtime: "codex",
+        effort: "low",
+        sessionPersistence: false,
+        maximumTurns: 1,
+        timeoutMs: 120_000,
+        maximumOutputBytes: 2_000_000,
+      },
+    ],
+    [
+      "coding-quality",
+      {
+        version: 1,
+        runtime: "codex",
+        effort: "high",
+        tools: ["read"],
+        sessionPersistence: true,
+        maximumTurns: 2,
+        timeoutMs: 300_000,
+        maximumOutputBytes: 4_000_000,
+      },
+    ],
+    [
+      "document-quality",
+      {
+        version: 1,
+        runtime: "claude-code",
+        effort: "high",
+        sessionPersistence: false,
+        maximumTurns: 2,
+        maximumBudgetUsd: 5,
+        timeoutMs: 300_000,
+        maximumOutputBytes: 4_000_000,
+      },
+    ],
+    [
+      "presentation-editor",
+      {
+        version: 1,
+        runtime: "claude-code",
+        effort: "high",
+        sessionPersistence: true,
+        maximumTurns: 3,
+        maximumBudgetUsd: 8,
+        timeoutMs: 300_000,
+        maximumOutputBytes: 4_000_000,
+        outputSchema: {
+          type: "object",
+          required: ["sourceXml"],
+          properties: { sourceXml: { type: "string" } },
+        },
+      },
+    ],
+    [
+      "assistant-claude-code",
+      {
+        version: 1,
+        runtime: "claude-code",
+        effort: "medium",
+        sessionPersistence: false,
+        maximumTurns: 1,
+        timeoutMs: 300_000,
+        maximumOutputBytes: 1_000_000,
+      },
+    ],
+    [
+      "assistant-codex",
+      {
+        version: 1,
+        runtime: "codex",
+        effort: "low",
+        sessionPersistence: false,
+        maximumTurns: 1,
+        timeoutMs: 300_000,
+        maximumOutputBytes: 1_000_000,
+      },
+    ],
+  ])("pins %s's bounds to its version", (id, pinned) => {
+    const { model: _model, ...bounds } = resolveAgentProfiles({}).get(id) ?? {};
+    expect(bounds).toEqual({
+      fallbackModels: [],
+      tools: [],
+      sandbox: "read-only",
+      approvalPolicy: "never",
+      additionalDirectories: [],
+      webSearch: false,
+      ...pinned,
+      id,
+    });
+  });
+
   it("takes model names, never bounds, from the environment", () => {
     const profiles = resolveAgentProfiles({
       CLAUDE_ASSISTANT_MODEL: "opus",
