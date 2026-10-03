@@ -29,6 +29,9 @@ const AI_ENVIRONMENT = [
   "AI_PROVIDER_LABEL",
   "AI_DEFAULT_PROVIDER_ID",
   "AI_TIMEOUT_MS",
+  "AI_LOCALITY",
+  "OPENAI_LOCALITY",
+  "LM_STUDIO_LOCALITY",
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
   "OPENAI_BASE_URL",
@@ -213,6 +216,39 @@ describe("the gateway with a language model", () => {
         local: false,
       },
     });
+  });
+
+  it("lists only declared device profiles under a device-only policy", async () => {
+    const deviceOnly = {
+      taskType: "structured-chat",
+      processingPolicy: "device-only",
+    } as const;
+    provider(); // LM Studio's catalog answers nothing
+    vi.stubEnv("AI_BASE_URL", "http://127.0.0.1:1234/v1");
+    vi.stubEnv("AI_MODEL", "qwen-loaded");
+    // Loopback alone is not a declaration: nothing is device until declared.
+    const undeclared = await createPlatformAiGateway().listAvailableTargets(
+      context(),
+      deviceOnly,
+    );
+    vi.stubEnv("AI_LOCALITY", "device");
+    const declared = await createPlatformAiGateway().listAvailableTargets(
+      context(),
+      deviceOnly,
+    );
+    // Without a policy the listing is unchanged.
+    const unrestricted = await createPlatformAiGateway().listAvailableTargets(
+      context(),
+      { taskType: "structured-chat" },
+    );
+
+    expect(undeclared).toEqual([]);
+    expect(declared.map((target) => target.id)).toEqual([
+      "interview-assistant",
+    ]);
+    expect(unrestricted.map((target) => target.id)).toContain(
+      "interview-assistant",
+    );
   });
 
   it("offers LM Studio's other installed models beside the loaded one", async () => {

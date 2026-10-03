@@ -100,7 +100,7 @@ The web server reads the following variables from `apps/web/.env.local`.
 **One model configuration serves the whole application.** The interview API,
 the platform AI gateway and Interview Studio's assistant all resolve their
 model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*` variables below through
-`apps/web/src/platform/ai-config.ts`, so changing a value changes it
+`packages/ai-runtime/src/config.ts`, so changing a value changes it
 everywhere. When none is
 set, `pnpm dev` uses the model LM Studio already has loaded and says so on
 start, loading it with a 65,536-token window (`ASSISTANT_CONTEXT_TOKENS`) so

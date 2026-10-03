@@ -5,19 +5,27 @@ import type {
   ModelPort,
   Scope,
 } from "@omnitech-assistant/contracts";
-import type {
-  AiAccessContext,
-  AiEvent,
-  AiExecution,
-  AiExecutionGateway,
-  AiExecutionRequest,
-  AiResumeRequest,
-  AiTargetFilter,
-  AiTargetSummary,
-  AiStructuredChatRequest,
-  ImageProviderAdapter,
-  ModelProviderAdapter,
+import {
+  type AiAccessContext,
+  type AiEvent,
+  type AiExecution,
+  type AiExecutionGateway,
+  type AiExecutionRequest,
+  AiPolicyRefusedError,
+  type AiProcessingPolicy,
+  type AiResumeRequest,
+  type AiStructuredChatRequest,
+  type AiTargetFilter,
+  type AiTargetSummary,
+  type ImageProviderAdapter,
+  type ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+
+/**
+ * Where a profile's model runs, as its configuration declares it. Never
+ * inferred from a URL or a provider name; missing or unknown is remote.
+ */
+export type AiLocality = "device" | "private-network" | "remote";
 
 export interface AiProfile {
   id: string;
@@ -31,6 +39,8 @@ export interface AiProfile {
   // The target is a model catalog: the profile serves every model its
   // adapter lists whose id starts with `${id}/`.
   catalog?: boolean;
+  // Declared locality (rule:declared-profile-locality). Absent is remote.
+  locality?: AiLocality;
 }
 
 export interface AgentExecutionPort {
@@ -59,6 +69,38 @@ export interface CreateAiExecutionGatewayOptions {
   images: readonly ImageProviderAdapter[];
   agents: AgentExecutionPort;
   authorize(context: AiAccessContext, profile: AiProfile): Promise<boolean>;
+}
+
+// [SAFETY] Anything but an explicit permitted-remote, once a policy is given,
+// is treated as device-only: an unrecognised policy fails closed.
+const isDeviceOnly = (policy: AiProcessingPolicy | undefined) =>
+  policy !== undefined && policy !== "permitted-remote";
+
+// A profile runs on the device only when it declares so (rule:declared-
+// profile-locality) and is not an agent runtime: agent jobs are never device.
+const runsOnDevice = (profile: AiProfile) =>
+  profile.family === "direct-model" && profile.locality === "device";
+
+const permits = (policy: AiProcessingPolicy | undefined, profile: AiProfile) =>
+  !isDeviceOnly(policy) || runsOnDevice(profile);
+
+// A resume names no profile; the refusal names only the policy.
+function refusedStream<T>(): AsyncIterable<AiEvent<T>> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () =>
+        Promise.reject(new AiPolicyRefusedError(undefined, "device-only")),
+    }),
+  };
+}
+
+// Refuses with ids only; never a fallback to another profile or adapter.
+function requirePolicy(
+  policy: AiProcessingPolicy | undefined,
+  profile: AiProfile,
+): void {
+  if (!permits(policy, profile))
+    throw new AiPolicyRefusedError(profile.id, "device-only");
 }
 
 export function createAiExecutionGateway(
@@ -111,6 +153,10 @@ export function createAiExecutionGateway(
         "The current tenant is not authorized for this AI profile.",
       );
     }
+    // [SAFETY] First of two policy checks (rule:device-only-enforced-twice):
+    // at resolution, before any adapter is touched. Each method checks again
+    // immediately before dispatch.
+    requirePolicy(request.processingPolicy, profile);
     // [SAFETY] Only a model the catalog lists now may run, so a key limited
     // to free models never reaches an unlisted (paid) one.
     if (
@@ -149,11 +195,15 @@ export function createAiExecutionGateway(
         context: request.context,
         profileId: request.profileId,
         task: { type: "structured-chat", prompt: "" },
+        ...(request.processingPolicy === undefined
+          ? {}
+          : { processingPolicy: request.processingPolicy }),
       });
       if (profile.family === "agent-runtime") {
         if (!options.agents.streamStructured)
           throw new Error("The profile cannot execute structured chat.");
         request.signal?.throwIfAborted();
+        requirePolicy(request.processingPolicy, profile);
         yield* options.agents.streamStructured(request, profile);
         return;
       }
@@ -163,17 +213,20 @@ export function createAiExecutionGateway(
           "The configured provider cannot stream structured chat.",
         );
       request.signal?.throwIfAborted();
+      requirePolicy(request.processingPolicy, profile);
       yield* adapter.streamStructured(request);
     },
     async execute<T>(request: AiExecutionRequest) {
       const profile = await resolve(request);
       let execution: AiExecution;
       if (profile.family === "agent-runtime") {
+        requirePolicy(request.processingPolicy, profile);
         execution = await options.agents.execute(request, profile);
       } else if (request.task.type.startsWith("image-")) {
         const adapter = images.get(profile.targetId);
         if (!adapter)
           throw new Error("The configured image provider is unavailable.");
+        requirePolicy(request.processingPolicy, profile);
         const result =
           request.task.type === "image-editing" && adapter.edit
             ? await adapter.edit(request)
@@ -188,12 +241,15 @@ export function createAiExecutionGateway(
         const adapter = models.get(profile.targetId);
         if (!adapter)
           throw new Error("The configured model provider is unavailable.");
+        requirePolicy(request.processingPolicy, profile);
         execution = await adapter.execute(request);
       }
       return execution as AiExecution<T>;
     },
     async *stream<T>(request: AiExecutionRequest) {
       const profile = await resolve(request);
+      // [SAFETY] Second policy check, immediately before dispatch.
+      requirePolicy(request.processingPolicy, profile);
       const source =
         profile.family === "agent-runtime"
           ? options.agents.stream(request, profile)
@@ -204,8 +260,12 @@ export function createAiExecutionGateway(
     },
     cancel: (context, executionId) =>
       options.agents.cancel(context, executionId),
+    // [SAFETY] Resume only ever reaches the agent port, and an agent job never
+    // runs on the device: device-only refuses it before dispatch.
     resume: <T>(request: AiResumeRequest) =>
-      options.agents.resume(request) as AsyncIterable<AiEvent<T>>,
+      isDeviceOnly(request.processingPolicy)
+        ? refusedStream<T>()
+        : (options.agents.resume(request) as AsyncIterable<AiEvent<T>>),
     async listAvailableTargets(context, filter?: AiTargetFilter) {
       const visible: AiTargetSummary[] = [];
       for (const profile of profiles.values()) {
@@ -214,6 +274,8 @@ export function createAiExecutionGateway(
           (filter?.taskType && !profile.taskTypes.includes(filter.taskType)) ||
           // Catalogs list their models only for a task, never by default.
           (profile.catalog && !filter?.taskType) ||
+          // A device-only listing offers device profiles only.
+          !permits(filter?.processingPolicy, profile) ||
           !(await options.authorize(context, profile))
         )
           continue;
@@ -221,6 +283,9 @@ export function createAiExecutionGateway(
           visible.push(summaryOf(profile));
           continue;
         }
+        // [SAFETY] Second check, immediately before the catalog's adapter is
+        // asked for its models.
+        if (!permits(filter?.processingPolicy, profile)) continue;
         for (const model of await catalogModels(profile, context))
           visible.push({
             id: model.id,

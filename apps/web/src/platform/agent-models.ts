@@ -6,7 +6,7 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import type { getPlatformDatabase } from "@omnitech/database";
-import { resolveAgentProfiles } from "./ai-config";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 
 // The central agent profile each assistant agent model runs under.
 const profileOf = (runtime: Runtime) =>

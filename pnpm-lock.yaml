@@ -431,10 +431,16 @@ importers:
       '@omnitech-assistant/contracts':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
+      '@omnitech/agent-runtime-contracts':
+        specifier: workspace:*
+        version: link:../agent-runtime-contracts
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../ai-contracts
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.1
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

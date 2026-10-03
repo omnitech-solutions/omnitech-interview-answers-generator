@@ -1,10 +1,12 @@
 import { validateAgentProfile } from "@omnitech/agent-runtime-contracts";
 import { describe, expect, it } from "vitest";
 import {
+  declareLocality,
   resolveAgentProfiles,
   resolveDefaultLanguageModel,
   resolveLanguageModels,
-} from "./ai-config";
+  withDeclaredLocality,
+} from "./config.js";
 
 describe("resolveLanguageModels", () => {
   it("needs both a non-empty base URL and model", () => {
@@ -28,6 +30,7 @@ describe("resolveLanguageModels", () => {
         baseUrl: "http://localhost/v1/",
         model: "fake-model",
         timeoutMs: 120_000,
+        locality: "remote",
       },
     ]);
     expect(
@@ -56,6 +59,7 @@ describe("resolveLanguageModels", () => {
         model: "model",
         apiKey: "secret",
         timeoutMs: 5000,
+        locality: "remote",
       },
     ]);
   });
@@ -75,6 +79,7 @@ describe("resolveLanguageModels", () => {
         model: "gpt-5-mini",
         apiKey: "openai-secret",
         timeoutMs: 120_000,
+        locality: "remote",
       },
       {
         id: "lm-studio",
@@ -83,6 +88,7 @@ describe("resolveLanguageModels", () => {
         model: "qwen",
         apiKey: "local-key",
         timeoutMs: 120_000,
+        locality: "remote",
       },
     ]);
     expect(resolveDefaultLanguageModel(environment)?.id).toBe("openai");
@@ -123,6 +129,82 @@ describe("resolveLanguageModels", () => {
         baseUrl: "https://api.openai.com/v1",
       },
     ]);
+  });
+});
+
+describe("declared locality", () => {
+  const localities = (environment: Record<string, string>) =>
+    resolveLanguageModels(environment).map(({ id, locality }) => [
+      id,
+      locality,
+    ]);
+
+  it("is remote when missing or unknown, and never inferred from the URL", () => {
+    expect(
+      localities({ AI_BASE_URL: "http://127.0.0.1:1234/v1", AI_MODEL: "m" }),
+    ).toEqual([["lm-studio", "remote"]]);
+    expect(
+      localities({
+        AI_BASE_URL: "http://127.0.0.1:1234/v1",
+        AI_MODEL: "m",
+        AI_LOCALITY: "on-prem",
+      }),
+    ).toEqual([["lm-studio", "remote"]]);
+    expect(localities({ LM_STUDIO_MODEL: "qwen" })).toEqual([
+      ["lm-studio", "remote"],
+    ]);
+  });
+
+  it("reads AI_LOCALITY, OPENAI_LOCALITY and LM_STUDIO_LOCALITY per endpoint", () => {
+    expect(
+      localities({
+        AI_BASE_URL: "http://localhost:1234/v1",
+        AI_MODEL: "m",
+        AI_LOCALITY: "device",
+        OPENAI_API_KEY: "k",
+        OPENAI_LOCALITY: "private-network",
+      }),
+    ).toEqual([
+      ["lm-studio", "device"],
+      ["openai", "private-network"],
+    ]);
+    expect(
+      localities({ LM_STUDIO_MODEL: "qwen", LM_STUDIO_LOCALITY: "device" }),
+    ).toEqual([["lm-studio", "device"]]);
+  });
+
+  it("downgrades a device declaration whose base URL is not loopback", () => {
+    expect(
+      localities({
+        AI_BASE_URL: "https://api.example.test/v1",
+        AI_MODEL: "m",
+        AI_LOCALITY: "device",
+      }),
+    ).toEqual([["openai", "remote"]]);
+    expect(declareLocality("device", "http://[::1]:1234/v1")).toBe("device");
+    expect(declareLocality("device", "http://localhost.evil.test/v1")).toBe(
+      "remote",
+    );
+    expect(declareLocality("device", "not a url")).toBe("remote");
+    expect(declareLocality("private-network", "http://10.0.0.5/v1")).toBe(
+      "private-network",
+    );
+  });
+
+  it("applies a declared locality to a profile definition", () => {
+    const profile = {
+      id: "p",
+      label: "P",
+      family: "direct-model" as const,
+      targetId: "t",
+      taskTypes: [],
+      enabled: true,
+    };
+    expect(withDeclaredLocality(profile, "device")).toEqual({
+      ...profile,
+      locality: "device",
+    });
+    expect(profile).not.toHaveProperty("locality");
   });
 });
 

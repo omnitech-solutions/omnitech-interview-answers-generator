@@ -18,7 +18,7 @@ description: Add or change AI model providers behind AiExecutionGateway while ke
   transport with bounded retries, safe failure messages and usage
   normalisation.
 - Model endpoints are configured once, in
-  `apps/web/src/platform/ai-config.ts` (`AI_*` > `OPENAI_*` > `LM_STUDIO_*`,
+  `packages/ai-runtime/src/config.ts` (`AI_*` > `OPENAI_*` > `LM_STUDIO_*`,
   `AI_DEFAULT_PROVIDER_ID`, `AI_TIMEOUT_MS`). Adapters and profiles are wired
   in `apps/web/src/platform/ai.ts`.
 - Support cancellation, bounded timeouts, typed results, and safe failure

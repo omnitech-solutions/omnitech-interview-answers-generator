@@ -10,7 +10,7 @@ import {
 import { getPlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
-import { resolveAgentProfiles } from "./ai-config";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 import { resolvePlatformContext } from "./context";
 import { getProductRegistry } from "./registry";
 
@@ -21,7 +21,7 @@ const createSchema = z.object({
 });
 
 // The profiles a product may start a job with, by id; their definitions are
-// central (ai-config.ts).
+// central (@omnitech/ai-runtime/config).
 const JOB_PROFILES = [
   "coding-fast",
   "coding-quality",

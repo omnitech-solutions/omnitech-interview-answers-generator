@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
     }
   },
   "scripts": {
@@ -18,10 +22,12 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
+    "@omnitech/agent-runtime-contracts": "workspace:*",
     "@omnitech/ai-contracts": "workspace:*",
     "@omnitech-assistant/contracts": "file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

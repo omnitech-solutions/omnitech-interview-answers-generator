@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
+import type { AiLocality, AiProfile } from "./index.js";
 
 /**
  * One language-model endpoint as the environment describes it. Everything that
@@ -15,6 +16,42 @@ export interface ResolvedLanguageModel {
   model: string;
   apiKey?: string;
   timeoutMs: number;
+  // Declared by AI_LOCALITY, OPENAI_LOCALITY or LM_STUDIO_LOCALITY; never
+  // inferred from the URL (rule:declared-profile-locality).
+  locality: AiLocality;
+}
+
+const LOCALITIES: readonly AiLocality[] = [
+  "device",
+  "private-network",
+  "remote",
+];
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * The locality an endpoint declares: a missing or unknown value is remote,
+ * and a `device` declaration whose base URL does not resolve to loopback is
+ * downgraded to remote. The URL only ever lowers trust, never grants it.
+ */
+export function declareLocality(
+  declared: string | undefined,
+  baseUrl: string,
+): AiLocality {
+  const value = LOCALITIES.find((locality) => locality === declared?.trim());
+  if (value !== "device") return value ?? "remote";
+  try {
+    return LOOPBACK_HOSTS.has(new URL(baseUrl).hostname) ? "device" : "remote";
+  } catch {
+    return "remote";
+  }
+}
+
+/** A copy of an AiProfile definition carrying its declared locality. */
+export function withDeclaredLocality<T extends AiProfile>(
+  profile: T,
+  locality: AiLocality,
+): T {
+  return { ...profile, locality };
 }
 
 export type LanguageModelEnvironment = Readonly<
@@ -49,6 +86,7 @@ export function resolveLanguageModels(
       model,
       ...withApiKey(environment["AI_API_KEY"]),
       timeoutMs,
+      locality: declareLocality(environment["AI_LOCALITY"], baseUrl),
     });
   }
 
@@ -57,28 +95,35 @@ export function resolveLanguageModels(
     environment["OPENAI_MODEL"]?.trim() ||
     (environment["OPENAI_API_KEY"]?.trim() ? "gpt-5-mini" : "");
   if (openAiModel && !models.some(({ id }) => id === "openai")) {
+    const openAiBaseUrl =
+      environment["OPENAI_BASE_URL"]?.trim() || "https://api.openai.com/v1";
     models.push({
       id: "openai",
       label: "OpenAI",
-      baseUrl:
-        environment["OPENAI_BASE_URL"]?.trim() || "https://api.openai.com/v1",
+      baseUrl: openAiBaseUrl,
       model: openAiModel,
       ...withApiKey(environment["OPENAI_API_KEY"]),
       timeoutMs,
+      locality: declareLocality(environment["OPENAI_LOCALITY"], openAiBaseUrl),
     });
   }
 
   // LM Studio on this machine.
   const lmStudioModel = environment["LM_STUDIO_MODEL"]?.trim();
   if (lmStudioModel && !models.some(({ id }) => id === "lm-studio")) {
+    const lmStudioBaseUrl =
+      environment["LM_STUDIO_BASE_URL"]?.trim() || "http://127.0.0.1:1234/v1";
     models.push({
       id: "lm-studio",
       label: "LM Studio",
-      baseUrl:
-        environment["LM_STUDIO_BASE_URL"]?.trim() || "http://127.0.0.1:1234/v1",
+      baseUrl: lmStudioBaseUrl,
       model: lmStudioModel,
       ...withApiKey(environment["LM_STUDIO_API_KEY"]),
       timeoutMs,
+      locality: declareLocality(
+        environment["LM_STUDIO_LOCALITY"],
+        lmStudioBaseUrl,
+      ),
     });
   }
 

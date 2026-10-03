@@ -14,7 +14,9 @@ vi.mock("@omnitech/product-presentation/backend", () => ({
 vi.mock("./ai", () => ({
   interviewAssistantBudget: () => ({ contextCharacters: 1 }),
 }));
-vi.mock("./ai-config", () => ({ resolveDefaultLanguageModel: () => null }));
+vi.mock("@omnitech/ai-runtime/config", () => ({
+  resolveDefaultLanguageModel: () => null,
+}));
 vi.mock("./context", () => ({ resolvePlatformContext: vi.fn() }));
 
 const { createProductBackends } = await import("./products");

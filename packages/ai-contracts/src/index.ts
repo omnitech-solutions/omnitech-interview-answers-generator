@@ -15,6 +15,13 @@ export type AiTaskType =
   | "retrieval"
   | "agent-job";
 
+/**
+ * Where a request's session content may be processed. Absent means the host's
+ * existing behaviour; `device-only` is enforced by the gateway and never falls
+ * back to a remote profile (ADR-0011).
+ */
+export type AiProcessingPolicy = "device-only" | "permitted-remote";
+
 export interface AiAccessContext {
   tenantId: string;
   userId: string;
@@ -79,6 +86,7 @@ export interface AiExecutionRequest {
   profileId?: string;
   targetId?: string;
   idempotencyKey?: string;
+  processingPolicy?: AiProcessingPolicy;
   signal?: AbortSignal;
 }
 
@@ -86,6 +94,7 @@ export interface AiResumeRequest {
   context: AiAccessContext;
   executionId: string;
   input: string;
+  processingPolicy?: AiProcessingPolicy;
   signal?: AbortSignal;
 }
 
@@ -115,10 +124,36 @@ export interface AiFailure {
     | "rate-limit"
     | "timeout"
     | "cancelled"
+    | "policy-refused"
     | "provider"
     | "infrastructure";
   message: string;
   retryable: boolean;
+}
+
+/**
+ * A request was refused by its processing policy. Names ids only (profile id,
+ * policy), never content, and is never retryable: the caller must change the
+ * policy or the profile, not try again.
+ */
+export class AiPolicyRefusedError extends Error {
+  readonly code = "policy-refused";
+  readonly retryable = false;
+  constructor(
+    readonly profileId: string | undefined,
+    readonly policy: AiProcessingPolicy,
+  ) {
+    super(
+      `Refused by processing policy ${policy}${
+        profileId === undefined ? "" : ` for AI profile ${profileId}`
+      }.`,
+    );
+    this.name = "AiPolicyRefusedError";
+  }
+
+  toFailure(): AiFailure {
+    return { code: "policy-refused", message: this.message, retryable: false };
+  }
 }
 
 export interface ModelCapabilities {
@@ -149,10 +184,12 @@ export interface AiTargetSummary {
 // Narrows a target listing to one task; catalog targets list only then.
 export interface AiTargetFilter {
   taskType?: AiTaskType;
+  processingPolicy?: AiProcessingPolicy;
 }
 
 export interface AiStructuredChatRequest extends ModelInput {
   context: AiAccessContext;
+  processingPolicy?: AiProcessingPolicy;
   signal?: AbortSignal;
 }
 

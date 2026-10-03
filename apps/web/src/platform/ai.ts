@@ -30,7 +30,12 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
-import { resolveAgentProfiles, resolveDefaultLanguageModel } from "./ai-config";
+import {
+  declareLocality,
+  resolveAgentProfiles,
+  resolveDefaultLanguageModel,
+  withDeclaredLocality,
+} from "@omnitech/ai-runtime/config";
 import { agentAssistantProfiles, streamAgentTurn } from "./agent-models";
 import { createLocalModelAdapter } from "./local-model";
 
@@ -219,6 +224,12 @@ export function createPlatformAiGateway() {
     : process.env["LM_STUDIO_MODEL"]
       ? (process.env["LM_STUDIO_BASE_URL"] ?? "http://127.0.0.1:1234/v1")
       : undefined;
+  // Declared by the environment, never inferred (rule:declared-profile-
+  // locality): the configured model's own declaration, else LM Studio's.
+  const languageLocality = language?.locality ?? "remote";
+  const lmStudioLocality = localDefault
+    ? languageLocality
+    : declareLocality(process.env["LM_STUDIO_LOCALITY"], lmStudioUrl ?? "");
   if (lmStudioUrl)
     modelAdapters.push(
       createOpenAiCatalogAdapter({
@@ -466,6 +477,7 @@ export function createPlatformAiGateway() {
       targetId: languageTargetId,
       taskTypes: ["text-generation", "structured-generation", "streaming-chat"],
       enabled: true,
+      locality: languageLocality,
     },
     {
       id: "document-quality",
@@ -479,6 +491,8 @@ export function createPlatformAiGateway() {
         : languageTargetId,
       taskTypes: ["text-generation", "structured-generation", "streaming-chat"],
       enabled: true,
+      // The hosted Anthropic model is always remote.
+      locality: process.env["ANTHROPIC_API_KEY"] ? "remote" : languageLocality,
     },
     {
       id: INTERVIEW_ASSISTANT_PROFILE,
@@ -487,6 +501,7 @@ export function createPlatformAiGateway() {
       targetId: language ? INTERVIEW_ASSISTANT_TARGET : languageTargetId,
       taskTypes: ["structured-chat", "structured-generation"],
       enabled: true,
+      locality: languageLocality,
       // The picker names the model itself; the provider heads its group.
       listing: {
         name: language?.model ?? "Draft model",
@@ -507,15 +522,18 @@ export function createPlatformAiGateway() {
     // Model catalogs: each lists models as `<profile id>/<model>`.
     ...(lmStudioUrl
       ? [
-          {
-            id: "lm-studio",
-            label: "LM Studio",
-            family: "direct-model" as const,
-            targetId: LM_STUDIO_CATALOG_TARGET,
-            taskTypes: ["structured-chat"],
-            enabled: true,
-            catalog: true,
-          },
+          withDeclaredLocality(
+            {
+              id: "lm-studio",
+              label: "LM Studio",
+              family: "direct-model" as const,
+              targetId: LM_STUDIO_CATALOG_TARGET,
+              taskTypes: ["structured-chat"],
+              enabled: true,
+              catalog: true,
+            },
+            lmStudioLocality,
+          ),
         ]
       : []),
     ...(openRouterKey
@@ -543,6 +561,7 @@ export function createPlatformAiGateway() {
       targetId: language ? INTERVIEW_ANSWER_TARGET : languageTargetId,
       taskTypes: ["structured-generation"],
       enabled: true,
+      locality: languageLocality,
     },
     {
       id: "image-balanced",

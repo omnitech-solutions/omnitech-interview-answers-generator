@@ -4,7 +4,7 @@ import { createInterviewBackend } from "@omnitech/product-interview/backend";
 import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import type { Hono } from "hono";
 import { interviewAssistantBudget } from "./ai";
-import { resolveDefaultLanguageModel } from "./ai-config";
+import { resolveDefaultLanguageModel } from "@omnitech/ai-runtime/config";
 import { resolvePlatformContext } from "./context";
 
 /** A registered product's backend: its router and any in-process worker. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStructuredOutput } from "./index.js";
+import { AiPolicyRefusedError, parseStructuredOutput } from "./index.js";
 
 describe("structured output contract", () => {
   const schema = {
@@ -21,5 +21,23 @@ describe("structured output contract", () => {
     expect(() =>
       parseStructuredOutput('{"title":4,"outline":[]}', schema),
     ).toThrow("Structured output validation failed");
+  });
+});
+
+describe("policy refusal", () => {
+  it("is non-retryable and names ids only", () => {
+    const error = new AiPolicyRefusedError("document-fast", "device-only");
+
+    expect(error.toFailure()).toEqual({
+      code: "policy-refused",
+      message:
+        "Refused by processing policy device-only for AI profile document-fast.",
+      retryable: false,
+    });
+    expect(error).toMatchObject({
+      profileId: "document-fast",
+      policy: "device-only",
+      retryable: false,
+    });
   });
 });
