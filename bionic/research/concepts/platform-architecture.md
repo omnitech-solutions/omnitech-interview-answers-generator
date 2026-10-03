@@ -20,11 +20,9 @@ behind it are recorded in:
 - [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] — package ownership.
 - [[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]] — why the monolith is the default.
 
-Provenance: filed from the former `docs/platform-architecture.md` (commit
-`4c50c5e`). Two stale claims in that file were corrected against the code at
-that commit: tenant transactions and migration execution live in the
-`database` package (`withTenant()`, `tenantTransaction`, one Drizzle stream in
-`packages/database/drizzle`), not in `platform-storage`.
+Tenant transactions and migration execution live in the `database` package
+(`withTenant()`, `tenantTransaction`, one Drizzle stream in
+`packages/database/drizzle`).
 
 ## Shape
 

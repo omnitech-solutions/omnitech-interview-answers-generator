@@ -19,6 +19,6 @@ checks: [tenant-owned-tables-force-rls.md]
 
 **Why:** [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]].
 
-**Recovery confidence:** **data** — medium confidence. Stated verbatim as invariant 1 of the former interview-domain doc and asserted by an existing integration test; recovered from documentation and test names, not from a full schema walk.
+**Recovery confidence:** **data** — medium confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 1) and asserted by an existing integration test; recovered from documentation and test names, not from a full schema walk.
 
 **Check:** [[invariants/checks/tenant-owned-tables-force-rls]] — not yet run; `last_result: none`.

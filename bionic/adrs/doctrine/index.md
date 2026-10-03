@@ -14,7 +14,7 @@ _None._
 
 _Freshness is the deterministic input digests below; no wall-clock timestamp enters this file._
 
-- `adr_frontmatter_sha256`: `a4e5fdf68b68334b6cb761feedfbb7bc343319c8c5e0c787e41ed10fce7f9474`
+- `adr_frontmatter_sha256`: `a8e2b9d3460a103fcb257acac266a5d14bb4ecc7327caaeeccbc54e19a2d0de8`
 - `governs_from`: `None`
 - `invariants_sha256`: `dfb92ff83bb1ce756080a76ec34032244b45dd73b7a876ae47f9dee60ff1ebc2`
 - `observations_sha256`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`

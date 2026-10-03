@@ -20,16 +20,12 @@ related_research: [references/ai-execution-boundaries]
 
 ## Context
 
-Retroactive record of rules already in force, stated in the former
-`.rulesync/rules/ai-execution.md`, the former `docs/ai-execution-policy.md`,
-the AI rows of the former `.rulesync/rules/packages.md`, and the logging rule
-of the former `.rulesync/rules/base.md` — all commit `4c50c5e`; the working
-reference is [[research/references/ai-execution-boundaries]].
-
 Products use language models, image models, multi-step workflows and coding
 agents (Codex, Claude Code). Providers and models change often; agent runtimes
 can touch a filesystem and run tools, so they are a security boundary; and
-interview content (questions, code, notes, profiles) is private.
+interview content (questions, code, notes, profiles) is private. The working
+reference for choosing an execution boundary is
+[[research/references/ai-execution-boundaries]].
 
 ## Decision
 
@@ -53,31 +49,10 @@ interview content (questions, code, notes, profiles) is private.
    loaders, retrieval, prompt chains and stream adaptation. LangGraph serves
    only durable, interruptible, tool-using workflows, and its mutations are
    idempotent; product changes from a workflow are staged and applied
-   atomically after validation and approval. The boundary table is in
-   [[research/references/ai-execution-boundaries]].
+   atomically after validation and approval.
 6. **No content logging by default.** Prompts, questions, generated content
    and code, notes, attachments, credentials, source files, model responses and
    provider-native events are not logged by default.
-
-## Alternatives Considered
-
-### Option A — Products call provider SDKs directly
-- **Pros:** No gateway indirection; full access to provider features.
-- **Cons:** Provider names and SDK objects spread through product code; a
-  model swap becomes a product change.
-- **Why not:** Profiles let configuration, not code, choose the model.
-
-### Option B — Run agent processes inside the Next.js server
-- **Pros:** Simpler deployment; no job queue.
-- **Cons:** Tool-using agents share the web process's filesystem, environment
-  and credentials; a runaway agent degrades every request.
-- **Why not:** The worker isolates agent execution from the web tier.
-
-### Option C — LangGraph for every AI call
-- **Pros:** One programming model.
-- **Cons:** Checkpointing and graph state for stateless calls add cost and
-  complexity ([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]).
-- **Why not:** Durable workflow machinery is reserved for durable workflows.
 
 ## Consequences
 
@@ -92,11 +67,10 @@ interview content (questions, code, notes, profiles) is private.
 - A new provider feature must be expressed through the gateway contract
   before a product can use it.
 
-**Follow-on work:**
-- Invariant candidates pin "Next.js never launches an agent process" and "no
-  provider/model branching in product code" (see `bionic/invariants/`).
-
 ## References
 
+- `packages/ai-contracts/src/index.ts` and `packages/ai-runtime/src/index.ts` (gateway contract and profile resolution).
+- `apps/agent-worker/src/` and `packages/agent-job-service/src/index.ts` (isolated agent execution and job lifecycle).
+- Invariant checks [[invariants/checks/nextjs-never-launches-agent-processes]]
+  and [[invariants/checks/products-never-branch-on-provider-names]].
 - [[research/references/ai-execution-boundaries]]
-- Former `.rulesync/rules/ai-execution.md`, `.rulesync/rules/packages.md` and `.rulesync/rules/base.md` (commit `4c50c5e`).

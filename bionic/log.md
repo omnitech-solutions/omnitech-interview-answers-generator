@@ -2,13 +2,25 @@
 
 _Append-only. Newest first._
 
+## [2026-10-02] arch | regenerated bionic/arch/ (8 files; spine 178292838431)
+
+First derive. `data-model` stubbed: no supported schema extractor reads the Drizzle schemas. Trigger: CHK-ARCH-1.
+
+## [2026-10-02] adr | regenerated lineage
+
+9 nodes, 0 supersedes edges, 0 amends edges. Summaries, doctrine and reviews-index projections regenerated after the ADR-0001..ADR-0008 revision.
+
+## [2026-10-02] adr | ADR-0001..ADR-0008: bodies revised while Proposed
+
+Each body states the current decision with Context, Decision, Consequences and References; References cite `bionic/research/` pages and the enforcing code paths. ADR-0002 retitled "Simplicity first: the least complex design that meets current requirements". ADR-0005 Decision 4 names both tenant-context paths (`withTenant()`, `tenantTransaction`). Invariant confidence lines and research pages cite current pages only.
+
 ## [2026-10-02] audit | 0 broken in migrated files / 0 drift fixed / 4 pre-existing findings reported
 
-Inline walk (51 .md files) after filing docs into bionic/. ADR, research, invariants (8 observed, survey debt 8), observations, record numbers, log enum and all enrolled drift gates clean.
-Not fixed: CHK-ARCH-1 arch spine never derived. `derive-arch` output is byte-stable JSON that the repo's biome pre-commit format check rewrites, so it cannot be committed until `biome.json` excludes `bionic/`.
-Pre-existing, not fixed: CHK-CODE-1/4 code docs never extracted (`extract-code-docs` would add 297 pages; user's call), so `[[code/index]]` in `index.md` dangles; CHK-INSTR-1 committed `CLAUDE.md` (removal owned by the ADR-0001 tooling change).
+Inline walk (51 .md files) after documenting the platform in bionic/. ADR, research, invariants (8 observed, survey debt 8), observations, record numbers, log enum and all enrolled drift gates clean.
+Not fixed: CHK-ARCH-1 arch spine not yet derived.
+Not fixed: CHK-CODE-1/4 code docs never extracted (`extract-code-docs` would add 297 pages; owner's call), so `[[code/index]]` in `index.md` dangles; CHK-INSTR-1 instruction-file layout, owned by ADR-0001.
 
-## [2026-10-02] journal | decision: Filed repository documentation into bionic and recorded crux as the sole workflow
+## [2026-10-02] journal | decision: Documented the platform in bionic and recorded crux as the sole workflow
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-02T20:07-06:00. Refs: [[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]] [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[invariants/index]] [[research/index]]
 
@@ -16,10 +28,10 @@ Entry in `bionic/journal/2026-10.md` at 2026-10-02T20:07-06:00. Refs: [[adrs/ADR
 
 9 nodes, 0 supersedes edges, 0 amends edges. Also regenerated the empty summaries (`adrs/summaries/`), doctrine (`adrs/doctrine/`) and reviews-index (`adrs/reviews/index.md`) projections so their drift gates are clean.
 
-## [2026-10-02] ingest | filed project docs as research synthesis pages
+## [2026-10-02] ingest | documented the platform as research synthesis pages
 
-Seven synthesis pages from the former `docs/` and `devdocs/` (commit 4c50c5e), no source captures (`sources: []`): `research/concepts/{platform-architecture,interview-domain-model}.md`, `research/references/{ai-execution-boundaries,adding-a-product,interview-studio,interview-briefings-runbook,interview-library}.md`.
-Decision content moved to ADR-0002..ADR-0008 and linked. Stale claims (migrations/tenant transactions in platform-storage, rulesync gate) corrected against code at 4c50c5e.
+Seven synthesis pages, no source captures (`sources: []`): `research/concepts/{platform-architecture,interview-domain-model}.md`, `research/references/{ai-execution-boundaries,adding-a-product,interview-studio,interview-briefings-runbook,interview-library}.md`.
+Decisions recorded in ADR-0002..ADR-0008 and linked. Each page checked against the code: tenant transactions and the migration stream live in `packages/database`.
 
 ## [2026-10-02] adr | ADR-0008: Interview answers are structured guides that render their Markdown
 
@@ -45,7 +57,7 @@ Proposed. File `bionic/adrs/ADR-0004-build-products-as-verticals-inside-a-modula
 
 Proposed. File `bionic/adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent.md`. Tags: packages, boundaries, monorepo, database.
 
-## [2026-10-02] adr | ADR-0002: Choose the smallest architecture option that satisfies current requirements
+## [2026-10-02] adr | ADR-0002: Simplicity first: the least complex design that meets current requirements
 
 Proposed. File `bionic/adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis.md`. Tags: architecture, simplicity, scope.
 

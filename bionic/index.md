@@ -27,7 +27,7 @@ See [[research/index]].
 | [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | 2026-10-02 |
 | [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] | Build products as verticals inside a modular-monolith platform shell | Proposed | 2026-10-02 |
 | [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] | Keep package boundaries narrow with one public entrypoint per runtime surface | Proposed | 2026-10-02 |
-| [[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]] | Choose the smallest architecture option that satisfies current requirements | Proposed | 2026-10-02 |
+| [[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]] | Simplicity first: the least complex design that meets current requirements | Proposed | 2026-10-02 |
 | [[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]] | Crux is the sole AI development workflow | Proposed | 2026-10-02 |
 | [[adrs/ADR-0000-record-architecture-decisions]] | Record architectural decisions as ADRs | Accepted | 2026-10-02 |
 

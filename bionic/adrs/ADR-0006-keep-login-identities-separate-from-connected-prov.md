@@ -20,16 +20,11 @@ related_research: [concepts/platform-architecture]
 
 ## Context
 
-Retroactive record of a rule already in force, stated in the former
-`.rulesync/rules/platform-architecture.md` and the former
-`docs/platform-architecture.md` ("Identity and connected accounts", "Failure
-behavior") — commit `4c50c5e`, filed as
-[[research/concepts/platform-architecture]].
-
 Users sign in with Google or LinkedIn through Auth.js in the shell. Products
 also act on providers on a user's behalf (for example LinkedIn connection
 data), which needs broader scopes, refresh tokens, and a tenant context that a
-login grant does not carry.
+login grant does not carry. The identity and integration flows are described
+in [[research/concepts/platform-architecture]].
 
 ## Decision
 
@@ -50,21 +45,6 @@ login grant does not carry.
    connection data) stays disabled until that approval and its scopes are
    confirmed; the base integration requests OIDC profile data only.
 
-## Alternatives Considered
-
-### Option A — Request product scopes at login and reuse the login grant
-- **Pros:** One consent screen; no second flow.
-- **Cons:** Every user grants broad scopes just to sign in; the grant has no
-  tenant binding; revoking an integration signs the user out.
-- **Why not:** Identity and authorization have different lifetimes and owners.
-
-### Option B — Store provider tokens in the client session
-- **Pros:** No server-side token storage.
-- **Cons:** Tokens are exposed to the browser and cannot be used by
-  server-side jobs.
-- **Why not:** Server-side encrypted storage keeps tokens out of reach of
-  client code.
-
 ## Consequences
 
 **Positive:**
@@ -75,10 +55,9 @@ login grant does not carry.
 - Each provider needs a second OAuth client and a second consent flow.
 - Encrypted token storage adds key management to operations.
 
-**Follow-on work:**
-- None beyond keeping new providers inside `platform-integrations`.
-
 ## References
 
+- `packages/platform-integrations/src/oauth.ts` (state signing and validation).
+- `packages/platform-storage/src/connected-account-vault.ts` (encrypted token storage).
+- `apps/web/app/api/integrations/[provider]/authorize/route.ts` and `.../callback/route.ts`.
 - [[research/concepts/platform-architecture]]
-- Former `.rulesync/rules/platform-architecture.md` (commit `4c50c5e`).

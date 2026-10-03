@@ -25,7 +25,7 @@ graph TD
 |----|-------|--------|------------|--------|---------------|
 | ADR-0000 | Record architectural decisions as ADRs | Accepted | — | — | — |
 | ADR-0001 | Crux is the sole AI development workflow | Proposed | — | — | — |
-| ADR-0002 | Choose the smallest architecture option that satisfies current requirements | Proposed | — | — | — |
+| ADR-0002 | Simplicity first: the least complex design that meets current requirements | Proposed | — | — | — |
 | ADR-0003 | Keep package boundaries narrow with one public entrypoint per runtime surface | Proposed | — | — | — |
 | ADR-0004 | Build products as verticals inside a modular-monolith platform shell | Proposed | — | — | — |
 | ADR-0005 | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | — | — | — |

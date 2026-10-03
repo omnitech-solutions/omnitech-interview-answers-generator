@@ -15,9 +15,6 @@ may run and what is never logged, is
 [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]. This page
 is the working reference for choosing an execution boundary.
 
-Provenance: filed from the former `docs/ai-execution-policy.md` (commit
-`4c50c5e`).
-
 ## Choosing a boundary
 
 | Boundary | Use it for | Do not use it for |

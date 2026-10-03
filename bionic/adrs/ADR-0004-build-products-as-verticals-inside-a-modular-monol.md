@@ -20,20 +20,14 @@ related_research: [concepts/platform-architecture, references/adding-a-product]
 
 ## Context
 
-Retroactive record of the platform architecture already in force, stated in
-the former `docs/platform-architecture.md` ("Chosen architecture", "Product
-lifecycle", "Extraction criteria"), the former
-`.rulesync/rules/platform-architecture.md`, and the former
-`docs/adding-a-product.md` (all commit `4c50c5e`; filed as
+Omnitech hosts several products (Interview Studio and Presentation today) for
+multiple tenants. Each product needs a complete vertical boundary, while the
+browser experience must stay cohesive. No product needs remote frontend
+loading, cross-service transactions or a separate deployment
+([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]). The
+platform shape and the steps for adding a product are in
 [[research/concepts/platform-architecture]] and
-[[research/references/adding-a-product]]).
-
-Omnitech hosts several products (the interview product today, presentation,
-and planned document and spreadsheet products) for multiple tenants. Each
-product needs a complete vertical boundary, while the browser experience must
-stay cohesive. The team has no demonstrated need for remote frontend loading,
-cross-service transactions or multiple deployments
-([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]).
+[[research/references/adding-a-product]].
 
 ## Decision
 
@@ -73,27 +67,6 @@ registered at build time, embedded Hono product backends, and one database
    runtime or language requirement incompatible with the shell. Extraction
    keeps the manifest and domain contracts and avoids remote module execution.
 
-## Alternatives Considered
-
-### Option A — Micro-frontends with remote module loading
-- **Pros:** Independent frontend deploys per product.
-- **Cons:** Runtime code loading from remote locations, version skew, and a
-  fragmented shell state.
-- **Why not:** No product has an independent release need; trusted build-time
-  registration is safer.
-
-### Option B — One service and deployment per product
-- **Pros:** Strong fault and scaling isolation.
-- **Cons:** Cross-service transactions, duplicated auth and tenancy, and
-  multiple deployments to operate.
-- **Why not:** None of the extraction criteria is met; the cost buys nothing
-  today.
-
-### Option C — Products as folders inside `apps/web`
-- **Pros:** Simplest wiring.
-- **Cons:** No vertical boundary; product rules leak into the shell.
-- **Why not:** Products would not be independently testable or extractable.
-
 ## Consequences
 
 **Positive:**
@@ -106,13 +79,12 @@ registered at build time, embedded Hono product backends, and one database
   the shell process.
 - Build-time registration means adding a product requires a deploy.
 
-**Follow-on work:**
-- Adding a product follows [[research/references/adding-a-product]].
-- Invariant candidates pin the routing and import rules (see
-  `bionic/invariants/`).
-
 ## References
 
+- `packages/platform-runtime/src/registry.ts` (build-time registration and route resolution).
+- `packages/platform-api/src/router.ts` and the product page route under `apps/web/app/t/[tenantSlug]/p/[productId]/` (membership-first routing).
+- Invariant checks [[invariants/checks/product-routes-resolve-membership-first]],
+  [[invariants/checks/product-frontend-never-imports-apps-web]] and
+  [[invariants/checks/product-domain-never-imports-nextjs]].
 - [[research/concepts/platform-architecture]]
 - [[research/references/adding-a-product]]
-- Former `.rulesync/rules/platform-architecture.md` (commit `4c50c5e`).

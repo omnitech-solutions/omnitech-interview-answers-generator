@@ -9,8 +9,7 @@ last_reviewed: 2026-10-02
 
 # Behavioural briefing packs: operator runbook
 
-Provenance: filed from the former `docs/interview-briefings.md` (commit
-`4c50c5e`). The Studio around it is described in
+The Studio around this runbook is described in
 [[research/references/interview-studio]]; generation goes through the AI
 gateway decided in
 [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]].

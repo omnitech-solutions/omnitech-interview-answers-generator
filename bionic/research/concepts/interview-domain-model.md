@@ -20,9 +20,6 @@ ownership of schemas is decided in
 [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]]. The
 checkable rules are pinned as `observed` invariants in [[invariants/index]].
 
-Provenance: filed from the former `docs/architecture/interview-domain.md`
-(commit `4c50c5e`).
-
 ## Domain tables
 
 ```
@@ -141,7 +138,7 @@ db:generate` and commit the new migration.
    optional.
 
 Items 1–3 are pinned as `observed` candidates in [[invariants/index]]; item 4
-is a design property of the model above. Item 2 holds for Drizzle handles; at
-commit `4c50c5e` raw `pg` client code still uses the `database` package's
-`tenantTransaction`, which sets the same transaction-local tenant context (see
+is a design property of the model above. Item 2 covers Drizzle handles; raw
+`pg` client code uses the `database` package's `tenantTransaction`, which sets
+the same transaction-local tenant context (see
 [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]]).

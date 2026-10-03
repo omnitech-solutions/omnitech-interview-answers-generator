@@ -19,10 +19,8 @@ the guide — see
 domain tables behind the Studio are in
 [[research/concepts/interview-domain-model]].
 
-Provenance: filed from the former `docs/interview-studio.md` (commit
-`4c50c5e`). Its claim that the interview migrations live in
-`packages/platform-storage` was corrected: every Drizzle migration is in the
-single stream under `packages/database/drizzle`.
+Every Drizzle migration, including the interview product's, is in the single
+stream under `packages/database/drizzle`.
 
 ## Views
 

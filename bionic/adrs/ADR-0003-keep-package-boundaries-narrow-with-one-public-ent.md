@@ -20,15 +20,12 @@ related_research: [concepts/interview-domain-model, concepts/platform-architectu
 
 ## Context
 
-Retroactive record of a rule already in force. The repository is a pnpm/Turbo
-monorepo of `apps/*`, `packages/*` and `products/*`. The former
-`.rulesync/rules/packages.md` (commit `4c50c5e`) assigned each package one
-responsibility, and the former `.rulesync/rules/base.md` required reusable
-boundaries to be narrow: one responsibility, one public entrypoint, explicit
-input/output types, private implementation details. The former
-`docs/architecture/interview-domain.md` added that the `database` package owns
-connectivity and migration execution while each domain package owns its own
-schemas ([[research/concepts/interview-domain-model]]).
+The repository is a pnpm/Turbo monorepo of `apps/*`, `packages/*` and
+`products/*`. Each package is consumed through its `package.json` `exports`.
+The `database` package owns connectivity and migration execution, while each
+domain package owns its own schemas
+([[research/concepts/interview-domain-model]],
+[[research/concepts/platform-architecture]]).
 
 ## Decision
 
@@ -41,7 +38,7 @@ schemas ([[research/concepts/interview-domain-model]]).
    - `platform-runtime` — trusted product registration and route resolution.
    - `platform-api` — platform HTTP contracts, without importing Next.js.
    - `database` — PostgreSQL connectivity, tenant-scoped transactions
-     (`withTenant`), and migration execution.
+     (`withTenant`, `tenantTransaction`), and migration execution.
    - `platform-storage` — the `platform` and `ai` schemas, platform
      repositories, and encryption boundaries.
    - `platform-integrations` — OAuth protocol behavior, without UI or database
@@ -66,21 +63,6 @@ schemas ([[research/concepts/interview-domain-model]]).
    implementation or an independent lifecycle
    ([[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]]).
 
-## Alternatives Considered
-
-### Option A — Shared `lib` / `utils` packages with deep imports
-- **Pros:** Fast to add code anywhere.
-- **Cons:** Every internal file becomes public API; refactors break unknown
-  consumers; ownership is unclear.
-- **Why not:** The monorepo relies on enforceable package seams.
-
-### Option B — One storage package owning every schema
-- **Pros:** All tables in one place.
-- **Cons:** Products lose their vertical boundary; every schema change touches
-  a shared package.
-- **Why not:** Schema ownership follows domain ownership; only connectivity and
-  migration execution are shared.
-
 ## Consequences
 
 **Positive:**
@@ -90,14 +72,13 @@ schemas ([[research/concepts/interview-domain-model]]).
 **Negative:**
 - Adding a capability sometimes means widening an entrypoint deliberately
   rather than reaching into internals.
-- The ownership list must be kept current as packages are added.
-
-**Follow-on work:**
-- The derived module graph (`bionic/arch/module-graph.md`, via `derive-arch`)
-  shows the current package set.
+- The ownership list must be kept current as packages are added; the derived
+  module graph (`bionic/arch/module-graph.md`) shows the current set.
 
 ## References
 
-- Former `.rulesync/rules/packages.md` and `.rulesync/rules/base.md` (commit `4c50c5e`).
+- `exports` in each `packages/*/package.json` and `products/*/package.json`.
+- Invariant checks [[invariants/checks/product-frontend-never-imports-apps-web]]
+  and [[invariants/checks/product-domain-never-imports-nextjs]].
 - [[research/concepts/interview-domain-model]]
 - [[research/concepts/platform-architecture]]

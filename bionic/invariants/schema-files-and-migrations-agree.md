@@ -19,6 +19,6 @@ checks: [schema-files-and-migrations-agree.md]
 
 **Why:** [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]].
 
-**Recovery confidence:** **shape** — high confidence. Stated as invariant 3 of the former interview-domain doc and enforced by existing migrate and schema-drift tests.
+**Recovery confidence:** **shape** — high confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 3) and enforced by existing migrate and schema-drift tests.
 
 **Check:** [[invariants/checks/schema-files-and-migrations-agree]] — not yet run; `last_result: none`.

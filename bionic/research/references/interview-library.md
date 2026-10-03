@@ -9,7 +9,7 @@ last_reviewed: 2026-10-02
 
 # Interview Library (Knowledge view)
 
-Interview Library is a local-first, DevDocs-style reference workspace for
+Interview Library is a local-first, documentation-browser-style reference workspace for
 finding concise, reviewed interview material without leaving Interview Studio,
 where it is the Knowledge view (`/t/<tenant>/p/interview/knowledge`; see
 [[research/references/interview-studio]]). It prioritizes provenance, lexical
@@ -17,12 +17,6 @@ accuracy, keyboard speed, and consistent rendering. It does not scrape or
 reproduce third-party documentation. The search engine lives in the
 `interview-library` package; the HTTP routes and service live in the interview
 product.
-
-Provenance: filed from the former `devdocs/library.md` (commit `4c50c5e`),
-which was written as a design specification. Its acceptance criterion naming
-`pnpm rulesync:verify` is retired with rulesync
-([[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]]); `pnpm verify`
-remains the gate.
 
 ## Primary journeys
 

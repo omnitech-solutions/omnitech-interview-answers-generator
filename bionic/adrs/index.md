@@ -8,7 +8,7 @@
 | ADR-0005 | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | 2026-10-02 | — | — | tenancy, storage, postgresql, security, drizzle |
 | ADR-0004 | Build products as verticals inside a modular-monolith platform shell | Proposed | 2026-10-02 | — | — | platform, architecture, products, routing, modular-monolith |
 | ADR-0003 | Keep package boundaries narrow with one public entrypoint per runtime surface | Proposed | 2026-10-02 | — | — | packages, boundaries, monorepo, database |
-| ADR-0002 | Choose the smallest architecture option that satisfies current requirements | Proposed | 2026-10-02 | — | — | architecture, simplicity, scope |
+| ADR-0002 | Simplicity first: the least complex design that meets current requirements | Proposed | 2026-10-02 | — | — | architecture, simplicity, scope |
 | ADR-0001 | Crux is the sole AI development workflow | Proposed | 2026-10-02 | — | — | process, tooling, agents, crux |
 | ADR-0000 | Record architectural decisions as ADRs | Accepted | 2026-10-02 | — | — | meta, process |
 

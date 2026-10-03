@@ -19,6 +19,6 @@ checks: [tenant-drizzle-handle-only-via-with-tenant.md]
 
 **Why:** [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]].
 
-**Recovery confidence:** **contract** — medium confidence. The former doc stated the broader "no tenant-scoped database handle outside `withTenant()`"; at commit `4c50c5e` raw `pg` code uses `tenantTransaction` (also in `packages/database`), so this candidate is narrowed to Drizzle handles plus the package boundary. Ratification should settle which wording is intended.
+**Recovery confidence:** **contract** — medium confidence. Raw `pg` code uses `tenantTransaction` (also in `packages/database`), so this candidate covers Drizzle handles plus the package boundary that alone sets tenant context, matching [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] Decision 4.
 
 **Check:** [[invariants/checks/tenant-drizzle-handle-only-via-with-tenant]] — not yet run; `last_result: none`.

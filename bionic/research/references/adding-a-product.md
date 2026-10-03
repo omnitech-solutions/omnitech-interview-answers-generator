@@ -14,9 +14,6 @@ verticals, and what the shell may and may not own, is decided in
 [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]]; the
 platform shape is in [[research/concepts/platform-architecture]].
 
-Provenance: filed from the former `docs/adding-a-product.md` (commit
-`4c50c5e`).
-
 ## Required public surfaces
 
 ```text
