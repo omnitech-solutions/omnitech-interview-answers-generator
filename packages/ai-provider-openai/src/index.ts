@@ -9,11 +9,8 @@ import type {
   AiExecutionRequest,
   ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+import { createChatCompletions } from "./chat-completions.js";
 import { parseStructuredOutput } from "./structured-output.js";
-import {
-  createAiClient,
-  createOpenAiCompatibleProvider,
-} from "@omnitech/ai-sdk";
 
 export interface OpenAiAdapterOptions {
   id: string;
@@ -30,8 +27,7 @@ export interface OpenAiAdapterOptions {
 export function createOpenAiModelAdapter(
   options: OpenAiAdapterOptions,
 ): ModelProviderAdapter {
-  const provider = createOpenAiCompatibleProvider({
-    id: options.id,
+  const chat = createChatCompletions({
     label: options.label,
     model: options.model,
     baseUrl: options.baseUrl ?? "https://api.openai.com/v1",
@@ -39,10 +35,6 @@ export function createOpenAiModelAdapter(
     ...(options.timeoutMs === undefined
       ? {}
       : { timeoutMs: options.timeoutMs }),
-  });
-  const client = createAiClient({
-    providers: [provider],
-    defaultProviderId: options.id,
   });
 
   const portOptions = {
@@ -98,11 +90,11 @@ export function createOpenAiModelAdapter(
     },
     async execute(request): Promise<AiExecution> {
       const generate = (repair?: string) =>
-        client.generateText({
+        chat.generate({
           prompt: request.task.prompt,
           ...(request.task.type === "structured-generation" &&
           request.task.schema
-            ? { responseSchema: request.task.schema as never }
+            ? { responseSchema: request.task.schema }
             : {}),
           ...(request.task.system === undefined &&
           request.task.type !== "structured-generation"
@@ -120,11 +112,7 @@ export function createOpenAiModelAdapter(
               }),
           ...(request.task.messages === undefined
             ? {}
-            : {
-                messages: request.task.messages.map((message) => ({
-                  ...message,
-                })),
-              }),
+            : { messages: request.task.messages }),
           ...(request.signal === undefined ? {} : { signal: request.signal }),
         });
       let result = await generate();
@@ -146,30 +134,26 @@ export function createOpenAiModelAdapter(
         family: "direct-model",
         targetId: options.id,
         result:
-          request.task.type === "structured-generation" ? structured : result,
+          request.task.type === "structured-generation"
+            ? structured
+            : { text: result.text, finishReason: result.finishReason },
         usage: result.usage,
       };
     },
     async *stream(request: AiExecutionRequest): AsyncIterable<AiEvent> {
       const executionId = crypto.randomUUID();
       yield { type: "started", executionId };
-      for await (const event of client.streamText({
+      for await (const text of chat.stream({
         prompt: request.task.prompt,
         ...(request.task.system === undefined
           ? {}
           : { system: request.task.system }),
         ...(request.task.messages === undefined
           ? {}
-          : {
-              messages: request.task.messages.map((message) => ({
-                ...message,
-              })),
-            }),
+          : { messages: request.task.messages }),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       })) {
-        if (event.type === "text-delta" && event.text) {
-          yield { type: "text-delta", text: event.text };
-        }
+        yield { type: "text-delta", text };
       }
       yield { type: "completed", result: { executionId } };
     },

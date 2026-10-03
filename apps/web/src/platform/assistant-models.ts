@@ -1,6 +1,5 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { createGatewayModelPort } from "@omnitech/ai-runtime";
-import type { ResolvedLanguageModel } from "@omnitech/ai-sdk";
 import { INTERVIEW_ASSISTANT_PROFILE } from "@omnitech/product-interview/backend";
 import {
   createLmStudioModels,
@@ -12,6 +11,7 @@ import type { ModelRelay } from "@omnitech-assistant/contracts";
 import { createRelayModelSource } from "@omnitech-assistant/server";
 import { createAgentModels } from "./agent-models";
 import { interviewAssistantBudget } from "./ai";
+import type { ResolvedLanguageModel } from "./ai-config";
 
 const PERMISSIONS = ["interview.read", "interview.write"] as const;
 const isLoopback = (url: string) =>

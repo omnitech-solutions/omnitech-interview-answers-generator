@@ -13,7 +13,6 @@ import {
   createTogetherImageProvider,
 } from "@omnitech/ai-provider-images";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
-import { AiSdkError, resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
 import { INTERVIEW_ASSISTANT_PROFILE } from "@omnitech/product-interview/backend";
 import {
   type AgentExecutionPort,
@@ -25,6 +24,7 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
+import { resolveDefaultLanguageModel } from "./ai-config";
 import { createLocalModelAdapter } from "./local-model";
 
 function createAgentPort(): AgentExecutionPort {
@@ -164,16 +164,8 @@ export function interviewAssistantBudget(baseUrl?: string) {
 export function createPlatformAiGateway() {
   const modelAdapters = [];
   // The same model settings the interview API and the assistant use.
-  const language = (() => {
-    try {
-      return resolveDefaultLanguageModel();
-    } catch (error) {
-      // Nothing configured: the gateway falls back to the local draft model.
-      if (error instanceof AiSdkError && error.code === "configuration")
-        return null;
-      throw error;
-    }
-  })();
+  // Nothing configured: the gateway falls back to the local draft model.
+  const language = resolveDefaultLanguageModel();
   const languageTargetId = language?.id ?? "local";
   const assistantBudget = interviewAssistantBudget(language?.baseUrl);
   if (language) {

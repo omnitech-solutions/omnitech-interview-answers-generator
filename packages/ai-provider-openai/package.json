@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@omnitech/ai-contracts": "workspace:*",
-    "@omnitech/ai-sdk": "workspace:*",
     "@omnitech-assistant/contracts": "file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz",
     "@omnitech-assistant/providers": "file:../../vendor/omnitech-assistant/omnitech-assistant-providers-0.1.0.tgz",
     "openai": "7.25.0",
