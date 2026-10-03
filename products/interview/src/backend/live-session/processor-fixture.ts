@@ -190,6 +190,8 @@ export type ProcessorBuild = {
   // them and must not purge another test's leftovers, so they are off unless
   // asked for.
   sweeps?: boolean;
+  // A virtual clock for timing replays; defaults to the wall clock.
+  clock?: SessionProcessorPorts["clock"];
 };
 
 export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
@@ -210,7 +212,7 @@ export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
     store: build.wrapStore ? build.wrapStore(store) : store,
     gateway: build.gateway,
     policy: build.policy ?? createInterviewSessionPolicy(),
-    clock: { nowMs: () => Date.now() },
+    clock: build.clock ?? { nowMs: () => Date.now() },
     trace: build.trace ?? collectTraces(),
   };
   return createSessionProcessor(ports, {
