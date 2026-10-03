@@ -22,12 +22,17 @@ export interface ProductBackend {
 export function createProductBackends(
   ai: AiExecutionGateway,
 ): readonly ProductBackend[] {
+  // [GUARD] The interview run queue opens its own connection; without one
+  // it would fail later and less clearly.
+  const runQueueConnectionString = process.env["DATABASE_URL"];
+  if (!runQueueConnectionString)
+    throw new Error("DATABASE_URL is required for the interview run queue.");
   const database = getPlatformDatabase();
   const language = resolveDefaultLanguageModel();
   const interview = createInterviewBackend({
     ai,
     database,
-    runQueueConnectionString: process.env["DATABASE_URL"] ?? "",
+    runQueueConnectionString,
     resolveContext: resolvePlatformContext,
     answersConfigured: language !== null,
     modelVersion: `${language?.model ?? "local"}:plain-text-tools`,
