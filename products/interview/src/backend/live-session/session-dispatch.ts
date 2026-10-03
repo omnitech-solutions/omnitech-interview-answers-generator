@@ -36,6 +36,12 @@ import {
   type SessionRun,
 } from "./session-run.js";
 import type { LocalityDecision } from "./trace.js";
+import {
+  encodeWithheldReason,
+  INVALID_OUTPUT_REASON,
+  summarizeWithheld,
+  type WithheldSummary,
+} from "./withheld.js";
 
 export type DispatchDeps = {
   store: SessionStorePort;
@@ -99,6 +105,7 @@ export type Dispatch = {
     reason: string,
     traceOutcome: string,
     detail?: DispatchDetail,
+    withheld?: WithheldSummary,
   ): Promise<void>;
   // A retryable failure: recorded failed, counted toward the retry bound.
   failRetryably(outcome: string): Promise<void>;
@@ -276,9 +283,15 @@ export async function beginDispatch(
       bytesIn += count;
     },
     failRetryably,
-    async refuse(reason, traceOutcome, detail) {
+    async refuse(reason, traceOutcome, detail, withheld) {
       run.settled.add(key);
-      if (!stopped()) await settle(reason);
+      // A withheld draft carries its content-free summary on the reason.
+      if (!stopped())
+        await settle(
+          withheld && reason === INVALID_OUTPUT_REASON
+            ? encodeWithheldReason(withheld)
+            : reason,
+        );
       finish("dispatch.suppressed", traceOutcome, detail);
     },
     async call(prompt, tag = "") {
@@ -402,10 +415,15 @@ export async function dispatchTask(
   // ids and publishes nothing; the violation paths go to the trace, no values.
   const checked = plan.validate(called.result);
   if (!checked.ok) {
-    await d.refuse("invalid_output", "invalid-output", {
-      violationCount: checked.violations.length,
-      firstViolation: checked.violations[0] ?? "$",
-    });
+    await d.refuse(
+      "invalid_output",
+      "invalid-output",
+      {
+        violationCount: checked.violations.length,
+        firstViolation: checked.violations[0] ?? "$",
+      },
+      summarizeWithheld(checked.violations),
+    );
     return;
   }
 

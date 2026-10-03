@@ -11,6 +11,7 @@ import { assertUuid, SessionError } from "./errors.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import type { SessionJobs } from "./session-jobs.js";
 import { readSession, type SessionView, toView } from "./session-record.js";
+import { decodeWithheldReason } from "./withheld.js";
 
 export const MAX_PAGE = 500;
 // A page is at most MAX_PAGE; one more row may be asked for (MAX_PAGE + 1) so
@@ -122,6 +123,11 @@ export const ACTION_COLUMNS = sql`id, task_id, task_revision, action_kind,
   shown, suppression_reason, created_at, updated_at`;
 
 export function toStoredAction(row: Record<string, unknown>): StoredAction {
+  // A withheld draft's summary rides on its suppression reason (withheld.ts):
+  // the browser reads it as result.withheld, content-free.
+  const stored = row["suppression_reason"]
+    ? decodeWithheldReason(String(row["suppression_reason"]))
+    : null;
   return {
     id: String(row["id"]),
     taskId: String(row["task_id"]),
@@ -132,11 +138,11 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     fenceAtDispatch: Number(row["fence_at_dispatch"]),
     jobId: row["job_id"] ? String(row["job_id"]) : null,
     jobCreated: Boolean(row["job_created"]),
-    result: row["result"] ?? null,
+    result: stored?.withheld
+      ? { withheld: stored.withheld }
+      : (row["result"] ?? null),
     shown: Boolean(row["shown"]),
-    suppressionReason: row["suppression_reason"]
-      ? String(row["suppression_reason"])
-      : null,
+    suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),
     updatedAt: new Date(row["updated_at"] as string).toISOString(),
   };

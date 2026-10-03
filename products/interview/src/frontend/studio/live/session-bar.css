@@ -1,13 +1,212 @@
 /* Session bar (live/session-bar.tsx): the persistent control above every
-   Studio page while a session is open. Owned by the session bar unit. */
+   Studio page while a session is open. Owned by the session bar unit.
+   Colours are Studio tokens only, so dark and light follow the theme. The bar
+   wraps instead of scrolling: no fixed widths, and below 560 px the chips
+   shrink to their icons (the label stays for screen readers and in the title). */
 .live-session-bar {
+  position: relative;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  min-height: 40px;
+  gap: 8px 12px;
+  min-height: 48px;
   padding: 6px 12px 6px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   font-size: 13px;
+  min-width: 0;
+}
+.live-session-bar.bordered.tone-red {
+  border-bottom-color: var(--red);
+  box-shadow: inset 0 -1px 0 var(--red);
+}
+.live-session-bar.bordered.tone-amber {
+  border-bottom-color: var(--amber);
+  box-shadow: inset 0 -1px 0 var(--amber);
+}
+
+.live-bar-main {
+  flex: 1 1 280px;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.live-bar-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tone-red .live-bar-state {
+  color: var(--red);
+}
+.tone-amber .live-bar-state {
+  color: var(--amber);
+}
+.live-bar-target {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.live-bar-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.live-bar-activity {
+  color: var(--muted);
+  min-width: 0;
+}
+
+.live-bar-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.live-bar-chips .live-chip {
+  height: 26px;
+  border-radius: 13px;
+}
+
+.live-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+/* A touch target: at least 40 px tall. */
+.live-bar-button {
+  min-height: 40px;
+  min-width: 40px;
+  justify-content: center;
+}
+.live-bar-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.live-bar-button .studio-icon {
+  font-size: 17px;
+}
+.live-bar-button.danger {
+  border: 0;
+  background: var(--red);
+  color: var(--on-accent, #fff);
+}
+.live-bar-button.danger:hover {
+  background: var(--red);
+  filter: brightness(1.06);
+}
+
+/* Visually hidden, still read aloud. */
+.live-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The toast and inline error: a full-width row only while it has text, but
+   always in the document so a screen reader announces the change. */
+.live-bar-notice {
+  flex: 1 1 100%;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.live-bar-notice:empty {
+  flex-basis: 0;
+  height: 0;
+  overflow: hidden;
+}
+.live-bar-notice.error {
+  color: var(--red);
+}
+
+/* End confirmation: under the bar, never wider than the screen. */
+.live-end-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+.live-end-confirm {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 12px;
+  z-index: 50;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--pop);
+  animation: live-end-in 0.12s ease-out;
+}
+.live-end-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.live-end-body {
+  font-size: 12.5px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.live-end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+@keyframes live-end-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-end-confirm {
+    animation: none;
+  }
+}
+
+/* Phone width: chips keep only their icon; the label stays for assistive
+   technology and in the tooltip. Padding tightens. */
+@media (max-width: 560px) {
+  .live-session-bar {
+    padding-left: 12px;
+  }
+  .live-bar-chips .live-chip {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+  .live-bar-chips .live-chip-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .live-bar-actions {
+    flex: 1 1 100%;
+  }
+  .live-bar-actions .live-bar-button {
+    flex: 1 1 auto;
+  }
 }

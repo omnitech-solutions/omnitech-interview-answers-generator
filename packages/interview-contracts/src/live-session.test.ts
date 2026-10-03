@@ -8,6 +8,7 @@ import {
   liveSessionStartRequestSchema,
   liveSessionViewSchema,
   liveStreamResponseSchema,
+  liveWithheldResultSchema,
 } from "./live-session.js";
 
 const ID = "6f1c1d1e-2b0f-4f43-9a55-7d6f3c0c9a10";
@@ -122,5 +123,20 @@ describe("live session contract", () => {
     ).toBe(false);
     for (const code of LIVE_SESSION_ERROR_CODES)
       expect(LIVE_SESSION_ERROR_STATUS[code]).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("liveWithheldResultSchema", () => {
+  it("accepts a count and codes and rejects a negative count", () => {
+    const withheld = {
+      rejectedClaimCount: 2,
+      codes: ["unsupported_reference"],
+    };
+    expect(liveWithheldResultSchema.parse({ withheld })).toEqual({ withheld });
+    expect(
+      liveWithheldResultSchema.safeParse({
+        withheld: { rejectedClaimCount: -1, codes: [] },
+      }).success,
+    ).toBe(false);
   });
 });

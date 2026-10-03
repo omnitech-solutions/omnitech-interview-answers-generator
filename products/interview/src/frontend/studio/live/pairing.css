@@ -1,0 +1,56 @@
+/* Pairing panel (live/pairing-panel.tsx). */
+.pairing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.pairing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pairing-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pairing-credential {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pairing-value-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pairing-value {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: oklch(0.93 0.005 260);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.pairing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pairing-actions .studio-button.danger {
+  border-color: var(--red);
+  background: var(--red-soft);
+  color: var(--red);
+}

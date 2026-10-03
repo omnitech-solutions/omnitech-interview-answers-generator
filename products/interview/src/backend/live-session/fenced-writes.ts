@@ -96,7 +96,9 @@ export type PublishEffect = (
 ) => Promise<Record<string, unknown> | undefined>;
 export type SettleOutcome = { outcome: "recorded" } | Refused;
 
-const REASON_CODE = /^[a-z0-9_.-]{1,64}$/;
+// Up to 200: a withheld draft's reason also carries its violation codes
+// (withheld.ts); the charset stays closed.
+const REASON_CODE = /^[a-z0-9_.-]{1,200}$/;
 
 type Guarded =
   | { ok: true; row: SessionRecord }

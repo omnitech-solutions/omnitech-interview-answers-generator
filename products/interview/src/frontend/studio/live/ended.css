@@ -1,1 +1,236 @@
-/* Ended view (live/ended-view.tsx). Owned by the ended view unit. */
+/* Ended view (live/ended-view.tsx). Owned by the ended view unit. Studio tokens
+   only; grids use auto-fit so nothing overflows at 360 px. */
+.ended {
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 24px;
+}
+.ended-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ended-head > .studio-icon {
+  font-size: 36px;
+  color: var(--muted);
+}
+.ended-head h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.ended-head p {
+  margin: 0;
+}
+.ended-target {
+  font-size: 15px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.ended-heading {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.ended-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.ended-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ended-stat dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.ended-stat dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ended-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ended-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.ended-result + .ended-result {
+  border-top: 1px solid var(--border-soft);
+}
+.ended-result > .studio-icon {
+  font-size: 20px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.ended-result-body {
+  flex: 1;
+  min-width: 0;
+}
+.ended-result-title {
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.ended-draft summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent-ink);
+  margin-top: 4px;
+}
+.ended-draft-text {
+  margin: 6px 0 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ended-retention,
+.ended-tombstone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ended-retention > *,
+.ended-tombstone > * {
+  margin: 0;
+}
+.ended-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.ended-facts dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ended-facts dd {
+  margin: 0;
+  font-size: 14px;
+}
+.ended-shorten,
+.ended-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ended-shorten .studio-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ended-shorten .studio-button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.ended-danger {
+  border-color: transparent;
+  background: var(--red-soft);
+  color: var(--red);
+}
+.ended-danger:hover {
+  background: var(--red-soft);
+  filter: brightness(0.97);
+}
+.ended-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--red);
+  border-radius: 12px;
+  background: var(--red-soft);
+  font-size: 13px;
+}
+.ended-confirm p {
+  margin: 0;
+}
+.ended-error {
+  font-size: 13px;
+  color: var(--red);
+}
+.ended-purge-progress,
+.ended-purged-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+.ended-purged-line .studio-icon {
+  color: var(--green);
+}
+
+.ended-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.ended-history {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+.ended-history-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  align-self: stretch;
+}
+.ended-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.ended-history-row + .ended-history-row {
+  border-top: 1px solid var(--border-soft);
+}
+.ended-history-main {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ended-history-target {
+  font-size: 14px;
+  font-weight: 500;
+}

@@ -403,7 +403,10 @@ describe("model replies outside the closed schema", () => {
         actionKind: "draft-answer",
         dispatchStatus: "suppressed",
         suppressionReason: "invalid_output",
-        result: null,
+        // Only the content-free withheld record (a count and codes).
+        result: {
+          withheld: expect.objectContaining({ codes: expect.any(Array) }),
+        },
       });
     // Each rejection is a violation by path and code, never a copied string.
     const rejections = w.trace.events.filter(

@@ -6,6 +6,10 @@
 // none); an unreadable context is a retryable failure; the pinned context is
 // loaded once per run; and an oversize device prompt is refused, not cut.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
+import {
+  liveActionSchema,
+  liveWithheldResultSchema,
+} from "@omnitech/interview-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEVICE_MAX_PROMPT_BYTES } from "./assist-stage.js";
 import { type Fixture, startFixture } from "./live-session-fixture.js";
@@ -133,10 +137,31 @@ describe("unsupported references", () => {
 
     const stored = await w.actions();
     expect(stored).toHaveLength(1);
+    // The browser reads a content-free record of what was withheld: a count and
+    // codes, from the stream mapper, parsed by the contract.
     expect(stored[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: {
+          rejectedClaimCount: 1,
+          codes: ["unsupported_reference"],
+        },
+      },
+    });
+    const changes = await repo.listActionChanges(w.scope, w.sessionId, {
+      limit: 50,
+    });
+    const wire = JSON.stringify(changes.actions);
+    // No draft, claim or quote text, and no path, reaches the stream.
+    expect(wire).not.toContain(CANARY);
+    expect(wire).not.toContain("Kubernetes");
+    expect(wire).not.toContain("claims.0");
+    const parsed = changes.actions.map((action) =>
+      liveActionSchema.parse(JSON.parse(JSON.stringify(action))),
+    );
+    expect(liveWithheldResultSchema.parse(parsed[0]?.result)).toEqual({
+      withheld: { rejectedClaimCount: 1, codes: ["unsupported_reference"] },
     });
     // Settled: the same revision is not retried.
     expect(gateway.requests).toHaveLength(1);
@@ -388,7 +413,13 @@ describe("hazard 7d: notice period and compensation", () => {
       expect.objectContaining({
         dispatchStatus: "suppressed",
         suppressionReason: "invalid_output",
-        result: null,
+        // Withheld: the claim and the draft's text appear nowhere in the record.
+        result: {
+          withheld: {
+            rejectedClaimCount: 1,
+            codes: expect.arrayContaining(["ungrounded_logistics_figure"]),
+          },
+        },
       }),
     ]);
   }, 60_000);

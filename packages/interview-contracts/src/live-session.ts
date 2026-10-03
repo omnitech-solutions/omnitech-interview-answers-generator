@@ -206,6 +206,17 @@ export type LiveActionDispatchStatus = z.infer<
   typeof liveActionDispatchStatusSchema
 >;
 
+// The result of a suppressed action whose draft verification withheld: a
+// content-free record (a count and violation codes, never claim text, quotes or
+// ids). Parse `result` with this when suppressionReason is "invalid_output".
+export const liveWithheldResultSchema = z.object({
+  withheld: z.object({
+    rejectedClaimCount: z.number().int().nonnegative(),
+    codes: z.array(z.string()),
+  }),
+});
+export type LiveWithheldResult = z.infer<typeof liveWithheldResultSchema>;
+
 export const liveActionSchema = z.object({
   id: z.uuid(),
   taskId: z.string(),
@@ -219,7 +230,9 @@ export const liveActionSchema = z.object({
   jobId: z.uuid().nullable(),
   jobCreated: z.boolean(),
   // The published result (a structured draft or solution): session content,
-  // present only on a succeeded action. Render only as inert text.
+  // present on a succeeded action. A suppressed action whose draft was
+  // withheld carries only { withheld } (liveWithheldResultSchema), no content.
+  // Render only as inert text.
   result: z.unknown(),
   shown: z.boolean(),
   suppressionReason: z.string().nullable(),

@@ -94,7 +94,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(minutesAfter(1)));
   resetSessionStores();
-  session = sessionView();
+  // The companion has made contact: without it the bar says it is waiting.
+  session = sessionView({ lastHeartbeatAt: minutesAfter(1) });
   install();
 });
 afterEach(() => {
@@ -162,6 +163,16 @@ describe("Live session in the Studio shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(window.location.pathname).toBe("/t/local/p/interview/live");
     expect(screen.getByTestId("live-panel")).toBeVisible();
+  });
+
+  it("pauses from any page and is still paused after moving to another", async () => {
+    await openStudio("/t/local/p/interview/knowledge");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await flush();
+    expect(screen.getByTestId("session-bar")).toHaveTextContent("Paused");
+    fireEvent.click(screen.getByTitle("Documents"));
+    expect(screen.getByTestId("session-bar")).toHaveTextContent("Paused");
+    expect(screen.getByRole("button", { name: "Resume" })).toBeVisible();
   });
 
   it("keeps following the session while pages change, reading about once a second", async () => {

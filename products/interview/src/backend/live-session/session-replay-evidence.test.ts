@@ -419,9 +419,18 @@ describe("(d) hazard 7a: an affirmation the approved matrix lacks", () => {
     expect(stored[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: expect.objectContaining({ rejectedClaimCount: 1 }),
+      },
     });
-    expect(stored.filter((action) => action.result !== null)).toEqual([]);
+    // Nothing is published: no result carries more than the withheld record.
+    expect(
+      stored.filter(
+        (action) =>
+          action.result !== null &&
+          !(action.result as { withheld?: unknown }).withheld,
+      ),
+    ).toEqual([]);
     const rejection = w.trace.events.find(
       (event) => event.event === "dispatch.suppressed",
     );
@@ -459,7 +468,9 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
     expect(stored[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: expect.objectContaining({ codes: expect.any(Array) }),
+      },
     });
     return w.trace.events.find((event) => event.event === "dispatch.suppressed")
       ?.detail?.["firstViolation"];
@@ -600,7 +611,12 @@ describe("(f) hazard 7c: leaving a role", () => {
     expect(stored[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: {
+          rejectedClaimCount: 1,
+          codes: expect.arrayContaining(["disparages_employer"]),
+        },
+      },
     });
     const trace = w.trace.events.find(
       (event) => event.event === "dispatch.suppressed",
@@ -632,7 +648,9 @@ describe("(f) hazard 7c: leaving a role", () => {
     expect((await second.actions())[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: expect.objectContaining({ codes: expect.any(Array) }),
+      },
     });
   }, 90_000);
 });
@@ -744,7 +762,9 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     expect((await absent.actions())[0]).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: expect.objectContaining({ codes: expect.any(Array) }),
+      },
     });
 
     // With preferences, a figure the preference does not state is no better.
@@ -782,7 +802,9 @@ describe("(g) hazard 7d: logistics drawn only from approved preferences", () => 
     expect(stored).toMatchObject({
       dispatchStatus: "suppressed",
       suppressionReason: "invalid_output",
-      result: null,
+      result: {
+        withheld: expect.objectContaining({ codes: expect.any(Array) }),
+      },
     });
     expect(
       present.trace.events.find(

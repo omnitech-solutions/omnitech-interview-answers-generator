@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import type { StudioActions } from "../config/commands";
-import { EndedView } from "./ended-view";
+import { EndedView, SessionNotFound } from "./ended-view";
 import { LiveSessionPanel } from "./live-session-view";
 import { SetupView } from "./setup-view";
 import { useLiveSession } from "./use-live-session";
@@ -48,6 +48,9 @@ export function LiveSessionView({ rest, studio }: LiveSessionViewProps) {
       <div className="live-page" data-testid="live-loading" aria-busy="true" />
     );
   }
+  // The address names a session the server does not know.
+  if (requested && snapshot.notFoundSessionId === requested)
+    return <SessionNotFound studio={studio} />;
   if (model.phase === "open") return <LiveSessionPanel studio={studio} />;
   if (model.phase === "finished") return <EndedView studio={studio} />;
   return <SetupView studio={studio} />;
