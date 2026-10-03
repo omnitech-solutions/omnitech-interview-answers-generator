@@ -1,2 +1,258 @@
-/* Live session panel (live/live-session-view.tsx): banners, task panels and
-   the Transcript, Activity and Sources tabs. Owned by the live view unit. */
+@import "./session-claims.css";
+@import "./session-tabs.css";
+
+/* Live session panel (live-session-view.tsx): banners, task panels and the
+   Transcript, Activity and Sources tabs. Studio tokens only; every grid wraps
+   with auto-fit minmax(min(240px,100%),1fr) so nothing overflows at 360 px. */
+.live-session {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 12px;
+}
+.live-session h3,
+.live-session h4 {
+  margin: 0;
+}
+.live-session p {
+  margin: 0;
+}
+.live-session h4 {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.live-mono {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+/* Visible to assistive technology only. */
+.live-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Banners ---- */
+.live-banners {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.live-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+.live-banner.amber {
+  background: var(--amber-soft);
+}
+.live-banner.red {
+  background: var(--red-soft);
+}
+.live-banner.earlier {
+  background: var(--subtle);
+  font-size: 12.5px;
+}
+.live-banner.amber .studio-icon {
+  color: var(--amber);
+}
+.live-banner.red .studio-icon {
+  color: var(--red);
+}
+.live-banner .studio-icon {
+  font-size: 18px;
+}
+.live-banner-text {
+  flex: 1;
+  min-width: min(220px, 100%);
+}
+.live-banner-action {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--text);
+  color: var(--app);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.live-banner.earlier .live-banner-action {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+.live-banner-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- Notices inside a task ---- */
+.live-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.live-notice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  background: var(--subtle);
+}
+.live-notice .studio-icon {
+  font-size: 17px;
+  margin-top: 1px;
+  flex: none;
+}
+.live-notice.amber {
+  background: var(--amber-soft);
+}
+.live-notice.amber .studio-icon {
+  color: var(--amber);
+}
+.live-notice.red {
+  background: var(--red-soft);
+}
+.live-notice.red .studio-icon {
+  color: var(--red);
+}
+
+/* ---- Idle ---- */
+.live-idle {
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.live-idle h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.live-idle p {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 440px;
+  text-wrap: pretty;
+}
+.live-idle-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-idle-icon .studio-icon {
+  font-size: 22px;
+}
+
+/* ---- Tasks ---- */
+.live-task-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.live-chip-button {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.live-chip-button:hover {
+  background: var(--hover);
+}
+.live-chip-button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+.live-chip-button:focus-visible,
+.live-banner-action:focus-visible,
+.live-tab:focus-visible,
+.live-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.live-task {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.live-task-head,
+.live-answer-head,
+.live-coding-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.live-answer-head h3 {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.live-coding-head h3 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.live-answer,
+.live-coding {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.live-answer[data-stale] .live-draft {
+  opacity: 0.6;
+}
+.live-copy {
+  height: 26px;
+  font-size: 12px;
+  padding: 0 8px;
+}
+.live-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.live-draft-text,
+.live-claim-text,
+.live-line-text {
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}

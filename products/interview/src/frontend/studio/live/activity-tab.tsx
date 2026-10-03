@@ -1,0 +1,46 @@
+// The Activity tab: the work the session decided to do and what became of each
+// run. The sentence about outdated results is true by rule:fenced-current-publish
+// (ADR-0011): a result for a superseded task revision or fence is never
+// published.
+import type { ActivityRun } from "./session-runs";
+import type { TaskView } from "./session-tasks";
+
+export function ActivityTab({
+  runs,
+  tasks,
+}: {
+  runs: readonly ActivityRun[];
+  tasks: readonly TaskView[];
+}) {
+  const numberOf = (taskId: string): number =>
+    tasks.findIndex((task) => task.taskId === taskId) + 1;
+  return (
+    <>
+      <p className="live-note">
+        Work the session decided to do, and what became of it. Results for an
+        outdated task revision are never published.
+      </p>
+      {runs.length === 0 ? (
+        <p className="live-empty">No work started yet.</p>
+      ) : (
+        <ol className="live-runs" aria-label="Runs">
+          {[...runs].reverse().map((run) => (
+            <li key={run.id} className="live-run" data-state={run.state}>
+              <div className="live-run-head">
+                <strong>{run.kindLabel}</strong>
+                <span className="live-note">
+                  Task {numberOf(run.taskId)} · rev {run.taskRevision}
+                  {run.attempt > 1 ? ` · attempt ${run.attempt}` : ""}
+                </span>
+                <span className={`live-chip ${run.tone}`}>{run.label}</span>
+              </div>
+              {run.reasonLabel && (
+                <p className="live-note">{run.reasonLabel}</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
+}
