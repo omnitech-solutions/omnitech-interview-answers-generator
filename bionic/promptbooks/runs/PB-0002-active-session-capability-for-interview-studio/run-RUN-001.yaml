@@ -487,5 +487,8 @@ notes: |
   ## Rehearsal test A/B measurement, 2026-10-03
   The code worker alternated a disposable test file's before and after versions on the same machine. Focused runs passed 15/15 before (mean 1.494 s) and 15/15 after (mean 1.536 s). Parallel frontend runs passed 3/3 before and 3/3 after, with 706 tests per run and durations about 8.2–8.5 s. No red result was reproduced; the data do not establish a lower flake rate or whether the original flake was in the test driver or product. Raw temporary logs are with the code worker.
 
+  ## Operator decision on S1 and merge, 2026-10-03
+  The operator chose to preserve open-ended model answers and leave the merge blocked. The strict preference-only logistics claim remains CONTRADICTED at c4dfbc4: with no approved preference, a model-selected non-logistics category accepts "I can be there whenever you need me." in the draft and in a suggested-interpretation claim and section. The deterministic renderer applies only when the model selects logistics; a finite cue check cannot prove the absence of logistics claims in arbitrary free text. Removing open-ended technical knowledge and suggested interpretation would narrow PB-0002's Outcome, which the operator did not choose. Prompt 27 remains in progress; no prompt 28/29 completion, PR, archive, push or merge is claimed.
+
 pr_draft: ""
 summary: ""
