@@ -1,0 +1,167 @@
+/* Live session panel: claims behind an answer and the programming challenge
+   (answer-body.tsx, claim-chips.tsx, coding-panel.tsx). */
+/* ---- Claims ---- */
+.live-claims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live-claim {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.live-claim-text {
+  font-size: 13.5px;
+}
+.live-claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.live-claim-meta .live-chip {
+  white-space: normal;
+  height: auto;
+  min-height: 22px;
+  padding-block: 2px;
+}
+.live-claim-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--green);
+  background: var(--subtle);
+  border-radius: 0 8px 8px 0;
+}
+.live-claim-evidence figure {
+  margin: 0;
+}
+.live-claim-evidence blockquote {
+  margin: 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.live-claim-evidence figcaption {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.live-star,
+.live-logistics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+}
+.live-star-part,
+.live-logistics section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  min-width: 0;
+}
+.live-missing ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ---- Coding ---- */
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px;
+}
+.live-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.live-constraints {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.live-constraints li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13.5px;
+}
+.live-constraints li > span:first-child {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.live-constraints li.old > span:first-child {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.live-states {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr));
+  gap: 8px;
+}
+.live-state {
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+}
+.live-state dt {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.live-state dd {
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.live-state[data-state="yes"] dd {
+  color: var(--green);
+}
+.live-state[data-state="no"] dd {
+  color: var(--red);
+}
+.live-state[data-state="unknown"] dd {
+  color: var(--faint);
+}
+.live-why {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.live-tests ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.live-tests summary {
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.live-workspace-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
