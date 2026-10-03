@@ -8,6 +8,7 @@ import { BriefingsView } from "../briefings/briefings-view";
 import { DocumentsView } from "../documents/documents-view";
 import { HomeView } from "../home/home-view";
 import { LiveSessionView } from "../live/live-view";
+import { SessionDraftWorkspace } from "../live/session-draft-workspace";
 import { RehearsalView } from "../rehearsal/rehearsal-view";
 import type { IconName } from "../icon";
 import type { PlaygroundControlState } from "../use-playground-control";
@@ -50,13 +51,22 @@ export const views: readonly ViewDefinition[] = [
     label: "Workspace",
     icon: "terminal",
     goKey: "W",
-    render: ({ assistant, actions }) => (
-      <WorkspaceView
-        key={assistant.artifactId}
-        assistant={assistant}
-        onNewQuestion={actions.newQuestion}
-      />
-    ),
+    render: ({ route, assistant, actions }) =>
+      // A session's private draft opens in the same editor; the route admits
+      // only a session Workspace id, and "New question" would not apply to it.
+      route.workspace ? (
+        <SessionDraftWorkspace
+          key={`${assistant.workspaceId}/${assistant.artifactId}`}
+          assistant={assistant}
+          studio={actions}
+        />
+      ) : (
+        <WorkspaceView
+          key={assistant.artifactId}
+          assistant={assistant}
+          onNewQuestion={actions.newQuestion}
+        />
+      ),
   },
   {
     id: "briefings",
