@@ -54,16 +54,14 @@ export interface InterviewAnswersClient {
   deleteAnswer(id: string): Promise<void>;
   generate(input: {
     language?: InterviewLanguageSelection | undefined;
-    providerId?: string | undefined;
     question: string;
   }): Promise<GeneratedInterviewAnswer>;
   explain(input: {
     context?: string | undefined;
-    providerId?: string | undefined;
     topic: string;
   }): Promise<GeneratedInterviewExplanation>;
   getAnswer(id: string): Promise<SavedInterviewAnswer>;
-  health(): Promise<{ ok: boolean; providers: unknown[] }>;
+  health(): Promise<{ ok: boolean; aiConfigured: boolean }>;
   listAnswers(): Promise<SavedInterviewAnswer[]>;
   listExplanations(): Promise<SavedInterviewExplanation[]>;
   route(input: {

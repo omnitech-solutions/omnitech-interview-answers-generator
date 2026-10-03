@@ -53,10 +53,12 @@ describe("createConfiguredClient", () => {
     await createConfiguredClient({
       url: "http://option",
       token: "option-token",
+      tenant: "acme",
     });
 
     expect(createInterviewApiClient).toHaveBeenCalledWith({
       baseUrl: "http://option",
+      tenant: "acme",
       token: "option-token",
     });
   });
@@ -66,6 +68,7 @@ describe("createConfiguredClient", () => {
     await createConfiguredClient();
     expect(createInterviewApiClient).toHaveBeenLastCalledWith({
       baseUrl: "http://environment",
+      tenant: "local",
     });
 
     delete process.env["INTERVIEW_API_URL"];
@@ -73,12 +76,14 @@ describe("createConfiguredClient", () => {
     await createConfiguredClient();
     expect(createInterviewApiClient).toHaveBeenLastCalledWith({
       baseUrl: "http://config",
+      tenant: "local",
     });
 
     readConfig.mockResolvedValue({});
     await createConfiguredClient();
     expect(createInterviewApiClient).toHaveBeenLastCalledWith({
       baseUrl: "http://127.0.0.1:3000",
+      tenant: "local",
     });
   });
 

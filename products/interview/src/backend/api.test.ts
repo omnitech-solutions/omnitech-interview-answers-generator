@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   build: vi.fn(),
-  createAiClientFromEnv: vi.fn(),
+  generate: vi.fn(),
+  resolveScope: vi.fn(),
   deleteAnswer: vi.fn(),
   generateInterviewAnswer: vi.fn(),
   getAnswer: vi.fn(),
@@ -32,10 +33,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("esbuild", () => ({ build: mocks.build }));
-vi.mock("@omnitech/ai-sdk", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@omnitech/ai-sdk")>()),
-  createAiClientFromEnv: mocks.createAiClientFromEnv,
-}));
 vi.mock("./services", () => ({
   answerRepository: {
     delete: mocks.deleteAnswer,
@@ -75,8 +72,22 @@ vi.mock("./services", () => ({
   },
 }));
 
-import { AiSdkError } from "@omnitech/ai-sdk";
-import { createApi } from "./api";
+import { WorkspaceError } from "./assistant/workspace";
+import {
+  createApi as createInterviewApi,
+  type InterviewApiOptions,
+} from "./api";
+
+const scope = { tenantId: "t", actorId: "a", productId: "omnitech.interview" };
+
+// The host's ports: a resolved member and a configured model by default.
+function createApi(options: Partial<InterviewApiOptions> = {}) {
+  return createInterviewApi({
+    resolveScope: mocks.resolveScope,
+    generate: mocks.generate,
+    ...options,
+  });
+}
 
 const generatedAnswer = {
   title: "Readable Counter",
@@ -159,9 +170,7 @@ describe("web API", () => {
         tags: { react: 1 },
       },
     });
-    mocks.createAiClientFromEnv.mockReturnValue({
-      listProviders: () => [{ id: "fake", label: "Fake", model: "fake-1" }],
-    });
+    mocks.resolveScope.mockResolvedValue(scope);
     await createApi().request(
       "http://localhost/api/v1/playground-control",
       jsonRequest("DELETE"),
@@ -246,90 +255,91 @@ describe("web API", () => {
     });
   });
 
-  it("reports configured providers and tolerates missing AI configuration", async () => {
-    const app = createApi();
-    const configured = await app.request("http://localhost/api/v1/health");
-    mocks.createAiClientFromEnv.mockImplementationOnce(() => {
-      throw new Error("not configured");
-    });
-    const unconfigured = await app.request("http://localhost/api/v1/health");
+  it("reports whether an AI model is configured", async () => {
+    const configured = await createApi().request(
+      "http://localhost/api/v1/health",
+    );
+    const unconfigured = await createInterviewApi({
+      resolveScope: mocks.resolveScope,
+    }).request("http://localhost/api/v1/health");
 
-    expect(await configured.json()).toEqual({
+    expect(await configured.json()).toEqual({ ok: true, aiConfigured: true });
+    expect(await unconfigured.json()).toEqual({
       ok: true,
-      providers: [{ id: "fake", label: "Fake", model: "fake-1" }],
+      aiConfigured: false,
     });
-    expect(await unconfigured.json()).toEqual({ ok: true, providers: [] });
   });
 
-  it("generates an answer and maps provider failures to a stable error", async () => {
+  it("generates an answer for the resolved member and maps failures to a stable error", async () => {
     const app = createApi();
     mocks.generateInterviewAnswer.mockResolvedValueOnce(generatedAnswer);
 
     const success = await app.request(
       "http://localhost/api/v1/generate",
-      jsonRequest("POST", {
-        question: "Build a counter",
-        language: "react",
-        providerId: "test-provider",
-      }),
+      jsonRequest("POST", { question: "Build a counter", language: "react" }),
     );
 
     expect(success.status).toBe(200);
     expect(await success.json()).toEqual(generatedAnswer);
-    expect(mocks.generateInterviewAnswer).toHaveBeenCalledWith({
-      question: "Build a counter",
-      language: "react",
-      providerId: "test-provider",
-    });
+    expect(mocks.resolveScope).toHaveBeenCalledWith(expect.any(Request));
+    expect(mocks.generateInterviewAnswer).toHaveBeenCalledWith(
+      { question: "Build a counter", language: "react" },
+      mocks.generate,
+      scope,
+    );
 
     mocks.generateInterviewAnswer.mockRejectedValueOnce(
       new Error("provider secret must not leak"),
     );
     const failure = await app.request(
       "http://localhost/api/v1/generate",
-      jsonRequest("POST", {
-        question: "Build a counter",
-        language: "react",
-      }),
+      jsonRequest("POST", { question: "Build a counter", language: "react" }),
     );
 
-    expect(failure.status).toBe(503);
+    expect(failure.status).toBe(502);
     expect(await responseJson(failure)).toMatchObject({
       error: {
         code: "generation_failed",
-        message: "The configured AI provider could not generate an answer.",
+        message: "The configured AI model could not generate an answer.",
       },
     });
   });
 
-  it.each([
-    [
-      "invalid_output",
-      "invalid_model_output",
-      "LM Studio (qwen/qwen3-coder-30b) returned a reply that did not match the required format, even after one correction: guide.talkingPoints: Too big",
-    ],
-    [
-      "provider_failure",
-      "provider_failure",
-      "LM Studio (qwen/qwen3-coder-30b) failed: HTTP 404.",
-    ],
-  ] as const)(
-    "tells a technical reader what went wrong (%s)",
-    async (sdkCode, code, message) => {
-      const app = createApi();
-      mocks.generateInterviewAnswer.mockRejectedValueOnce(
-        new AiSdkError(sdkCode, message, undefined, message),
+  it("tells a technical reader which fields of the reply broke the format", async () => {
+    const message =
+      "The model's reply did not match the required format, even after one correction: guide.talkingPoints: Too big";
+    mocks.generateInterviewAnswer.mockRejectedValueOnce(
+      new WorkspaceError("generation-failed", message),
+    );
+    const failure = await createApi().request(
+      "http://localhost/api/v1/generate",
+      jsonRequest("POST", { question: "Build a counter", language: "ruby" }),
+    );
+    expect(failure.status).toBe(502);
+    expect(await responseJson(failure)).toMatchObject({
+      error: { code: "generation_failed", message },
+    });
+  });
+
+  it("refuses generation without a resolved member", async () => {
+    mocks.resolveScope.mockResolvedValue(null);
+    const app = createApi();
+    for (const [path, body] of [
+      ["generate", { question: "Build a counter", language: "react" }],
+      ["explain", { topic: "React" }],
+    ] as const) {
+      const response = await app.request(
+        `http://localhost/api/v1/${path}`,
+        jsonRequest("POST", body),
       );
-      const failure = await app.request(
-        "http://localhost/api/v1/generate",
-        jsonRequest("POST", { question: "Build a counter", language: "ruby" }),
-      );
-      expect(failure.status).toBe(502);
-      expect(await responseJson(failure)).toMatchObject({
-        error: { code, message },
+      expect(response.status).toBe(401);
+      expect(await responseJson(response)).toMatchObject({
+        error: { code: "unauthorized" },
       });
-    },
-  );
+    }
+    expect(mocks.generateInterviewAnswer).not.toHaveBeenCalled();
+    expect(mocks.generateExplanation).not.toHaveBeenCalled();
+  });
 
   it("rejects an invalid generation request before calling AI", async () => {
     const response = await createApi().request(
@@ -399,48 +409,25 @@ describe("web API", () => {
     ).toBe(200);
   });
 
-  it("tells the user when no AI model is configured, without exposing provider errors", async () => {
-    const app = createApi();
-    mocks.generateInterviewAnswer.mockRejectedValueOnce(
-      new AiSdkError(
-        "configuration",
-        "Configure AI_BASE_URL and AI_MODEL, OPENAI_MODEL, or LM_STUDIO_MODEL.",
-      ),
-    );
-    const answer = await app.request(
-      "http://localhost/api/v1/generate",
-      jsonRequest("POST", { question: "Build a counter", language: "react" }),
-    );
-    expect(answer.status).toBe(503);
-    expect(await responseJson(answer)).toMatchObject({
-      error: {
-        code: "ai_not_configured",
-        message:
-          "Configure AI_BASE_URL and AI_MODEL, OPENAI_MODEL, or LM_STUDIO_MODEL.",
-      },
-    });
-    mocks.generateExplanation.mockRejectedValueOnce(
-      new AiSdkError("configuration", "Configure LM_STUDIO_MODEL."),
-    );
-    const explanation = await app.request(
-      "http://localhost/api/v1/explain",
-      jsonRequest("POST", { topic: "React" }),
-    );
-    expect(explanation.status).toBe(503);
-    expect(await responseJson(explanation)).toMatchObject({
-      error: { code: "ai_not_configured" },
-    });
-    // Any other failure still reveals nothing about the provider.
-    mocks.generateInterviewAnswer.mockRejectedValueOnce(
-      new AiSdkError("provider_failure", "key sk-secret rejected"),
-    );
-    const other = await app.request(
-      "http://localhost/api/v1/generate",
-      jsonRequest("POST", { question: "Build a counter", language: "react" }),
-    );
-    expect(JSON.stringify(await responseJson(other))).not.toContain(
-      "sk-secret",
-    );
+  it("tells the user when no AI model is configured", async () => {
+    const app = createInterviewApi({ resolveScope: mocks.resolveScope });
+    for (const [path, body] of [
+      ["generate", { question: "Build a counter", language: "react" }],
+      ["explain", { topic: "React" }],
+    ] as const) {
+      const response = await app.request(
+        `http://localhost/api/v1/${path}`,
+        jsonRequest("POST", body),
+      );
+      expect(response.status).toBe(503);
+      expect(await responseJson(response)).toMatchObject({
+        error: {
+          code: "ai_not_configured",
+          message: "No AI model is configured on this server.",
+        },
+      });
+    }
+    expect(mocks.generateInterviewAnswer).not.toHaveBeenCalled();
   });
 
   it("validates explanation requests and maps provider failures", async () => {
@@ -455,7 +442,8 @@ describe("web API", () => {
       jsonRequest("POST", { topic: "React" }),
     );
     expect(invalid.status).toBe(400);
-    expect(failed.status).toBe(503);
+    expect(failed.status).toBe(502);
+    expect(JSON.stringify(await responseJson(failed))).not.toContain("secret");
 
     mocks.getExplanation.mockResolvedValue(undefined);
     mocks.deleteExplanation.mockResolvedValue(false);

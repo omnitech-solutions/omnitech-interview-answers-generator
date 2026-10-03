@@ -16,8 +16,8 @@ import {
   PgBossRunQueue,
   PostgresModelRelay,
 } from "@omnitech-assistant/storage-postgres";
-import { resolveDefaultLanguageModel } from "@omnitech/ai-sdk";
 import { interviewAssistantBudget } from "./ai";
+import { resolveDefaultLanguageModel } from "./ai-config";
 import { createAssistantModels } from "./assistant-models";
 import { resolvePlatformContext } from "./context";
 
@@ -25,6 +25,38 @@ import { resolvePlatformContext } from "./context";
 // may carry it as ?tenant= instead.
 const TENANT_HEADER = "x-omnitech-tenant";
 const PERMISSIONS = ["interview.read", "interview.write"] as const;
+
+// [SAFETY] Every request resolves the signed-in member of the named tenant;
+// writes also need interview.write.
+export async function resolveInterviewScope(request: Request) {
+  const slug =
+    request.headers.get(TENANT_HEADER) ??
+    new URL(request.url).searchParams.get("tenant") ??
+    "";
+  return briefingScope(
+    await resolvePlatformContext(slug),
+    slug,
+    request.method,
+  );
+}
+
+// The product's one-shot JSON replies run on the interview assistant's
+// profile, as the member the request resolved to.
+export function interviewGenerate(ai: AiExecutionGateway) {
+  return async (input: { system: string; prompt: string }, scope: Scope) =>
+    (
+      await ai.execute({
+        context: {
+          tenantId: scope.tenantId,
+          userId: scope.actorId,
+          productId: scope.productId,
+          permissions: [...PERMISSIONS],
+        },
+        profileId: INTERVIEW_ASSISTANT_PROFILE,
+        task: { type: "structured-generation", ...input },
+      })
+    ).result;
+}
 
 type InterviewStudio = ReturnType<typeof createInterviewStudio>;
 declare global {
@@ -64,13 +96,7 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
     return queue;
   })();
   const queue = await globalThis.interviewRunQueue;
-  const language = (() => {
-    try {
-      return resolveDefaultLanguageModel();
-    } catch {
-      return null;
-    }
-  })();
+  const language = resolveDefaultLanguageModel();
 
   const database = {
     tenantTransaction: <T>(
@@ -91,19 +117,7 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
         }),
     },
     queue,
-    // [SAFETY] Every request resolves the signed-in member of the named
-    // tenant; writes also need interview.write.
-    resolveScope: async (request) => {
-      const slug =
-        request.headers.get(TENANT_HEADER) ??
-        new URL(request.url).searchParams.get("tenant") ??
-        "";
-      return briefingScope(
-        await resolvePlatformContext(slug),
-        slug,
-        request.method,
-      );
-    },
+    resolveScope: resolveInterviewScope,
     isMember: async (scope) => {
       const result = await platform.query(
         "SELECT 1 FROM platform.tenant_memberships WHERE tenant_id::text=$1 AND user_id::text=$2",
@@ -115,19 +129,7 @@ async function build(ai: AiExecutionGateway): Promise<InterviewStudio> {
     model: assistantModels.port,
     models: assistantModels.catalog,
     modelVersion: `${language?.model ?? "local"}:plain-text-tools`,
-    generate: async (input, scope: Scope) =>
-      (
-        await ai.execute({
-          context: {
-            tenantId: scope.tenantId,
-            userId: scope.actorId,
-            productId: scope.productId,
-            permissions: [...PERMISSIONS],
-          },
-          profileId: INTERVIEW_ASSISTANT_PROFILE,
-          task: { type: "structured-generation", ...input },
-        })
-      ).result,
+    generate: interviewGenerate(ai),
     runner: new DockerCodeRunner(),
     contextCharacters: interviewAssistantBudget(language?.baseUrl)
       .contextCharacters,

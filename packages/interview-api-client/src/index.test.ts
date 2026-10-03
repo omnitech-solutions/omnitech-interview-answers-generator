@@ -3,17 +3,21 @@ import { describe, expect, it, vi } from "vitest";
 import { createInterviewApiClient, InterviewApiError } from "./index.js";
 
 describe("createInterviewApiClient", () => {
-  it("hides the API path and bearer token from callers", async () => {
+  it("hides the API path, bearer token and tenant from callers", async () => {
     let capturedUrl = "";
     let capturedAuthorization = "";
+    let capturedTenant = "";
     const client = createInterviewApiClient({
       baseUrl: "http://localhost:3000/",
       token: "secret",
+      tenant: "local",
       fetch: async (input, init) => {
         capturedUrl = String(input);
         capturedAuthorization =
           new Headers(init?.headers).get("authorization") ?? "";
-        return Response.json({ ok: true, providers: [] });
+        capturedTenant =
+          new Headers(init?.headers).get("x-omnitech-tenant") ?? "";
+        return Response.json({ ok: true, aiConfigured: true });
       },
     });
 
@@ -21,6 +25,7 @@ describe("createInterviewApiClient", () => {
 
     expect(capturedUrl).toBe("http://localhost:3000/api/v1/health");
     expect(capturedAuthorization).toBe("Bearer secret");
+    expect(capturedTenant).toBe("local");
   });
 
   it("maps every operation to the API contract", async () => {
@@ -66,7 +71,7 @@ describe("createInterviewApiClient", () => {
 
   it("lets per-request headers override client defaults", async () => {
     const fetchMock = vi.fn(async () =>
-      Response.json({ ok: true, providers: [] }),
+      Response.json({ ok: true, aiConfigured: true }),
     );
     const client = createInterviewApiClient({
       baseUrl: "http://localhost:3000",

@@ -34,7 +34,7 @@ export async function createConfiguredBriefingClient(
 }
 
 export async function createConfiguredClient(
-  options: CreateConfiguredClientOptions = {},
+  options: CreateConfiguredClientOptions & { tenant?: string } = {},
 ): Promise<InterviewAnswersClient> {
   const config = await readConfig();
   const token =
@@ -45,6 +45,7 @@ export async function createConfiguredClient(
       process.env["INTERVIEW_API_URL"] ??
       config.url ??
       "http://127.0.0.1:3000",
+    tenant: options.tenant ?? "local",
     ...(token === undefined ? {} : { token }),
   });
 

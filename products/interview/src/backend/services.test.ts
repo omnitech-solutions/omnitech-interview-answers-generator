@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const generateObject = vi.fn();
-const createAiClientFromEnv = vi.fn(() => ({ generateObject }));
-
-vi.mock("@omnitech/ai-sdk", () => ({ createAiClientFromEnv }));
+// The host's model: one structured reply per call.
+const generate = vi.fn();
+const scope = { tenantId: "t", actorId: "a", productId: "omnitech.interview" };
 
 const {
   conceptExplanationSystemPrompt,
@@ -64,95 +63,95 @@ describe("conceptExplanationSystemPrompt", () => {
 describe("generateInterviewAnswer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    generateObject.mockResolvedValue({
-      object: {
-        title: "Counter",
-        language: "php",
-        answerMarkdown: "Use a functional state update.",
-        code: "export function Counter() {}",
-        usageCode: "render(<Counter />)",
-        testCode: "",
-      },
+    generate.mockResolvedValue({
+      title: "Counter",
+      language: "php",
+      answerMarkdown: "Use a functional state update.",
+      code: "export function Counter() {}",
+      usageCode: "render(<Counter />)",
+      testCode: "",
     });
   });
 
-  it("routes the question and supplies the language workflow to the AI client", async () => {
+  it("routes the question and supplies the language workflow to the model", async () => {
     await expect(
-      generateInterviewAnswer({
-        question: "Build an accessible React counter.",
-        language: "react",
-        providerId: "local",
-      }),
+      generateInterviewAnswer(
+        {
+          question: "Build an accessible React counter.",
+          language: "react",
+        },
+        generate,
+        scope,
+      ),
     ).resolves.toMatchObject({
       title: "Counter",
       language: "react",
     });
 
-    expect(createAiClientFromEnv).toHaveBeenCalledOnce();
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: "local",
+    expect(generate).toHaveBeenCalledOnce();
+    expect(generate).toHaveBeenCalledWith(
+      {
+        system: expect.stringContaining("matches this JSON Schema"),
         prompt: expect.stringContaining("Build an accessible React counter."),
-        schema: expect.any(Object),
-        temperature: 0.2,
-        maxOutputTokens: 12_000,
-      }),
+      },
+      scope,
     );
-  });
-
-  it("keeps optional provider configuration out of the request", async () => {
-    await generateInterviewAnswer({
-      question: "Solve this array problem in PHP.",
-      language: "php",
-    });
-
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.not.objectContaining({ providerId: expect.anything() }),
+    expect(generate.mock.calls[0]![0].prompt).toContain(
+      "Target language: React",
     );
   });
 
   it("generates a concise explanation with candidate evidence available", async () => {
-    generateObject.mockResolvedValueOnce({
-      object: { title: "React hooks", markdown: commentedExample },
+    generate.mockResolvedValueOnce({
+      title: "React hooks",
+      markdown: commentedExample,
     });
     await expect(
-      generateExplanation({
-        topic: "Explain React hooks",
-        context: "Technical interview",
-        providerId: "local",
-      }),
+      generateExplanation(
+        { topic: "Explain React hooks", context: "Technical interview" },
+        generate,
+        scope,
+      ),
     ).resolves.toEqual({
       title: "React hooks",
       markdown: commentedExample,
     });
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerId: "local",
-        prompt: expect.stringContaining("Explain React hooks"),
-        maxOutputTokens: 2_200,
-        system: conceptExplanationSystemPrompt,
-      }),
+    const [request] = generate.mock.calls[0]!;
+    expect(request.prompt).toContain("Explain React hooks");
+    expect(request.prompt).toContain(
+      "Additional context:\nTechnical interview",
     );
+    expect(request.system).toContain(conceptExplanationSystemPrompt);
   });
 
   it("omits optional explanation inputs", async () => {
-    generateObject.mockResolvedValueOnce({
-      object: { title: "Queues", markdown: commentedExample },
+    generate.mockResolvedValueOnce({
+      title: "Queues",
+      markdown: commentedExample,
     });
-    await generateExplanation({ topic: "Queues" });
-    expect(generateObject).toHaveBeenCalledWith(
-      expect.not.objectContaining({ providerId: expect.anything() }),
+    await generateExplanation({ topic: "Queues" }, generate, scope);
+    expect(generate.mock.calls[0]![0].prompt).not.toContain(
+      "Additional context",
     );
   });
 
   it("rejects explanations that omit the coding-answer comment contract", async () => {
-    generateObject.mockResolvedValueOnce({
-      object: { title: "Queues", markdown: "FIFO" },
-    });
+    generate.mockResolvedValueOnce({ title: "Queues", markdown: "FIFO" });
 
-    await expect(generateExplanation({ topic: "Queues" })).rejects.toThrow(
-      "required code example",
-    );
+    await expect(
+      generateExplanation({ topic: "Queues" }, generate, scope),
+    ).rejects.toThrow("required code example");
+  });
+
+  it("gives the model one correction turn, then reports the failing fields", async () => {
+    generate.mockResolvedValue({ title: "Queues" });
+    await expect(
+      generateExplanation({ topic: "Queues" }, generate, scope),
+    ).rejects.toMatchObject({
+      code: "generation-failed",
+      hint: expect.stringContaining("markdown"),
+    });
+    expect(generate).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -173,22 +172,30 @@ describe("generateInterviewAnswer with a guide", () => {
     explain: [{ heading: "The idea", body: "State drives the render." }],
     talkingPoints: ["One", "Two", "Three"],
   };
+  const base = {
+    title: "T",
+    language: "react",
+    code: "x",
+    usageCode: "",
+    testCode: "",
+  };
+
+  beforeEach(() => vi.clearAllMocks());
 
   it("renders the answer's Markdown from the model's guide", async () => {
-    generateObject.mockResolvedValueOnce({
-      object: {
-        title: "Counter",
-        language: "react",
-        guide,
-        code: "export function App() {}",
-        usageCode: "",
-        testCode: "it('counts every click')",
-      },
-    });
-    const answer = await generateInterviewAnswer({
-      question: "Build a React counter.",
+    generate.mockResolvedValueOnce({
+      title: "Counter",
       language: "react",
+      guide,
+      code: "export function App() {}",
+      usageCode: "",
+      testCode: "it('counts every click')",
     });
+    const answer = await generateInterviewAnswer(
+      { question: "Build a React counter.", language: "react" },
+      generate,
+      scope,
+    );
     expect(answer.guide).toEqual(guide);
     expect(answer.answerMarkdown).toContain("## Question");
     expect(answer.answerMarkdown).toContain("1. Keep **state**.");
@@ -198,22 +205,22 @@ describe("generateInterviewAnswer with a guide", () => {
   });
 
   it("accepts older-style Markdown and refuses an answer with neither", async () => {
-    const { schema } = generateObject.mock.calls.at(-1)?.[0] ?? {};
-    await generateInterviewAnswer({ question: "Q", language: "react" });
-    const used = generateObject.mock.calls.at(-1)![0].schema as {
-      safeParse(value: unknown): { success: boolean };
-    };
-    expect(schema ?? used).toBeDefined();
-    const base = {
-      title: "T",
-      language: "react",
-      code: "x",
-      usageCode: "",
-      testCode: "",
-    };
-    expect(
-      used.safeParse({ ...base, answerMarkdown: "## Question" }).success,
-    ).toBe(true);
-    expect(used.safeParse(base).success).toBe(false);
+    generate.mockResolvedValueOnce({ ...base, answerMarkdown: "## Question" });
+    await expect(
+      generateInterviewAnswer(
+        { question: "Q", language: "react" },
+        generate,
+        scope,
+      ),
+    ).resolves.toMatchObject({ answerMarkdown: "## Question" });
+
+    generate.mockResolvedValue(base);
+    await expect(
+      generateInterviewAnswer(
+        { question: "Q", language: "react" },
+        generate,
+        scope,
+      ),
+    ).rejects.toMatchObject({ code: "generation-failed" });
   });
 });

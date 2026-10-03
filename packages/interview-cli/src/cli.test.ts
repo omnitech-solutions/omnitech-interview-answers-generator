@@ -281,11 +281,14 @@ describe("interview-answers CLI", () => {
       "--save",
       "--notes",
       "note",
+      "--tenant",
+      "acme",
     );
 
     expect(createConfiguredClient).toHaveBeenCalledWith({
       url: "http://api",
       format: "json",
+      tenant: "acme",
     });
     expect(apiClient.generate).toHaveBeenCalledWith({
       question: "Build a counter",
@@ -316,6 +319,9 @@ describe("interview-answers CLI", () => {
 
     await run("explain", "--topic", "React hooks", "--save");
 
+    expect(createConfiguredClient).toHaveBeenCalledWith(
+      expect.objectContaining({ tenant: "local" }),
+    );
     expect(apiClient.explain).toHaveBeenCalledWith({ topic: "React hooks" });
     expect(apiClient.saveExplanation).toHaveBeenCalledWith({
       title: "React hooks",

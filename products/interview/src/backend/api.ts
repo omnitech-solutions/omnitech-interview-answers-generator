@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { AiSdkError, createAiClientFromEnv } from "@omnitech/ai-sdk";
 import {
   explanationRequestSchema,
   generateRequestSchema,
@@ -25,6 +24,7 @@ import {
 import { build } from "esbuild";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
+import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace.js";
 import { LibraryIndexUnavailableError } from "./library-service.js";
 import { playgroundControlStore } from "./workspace-control.js";
 import {
@@ -36,6 +36,7 @@ import {
   libraryRepository,
   libraryService,
 } from "./services.js";
+import type { StructuredGenerate } from "./structured.js";
 
 type ApiEnvironment = {
   Variables: {
@@ -123,28 +124,35 @@ async function authenticate(context: Context<ApiEnvironment>, next: Next) {
   await next();
 }
 
-// Generation failures say what happened, for a technical reader: a missing
-// model, the provider and model with the kind of failure, or which fields of
-// the reply broke the format. Only an error's `detail`, which the AI SDK
-// builds from safe parts, is shown; anything else gets the generic message.
+// Generation failures say what happened, for a technical reader: which
+// fields of the reply broke the format, or that the model could not be
+// reached. Only a WorkspaceError's hint, built from safe parts, is shown;
+// anything else gets the generic message.
 function generationFailure(context: Context, error: unknown, what: string) {
-  if (error instanceof AiSdkError) {
-    if (error.code === "configuration")
-      return apiError(context, 503, "ai_not_configured", error.message);
-    if (error.code === "invalid_output" && error.detail)
-      return apiError(context, 502, "invalid_model_output", error.detail);
-    if (error.code === "provider_failure" && error.detail)
-      return apiError(context, 502, "provider_failure", error.detail);
-  }
+  if (
+    error instanceof WorkspaceError &&
+    error.code === "generation-failed" &&
+    error.hint
+  )
+    return apiError(context, 502, "generation_failed", error.hint);
   return apiError(
     context,
-    503,
+    502,
     "generation_failed",
-    `The configured AI provider could not generate ${what}.`,
+    `The configured AI model could not generate ${what}.`,
   );
 }
 
-export function createApi() {
+export interface InterviewApiOptions {
+  // The signed-in member of the tenant the request names; null refuses
+  // generation.
+  resolveScope: (request: Request) => Promise<WorkspaceScope | null>;
+  // The host's language model. Absent when none is configured, which
+  // generation reports as 503 ai_not_configured.
+  generate?: StructuredGenerate;
+}
+
+export function createApi(options: InterviewApiOptions) {
   const app = new Hono<ApiEnvironment>();
 
   app.use("*", async (context, next) => {
@@ -250,14 +258,30 @@ console.log(solve([1, 2, 3]));`,
     });
   });
 
-  app.get("/api/v1/health", (context) => {
-    try {
-      const client = createAiClientFromEnv();
-      return context.json({ ok: true, providers: client.listProviders() });
-    } catch {
-      return context.json({ ok: true, providers: [] });
-    }
-  });
+  app.get("/api/v1/health", (context) =>
+    context.json({ ok: true, aiConfigured: options.generate !== undefined }),
+  );
+
+  // Generation runs for the member the request resolves to, on the host's
+  // model; either missing stops the request before any model call.
+  async function generation(context: Context<ApiEnvironment>) {
+    const scope = await options.resolveScope(context.req.raw);
+    if (!scope)
+      return apiError(
+        context,
+        401,
+        "unauthorized",
+        "Sign in and name a tenant you belong to (x-omnitech-tenant).",
+      );
+    if (!options.generate)
+      return apiError(
+        context,
+        503,
+        "ai_not_configured",
+        "No AI model is configured on this server.",
+      );
+    return { scope, generate: options.generate };
+  }
 
   app.get("/api/v1/library/search", async (context) => {
     const parsed = parseLibrarySearchQuery(context);
@@ -439,8 +463,12 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.map((issue) => issue.message),
       );
     }
+    const ready = await generation(context);
+    if (ready instanceof Response) return ready;
     try {
-      return context.json(await generateInterviewAnswer(parsed.data));
+      return context.json(
+        await generateInterviewAnswer(parsed.data, ready.generate, ready.scope),
+      );
     } catch (error) {
       console.error("Answer generation failed", {
         requestId: context.get("requestId"),
@@ -461,8 +489,12 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.map((issue) => issue.message),
       );
     }
+    const ready = await generation(context);
+    if (ready instanceof Response) return ready;
     try {
-      return context.json(await generateExplanation(parsed.data));
+      return context.json(
+        await generateExplanation(parsed.data, ready.generate, ready.scope),
+      );
     } catch (error) {
       console.error("Explanation generation failed", {
         requestId: context.get("requestId"),

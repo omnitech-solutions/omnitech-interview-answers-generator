@@ -42,6 +42,9 @@ export interface InterviewApiClientOptions {
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
   token?: string;
+  // The tenant slug generation runs for; the server resolves the signed-in
+  // member of that tenant.
+  tenant?: string;
 }
 
 export class InterviewApiError extends Error {
@@ -60,7 +63,7 @@ export interface InterviewApiClient {
   generate(input: GenerateRequest): Promise<GeneratedAnswer>;
   explain(input: ExplanationRequest): Promise<GeneratedExplanation>;
   getAnswer(id: string): Promise<SavedAnswer>;
-  health(): Promise<{ ok: boolean; providers: unknown[] }>;
+  health(): Promise<{ ok: boolean; aiConfigured: boolean }>;
   listAnswers(): Promise<SavedAnswer[]>;
   listExplanations(): Promise<SavedExplanation[]>;
   route(input: RouteRequest): Promise<RouteResult>;
@@ -82,6 +85,7 @@ export function createInterviewApiClient(
       headers: {
         "content-type": "application/json",
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+        ...(options.tenant ? { "x-omnitech-tenant": options.tenant } : {}),
         ...init.headers,
       },
     });

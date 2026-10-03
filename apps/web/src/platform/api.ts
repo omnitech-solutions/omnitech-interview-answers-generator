@@ -5,8 +5,13 @@ import { createPresentationApi } from "@omnitech/product-presentation/backend";
 import { Hono } from "hono";
 import { createAgentApi } from "./agent-api";
 import { createPlatformAiGateway } from "./ai";
+import { resolveDefaultLanguageModel } from "./ai-config";
 import { resolvePlatformContext } from "./context";
-import { getInterviewStudio } from "./interview-studio";
+import {
+  getInterviewStudio,
+  interviewGenerate,
+  resolveInterviewScope,
+} from "./interview-studio";
 
 export function createApplicationApi() {
   const api = new Hono();
@@ -42,7 +47,18 @@ export function createApplicationApi() {
       }),
     );
   });
-  api.route("/", createInterviewApi());
+  // Interview answers and explanations: generated on the gateway for the
+  // member of the tenant the request names; without a configured model the
+  // API answers 503 instead of drafting with the local placeholder.
+  api.route(
+    "/",
+    createInterviewApi({
+      resolveScope: resolveInterviewScope,
+      ...(resolveDefaultLanguageModel()
+        ? { generate: interviewGenerate(ai) }
+        : {}),
+    }),
+  );
   // Interview Studio: the assistant, drafts, plan, briefs, briefing packs
   // and rehearsals, each scoped to the signed-in member of the tenant.
   const forward = async (request: Request) =>

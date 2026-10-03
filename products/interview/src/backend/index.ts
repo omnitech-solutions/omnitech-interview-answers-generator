@@ -1,4 +1,7 @@
-export { createApi as createInterviewApi } from "./api.js";
+export {
+  createApi as createInterviewApi,
+  type InterviewApiOptions,
+} from "./api.js";
 export {
   createInterviewAdapter,
   type InterviewAdapterOptions,

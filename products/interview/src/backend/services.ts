@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { createAiClientFromEnv } from "@omnitech/ai-sdk";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   type ExplanationRequest,
@@ -23,7 +22,9 @@ import {
   JsonExplanationRepository,
   JsonLibraryRepository,
 } from "@omnitech/interview-storage";
+import type { WorkspaceScope } from "./assistant/workspace.js";
 import { LibraryService } from "./library-service.js";
+import { generateChecked, type StructuredGenerate } from "./structured.js";
 
 const dataDirectory =
   process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data");
@@ -159,30 +160,34 @@ const experienceMatrixPath =
   process.env["INTERVIEW_EXPERIENCE_MATRIX_PATH"] ??
   "/Users/desoleary/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json";
 
-export async function generateExplanation(input: ExplanationRequest) {
-  const client = createAiClientFromEnv();
+export async function generateExplanation(
+  input: ExplanationRequest,
+  generate: StructuredGenerate,
+  scope: WorkspaceScope,
+) {
   const experienceMatrix = await readFile(experienceMatrixPath, "utf8").catch(
     () => "",
   );
-  const result = await client.generateObject({
-    ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
-    schema: generatedExplanationSchema,
-    system: conceptExplanationSystemPrompt,
-    prompt: [
-      `Concept to explain:\n${input.topic}`,
-      input.context ? `Additional context:\n${input.context}` : "",
-      experienceMatrix
-        ? `Candidate experience matrix (authoritative evidence):\n${experienceMatrix}`
-        : "Candidate experience matrix is unavailable.",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-    temperature: 0.2,
-    maxOutputTokens: 2_200,
-  });
+  const explanation = await generateChecked(
+    generate,
+    {
+      system: conceptExplanationSystemPrompt,
+      prompt: [
+        `Concept to explain:\n${input.topic}`,
+        input.context ? `Additional context:\n${input.context}` : "",
+        experienceMatrix
+          ? `Candidate experience matrix (authoritative evidence):\n${experienceMatrix}`
+          : "Candidate experience matrix is unavailable.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    },
+    generatedExplanationSchema,
+    scope,
+  );
   return {
-    ...result.object,
-    markdown: normalizeCommentedConceptExample(result.object.markdown),
+    ...explanation,
+    markdown: normalizeCommentedConceptExample(explanation.markdown),
   };
 }
 
@@ -197,30 +202,32 @@ const modelAnswerSchema = generatedAnswerSchema
 
 export async function generateInterviewAnswer(
   input: GenerateRequest,
+  generate: StructuredGenerate,
+  scope: WorkspaceScope,
 ): Promise<GeneratedAnswer> {
   const routing = routeQuestion(input.question, input.language);
   const workflow = getWorkflow(routing.language);
-  const client = createAiClientFromEnv();
-  const result = await client.generateObject({
-    ...(input.providerId === undefined ? {} : { providerId: input.providerId }),
-    schema: modelAnswerSchema,
-    system: workflow.systemPrompt,
-    prompt: [
-      `Target language: ${workflow.label}`,
-      "",
-      "Interview question:",
-      input.question,
-    ].join("\n"),
-    temperature: 0.2,
-    maxOutputTokens: 12_000,
-  });
+  const answer = await generateChecked(
+    generate,
+    {
+      system: workflow.systemPrompt,
+      prompt: [
+        `Target language: ${workflow.label}`,
+        "",
+        "Interview question:",
+        input.question,
+      ].join("\n"),
+    },
+    modelAnswerSchema,
+    scope,
+  );
 
   // Routing is authoritative. This prevents a model typo from switching the
   // execution language after the user has made an explicit selection.
   // A guide renders the Markdown that every other reader of the answer uses.
   return reconcileAnswerGuide({
-    ...result.object,
-    answerMarkdown: result.object.answerMarkdown ?? "",
+    ...answer,
+    answerMarkdown: answer.answerMarkdown ?? "",
     language: routing.language,
   });
 }

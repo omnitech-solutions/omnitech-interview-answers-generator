@@ -36,14 +36,12 @@ export const generatedAnswerSchema = z.object({
   guide: answerGuideSchema.optional(),
 });
 
-export const generateRequestSchema = routeRequestSchema.extend({
-  providerId: z.string().trim().min(1).optional(),
-});
+// The host's gateway picks the model by profile; a request never names one.
+export const generateRequestSchema = routeRequestSchema;
 
 export const explanationRequestSchema = z.object({
   topic: z.string().trim().min(1),
   context: z.string().trim().optional(),
-  providerId: z.string().trim().min(1).optional(),
 });
 
 export const generatedExplanationSchema = z.object({

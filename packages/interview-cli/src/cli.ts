@@ -228,13 +228,17 @@ export function createProgram(): Command {
     )
     .option("--save", "persist the generated answer")
     .option("--notes <notes>", "notes to persist with --save", "")
+    .option("--tenant <tenant>", "tenant the answer is generated for", "local")
     .action(async (options) => {
       const globals = program.opts<{
         format: OutputFormat;
         token?: string;
         url?: string;
       }>();
-      const client = await createConfiguredClient(globals);
+      const client = await createConfiguredClient({
+        ...globals,
+        tenant: options.tenant,
+      });
       const question = await readQuestion(options);
       const answer = await client.generate({
         question,
@@ -256,13 +260,21 @@ export function createProgram(): Command {
     .option("-c, --context <context>")
     .option("--append", "append as a collapsed Concept Lab follow-up")
     .option("--save", "persist the generated explanation")
+    .option(
+      "--tenant <tenant>",
+      "tenant the explanation is generated for",
+      "local",
+    )
     .action(async (options) => {
       const globals = globalOptions(program);
       const topic = await readQuestion({
         question: options.topic,
         file: options.file,
       });
-      const client = await createConfiguredClient(globals);
+      const client = await createConfiguredClient({
+        ...globals,
+        tenant: options.tenant,
+      });
       const explanation = await client.explain({
         topic,
         ...(options.context ? { context: options.context } : {}),
