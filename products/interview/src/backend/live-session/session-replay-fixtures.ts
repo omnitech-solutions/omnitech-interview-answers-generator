@@ -27,7 +27,7 @@ export type ReplayPhase = {
   segments: readonly FixtureSegment[];
 };
 
-const seg = (
+export const seg = (
   eventId: string,
   role: FixtureSegment["role"],
   startMs: number,
@@ -45,8 +45,77 @@ const seg = (
 // Placeholder-only vocabulary: the only names a fixture may use.
 export const FIXTURE_PLACEHOLDERS = {
   people: ["Interviewer", "Candidate"],
-  companies: ["Example Corp"],
+  companies: ["Example Corp", "Sample Labs"],
+  // Technology and framework names are capitalised product names, not people
+  // or employers; the proper-noun scan allows exactly these.
+  technologies: [
+    "Node",
+    "React",
+    "Django",
+    "Docker",
+    "PostgreSQL",
+    "TypeScript",
+  ],
 } as const;
+
+type ScriptLine = {
+  role: FixtureSegment["role"];
+  text: string;
+  label?: string;
+  // Label of an earlier line in the same script that this line corrects.
+  supersedes?: string;
+};
+
+export const said = (
+  role: FixtureSegment["role"],
+  text: string,
+  options: { label?: string; supersedes?: string } = {},
+): ScriptLine => ({ role, text, ...options });
+export const interviewer = (
+  text: string,
+  options: { label?: string; supersedes?: string } = {},
+): ScriptLine => said("interviewer", text, options);
+export const candidate = (
+  text: string,
+  options: { label?: string; supersedes?: string } = {},
+): ScriptLine => said("candidate", text, options);
+
+// Builds a replay script: event ids are `<prefix>NNN` and increase across the
+// whole set, and each line lasts as long as its words take to say, so every
+// segment has endMs > startMs and a set is internally consistent.
+export function createScript(prefix: string) {
+  let counter = 0;
+  let clockMs = 0;
+  const labels = new Map<string, string>();
+  return {
+    phase(name: string, lines: readonly ScriptLine[]): ReplayPhase {
+      const segments = lines.map((line): FixtureSegment => {
+        counter += 1;
+        const eventId = `${prefix}${String(counter).padStart(3, "0")}`;
+        if (line.label !== undefined) labels.set(line.label, eventId);
+        const startMs = clockMs;
+        const wordCount = line.text.split(/\s+/).length;
+        const endMs = startMs + Math.max(1_000, wordCount * 350);
+        clockMs = endMs + 600;
+        const target =
+          line.supersedes === undefined
+            ? undefined
+            : labels.get(line.supersedes);
+        if (line.supersedes !== undefined && target === undefined)
+          throw new Error(`unknown supersedes label ${line.supersedes}`);
+        return {
+          eventId,
+          role: line.role,
+          startMs,
+          endMs,
+          text: line.text,
+          ...(target === undefined ? {} : { supersedes: target }),
+        };
+      });
+      return { name, segments };
+    },
+  };
+}
 
 export const RECRUITER_SCREEN: readonly ReplayPhase[] = [
   {
