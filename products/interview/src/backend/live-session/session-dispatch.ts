@@ -13,7 +13,8 @@
 // Locality: the gateway refuses a non-device profile for a device-only request
 // at resolution and again inside the call (rule:device-only-enforced-twice).
 // This module adds the processor's own re-check: the policy used is re-read
-// under the fenced-write check immediately before the call, a stage with no
+// under the fenced-write check immediately before EVERY call and before an
+// agent job is requested (stillStanding), a stage with no
 // device implementation is refused in device-only (rule:unlisted-stage-refused)
 // and there is NEVER a fallback to another profile: a refusal is final, an
 // unavailable device is a retryable outcome that tries the same profile again.
@@ -111,6 +112,12 @@ export type Dispatch = {
   trace(event: string, outcome: string, detail?: DispatchDetail): void;
   // Counts bytes that would have left the process (a refused oversize prompt).
   noteBytesIn(count: number): void;
+  // Re-reads the session's standing under the fenced-write check and says
+  // whether the dispatch may go on. It is run before EVERY gateway call and
+  // before an agent job is requested, so a pause, an end, a lost lease or a
+  // tighten to device-only that came after the dispatch began is honoured.
+  // False means the dispatch is over and has traced and settled itself.
+  stillStanding(): Promise<boolean>;
   // One gateway call of a stage (a repair is a second, tagged call). Its errors
   // are classified by code only; the message is never read. When it returns
   // not-ok the dispatch is over and has traced its own outcome.
@@ -268,6 +275,41 @@ export async function beginDispatch(
   }
   const chosenProfile = profileId;
 
+  const stillStanding = async (): Promise<boolean> => {
+    if (stopped()) return false;
+    const current = await store.readDispatchStanding({
+      scope: run.scope,
+      sessionId,
+      holder: run.holder,
+    });
+    if (current.outcome === "refused") {
+      lost(current.reason);
+      return false;
+    }
+    if (current.status !== "active") {
+      await settle(`session_${current.status}`);
+      finish("dispatch.suppressed", `session_${current.status}`);
+      return false;
+    }
+    if (!current.liveAssistance) {
+      run.settled.add(key);
+      await settle("assistance_disabled");
+      finish("dispatch.suppressed", "assistance_disabled");
+      return false;
+    }
+    if (current.processingPolicy !== standing.processingPolicy) {
+      // [SAFETY] The session tightened after this dispatch chose its profile:
+      // nothing more goes out under the old policy. The key stays unsettled,
+      // so the next tick dispatches it afresh under the policy now in force
+      // (its device profile, or a refusal when the stage has none).
+      locality = current.processingPolicy;
+      await settle("policy_changed");
+      finish("dispatch.suppressed", "policy_changed");
+      return false;
+    }
+    return true;
+  };
+
   return {
     run,
     task,
@@ -282,6 +324,7 @@ export async function beginDispatch(
     noteBytesIn(count) {
       bytesIn += count;
     },
+    stillStanding,
     failRetryably,
     async refuse(reason, traceOutcome, detail, withheld) {
       run.settled.add(key);
@@ -290,6 +333,9 @@ export async function beginDispatch(
       finish("dispatch.suppressed", traceOutcome, detail);
     },
     async call(prompt, tag = "") {
+      // [SAFETY] The standing is re-read before every call, never reused from
+      // the start of the dispatch: a repair is a second call.
+      if (!(await stillStanding())) return { ok: false };
       bytesIn += prompt.byteCount;
       const request: AiExecutionRequest = {
         context: sessionGatewayContext(run.scope),

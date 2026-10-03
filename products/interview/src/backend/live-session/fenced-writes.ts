@@ -534,7 +534,7 @@ export async function createSessionJob(
     {
       beforeInsert: async (transaction) => {
         const result = await transaction.query(
-          `SELECT s.status, s.fence, s.lease_holder_id,
+          `SELECT s.status, s.processing_policy, s.fence, s.lease_holder_id,
                   (s.lease_expires_at IS NOT NULL AND s.lease_expires_at > now()) AS lease_live,
                   EXISTS (
                     SELECT 1 FROM interview.session_actions a
@@ -550,6 +550,9 @@ export async function createSessionJob(
         if (
           !row ||
           row["status"] !== "active" ||
+          // [SAFETY] A remote agent job is never created for a session that
+          // has tightened to device-only, however late the tighten came.
+          row["processing_policy"] !== "permitted_remote" ||
           Number(row["fence"]) !== input.holder.fence ||
           row["lease_holder_id"] !== input.holder.workerId ||
           row["lease_live"] !== true ||
@@ -579,15 +582,15 @@ type GuardTransaction = {
 
 // [SAFETY] The resume guard: finds the session through the action that names
 // the job and requires it active, under the session-row lock, so no job resumes
-// after the session ended or paused (rule:no-resume-after-end). A job no action
-// names is refused.
+// after the session ended or paused (rule:no-resume-after-end) or tightened to
+// device-only. A job no action names is refused.
 export function sessionJobResumeGuard(
   tenantId: string,
   jobId: string,
 ): (transaction: GuardTransaction) => Promise<boolean> {
   return async (transaction) => {
     const result = await transaction.query(
-      `SELECT s.status
+      `SELECT s.status, s.processing_policy
        FROM interview.session_actions a
        JOIN interview.active_sessions s
          ON s.tenant_id = a.tenant_id AND s.owner_user_id = a.owner_user_id
@@ -596,7 +599,11 @@ export function sessionJobResumeGuard(
        FOR UPDATE OF s`,
       [tenantId, jobId],
     );
-    return result.rows[0]?.["status"] === "active";
+    // [SAFETY] A device-only session never resumes a remote agent job.
+    return (
+      result.rows[0]?.["status"] === "active" &&
+      result.rows[0]?.["processing_policy"] === "permitted_remote"
+    );
   };
 }
 

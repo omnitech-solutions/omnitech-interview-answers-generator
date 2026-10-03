@@ -268,7 +268,8 @@ export async function seedFromActions(
       // which leaves these unsettled (rule:pause-end-suppression).
       if (
         action.suppressionReason !== "session_paused" &&
-        action.suppressionReason !== "session_not_active"
+        action.suppressionReason !== "session_not_active" &&
+        action.suppressionReason !== "policy_changed"
       )
         run.settled.add(key);
     } else if (action.dispatchStatus === "failed")

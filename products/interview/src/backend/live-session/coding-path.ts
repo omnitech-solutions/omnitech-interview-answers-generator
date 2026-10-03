@@ -215,7 +215,9 @@ export async function dispatchCoding(
     return;
   }
 
-  // 2. The tests (and syntax check) through the host's runner.
+  // 2. The tests (and syntax check) through the host's runner, which a session
+  // tightened to device-only since the call must not reach (re-read first).
+  if (!(await d.stillStanding())) return;
   let verification = await verify(deps.codeRunner, solution);
   if (d.stopped()) return;
   let states = statesOf(solution, brief, verification);
@@ -257,6 +259,11 @@ export async function dispatchCoding(
       repairSucceeded = states.testsPassed;
     }
   }
+
+  // [SAFETY] The session may have tightened to device-only (or paused) since
+  // the dispatch began: the standing is re-read before the runner is trusted
+  // with a repaired solution's verdict and before any agent job is requested.
+  if (!(await d.stillStanding())) return;
 
   // 4a. Escalation: ONLY the validated enum, the observed repair outcome and the
   // session row's policy decide whether an agent job is requested.
