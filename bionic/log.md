@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] adr | ADR-0015: Validate owned document batches and measure grouping
+
+Proposed. File `bionic/adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping.md`. Tags: interview, documents, generation, grounding, performance.
+
 ## [2026-10-03] journal | decision: ADR-0014 worker-owned runtime decision accepted
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-03T17:18-06:00. Refs: [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] rule:one-terminal-outcome

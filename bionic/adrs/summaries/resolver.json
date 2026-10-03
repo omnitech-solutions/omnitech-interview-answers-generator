@@ -719,6 +719,51 @@
     "source_adr": "ADR-0014",
     "source_status": "Accepted"
   },
+  "ADR-0015/complete-revision-publish": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated generation identity cannot publish a second revision.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
+  "ADR-0015/exact-owned-batches": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Each model batch owns a disjoint, contiguous set of template fields and must return exactly those keys with string values before its result can enter progress or a document.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
+  "ADR-0015/immutable-generation-identity": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A generation binds its owner, selected target, template and profile revisions, source selection, requested fields, and base document revision before model work begins.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
+  "ADR-0015/measured-document-grouping": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Grouping is selected from same-input, same-machine trials of one, three, and five model groups that record visible-field time, total time, calls, tokens, cost, and failures.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
+  "ADR-0015/source-facts-own-authority": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Direct-source candidate, candidacy, and interview values remain authoritative; missing facts stay blank, while generated prose is a draft and never updates source preferences or profile facts.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
   "retired_slugs": {
     "complete-session-purge": [
       "ADR-0013/complete-purge-except-retained-drafts"
@@ -744,6 +789,7 @@
     "claude-supported-lifecycle": "ADR-0014/claude-supported-lifecycle",
     "codex-transport-parity": "ADR-0014/codex-transport-parity",
     "complete-purge-except-retained-drafts": "ADR-0013/complete-purge-except-retained-drafts",
+    "complete-revision-publish": "ADR-0015/complete-revision-publish",
     "composite-owner-references": "ADR-0012/composite-owner-references",
     "credential-held-securely": "ADR-0012/credential-held-securely",
     "credential-ingest-scope": "ADR-0011/credential-ingest-scope",
@@ -754,6 +800,7 @@
     "credential-strength": "ADR-0012/credential-strength",
     "declared-profile-locality": "ADR-0012/declared-profile-locality",
     "device-only-enforced-twice": "ADR-0012/device-only-enforced-twice",
+    "exact-owned-batches": "ADR-0015/exact-owned-batches",
     "fast-path-no-tools": "ADR-0011/fast-path-no-tools",
     "fenced-current-publish": "ADR-0011/fenced-current-publish",
     "fenced-terminal-publish": "ADR-0014/fenced-terminal-publish",
@@ -764,6 +811,7 @@
     "idempotent-observation": "ADR-0011/idempotent-observation",
     "identity-from-credential": "ADR-0011/identity-from-credential",
     "immutable-document-revisions": "ADR-0009/immutable-document-revisions",
+    "immutable-generation-identity": "ADR-0015/immutable-generation-identity",
     "immutable-privacy-columns": "ADR-0012/immutable-privacy-columns",
     "inert-draft-rendering": "ADR-0012/inert-draft-rendering",
     "ingest-membership-recheck": "ADR-0012/ingest-membership-recheck",
@@ -771,6 +819,7 @@
     "job-creation-locked-to-session": "ADR-0012/job-creation-locked-to-session",
     "linked-resource-authorization": "ADR-0012/linked-resource-authorization",
     "loop-isolation": "ADR-0011/loop-isolation",
+    "measured-document-grouping": "ADR-0015/measured-document-grouping",
     "member-private-documents": "ADR-0009/member-private-documents",
     "model-calls-gateway-routed": "ADR-0012/model-calls-gateway-routed",
     "monotonic-privacy-columns": "ADR-0012/monotonic-privacy-columns",
@@ -802,6 +851,7 @@
     "screenshots-as-private-artifacts": "ADR-0012/screenshots-as-private-artifacts",
     "session-claim-setting": "ADR-0012/session-claim-setting",
     "session-processing-policy": "ADR-0012/session-processing-policy",
+    "source-facts-own-authority": "ADR-0015/source-facts-own-authority",
     "strict-rehearsal-no-assistance": "ADR-0012/strict-rehearsal-no-assistance",
     "structured-field-decisions": "ADR-0011/structured-field-decisions",
     "tenant-scoped-worker-access": "ADR-0011/tenant-scoped-worker-access",
