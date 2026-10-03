@@ -42,7 +42,9 @@ export interface AgentExecutionPort {
     request: AiExecutionRequest,
     profile: AiProfile,
   ): AsyncIterable<AiEvent>;
-  cancel(executionId: string): Promise<void>;
+  // [SAFETY] A cancellation runs inside the caller's tenant: an execution id
+  // alone never reaches across tenants.
+  cancel(context: AiAccessContext, executionId: string): Promise<void>;
   resume(request: AiResumeRequest): AsyncIterable<AiEvent>;
   // Assistant turns on an agent runtime, as streamed model parts.
   streamStructured?(
@@ -200,7 +202,8 @@ export function createAiExecutionGateway(
         throw new Error("The configured target cannot stream this task.");
       for await (const event of source) yield event as AiEvent<T>;
     },
-    cancel: (executionId) => options.agents.cancel(executionId),
+    cancel: (context, executionId) =>
+      options.agents.cancel(context, executionId),
     resume: <T>(request: AiResumeRequest) =>
       options.agents.resume(request) as AsyncIterable<AiEvent<T>>,
     async listAvailableTargets(context, filter?: AiTargetFilter) {

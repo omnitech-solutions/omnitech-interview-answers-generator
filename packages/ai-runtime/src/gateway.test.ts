@@ -153,8 +153,8 @@ function agentPort() {
       calls.push(`stream:${profile.id}`);
       yield { type: "started", executionId: "job-1" };
     },
-    async cancel(executionId) {
-      calls.push(`cancel:${executionId}`);
+    async cancel(cancelContext, executionId) {
+      calls.push(`cancel:${cancelContext.tenantId}:${executionId}`);
     },
     async *resume(request) {
       calls.push(`resume:${request.executionId}`);
@@ -235,7 +235,7 @@ describe("AI execution gateway", () => {
 
     const execution = await ai.execute(request("coach", "agent-job"));
     const events = await collect(ai.stream(request("coach", "agent-job")));
-    await ai.cancel("job-1");
+    await ai.cancel(context, "job-1");
     const resumed = await collect(
       ai.resume({ context, executionId: "job-1", input: "continue" }),
     );
@@ -249,7 +249,7 @@ describe("AI execution gateway", () => {
     expect(calls).toEqual([
       "execute:coach",
       "stream:coach",
-      "cancel:job-1",
+      "cancel:tenant-1:job-1",
       "resume:job-1",
     ]);
   });

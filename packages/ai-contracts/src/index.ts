@@ -189,7 +189,9 @@ export interface AiExecutionGateway {
   streamStructured(request: AiStructuredChatRequest): AsyncIterable<ModelPart>;
   execute<T = unknown>(request: AiExecutionRequest): Promise<AiExecution<T>>;
   stream<T = unknown>(request: AiExecutionRequest): AsyncIterable<AiEvent<T>>;
-  cancel(executionId: string): Promise<void>;
+  // [SAFETY] A cancellation runs inside the caller's tenant: an execution id
+  // alone never reaches across tenants.
+  cancel(context: AiAccessContext, executionId: string): Promise<void>;
   resume<T = unknown>(request: AiResumeRequest): AsyncIterable<AiEvent<T>>;
   listAvailableTargets(
     context: AiAccessContext,

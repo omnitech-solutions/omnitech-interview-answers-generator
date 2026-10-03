@@ -79,9 +79,10 @@ function createAgentPort(): AgentExecutionPort {
       yield { type: "started", executionId: execution.executionId };
       yield { type: "completed", result: execution.result };
     },
-    async cancel(executionId) {
-      const tenantId = await repository.tenantOf(executionId);
-      if (tenantId) await repository.requestCancellation(tenantId, executionId);
+    // [SAFETY] Cancellation runs inside the caller's tenant; another
+    // tenant's job id cancels nothing.
+    async cancel(context, executionId) {
+      await repository.requestCancellation(context.tenantId, executionId);
     },
     async *resume(_request: AiResumeRequest): AsyncIterable<AiEvent> {
       throw new Error("Resume requires an existing agent session job.");
