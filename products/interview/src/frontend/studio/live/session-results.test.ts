@@ -12,6 +12,7 @@ import {
   parseCodeResult,
   parseDisconnectedContent,
   parseGapContent,
+  parseResultMeta,
   parseSnapshotContent,
   parseTranscriptContent,
 } from "./session-results";
@@ -213,6 +214,31 @@ describe("code results", () => {
       }),
     ).toEqual({ jobRequested: true, kind: "iterative-repair" });
     expect(parseAgentResult({})).toBeNull();
+  });
+});
+
+describe("stage meta", () => {
+  it("reads the profile and processing policy a stage ran under", () => {
+    expect(parseResultMeta(answerResult())).toEqual({
+      profileId: "fast",
+      processingPolicy: "device-only",
+    });
+    expect(
+      parseResultMeta(
+        codeResult({
+          meta: { profileId: "main", processingPolicy: "permitted-remote" },
+        }),
+      ),
+    ).toEqual({ profileId: "main", processingPolicy: "permitted-remote" });
+  });
+
+  it("shows nothing for a missing, malformed or unknown policy", () => {
+    expect(parseResultMeta({})).toBeNull();
+    expect(parseResultMeta(null)).toBeNull();
+    expect(parseResultMeta({ meta: { profileId: "fast" } })).toBeNull();
+    expect(
+      parseResultMeta({ meta: { profileId: "fast", processingPolicy: "x" } }),
+    ).toBeNull();
   });
 });
 

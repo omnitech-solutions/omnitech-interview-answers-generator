@@ -34,6 +34,7 @@ export function ActivityTab({
                 </span>
                 <span className={`live-chip ${run.tone}`}>{run.label}</span>
               </div>
+              {run.profile && <p className="live-note">{run.profile}</p>}
               {run.reasonLabel && (
                 <p className="live-note">{run.reasonLabel}</p>
               )}

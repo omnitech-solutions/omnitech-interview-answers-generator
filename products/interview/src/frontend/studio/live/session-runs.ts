@@ -6,7 +6,11 @@ import type {
   LiveAction,
   LiveSessionStatus,
 } from "@omnitech/interview-contracts";
-import { parseCodeResult, parseWithheldResult } from "./session-results";
+import {
+  parseCodeResult,
+  parseResultMeta,
+  parseWithheldResult,
+} from "./session-results";
 
 export type RunState =
   // Its result is current and was published.
@@ -46,6 +50,8 @@ export type ActivityRun = {
   // A withheld draft: how many claims could not be checked (content-free).
   // null when the server did not record a count.
   rejectedClaimCount: number | null;
+  // The profile and policy the stage ran under, from its published result.
+  profile: string | null;
   // The run belongs to the task's current revision.
   current: boolean;
   attempt: number;
@@ -160,6 +166,20 @@ function stateOf(action: LiveAction, context: RunContext): RunState {
   }
 }
 
+// "Profile <id> · device-only policy": the policy is the session's setting when
+// the stage ran, not a claim about where the model is hosted.
+const POLICY_LABEL = {
+  "device-only": "device-only policy",
+  "permitted-remote": "remote processing allowed",
+} as const;
+
+function profileLine(result: unknown): string | null {
+  const meta = parseResultMeta(result);
+  return meta
+    ? `Profile ${meta.profileId} · ${POLICY_LABEL[meta.processingPolicy]}`
+    : null;
+}
+
 export function activityRun(
   action: LiveAction,
   context: RunContext,
@@ -184,6 +204,7 @@ export function activityRun(
       action.suppressionReason === "invalid_output"
         ? (parseWithheldResult(action.result)?.rejectedClaimCount ?? null)
         : null,
+    profile: profileLine(action.result),
     current: action.taskRevision >= context.currentRevision,
     attempt: action.attempt,
     shown: action.shown,

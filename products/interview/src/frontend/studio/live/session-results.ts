@@ -297,6 +297,24 @@ export function parseWithheldResult(
     : null;
 }
 
+// ---- Stage meta (the profile a stage ran with) -------------------------------
+
+// Every published draft and solution records the AI profile it used and the
+// session's processing policy at that moment (ADR-0012: Studio shows the
+// policy and the profile used per stage). Absent or unreadable: nothing is
+// shown, never a guess.
+const metaSchema = z.object({
+  meta: z.object({
+    profileId: z.string().min(1).max(128),
+    processingPolicy: z.enum(["device-only", "permitted-remote"]),
+  }),
+});
+export type ResultMeta = z.infer<typeof metaSchema>["meta"];
+export function parseResultMeta(raw: unknown): ResultMeta | null {
+  const parsed = metaSchema.safeParse(raw);
+  return parsed.success ? parsed.data.meta : null;
+}
+
 // ---- Observation content ----------------------------------------------------
 
 const sourceSchema = z.enum(["microphone", "application-audio", "screen"]);

@@ -151,6 +151,39 @@ describe("activity", () => {
     ).toBeVisible();
   });
 
+  it("shows the profile and policy each published run used (ADR-0012)", () => {
+    show({
+      actions: [
+        answerAction(answerResult(), { taskId: "t1" }),
+        action({
+          taskId: "t2",
+          actionKind: "solve-code",
+          result: codeResult({
+            meta: { profileId: "main", processingPolicy: "permitted-remote" },
+          }),
+        }),
+        action({
+          taskId: "t3",
+          dispatchStatus: "suppressed",
+          suppressionReason: "revision_stale",
+        }),
+      ],
+    });
+    open();
+    const items = within(
+      screen.getByRole("list", { name: "Runs" }),
+    ).getAllByRole("listitem");
+    const text = items.map((item) => item.textContent ?? "");
+    expect(text.some((t) => /Profile fast · device-only policy/.test(t))).toBe(
+      true,
+    );
+    expect(
+      text.some((t) => /Profile main · remote processing allowed/.test(t)),
+    ).toBe(true);
+    // A run with no result names no profile: nothing is guessed.
+    expect(text.filter((t) => /Profile /.test(t))).toHaveLength(2);
+  });
+
   it("labels each run with what became of it", () => {
     show({
       actions: [
