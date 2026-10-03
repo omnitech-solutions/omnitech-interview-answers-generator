@@ -33,6 +33,11 @@ try {
        ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = 'owner'`,
       [tenantId, userId],
     );
+    // Installations are tenant-owned rows under forced row-level security, so
+    // they are written inside the tenant this bootstrap just resolved.
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [
+      tenantId,
+    ]);
     await client.query(
       `INSERT INTO platform.product_installations
          (tenant_id, product_id, display_name, description, icon, sort_order,

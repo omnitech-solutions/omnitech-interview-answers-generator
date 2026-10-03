@@ -94,11 +94,7 @@ function createAgentPort(): AgentExecutionPort {
       yield { type: "completed", result: execution.result };
     },
     async cancel(executionId) {
-      const job = await database.query<{ tenant_id: string }>(
-        `SELECT tenant_id FROM ai.agent_jobs WHERE id = $1`,
-        [executionId],
-      );
-      const tenantId = job.rows[0]?.tenant_id;
+      const tenantId = await repository.tenantOf(executionId);
       if (tenantId) await repository.requestCancellation(tenantId, executionId);
     },
     async *resume(_request: AiResumeRequest): AsyncIterable<AiEvent> {

@@ -193,59 +193,78 @@ export class PresentationRepository {
 
   async getShared(token: string): Promise<PresentationDocument | undefined> {
     const tokenHash = createHash("sha256").update(token).digest("hex");
-    const document = await this.database.query<{
-      id: string;
-      title: string;
-      revision: number;
-      updated_at: Date;
-      outline: string[];
-      theme_id: string | null;
-      settings: Record<string, unknown>;
-      tenant_id: string;
-    }>(
-      `SELECT d.id, d.title, d.revision, d.updated_at, p.outline,
-         p.theme_id, p.settings, d.tenant_id
-       FROM presentation.shares s
-       JOIN presentation.documents d ON d.id = s.document_id
-       JOIN presentation.presentations p ON p.document_id = d.id
-       WHERE s.token_hash = $1 AND s.revoked_at IS NULL
-         AND (s.expires_at IS NULL OR s.expires_at > now())
-         AND d.deleted_at IS NULL`,
-      [tokenHash],
-    );
-    const row = document.rows[0];
-    if (!row) return undefined;
-    const slides = await this.database.query<{
-      id: string;
-      position: number;
-      source_xml: string;
-      content: Record<string, unknown>;
-      revision: number;
-    }>(
-      `SELECT id, position, source_xml, content, revision
-       FROM presentation.slides
-       WHERE tenant_id = $1 AND document_id = $2
-       ORDER BY position`,
-      [row.tenant_id, row.id],
-    );
-    return {
-      id: row.id,
-      title: row.title,
-      revision: row.revision,
-      slideCount: slides.rowCount ?? slides.rows.length,
-      favorite: false,
-      updatedAt: row.updated_at.toISOString(),
-      outline: row.outline,
-      themeId: row.theme_id,
-      settings: row.settings,
-      slides: slides.rows.map((slide) => ({
-        id: slide.id,
-        position: slide.position,
-        sourceXml: slide.source_xml,
-        content: slide.content,
-        revision: slide.revision,
-      })),
-    };
+    return this.database.transaction(async (client) => {
+      // The visitor has no tenant: the token hash alone may read its share
+      // (the share_token_lookup policy), which names the tenant to scope to.
+      await client.query(
+        "SELECT set_config('app.share_token_hash', $1, true)",
+        [tokenHash],
+      );
+      const share = await client.query<{ tenant_id: string }>(
+        `SELECT tenant_id FROM presentation.shares
+         WHERE token_hash = $1 AND revoked_at IS NULL
+           AND (expires_at IS NULL OR expires_at > now())`,
+        [tokenHash],
+      );
+      const tenantId = share.rows[0]?.tenant_id;
+      if (!tenantId) return undefined;
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [
+        tenantId,
+      ]);
+
+      // Everything else is read under that tenant's ordinary policies.
+      const document = await client.query<{
+        id: string;
+        title: string;
+        revision: number;
+        updated_at: Date;
+        outline: string[];
+        theme_id: string | null;
+        settings: Record<string, unknown>;
+      }>(
+        `SELECT d.id, d.title, d.revision, d.updated_at, p.outline,
+           p.theme_id, p.settings
+         FROM presentation.shares s
+         JOIN presentation.documents d ON d.id = s.document_id
+         JOIN presentation.presentations p ON p.document_id = d.id
+         WHERE s.token_hash = $1 AND d.tenant_id = $2
+           AND d.deleted_at IS NULL`,
+        [tokenHash, tenantId],
+      );
+      const row = document.rows[0];
+      if (!row) return undefined;
+      const slides = await client.query<{
+        id: string;
+        position: number;
+        source_xml: string;
+        content: Record<string, unknown>;
+        revision: number;
+      }>(
+        `SELECT id, position, source_xml, content, revision
+         FROM presentation.slides
+         WHERE tenant_id = $1 AND document_id = $2
+         ORDER BY position`,
+        [tenantId, row.id],
+      );
+      return {
+        id: row.id,
+        title: row.title,
+        revision: row.revision,
+        slideCount: slides.rowCount ?? slides.rows.length,
+        favorite: false,
+        updatedAt: row.updated_at.toISOString(),
+        outline: row.outline,
+        themeId: row.theme_id,
+        settings: row.settings,
+        slides: slides.rows.map((slide) => ({
+          id: slide.id,
+          position: slide.position,
+          sourceXml: slide.source_xml,
+          content: slide.content,
+          revision: slide.revision,
+        })),
+      };
+    });
   }
 
   async save(

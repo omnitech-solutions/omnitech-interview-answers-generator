@@ -1,0 +1,4 @@
+CREATE POLICY "payload_reference_lookup" ON "ai"."agent_job_payloads" AS PERMISSIVE FOR SELECT TO public USING ((reference = current_setting('app.agent_payload_reference'::text, true)));--> statement-breakpoint
+CREATE POLICY "agent_worker_read" ON "ai"."agent_jobs" AS PERMISSIVE FOR SELECT TO public USING ((current_setting('app.agent_worker'::text, true) = 'on'::text));--> statement-breakpoint
+CREATE POLICY "agent_worker_update" ON "ai"."agent_jobs" AS PERMISSIVE FOR UPDATE TO public USING ((current_setting('app.agent_worker'::text, true) = 'on'::text)) WITH CHECK ((current_setting('app.agent_worker'::text, true) = 'on'::text));--> statement-breakpoint
+CREATE POLICY "share_token_lookup" ON "presentation"."shares" AS PERMISSIVE FOR SELECT TO public USING ((token_hash = current_setting('app.share_token_hash'::text, true)));

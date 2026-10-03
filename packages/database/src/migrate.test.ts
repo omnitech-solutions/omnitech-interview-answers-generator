@@ -26,6 +26,8 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "forced_rls_and_immutability",
     "foreign_key_indexes",
     "remove_presentation_import",
+    "force_rls_platform_ai_presentation",
+    "worker_and_link_lookup_policies",
   ]);
 
   // Every schema the app owns, plus the assistant package's own.
@@ -44,14 +46,25 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "presentation",
   ]);
 
-  // Interview and practice tables enforce row-level security even on their
-  // owner; the assistant's tables admit the run worker.
+  // Interview and practice tables enforce row-level security; the assistant's
+  // tables admit the run worker.
   expect(
     await rows(
       `SELECT n.nspname || '.' || c.relname FROM pg_class c
          JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname IN ('interview', 'practice') AND c.relkind = 'r'
-          AND NOT (c.relrowsecurity AND c.relforcerowsecurity)`,
+          AND NOT c.relrowsecurity`,
+    ),
+  ).toEqual([]);
+  // The app role owns every table, and PostgreSQL exempts an owner from
+  // row-level security unless it is forced, so every policy-bearing table in
+  // every schema must force it or its policies never bind the app.
+  expect(
+    await rows(
+      `SELECT n.nspname || '.' || c.relname FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND c.relrowsecurity AND NOT c.relforcerowsecurity
+        ORDER BY 1`,
     ),
   ).toEqual([]);
   expect(

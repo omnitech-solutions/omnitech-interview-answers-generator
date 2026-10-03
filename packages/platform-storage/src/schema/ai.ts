@@ -79,6 +79,12 @@ export const agentJobPayloads = ai.table.withRLS(
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
     }),
+    // The worker and the job's poller hold only a payload's reference, an
+    // unguessable id; a transaction may read the one payload it names.
+    pgPolicy("payload_reference_lookup", {
+      for: "select",
+      using: sql`(reference = current_setting('app.agent_payload_reference'::text, true))`,
+    }),
   ],
 );
 
@@ -122,6 +128,18 @@ export const agentJobs = ai.table.withRLS(
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
+    }),
+    // The agent worker leases queued jobs across tenants before it knows
+    // whose they are, so its own transactions (app.agent_worker = 'on') may
+    // read and advance any job. They can never create or delete one.
+    pgPolicy("agent_worker_read", {
+      for: "select",
+      using: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
+    }),
+    pgPolicy("agent_worker_update", {
+      for: "update",
+      using: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
+      withCheck: sql`(current_setting('app.agent_worker'::text, true) = 'on'::text)`,
     }),
     check(
       "agent_jobs_status_check",

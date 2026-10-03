@@ -10,7 +10,7 @@ import type {
   AgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 import { ConnectedAccountVault } from "./connected-account-vault.js";
-import type { PlatformDatabase } from "@omnitech/database";
+import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 
 type JobRow = {
   id: string;
@@ -53,6 +53,20 @@ function mapJob(row: JobRow): AgentJob {
 export class PostgresAgentJobRepository implements AgentJobRepository {
   constructor(private readonly database: PlatformDatabase) {}
 
+  // [SAFETY] The worker leases jobs before it knows their tenant and then
+  // holds only a job id. Its transactions set app.agent_worker, which the
+  // agent_worker_read and agent_worker_update policies admit. Only the
+  // id-addressed methods below use it; everything else in ai.agent_jobs runs
+  // in a tenant scope.
+  private asWorker<Result>(
+    work: (client: DatabaseClient) => Promise<Result>,
+  ): Promise<Result> {
+    return this.database.transaction(async (client) => {
+      await client.query("SELECT set_config('app.agent_worker', 'on', true)");
+      return work(client);
+    });
+  }
+
   async create(input: CreateAgentJob): Promise<AgentJob> {
     const result = await this.database.tenantTransaction(
       input.tenantId,
@@ -88,11 +102,24 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     });
   }
 
+  // An execution is cancelled by id alone (AiExecutionGateway.cancel), so the
+  // job's tenant is read under the worker's read policy before the tenant-
+  // scoped cancellation request.
+  async tenantOf(jobId: string): Promise<string | undefined> {
+    const result = await this.asWorker((client) =>
+      client.query<{ tenant_id: string }>(
+        `SELECT tenant_id FROM ai.agent_jobs WHERE id = $1`,
+        [jobId],
+      ),
+    );
+    return result.rows[0]?.tenant_id;
+  }
+
   async claim(
     workerId: string,
     leaseMs: number,
   ): Promise<AgentJob | undefined> {
-    return this.database.transaction(async (client) => {
+    return this.asWorker(async (client) => {
       const result = await client.query<JobRow>(
         `WITH candidate AS (
            SELECT id FROM ai.agent_jobs
@@ -123,29 +150,35 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     expected: readonly AgentJobStatus[],
     next: AgentJobStatus,
   ): Promise<boolean> {
-    const result = await this.database.query(
-      `UPDATE ai.agent_jobs SET status = $3, updated_at = now()
-       WHERE id = $1 AND status = ANY($2::text[])`,
-      [jobId, expected, next],
+    const result = await this.asWorker((client) =>
+      client.query(
+        `UPDATE ai.agent_jobs SET status = $3, updated_at = now()
+         WHERE id = $1 AND status = ANY($2::text[])`,
+        [jobId, expected, next],
+      ),
     );
     return (result.rowCount ?? 0) === 1;
   }
 
   async setResultReference(jobId: string, reference: string): Promise<void> {
-    await this.database.query(
-      `UPDATE ai.agent_jobs
-       SET result_reference = $2, updated_at = now()
-       WHERE id = $1`,
-      [jobId, reference],
+    await this.asWorker((client) =>
+      client.query(
+        `UPDATE ai.agent_jobs
+         SET result_reference = $2, updated_at = now()
+         WHERE id = $1`,
+        [jobId, reference],
+      ),
     );
   }
 
   async setSessionId(jobId: string, sessionId: string): Promise<void> {
-    await this.database.query(
-      `UPDATE ai.agent_jobs
-       SET session_id = $2, updated_at = now()
-       WHERE id = $1`,
-      [jobId, sessionId],
+    await this.asWorker((client) =>
+      client.query(
+        `UPDATE ai.agent_jobs
+         SET session_id = $2, updated_at = now()
+         WHERE id = $1`,
+        [jobId, sessionId],
+      ),
     );
   }
 
@@ -153,7 +186,7 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     jobId: string,
     event: AgentEvent,
   ): Promise<PersistedAgentEvent> {
-    return this.database.transaction(async (client) => {
+    return this.asWorker(async (client) => {
       const sequence = await client.query<{ sequence: number }>(
         `UPDATE ai.agent_jobs SET
            next_event_sequence = next_event_sequence + 1,
@@ -262,22 +295,33 @@ export class AgentPayloadStore {
     return reference;
   }
 
+  // The reference is an unguessable id and the only key the worker and a
+  // job's poller hold, so the payload_reference_lookup policy admits a read
+  // of exactly the payload the transaction names.
   async load(reference: string): Promise<string> {
-    const result = await this.database.query<{ ciphertext: unknown }>(
-      `SELECT ciphertext FROM ai.agent_job_payloads
-       WHERE reference = $1 AND expires_at > now()
-       LIMIT 1`,
-      [reference],
-    );
+    const result = await this.database.transaction(async (client) => {
+      await client.query(
+        "SELECT set_config('app.agent_payload_reference', $1, true)",
+        [reference],
+      );
+      return client.query<{ ciphertext: unknown }>(
+        `SELECT ciphertext FROM ai.agent_job_payloads
+         WHERE reference = $1 AND expires_at > now()
+         LIMIT 1`,
+        [reference],
+      );
+    });
     const ciphertext = result.rows[0]?.ciphertext;
     if (!ciphertext) throw new Error("Agent job payload is unavailable.");
     return this.vault.decrypt(ciphertext);
   }
 
-  async remove(reference: string): Promise<void> {
-    await this.database.query(
-      `DELETE FROM ai.agent_job_payloads WHERE reference = $1`,
-      [reference],
-    );
+  async remove(tenantId: string, reference: string): Promise<void> {
+    await this.database.tenantTransaction(tenantId, async (client) => {
+      await client.query(
+        `DELETE FROM ai.agent_job_payloads WHERE reference = $1`,
+        [reference],
+      );
+    });
   }
 }

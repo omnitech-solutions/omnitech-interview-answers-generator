@@ -381,6 +381,13 @@ export const shares = presentation.table.withRLS(
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
     }),
+    // A public share link names no tenant. Reading a share is allowed only to
+    // a transaction that already holds that share's token hash, so the token
+    // is the credential that reveals which tenant to scope to next.
+    pgPolicy("share_token_lookup", {
+      for: "select",
+      using: sql`(token_hash = current_setting('app.share_token_hash'::text, true))`,
+    }),
   ],
 );
 
