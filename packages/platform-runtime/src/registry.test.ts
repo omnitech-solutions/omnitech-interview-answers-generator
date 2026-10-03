@@ -238,6 +238,32 @@ describe("resolvePage", () => {
     ]);
   });
 
+  // A product without a "/" page still has a front door: its root opens its
+  // first route, which the member must be permitted like any other.
+  it("opens the first route at a product's root when it has no home page", async () => {
+    const { load, product: notes } = product();
+    const [home] = notes.manifest.routes;
+    const registry = new ProductRegistry();
+    registry.register({
+      ...notes,
+      manifest: {
+        ...notes.manifest,
+        routes: [{ ...home!, id: "notes.library", defaultPath: "/library" }],
+      },
+      frontend: { id: "omnitech.notes", routes: { "notes.library": load } },
+    });
+    const page = await registry.resolvePage(
+      async () => member(true, ["notes.read"]),
+      request,
+    );
+    expect(page.status).toBe(200);
+    if (page.status === 200) expect(page.route.id).toBe("notes.library");
+    expect(
+      (await registry.resolvePage(async () => member(true, []), request))
+        .status,
+    ).toBe(404);
+  });
+
   it.each([
     ["a non-member", async () => null],
     [

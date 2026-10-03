@@ -137,7 +137,7 @@ export class ProductRegistry {
 
     // The manifest route the path names, which the member must be permitted.
     const requestedPath = `/${request.path.join("/")}`;
-    const route = product.manifest.routes.find(
+    const named = product.manifest.routes.find(
       (candidate) =>
         candidate.defaultPath === requestedPath ||
         requestedPath.startsWith(`${candidate.defaultPath}/`) ||
@@ -145,6 +145,9 @@ export class ProductRegistry {
           requestedPath,
         ),
     );
+    // The root of a product with no "/" page opens its first route.
+    const route =
+      named ?? (requestedPath === "/" ? product.manifest.routes[0] : undefined);
     if (!route || !context.permissions.includes(route.requiredPermission))
       return notFound;
 
