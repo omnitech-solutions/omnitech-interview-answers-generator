@@ -9,6 +9,8 @@
 // These are approximations: source labels are not verified identities, so the
 // baseline reads text, never who said it. The policy returns only opaque
 // handles (rule:id-only-traces); no utterance text rides in a decision.
+
+import { type AssistStage, createAssistStage } from "./assist-stage.js";
 import {
   isOpaqueHandle,
   type PolicyInput,
@@ -16,7 +18,6 @@ import {
   type RevisionReason,
   type TaskPolicy,
 } from "./core/index.js";
-import { type AssistStage, createAssistStage } from "./assist-stage.js";
 
 export interface InterviewSessionPolicy extends TaskPolicy {
   // Used to coalesce a split question across an interjected backchannel.

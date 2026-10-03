@@ -1,0 +1,102 @@
+// The backend-only public entrypoint of the Active Session worker side
+// (`@omnitech/product-interview/session-worker`). The worker app composes the
+// gateway and its profiles itself and hands the gateway in; this entrypoint
+// composes everything else - the cross-tenant claim, the owner-checked
+// repository and fenced writes, the purge, the baseline interview policy and
+// the processor - over the real PlatformDatabase. The claim lives in the
+// product (session-claim.ts owns app.session_worker), so the worker app needs
+// nothing from the cross-tenant worker storage entrypoint for sessions.
+//
+// It imports no Next.js and no frontend code, and never builds a gateway: the
+// host builds one from the same profile and model configuration source as the
+// web host and passes it in (rule:model-calls-gateway-routed).
+import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import type { PlatformDatabase } from "@omnitech/database";
+import type { Clock } from "./core/index.js";
+import {
+  createInterviewSessionPolicy,
+  type InterviewSessionPolicy,
+} from "./interview-policy.js";
+import { createSessionProcessor, type SessionProcessor } from "./processor.js";
+import type { SessionProcessorOptions } from "./processor-ports.js";
+import {
+  createDatabaseClaimPort,
+  createDatabaseStorePort,
+  type DatabasePortOptions,
+} from "./session-ports.js";
+import { createLoggerTraceSink, type TraceSink } from "./trace.js";
+
+export {
+  INTERVIEW_SESSION_DEVICE_PROFILE,
+  INTERVIEW_SESSION_FAST_PROFILE,
+} from "../../assistant-profile.js";
+export {
+  SESSION_GATEWAY_CONTEXT,
+  sessionGatewayContext,
+} from "./gateway-context.js";
+export type { SessionProcessor } from "./processor.js";
+export type { SessionProcessorOptions } from "./processor-ports.js";
+export {
+  createLoggerTraceSink,
+  type SessionTraceEvent,
+  type TraceSink,
+} from "./trace.js";
+
+export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
+  Pick<DatabasePortOptions, "leaseMs" | "jobs" | "drafts"> & {
+    database: PlatformDatabase;
+    gateway: AiExecutionGateway;
+    workerId: string;
+    // Where id-only trace lines go; defaults to a no-op logger-free sink.
+    trace?: TraceSink;
+    // Convenience: build the default JSON-line sink over this logger.
+    log?: (line: string) => void;
+    policy?: InterviewSessionPolicy;
+    clock?: Clock;
+  };
+
+export type SessionWorker = SessionProcessor;
+
+const systemClock: Clock = { nowMs: () => Date.now() };
+
+export function createSessionWorker(
+  options: SessionWorkerOptions,
+): SessionWorker {
+  const { database, gateway, workerId, policy, clock, trace, log, ...rest } =
+    options;
+  const portOptions: DatabasePortOptions = {
+    workerId,
+    ...(rest.leaseMs === undefined ? {} : { leaseMs: rest.leaseMs }),
+    ...(rest.jobs === undefined ? {} : { jobs: rest.jobs }),
+    ...(rest.drafts === undefined ? {} : { drafts: rest.drafts }),
+  };
+  const sink: TraceSink =
+    trace ?? (log ? createLoggerTraceSink(log) : { emit: () => undefined });
+  return createSessionProcessor(
+    {
+      claim: createDatabaseClaimPort(database, portOptions),
+      store: createDatabaseStorePort(database, portOptions),
+      gateway,
+      policy: policy ?? createInterviewSessionPolicy(),
+      clock: clock ?? systemClock,
+      trace: sink,
+    },
+    {
+      workerId,
+      ...(rest.maxSessions === undefined
+        ? {}
+        : { maxSessions: rest.maxSessions }),
+      ...(rest.settleMs === undefined ? {} : { settleMs: rest.settleMs }),
+      ...(rest.maxAttempts === undefined
+        ? {}
+        : { maxAttempts: rest.maxAttempts }),
+      ...(rest.sweepEveryMs === undefined
+        ? {}
+        : { sweepEveryMs: rest.sweepEveryMs }),
+      ...(rest.sweepBatch === undefined ? {} : { sweepBatch: rest.sweepBatch }),
+      ...(rest.observationPage === undefined
+        ? {}
+        : { observationPage: rest.observationPage }),
+    },
+  );
+}

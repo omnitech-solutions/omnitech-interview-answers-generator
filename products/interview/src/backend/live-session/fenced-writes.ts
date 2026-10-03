@@ -23,8 +23,10 @@ import {
   decideDispatch,
   dispatchKey,
   holderStanding,
+  type ProcessingPolicy,
   type PublishSuppression,
   revisionStanding,
+  type SessionStatus,
   type TaskState,
 } from "./core/index.js";
 import { assertUuid, SessionError } from "./errors.js";
@@ -61,6 +63,16 @@ export type RecordActionOutcome =
     }
   | { outcome: "duplicate"; existing: DispatchStatus }
   | { outcome: "suppressed"; reason: DispatchSuppressionReason }
+  | Refused;
+
+export type DispatchStandingOutcome =
+  | {
+      outcome: "standing";
+      status: SessionStatus;
+      processingPolicy: ProcessingPolicy;
+      liveAssistance: boolean;
+      fence: number;
+    }
   | Refused;
 
 export type PublishOutcome = { outcome: "published" } | Refused;
@@ -349,6 +361,73 @@ export class FencedSessionWrites {
             AND owner_user_id = ${input.scope.actorId}::uuid
             AND id = ${input.sessionId}::uuid`);
       return { outcome: "published" };
+    });
+  }
+
+  // The session's standing right before a model call, read under the same
+  // fenced-write check as every write: the row is locked, the holder's fence and
+  // lease are verified, and the status, processing policy and assistance flag
+  // returned are the stored ones, so the processor derives each request's
+  // policy from the session row alone (rule:session-processing-policy) and
+  // re-checks locality immediately before dispatch (rule:device-only-enforced-
+  // twice). A stale holder learns nothing but the refusal.
+  async readDispatchStanding(input: {
+    scope: OwnerScope;
+    sessionId: string;
+    holder: FenceHolder;
+  }): Promise<DispatchStandingOutcome> {
+    assertUuid(input.sessionId);
+    return inOwnerScope(this.database, input.scope, async (tx) => {
+      const guard = await guardHolder(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.holder,
+      );
+      if (!guard.ok) return guard.refused;
+      const { row } = guard;
+      return {
+        outcome: "standing",
+        status: row.status,
+        processingPolicy: row.policy,
+        liveAssistance: row.sources?.liveAssistance === true,
+        fence: row.fence,
+      };
+    });
+  }
+
+  // Settles an in-flight action as suppressed with a code (ids and codes only)
+  // when the processor itself decides not to dispatch it, for example a
+  // locality refusal or an output that failed its closed schema.
+  async abandonAction(input: {
+    scope: OwnerScope;
+    sessionId: string;
+    holder: FenceHolder;
+    actionId: string;
+    reason: string;
+  }): Promise<SettleOutcome> {
+    assertUuid(input.sessionId);
+    assertUuid(input.actionId);
+    if (!REASON_CODE.test(input.reason))
+      throw new SessionError("invalid_input");
+    return inOwnerScope(this.database, input.scope, async (tx) => {
+      const guard = await guardHolder(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.holder,
+      );
+      if (!guard.ok) return guard.refused;
+      const updated = await tx.execute(sql`
+        UPDATE interview.session_actions SET
+          dispatch_status = 'suppressed', suppression_reason = ${input.reason}
+        WHERE tenant_id = ${input.scope.tenantId}::uuid
+          AND owner_user_id = ${input.scope.actorId}::uuid
+          AND session_id = ${input.sessionId}::uuid
+          AND id = ${input.actionId}::uuid AND dispatch_status = 'in_flight'`);
+      return (updated.rowCount ?? 0) === 1
+        ? { outcome: "recorded" }
+        : refused("action_settled", false);
     });
   }
 

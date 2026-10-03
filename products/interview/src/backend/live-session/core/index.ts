@@ -89,10 +89,10 @@ export {
 export {
   applyTranscriptFinal,
   coalesceSegments,
-  type Segment,
   effectiveSegments,
   emptyTranscript,
   isSuperseded,
+  type Segment,
   type TranscriptApplied,
   type TranscriptView,
 } from "./transcript.js";

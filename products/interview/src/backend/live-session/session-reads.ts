@@ -102,6 +102,9 @@ export type StoredAction = {
   actionKind: string;
   dispatchStatus: string;
   attempt: number;
+  // The fence the dispatching holder held; an in-flight action under an older
+  // fence than the current holder's belongs to a holder that is gone.
+  fenceAtDispatch: number;
   jobId: string | null;
   jobCreated: boolean;
   result: unknown;
@@ -124,7 +127,7 @@ export async function listActions(
     const rows = await rowsOf<Record<string, unknown>>(
       tx,
       sql`SELECT id, task_id, task_revision, action_kind, dispatch_status,
-                 attempt, job_id, job_created, result, shown,
+                 attempt, fence_at_dispatch, job_id, job_created, result, shown,
                  suppression_reason, created_at
           FROM interview.session_actions
           WHERE tenant_id = ${scope.tenantId}::uuid
@@ -139,6 +142,7 @@ export async function listActions(
       actionKind: String(row["action_kind"]),
       dispatchStatus: String(row["dispatch_status"]),
       attempt: Number(row["attempt"]),
+      fenceAtDispatch: Number(row["fence_at_dispatch"]),
       jobId: row["job_id"] ? String(row["job_id"]) : null,
       jobCreated: Boolean(row["job_created"]),
       result: row["result"] ?? null,
