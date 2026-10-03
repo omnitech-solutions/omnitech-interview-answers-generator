@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 18
+current_prompt: 19
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -129,15 +129,15 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 18
   title: 'Develop #3: spawn implementation team'
-  state: "running"
+  state: "done"
   started: "2026-10-03T13:07:40Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T14:34:01Z"
+  result: "Dev loop 3 implemented by 9 delegates (U1-U9, B3): browser contract and reads, store, bar, setup, live view, ended view, Workspace hand-off, integration; frontend 51 files/623 tests, live-session backend 35 files/507 tests at delegate level. See Notes: Outcome narrowing #3 and implementation reports."
+  artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 19
   title: 'Develop #3: run quality gates; loop until clean'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T14:34:01Z"
   completed: null
   result: ''
   artifacts: []
@@ -372,6 +372,14 @@ notes: |
   Risks specific to implementation: a module-level store leaks between tests and tenants (reset hook, keyed by tenant slug); polling cadence versus load and a hidden tab; hydrating on mount must not start a session or show stale secrets (the credential is returned once at start and never re-read); elapsed time must come from the server clock offset, not Date.now alone; Workspace view assumes the fixed workspace id "interview", so the hand-off needs a bounded override rather than a fork; the existing Workspace owner-edit detection (provenance cleared by a user edit) decides suggestion versus apply; the design is a prototype whose strings include false guarantees (renew every 10 min, undetectable-sounding wording, raw audio toggle, resource limits) and each is checked or dropped; jsdom cannot prove real layout, so phone width is asserted through classes and CSS rules, and real browser rendering is unobserved; no dev server is started (operator rule).
 
   Quality gates before review (prompt 19): pnpm lint, pnpm format, pnpm typecheck, pnpm test:coverage --maxWorkers=3 (full suite, Docker suites), pnpm vitest run scripts, pnpm build, then pnpm verify as one command; no separate SAST tool is configured (RLS and security suites and the no-content canary stand in); verify-code-docs recorded as the declared side effect (regeneration deferred to the prep prompt unless it runs clean).
+
+  ## Outcome narrowing #3
+  None. Every dispatch received the book's Outcome, Evidence and Constraint verbatim (file dev3-common.md in the orchestrator scratchpad) plus E-A1..E-A3 as added Evidence; units named their slice as scope only. Added Constraint for this loop (from the operator): no dev server is started; browser verification is recorded as unobserved.
+
+  ## Dev loop #3 implementation reports (prompt 18)
+  Delegates (all foreground, shared worktree, disjoint files): U1 browser contract + backend reads, U2 apps/web ingest forwarding (parallel); U3 foundation; then U4 session bar, U5 setup, U6 live view, U7 ended view, U8 Workspace hand-off, B3 withheld-claim record (parallel); then U9 integration and audit. Commits: f59ea00 (browser contract in packages/interview-contracts), 6777a1d (list sessions, setup choices, action change cursor + serverNow), 928193c (interview.live manifest route, no new permission), 28e036e (ingest test), 86a53f3 a6dcb24 3bdd1f8 52008f2 21e7ef8 (icons, route and nav, client and module-level store, view-model derivation, shell wiring), 5b7b535 efdf118 6ca4092 92a154a (session draft in the existing Workspace), 4bda9c6 (setup, pairing, session bar, ended view and the B3 backend files; swept together because of a shared index and a repo-wide pre-commit format check), 1e306c5 14a2923 c178214 (live view), 28ec31e 6484e4d 3299f8a e1c8f72 5ad277c 8e9316b 505227d (integration).
+  Findings and decisions: U2 verdict FORWARDED (no Next middleware; one Hono catch-all; ingest handler authenticates by credential; 7 tests, mutation check 6 of 7 fail on a cookie-requiring shell middleware); no new permission (interview.read for the live route; start/resume/renew need write, owner stop actions need read). Action stream reads every action created or changed after an opaque (updated_at, id) cursor with a 2 s overlap (merge by id, newest updatedAt wins), closing loop-1 deferral F5. B3: a draft withheld by claim verification now carries a content-free {withheld:{rejectedClaimCount, codes}} (carried on suppression_reason, no migration; the result column is legal only on succeeded actions), so the UI says how many claims failed checking without ever showing claim text. U8 found and fixed a backend defect: reading a missing session draft created a placeholder draft that made the session's publish hold its result. Store is module-level per tenant (hydrate from /current, one poll loop 1 s active / 5 s paused, visibility pause, survives navigation); server clock offset gives elapsed. Hard-guarantee strings checked: dropped "renews every 10 min" (credential lasts up to 2 h, owner renews), "512 MB / 10 s" (runner: 256 MB, 1 CPU, 20 s, read-only, no network), "no host folders mounted" (a per-run temp source dir is mounted), raw-audio persistence toggle (static "Memory only"), "Capture companion connected" before contact, "If something can't, the session won't start" (device-only refusals happen at dispatch), "nothing is running" after End; each is covered by guarantee-strings.test.tsx. Three states generated / tests passed / fully verified are kept distinct. Rehearsal: the scorecard save now sends the live session's rehearsalRunId (closes loop-2 deferral F10 on the client side; limit: only for a rehearsal session started from Setup).
+  Gaps recorded, not claimed: no per-task source link, assumptions list or employer text on matrix chips (results do not carry them; chips show Role N, revision and verbatim quote); the design's "English (UK) not available on this Mac" is a companion capability report that does not exist until loop 4 (the blocking-error component is built and tested with an injected blocker, none is wired); no pre-start device capability probe route (the worker, not the web process, knows its device profiles).
 
 pr_draft: ""
 summary: ""
