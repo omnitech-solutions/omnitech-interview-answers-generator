@@ -348,7 +348,9 @@ describe("the canary never leaves the owner's own reads", () => {
   }, 60_000);
 
   it("keeps a claim's text and quote out of traces, for a rejected and a published draft", async () => {
-    const claimCanary = `claim-${randomUUID()}-canary`;
+    // Letters only: a digit group inside the canary would read as a figure,
+    // which an unsourced general-knowledge claim may no longer carry.
+    const claimCanary = `claim-${randomUUID().replace(/\d/g, (digit) => "ghijklmnop"[Number(digit)] as string)}-canary`;
     const person = await fx.provision(fx.tenantA, "canary-claims");
     const profile = await seedMatrixProfile(fx, fx.tenantA, person.id);
     const started = await startSessionForPerson(

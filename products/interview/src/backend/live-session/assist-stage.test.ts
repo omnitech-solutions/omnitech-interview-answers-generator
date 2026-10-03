@@ -473,7 +473,7 @@ describe("STAR outline (leadership-behavioural)", () => {
   const gap = element("");
   const star = (overrides: Record<string, unknown> = {}) => ({
     situation: element("The order service ran on a document database.", 0),
-    task: element("Lead the move to PostgreSQL.", 0),
+    task: element("Move the order service to PostgreSQL.", 0),
     action: element("Led the staged migration.", 0),
     result: element("Order query p95 latency was 40% lower.", 1),
     missing: [],
@@ -489,6 +489,47 @@ describe("STAR outline (leadership-behavioural)", () => {
 
   it("accepts a STAR whose every element cites a matrix-backed claim", () => {
     expect(check(leadership())).toMatchObject({ ok: true });
+  });
+
+  it("P8: element text the cited entries do not support is rejected, whatever claim it cites", () => {
+    expect(
+      violationsOf(
+        leadership({
+          claims: [migrationClaim],
+          star: star({
+            situation: element("The datacentre flooded overnight.", 0),
+            task: element("Rescue the entire payments platform.", 0),
+            action: element("Led the staged migration.", 0),
+            result: element("Executives awarded a promotion.", 0),
+          }),
+        }),
+      ),
+    ).toEqual([
+      "star.situation:unsupported_element",
+      "star.task:unsupported_element",
+      "star.result:unsupported_element",
+    ]);
+  });
+
+  it("P1/P2: the spoken draft is grounded whatever category the model chose", () => {
+    expect(
+      violationsOf(
+        output({
+          category: "experience-story",
+          draft: "At Example Corp I led 2500 engineers and cut costs by 70%.",
+        }),
+        SNAPSHOT,
+        ["We have 2500 engineers"],
+      ),
+    ).toEqual(["draft:spoken_figure", "draft:personal_claim_unsourced"]);
+    expect(
+      violationsOf(
+        output({
+          category: "other",
+          draft: "My expected salary is 150k and my notice period is 3 months.",
+        }),
+      ),
+    ).toEqual(["draft:preference_only_topic"]);
   });
 
   it("requires a STAR object for leadership-behavioural", () => {

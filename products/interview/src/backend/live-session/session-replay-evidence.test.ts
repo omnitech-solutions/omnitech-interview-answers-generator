@@ -883,8 +883,10 @@ describe("(h) engineering-manager set", () => {
         ],
         // The matrix holds no measured outcome of the mentoring: result missing.
         {
-          situation: ["Three junior developers needed regular guidance", 0],
-          task: ["Grow their independence", 0],
+          // Each element only restates what its cited entry says (fix round 1:
+          // element text is verified against the cited quotes).
+          situation: ["Three junior developers were mentored", 0],
+          task: ["Mentor the junior developers through code review", 0],
           action: ["Weekly pairing and code review", 0],
         },
       );

@@ -262,8 +262,7 @@ describe("matrix-backed", () => {
 
   it("pools the cited quotes for the overlap and never other entries", () => {
     const built = snap();
-    const claim =
-      "Built streaming pipelines and managed archival storage buckets with encryption";
+    const claim = "Built streaming pipelines and managed archival storage";
     expect(run([matrixClaim(claim, [ref(built, R0)])], built)).toEqual([
       "claims.0.refs.0:unsupported_reference",
     ]);
@@ -451,7 +450,10 @@ describe("suggested-interpretation and general-knowledge", () => {
       ).toEqual(["claims.0:spoken_figure"]);
   });
 
-  it("accepts a spoken figure that a snapshot source also holds", () => {
+  it("refuses a figure outside the general allowance even when a snapshot source also holds it", () => {
+    // Fix round 1 (D2/D3): general-knowledge cites nothing, so a headcount is
+    // unsourced however many places hold it; it is not the spoken-figure
+    // hazard (a source holds it), it is simply ungrounded.
     expect(
       run(
         [
@@ -465,13 +467,17 @@ describe("suggested-interpretation and general-knowledge", () => {
         "other",
         spoken,
       ),
-    ).toEqual([]);
+    ).toEqual(["claims.0:ungrounded_figure"]);
   });
 
   it("lets general-knowledge carry technical figures but not suggested-interpretation", () => {
     expect(
       run([
-        { kind: "general-knowledge", text: "A 404 means not found", refs: [] },
+        {
+          kind: "general-knowledge",
+          text: "An HTTP 404 means not found",
+          refs: [],
+        },
       ]),
     ).toEqual([]);
     expect(
@@ -495,7 +501,7 @@ describe("suggested-interpretation and general-knowledge", () => {
     expect(run([make("I worked at the company for years")])).toEqual([
       "claims.0:personal_claim_unsourced",
     ]);
-    expect(run([make("Our team shipped it in 2021")])).toEqual([
+    expect(run([make("Our team shipped it last year")])).toEqual([
       "claims.0:personal_claim_unsourced",
     ]);
     expect(run([make("Example Corp was great")])).toEqual([
@@ -529,7 +535,9 @@ describe("not-in-matrix", () => {
     ).toEqual(["claims.0.refs:unexpected_reference"]);
   });
 
-  it("allows a figure only when the interviewer said it", () => {
+  it("carries no figure, even one the interviewer said", () => {
+    // Fix round 1 (D2/D3): a spoken figure in a not-in-matrix claim would
+    // re-state the interviewer's unverified claim as a fact.
     expect(
       run(
         [{ kind: "not-in-matrix", text: "You managed 12 engineers", refs: [] }],
@@ -537,7 +545,7 @@ describe("not-in-matrix", () => {
         "other",
         ["You managed 12 engineers, right?"],
       ),
-    ).toEqual([]);
+    ).toEqual(["claims.0:ungrounded_figure"]);
     expect(
       run([
         { kind: "not-in-matrix", text: "You managed 12 engineers", refs: [] },

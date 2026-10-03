@@ -57,9 +57,10 @@ const normalizeText = (text: string) =>
 // scope by design.
 const FIGURE = /(?<![\p{L}\d.,])\d+(?:[.,]\d+)*(?:%|[kKmMbB](?![\p{L}]))?\+?/gu;
 
-// Canonical comparison key: lower case, no thousands commas, no percent sign.
-const figureKey = (figure: string) =>
-  figure.toLowerCase().replaceAll(",", "").replace("%", "");
+// Canonical comparison key: lower case, no thousands commas. The percent sign
+// is KEPT: "40%" is a different claim from "40" (a quote of "40%" may support a
+// bare "40", a bare "40" never supports "40%", see supportedFigureKeys).
+const figureKey = (figure: string) => figure.toLowerCase().replaceAll(",", "");
 
 export function figuresOf(text: string): Set<string> {
   return new Set((text.match(FIGURE) ?? []).map(figureKey));
@@ -67,14 +68,44 @@ export function figuresOf(text: string): Set<string> {
 
 // A quote "4m+" supports a claim of "4m+" and of "4m"; a quote "4m" does not
 // support "4m+" (an unstated lower bound is an overclaim).
-function supportedFigureKeys(texts: readonly string[]): Set<string> {
+export function supportedFigureKeys(texts: readonly string[]): Set<string> {
   const keys = new Set<string>();
   for (const text of texts)
     for (const key of figuresOf(text)) {
       keys.add(key);
-      if (key.endsWith("+")) keys.add(key.slice(0, -1));
+      let base = key;
+      if (base.endsWith("+")) {
+        base = base.slice(0, -1);
+        keys.add(base);
+      }
+      if (base.endsWith("%")) keys.add(base.slice(0, -1));
     }
   return keys;
+}
+
+// [DOMAIN] General-knowledge figure allowance (documented, deliberately
+// small). A claim or draft that is NOT backed by a cited source may carry only:
+// complexity notation (O(n^2), Theta(...)), a bare integer <= 10 (no %, k, m,
+// comma), or a standards/version token introduced by a keyword (HTTP 404,
+// TLS 1.3, version 2, port 443). Anything else (headcounts, percentages,
+// amounts, years) must come from a verified source.
+const COMPLEXITY_NOTATION = /(?<![\p{L}])[OΘΩ]\((?:[^()]|\([^()]*\))*\)/gu;
+const STANDARD_TOKEN_CONTEXT =
+  /(?:^|[^\p{L}])(?:http|https|rfc|iso|tls|ssl|es|ipv|status|code|port|error|version|v)\s*[-/:]?\s*$/iu;
+export const MAX_GENERAL_INTEGER = 10;
+
+// Keys of the figures in text that the general-knowledge allowance does NOT
+// cover.
+export function nonGeneralFigures(text: string): string[] {
+  const clean = text.replace(COMPLEXITY_NOTATION, " ");
+  const found: string[] = [];
+  for (const match of clean.matchAll(FIGURE)) {
+    const raw = match[0];
+    if (/^\d+$/.test(raw) && Number(raw) <= MAX_GENERAL_INTEGER) continue;
+    if (STANDARD_TOKEN_CONTEXT.test(clean.slice(0, match.index))) continue;
+    found.push(figureKey(raw));
+  }
+  return found;
 }
 
 const STOPWORDS = new Set(
@@ -103,14 +134,68 @@ export function significantWords(text: string): Set<string> {
   );
 }
 
+// [DOMAIN] Support terms: the significant words PLUS short high-risk terms.
+// A three-letter term is a risk term when it is written in capitals in the
+// text (SQL, AWS, API) or is on the short list below: a fabricated "CEO",
+// "CTO" or "AWS" is exactly what a four-letter minimum would let through.
+const HIGH_RISK_SHORT = new Set(["ceo", "cto", "cfo", "coo", "aws", "gcp"]);
+export function riskTerms(text: string): Set<string> {
+  const risk = new Set<string>();
+  for (const word of text.match(/(?<![A-Za-z])[A-Za-z]{3}(?![A-Za-z])/g) ??
+    []) {
+    const lower = word.toLowerCase();
+    if (word === word.toUpperCase() || HIGH_RISK_SHORT.has(lower))
+      risk.add(lower);
+  }
+  return risk;
+}
+export function supportTerms(text: string): Set<string> {
+  return new Set([...significantWords(text), ...riskTerms(text)]);
+}
+// [DOMAIN] The residual rule: after the share, at most this many of a claim's
+// support terms may be missing from the cited quotes. One covers a connective
+// the paraphrase added ("tooling"); two or more is an appended clause
+// ("... and received the company excellence award"). A risk term (CEO, AWS,
+// SQL) has no allowance: missing from the quotes, it rejects the claim.
+export const MAX_UNMATCHED_TERMS = 1;
+
 // The role prefix of a candidate pointer, e.g. "/roles/2/".
 const ROLE_PREFIX = /^\/roles\/\d+\//;
+
+// The distinct role prefixes of refs, and whether every ref sits in a role.
+// A matrix-backed claim must come from ONE role: pooling /roles/0 metrics with
+// /roles/1/company would attribute one employer's result to another.
+function roleScope(refs: readonly ClaimRef[]): {
+  roles: Set<string>;
+  allInRole: boolean;
+} {
+  const roles = new Set<string>();
+  let allInRole = true;
+  for (const ref of refs) {
+    const role = ref.pointer.match(ROLE_PREFIX)?.[0];
+    if (role) roles.add(role);
+    else allInRole = false;
+  }
+  return { roles, allInRole };
+}
+export const crossesRoles = (refs: readonly ClaimRef[]) => {
+  const { roles, allInRole } = roleScope(refs);
+  return roles.size > 1 || (roles.size === 1 && !allInRole);
+};
 
 export type VerifyContext = {
   snapshot: ContextSnapshot;
   captured: readonly string[];
   category: string;
   draft?: string | undefined;
+  // The non-missing STAR elements: their text is shown to the candidate, so it
+  // is verified against the claims it cites (never against claim text alone).
+  star?: readonly StarElementText[] | undefined;
+};
+export type StarElementText = {
+  element: string;
+  text: string;
+  claimIndexes: readonly number[];
 };
 
 const FIRST_PERSON = /\b(?:i|i've|i'd|i'm|my|me|we|we've|our|us)\b/i;
@@ -176,21 +261,23 @@ function refPathCode(
   return null;
 }
 
-// [DOMAIN] The reference SUPPORTS the claim when every figure of the claim is
-// in the cited quotes (or in the cited role's own metric values) AND the
-// quotes carry at least MIN_SUPPORT_SHARE of the claim's significant words.
-// Only the cited sources are consulted, never a search of the rest.
+// [DOMAIN] The reference SUPPORTS the text (a claim, or a STAR element against
+// the union of its cited claims' quotes) when: every figure of the text is in
+// the cited quotes (or in the cited role's own metric values); every employer
+// named in the text is in the quotes or is the cited role's company; the quotes
+// carry at least MIN_SUPPORT_SHARE of the text's support terms; and at most
+// MAX_UNMATCHED_TERMS terms are missing (no appended clause). Only the cited
+// sources are consulted, never a search of the rest.
 function supports(
-  claimText: string,
+  text: string,
   refs: readonly ClaimRef[],
   snapshot: ContextSnapshot,
   withMetrics: boolean,
 ): boolean {
-  const texts = refs.map((ref) => ref.quote);
+  const quotes = refs.map((ref) => ref.quote);
+  const texts = [...quotes];
+  const { roles } = roleScope(refs);
   if (withMetrics) {
-    const roles = new Set(
-      refs.flatMap((ref) => ref.pointer.match(ROLE_PREFIX) ?? []),
-    );
     for (const source of snapshot.sources)
       if (
         source.sourceKind === "candidate" &&
@@ -203,18 +290,147 @@ function supports(
         texts.push(source.text);
   }
   const allowed = supportedFigureKeys(texts);
-  for (const figure of figuresOf(claimText))
-    if (!allowed.has(figure)) return false;
-  const claimWords = significantWords(claimText);
-  if (claimWords.size === 0) return false;
-  const quoteWords = significantWords(refs.map((ref) => ref.quote).join(" "));
+  for (const figure of figuresOf(text)) if (!allowed.has(figure)) return false;
+  // Employers named in the text must come from the cited entries.
+  const lowerText = normalizeText(text);
+  const lowerQuotes = normalizeText(quotes.join(" "));
+  const roleCompanies = new Set(
+    snapshot.sources
+      .filter(
+        (source) =>
+          source.sourceKind === "candidate" &&
+          [...roles].some((role) => source.pointer === `${role}company`),
+      )
+      .map((source) => normalizeText(source.text)),
+  );
+  // The employer's own name is verified here (quote or cited role), so its
+  // words count as matched rather than as unmatched terms.
+  const quoteTerms = supportTerms(quotes.join(" "));
+  for (const source of snapshot.sources) {
+    if (
+      source.sourceKind !== "candidate" ||
+      !/^\/roles\/\d+\/company$/.test(source.pointer)
+    )
+      continue;
+    const company = normalizeText(source.text);
+    if (!company || !lowerText.includes(company)) continue;
+    if (!lowerQuotes.includes(company) && !roleCompanies.has(company))
+      return false;
+    for (const term of supportTerms(source.text)) quoteTerms.add(term);
+  }
+  const terms = supportTerms(text);
+  if (terms.size === 0) return false;
+  const quoteWords = new Set(
+    quotes
+      .join(" ")
+      .toLowerCase()
+      .match(/[a-z]+/g) ?? [],
+  );
+  for (const risk of riskTerms(text))
+    if (!quoteWords.has(risk) && !quoteTerms.has(risk)) return false;
   let shared = 0;
-  for (const word of claimWords) if (quoteWords.has(word)) shared += 1;
-  return shared > 0 && shared / claimWords.size >= MIN_SUPPORT_SHARE;
+  for (const term of terms) if (quoteTerms.has(term)) shared += 1;
+  return (
+    shared > 0 &&
+    shared / terms.size >= MIN_SUPPORT_SHARE &&
+    terms.size - shared <= MAX_UNMATCHED_TERMS
+  );
 }
 
 const allSourceFigures = (snapshot: ContextSnapshot) =>
   supportedFigureKeys(snapshot.sources.map((source) => source.text));
+
+type DraftCheck = {
+  flag: (path: string, code: string) => void;
+  logistics: boolean;
+  leavingRole: boolean;
+  companies: readonly string[];
+  matrixTexts: readonly string[];
+  matrixClaimTexts: readonly string[];
+  groundedFigures: ReadonlySet<string>;
+  preferenceFigures: ReadonlySet<string>;
+  capturedFigures: ReadonlySet<string>;
+  sourceFigures: ReadonlySet<string>;
+};
+
+// [DOMAIN] Reason-for-leaving lexicon (leaving-role drafts). A draft sentence
+// carrying any of these cues states or hints at WHY the candidate left, which
+// is the candidate's to supply. Only the placeholder, or text a verified
+// matrix-backed claim already states, may carry them.
+const LEAVING_REASON_CUE =
+  /\b(?:because|since|so that|left|leave|leaving|quit|resign\w*|fired|laid off|layoffs?|stopped|too|wanted|wants?|burn(?:ed|t)?[- ]?out|redundan\w*|restructur\w*|downsiz\w*|dismiss\w*)\b/i;
+const sentencesOf = (text: string) =>
+  text
+    .split(/[.!?\n]+/)
+    .map((sentence) => normalizeText(sentence))
+    .filter(Boolean);
+
+// [SAFETY] The spoken draft is shown to the candidate whatever the model's
+// category says, so it gets the grounding rules the claims get: no figure the
+// verified claims do not carry, notice period and compensation only from
+// preferences, employer names only beside a matrix-backed claim naming them,
+// and no generated reason for leaving.
+function checkDraft(draft: string, check: DraftCheck): void {
+  const { flag } = check;
+  if (disparagesEmployer(draft)) flag("draft", "disparages_employer");
+  const body = normalizeText(draft).replaceAll(
+    normalizeText(LEAVING_REASON_PLACEHOLDER),
+    " ",
+  );
+  const sentences = sentencesOf(draft);
+  if (check.logistics) {
+    for (const key of figuresOf(draft))
+      if (!check.preferenceFigures.has(key)) {
+        flag("draft", "ungrounded_logistics_figure");
+        break;
+      }
+  } else {
+    for (const sentence of sentences) {
+      const topical =
+        isCompensationText(sentence) || isNoticePeriodText(sentence);
+      if (topical) {
+        // Figures of notice period and compensation: preference-backed only.
+        for (const key of figuresOf(sentence))
+          if (!check.preferenceFigures.has(key)) {
+            flag("draft", "preference_only_topic");
+            break;
+          }
+        continue;
+      }
+      const loose = nonGeneralFigures(sentence).filter(
+        (key) => !check.groundedFigures.has(key),
+      );
+      if (loose.length)
+        flag(
+          "draft",
+          loose.some(
+            (key) =>
+              check.capturedFigures.has(key) && !check.sourceFigures.has(key),
+          )
+            ? "spoken_figure"
+            : "ungrounded_figure",
+        );
+    }
+  }
+  // An employer the candidate worked for may be named only beside a
+  // matrix-backed claim that names it.
+  if (
+    check.companies.some(
+      (company) =>
+        company &&
+        normalizeText(draft).includes(company) &&
+        !check.matrixClaimTexts.some((text) => text.includes(company)),
+    )
+  )
+    flag("draft", "personal_claim_unsourced");
+  if (check.leavingRole)
+    for (const sentence of sentencesOf(body))
+      if (
+        LEAVING_REASON_CUE.test(sentence) &&
+        !check.matrixTexts.some((text) => text.includes(sentence))
+      )
+        flag("draft", "generated_reason");
+}
 
 export function verifyClaims(
   claims: readonly Claim[],
@@ -240,6 +456,10 @@ export function verifyClaims(
   // Figures that a preference-backed claim legitimately carries, for the
   // logistics draft check.
   const preferenceFigures = new Set<string>();
+  // Figures a VERIFIED matrix- or preference-backed claim carries (its quotes
+  // and its own text): the only non-general figures a draft may speak.
+  const groundedFigures = new Set<string>();
+  const matrixTexts: string[] = [];
 
   for (const [index, claim] of claims.entries()) {
     const at = `claims.${index}`;
@@ -268,6 +488,10 @@ export function verifyClaims(
         continue;
       }
       let structurallyValid = true;
+      if (claim.kind === "matrix-backed" && crossesRoles(refs)) {
+        flag(`${at}.refs`, "cross_role_references");
+        structurallyValid = false;
+      }
       for (const [refIndex, ref] of refs.entries()) {
         const code = refPathCode(
           ref,
@@ -280,15 +504,25 @@ export function verifyClaims(
           structurallyValid = false;
         }
       }
-      if (
+      const supported =
         structurallyValid &&
-        !supports(claim.text, refs, snapshot, claim.kind === "matrix-backed")
-      )
+        supports(claim.text, refs, snapshot, claim.kind === "matrix-backed");
+      if (structurallyValid && !supported)
         for (const refIndex of refs.keys())
           flag(`${at}.refs.${refIndex}`, "unsupported_reference");
-      if (structurallyValid && claim.kind === "preference-backed")
-        for (const ref of refs)
-          for (const key of figuresOf(ref.quote)) preferenceFigures.add(key);
+      if (supported) {
+        if (claim.kind === "matrix-backed")
+          matrixTexts.push(normalizeText(claim.text));
+        for (const key of supportedFigureKeys([
+          claim.text,
+          ...refs.map((ref) => ref.quote),
+        ]))
+          groundedFigures.add(key);
+        if (claim.kind === "preference-backed")
+          for (const ref of refs)
+            for (const key of supportedFigureKeys([ref.quote]))
+              preferenceFigures.add(key);
+      }
       continue;
     }
 
@@ -296,14 +530,14 @@ export function verifyClaims(
     if (refs.length > 0) flag(`${at}.refs`, "unexpected_reference");
     if (claim.kind === "not-in-matrix") {
       if (preferenceOnlyTopic) flag(at, "preference_only_topic");
-      for (const key of claimFigures)
-        if (!capturedFigures.has(key)) {
-          flag(
-            at,
-            logistics ? "ungrounded_logistics_figure" : "ungrounded_figure",
-          );
-          break;
-        }
+      // [SAFETY] A not-in-matrix claim is labelled, never evidence: it carries
+      // no figure beyond the general allowance, not even one the interviewer
+      // said aloud (that would re-state an unverified claim as a fact).
+      if (logistics ? claimFigures.size : nonGeneralFigures(claim.text).length)
+        flag(
+          at,
+          logistics ? "ungrounded_logistics_figure" : "ungrounded_figure",
+        );
       continue;
     }
 
@@ -319,21 +553,17 @@ export function verifyClaims(
       flag(at, "ungrounded_logistics_figure");
       continue;
     }
-    for (const key of claimFigures) {
-      if (capturedFigures.has(key) && !sourceFigures.has(key)) {
-        // [SAFETY] Hazard 7b: a figure the interviewer said aloud and the
-        // sources lack must not be echoed as fact.
-        flag(at, "spoken_figure");
-        break;
-      }
-      if (
-        claim.kind === "suggested-interpretation" &&
-        !sourceFigures.has(key)
-      ) {
-        flag(at, "ungrounded_figure");
-        break;
-      }
-    }
+    const loose = nonGeneralFigures(claim.text);
+    if (loose.length)
+      // [SAFETY] Hazard 7b: a figure the interviewer said aloud and the
+      // sources lack must not be echoed as fact; any other figure outside the
+      // general allowance is equally unsourced.
+      flag(
+        at,
+        loose.some((key) => capturedFigures.has(key) && !sourceFigures.has(key))
+          ? "spoken_figure"
+          : "ungrounded_figure",
+      );
     if (claim.kind === "general-knowledge") {
       const lower = normalizeText(claim.text);
       if (
@@ -345,15 +575,34 @@ export function verifyClaims(
     }
   }
 
-  if (context.draft !== undefined) {
-    if (disparagesEmployer(context.draft)) flag("draft", "disparages_employer");
-    if (logistics)
-      for (const key of figuresOf(context.draft))
-        if (!preferenceFigures.has(key)) {
-          flag("draft", "ungrounded_logistics_figure");
-          break;
-        }
+  for (const element of context.star ?? []) {
+    const at = `star.${element.element}`;
+    if (disparagesEmployer(element.text)) flag(at, "disparages_employer");
+    const refs = element.claimIndexes.flatMap((index) => {
+      const claim = claims[index];
+      return claim?.kind === "matrix-backed" && Array.isArray(claim.refs)
+        ? claim.refs
+        : [];
+    });
+    if (refs.length > 0 && !supports(element.text, refs, snapshot, true))
+      flag(at, "unsupported_element");
   }
+
+  if (context.draft !== undefined)
+    checkDraft(context.draft, {
+      flag,
+      logistics,
+      leavingRole,
+      companies,
+      matrixTexts,
+      matrixClaimTexts: claims
+        .filter((claim) => claim.kind === "matrix-backed")
+        .map((claim) => normalizeText(claim.text)),
+      groundedFigures,
+      preferenceFigures,
+      capturedFigures,
+      sourceFigures,
+    });
 
   return violations.length
     ? { ok: false, violations: violations.slice(0, MAX_VIOLATIONS) }

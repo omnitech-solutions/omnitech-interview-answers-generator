@@ -30,6 +30,7 @@ import {
   figuresOf,
   LEAVING_REASON_PLACEHOLDER,
   MAX_REFS_PER_CLAIM,
+  supportedFigureKeys,
   verifyClaims,
 } from "./claims.js";
 import {
@@ -322,8 +323,9 @@ const SYSTEM_POLICY = [
   'Every statement about the candidate goes in "claims", each {"kind","text","refs"}. Kind is one of: matrix-backed, preference-backed, suggested-interpretation, general-knowledge, not-in-matrix.',
   'A matrix-backed claim has refs {"sourceId","revision","pointer","quote"} to an entry of BEGIN APPROVED EXPERIENCE, quoting that entry verbatim, and states only what the cited entries say. Never state a figure that is not in a cited entry.',
   "A preference-backed claim cites an entry of BEGIN CANDIDATE PREFERENCES the same way. Notice period and compensation come only from candidate preferences; when none is given, list them as missing and state what the candidate must supply. Never invent them.",
-  "A suggested-interpretation is the candidate's own motive or opinion and carries no refs and no figure. A general-knowledge claim is technical, has no refs and says nothing personal about the candidate.",
-  "A claim the approved experience does not support is not-in-matrix, with no refs: label it, never present it as fact.",
+  "A suggested-interpretation is the candidate's own motive or opinion and carries no refs and no figure. A general-knowledge claim is technical, has no refs and says nothing personal about the candidate. Without a cited entry, use only complexity notation, integers up to 10 or a standards token such as HTTP 404; every other figure needs a cited entry.",
+  "A claim the approved experience does not support is not-in-matrix, with no refs and no figure: label it, never present it as fact, and never repeat a figure the interviewer said.",
+  "The draft and every STAR element text obey the same rules as claims: a figure, an employer name, a notice period or a compensation figure appears only if a cited claim carries it, and an element text only restates what its cited entries say.",
   'For leadership-behavioural, "star" is {situation, task, action, result, missing}; each element is {"text","claimIndexes"} citing at least one matrix-backed claim, or it is listed in "missing" with empty text and no claim indexes. Never invent a story.',
   'For logistics, "logistics" is {"found":[{"field","claimIndex"}],"missing":[fields]}; found lists only preference-backed claims.',
   `For leaving-role, never generate the reason for leaving: write exactly "${LEAVING_REASON_PLACEHOLDER}" in the draft and as the only suggested-interpretation. Employer names and dates only as matrix-backed claims. Never disparage an employer.`,
@@ -452,9 +454,8 @@ function crossFieldViolations(output: Output): string[] {
       if (entry.text === "") flag(`${at}.text`, "empty");
       if (!cited.some((claim) => claim.kind === "matrix-backed"))
         flag(at, "no_matrix_backed_claim");
-      const allowed = new Set(
-        cited.flatMap((claim) => [...figuresOf(claim.text)]),
-      );
+      // A "40%" claim supports "40 percent" wording as a bare 40.
+      const allowed = supportedFigureKeys(cited.map((claim) => claim.text));
       for (const figure of figuresOf(entry.text))
         if (!allowed.has(figure)) {
           flag(`${at}.text`, "ungrounded_figure");
@@ -560,6 +561,17 @@ export function createAssistStage(
         captured: ctx.captured,
         category: output.category,
         draft: output.draft,
+        star: output.star
+          ? STAR_ELEMENTS.filter(
+              (element) => !output.star?.missing.includes(element),
+            ).map((element) => ({
+              element,
+              text: (output.star as NonNullable<Output["star"]>)[element].text,
+              claimIndexes: (output.star as NonNullable<Output["star"]>)[
+                element
+              ].claimIndexes,
+            }))
+          : undefined,
       });
       if (!verified.ok) violations.unshift(...verified.violations);
       if (violations.length > 0)
