@@ -234,3 +234,91 @@ describe("the recruiter-screen script through the core", () => {
     expect(revisionStanding(tasks, "task-2", 1)).not.toBe("current");
   });
 });
+
+describe("backchannel variants and candidate-side speech", () => {
+  it.each(["Mm-hmm.", "Mm hmm", "Uh-huh.", "Mhm", "Yeahhh", "Okaaay.", "Mmm"])(
+    "recognises %j as a backchannel",
+    (text) => {
+      expect(isBackchannel(text)).toBe(true);
+      expect(verdict(text).segmentClass).toBe("backchannel");
+    },
+  );
+
+  const open = [{ taskId: "task-1", taskKey: "q-x", revision: 1 }];
+  const from = (
+    source: "microphone" | "application-audio",
+    text: string,
+    openTasks = open,
+  ) =>
+    decideBaseline({
+      utterance: {
+        id: "u2",
+        speaker: "speaker-2",
+        source,
+        segmentIds: ["u2"],
+        startMs: 0,
+        endMs: 1,
+        text,
+      },
+      openTasks,
+      deferredTopics: [],
+    });
+
+  it.each([
+    "We moved the reporting service onto PostgreSQL instead of the document store.",
+    "And what about the cost side, we cut it by a third.",
+    "How would I put it? We kept both paths alive for two weeks.",
+    "Why did we do it that way? Mostly because of the deadline.",
+  ])(
+    "never opens or revises a task from the candidate's own speech: %s",
+    (text) => {
+      expect(from("microphone", text).decision).toEqual({ kind: "ignore" });
+      expect(from("microphone", text, []).decision).toEqual({ kind: "ignore" });
+    },
+  );
+
+  it("still revises or opens from the interviewer's side", () => {
+    expect(
+      from("application-audio", "And what about the cost side?").decision,
+    ).toMatchObject({ kind: "revise", reason: "constraint_changed" });
+    expect(
+      from("application-audio", "How would you size that?", []).decision,
+    ).toMatchObject({ kind: "open" });
+  });
+
+  it("does not revise on an unrelated interviewer sentence", () => {
+    expect(
+      from("application-audio", "Thanks, that is clear to me.").decision,
+    ).toEqual({ kind: "ignore" });
+  });
+});
+
+describe("source reaches the policy through the core", () => {
+  const final = (sourceId: string, eventId: string, text: string) =>
+    applyTranscriptFinal(
+      emptyTranscript(),
+      {
+        version: 1,
+        kind: "transcript.final",
+        sourceId,
+        eventId,
+        occurredAt: "2026-10-03T10:00:00.000Z",
+        sequence: 1,
+        content: { speaker: "speaker-2", text, startMs: 0, endMs: 1 },
+      },
+      1,
+    ).view;
+
+  it("a microphone question coalesces into a microphone utterance the policy ignores", async () => {
+    const view = final("microphone", "e1", "How would I put it? Both paths.");
+    const [utterance] = coalesceSegments(effectiveSegments(view), () => false);
+    expect(utterance?.source).toBe("microphone");
+    const policy = createInterviewSessionPolicy();
+    const decided = await policy.decide({
+      utterance: utterance as NonNullable<typeof utterance>,
+      openTasks: [],
+      deferredTopics: [],
+    });
+    expect(decided.decision).toEqual({ kind: "ignore" });
+  });
+});

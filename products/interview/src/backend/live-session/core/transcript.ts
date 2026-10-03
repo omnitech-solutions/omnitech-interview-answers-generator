@@ -5,10 +5,25 @@
 import type { TranscriptFinal } from "@omnitech/active-session-contracts";
 import type { Utterance } from "./ports.js";
 
+export type CaptureSource = "microphone" | "application-audio";
+
+// The wire's content.source, else the observation's source id when that names
+// one of the two captured sources (older senders omit content.source).
+const captureSourceOf = (
+  observation: TranscriptFinal,
+): CaptureSource | undefined => {
+  const named = observation.content.source ?? observation.sourceId;
+  return named === "microphone" || named === "application-audio"
+    ? named
+    : undefined;
+};
+
 export type Segment = {
   eventId: string;
   sourceId: string;
   speaker: string;
+  // Which captured audio source produced the text; a label, never an identity.
+  source?: CaptureSource;
   startMs: number;
   endMs: number;
   text: string;
@@ -51,6 +66,7 @@ export function applyTranscriptFinal(
   const bornSuperseded = pending[observation.eventId] ?? null;
   delete pending[observation.eventId];
   const corrected = content.supersedes;
+  const source = captureSourceOf(observation);
   const originId =
     corrected && corrected !== observation.eventId
       ? (view.segments[corrected]?.originId ?? corrected)
@@ -59,6 +75,7 @@ export function applyTranscriptFinal(
     eventId: observation.eventId,
     sourceId: observation.sourceId,
     speaker: content.speaker,
+    ...(source ? { source } : {}),
     startMs: content.startMs,
     endMs: content.endMs,
     text: content.text,
@@ -114,6 +131,7 @@ export function coalesceSegments(
     utterances.push({
       id: first.eventId,
       speaker: open.speaker,
+      ...(first.source ? { source: first.source } : {}),
       segmentIds: open.parts.map((part) => part.eventId),
       startMs: first.startMs,
       endMs: last.endMs,
@@ -145,6 +163,7 @@ export function coalesceSegments(
       utterances.push({
         id: segment.eventId,
         speaker: segment.speaker,
+        ...(segment.source ? { source: segment.source } : {}),
         segmentIds: [segment.eventId],
         startMs: segment.startMs,
         endMs: segment.endMs,

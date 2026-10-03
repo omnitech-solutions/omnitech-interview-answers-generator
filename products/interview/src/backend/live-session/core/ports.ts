@@ -40,6 +40,10 @@ export type TaskDecision =
 export type Utterance = {
   id: string;
   speaker: string;
+  // The captured audio source ("microphone" is the candidate's own voice,
+  // "application-audio" the call's other side). A label, not a verified
+  // identity; absent when the sender named none.
+  source?: "microphone" | "application-audio";
   segmentIds: readonly string[];
   startMs: number;
   endMs: number;

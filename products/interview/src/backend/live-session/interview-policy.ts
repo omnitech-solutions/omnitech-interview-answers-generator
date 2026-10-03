@@ -4,13 +4,15 @@
 // what the question is (its category) is classified by the assist stage's one
 // structured call and read from its validated field, never guessed here
 // (rule:structured-field-decisions). Rules, in order:
-//   1. filler and backchannel never open or revise a task;
+//   1. filler, backchannel and the candidate's own speech never open or
+//      revise a task;
 //   2. "circle back", "put a pin" defer a topic;
 //   3. with an open task, "part two" / "now handle" / "what about" revise it;
 //   4. a question opens ONE task (a compound question is one utterance);
 //   5. a long task-less utterance is a monologue and is ignored.
-// These are approximations: source labels are not verified identities, so the
-// policy reads text, never who said it. It returns only opaque handles
+// Candidate-side speech (the microphone source) never opens, revises or defers.
+// These are approximations: source labels are not verified identities, so this
+// only reduces noise and the policy otherwise reads text. It returns only opaque handles
 // (rule:id-only-traces); no utterance text rides in a decision. Every synthetic
 // replay set (session-replay-fixtures.test.ts) is run through it.
 
@@ -36,12 +38,18 @@ export interface InterviewSessionPolicy extends TaskPolicy {
 // a monologue (context-setting), not a question.
 export const MONOLOGUE_WORDS = 40;
 
+// Compared after collapsing letter runs (see squash), so "Mm-hmm", "mmhmm",
+// "Yeahhh" and "Okaaay" all match their plain entry.
 const BACKCHANNELS = new Set([
   "mm hm",
+  "mm hmm",
   "mmhm",
+  "mmhmm",
   "mhm",
   "mm",
   "uh huh",
+  "uh-huh",
+  "yup",
   "yeah",
   "yep",
   "yes",
@@ -65,6 +73,9 @@ const BACKCHANNELS = new Set([
   "thank you",
 ]);
 const FILLERS = new Set(["um", "uh", "er", "erm", "hmm", "ah", "eh"]);
+
+// Elongation ("Yeahhh", "Mmm") collapses to one letter per run.
+const squash = (text: string): string => text.replace(/(.)\1+/gu, "$1");
 
 const QUESTION_STARTERS =
   /^(what|why|how|when|where|who|which|can you|could you|would you|will you|do you|did you|have you|are you|were you|is there|tell me|walk me through|talk me through|describe|explain|give me)\b/;
@@ -93,6 +104,9 @@ const normalize = (text: string): string =>
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+const SQUASHED_BACKCHANNELS = new Set(
+  [...BACKCHANNELS].map((entry) => squash(normalize(entry))),
+);
 const words = (text: string): string[] => {
   const normalized = normalize(text);
   return normalized === "" ? [] : normalized.split(" ");
@@ -116,7 +130,7 @@ export function isFiller(text: string): boolean {
 export function isBackchannel(text: string): boolean {
   const tokens = words(text);
   if (tokens.length === 0 || tokens.length > 4) return false;
-  return BACKCHANNELS.has(tokens.join(" "));
+  return SQUASHED_BACKCHANNELS.has(squash(tokens.join(" ")));
 }
 
 function isQuestion(text: string, monologue: boolean): boolean {
@@ -144,6 +158,16 @@ export function decideBaseline(input: PolicyInput): PolicyVerdict {
     return { segmentClass: "filler", decision: { kind: "ignore" } };
   if (isBackchannel(text))
     return { segmentClass: "backchannel", decision: { kind: "ignore" } };
+
+  // [GUARD] Only the call's other side opens, revises or defers a task: the
+  // candidate's own statements and thinking-aloud questions never do. The
+  // source is a label, not a verified identity, so this only reduces noise;
+  // an utterance with no source (an older sender) is still evaluated.
+  if (utterance.source === "microphone")
+    return {
+      segmentClass: monologue ? "monologue" : "substantive",
+      decision: { kind: "ignore" },
+    };
 
   // A deferred topic stays in task state; it is not a question.
   if (DEFER_CUES.some((cue) => cue.test(normalized)))
