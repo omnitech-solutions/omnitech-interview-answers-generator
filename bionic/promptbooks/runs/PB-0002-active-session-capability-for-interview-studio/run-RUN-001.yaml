@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 6
+current_prompt: 7
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -45,15 +45,15 @@ prompts:
   artifacts: ["ADR #2: ADR-0011 (rule:actor-private-session-rows rule:composite-owner-references rule:linked-resource-authorization rule:owner-checked-read-paths rule:actor-guarded-agent-jobs rule:private-session-artifact-types rule:session-claim-policy rule:content-storage-of-record rule:raw-audio-never-persisted rule:bounded-ingest rule:retention-modes rule:complete-session-purge rule:id-only-traces rule:captured-input-untrusted rule:declared-profile-locality rule:session-processing-policy rule:device-only-enforced-twice rule:refuse-not-degrade rule:tighten-only-locality rule:no-second-scorecard rule:assistance-counts-as-hints)", "bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md"]
 - n: 6
   title: 'Plan #2: convene LLM council to review the ADR'
-  state: "running"
+  state: "done"
   started: "2026-10-03T06:55:08Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T07:05:48Z"
+  result: "Council round 1 convened as the book's documented equivalent: 5 parallel Claude review sub-agents (Completeness, Correctness, Consistency, Clarity, Security). NOT the multi-model Claude+Gemini+GPT council: not run, because it sends ADR text externally and spends, which the book does not authorize. Verdicts: Completeness REQUEST_CHANGES, Correctness REQUEST_CHANGES, Consistency REQUEST_CHANGES, Clarity APPROVE_WITH_NITS, Security REQUEST_CHANGES => split. srde not run (dissents safety-adjacent, auto-drop excluded). One deep-architecture-review agent ran: REQUEST_CHANGES with binding rulings on 10 findings plus 2 new defects (agent-job event route owner-blind; assistant relay rows outlive purge) and a 20-edit list. Findings go to prompt 7."
+  artifacts: ["bionic/adrs/ADR-0011-keep-active-session-data-private-to-the-actor-and.md"]
 - n: 7
   title: 'Plan #2: address council findings, re-convene the council'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T07:05:48Z"
   completed: null
   result: ''
   artifacts: []
