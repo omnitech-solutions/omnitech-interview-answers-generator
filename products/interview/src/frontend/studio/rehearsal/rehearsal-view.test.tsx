@@ -172,6 +172,10 @@ function view(withQuestions = true) {
   );
 }
 // Lets pending fetches settle while fake timers are installed.
+// Focus mode is set by a passive effect, which React flushes after the commit
+// that put the phase on screen: findBy* can resolve on the DOM change first.
+// act() drains pending effects, so the assertion no longer races them.
+const flushEffects = () => act(async () => {});
 const settle = () =>
   act(async () => {
     for (let index = 0; index < 5; index++) await Promise.resolve();
@@ -263,6 +267,7 @@ describe("Rehearsal session", () => {
     view();
     fireEvent.click(screen.getByRole("button", { name: /Start full loop/ }));
     expect(await screen.findByText("CONCEPT PHASE")).toBeVisible();
+    await flushEffects();
     expect(setFocus).toHaveBeenLastCalledWith("live");
     expect(screen.getByText("QUESTION 1 OF 2 · CONCEPT")).toBeVisible();
     expect(screen.getByLabelText("Phase time left")).toHaveTextContent("15:00");
@@ -327,6 +332,7 @@ describe("Rehearsal session", () => {
       checks: [0, 8],
       reveals: ["hint1"],
     });
+    await flushEffects();
     expect(setFocus).toHaveBeenLastCalledWith(null);
 
     fireEvent.click(screen.getByRole("button", { name: /Asked clarifying/ }));
@@ -499,6 +505,7 @@ describe("Rehearsal from the CLI", () => {
       at({ id: "cli-1", action: "start", strict: true }),
     );
     expect(await screen.findByText("CONCEPT PHASE")).toBeVisible();
+    await flushEffects();
     expect(setFocus).toHaveBeenLastCalledWith("strict");
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
 
