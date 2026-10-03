@@ -7,7 +7,7 @@
 Run from the repository root:
 
 ```bash
-pnpm --filter @omnitech/database exec vitest run src/migrate.test.ts
+pnpm exec vitest run packages/database/src/migrate.test.ts
 pnpm --filter @omnitech/product-interview exec vitest run src/backend/db/security.test.ts
 ```
 

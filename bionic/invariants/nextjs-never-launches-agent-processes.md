@@ -2,9 +2,9 @@
 id: INV-0005
 class: contract
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0007]
 related_briefs: []
 checks: [nextjs-never-launches-agent-processes.md]
@@ -21,4 +21,4 @@ checks: [nextjs-never-launches-agent-processes.md]
 
 **Recovery confidence:** **contract** — high confidence for the dependency half (mechanical), lower for the process half (a grep cannot see every way to spawn a process).
 
-**Check:** [[invariants/checks/nextjs-never-launches-agent-processes]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/nextjs-never-launches-agent-processes]] — run 2026-10-02; `last_result: pass`.

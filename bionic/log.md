@@ -2,6 +2,67 @@
 
 _Append-only. Newest first._
 
+## [2026-10-02] journal | review: Independent ADR acceptance and invariant ratification
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-02T21:30-06:00. Refs: [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] [[invariants/index]]
+
+## [2026-10-02] arch | regenerated bionic/arch/ (decision index lists 5 accepted ADRs)
+
+Re-derived after ADR-0001, ADR-0002, ADR-0003 and ADR-0008 were accepted. `decision-index.md` lists ADR-0000, ADR-0001, ADR-0002, ADR-0003, ADR-0008.
+
+## [2026-10-02] adr | regenerated lineage and ADR views
+
+9 nodes, 0 supersedes edges, 0 amends edges. `adrs/index.md`, `summaries/`, `doctrine/` and the `## ADRs` rollup in `index.md` regenerated after four acceptances and seven ratifications.
+
+## [2026-10-02] invariant | INV-0009: observed → ratified
+
+INV-0009 (contract): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0008: observed → ratified
+
+INV-0008 (contract): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0007: observed → ratified
+
+INV-0007 (contract): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0006: observed → ratified
+
+INV-0006 (contract): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0005: observed → ratified
+
+INV-0005 (contract): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0003: observed → ratified
+
+INV-0003 (shape): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] invariant | INV-0001: observed → ratified
+
+INV-0001 (data): ratified on the owner's instruction (ratify every pin whose check passes); its check passed 2026-10-02. Provenance stays recovered.
+
+## [2026-10-02] lint | invariant checks run: 7 pass, 2 fail
+
+`invariants/reconciliation.yml` and pin `verification.last_result` recorded for INV-0001..INV-0009. Fail: INV-0002 (tenant or actor context set outside `packages/database/src` in `platform-storage/src/bootstrap.ts`, `presentation/src/repositories/index.ts`, `interview/src/backend/assistant/workspace.ts`); INV-0004 (`platform-api/src/router.test.ts` has no non-member, disabled-installation or missing-permission 404 case).
+Check commands fixed: `checks/tenant-owned-tables-force-rls.md`, `checks/schema-files-and-migrations-agree.md`, `checks/product-routes-resolve-membership-first.md` run vitest from the repository root; `pnpm --filter <pkg> exec vitest run src/...` found no test files under the root project config.
+
+## [2026-10-02] adr | ADR-0008: accept (accepted)
+
+Interview answers are structured guides that render their Markdown. Accepted by an independent architect after review against the code. Body frozen.
+
+## [2026-10-02] adr | ADR-0003: accept (accepted)
+
+Keep package boundaries narrow with one public entrypoint per runtime surface. Accepted by an independent architect after review against the code. Body frozen.
+
+## [2026-10-02] adr | ADR-0002: accept (accepted)
+
+Simplicity first: the least complex design that meets current requirements. Accepted by an independent architect after review against the code. Body frozen.
+
+## [2026-10-02] adr | ADR-0001: accept (accepted)
+
+Crux is the sole AI development workflow. Accepted by an independent architect after review against the code. Body frozen.
+
 ## [2026-10-02] journal | implementation: Forced RLS on every schema and package boundaries enforced in verify
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-02T21:05-06:00. Refs: [[research/concepts/architecture-overview]] [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] [[invariants/package-boundaries-hold]]

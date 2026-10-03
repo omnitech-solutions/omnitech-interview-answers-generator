@@ -2,9 +2,9 @@
 id: INV-0006
 class: contract
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0007]
 related_briefs: []
 checks: [products-never-branch-on-provider-names.md]
@@ -21,4 +21,4 @@ checks: [products-never-branch-on-provider-names.md]
 
 **Recovery confidence:** **contract** — low confidence. A name grep is a proxy: it flags literal provider names, not every branch on a configured value. Expect to refine the pattern at ratification.
 
-**Check:** [[invariants/checks/products-never-branch-on-provider-names]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/products-never-branch-on-provider-names]] — run 2026-10-02; `last_result: pass`.

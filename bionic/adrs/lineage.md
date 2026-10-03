@@ -24,14 +24,14 @@ graph TD
 | id | title | status | supersedes | amends | superseded_by |
 |----|-------|--------|------------|--------|---------------|
 | ADR-0000 | Record architectural decisions as ADRs | Accepted | — | — | — |
-| ADR-0001 | Crux is the sole AI development workflow | Proposed | — | — | — |
-| ADR-0002 | Simplicity first: the least complex design that meets current requirements | Proposed | — | — | — |
-| ADR-0003 | Keep package boundaries narrow with one public entrypoint per runtime surface | Proposed | — | — | — |
+| ADR-0001 | Crux is the sole AI development workflow | Accepted | — | — | — |
+| ADR-0002 | Simplicity first: the least complex design that meets current requirements | Accepted | — | — | — |
+| ADR-0003 | Keep package boundaries narrow with one public entrypoint per runtime surface | Accepted | — | — | — |
 | ADR-0004 | Build products as verticals inside a modular-monolith platform shell | Proposed | — | — | — |
 | ADR-0005 | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | — | — | — |
 | ADR-0006 | Keep login identities separate from connected provider accounts | Proposed | — | — | — |
 | ADR-0007 | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | — | — | — |
-| ADR-0008 | Interview answers are structured guides that render their Markdown | Proposed | — | — | — |
+| ADR-0008 | Interview answers are structured guides that render their Markdown | Accepted | — | — | — |
 
 ## Topic clusters
 

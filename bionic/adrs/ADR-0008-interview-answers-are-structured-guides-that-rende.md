@@ -1,10 +1,10 @@
 ---
 id: ADR-0008
 title: "Interview answers are structured guides that render their Markdown"
-status: Proposed
+status: Accepted
 date: 2026-10-02
 proposed_date: 2026-10-02
-accepted_date: null
+accepted_date: 2026-10-02
 deprecated_date: null
 superseded_date: null
 supersedes: []

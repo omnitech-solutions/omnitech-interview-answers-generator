@@ -2,9 +2,9 @@
 id: INV-0007
 class: contract
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0004]
 related_briefs: []
 checks: [product-frontend-never-imports-apps-web.md]
@@ -21,4 +21,4 @@ checks: [product-frontend-never-imports-apps-web.md]
 
 **Recovery confidence:** **contract** — high confidence (mechanical import check).
 
-**Check:** [[invariants/checks/product-frontend-never-imports-apps-web]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/product-frontend-never-imports-apps-web]] — run 2026-10-02; `last_result: pass`.

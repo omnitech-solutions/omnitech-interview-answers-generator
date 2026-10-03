@@ -4,7 +4,7 @@ class: behavior
 provenance: recovered
 ratification: observed
 verification:
-  last_result: none
+  last_result: fail
 related_adrs: [ADR-0004]
 related_briefs: []
 checks: [product-routes-resolve-membership-first.md]
@@ -21,4 +21,4 @@ checks: [product-routes-resolve-membership-first.md]
 
 **Recovery confidence:** **behavior** — low confidence (characterization candidate). The ordering is stated in [[research/concepts/platform-architecture]] and [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] Decision 4; the named test exercises the platform API router and may cover only part of the ordering. A pass would pin current behavior, not prove intent.
 
-**Check:** [[invariants/checks/product-routes-resolve-membership-first]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/product-routes-resolve-membership-first]] — run 2026-10-02; `last_result: fail` — fails as incomplete: `packages/platform-api/src/router.test.ts` passes but has no non-member, disabled-installation or missing-permission 404 case.

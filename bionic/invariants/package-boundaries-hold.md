@@ -2,9 +2,9 @@
 id: INV-0009
 class: contract
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0003, ADR-0004, ADR-0007]
 related_briefs: []
 checks: [package-boundaries-hold.md]
@@ -21,4 +21,4 @@ checks: [package-boundaries-hold.md]
 
 **Recovery confidence:** **contract** — high confidence. Enforced on every `pnpm verify` by an executable test over every package manifest and import.
 
-**Check:** [[invariants/checks/package-boundaries-hold]] — not yet recorded; `last_result: none`.
+**Check:** [[invariants/checks/package-boundaries-hold]] — run 2026-10-02; `last_result: pass`.

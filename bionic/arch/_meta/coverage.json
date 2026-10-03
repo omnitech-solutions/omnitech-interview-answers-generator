@@ -683,7 +683,7 @@
         "bionic/adrs/ADR-0008-interview-answers-are-structured-guides-that-rende.md",
         "bionic/adrs/index.md"
       ],
-      "n_entities": 1,
+      "n_entities": 5,
       "n_sources": 10,
       "verdict": "populated"
     }

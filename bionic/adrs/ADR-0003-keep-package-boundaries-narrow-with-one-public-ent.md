@@ -1,10 +1,10 @@
 ---
 id: ADR-0003
 title: "Keep package boundaries narrow with one public entrypoint per runtime surface"
-status: Proposed
+status: Accepted
 date: 2026-10-02
 proposed_date: 2026-10-02
-accepted_date: null
+accepted_date: 2026-10-02
 deprecated_date: null
 superseded_date: null
 supersedes: []

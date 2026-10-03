@@ -2,9 +2,9 @@
 id: INV-0001
 class: data
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0005]
 related_briefs: []
 checks: [tenant-owned-tables-force-rls.md]
@@ -21,4 +21,4 @@ checks: [tenant-owned-tables-force-rls.md]
 
 **Recovery confidence:** **data** — medium confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 1) and asserted by an existing integration test; recovered from documentation and test names, not from a full schema walk.
 
-**Check:** [[invariants/checks/tenant-owned-tables-force-rls]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/tenant-owned-tables-force-rls]] — run 2026-10-02; `last_result: pass`.

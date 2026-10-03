@@ -24,14 +24,14 @@ See [[research/index]].
 
 | id | title | status | date |
 |---|---|---|---|
-| [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Proposed | 2026-10-02 |
+| [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 |
 | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | 2026-10-02 |
 | [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] | Keep login identities separate from connected provider accounts | Proposed | 2026-10-02 |
 | [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | 2026-10-02 |
 | [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] | Build products as verticals inside a modular-monolith platform shell | Proposed | 2026-10-02 |
-| [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] | Keep package boundaries narrow with one public entrypoint per runtime surface | Proposed | 2026-10-02 |
-| [[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]] | Simplicity first: the least complex design that meets current requirements | Proposed | 2026-10-02 |
-| [[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]] | Crux is the sole AI development workflow | Proposed | 2026-10-02 |
+| [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] | Keep package boundaries narrow with one public entrypoint per runtime surface | Accepted | 2026-10-02 |
+| [[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]] | Simplicity first: the least complex design that meets current requirements | Accepted | 2026-10-02 |
+| [[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]] | Crux is the sole AI development workflow | Accepted | 2026-10-02 |
 | [[adrs/ADR-0000-record-architecture-decisions]] | Record architectural decisions as ADRs | Accepted | 2026-10-02 |
 
 ## Briefs (0)
@@ -48,7 +48,7 @@ See [[promptbooks/index]].
 
 ## Invariants (9)
 
-9 pins, all `observed` (survey debt: 9 awaiting owner ratification via `transition-invariant`). See [[invariants/index]]; checks live in the `invariants/checks/` subdirectory.
+9 pins: 7 `ratified`, 2 `observed` with failing checks (survey debt: 2 — INV-0002, INV-0004). See [[invariants/index]]; checks live in the `invariants/checks/` subdirectory.
 
 ## Observations (0)
 

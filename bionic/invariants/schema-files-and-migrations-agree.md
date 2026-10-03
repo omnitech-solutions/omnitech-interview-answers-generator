@@ -2,9 +2,9 @@
 id: INV-0003
 class: shape
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0005]
 related_briefs: []
 checks: [schema-files-and-migrations-agree.md]
@@ -21,4 +21,4 @@ checks: [schema-files-and-migrations-agree.md]
 
 **Recovery confidence:** **shape** — high confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 3) and enforced by existing migrate and schema-drift tests.
 
-**Check:** [[invariants/checks/schema-files-and-migrations-agree]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/schema-files-and-migrations-agree]] — run 2026-10-02; `last_result: pass`.

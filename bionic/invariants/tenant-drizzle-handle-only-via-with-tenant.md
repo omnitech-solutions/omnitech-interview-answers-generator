@@ -4,7 +4,7 @@ class: contract
 provenance: recovered
 ratification: observed
 verification:
-  last_result: none
+  last_result: fail
 related_adrs: [ADR-0005]
 related_briefs: []
 checks: [tenant-drizzle-handle-only-via-with-tenant.md]
@@ -21,4 +21,4 @@ checks: [tenant-drizzle-handle-only-via-with-tenant.md]
 
 **Recovery confidence:** **contract** — medium confidence. Raw `pg` code uses `tenantTransaction` (also in `packages/database`), so this candidate covers Drizzle handles plus the package boundary that alone sets tenant context, matching [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] Decision 4.
 
-**Check:** [[invariants/checks/tenant-drizzle-handle-only-via-with-tenant]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/tenant-drizzle-handle-only-via-with-tenant]] — run 2026-10-02; `last_result: fail` — fails: `packages/platform-storage/src/bootstrap.ts`, `products/presentation/src/repositories/index.ts` and `products/interview/src/backend/assistant/workspace.ts` set tenant or actor context outside `packages/database/src`.

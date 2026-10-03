@@ -2,9 +2,9 @@
 id: INV-0008
 class: contract
 provenance: recovered
-ratification: observed
+ratification: ratified
 verification:
-  last_result: none
+  last_result: pass
 related_adrs: [ADR-0004]
 related_briefs: []
 checks: [product-domain-never-imports-nextjs.md]
@@ -21,4 +21,4 @@ checks: [product-domain-never-imports-nextjs.md]
 
 **Recovery confidence:** **contract** — high confidence (mechanical import check).
 
-**Check:** [[invariants/checks/product-domain-never-imports-nextjs]] — not yet run; `last_result: none`.
+**Check:** [[invariants/checks/product-domain-never-imports-nextjs]] — run 2026-10-02; `last_result: pass`.

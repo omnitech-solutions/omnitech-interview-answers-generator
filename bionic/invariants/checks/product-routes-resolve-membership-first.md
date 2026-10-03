@@ -7,7 +7,7 @@
 Run from the repository root:
 
 ```bash
-pnpm --filter @omnitech/platform-api exec vitest run src/router.test.ts
+pnpm exec vitest run packages/platform-api/src/router.test.ts
 ```
 
 **Pass:** Exit 0, with cases showing a non-member, a disabled installation and a missing permission each receive 404 before any product handler runs. If the suite lacks one of those cases the check is incomplete, not passing.
