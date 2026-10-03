@@ -60,6 +60,9 @@ function repositoryFor(
     },
     async setResultReference() {},
     async setSessionId() {},
+    async renewLease() {
+      return true;
+    },
     async claim() {
       if (claimed) {
         onIdle();
@@ -359,4 +362,284 @@ it("fails a job whose stored profile is out of bounds without running it", async
       },
     },
   ]);
+});
+
+describe("agent worker concurrency", () => {
+  // A queue of jobs, a runtime that takes a while, and a count of how many
+  // were running at the same moment.
+  function scenario(jobs: number, workMs: number) {
+    const queue = Array.from({ length: jobs }, (_, index) =>
+      job({ id: `00000000-0000-0000-0000-00000000010${index}` }),
+    );
+    const controller = new AbortController();
+    const renewals: Array<[string, string, number]> = [];
+    const claimedBy: string[] = [];
+    let running = 0;
+    let peak = 0;
+    let finished = 0;
+    const repository: AgentJobWorkerRepository = {
+      async claim(workerId) {
+        const next = queue.shift();
+        if (next) claimedBy.push(workerId);
+        return next;
+      },
+      async renewLease(jobId, workerId, leaseMs) {
+        renewals.push([jobId, workerId, leaseMs]);
+        return true;
+      },
+      async get() {
+        return job();
+      },
+      async transition() {
+        return true;
+      },
+      async setSessionId() {},
+      async setResultReference() {},
+      async appendEvent(_id, event) {
+        return { jobId: _id, sequence: 1, event, createdAt: new Date() };
+      },
+    };
+    const runtime = {
+      runtime: "claude-code" as const,
+      capabilities: {
+        resume: false,
+        structuredOutput: true,
+        attachments: false,
+        tools: false,
+      },
+      async *run(): AsyncIterable<AgentEvent> {
+        running++;
+        peak = Math.max(peak, running);
+        await new Promise((resolve) => setTimeout(resolve, workMs));
+        running--;
+        finished++;
+        // The worker stops reading at "completed", so stop it from here.
+        if (finished === jobs) setTimeout(() => controller.abort(), 20);
+        yield {
+          type: "completed",
+          result: { output: {}, sessionId: "session" },
+        };
+      },
+      async *resume(): AsyncIterable<AgentEvent> {
+        return;
+      },
+      async cancel() {},
+    };
+    return {
+      controller,
+      repository,
+      runtime,
+      renewals,
+      claimedBy,
+      peak: () => peak,
+    };
+  }
+
+  it("runs one job at a time unless told otherwise", async () => {
+    const run = scenario(3, 20);
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository: run.repository,
+        runtimes: { "claude-code": run.runtime },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+      },
+      run.controller.signal,
+    );
+    expect(run.peak()).toBe(1);
+    expect(run.claimedBy).toEqual(["worker", "worker", "worker"]);
+  });
+
+  it("runs several jobs side by side, each loop under its own worker id", async () => {
+    const run = scenario(6, 40);
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository: run.repository,
+        runtimes: { "claude-code": run.runtime },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+        concurrency: 3,
+      },
+      run.controller.signal,
+    );
+    expect(run.peak()).toBe(3);
+    expect(new Set(run.claimedBy)).toEqual(
+      new Set(["worker:1", "worker:2", "worker:3"]),
+    );
+  });
+
+  it("keeps the lease of a job that outlasts it, so no other loop takes it over", async () => {
+    const run = scenario(1, 700);
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository: run.repository,
+        runtimes: { "claude-code": run.runtime },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+        leaseMs: 300,
+        concurrency: 2,
+      },
+      run.controller.signal,
+    );
+    expect(run.renewals.length).toBeGreaterThanOrEqual(2);
+    expect(run.renewals[0]?.[2]).toBe(300);
+    expect(run.renewals.every(([, who]) => who.startsWith("worker:"))).toBe(
+      true,
+    );
+  });
+});
+
+describe("agent worker lease and cancellation", () => {
+  const capabilities = {
+    resume: false,
+    structuredOutput: true,
+    attachments: false,
+    tools: false,
+  };
+  // A runtime that stays quiet until it is cancelled, so only the heartbeat
+  // can notice what happened to the job.
+  function quietRuntime(cancelled: string[]) {
+    let release: () => void = () => undefined;
+    return {
+      runtime: "claude-code" as const,
+      capabilities,
+      async *run(): AsyncIterable<AgentEvent> {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+      async *resume(): AsyncIterable<AgentEvent> {
+        return;
+      },
+      async cancel(id: string) {
+        cancelled.push(id);
+        release();
+      },
+    };
+  }
+  function run(
+    overrides: Partial<AgentJobWorkerRepository>,
+    runtime: ReturnType<typeof quietRuntime>,
+  ) {
+    const controller = new AbortController();
+    const transitions: Array<[string, string | undefined]> = [];
+    const repository = {
+      ...repositoryFor(job(), () => controller.abort()),
+      async transition(
+        _id: string,
+        _expected: readonly string[],
+        next: string,
+        claimant?: string,
+      ) {
+        transitions.push([next, claimant]);
+        return true;
+      },
+      ...overrides,
+    } as AgentJobWorkerRepository;
+    const done = runAgentWorker(
+      {
+        workerId: "worker",
+        repository,
+        runtimes: { "claude-code": runtime },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+        leaseMs: 750,
+      },
+      controller.signal,
+    );
+    return { done, transitions };
+  }
+
+  it("stops the agent and writes nothing once its lease is lost", async () => {
+    const cancelled: string[] = [];
+    const { done, transitions } = run(
+      {
+        async renewLease() {
+          return false;
+        },
+      },
+      quietRuntime(cancelled),
+    );
+    await done;
+    expect(cancelled).toHaveLength(1);
+    expect(transitions.map(([status]) => status)).toEqual([
+      "starting",
+      "running",
+    ]);
+  });
+
+  it("notices a cancel on its heartbeat when the agent is quiet", async () => {
+    const cancelled: string[] = [];
+    const { done } = run(
+      {
+        async get() {
+          return job({ status: "cancelling" });
+        },
+      },
+      quietRuntime(cancelled),
+    );
+    await done;
+    expect(cancelled).toHaveLength(1);
+  });
+
+  it("moves every lifecycle write under the worker that holds the job", async () => {
+    const cancelled: string[] = [];
+    const { done, transitions } = run(
+      {
+        async renewLease() {
+          return false;
+        },
+      },
+      quietRuntime(cancelled),
+    );
+    await done;
+    expect(transitions.every(([, claimant]) => claimant === "worker")).toBe(
+      true,
+    );
+  });
+
+  it("ends a job whose completion raced a cancel as cancelled", async () => {
+    const controller = new AbortController();
+    const transitions: string[] = [];
+    const repository = {
+      ...repositoryFor(job(), () => controller.abort()),
+      async transition(
+        _id: string,
+        _expected: readonly string[],
+        next: string,
+      ) {
+        transitions.push(next);
+        return next !== "succeeded";
+      },
+    } as AgentJobWorkerRepository;
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository,
+        runtimes: {
+          "claude-code": {
+            runtime: "claude-code",
+            capabilities,
+            async *run(): AsyncIterable<AgentEvent> {
+              yield {
+                type: "completed",
+                result: { output: {}, sessionId: "s" },
+              };
+            },
+            async *resume(): AsyncIterable<AgentEvent> {
+              return;
+            },
+            async cancel() {},
+          },
+        },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+      },
+      controller.signal,
+    );
+    expect(transitions.slice(-2)).toEqual(["succeeded", "cancelled"]);
+  });
 });

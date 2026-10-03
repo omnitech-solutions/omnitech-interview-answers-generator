@@ -5,6 +5,7 @@ import type {
   DocumentTemplateKind,
 } from "@omnitech/interview-contracts";
 import { studioFetch } from "../studio-fetch";
+import { readNdjson } from "../work-guards";
 
 const ROOT = "/api/interview/documents";
 
@@ -15,7 +16,12 @@ export type Template = {
   format: DocumentFormat;
   ownerUserId: string | null;
 };
-export type TemplateListItem = { template: Template; latestRevision: number };
+export type TemplateListItem = {
+  template: Template;
+  latestRevision: number;
+  fieldCount: number;
+  revisions: Array<{ revision: number; createdAt: string }>;
+};
 export type TemplateDetail = {
   template: Template;
   revision: { revision: number; instructions: string };
@@ -30,15 +36,21 @@ export type DocumentListItem = {
   profileId: string;
   candidacyId: string | null;
   interviewId: string | null;
+  templateId: string;
+  templateRevision: number;
   updatedAt: string;
 };
 export type DocumentDetail = {
-  document: DocumentListItem & { templateId: string; templateRevision: number };
+  document: DocumentListItem;
   revision: {
     revision: number;
     values: Record<string, string>;
     validation: DocumentFieldError[];
-    provenance: { kind?: string; fieldKey?: string };
+    provenance: {
+      kind?: string;
+      fieldKeys?: string[];
+      restoredFromRevision?: number;
+    };
     createdAt: string;
   };
   template: Template;
@@ -106,6 +118,41 @@ export function postJson<T>(
     body: JSON.stringify(body),
     ...(signal ? { signal } : {}),
   });
+}
+
+// What a document being written reports, a line at a time.
+export type GenerationEvent =
+  | {
+      t: "plan";
+      batches: Array<{ id: string; title: string; count: number }>;
+      fixed: Record<string, string>;
+    }
+  | { t: "batch"; id: string; title: string; values: Record<string, string> }
+  | { t: "done"; document: { id: string }; errors: DocumentFieldError[] }
+  | { t: "exists"; existingDocumentId: string }
+  | { t: "error"; code: string };
+
+/** POST that answers with newline-delimited events, handed over as they come. */
+export async function postStream(
+  path: string,
+  body: unknown,
+  signal: AbortSignal,
+  onEvent: (event: GenerationEvent) => void,
+): Promise<void> {
+  const response = await studioFetch(`${ROOT}${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/x-ndjson",
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+  // Problems found before any writing starts are ordinary JSON answers.
+  if (!response.headers.get("content-type")?.includes("x-ndjson"))
+    return void (await checked(response));
+  if (!response.body) throw new DocumentsApiError("server-error", null);
+  await readNdjson<GenerationEvent>(response.body, onEvent);
 }
 
 export function uploadTemplate<T>(path: string, form: FormData): Promise<T> {

@@ -1,8 +1,4 @@
-import {
-  escapePreviewHtml,
-  MISSING_DOCUMENT_FIELD,
-  wrapDocumentPreview,
-} from "./render-markdown";
+import { MISSING_DOCUMENT_FIELD } from "./render-markdown";
 import {
   canonicalDocumentField,
   collectDocxFields,
@@ -12,6 +8,13 @@ import {
 } from "./template-intake";
 
 const FIELD = /\{([^{}]+)\}/g;
+// A tagged preview wraps each value as START key SPLIT value END, which the
+// browser turns back into a clickable field once the document is rendered.
+export const FIELD_START = "\uE000";
+export const FIELD_SPLIT = "\uE001";
+export const FIELD_END = "\uE002";
+const TAG_CHARS = /[\uE000-\uE002]/g;
+
 const TEXT_RUN = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
 
 function escapeXml(value: string): string {
@@ -28,6 +31,7 @@ function replaceParagraph(
   paragraph: string,
   values: Record<string, string>,
   missingValue = MISSING_DOCUMENT_FIELD,
+  tagged = false,
 ): string {
   const nodes = Array.from(paragraph.matchAll(TEXT_RUN), (match) => ({
     start: match.index,
@@ -73,7 +77,11 @@ function replaceParagraph(
             "Document field values must be text.",
           );
         }
-        value += field ? field : missingValue;
+        value += tagged
+          ? `${FIELD_START}${key}${FIELD_SPLIT}${(field ?? "").replace(TAG_CHARS, "")}${FIELD_END}`
+          : field
+            ? field
+            : missingValue;
       }
     }
     return `${node.open}${escapeXml(value)}</w:t>`;
@@ -92,16 +100,17 @@ function replacePart(
   xml: string,
   values: Record<string, string>,
   missingValue = MISSING_DOCUMENT_FIELD,
+  tagged = false,
 ): string {
   return xml.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (paragraph) =>
-    replaceParagraph(paragraph, values, missingValue),
+    replaceParagraph(paragraph, values, missingValue, tagged),
   );
 }
 
 export async function renderDocxTemplate(
   source: Buffer,
   values: Record<string, string>,
-  options: { missing?: "marker" | "blank" } = {},
+  options: { missing?: "marker" | "blank" | "tagged" } = {},
 ): Promise<Buffer> {
   const { zip, parts } = await loadDocxTemplate(source);
   collectDocxFields(parts);
@@ -112,6 +121,7 @@ export async function renderDocxTemplate(
         xml,
         values,
         options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD,
+        options.missing === "tagged",
       ),
     );
   }
@@ -126,70 +136,4 @@ export async function renderDocxTemplate(
     );
   }
   return output;
-}
-
-function previewPart(xml: string, values: Record<string, string>): string {
-  const rendered = replacePart(xml, values);
-  const blocks: string[] = [];
-  let bullets: string[] = [];
-  const flushBullets = () => {
-    if (bullets.length) blocks.push(`<ul>${bullets.join("")}</ul>`);
-    bullets = [];
-  };
-  for (const match of rendered.matchAll(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g)) {
-    const paragraph = match[0];
-    const content = Array.from(paragraph.matchAll(TEXT_RUN), (run) =>
-      decodeXmlText(run[1] ?? ""),
-    ).join("");
-    const text = escapePreviewHtml(content).replace(/\r\n?|\n/g, "<br>");
-    const style = paragraph.match(
-      /<w:pStyle\b[^>]*\bw:val=(?:"([^"]+)"|'([^']+)')/i,
-    );
-    const styleName = (style?.[1] ?? style?.[2] ?? "").toLowerCase();
-    const heading = /^(?:title|heading\s*1)$/.test(styleName)
-      ? "h1"
-      : /^(?:subtitle|sectionheading|heading\s*2)$/.test(styleName)
-        ? "h2"
-        : /^heading\s*3$/.test(styleName)
-          ? "h3"
-          : null;
-    if (/<w:numPr\b/.test(paragraph)) {
-      bullets.push(`<li>${text || "&nbsp;"}</li>`);
-      continue;
-    }
-    flushBullets();
-    if (heading) blocks.push(`<${heading}>${text}</${heading}>`);
-    else blocks.push(`<p>${text || "&nbsp;"}</p>`);
-  }
-  flushBullets();
-  return blocks.join("");
-}
-
-export async function renderDocxPreview(
-  source: Buffer,
-  values: Record<string, string>,
-): Promise<string> {
-  const { parts } = await loadDocxTemplate(source);
-  collectDocxFields(parts);
-  const document = parts.get("word/document.xml");
-  if (!document)
-    throw new InvalidDocumentTemplateError(
-      "Template is missing its document body.",
-    );
-  const sortedParts = (kind: "header" | "footer") =>
-    Array.from(parts.entries())
-      .filter(([name]) => new RegExp(`^word/${kind}\\d+\\.xml$`).test(name))
-      .sort(([left], [right]) =>
-        left.localeCompare(right, undefined, { numeric: true }),
-      )
-      .map(([, xml]) => previewPart(xml, values))
-      .filter(Boolean)
-      .join("");
-  const header = sortedParts("header");
-  const footer = sortedParts("footer");
-  return wrapDocumentPreview(
-    `${header ? `<header class="document-header">${header}</header>` : ""}` +
-      previewPart(document, values) +
-      `${footer ? `<footer class="document-footer">${footer}</footer>` : ""}`,
-  );
 }

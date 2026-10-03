@@ -9,6 +9,7 @@ import {
   documentFieldsSchema,
   documentRegenerateSchema,
   documentTemplateCreateSchema,
+  documentValuesSchema,
   validateDocumentValues,
 } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
@@ -17,9 +18,12 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { ZodError, z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { type BuiltInKey, builtInTemplates } from "./built-in-templates.js";
+import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config.js";
 import { DocumentContextNotFound, resolveDocumentContext } from "./context.js";
 import { generateDocumentValues } from "./generate.js";
-import { renderDocxPreview, renderDocxTemplate } from "./render-docx.js";
+import { renderDocxTemplate } from "./render-docx.js";
+import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards.js";
 import { renderDocxAsMarkdown } from "./render-docx-markdown.js";
 import {
   renderMarkdownPreview,
@@ -138,14 +142,46 @@ function fieldSource(key: string): DocumentField["source"] {
       ? "interview"
       : "candidate-profile";
 }
-function fieldsFor(keys: readonly string[], form: FormData): DocumentField[] {
+// DOCX previews are the filled file itself, rendered in the browser so the
+// layout is the document's own; Markdown previews are tagged HTML.
+async function previewOf(
+  format: string,
+  bytes: Buffer,
+  values: Record<string, string>,
+) {
+  return format === "docx"
+    ? {
+        kind: "docx" as const,
+        docx: (
+          await renderDocxTemplate(bytes, values, { missing: "tagged" })
+        ).toString("base64"),
+      }
+    : {
+        kind: "html" as const,
+        html: renderMarkdownPreview(bytes.toString("utf8"), values),
+      };
+}
+// "experience_1_bullet_2" reads as "Experience 1 bullet 2".
+const humanize = (key: string) => {
+  const words = key.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+// The third and later of a numbered series (bullet 3, contract 4) are extras
+// a candidate may not have, so a blank one is not a problem.
+const laterItem = (key: string) => Number(/_(\d+)$/.exec(key)?.[1] ?? 0) >= 3;
+function fieldsFor(
+  keys: readonly string[],
+  form: FormData,
+  sections: Record<string, string> = {},
+): DocumentField[] {
   const raw = form.get("fields");
   const defaults = keys.map((key) => ({
     key,
-    label: key.replaceAll("_", " "),
+    label: humanize(key),
     source: fieldSource(key),
     required: true,
     maxLength: null,
+    ...(sections[key] ? { section: sections[key] } : {}),
   }));
   const fields = documentFieldsSchema.parse(
     typeof raw === "string" ? JSON.parse(raw) : defaults,
@@ -174,60 +210,114 @@ function safeName(title: string, format: string) {
   }.${format}`;
 }
 
+const interviewInput = z.strictObject({
+  kind: z.enum([
+    "recruiter_screen",
+    "hiring_manager",
+    "technical",
+    "system_design",
+    "take_home",
+    "panel",
+    "final",
+    "other",
+  ]),
+  label: z.string().trim().min(1).max(120),
+});
+
+type TenantDb = Parameters<Parameters<typeof withTenant>[1]>[0];
+
+// "Me" in this workspace: the person the member's applications belong to,
+// created from their display name the first time they need one.
+async function memberPerson(db: TenantDb, scope: DocumentScope) {
+  const found = (
+    await db.execute(sql`SELECT person_id FROM interview.member_people
+      WHERE tenant_id=${scope.tenantId}::uuid AND user_id=${scope.actorId}::uuid`)
+  ).rows[0];
+  if (found) return String(found["person_id"]);
+  const name =
+    (
+      await db.execute(
+        sql`SELECT display_name FROM platform.users WHERE id=${scope.actorId}::uuid`,
+      )
+    ).rows[0]?.["display_name"] ?? "Me";
+  const personId = String(
+    (
+      await db.execute(sql`INSERT INTO interview.people(tenant_id,full_name)
+        VALUES (${scope.tenantId}::uuid, ${String(name)}) RETURNING id`)
+    ).rows[0]?.["id"],
+  );
+  await db.execute(sql`INSERT INTO interview.member_people(tenant_id,user_id,person_id)
+    VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${personId}::uuid)`);
+  return personId;
+}
+
+async function addInterview(
+  db: TenantDb,
+  scope: DocumentScope,
+  candidacyId: string,
+  input: z.infer<typeof interviewInput>,
+) {
+  return String(
+    (
+      await db.execute(sql`INSERT INTO interview.interviews
+        (tenant_id,candidacy_id,ordinal,kind,label)
+        VALUES (${scope.tenantId}::uuid, ${candidacyId}::uuid,
+          COALESCE((SELECT max(ordinal)+1 FROM interview.interviews
+            WHERE tenant_id=${scope.tenantId}::uuid AND candidacy_id=${candidacyId}::uuid), 1),
+          ${input.kind}::interview.interview_kind, ${input.label})
+        RETURNING id`)
+    ).rows[0]?.["id"],
+  );
+}
+
 export function createDocumentsApi(options: {
   database: PlatformDatabase;
   ai: AiExecutionGateway;
   resolveScope: (request: Request) => Promise<DocumentScope | null>;
+  // Local development: the author's own template files and experience
+  // matrix, for the local member only.
+  localTemplates?: (
+    scope: DocumentScope,
+  ) => Promise<Partial<Record<BuiltInKey, Buffer>> | null>;
+  ensureProfile?: (scope: DocumentScope) => Promise<void>;
+  // How documents are written; defaults suit a long template.
+  config?: DocumentsConfig;
 }) {
+  const config = options.config ?? DEFAULT_DOCUMENTS_CONFIG;
   const app = new Hono<{ Variables: { documentScope: DocumentScope } }>();
   const repo = new InterviewDocumentRepository(options.database);
   const artifacts = new DocumentArtifactRepository(options.database);
   const builtInReady = new Map<string, Promise<void>>();
+  // Documents being written right now, so a second window asking for the same
+  // one is told so instead of paying for it twice.
+  const writing = createInFlight();
   async function provisionBuiltIns(scope: DocumentScope) {
     let pending = builtInReady.get(scope.tenantId);
     if (!pending) {
       pending = (async () => {
-        for (const template of [
-          {
-            key: "resume",
-            name: "Resume",
-            kind: "resume",
-            format: "docx",
-          },
-          {
-            key: "cover-letter",
-            name: "Cover letter",
-            kind: "cover_letter",
-            format: "docx",
-          },
-          {
-            key: "interview-prep",
-            name: "Interview prep",
-            kind: "interview_prep",
-            format: "md",
-          },
-        ] as const) {
-          const source =
-            template.key === "resume"
-              ? new URL("./assets/resume.docx", import.meta.url)
-              : template.key === "cover-letter"
-                ? new URL("./assets/cover-letter.docx", import.meta.url)
-                : new URL("./assets/interview-prep.md", import.meta.url);
-          const bytes = await readFile(source);
+        const local = (await options.localTemplates?.(scope)) ?? {};
+        for (const template of builtInTemplates(config.brevity)) {
+          const bytes =
+            local[template.key] ??
+            (await readFile(
+              new URL(`./assets/${template.asset}`, import.meta.url),
+            ));
           const inspected = await inspectTemplate({
             format: template.format,
             bytes,
           });
-          const fields = fieldsFor(inspected.fields, new FormData());
           await repo.provisionBuiltInTemplate(scopeKey(scope), {
             key: template.key,
             name: template.name,
             kind: template.kind,
             format: template.format,
             sourceBytes: bytes,
-            fields,
-            instructions:
-              "Use only the candidate profile and selected candidacy as evidence. Leave unsupported details empty.",
+            fields: fieldsFor(
+              inspected.fields,
+              new FormData(),
+              inspected.sections,
+            ).map((field) => ({ ...field, required: !laterItem(field.key) })),
+            instructions: template.instructions,
           });
         }
       })().catch((error: unknown) => {
@@ -336,6 +426,8 @@ export function createDocumentsApi(options: {
   }
   app.get(`${prefix}/context`, async (c) => {
     const scope = c.get("documentScope");
+    // A fresh local member starts with their own experience matrix.
+    await options.ensureProfile?.(scope).catch(() => undefined);
     const [lists, targets] = await Promise.all([
       withTenant(
         scope,
@@ -410,6 +502,74 @@ export function createDocumentsApi(options: {
     if (!saved) throw new DocumentContextNotFound();
     return c.json({ jobDescription: saved["job_description"] });
   });
+  // An application the person is working on, and optionally its first
+  // interview stage, so documents have something to be written for.
+  app.post(`${prefix}/candidacies`, async (c) => {
+    const scope = c.get("documentScope");
+    const input = z
+      .strictObject({
+        companyName: z.string().trim().min(1).max(200),
+        title: z.string().trim().min(1).max(200),
+        jobDescription: z.string().max(20_000).optional(),
+        interview: interviewInput.optional(),
+      })
+      .parse(await jsonBody(c.req.raw));
+    const created = await withTenant(
+      scope,
+      async (db) => {
+        const personId = await memberPerson(db, scope);
+        const existing = (
+          await db.execute(sql`SELECT id FROM interview.companies
+            WHERE tenant_id=${scope.tenantId}::uuid
+              AND lower(name)=lower(${input.companyName}) ORDER BY created_at LIMIT 1`)
+        ).rows[0];
+        const companyId = String(
+          existing?.["id"] ??
+            (
+              await db.execute(sql`INSERT INTO interview.companies(tenant_id,name)
+                VALUES (${scope.tenantId}::uuid, ${input.companyName}) RETURNING id`)
+            ).rows[0]?.["id"],
+        );
+        const candidacyId = String(
+          (
+            await db.execute(sql`INSERT INTO interview.candidacies
+              (tenant_id,company_id,candidate_person_id,title,job_description)
+              VALUES (${scope.tenantId}::uuid, ${companyId}::uuid, ${personId}::uuid,
+                ${input.title}, ${input.jobDescription?.trim() || null})
+              RETURNING id`)
+          ).rows[0]?.["id"],
+        );
+        const interviewId = input.interview
+          ? await addInterview(db, scope, candidacyId, input.interview)
+          : null;
+        return { candidacyId, interviewId };
+      },
+      { database: options.database },
+    );
+    return c.json(created, 201);
+  });
+  app.post(`${prefix}/candidacies/:id/interviews`, async (c) => {
+    const scope = c.get("documentScope");
+    const candidacyId = uuid.parse(c.req.param("id"));
+    const input = interviewInput.parse(await jsonBody(c.req.raw));
+    const interviewId = await withTenant(
+      scope,
+      async (db) => {
+        const owned = (
+          await db.execute(sql`SELECT 1 FROM interview.candidacies c
+            JOIN interview.member_people mp
+              ON mp.tenant_id=c.tenant_id AND mp.person_id=c.candidate_person_id
+            WHERE c.tenant_id=${scope.tenantId}::uuid AND c.id=${candidacyId}::uuid
+              AND mp.user_id=${scope.actorId}::uuid`)
+        ).rows[0];
+        if (!owned) return null;
+        return addInterview(db, scope, candidacyId, input);
+      },
+      { database: options.database },
+    );
+    if (!interviewId) throw new DocumentContextNotFound();
+    return c.json({ interviewId }, 201);
+  });
   app.get(`${prefix}/templates`, async (c) => {
     const scope = c.get("documentScope");
     await provisionBuiltIns(scope);
@@ -430,7 +590,9 @@ export function createDocumentsApi(options: {
     const { form, bytes } = await upload(c.req.raw);
     const format = z.enum(["docx", "md"]).parse(formText(form, "format"));
     const inspection = await inspectTemplate({ format, bytes });
-    return c.json({ fields: fieldsFor(inspection.fields, new FormData()) });
+    return c.json({
+      fields: fieldsFor(inspection.fields, new FormData(), inspection.sections),
+    });
   });
   app.post(`${prefix}/templates`, async (c) => {
     const scope = c.get("documentScope");
@@ -445,7 +607,7 @@ export function createDocumentsApi(options: {
       format: metadata.format,
       bytes,
     });
-    const fields = fieldsFor(inspection.fields, form);
+    const fields = fieldsFor(inspection.fields, form, inspection.sections);
     return c.json(
       await repo.createTemplate(scopeKey(scope), {
         ...metadata,
@@ -476,7 +638,7 @@ export function createDocumentsApi(options: {
       format: existing.template.format as "md" | "docx",
       bytes,
     });
-    const fields = fieldsFor(inspection.fields, form);
+    const fields = fieldsFor(inspection.fields, form, inspection.sections);
     return c.json(
       await repo.addTemplateRevision(scopeKey(scope), {
         templateId,
@@ -484,6 +646,57 @@ export function createDocumentsApi(options: {
         instructions,
         fields,
         sourceBytes: bytes,
+      }),
+      201,
+    );
+  });
+  // What a template looks like with some values in it: a document being
+  // written is drawn before it is saved.
+  app.post(`${prefix}/templates/:id/preview`, async (c) => {
+    const scope = c.get("documentScope");
+    const input = z
+      .strictObject({ revision: positive, values: documentValuesSchema })
+      .parse(await jsonBody(c.req.raw));
+    const item = await repo.getTemplateRevision(
+      scopeKey(scope),
+      uuid.parse(c.req.param("id")),
+      input.revision,
+    );
+    if (!item) throw new DocumentNotFound();
+    return c.json(
+      await previewOf(
+        item.template.format,
+        await source(scope, item),
+        input.values,
+      ),
+    );
+  });
+  // Instructions are part of a template revision, so editing them mints a new
+  // revision over the same source file and field contract.
+  app.post(`${prefix}/templates/:id/instructions`, async (c) => {
+    const scope = c.get("documentScope");
+    const templateId = uuid.parse(c.req.param("id"));
+    const existing = await repo.getTemplateRevision(
+      scopeKey(scope),
+      templateId,
+    );
+    if (!existing || existing.template.ownerUserId !== scope.actorId)
+      throw new DocumentNotFound();
+    const input = z
+      .strictObject({
+        expectedRevision: positive,
+        instructions: z.string().max(16_000),
+      })
+      .parse(await jsonBody(c.req.raw));
+    if (input.expectedRevision !== existing.revision.revision)
+      throw new DocumentRevisionConflict();
+    return c.json(
+      await repo.addTemplateRevision(scopeKey(scope), {
+        templateId,
+        expectedRevision: input.expectedRevision,
+        instructions: input.instructions,
+        fields: existing.fields,
+        sourceBytes: await source(scope, existing),
       }),
       201,
     );
@@ -537,58 +750,125 @@ export function createDocumentsApi(options: {
     if (existing)
       return c.json({ existingDocumentId: existing.id, offer: "open-it" }, 409);
     await authorizedTarget(scope, input.aiTargetId);
-    const generated = await generateDocumentValues(options.ai, {
-      ...scopeKey(scope),
-      profileId: input.aiTargetId,
-      targetId: input.aiTargetId,
-      templateId: input.templateId,
-      templateRevision: input.templateRevision,
-      candidateProfileRevisionId: `${input.profileId}:${input.profileRevision}`,
-      fields: template.fields,
-      instructions: template.revision.instructions,
-      candidateProfile: candidate.candidateProfile,
-      candidacyValues: candidate.candidacyValues,
-      interviewValues: candidate.interviewValues,
-      missingProfileKeys: candidate.missingProfileKeys,
-      signal: c.req.raw.signal,
-    }).catch(() => {
-      throw c.req.raw.signal.aborted
-        ? new RequestCancelled()
-        : new GenerationFailed();
-    });
-    if (c.req.raw.signal.aborted) throw new RequestCancelled();
-    const created = await repo
-      .createDocument(scopeKey(scope), {
-        ...input,
-        signal: c.req.raw.signal,
-        values: generated.values,
-        provenance: { kind: "generated", targetId: input.aiTargetId },
-        aiUsage: generated.usage,
-      })
-      .catch(async (error: unknown) => {
-        if (error instanceof DocumentAlreadyExists) {
-          await resolveDocumentContext(options.database, {
-            tenantId: scope.tenantId,
-            actorId: scope.actorId,
-            profileId: input.profileId,
-            profileRevision: input.profileRevision,
-            candidacyId: input.candidacyId,
-            interviewId: input.interviewId,
-          });
-          const winner = await repo.findMatchingDocument(
-            scopeKey(scope),
-            input,
-          );
-          if (winner) return { existingDocumentId: winner.id };
-        }
-        throw error;
+    const release = writing.claim(
+      JSON.stringify([
+        scope.tenantId,
+        scope.actorId,
+        input.templateId,
+        input.templateRevision,
+        input.profileId,
+        input.profileRevision,
+        input.candidacyId,
+        input.interviewId,
+      ]),
+    );
+    if (!release) return c.json({ inProgress: true, offer: "wait" }, 409);
+    // The work ends with the request, or with the reader of its stream.
+    const { signal, readerGone } = linkedAbort(c.req.raw.signal);
+    const generate = (hooks?: Parameters<typeof generateDocumentValues>[2]) =>
+      generateDocumentValues(
+        options.ai,
+        {
+          ...scopeKey(scope),
+          profileId: input.aiTargetId,
+          targetId: input.aiTargetId,
+          templateId: input.templateId,
+          templateRevision: input.templateRevision,
+          candidateProfileRevisionId: `${input.profileId}:${input.profileRevision}`,
+          fields: template.fields,
+          instructions: template.revision.instructions,
+          candidateProfile: candidate.candidateProfile,
+          candidacyValues: candidate.candidacyValues,
+          interviewValues: candidate.interviewValues,
+          profileValues: candidate.profileValues,
+          missingProfileKeys: candidate.missingProfileKeys,
+          generation: config.generation,
+          signal,
+        },
+        hooks,
+      ).catch(() => {
+        throw signal.aborted ? new RequestCancelled() : new GenerationFailed();
       });
-    if ("existingDocumentId" in created)
-      return c.json(
-        { existingDocumentId: created.existingDocumentId, offer: "open-it" },
-        409,
-      );
-    return c.json({ ...created, errors: generated.errors }, 201);
+    const save = async (generated: Awaited<ReturnType<typeof generate>>) => {
+      if (signal.aborted) throw new RequestCancelled();
+      return repo
+        .createDocument(scopeKey(scope), {
+          ...input,
+          signal,
+          values: generated.values,
+          provenance: { kind: "generated", targetId: input.aiTargetId },
+          aiUsage: generated.usage,
+        })
+        .catch(async (error: unknown) => {
+          if (error instanceof DocumentAlreadyExists) {
+            await resolveDocumentContext(options.database, {
+              tenantId: scope.tenantId,
+              actorId: scope.actorId,
+              profileId: input.profileId,
+              profileRevision: input.profileRevision,
+              candidacyId: input.candidacyId,
+              interviewId: input.interviewId,
+            });
+            const winner = await repo.findMatchingDocument(
+              scopeKey(scope),
+              input,
+            );
+            if (winner) return { existingDocumentId: winner.id };
+          }
+          throw error;
+        });
+    };
+    if (!(c.req.header("accept") ?? "").includes("application/x-ndjson")) {
+      try {
+        const generated = await generate();
+        const created = await save(generated);
+        if ("existingDocumentId" in created)
+          return c.json(
+            {
+              existingDocumentId: created.existingDocumentId,
+              offer: "open-it",
+            },
+            409,
+          );
+        return c.json({ ...created, errors: generated.errors }, 201);
+      } finally {
+        release();
+      }
+    }
+    // A person watching a document being written sees each section as it is
+    // done: the plan first, then a line per section, then the saved document.
+    return ndjsonResponse(
+      async (send) => {
+        try {
+          const generated = await generate({
+            onPlan: (plan) => send({ t: "plan", ...plan }),
+            onBatch: (update) => send({ t: "batch", ...update }),
+          });
+          const created = await save(generated);
+          send(
+            "existingDocumentId" in created
+              ? { t: "exists", existingDocumentId: created.existingDocumentId }
+              : {
+                  t: "done",
+                  document: created.document,
+                  errors: generated.errors,
+                },
+          );
+        } catch (error) {
+          send({
+            t: "error",
+            code:
+              error instanceof RequestCancelled ||
+              error instanceof DocumentSaveCancelled
+                ? "cancelled"
+                : error instanceof GenerationFailed
+                  ? "generation-failed"
+                  : "server-error",
+          });
+        }
+      },
+      { onReaderGone: readerGone, onSettled: release },
+    );
   });
   app.get(`${prefix}/:id`, async (c) => {
     const selected = c.req.query("revision");
@@ -674,6 +954,11 @@ export function createDocumentsApi(options: {
       candidacyId: current.document.candidacyId,
       interviewId: current.document.interviewId,
     });
+    // A second window regenerating the same revision is told, not charged.
+    const release = writing.claim(
+      JSON.stringify(["regenerate", scope.tenantId, id, input.baseRevision]),
+    );
+    if (!release) return c.json({ inProgress: true, offer: "wait" }, 409);
     const generated = await generateDocumentValues(options.ai, {
       ...scopeKey(scope),
       profileId: input.aiTargetId,
@@ -686,13 +971,17 @@ export function createDocumentsApi(options: {
       candidateProfile: candidate.candidateProfile,
       candidacyValues: candidate.candidacyValues,
       interviewValues: candidate.interviewValues,
+      profileValues: candidate.profileValues,
       missingProfileKeys: candidate.missingProfileKeys,
+      generation: config.generation,
       signal: c.req.raw.signal,
-    }).catch(() => {
-      throw c.req.raw.signal.aborted
-        ? new RequestCancelled()
-        : new GenerationFailed();
-    });
+    })
+      .catch(() => {
+        throw c.req.raw.signal.aborted
+          ? new RequestCancelled()
+          : new GenerationFailed();
+      })
+      .finally(release);
     if (c.req.raw.signal.aborted) throw new RequestCancelled();
     return c.json(
       await repo.appendRevision(scopeKey(scope), {
@@ -743,12 +1032,8 @@ export function createDocumentsApi(options: {
     if (!template) throw new DocumentNotFound();
     const bytes = await source(scope, template);
     const values = item.revision.values as Record<string, string>;
-    const html =
-      item.template.format === "docx"
-        ? await renderDocxPreview(bytes, values)
-        : renderMarkdownPreview(bytes.toString("utf8"), values);
     return c.json({
-      html,
+      ...(await previewOf(item.template.format, bytes, values)),
       revision: item.revision.revision,
       validation: item.revision.validation,
     });
@@ -774,12 +1059,8 @@ export function createDocumentsApi(options: {
     );
     if (!template) throw new DocumentNotFound();
     const bytes = await source(scope, template);
-    const html =
-      item.template.format === "docx"
-        ? await renderDocxPreview(bytes, input.values)
-        : renderMarkdownPreview(bytes.toString("utf8"), input.values);
     return c.json({
-      html,
+      ...(await previewOf(item.template.format, bytes, input.values)),
       validation: validateDocumentValues(item.fields, input.values),
     });
   });

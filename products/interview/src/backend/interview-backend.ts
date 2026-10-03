@@ -22,7 +22,10 @@ import { createApi } from "./api.js";
 import { createAssistantModels } from "./assistant-models.js";
 import { briefingScope } from "./briefing-access.js";
 import { createDocumentsApi, resolveDocumentsScope } from "./documents/api.js";
+import { resolveDocumentsConfig } from "./documents/config.js";
+import { BriefingRepository } from "./briefing/repository.js";
 import { loadLocalDefaultProfile } from "./local-default-profile.js";
+import { loadLocalTemplates, localMatrixPath } from "./local-seeds.js";
 import { createInterviewStudio } from "./studio/host.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,6 +113,15 @@ function generator(ai: AiExecutionGateway, profileId: string) {
     ).result;
 }
 
+function workspaceDatabase(platform: PlatformDatabase) {
+  return {
+    tenantTransaction: <T>(
+      tenantId: string,
+      fn: (tx: Transaction) => Promise<T>,
+    ) => platform.tenantTransaction(tenantId, (client) => fn(rowsOf(client))),
+  };
+}
+
 async function build(
   services: InterviewBackendServices,
 ): Promise<InterviewStudio> {
@@ -125,12 +137,7 @@ async function build(
   })();
   const queue = await globalThis.interviewRunQueue;
 
-  const database = {
-    tenantTransaction: <T>(
-      tenantId: string,
-      fn: (tx: Transaction) => Promise<T>,
-    ) => platform.tenantTransaction(tenantId, (client) => fn(rowsOf(client))),
-  };
+  const database = workspaceDatabase(platform);
   const relay: ModelRelay = new PostgresModelRelay(database);
   const assistantModels = createAssistantModels(
     services.ai,
@@ -171,19 +178,29 @@ async function build(
     contextCharacters: services.contextCharacters,
     // Local development starts briefing packs from the bundled profile, for
     // the local member only.
-    loadDefaultProfile: async (scope) => {
-      if (!services.localDefaultProfile) return null;
-      const local = briefingScope(
-        await services.resolveContext("local"),
-        "local",
-        "POST",
-      );
-      return local?.actorId === scope.actorId &&
-        local.tenantId === scope.tenantId
-        ? loadLocalDefaultProfile()
-        : null;
-    },
+    loadDefaultProfile: async (scope) =>
+      (await isLocalMember(services, scope)) ? loadLocalProfile() : null,
   });
+}
+
+// [SAFETY] Local development seeds the dev member only: never another member
+// of the tenant, and never in production.
+async function isLocalMember(
+  services: InterviewBackendServices,
+  scope: { tenantId: string; actorId: string },
+): Promise<boolean> {
+  if (!services.localDefaultProfile) return false;
+  const local = briefingScope(
+    await services.resolveContext("local"),
+    "local",
+    "POST",
+  );
+  return local?.actorId === scope.actorId && local.tenantId === scope.tenantId;
+}
+
+async function loadLocalProfile() {
+  const path = await localMatrixPath();
+  return loadLocalDefaultProfile(path ? { path } : {});
 }
 
 function studioOf(services: InterviewBackendServices) {
@@ -199,6 +216,8 @@ function studioOf(services: InterviewBackendServices) {
  */
 export function createInterviewBackend(services: InterviewBackendServices) {
   const resolveScope = scopeResolver(services);
+  // Read once, so a bad setting stops startup instead of the first document.
+  const documentsConfig = resolveDocumentsConfig();
   const app = new Hono();
   // Interview answers and explanations, generated on the gateway for the
   // member of the tenant the request names.
@@ -213,11 +232,20 @@ export function createInterviewBackend(services: InterviewBackendServices) {
   );
   // Candidate documents have their own member write permission and persist
   // through the product's private repository and platform artifact boundary.
+  const profiles = new BriefingRepository(workspaceDatabase(services.database));
   app.route(
     "/",
     createDocumentsApi({
       database: services.database,
       ai: services.ai,
+      config: documentsConfig,
+      localTemplates: async (scope) =>
+        (await isLocalMember(services, scope)) ? loadLocalTemplates() : null,
+      ensureProfile: async (scope) => {
+        if (!(await isLocalMember(services, scope))) return;
+        const input = await loadLocalProfile();
+        if (input) await profiles.syncDefaultProfile(scope, input);
+      },
       resolveScope: async (request) => {
         const slug =
           request.headers.get(TENANT_HEADER) ??

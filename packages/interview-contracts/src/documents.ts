@@ -23,6 +23,8 @@ export const documentFieldSchema = z.strictObject({
   source: documentFieldSourceSchema,
   required: z.boolean(),
   maxLength: z.number().int().min(1).max(20_000).nullable(),
+  // The template's own heading the field sits under, when it has headings.
+  section: z.string().trim().min(1).max(80).optional(),
 });
 
 export const documentFieldsSchema = z

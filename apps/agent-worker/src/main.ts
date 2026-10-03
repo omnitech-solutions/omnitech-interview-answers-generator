@@ -38,6 +38,34 @@ function agentRuntimes(
   };
 }
 
+function whole(
+  env: Environment,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max)
+    throw new Error(`${name} must be a whole number from ${min} to ${max}.`);
+  return value;
+}
+
+/**
+ * How many jobs run at once, how soon a waiting worker looks again, and how
+ * long a running job's lease lasts between heartbeats. Documents are written
+ * in several parallel calls, so the default runs six at a time.
+ */
+export function workerSettings(env: Environment) {
+  return {
+    pollIntervalMs: whole(env, "AGENT_WORKER_POLL_MS", 100, 10, 60_000),
+    concurrency: whole(env, "AGENT_WORKER_CONCURRENCY", 6, 1, 16),
+    leaseMs: whole(env, "AGENT_WORKER_LEASE_MS", 30_000, 3_000, 600_000),
+  };
+}
+
 // The worker as configured by its environment, until the signal aborts.
 // `runtimes` replaces the Codex and Claude Code adapters.
 export async function runConfiguredAgentWorker(
@@ -58,7 +86,7 @@ export async function runConfiguredAgentWorker(
         workerId: env["AGENT_WORKER_ID"] ?? crypto.randomUUID(),
         // Interactive turns (the assistant) wait on this; an idle claim is one
         // cheap indexed query.
-        pollIntervalMs: Number(env["AGENT_WORKER_POLL_MS"] ?? 100),
+        ...workerSettings(env),
         repository: new PostgresAgentJobWorkerRepository(database),
         loadPrompt: (reference) => payloads.load(reference),
         storeResult: (tenantId, result) =>

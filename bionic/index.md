@@ -1,6 +1,6 @@
 # docs/omnitech-interview-answers-generator
 
-_Last updated: 2026-10-02_
+_Last updated: 2026-10-03_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
@@ -20,10 +20,11 @@ See [[research/index]].
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (10)
+## ADRs (11)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0010-write-documents-in-a-few-parallel-calls-on-any-lan]] | Write documents in a few parallel calls on any language profile | Proposed | 2026-10-03 |
 | [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]] | Keep candidate documents in the Interview product | Accepted | 2026-10-02 |
 | [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 |
 | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | 2026-10-02 |

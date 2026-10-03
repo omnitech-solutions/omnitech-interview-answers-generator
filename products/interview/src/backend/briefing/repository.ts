@@ -110,39 +110,57 @@ export class BriefingRepository {
     });
   }
 
-  async importDefaultProfileIfEmpty(
+  // The local default profile follows its source file: none yet, or file
+  // content that was never a revision, saves one.
+  async syncDefaultProfile(
     scope: WorkspaceScope,
     input: { name: string; matrix: unknown },
   ): Promise<void> {
-    const validated = briefingProfileImportSchema.parse({
-      ...input,
-      profileId: "local-experience-matrix",
-      expectedRevision: 0,
-    });
-    const matrix = candidateMatrixSchema.parse(validated.matrix);
+    const matrix = candidateMatrixSchema.parse(input.matrix);
     if (Buffer.byteLength(JSON.stringify(matrix), "utf8") > 1_048_576)
       throw new WorkspaceError("matrix-too-large");
+    const id = "local-experience-matrix";
+    const sha256 = hash(matrix);
     await this.workspace.transaction(scope, async (tx) => {
       await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
         JSON.stringify([...ids(scope), "profiles"]),
       ]);
-      const existing = await tx.query(
-        `SELECT id FROM interview.candidate_profiles WHERE ${scoped} LIMIT 1`,
-        ids(scope),
+      const [existing] = await tx.query(
+        `SELECT revision,revoked_at FROM interview.candidate_profiles WHERE ${scoped} AND id=$4 FOR UPDATE`,
+        [...ids(scope), id],
       );
-      if (existing.length) return;
-      const id = "local-experience-matrix";
+      if (existing?.["revoked_at"]) return;
+      if (!existing) {
+        const any = await tx.query(
+          `SELECT id FROM interview.candidate_profiles WHERE ${scoped} LIMIT 1`,
+          ids(scope),
+        );
+        if (any.length) return;
+        await tx.query(
+          "INSERT INTO interview.candidate_profiles(tenant_id,actor_id,product_id,id,name,revision) VALUES($1,$2,$3,$4,$5,1)",
+          [...ids(scope), id, input.name],
+        );
+      } else {
+        // Once per file content: later edits made in the app stay latest.
+        const [known] = await tx.query(
+          `SELECT 1 AS found FROM interview.candidate_profile_revisions WHERE ${scoped} AND id=$4 AND sha256=$5 LIMIT 1`,
+          [...ids(scope), id, sha256],
+        );
+        if (known) return;
+        await tx.query(
+          `UPDATE interview.candidate_profiles SET revision=revision+1,updated_at=now() WHERE ${scoped} AND id=$4`,
+          [...ids(scope), id],
+        );
+      }
+      const revision = existing ? Number(existing["revision"]) + 1 : 1;
       await tx.query(
-        "INSERT INTO interview.candidate_profiles(tenant_id,actor_id,product_id,id,name,revision) VALUES($1,$2,$3,$4,$5,1)",
-        [...ids(scope), id, validated.name],
-      );
-      await tx.query(
-        "INSERT INTO interview.candidate_profile_revisions(tenant_id,actor_id,product_id,id,revision,name,sha256,matrix) VALUES($1,$2,$3,$4,1,$5,$6,$7::jsonb)",
+        "INSERT INTO interview.candidate_profile_revisions(tenant_id,actor_id,product_id,id,revision,name,sha256,matrix) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)",
         [
           ...ids(scope),
           id,
-          validated.name,
-          hash(matrix),
+          revision,
+          input.name,
+          sha256,
           JSON.stringify(matrix),
         ],
       );

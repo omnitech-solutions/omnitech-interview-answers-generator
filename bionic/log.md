@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] adr | ADR-0010: accepted
+
+Write documents in a few parallel calls on any language profile. Accepted after two Claude-seat review rounds; remaining gaps recorded as follow-on work in the ADR.
+
+## [2026-10-03] adr | ADR-0010: Write documents in a few parallel calls on any language profile
+
+Proposed. File `bionic/adrs/ADR-0010-write-documents-in-a-few-parallel-calls-on-any-lan.md`. Tags: interview, documents, ai, agents, performance. Amends ADR-0009.
+
 ## [2026-10-02] arch | regenerated bionic/arch/ (spine 39d9326b7f5e)
 
 Regenerated after ADR-0009 acceptance and Interview Documents source changes. The decision index and module graph changed; the data-model extractor remains stubbed for this Drizzle repository.

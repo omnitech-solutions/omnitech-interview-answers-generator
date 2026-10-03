@@ -26,20 +26,64 @@
     "source_adr": "ADR-0009",
     "source_status": "Accepted"
   },
-  "ADR-0009/structured-document-generation": {
+  "ADR-0010/agent-profiles-write-documents": {
     "authority": "prescriptive",
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Document generation uses one structured AiExecutionGateway call against a template revision and an immutable candidate-profile revision.",
-    "source_adr": "ADR-0009",
+    "rule": "Any gateway language profile that declares structured generation may write documents, including the agent profiles, and an agent call runs only as a bounded read-only job in the agent worker.",
+    "source_adr": "ADR-0010",
     "source_status": "Accepted"
   },
-  "retired_slugs": {},
+  "ADR-0010/generation-limits-are-configured": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "The call cap, fields per call, tries, field length, worker concurrency and lease are deployment settings with defaults and bounds; a value out of bounds stops startup and names the setting.",
+    "source_adr": "ADR-0010",
+    "source_status": "Accepted"
+  },
+  "ADR-0010/generation-stops-with-its-reader": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Generation progress reaches the page as a stream, a document is saved only when complete, and generation stops with its reader.",
+    "source_adr": "ADR-0010",
+    "source_status": "Accepted"
+  },
+  "ADR-0010/parallel-document-generation": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A document is written in at most the configured number of structured calls, one call when the template fits within one call's field budget, each over contiguous model-filled fields in template order, through AiExecutionGateway against a template revision and an immutable candidate-profile revision.",
+    "source_adr": "ADR-0010",
+    "source_status": "Accepted"
+  },
+  "ADR-0010/running-jobs-keep-their-lease": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "A worker renews each running job's lease, stops the agent when the lease is lost, and brings every cancel it notices to a terminal state.",
+    "source_adr": "ADR-0010",
+    "source_status": "Accepted"
+  },
+  "retired_slugs": {
+    "structured-document-generation": [
+      "ADR-0010/parallel-document-generation"
+    ]
+  },
   "slugs": {
+    "agent-profiles-write-documents": "ADR-0010/agent-profiles-write-documents",
+    "generation-limits-are-configured": "ADR-0010/generation-limits-are-configured",
+    "generation-stops-with-its-reader": "ADR-0010/generation-stops-with-its-reader",
     "immutable-document-revisions": "ADR-0009/immutable-document-revisions",
     "interview-owns-documents": "ADR-0009/interview-owns-documents",
     "member-private-documents": "ADR-0009/member-private-documents",
-    "structured-document-generation": "ADR-0009/structured-document-generation"
+    "parallel-document-generation": "ADR-0010/parallel-document-generation",
+    "running-jobs-keep-their-lease": "ADR-0010/running-jobs-keep-their-lease"
   }
 }
