@@ -298,4 +298,29 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     );
     expect(JSON.stringify(errors.mock.calls)).not.toContain("secret");
   }, 30_000);
+
+  it("mounts the Active Session routes ahead of the studio's catch-all", async () => {
+    const app = backend().app;
+    // Ingest answers with its own content-free refusal, not the studio's.
+    const ingest = await app.request(
+      "http://studio.test/api/interview/t/local/sessions/ingest",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      },
+    );
+    expect(ingest.status).toBe(401);
+    expect(await ingest.json()).toEqual({
+      version: 1,
+      status: "refused",
+      code: "credential_refused",
+    });
+    // A user route resolves the signed-in member of the path's tenant first.
+    const stranger = await app.request(
+      "http://studio.test/api/interview/t/nobody/sessions/current",
+    );
+    expect(stranger.status).toBe(401);
+    expect(await stranger.json()).toEqual({ error: { code: "unauthorized" } });
+  });
 });
