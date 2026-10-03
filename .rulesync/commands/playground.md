@@ -15,5 +15,4 @@ the operation:
 - Explicit field values: pass them to `playground set` using supported flags.
 
 Never replace this workflow with direct HTTP calls or browser automation. Use a
-JSON file or stdin when an answer contains multiline Markdown, source code, or
-tests.
+JSON file or stdin when an answer contains a guide, source code, or tests.

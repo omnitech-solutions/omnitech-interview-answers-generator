@@ -45,12 +45,22 @@ After routing, read exactly one matching reference before producing the answer:
 
 Return a structured answer with:
 
-- `answerMarkdown`: Markdown with concise point-form sections in this order:
-  `## Question`, `## Approach`, `## Complexity`, `## Edge cases`, and
-  `## Talking points`. The Question section must turn the prompt into bullets
-  for the **goal**, **inputs**, **outputs**, and **constraints**. Bold the key
-  domain terms, invariants, trade-offs, and complexity notation. The Approach
-  and Complexity sections must be point form, not dense paragraphs.
+- `guide`: the structured answer the Workspace stages show. The Playground
+  renders the answer's Markdown (`## Question`, `## Approach`,
+  `## Complexity`, `## Edge cases`, `## Talking points`) from it, so never
+  write `answerMarkdown` yourself. Shape (version `1`):
+  - `understand`: `prompt` (the **goal**, **inputs**, and **outputs** in one or
+    two sentences), `examples` (up to three `{input, output, note?}`),
+    `constraints`, and `clarify` (questions worth asking before coding);
+  - `plan`: `steps` (two to six point-form steps) and `complexity`
+    `{time, space, note?}` in Big-O;
+  - `edgeCases`: `{name, test?}`, where `test` is the exact title of the test
+    in `testCode` that covers the case;
+  - `explain`: `{heading, body}` sections for a two-minute spoken answer (the
+    problem, the approach, the trade-offs);
+  - `talkingPoints`: exactly three.
+  Keep every item short enough to say aloud. Bold the key domain terms,
+  invariants, trade-offs, and complexity notation with `**double asterisks**`.
 - `code`: the complete, screen-share-readable main solution. Put the exact
   required entry-point function or component above all helper methods/functions;
   helpers follow the entry point. Inside function/component bodies, add a

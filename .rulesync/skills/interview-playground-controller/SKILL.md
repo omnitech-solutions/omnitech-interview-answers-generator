@@ -41,8 +41,11 @@ For multiline answers, create one temporary JSON patch containing:
 - `language`
 - `notes`
 - `panel`
-- `answer` with the title, Markdown explanation, primary code, and focused test
-  code expected by the Playground contract:
+- `answer` with the title, language, structured `guide`, primary code, and
+  focused test code expected by the Playground contract:
+  - `guide` for the structured answer (see the `interview-question-router`
+    answer contract); the Playground validates it and renders the answer's
+    Markdown from it, so do not send `answerMarkdown`;
   - `code` for the main solution;
   - `usageCode` for executable representative usage/output;
   - `testCode` for executable focused tests
