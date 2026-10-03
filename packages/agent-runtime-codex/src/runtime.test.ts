@@ -56,6 +56,7 @@ process.stdin.on("end", () => {
 
 const profile: AgentProfile = {
   id: "interview-coach",
+  version: 1,
   runtime: "codex",
   model: "gpt-test",
   fallbackModels: [],
