@@ -1,9 +1,27 @@
-# Interview domain and database
+---
+title: "Interview domain model and database"
+slug: interview-domain-model
+type: concepts
+tags: [interview, domain-model, database, tenancy, drizzle]
+sources: []
+last_reviewed: 2026-10-02
+---
+
+# Interview domain model and database
 
 Interview Studio stores its hiring domain in PostgreSQL, in tables declared
 with Drizzle and secured by row-level security. Briefing packs, Workspace
 drafts, rehearsals and Knowledge work on their own; the domain tables link to
 them by id.
+
+The tenancy and storage rules this model implements are decided in
+[[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]]; package
+ownership of schemas is decided in
+[[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]]. The
+checkable rules are pinned as `observed` invariants in [[invariants/index]].
+
+Provenance: filed from the former `docs/architecture/interview-domain.md`
+(commit `4c50c5e`).
 
 ## Domain tables
 
@@ -121,3 +139,9 @@ db:generate` and commit the new migration.
 3. Schema files and migrations agree; the drift tests enforce it.
 4. Briefing packs and Workspace drafts work on their own. Domain links are
    optional.
+
+Items 1–3 are pinned as `observed` candidates in [[invariants/index]]; item 4
+is a design property of the model above. Item 2 holds for Drizzle handles; at
+commit `4c50c5e` raw `pg` client code still uses the `database` package's
+`tenantTransaction`, which sets the same transaction-local tenant context (see
+[[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]]).

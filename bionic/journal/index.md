@@ -1,7 +1,7 @@
 # Journal index
 
-_Last updated: —_
+_Last updated: 2026-10-02_
 
 | month | first entry | last entry | entries | top categories |
 |-------|-------------|------------|---------|----------------|
-| 2026-10 | — | — | 0 | — |
+| 2026-10 | 2026-10-02 | 2026-10-02 | 1 | decision |

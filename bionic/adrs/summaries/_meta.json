@@ -1,0 +1,14 @@
+{
+  "adr_frontmatter_sha256": "a4e5fdf68b68334b6cb761feedfbb7bc343319c8c5e0c787e41ed10fce7f9474",
+  "backfill_reviews_sha256": null,
+  "input_domain": [
+    "adrs",
+    "backfill-reviews",
+    "observations",
+    "survey-receipts"
+  ],
+  "observations_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "schema": "5",
+  "survey_receipts_sha256": null,
+  "tool": "summarize-adrs.py"
+}

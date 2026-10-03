@@ -1,12 +1,32 @@
-# Omnitech product platform
+---
+title: "Omnitech product platform architecture"
+slug: platform-architecture
+type: concepts
+tags: [platform, architecture, tenancy, modular-monolith]
+sources: []
+last_reviewed: 2026-10-02
+---
 
-## Chosen architecture
+# Omnitech product platform architecture
 
-Omnitech uses a modular monolith with build-time product registration, a
-same-origin Next.js shell, embedded Hono product backends, and one PostgreSQL
-cluster with schema ownership. This gives each product a complete vertical
-boundary without introducing remote frontend loading, cross-service
-transactions, or multiple deployments before the team has a demonstrated need.
+Current-state overview of the platform: a modular monolith with build-time
+product registration, a same-origin Next.js shell, embedded Hono product
+backends, and one PostgreSQL cluster with schema ownership. The decisions
+behind it are recorded in:
+
+- [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] — shell vs product verticals, registration, routing, extraction criteria.
+- [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] — tenancy and storage.
+- [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] — identity vs connected accounts.
+- [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] — package ownership.
+- [[adrs/ADR-0002-choose-the-smallest-architecture-option-that-satis]] — why the monolith is the default.
+
+Provenance: filed from the former `docs/platform-architecture.md` (commit
+`4c50c5e`). Two stale claims in that file were corrected against the code at
+that commit: tenant transactions and migration execution live in the
+`database` package (`withTenant()`, `tenantTransaction`, one Drizzle stream in
+`packages/database/drizzle`), not in `platform-storage`.
+
+## Shape
 
 ```mermaid
 flowchart TB
@@ -25,13 +45,13 @@ flowchart TB
   Shell --> Integrations["platform-integrations<br/>separate OAuth grants"]
 ```
 
-The design follows the same core maintenance ideas visible in
-[Grafana](https://github.com/grafana/grafana): a cohesive shell, stable extension
-contracts, explicit registration, and capability-oriented boundaries. It also
-borrows build graph discipline from
-[Turborepo](https://github.com/vercel/turborepo), typed full-stack package
-boundaries common in [Cal.com](https://github.com/calcom/cal.com), and
-schema-owned service modules used by many modular-monolith systems.
+The design follows maintenance ideas visible in
+[Grafana](https://github.com/grafana/grafana) (a cohesive shell, stable
+extension contracts, explicit registration, capability-oriented boundaries),
+build-graph discipline from [Turborepo](https://github.com/vercel/turborepo),
+typed full-stack package boundaries common in
+[Cal.com](https://github.com/calcom/cal.com), and schema-owned service modules
+used by many modular-monolith systems.
 
 ## Ownership
 
@@ -42,25 +62,25 @@ schema-owned service modules used by many modular-monolith systems.
 | `platform-contracts` | Versioned Zod schemas and public TypeScript contracts | Runtime registration or I/O |
 | `platform-runtime` | Trusted registration, collision detection, route resolution | Tenant persistence or React presentation |
 | `platform-api` | Framework-neutral platform HTTP surface | Next.js request APIs |
-| `platform-storage` | Pool lifecycle, transactions, migrations, tenant RLS context, repositories, token encryption | UI or OAuth protocol |
+| `database` | PostgreSQL connectivity, `withTenant()`, table convention helpers, migration execution | Domain schemas or repositories |
+| `platform-storage` | The `platform` and `ai` schemas, platform repositories, token encryption | UI or OAuth protocol |
 | `platform-integrations` | Provider endpoints, signed state, code exchange, normalized grants | Session resolution or database writes |
 
 ## Product lifecycle
 
-1. A product package exports a versioned manifest, frontend loaders, and Hono
+1. A product package exports a versioned manifest, frontend loaders, and a Hono
    backend router.
 2. The shell explicitly registers the trusted package at build time.
 3. A tenant installation enables the product and supplies name, description,
    route labels, visibility, ordering, feature flags, and settings.
 4. `/t/:tenantSlug/p/:productId/*` resolves membership, installation,
-   permission, manifest route, and loader in that order.
+   permission, manifest route, and loader, in that order.
 5. The shell retains global navigation, theme, locale, user, tenant, and
    connection state while product routes change client-side.
 
 Product installation is data-driven; executable product code is not downloaded
-from untrusted runtime locations. Independent product deployments remain
-possible later by replacing a loader or router adapter without changing the
-manifest or tenant installation contract.
+from untrusted runtime locations. See [[research/references/adding-a-product]]
+for the steps to add one.
 
 ## Data ownership
 
@@ -70,14 +90,16 @@ artifact metadata, and audit events. Each product owns its payload and
 product-specific indexes in its own schema. Cross-product discovery uses
 `platform.artifacts`; product payloads remain opaque references.
 
-Every tenant-owned query includes `tenant_id`. `tenantTransaction` sets
-`app.tenant_id` transaction-locally so PostgreSQL row-level security provides a
-second isolation boundary. Pool-wide session mutation is forbidden.
+Every tenant-owned query includes `tenant_id`. The `database` package sets
+`app.tenant_id` transaction-locally — `withTenant()` for Drizzle handles (also
+setting `app.actor_id`), and `tenantTransaction` on the platform database for
+raw `pg` clients — so PostgreSQL row-level security provides a second isolation
+boundary. Pool-wide session mutation is forbidden. The interview product's tables, policies and
+helpers are described in [[research/concepts/interview-domain-model]].
 
 ## Identity and connected accounts
 
-Login providers establish identity. Their grants are not reused for product
-actions. Connected accounts run a separate authorization flow with:
+Connected accounts run a separate authorization flow with:
 
 - a separate OAuth client;
 - HMAC-signed, expiring state bound to provider, user, and tenant;
@@ -88,7 +110,7 @@ actions. Connected accounts run a separate authorization flow with:
 
 LinkedIn connection data requires LinkedIn product approval and corresponding
 scopes. The base integration requests OIDC profile data only; connection
-features must remain disabled until approval is confirmed.
+features stay disabled until approval is confirmed.
 
 ## Failure behavior
 
@@ -104,10 +126,6 @@ features must remain disabled until approval is confirmed.
 
 ## Local operations
 
-```bash
-pnpm dev
-```
-
 `pnpm dev` starts PostgreSQL with Docker Compose (`compose.yaml`, port 54320),
 applies migrations (`pnpm --filter @omnitech/database db:migrate`) and seeds the
 local owner and tenant (`pnpm --filter @omnitech/platform-storage
@@ -117,23 +135,19 @@ administrator is `postgres`. Tests start a throwaway container from the same
 image for each test file, so Docker is the only database dependency.
 
 Schemas are declared with Drizzle in the package that owns them and migrated by
-one Drizzle stream in `packages/database/drizzle`. After changing a schema file,
-run `pnpm --filter @omnitech/database db:generate` and commit the migration.
+one Drizzle stream in `packages/database/drizzle`. After changing a schema
+file, run `pnpm --filter @omnitech/database db:generate` and commit the
+migration.
 
 Use `PLATFORM_BOOTSTRAP_EMAIL`, `PLATFORM_BOOTSTRAP_TENANT`, and
 `PLATFORM_BOOTSTRAP_TENANT_NAME` to customize the initial owner and tenant.
 Provider secrets are documented in `.env.example`.
 
-## Extraction criteria
+## Extraction
 
-Keep products embedded until one of these is measured:
-
-- independent release ownership;
-- materially different scaling characteristics;
-- regulatory or network isolation;
-- fault containment that cannot be achieved in-process;
-- a runtime or language requirement incompatible with the shell.
-
-When a criterion is met, retain the manifest and domain contracts, move the Hono
-router behind an HTTP adapter, and decide separately whether the frontend needs
-Multi-Zones or another deployment mechanism. Avoid remote module execution.
+Products stay embedded until one of the extraction criteria in
+[[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] is
+measured. When one is met, retain the manifest and domain contracts, move the
+Hono router behind an HTTP adapter, and decide separately whether the frontend
+needs Multi-Zones or another deployment mechanism. Avoid remote module
+execution.

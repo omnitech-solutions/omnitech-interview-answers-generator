@@ -1,18 +1,35 @@
-# Interview Library
+---
+title: "Interview Library (Knowledge view)"
+slug: interview-library
+type: references
+tags: [interview, library, search, knowledge, markdown]
+sources: []
+last_reviewed: 2026-10-02
+---
 
-## Purpose
+# Interview Library (Knowledge view)
 
 Interview Library is a local-first, DevDocs-style reference workspace for
-finding concise, reviewed interview material without leaving Interview Studio.
-It prioritizes provenance, lexical accuracy, keyboard speed, and consistent
-rendering. It does not scrape or reproduce third-party documentation.
+finding concise, reviewed interview material without leaving Interview Studio,
+where it is the Knowledge view (`/t/<tenant>/p/interview/knowledge`; see
+[[research/references/interview-studio]]). It prioritizes provenance, lexical
+accuracy, keyboard speed, and consistent rendering. It does not scrape or
+reproduce third-party documentation. The search engine lives in the
+`interview-library` package; the HTTP routes and service live in the interview
+product.
+
+Provenance: filed from the former `devdocs/library.md` (commit `4c50c5e`),
+which was written as a design specification. Its acceptance criterion naming
+`pnpm rulesync:verify` is retired with rulesync
+([[adrs/ADR-0001-crux-is-the-sole-ai-development-workflow]]); `pnpm verify`
+remains the gate.
 
 ## Primary journeys
 
-1. Press `Cmd/Ctrl+K` or `/`, search a technical term, filter by content type or
-   tag, and open the exact matching section.
-2. Browse an interview-focused collection, read a concise article, follow its table
-   of contents, and open the canonical source when more detail is needed.
+1. Press `Cmd/Ctrl+K` or `/`, search a technical term, filter by content type
+   or tag, and open the exact matching section.
+2. Browse an interview-focused collection, read a concise article, follow its
+   table of contents, and open the canonical source when more detail is needed.
 3. Add an item, preview its Markdown, save it as a draft, then publish it only
    after provenance and taxonomy validation succeeds.
 4. Edit, archive, or remove draft material while keeping search results limited
@@ -63,12 +80,11 @@ Ranking order is:
 
 Short technical queries remain exact. Typo tolerance is enabled only for terms
 of five or more characters. Results return a bounded highlighted excerpt and
-link directly to `/library/:slug#:section`.
+link directly to the article and section anchor.
 
-The search engine is accessed through a provider-neutral
-`LibrarySearchIndex`. The initial adapter uses Orama. A future lexical/vector
-hybrid can implement the same interface; v1 contains no embeddings or vector
-schema.
+The search engine is accessed through a provider-neutral `LibrarySearchIndex`.
+The initial adapter uses Orama. A future lexical/vector hybrid can implement
+the same interface; v1 contains no embeddings or vector schema.
 
 The persisted index loads once per server process. A missing, corrupt, or stale
 index is rebuilt from published records before search results are served.
@@ -91,8 +107,9 @@ logged.
 
 ## Page and keyboard design
 
-`/library` is a real route. `/library/:slug` deep-links an article, and heading
-fragments deep-link sections.
+The library base path deep-links an article by slug, and heading fragments
+deep-link sections (standalone base `/library`; inside the Studio,
+`…/interview/knowledge`).
 
 Desktop uses three panes:
 
@@ -128,8 +145,8 @@ Raw HTML remains disabled.
 - Invalid publication leaves the current published revision unchanged.
 - Duplicate slugs return a conflict.
 - A stale index rebuilds before serving results.
-- An unrecoverable rebuild returns `library_index_unavailable`; stale or partial
-  results are not served.
+- An unrecoverable rebuild returns `library_index_unavailable`; stale or
+  partial results are not served.
 - Only drafts can be permanently deleted. Published content must be archived.
 
 ## Acceptance criteria
@@ -144,4 +161,4 @@ Raw HTML remains disabled.
   Shiki, and Mermaid are covered by tests.
 - A deterministic 10,000-section benchmark reports warm-search p95 and index
   restoration time without imposing a wall-clock unit-test gate.
-- `pnpm rulesync:verify` and `pnpm verify` pass.
+- `pnpm verify` passes.

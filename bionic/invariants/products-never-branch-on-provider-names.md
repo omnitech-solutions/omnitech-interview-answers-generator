@@ -1,0 +1,24 @@
+---
+id: INV-0006
+class: contract
+provenance: recovered
+ratification: observed
+verification:
+  last_result: none
+related_adrs: [ADR-0007]
+related_briefs: []
+checks: [products-never-branch-on-provider-names.md]
+---
+
+# INV-0006 — products-never-branch-on-provider-names
+
+> **observed** — a recovered candidate, not a ratified invariant. Only the owner
+> ratifies or rejects it, via `transition-invariant`.
+
+**Intent:** Product code requests AI work by profile or capability through `AiExecutionGateway` and never branches on a provider or model name.
+
+**Why:** [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]].
+
+**Recovery confidence:** **contract** — low confidence. A name grep is a proxy: it flags literal provider names, not every branch on a configured value. Expect to refine the pattern at ratification.
+
+**Check:** [[invariants/checks/products-never-branch-on-provider-names]] — not yet run; `last_result: none`.

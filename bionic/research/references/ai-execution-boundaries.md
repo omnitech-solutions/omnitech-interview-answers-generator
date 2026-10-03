@@ -1,7 +1,24 @@
-# AI execution policy
+---
+title: "AI execution boundaries and the on-device profile"
+slug: ai-execution-boundaries
+type: references
+tags: [ai, execution, langchain, langgraph, agents, on-device]
+sources: []
+last_reviewed: 2026-10-02
+---
 
-Products request a stable profile or capability through `AiExecutionGateway`.
-They never switch on vendor names.
+# AI execution boundaries and the on-device profile
+
+Products request a stable profile or capability through `AiExecutionGateway`
+and never switch on vendor names. The decision, including where agent runtimes
+may run and what is never logged, is
+[[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]]. This page
+is the working reference for choosing an execution boundary.
+
+Provenance: filed from the former `docs/ai-execution-policy.md` (commit
+`4c50c5e`).
+
+## Choosing a boundary
 
 | Boundary | Use it for | Do not use it for |
 | --- | --- | --- |
@@ -12,6 +29,17 @@ They never switch on vendor names.
 
 LangGraph mutations must be idempotent. Product changes are staged and applied
 atomically after validation and approval.
+
+## Package map
+
+- `ai-contracts` — provider-neutral execution, model, image, workflow, and
+  event contracts.
+- `ai-runtime` — profile resolution, authorization, and adapter delegation.
+- `ai-provider-*` — provider SDKs and request translation.
+- `ai-workflow-*` — LangChain and LangGraph integration.
+- `agent-runtime-*` — Codex and Claude SDK translation.
+- `agent-job-service` — the durable job lifecycle; `agent-worker` — isolated
+  execution.
 
 ## On-device profile
 

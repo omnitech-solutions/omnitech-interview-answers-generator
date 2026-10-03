@@ -5,4 +5,12 @@
 # mapping + each check's last_result. It lives inside the invariants concern,
 # beside the ledger it reconciles.
 config_version: "1"
-checks: []
+checks:
+  - { check_id: tenant-owned-tables-force-rls.md, pin_id: INV-0001, last_result: none, last_checked: null }
+  - { check_id: tenant-drizzle-handle-only-via-with-tenant.md, pin_id: INV-0002, last_result: none, last_checked: null }
+  - { check_id: schema-files-and-migrations-agree.md, pin_id: INV-0003, last_result: none, last_checked: null }
+  - { check_id: product-routes-resolve-membership-first.md, pin_id: INV-0004, last_result: none, last_checked: null }
+  - { check_id: nextjs-never-launches-agent-processes.md, pin_id: INV-0005, last_result: none, last_checked: null }
+  - { check_id: products-never-branch-on-provider-names.md, pin_id: INV-0006, last_result: none, last_checked: null }
+  - { check_id: product-frontend-never-imports-apps-web.md, pin_id: INV-0007, last_result: none, last_checked: null }
+  - { check_id: product-domain-never-imports-nextjs.md, pin_id: INV-0008, last_result: none, last_checked: null }
