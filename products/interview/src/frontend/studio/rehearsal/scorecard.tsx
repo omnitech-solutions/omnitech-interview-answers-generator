@@ -2,11 +2,17 @@ import { createRehearsalClient } from "@omnitech/interview-api-client";
 import {
   CHECK_POINTS,
   REVEAL_COST,
+  type RehearsalSession,
   rehearsalScore,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
+import {
+  currentRehearsalLink,
+  markRehearsalRunSaved,
+  type RehearsalRunLink,
+} from "../live/rehearsal-run-link";
 import { CHECKS, clock, scoreHeadline, scoreTone } from "./config";
 import type { QuestionChoice } from "./material";
 import type {
@@ -15,6 +21,25 @@ import type {
   SessionState,
 } from "./rehearsal-view";
 import { studioFetch } from "../studio-fetch";
+
+// What to tell the owner about the live session's hints. Only what the server
+// confirmed is stated as a count; nothing is claimed before the save returns.
+function liveSessionNote(
+  link: RehearsalRunLink,
+  saved: "saving" | "saved" | "failed",
+  sessionHints: number,
+): string | null {
+  if (link.kind === "strictness-mismatch")
+    return "Your live session used a different strictness, so its hints were not counted.";
+  if (link.kind !== "linked" || saved !== "saved") return null;
+  const count =
+    sessionHints === 0
+      ? "No drafts from your live session were counted as hints."
+      : `${sessionHints} hint${sessionHints === 1 ? "" : "s"} from your live session ${sessionHints === 1 ? "is" : "are"} included.`;
+  return link.open
+    ? `${count} The session is still open: drafts shown after this save are not counted.`
+    : count;
+}
 
 const toRef = (choice: QuestionChoice | undefined) =>
   choice
@@ -37,12 +62,21 @@ export function Scorecard({
   onAgain(): void;
 }) {
   // The server scores it the same way; this shows it without waiting.
-  const score = rehearsalScore(session.checks.length, session.reveals.length);
   const [saved, setSaved] = useState<"saving" | "saved" | "failed">("saving");
+  // What the server stored: its score includes any live-session hints.
+  const [result, setResult] = useState<RehearsalSession | null>(null);
   const saving = useRef(false);
+  // [SAFETY] Chosen once, when the save starts: the session's run id is sent
+  // only when its strictness matches this rehearsal's.
+  const link = useRef<RehearsalRunLink>({ kind: "none" });
+  const score =
+    result?.score ??
+    rehearsalScore(session.checks.length, session.reveals.length);
   useEffect(() => {
     if (saving.current) return;
     saving.current = true;
+    link.current = currentRehearsalLink(settings.strict);
+    const linked = link.current;
     createRehearsalClient({ baseUrl: "", fetch: studioFetch })
       .save({
         format: settings.format,
@@ -55,9 +89,14 @@ export function Scorecard({
         activeSeconds: session.elapsed,
         startedAt: session.startedAt,
         endedAt: new Date().toISOString(),
+        ...(linked.kind === "linked" ? { rehearsalRunId: linked.runId } : {}),
       })
       .then(
-        () => setSaved("saved"),
+        (stored) => {
+          if (linked.kind === "linked") markRehearsalRunSaved(linked.runId);
+          setResult(stored);
+          setSaved("saved");
+        },
         () => setSaved("failed"),
       );
   }, [settings, material, session]);
@@ -91,6 +130,8 @@ export function Scorecard({
         : []),
     ];
   const hints = session.reveals.length;
+  const sessionHints = result?.sessionHints ?? 0;
+  const linkNote = liveSessionNote(link.current, saved, sessionHints);
 
   return (
     <div className="rehearsal-score">
@@ -103,8 +144,10 @@ export function Scorecard({
           <h1 className="rehearsal-title">{scoreHeadline(score)}</h1>
           <p className="rehearsal-muted">
             {session.checks.length * CHECK_POINTS} from the checklist, −
-            {hints * REVEAL_COST} for {hints} hint{hints === 1 ? "" : "s"}.
+            {(hints + sessionHints) * REVEAL_COST} for {hints + sessionHints}{" "}
+            hint{hints + sessionHints === 1 ? "" : "s"}.
           </p>
+          {linkNote && <p className="rehearsal-muted">{linkNote}</p>}
           <p className="rehearsal-muted" role="status">
             {saved === "saving"
               ? "Saving…"
@@ -125,6 +168,12 @@ export function Scorecard({
           <dt>Hints opened</dt>
           <dd>{hints}</dd>
         </div>
+        {sessionHints > 0 && (
+          <div>
+            <dt>Live session hints</dt>
+            <dd>{sessionHints}</dd>
+          </div>
+        )}
         <div>
           <dt>Time used</dt>
           <dd>{clock(session.elapsed)}</dd>

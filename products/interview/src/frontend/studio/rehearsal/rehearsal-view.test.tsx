@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { rehearsalScore } from "@omnitech/interview-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { StudioContext, type StudioContextValue } from "../context";
@@ -15,6 +16,9 @@ import { codingMaterial } from "./material";
 import type { RehearsalCommand } from "../playground-control";
 import { RehearsalView } from "./rehearsal-view";
 import { guidedProse } from "../../../answer-fixture";
+import { jsonResponse, sessionView } from "../live/session-fixtures";
+import { getSessionStore, resetSessionStores } from "../live/session-registry";
+import { forgetSavedRehearsalRuns } from "../live/rehearsal-run-link";
 
 const draft = {
   question: "Find the pair that sums to the target.",
@@ -66,6 +70,10 @@ const brief = {
 
 let saves: unknown[];
 let saveFails: boolean;
+// What the server adds to a saved rehearsal (the derived session hints).
+let saveExtra: Record<string, unknown> = {};
+// The Active Session the store holds (null: none open).
+let liveSession: ReturnType<typeof sessionView> | null = null;
 let loadFails: boolean;
 function installServer() {
   saves = [];
@@ -77,8 +85,28 @@ function installServer() {
         saves.push(body);
         return saveFails
           ? Response.json({ error: { code: "boom" } }, { status: 500 })
-          : Response.json({ ...body, id: "r1", score: 0 });
+          : Response.json({
+              ...body,
+              id: "r1",
+              score: rehearsalScore(body.checks.length, body.reveals.length),
+              ...saveExtra,
+            });
       }
+      if (input.startsWith("/api/interview/t/local/sessions"))
+        return liveSession && input.endsWith("/current")
+          ? jsonResponse({ session: liveSession })
+          : input.endsWith("/stream") && liveSession
+            ? jsonResponse({
+                session: liveSession,
+                observations: [],
+                actions: [],
+                nextAfterSequence: 0,
+                nextActionCursor: "c",
+                hasMoreObservations: false,
+                hasMoreActions: false,
+                serverNow: new Date().toISOString(),
+              })
+            : jsonResponse({ error: { code: "not_found" } }, 404);
       if (loadFails) return Response.json({}, { status: 500 });
       if (input === "/api/interview/workspaces/interview/artifacts/q1")
         return Response.json({ origin: {}, value: draft });
@@ -147,10 +175,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   saveFails = false;
   loadFails = false;
+  saveExtra = {};
+  liveSession = null;
+  resetSessionStores();
+  forgetSavedRehearsalRuns();
   installServer();
 });
 afterEach(() => {
   vi.useRealTimers();
+  resetSessionStores();
 });
 
 describe("Rehearsal setup", () => {
@@ -354,6 +387,72 @@ describe("Rehearsal session", () => {
     expect(screen.getByText("This session couldn’t be saved.")).toBeVisible();
     vi.useRealTimers();
     await waitFor(() => expect(saves).toHaveLength(1));
+  });
+});
+
+// A rehearsal session minted in Setup carries a run id; the Rehearsal save
+// sends it so the server can count the shown drafts as hints (ADR-0012
+// rule:assistance-counts-as-hints). There is still one scorecard.
+describe("Rehearsal with a live session", () => {
+  async function holdSession(overrides: Parameters<typeof sessionView>[0]) {
+    liveSession = sessionView({ status: "ended", ...overrides });
+    // The Studio shell keeps the store subscribed; do the same here.
+    getSessionStore("local").subscribe(() => undefined);
+    await act(async () => {
+      for (let index = 0; index < 20; index++) await Promise.resolve();
+    });
+  }
+  async function finishConceptSprint() {
+    view();
+    fireEvent.click(screen.getByRole("radio", { name: /Concept sprint/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start concept/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "End session" }));
+  }
+
+  it("sends the run id of the session and shows the hints the server counted", async () => {
+    await holdSession({ rehearsalRunId: "run-1", shownDraftCount: 2 });
+    saveExtra = { score: 94, sessionHints: 2 };
+    await finishConceptSprint();
+    expect(
+      await screen.findByText("Saved to your rehearsal history."),
+    ).toBeVisible();
+    expect(saves).toHaveLength(1);
+    expect(saves[0]).toMatchObject({ rehearsalRunId: "run-1", strict: false });
+    expect(screen.getByText("94")).toBeVisible();
+    expect(
+      screen.getByText(/2 hints from your live session are included/),
+    ).toBeVisible();
+  });
+
+  it("never sends the same run id twice", async () => {
+    await holdSession({ rehearsalRunId: "run-1" });
+    await finishConceptSprint();
+    await screen.findByText("Saved to your rehearsal history.");
+    fireEvent.click(screen.getByRole("button", { name: "Rehearse again" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Concept sprint/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start concept/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "End session" }));
+    await waitFor(() => expect(saves).toHaveLength(2));
+    expect(saves[0]).toHaveProperty("rehearsalRunId", "run-1");
+    expect(saves[1]).not.toHaveProperty("rehearsalRunId");
+  });
+
+  it("leaves the run id out when the session's strictness differs, and says so", async () => {
+    await holdSession({ rehearsalRunId: "run-1", strict: true });
+    await finishConceptSprint();
+    await screen.findByText("Saved to your rehearsal history.");
+    expect(saves[0]).not.toHaveProperty("rehearsalRunId");
+    expect(
+      screen.getByText(/different strictness, so its hints were not counted/),
+    ).toBeVisible();
+  });
+
+  it("sends no run id without a rehearsal session", async () => {
+    await holdSession({ rehearsalRunId: null });
+    await finishConceptSprint();
+    await screen.findByText("Saved to your rehearsal history.");
+    expect(saves[0]).not.toHaveProperty("rehearsalRunId");
+    expect(screen.queryByText(/live session/)).toBeNull();
   });
 });
 
