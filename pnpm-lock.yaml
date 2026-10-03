@@ -741,6 +741,9 @@ importers:
       '@omnitech-assistant/storage-postgres':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
+      '@omnitech/active-session-contracts':
+        specifier: workspace:*
+        version: link:../../packages/active-session-contracts
       '@omnitech/ai-contracts':
         specifier: workspace:*
         version: link:../../packages/ai-contracts

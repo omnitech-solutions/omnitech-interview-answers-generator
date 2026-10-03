@@ -40,6 +40,11 @@ const agentRuntimes = new Set([
   "@omnitech/agent-runtime-codex",
 ]);
 
+// rule:neutral-core-imports (ADR-0010): the session core imports only its own
+// files and the contracts package, so interview policy cannot leak into it.
+const neutralCoreDir = "products/interview/src/backend/live-session/core";
+const neutralCoreRule = "rule:neutral-core-imports, ADR-0010";
+
 const isApp = (pkg: WorkspacePackage) => pkg.dir.startsWith("apps/");
 const isProduct = (pkg: WorkspacePackage) => pkg.dir.startsWith("products/");
 const isLibrary = (pkg: WorkspacePackage) => pkg.dir.startsWith("packages/");
@@ -204,7 +209,86 @@ describe("package boundaries", () => {
     }
     expect(violations).toEqual([]);
   });
+
+  it("keeps the neutral session core importing only its own files and the contracts", () => {
+    const coreRoot = join(repoRoot, neutralCoreDir);
+    const violations: string[] = [];
+    for (const file of sourceFiles(coreRoot)) {
+      const source = readFileSync(file, "utf8");
+      const isTest = /\.test\.ts$/.test(file);
+      for (const issue of neutralCoreViolations(
+        source,
+        relative(coreRoot, dirname(file)),
+        isTest,
+      )) {
+        violations.push(
+          `${relative(repoRoot, file)}:${issue.line} imports ${issue.specifier} [${neutralCoreRule}: ${neutralCoreDir} may import only relative paths inside itself and @omnitech/active-session-contracts]`,
+        );
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it("detects a neutral-core import that leaves the directory", () => {
+    const source = [
+      'import { a } from "./ok.js";',
+      'import type { C } from "@omnitech/active-session-contracts";',
+      'import { z } from "zod";',
+      'import { fs } from "node:fs";',
+      'import { x } from "../sibling.js";',
+      'import { y } from "@omnitech/interview-contracts";',
+      'const lazy = await import("drizzle-orm");',
+      'import { it } from "vitest";',
+    ].join("\n");
+    expect(
+      neutralCoreViolations(source, "", false).map((v) => v.specifier),
+    ).toEqual([
+      "zod",
+      "node:fs",
+      "../sibling.js",
+      "@omnitech/interview-contracts",
+      "drizzle-orm",
+      "vitest",
+    ]);
+    // Tests may additionally import vitest, and nothing else.
+    const testViolations = neutralCoreViolations(source, "", true);
+    expect(testViolations.map((v) => v.specifier)).not.toContain("vitest");
+    expect(testViolations).toHaveLength(5);
+    // A subdirectory file may climb back up inside the directory only.
+    expect(neutralCoreViolations('import "../a.js";', "sub", false)).toEqual(
+      [],
+    );
+    expect(
+      neutralCoreViolations('import "../../a.js";', "sub", false),
+    ).toHaveLength(1);
+  });
 });
+
+// Pure over a source string so the detector itself can be tested. `relativeDir`
+// is the file's directory relative to the core directory ("" at its root).
+function neutralCoreViolations(
+  source: string,
+  relativeDir: string,
+  isTest: boolean,
+): Array<{ line: number; specifier: string }> {
+  const pattern =
+    /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)["']([^"']+)["']/gm;
+  const found: Array<{ line: number; specifier: string }> = [];
+  for (const match of source.matchAll(pattern)) {
+    const specifier = match[1] ?? "";
+    const line = source.slice(0, match.index).split("\n").length;
+    const insideCore = (): boolean => {
+      const target = resolve("/core", relativeDir, specifier);
+      return target === "/core" || target.startsWith("/core/");
+    };
+    const allowed = specifier.startsWith(".")
+      ? insideCore()
+      : specifier === "@omnitech/active-session-contracts" ||
+        (isTest && specifier === "vitest");
+    if (!allowed) found.push({ line, specifier });
+  }
+  return found;
+}
 
 function readWorkspacePackages(): WorkspacePackage[] {
   return workspaceRoots.flatMap((root) =>

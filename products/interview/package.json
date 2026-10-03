@@ -43,6 +43,7 @@
     "@omnitech-assistant/sdk": "file:../../../vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz",
     "@omnitech-assistant/server": "file:../../../vendor/omnitech-assistant/omnitech-assistant-server-0.1.0.tgz",
     "@omnitech-assistant/storage-postgres": "file:../../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
+    "@omnitech/active-session-contracts": "workspace:*",
     "@omnitech/ai-contracts": "workspace:*",
     "@omnitech/ai-runtime": "workspace:*",
     "@omnitech/code-runner": "workspace:*",
