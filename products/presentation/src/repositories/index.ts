@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { PlatformDatabase } from "@omnitech/database";
+import { enterTenant, type PlatformDatabase } from "@omnitech/database";
 import type {
   CreatePresentationInput,
   GeneratedImage,
@@ -208,9 +208,7 @@ export class PresentationRepository {
       );
       const tenantId = share.rows[0]?.tenant_id;
       if (!tenantId) return undefined;
-      await client.query("SELECT set_config('app.tenant_id', $1, true)", [
-        tenantId,
-      ]);
+      await enterTenant(client, { tenantId });
 
       // Everything else is read under that tenant's ordinary policies.
       const document = await client.query<{

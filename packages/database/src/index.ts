@@ -1,6 +1,7 @@
 export {
   createPlatformDatabase,
   type DatabaseClient,
+  enterTenant,
   getPlatformDatabase,
   type PlatformDatabase,
 } from "./connection.js";

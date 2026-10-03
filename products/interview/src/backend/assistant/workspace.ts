@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { enterTenant } from "@omnitech/database";
 import {
   briefingDraftSchema,
   generatedAnswerSchema,
@@ -250,11 +251,14 @@ function canonicalJson(value: unknown): string {
 }
 export class InterviewWorkspaceRepository {
   constructor(private readonly database: WorkspaceDatabasePort) {}
+  // Workspace rows are pinned to tenant, actor and product by row-level
+  // security. The database package owns the tenant and actor settings
+  // (ADR-0005); the product id is this product's own narrow setting.
   private async bind(tx: WorkspaceTransaction, scope: WorkspaceScope) {
-    await tx.query(
-      "SELECT set_config('app.actor_id',$1,true),set_config('app.product_id',$2,true)",
-      [scope.actorId, scope.productId],
-    );
+    await enterTenant(tx, { tenantId: scope.tenantId, actorId: scope.actorId });
+    await tx.query("SELECT set_config('app.product_id',$1,true)", [
+      scope.productId,
+    ]);
   }
   transaction<T>(
     scope: WorkspaceScope,

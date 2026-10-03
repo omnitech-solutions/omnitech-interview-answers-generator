@@ -1,4 +1,4 @@
-import { createPlatformDatabase } from "@omnitech/database";
+import { createPlatformDatabase, enterTenant } from "@omnitech/database";
 
 const database = createPlatformDatabase();
 const userEmail =
@@ -35,9 +35,7 @@ try {
     );
     // Installations are tenant-owned rows under forced row-level security, so
     // they are written inside the tenant this bootstrap just resolved.
-    await client.query("SELECT set_config('app.tenant_id', $1, true)", [
-      tenantId,
-    ]);
+    await enterTenant(client, { tenantId, actorId: userId });
     await client.query(
       `INSERT INTO platform.product_installations
          (tenant_id, product_id, display_name, description, icon, sort_order,
