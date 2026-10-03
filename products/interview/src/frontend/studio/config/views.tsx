@@ -7,6 +7,7 @@ import {
 import { BriefingsView } from "../briefings/briefings-view";
 import { DocumentsView } from "../documents/documents-view";
 import { HomeView } from "../home/home-view";
+import { LiveSessionView } from "../live/live-view";
 import { RehearsalView } from "../rehearsal/rehearsal-view";
 import type { IconName } from "../icon";
 import type { PlaygroundControlState } from "../use-playground-control";
@@ -109,6 +110,15 @@ export const views: readonly ViewDefinition[] = [
         command={control.rehearsal}
         workspaceId={assistant.workspaceId}
       />
+    ),
+  },
+  {
+    id: "live",
+    label: "Live session",
+    icon: "sensors",
+    goKey: "L",
+    render: ({ route, actions }) => (
+      <LiveSessionView rest={route.rest} actions={actions} />
     ),
   },
 ];

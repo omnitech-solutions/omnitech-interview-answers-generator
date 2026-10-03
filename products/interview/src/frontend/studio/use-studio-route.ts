@@ -7,6 +7,9 @@ export const VIEW_IDS = [
   "documents",
   "knowledge",
   "rehearsal",
+  // The Active Session: setup, the live session and the ended summary are
+  // states of this one view; `live/<sessionId>` addresses a finished session.
+  "live",
 ] as const;
 export type ViewId = (typeof VIEW_IDS)[number];
 

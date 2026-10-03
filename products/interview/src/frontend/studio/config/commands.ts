@@ -66,6 +66,13 @@ export const commands: readonly Command[] = [
     run: (actions) => actions.go("rehearsal"),
   },
   {
+    id: "start-live-session",
+    group: "Actions",
+    label: "Start a live session",
+    icon: "sensors",
+    run: (actions) => actions.go("live"),
+  },
+  {
     id: "toggle-theme",
     group: "Actions",
     label: "Toggle theme",

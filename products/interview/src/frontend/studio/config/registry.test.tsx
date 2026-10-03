@@ -10,6 +10,7 @@ vi.mock("../briefings/behavioural/behavioural-pack", () => ({
 }));
 vi.mock("../../library", () => ({ Library: () => null }));
 vi.mock("../rehearsal/rehearsal-view", () => ({ RehearsalView: () => null }));
+vi.mock("../live/live-view", () => ({ LiveSessionView: () => null }));
 
 describe("view registry", () => {
   it("has one entry per routable view with unique ids and G keys", () => {
@@ -50,7 +51,7 @@ describe("command registry", () => {
       toggleAssistant: vi.fn(),
     };
     for (const command of commands) command.run(actions);
-    expect(actions.go).toHaveBeenCalledTimes(views.length + 1);
+    expect(actions.go).toHaveBeenCalledTimes(views.length + 2);
     expect(actions.newQuestion).toHaveBeenCalledOnce();
     expect(actions.runTests).toHaveBeenCalledOnce();
     expect(actions.toggleTheme).toHaveBeenCalledOnce();
@@ -92,6 +93,29 @@ describe("studio route", () => {
     expect(parseRoute({ pathname: "/", search: "?artifact=q1" })).toMatchObject(
       { base: "", view: "home", artifact: "q1" },
     );
+  });
+
+  it("reads the Live session view and a finished session's id", () => {
+    const id = "0b1f6a52-7c7e-4f0e-9e1b-2c3d4e5f6a7b";
+    expect(
+      parseRoute({
+        pathname: `/t/local/p/interview/live/${id}`,
+        search: "",
+      }),
+    ).toEqual({
+      base: "/t/local/p/interview",
+      view: "live",
+      rest: [id],
+      artifact: "main",
+    });
+    expect(
+      routeHref({
+        base: "/t/local/p/interview",
+        view: "live",
+        rest: [id],
+        artifact: "main",
+      }),
+    ).toBe(`/t/local/p/interview/live/${id}`);
   });
 
   it("writes the artifact only for the Workspace", () => {
