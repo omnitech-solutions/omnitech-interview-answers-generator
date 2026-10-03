@@ -1,3 +1,8 @@
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
+
 /**
  * One language-model endpoint as the environment describes it. Everything that
  * talks to a model (the platform gateway, the interview API, the assistant)
@@ -99,4 +104,138 @@ export function resolveDefaultLanguageModel(
 
 function withApiKey(apiKey: string | undefined) {
   return apiKey === undefined ? {} : { apiKey };
+}
+
+// The `model = "…"` line of ~/.codex/config.toml, if there is one.
+function codexConfiguredModel(environment: LanguageModelEnvironment) {
+  try {
+    const config = readFileSync(
+      join(
+        environment["CODEX_HOME"] ?? join(homedir(), ".codex"),
+        "config.toml",
+      ),
+      "utf8",
+    );
+    return /^\s*model\s*=\s*"([^"]+)"/m.exec(config)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+// Shared bounds: read-only, never asking for approval, no extra directories
+// and no web search. No user input reaches a profile (ADR-0007 Decision 4).
+const BOUNDED = {
+  fallbackModels: [],
+  tools: [],
+  sandbox: "read-only",
+  approvalPolicy: "never",
+  additionalDirectories: [],
+  webSearch: false,
+} as const;
+
+/**
+ * Every agent profile Codex and Claude Code jobs run under, defined once
+ * here: typed, versioned and bounded. Consumers name a profile by id; the
+ * environment chooses only model names. Bump a profile's version when its
+ * bounds change, so job snapshots show which revision they ran.
+ */
+export function resolveAgentProfiles(
+  environment: LanguageModelEnvironment = process.env,
+): ReadonlyMap<string, AgentProfile> {
+  const documentModel =
+    environment["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-4-6";
+  const profiles: AgentProfile[] = [
+    {
+      ...BOUNDED,
+      id: "coding-fast",
+      version: 1,
+      runtime: "codex",
+      model: environment["CODEX_FAST_MODEL"] ?? "gpt-5.3-codex",
+      effort: "low",
+      sessionPersistence: false,
+      maximumTurns: 1,
+      timeoutMs: 120_000,
+      maximumOutputBytes: 2_000_000,
+    },
+    {
+      ...BOUNDED,
+      id: "coding-quality",
+      version: 1,
+      runtime: "codex",
+      model: environment["CODEX_QUALITY_MODEL"] ?? "gpt-5.3-codex",
+      effort: "high",
+      tools: ["read"],
+      sessionPersistence: true,
+      maximumTurns: 2,
+      timeoutMs: 300_000,
+      maximumOutputBytes: 4_000_000,
+    },
+    {
+      ...BOUNDED,
+      id: "document-quality",
+      version: 1,
+      runtime: "claude-code",
+      model: documentModel,
+      fallbackModels: environment["CLAUDE_FALLBACK_MODEL"]
+        ? [environment["CLAUDE_FALLBACK_MODEL"]]
+        : [],
+      effort: "high",
+      sessionPersistence: false,
+      maximumTurns: 2,
+      maximumBudgetUsd: 5,
+      timeoutMs: 300_000,
+      maximumOutputBytes: 4_000_000,
+    },
+    {
+      ...BOUNDED,
+      id: "presentation-editor",
+      version: 1,
+      runtime: "claude-code",
+      model: documentModel,
+      effort: "high",
+      sessionPersistence: true,
+      maximumTurns: 3,
+      maximumBudgetUsd: 8,
+      timeoutMs: 300_000,
+      maximumOutputBytes: 4_000_000,
+      outputSchema: {
+        type: "object",
+        required: ["sourceXml"],
+        properties: { sourceXml: { type: "string" } },
+      },
+    },
+    // Assistant turns: one short, tool-less reply. Sonnet answers coaching
+    // questions well and much faster than Opus.
+    {
+      ...BOUNDED,
+      id: "assistant-claude-code",
+      version: 1,
+      runtime: "claude-code",
+      model: environment["CLAUDE_ASSISTANT_MODEL"] ?? "sonnet",
+      effort: "medium",
+      sessionPersistence: false,
+      maximumTurns: 1,
+      timeoutMs: 300_000,
+      maximumOutputBytes: 1_000_000,
+    },
+    // The model the person's Codex CLI uses: a ChatGPT sign-in accepts only
+    // some models, and the CLI's own choice is one it accepts. Codex thinks
+    // less and answers sooner at low effort.
+    {
+      ...BOUNDED,
+      id: "assistant-codex",
+      version: 1,
+      runtime: "codex",
+      model:
+        environment["CODEX_ASSISTANT_MODEL"] ??
+        codexConfiguredModel(environment) ??
+        "gpt-5.3-codex",
+      effort: "low",
+      sessionPersistence: false,
+      maximumTurns: 1,
+      timeoutMs: 300_000,
+      maximumOutputBytes: 1_000_000,
+    },
+  ];
+  return new Map(profiles.map((profile) => [profile.id, profile]));
 }

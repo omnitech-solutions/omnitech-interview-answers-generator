@@ -10,6 +10,7 @@ import {
 import { getPlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
+import { resolveAgentProfiles } from "./ai-config";
 import { resolvePlatformContext } from "./context";
 
 const createSchema = z.object({
@@ -18,83 +19,23 @@ const createSchema = z.object({
   prompt: z.string().trim().min(1).max(500_000),
 });
 
+// The profiles a product may start a job with, by id; their definitions are
+// central (ai-config.ts).
+const JOB_PROFILES = [
+  "coding-fast",
+  "coding-quality",
+  "document-quality",
+  "presentation-editor",
+] as const;
+
 function profiles(): ReadonlyMap<string, AgentProfile> {
-  const values: AgentProfile[] = [
-    {
-      id: "coding-fast",
-      runtime: "codex",
-      model: process.env["CODEX_FAST_MODEL"] ?? "gpt-5.3-codex",
-      fallbackModels: [],
-      effort: "low",
-      tools: [],
-      sandbox: "read-only",
-      approvalPolicy: "never",
-      sessionPersistence: false,
-      maximumTurns: 1,
-      timeoutMs: 120_000,
-      maximumOutputBytes: 2_000_000,
-      additionalDirectories: [],
-      webSearch: false,
-    },
-    {
-      id: "coding-quality",
-      runtime: "codex",
-      model: process.env["CODEX_QUALITY_MODEL"] ?? "gpt-5.3-codex",
-      fallbackModels: [],
-      effort: "high",
-      tools: ["read"],
-      sandbox: "read-only",
-      approvalPolicy: "never",
-      sessionPersistence: true,
-      maximumTurns: 2,
-      timeoutMs: 300_000,
-      maximumOutputBytes: 4_000_000,
-      additionalDirectories: [],
-      webSearch: false,
-    },
-    {
-      id: "document-quality",
-      runtime: "claude-code",
-      model: process.env["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-4-6",
-      fallbackModels: process.env["CLAUDE_FALLBACK_MODEL"]
-        ? [process.env["CLAUDE_FALLBACK_MODEL"]]
-        : [],
-      effort: "high",
-      tools: [],
-      sandbox: "read-only",
-      approvalPolicy: "never",
-      sessionPersistence: false,
-      maximumTurns: 2,
-      maximumBudgetUsd: 5,
-      timeoutMs: 300_000,
-      maximumOutputBytes: 4_000_000,
-      additionalDirectories: [],
-      webSearch: false,
-    },
-    {
-      id: "presentation-editor",
-      runtime: "claude-code",
-      model: process.env["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-4-6",
-      fallbackModels: [],
-      effort: "high",
-      tools: [],
-      sandbox: "read-only",
-      approvalPolicy: "never",
-      sessionPersistence: true,
-      maximumTurns: 3,
-      maximumBudgetUsd: 8,
-      timeoutMs: 300_000,
-      maximumOutputBytes: 4_000_000,
-      additionalDirectories: [],
-      webSearch: false,
-      outputSchema: {
-        type: "object",
-        required: ["sourceXml"],
-        properties: { sourceXml: { type: "string" } },
-      },
-    },
-  ];
-  return new Map(values.map((profile) => [profile.id, profile]));
+  const all = resolveAgentProfiles();
+  return new Map(
+    JOB_PROFILES.flatMap((id) => {
+      const profile = all.get(id);
+      return profile ? [[id, profile] as const] : [];
+    }),
+  );
 }
 
 export function createAgentApi() {

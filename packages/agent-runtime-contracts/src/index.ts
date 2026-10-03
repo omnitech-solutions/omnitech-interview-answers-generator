@@ -26,6 +26,9 @@ export interface AgentCapabilities {
 
 export interface AgentProfile {
   id: string;
+  // Bumped whenever a profile's bounds change, so each job's recorded
+  // profile snapshot says which revision of the profile it ran under.
+  version: number;
   runtime: AgentRuntimeId;
   model: string;
   fallbackModels: readonly string[];
@@ -89,6 +92,9 @@ export interface AgentRuntimeAdapter {
 }
 
 export function validateAgentProfile(profile: AgentProfile): void {
+  if (!Number.isInteger(profile.version) || profile.version < 1) {
+    throw new Error("Agent profiles need a positive integer version.");
+  }
   if (profile.additionalDirectories.length > 0) {
     throw new Error(
       "Additional directories require an administrator-owned isolated profile.",

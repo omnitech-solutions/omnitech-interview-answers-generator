@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import type {
   ModelInput,
   ModelInfo,
@@ -8,45 +5,21 @@ import type {
   Scope,
 } from "@omnitech-assistant/contracts";
 import type { ModelSource } from "@omnitech-assistant/providers";
-import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
 import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
+import { resolveAgentProfiles } from "./ai-config";
+
+// The central profile each assistant agent model runs under.
+const profileOf = (runtime: Runtime) =>
+  resolveAgentProfiles().get(`assistant-${runtime}`);
 
 const PREFIX = "agent/";
-// The `model = "…"` line of ~/.codex/config.toml, if there is one.
-function codexConfiguredModel(): string | undefined {
-  try {
-    const config = readFileSync(
-      join(
-        process.env["CODEX_HOME"] ?? join(homedir(), ".codex"),
-        "config.toml",
-      ),
-      "utf8",
-    );
-    return /^\s*model\s*=\s*"([^"]+)"/m.exec(config)?.[1];
-  } catch {
-    return undefined;
-  }
-}
 const RUNTIMES = {
-  "claude-code": {
-    name: "Claude Code",
-    // Sonnet answers coaching questions well and much faster than Opus;
-    // CLAUDE_ASSISTANT_MODEL picks another. Documents keep their own model.
-    model: () => process.env["CLAUDE_ASSISTANT_MODEL"] ?? "sonnet",
-  },
-  codex: {
-    name: "Codex",
-    // The model the person's Codex CLI uses: a ChatGPT sign-in only accepts
-    // some models, and the CLI's own choice is one it accepts.
-    model: () =>
-      process.env["CODEX_ASSISTANT_MODEL"] ??
-      codexConfiguredModel() ??
-      "gpt-5.3-codex",
-  },
+  "claude-code": { name: "Claude Code" },
+  codex: { name: "Codex" },
 } as const;
 type Runtime = keyof typeof RUNTIMES;
 
@@ -104,7 +77,7 @@ export function createAgentModels(secret: string): ModelSource {
     (runtime) => ({
       id: `${PREFIX}${runtime}`,
       name: RUNTIMES[runtime].name,
-      description: `Runs ${RUNTIMES[runtime].model()} through your ${RUNTIMES[runtime].name} login. Answers questions; can't propose changes to your pack.`,
+      description: `Runs ${profileOf(runtime)?.model} through your ${RUNTIMES[runtime].name} login. Answers questions; can't propose changes to your pack.`,
       tags: [],
       strengths: ["reasoning", "writing", "coding"],
       vision: false,
@@ -125,26 +98,15 @@ export function createAgentModels(secret: string): ModelSource {
         const runtime = input.profileId.slice(PREFIX.length) as Runtime;
         if (!(runtime in RUNTIMES))
           throw new Error("Unknown agent model profile");
-        const profile: AgentProfile = {
-          id: `assistant-${runtime}`,
-          runtime,
-          model: RUNTIMES[runtime].model(),
-          fallbackModels: [],
-          // Short coaching replies: Codex thinks less and answers sooner.
-          effort: runtime === "codex" ? "low" : "medium",
-          tools: [],
-          sandbox: "read-only",
-          approvalPolicy: "never",
-          sessionPersistence: false,
-          maximumTurns: 1,
-          timeoutMs: 300_000,
-          maximumOutputBytes: 1_000_000,
-          additionalDirectories: [],
-          webSearch: false,
-          ...(input.schema
-            ? { outputSchema: input.schema as Record<string, unknown> }
-            : {}),
-        };
+        const central = profileOf(runtime);
+        if (!central) throw new Error("Unknown agent model profile");
+        // The turn's reply schema is the only per-run addition.
+        const profile = input.schema
+          ? {
+              ...central,
+              outputSchema: input.schema as Record<string, unknown>,
+            }
+          : central;
         const job = await jobs.create({
           tenantId: scope.tenantId,
           userId: scope.actorId,

@@ -1,5 +1,7 @@
+import { validateAgentProfile } from "@omnitech/agent-runtime-contracts";
 import { describe, expect, it } from "vitest";
 import {
+  resolveAgentProfiles,
   resolveDefaultLanguageModel,
   resolveLanguageModels,
 } from "./ai-config";
@@ -121,5 +123,38 @@ describe("resolveLanguageModels", () => {
         baseUrl: "https://api.openai.com/v1",
       },
     ]);
+  });
+});
+
+describe("resolveAgentProfiles", () => {
+  it("defines every agent profile once, versioned and bounded", () => {
+    const profiles = resolveAgentProfiles({});
+    expect([...profiles.keys()]).toEqual([
+      "coding-fast",
+      "coding-quality",
+      "document-quality",
+      "presentation-editor",
+      "assistant-claude-code",
+      "assistant-codex",
+    ]);
+    for (const profile of profiles.values()) {
+      expect(() => validateAgentProfile(profile)).not.toThrow();
+      expect(profile.version).toBe(1);
+      expect(profile.sandbox).toBe("read-only");
+      expect(profile.additionalDirectories).toEqual([]);
+    }
+  });
+
+  it("takes model names, never bounds, from the environment", () => {
+    const profiles = resolveAgentProfiles({
+      CLAUDE_ASSISTANT_MODEL: "opus",
+      CODEX_ASSISTANT_MODEL: "gpt-x",
+    });
+    expect(profiles.get("assistant-claude-code")?.model).toBe("opus");
+    expect(profiles.get("assistant-codex")).toMatchObject({
+      model: "gpt-x",
+      effort: "low",
+      maximumTurns: 1,
+    });
   });
 });

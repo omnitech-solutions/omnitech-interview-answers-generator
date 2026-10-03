@@ -27,7 +27,7 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
-import { resolveDefaultLanguageModel } from "./ai-config";
+import { resolveAgentProfiles, resolveDefaultLanguageModel } from "./ai-config";
 import { createLocalModelAdapter } from "./local-model";
 
 function createAgentPort(): AgentExecutionPort {
@@ -42,38 +42,20 @@ function createAgentPort(): AgentExecutionPort {
     profile: AiProfile,
   ): Promise<AiExecution> {
     if (!secret) throw new Error("AGENT_PAYLOAD_SECRET is not configured.");
-    const runtime =
-      profile.targetId === "claude-code" ? "claude-code" : "codex";
+    // [SAFETY] The job runs under the central agent profile of the same id.
+    const agentProfile = resolveAgentProfiles().get(profile.id);
+    if (!agentProfile) throw new Error("The agent profile is not configured.");
     const payloads = new AgentPayloadStore(database, secret);
     const promptReference = await payloads.save(
       request.context.tenantId,
       request.task.prompt,
     );
-    const model =
-      runtime === "codex"
-        ? (process.env["CODEX_QUALITY_MODEL"] ?? "gpt-5.3-codex")
-        : (process.env["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-4-6");
     const job = await repository.create({
       tenantId: request.context.tenantId,
       userId: request.context.userId,
       productId: request.context.productId,
       promptReference,
-      profile: {
-        id: profile.id,
-        runtime,
-        model,
-        fallbackModels: [],
-        effort: "high",
-        tools: [],
-        sandbox: "read-only",
-        approvalPolicy: "never",
-        sessionPersistence: true,
-        maximumTurns: 3,
-        timeoutMs: 300_000,
-        maximumOutputBytes: 4_000_000,
-        additionalDirectories: [],
-        webSearch: false,
-      },
+      profile: agentProfile,
     });
     return {
       executionId: job.id,

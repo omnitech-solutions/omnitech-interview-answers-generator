@@ -3,6 +3,7 @@ import { type AgentProfile, validateAgentProfile } from "./index.js";
 
 const safeProfile: AgentProfile = {
   id: "document-quality",
+  version: 1,
   runtime: "claude-code",
   model: "configured-model",
   fallbackModels: [],
@@ -30,6 +31,12 @@ describe("agent profiles", () => {
         additionalDirectories: ["/"],
       }),
     ).toThrow("Additional directories");
+  });
+
+  it("rejects a profile without a positive integer version", () => {
+    expect(() => validateAgentProfile({ ...safeProfile, version: 0 })).toThrow(
+      "version",
+    );
   });
 
   it("rejects unattended write access", () => {

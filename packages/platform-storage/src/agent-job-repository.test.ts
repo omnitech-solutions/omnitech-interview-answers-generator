@@ -47,6 +47,7 @@ afterAll(async () => {
 
 const profile = {
   id: "fixture",
+  version: 1,
   runtime: "codex",
   model: "fixture-model",
   fallbackModels: [],

@@ -8,6 +8,7 @@ import { runAgentWorker } from "./index.js";
 
 const profile: AgentProfile = {
   id: "presentation-editor",
+  version: 1,
   runtime: "claude-code",
   model: "test-model",
   fallbackModels: [],

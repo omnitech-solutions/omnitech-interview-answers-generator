@@ -38,6 +38,7 @@ describe("Claude runtime", () => {
       runId: "r1",
       profile: {
         id: "p",
+        version: 1,
         runtime: "claude-code",
         model: "sonnet",
         fallbackModels: [],
