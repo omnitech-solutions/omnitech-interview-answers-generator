@@ -651,6 +651,91 @@ describe("logistics", () => {
       "Ask the candidate to confirm this directly; no preference was cited for this answer.",
     );
     expect(result.draft.claims).toEqual([]);
+    expect(result.draft.logistics?.missing).toEqual([
+      "notice-period",
+      "compensation",
+      "work-arrangement",
+    ]);
+  });
+
+  it("does not let the model hide an absent preference field", () => {
+    const result = check(
+      logistics({
+        logistics: {
+          found: [{ field: "notice-period", claimIndex: 0 }],
+          missing: [],
+        },
+      }),
+      snapshotOf({ preferences: "Notice period: two weeks." }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.logistics?.missing).toEqual([
+      "compensation",
+      "work-arrangement",
+    ]);
+  });
+
+  it("scopes missing to the captured question, not the model's missing list", () => {
+    const result = check(
+      logistics({
+        claims: [],
+        logistics: { found: [], missing: ["compensation"] },
+      }),
+      snapshotOf({ preferences: "Notice period: two weeks." }),
+      ["What is your notice period?"],
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.logistics?.missing).toEqual([]);
+  });
+
+  it("refuses to label an unrelated preference as a work arrangement", () => {
+    expect(
+      violationsOf(
+        logistics({
+          logistics: {
+            found: [{ field: "work-arrangement", claimIndex: 0 }],
+            missing: [],
+          },
+        }),
+      ),
+    ).toContain("logistics.found.0:field_mismatch");
+  });
+
+  it("takes a work arrangement only from its approved preference line", () => {
+    const approved = snapshotOf({
+      preferences: "Work arrangement: remote with occasional office visits.",
+    });
+    const result = check(
+      logistics({
+        draft: "I can work anywhere whenever you need me.",
+        claims: [
+          {
+            kind: "preference-backed",
+            text: "Work arrangement: remote with occasional office visits.",
+            refs: [refTo("/context/candidatePreferences/0", approved)],
+          },
+        ],
+        logistics: {
+          found: [{ field: "work-arrangement", claimIndex: 0 }],
+          missing: [],
+        },
+      }),
+      approved,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.logistics?.found).toEqual([
+      { field: "work-arrangement", claimIndex: 0 },
+    ]);
+    expect(result.draft.draft).toBe(
+      "From your stated preferences: Work arrangement: remote with occasional office visits.",
+    );
+    expect(result.draft.logistics?.missing).toEqual([
+      "notice-period",
+      "compensation",
+    ]);
   });
 
   it("refuses a model category that hides an availability answer", () => {
@@ -664,6 +749,27 @@ describe("logistics", () => {
         snapshotOf({ preferences: "" }),
       ),
     ).toContain("category:logistics_required");
+  });
+
+  it("keeps uncited free text a suggestion rather than a preference value", () => {
+    const text = "I can be there whenever you need me.";
+    const result = check(
+      output({
+        category: "other",
+        draft: text,
+        claims: [{ kind: "suggested-interpretation", text, refs: [] }],
+      }),
+      snapshotOf({ preferences: "" }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.logistics).toBeNull();
+    expect(result.draft.claims).toEqual([
+      { kind: "suggested-interpretation", text, refs: [] },
+    ]);
+    expect(result.draft.sections).toEqual([
+      { kind: "suggested-interpretation", text },
+    ]);
   });
 
   it("requires the logistics object and refuses it for other categories", () => {
@@ -691,6 +797,7 @@ describe("logistics", () => {
     expect(result.draft.logistics?.missing).toEqual([
       "notice-period",
       "compensation",
+      "work-arrangement",
     ]);
     // A figure invented for a logistics answer is rejected, however labelled.
     expect(

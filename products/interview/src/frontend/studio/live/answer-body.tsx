@@ -149,6 +149,11 @@ export function AnswerBody({
           Copy answer
         </button>
       </div>
+      <p className="live-note">
+        This suggested draft does not set candidate preferences. For notice,
+        pay, availability or work arrangement, use only facts marked From your
+        preferences. Review personal commitments before saying or copying them.
+      </p>
       {answer.draft.trim() !== "" && (
         <div className="live-draft">
           <Paragraphs text={answer.draft} />

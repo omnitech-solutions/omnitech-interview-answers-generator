@@ -39,6 +39,7 @@ import {
   DEVICE_TASK_VIEW_LIMITS,
   isCompensationText,
   isNoticePeriodText,
+  isWorkArrangementText,
   selectSourcesForTask,
   TASK_VIEW_LIMITS,
 } from "./context-snapshot.js";
@@ -497,6 +498,8 @@ function crossFieldViolations(output: Output): string[] {
         flag(at, "field_mismatch");
       if (found.field === "compensation" && !isCompensationText(quotes))
         flag(at, "field_mismatch");
+      if (found.field === "work-arrangement" && !isWorkArrangementText(quotes))
+        flag(at, "field_mismatch");
       if (missing.has(found.field)) flag(at, "found_and_missing");
     }
   }
@@ -523,8 +526,15 @@ function crossFieldViolations(output: Output): string[] {
 function renderLogistics(
   output: Output,
   snapshot: ContextSnapshot,
+  captured: readonly string[],
 ): AssistDraft | null {
   if (output.logistics === null) return null;
+  const matchesField = (field: LogisticsField, text: string) =>
+    field === "notice-period"
+      ? isNoticePeriodText(text)
+      : field === "compensation"
+        ? isCompensationText(text)
+        : isWorkArrangementText(text);
   const claims: Claim[] = [];
   const found: NonNullable<Output["logistics"]>["found"] = [];
   for (const entry of output.logistics.found) {
@@ -535,11 +545,7 @@ function renderLogistics(
       .find(
         (item) =>
           item?.sourceKind === "candidate-preference" &&
-          (entry.field === "notice-period"
-            ? isNoticePeriodText(item.text)
-            : entry.field === "compensation"
-              ? isCompensationText(item.text)
-              : true),
+          matchesField(entry.field, item.text),
       );
     if (!source || source.text.length > MAX_QUOTE_CHARS) return null;
     claims.push({
@@ -561,11 +567,25 @@ function renderLogistics(
       ? "Ask the candidate to confirm this directly; no preference was cited for this answer."
       : `From your stated preferences: ${claims.map((claim) => claim.text).join(" ")}`;
   if (draft.length > MAX_DRAFT_CHARS) return null;
+  // [SAFETY] Missing is a fact about the pinned approved preferences, not a
+  // model-reported field. An uncited preference is not falsely called absent.
+  const asked = LOGISTICS_FIELDS.filter((field) =>
+    captured.some((line) => matchesField(field, line)),
+  );
+  const relevant = asked.length > 0 ? asked : LOGISTICS_FIELDS;
+  const missing = relevant.filter(
+    (field) =>
+      !snapshot.sources.some(
+        (source) =>
+          source.sourceKind === "candidate-preference" &&
+          matchesField(field, source.text),
+      ),
+  );
   return {
     ...output,
     draft,
     claims,
-    logistics: { found, missing: output.logistics.missing },
+    logistics: { found, missing },
     sections: claims.map(({ kind, text }) => ({ kind, text })),
   };
 }
@@ -670,7 +690,7 @@ export function createAssistStage(
       if (violations.length > 0)
         return { ok: false, violations: violations.slice(0, 30) };
       if (output.category === "logistics") {
-        const rendered = renderLogistics(output, ctx.snapshot);
+        const rendered = renderLogistics(output, ctx.snapshot, ctx.captured);
         return rendered
           ? { ok: true, draft: rendered }
           : { ok: false, violations: ["logistics:unrenderable"] };

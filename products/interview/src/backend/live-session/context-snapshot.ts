@@ -156,11 +156,15 @@ export const NOTICE_PERIOD_WORDING =
   /\bnotice\b|\bstart date\b|\bavailable to start\b|\bearliest start\b|\b(?:can|able to) start\b/i;
 export const COMPENSATION_WORDING =
   /\bsalary\b|\bcompensation\b|\bcomp\b|\bbase pay\b|\btake-home\b|\bote\b|\bstock options?\b|\brsus?\b|\bbonus\b|\bhourly rate\b|\bday rate\b|\bper (?:hour|annum|year)\b|[$£€]\s?\d|\b\d[\d,.]*\s?(?:k\s?)?(?:usd|cad|eur|gbp)\b|\b(?:usd|cad|eur|gbp|aud)\s?\d/i;
+export const WORK_ARRANGEMENT_WORDING =
+  /\bwork (?:arrangement|location|mode)\b|\bremote\b|\bhybrid\b|\bon[- ]?site\b|\bin[- ]office\b|\boffice[- ]based\b|\bwork from home\b|\bwfh\b/i;
 
 export const isNoticePeriodText = (text: string) =>
   NOTICE_PERIOD_WORDING.test(wordingText(text));
 export const isCompensationText = (text: string) =>
   COMPENSATION_WORDING.test(wordingText(text));
+export const isWorkArrangementText = (text: string) =>
+  WORK_ARRANGEMENT_WORDING.test(wordingText(text));
 
 // Employer text is an UNTRUSTED observation: the prompt builder labels every
 // source of this kind as data, never as policy.

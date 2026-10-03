@@ -225,6 +225,11 @@ describe("experience answer", () => {
   it("labels each claim with where it comes from", () => {
     show({ actions: [answerAction(withEveryKind())] });
     expect(screen.getByText("Suggested answer")).toBeVisible();
+    expect(
+      screen.getByText(
+        /This suggested draft does not set candidate preferences/,
+      ),
+    ).toBeVisible();
     const kinds = Array.from(
       document.querySelectorAll("[data-claim-kind]"),
     ).map((el) => el.getAttribute("data-claim-kind"));
