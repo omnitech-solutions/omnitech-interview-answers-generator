@@ -1,6 +1,14 @@
 ALTER TABLE "ai"."agent_artifacts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "ai"."agent_job_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "platform"."tenant_memberships" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+-- The app role owns agent_jobs and presentation.documents, and their forced
+-- row-level security hides every row from a statement that names no tenant:
+-- the backfills below would match nothing, and the new composite foreign keys
+-- could not see the rows they reference. The force is lifted for this
+-- migration and restored on both tables as its last statements, inside the
+-- migration's one transaction.
+ALTER TABLE "ai"."agent_jobs" NO FORCE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "presentation"."documents" NO FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 -- Existing agent artifacts take their job's tenant before the column is required.
 ALTER TABLE "ai"."agent_artifacts" ADD COLUMN "tenant_id" uuid;--> statement-breakpoint
 UPDATE "ai"."agent_artifacts" child SET "tenant_id" = job."tenant_id" FROM "ai"."agent_jobs" job WHERE job."id" = child."job_id";--> statement-breakpoint
@@ -34,4 +42,6 @@ ALTER TABLE "presentation"."slides" DROP CONSTRAINT "slides_document_id_fkey", A
 CREATE POLICY "tenant_scope" ON "ai"."agent_artifacts" AS PERMISSIVE FOR ALL TO public USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)) WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));--> statement-breakpoint
 CREATE POLICY "tenant_scope" ON "ai"."agent_job_events" AS PERMISSIVE FOR ALL TO public USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)) WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));--> statement-breakpoint
 CREATE POLICY "agent_worker_append" ON "ai"."agent_job_events" AS PERMISSIVE FOR INSERT TO public WITH CHECK ((current_setting('app.agent_worker'::text, true) = 'on'::text));--> statement-breakpoint
-CREATE POLICY "tenant_scope" ON "platform"."tenant_memberships" AS PERMISSIVE FOR ALL TO public USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)) WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+CREATE POLICY "tenant_scope" ON "platform"."tenant_memberships" AS PERMISSIVE FOR ALL TO public USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)) WITH CHECK ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));--> statement-breakpoint
+ALTER TABLE "ai"."agent_jobs" FORCE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "presentation"."documents" FORCE ROW LEVEL SECURITY;

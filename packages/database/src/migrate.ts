@@ -36,15 +36,18 @@ END $$`;
 // policies follow them. The Drizzle stream owns every other schema and records
 // each migration by name in drizzle.__drizzle_migrations, so re-running
 // applies only what is new.
+// `folder` is the Drizzle stream to apply; an upgrade test points it at an
+// earlier slice of the stream to rehearse a migration against existing rows.
 export async function migrateDatabase(
   database: PlatformDatabase,
+  folder = migrationsFolder,
 ): Promise<void> {
   for (const file of assistantMigrations)
     await database.query(await readFile(file, "utf8"));
   await database.query(runWorkerPolicies);
   await withPoolClient(database, (client) =>
     migrate(drizzle({ client }), {
-      migrationsFolder,
+      migrationsFolder: folder,
       migrationsSchema: "drizzle",
       migrationsTable: "__drizzle_migrations",
     }).then(() => undefined),
