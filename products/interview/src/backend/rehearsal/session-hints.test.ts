@@ -526,7 +526,13 @@ describe("the session never writes rehearsal_sessions (rule:no-second-scorecard)
     );
     const sources = readdirSync(directory, { recursive: true })
       .map(String)
-      .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
+      .filter(
+        (name) =>
+          name.endsWith(".ts") &&
+          !name.endsWith(".test.ts") &&
+          // Test support reads the table to prove it is unchanged.
+          !name.includes("fixture"),
+      );
     expect(sources.length).toBeGreaterThan(20);
     const mentions = sources.filter((name) =>
       /rehearsal_sessions|rehearsalSessions/.test(
