@@ -1,6 +1,8 @@
 // One task revision's assistance: record the action, re-check the session row,
 // make the ONE structured gateway call, validate the closed output and publish
-// through the fenced write. Every decision rests on the session row and on
+// through the fenced write. Prompt assembly, context selection and output
+// validation live in service.ts; this file is the fenced skeleton around them.
+// Every decision rests on the session row and on
 // validated structured fields (rule:structured-field-decisions): the processing
 // policy comes from the row alone (rule:session-processing-policy), never from
 // ingest or model content, and nothing here creates an agent job - the coding
@@ -22,7 +24,8 @@ import type { Clock, Task } from "./core/index.js";
 import { sessionGatewayContext } from "./gateway-context.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
 import type { SessionStorePort } from "./processor-ports.js";
-import { capturedFor, keyOf, type SessionRun } from "./session-run.js";
+import { keyOf, type SessionRun } from "./session-run.js";
+import { planAssist } from "./service.js";
 import type { LocalityDecision } from "./trace.js";
 
 export type DispatchDeps = {
@@ -135,6 +138,20 @@ export async function dispatchTask(
       reason,
     });
 
+  // A retryable failure: recorded failed, so a retry is deduplicated only
+  // against succeeded or in-flight work, and counted toward the retry bound.
+  const failRetryably = async (outcome: string) => {
+    run.failures.set(key, (run.failures.get(key) ?? 0) + 1);
+    const settled = await store.recordFailure({
+      scope: run.scope,
+      sessionId,
+      holder: run.holder,
+      actionId,
+    });
+    if (settled.outcome === "refused" && lost(settled.reason)) return;
+    finish("dispatch.failed", outcome, { attempt });
+  };
+
   // 2. Re-check the session row immediately before dispatch, under the fenced
   // write check. The policy used below is THIS read, never an earlier one.
   const standing = await store.readDispatchStanding({
@@ -169,11 +186,23 @@ export async function dispatchTask(
     finish("dispatch.refused", "stage-unlisted");
     return;
   }
-  const prepared = stage.prepare({
-    taskId: task.taskId,
-    revision,
-    captured: capturedFor(run, task),
-  });
+  // The pinned context is read once per run through the store port; a failed
+  // read is a retryable outcome (the stage never answers from a stale or
+  // unverified context), an oversize prompt is a settled refusal.
+  const plan = await planAssist(run, task, { store, stage, deviceOnly });
+  if (stopped()) return;
+  if (plan.outcome === "context_unavailable") {
+    await failRetryably("context_unavailable");
+    return;
+  }
+  if (plan.outcome === "prompt_too_large") {
+    bytesIn = plan.byteCount;
+    run.settled.add(key);
+    await settle("prompt_too_large");
+    finish("dispatch.suppressed", "prompt_too_large");
+    return;
+  }
+  const prepared = plan.prompt;
   bytesIn = prepared.byteCount;
   const request: AiExecutionRequest = {
     context: sessionGatewayContext(run.scope),
@@ -207,28 +236,16 @@ export async function dispatchTask(
       finish("dispatch.refused", "policy-refused");
       return;
     }
-    // Unavailable (or cancelled): recorded failed, so a retry is deduplicated
-    // only against succeeded or in-flight work. Same profile, no fallback.
-    run.failures.set(key, (run.failures.get(key) ?? 0) + 1);
-    const settled = await store.recordFailure({
-      scope: run.scope,
-      sessionId,
-      holder: run.holder,
-      actionId,
-    });
-    if (settled.outcome === "refused" && lost(settled.reason)) return;
-    finish(
-      "dispatch.failed",
-      run.abort.signal.aborted ? "cancelled" : "unavailable",
-      { attempt },
-    );
+    // Unavailable (or cancelled): retried against the same profile, with no
+    // fallback to another.
+    await failRetryably(run.abort.signal.aborted ? "cancelled" : "unavailable");
     return;
   }
   if (stopped()) return;
 
   // 5. Validate against the closed schema. A violation records a suppression by
   // ids and publishes nothing; the violation paths go to the trace, no values.
-  const checked = stage.validate(result);
+  const checked = plan.validate(result);
   if (!checked.ok) {
     run.settled.add(key);
     await settle("invalid_output");
@@ -248,18 +265,15 @@ export async function dispatchTask(
     holder: run.holder,
     actionId,
     tasks: run.tasks,
-    result: {
-      version: 1,
-      stage: stage.actionKind,
-      draft: checked.draft.draft,
-      sections: checked.draft.sections,
-      meta: { profileId, processingPolicy: standing.processingPolicy },
-    },
+    result: plan.resultFor(checked.draft, {
+      profileId,
+      processingPolicy: standing.processingPolicy,
+    }),
     show: true,
   });
   if (published.outcome === "published") {
     run.settled.add(key);
-    finish("dispatch.published", "published");
+    finish("dispatch.published", "published", plan.detailFor(checked.draft));
     return;
   }
   if (lost(published.reason)) return;

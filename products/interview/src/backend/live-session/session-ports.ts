@@ -7,6 +7,7 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { FencedSessionWrites } from "./fenced-writes.js";
 import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
 import { ActiveSessionRepository } from "./repository.js";
+import { loadSessionContext } from "./session-context.js";
 import {
   claimCapExpired,
   claimPurgeCandidates,
@@ -67,6 +68,8 @@ export function createDatabaseStorePort(
       repository.listObservations(scope, sessionId, { afterSequence, limit }),
     actions: (scope, sessionId) =>
       repository.listActions(scope, sessionId, { limit: 500 }),
+    loadContext: (scope, sessionId) =>
+      loadSessionContext(database, scope, sessionId),
     cancelJobs: (scope, sessionId) =>
       cancelSessionJobs(database, jobs, scope, sessionId),
     purge: (target) =>

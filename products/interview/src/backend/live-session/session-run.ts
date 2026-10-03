@@ -33,6 +33,7 @@ import type { FenceHolder } from "./fenced-writes.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
 import type { SessionStorePort } from "./processor-ports.js";
 import type { OwnerScope } from "./scope.js";
+import type { SessionContext } from "./session-context.js";
 import type { SessionClaim } from "./session-claim.js";
 import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionTraceEvent } from "./trace.js";
@@ -67,6 +68,10 @@ export type SessionRun = {
   settled: Set<string>;
   // Failed (retryable) dispatches per key.
   failures: Map<string, number>;
+  // The pinned approved context, loaded on first use and kept for the life of
+  // the run: a new fence builds a new run and reloads it, and the pinned
+  // profile revision cannot change inside a session.
+  context: SessionContext | null;
   inflight: Promise<void> | null;
   abort: AbortController;
   trace: RunTracer;
@@ -93,6 +98,7 @@ export function createRun(
     taskCounter: 0,
     settled: new Set(),
     failures: new Map(),
+    context: null,
     inflight: null,
     abort: new AbortController(),
     trace,

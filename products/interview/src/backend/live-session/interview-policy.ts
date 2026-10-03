@@ -1,14 +1,18 @@
-// The Interview side of the session: a DETERMINISTIC baseline policy for this
-// loop (loop 2 replaces it with grounded classification). It implements the
-// neutral core's TaskPolicy port and adds the assist stage. Rules, in order:
+// The Interview side of the session: a DETERMINISTIC policy for task identity.
+// It implements the neutral core's TaskPolicy port and carries the assist
+// stage. It decides only WHETHER an utterance opens, revises or defers a task;
+// what the question is (its category) is classified by the assist stage's one
+// structured call and read from its validated field, never guessed here
+// (rule:structured-field-decisions). Rules, in order:
 //   1. filler and backchannel never open or revise a task;
 //   2. "circle back", "put a pin" defer a topic;
 //   3. with an open task, "part two" / "now handle" / "what about" revise it;
 //   4. a question opens ONE task (a compound question is one utterance);
 //   5. a long task-less utterance is a monologue and is ignored.
 // These are approximations: source labels are not verified identities, so the
-// baseline reads text, never who said it. The policy returns only opaque
-// handles (rule:id-only-traces); no utterance text rides in a decision.
+// policy reads text, never who said it. It returns only opaque handles
+// (rule:id-only-traces); no utterance text rides in a decision. Every synthetic
+// replay set (session-replay-fixtures.test.ts) is run through it.
 
 import { type AssistStage, createAssistStage } from "./assist-stage.js";
 import {

@@ -14,6 +14,7 @@ import type {
   SessionClaim,
   SessionTarget,
 } from "./session-claim.js";
+import type { SessionContext } from "./session-context.js";
 import type { PurgeResult } from "./session-purge.js";
 import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionView } from "./session-record.js";
@@ -56,6 +57,9 @@ export type SessionStorePort = Pick<
     limit: number,
   ): Promise<StoredObservation[]>;
   actions(scope: OwnerScope, sessionId: string): Promise<StoredAction[]>;
+  // The session's pinned approved context (profile revision hash-verified,
+  // linked briefing draft). Rejects when it is unavailable; never a stale one.
+  loadContext(scope: OwnerScope, sessionId: string): Promise<SessionContext>;
   // Requests cancellation of the session's in-flight jobs; a job already
   // terminal counts as cancelled (rule:pause-end-suppression).
   cancelJobs(scope: OwnerScope, sessionId: string): Promise<unknown>;

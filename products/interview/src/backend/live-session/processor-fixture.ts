@@ -3,15 +3,19 @@
 // replay helper that ingests the synthetic fixtures through the real ingest
 // path, and a world that composes the real processor over the database
 // fixture. Tests, not production code, import this.
+import { randomUUID } from "node:crypto";
 import type {
   AiExecution,
   AiExecutionGateway,
   AiExecutionRequest,
 } from "@omnitech/ai-contracts";
+import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { expect } from "vitest";
+import { matrixSha256 } from "./context-snapshot.js";
 import { ingestObservation } from "./ingest.js";
 import { createInterviewSessionPolicy } from "./interview-policy.js";
 import type { Fixture, Person } from "./live-session-fixture.js";
+import type { WorkspaceDraftKey } from "./mapping.js";
 import { createSessionProcessor } from "./processor.js";
 import type {
   SessionClaimPort,
@@ -19,6 +23,7 @@ import type {
   SessionProcessorPorts,
   SessionStorePort,
 } from "./processor-ports.js";
+import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
 import { ActiveSessionRepository } from "./repository.js";
 import {
   createDatabaseClaimPort,
@@ -155,6 +160,91 @@ export type StartedFor = {
   ingestor: Ingestor;
 };
 
+// What a session may pin at start: a candidate-profile revision and one linked
+// Workspace draft (see seedMatrixProfile and seedBriefingDraft).
+export type SessionLinks = {
+  profile?: { id: string; revision?: number };
+  workspaceDraft?: WorkspaceDraftKey;
+};
+
+// An approved candidate-profile revision holding a real matrix and its real
+// digest, arranged as the fixture owner for one person.
+export async function seedMatrixProfile(
+  fx: Fixture,
+  tenant: string,
+  actorId: string,
+  options: {
+    matrix?: CandidateMatrix;
+    revision?: number;
+    // Records this digest instead of the matrix's own (a tampered revision).
+    sha256?: string;
+  } = {},
+): Promise<{ id: string; revision: number; sha256: string }> {
+  const matrix = options.matrix ?? SYNTHETIC_MATRIX;
+  const revision = options.revision ?? 1;
+  const sha256 = options.sha256 ?? matrixSha256(matrix);
+  const id = `matrix-profile-${randomUUID().slice(0, 8)}`;
+  await fx.owner.query(
+    "INSERT INTO interview.candidate_profiles(tenant_id,actor_id,product_id,id,name,revision) VALUES($1,$2,'omnitech.interview',$3,'Synthetic profile',$4)",
+    [tenant, actorId, id, revision],
+  );
+  await fx.owner.query(
+    "INSERT INTO interview.candidate_profile_revisions(tenant_id,actor_id,product_id,id,revision,name,sha256,matrix) VALUES($1,$2,'omnitech.interview',$3,$4,'Synthetic profile',$5,$6::jsonb)",
+    [tenant, actorId, id, revision, sha256, JSON.stringify(matrix)],
+  );
+  return { id, revision, sha256 };
+}
+
+// A briefing draft with the given employer material and candidate preferences,
+// arranged as the fixture owner at the given revision.
+export async function seedBriefingDraft(
+  fx: Fixture,
+  tenant: string,
+  actorId: string,
+  profile: { id: string; revision: number },
+  context: {
+    candidatePreferences?: string;
+    jobDescription?: string;
+    employerNotes?: string;
+    research?: string;
+  },
+  revision = 4,
+): Promise<WorkspaceDraftKey> {
+  const key = {
+    workspaceId: `ws-${randomUUID().slice(0, 8)}`,
+    artifactId: `art-${randomUUID().slice(0, 8)}`,
+  };
+  const value = {
+    question: "Prepare the recruiter screen",
+    notes: "",
+    answer: null,
+    briefing: {
+      kind: "non-technical-briefing",
+      title: "Recruiter screen",
+      context: {
+        company: "Example Corp",
+        role: "Senior software engineer",
+        stage: "recruiter",
+        profile: { id: profile.id, revision: profile.revision },
+        ...context,
+      },
+      questions: [],
+    },
+  };
+  await fx.owner.query(
+    "INSERT INTO interview.assistant_drafts(tenant_id,actor_id,product_id,workspace_id,artifact_id,revision,value) VALUES($1,$2,'omnitech.interview',$3,$4,$5,$6::jsonb)",
+    [
+      tenant,
+      actorId,
+      key.workspaceId,
+      key.artifactId,
+      revision,
+      JSON.stringify(value),
+    ],
+  );
+  return key;
+}
+
 export async function startSessionFor(
   fx: Fixture,
   repo: ActiveSessionRepository,
@@ -163,10 +253,24 @@ export async function startSessionFor(
   processingPolicy: "device-only" | "permitted-remote" = "permitted-remote",
 ): Promise<StartedFor> {
   const person = await fx.provision(tenant, name);
+  return startSessionForPerson(fx, repo, tenant, person, processingPolicy);
+}
+
+// Starts a session for an already provisioned person, so a profile or draft
+// can be seeded for them first.
+export async function startSessionForPerson(
+  fx: Fixture,
+  repo: ActiveSessionRepository,
+  tenant: string,
+  person: Person,
+  processingPolicy: "device-only" | "permitted-remote" = "permitted-remote",
+  links: SessionLinks = {},
+): Promise<StartedFor> {
   const scope = { tenantId: tenant, actorId: person.id };
   const started = await repo.startSession(scope, {
     processingPolicy,
     captureSources: ["microphone", "application-audio"],
+    ...links,
   });
   return {
     person,

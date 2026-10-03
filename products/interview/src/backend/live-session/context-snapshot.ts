@@ -326,9 +326,13 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+// The digest a candidate-profile revision records for its matrix.
+export const matrixSha256 = (matrix: CandidateMatrix): string =>
+  sha(canonical(matrix));
+
 export function verifyMatrixHash(
   matrix: CandidateMatrix,
   expectedSha256: string,
 ): boolean {
-  return sha(canonical(matrix)) === expectedSha256;
+  return matrixSha256(matrix) === expectedSha256;
 }

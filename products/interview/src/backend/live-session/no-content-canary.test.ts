@@ -20,7 +20,9 @@ import {
   buildProcessor,
   collectTraces,
   createFakeGateway,
+  seedMatrixProfile,
   settle,
+  startSessionForPerson,
 } from "./processor-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
 import { createSessionRoutes } from "./routes.js";
@@ -343,5 +345,99 @@ describe("the canary never leaves the owner's own reads", () => {
     expect(everything).not.toContain("canary-secret");
     // Console output stayed silent on every path, expected or not.
     expect(logged).toEqual([]);
+  }, 60_000);
+
+  it("keeps a claim's text and quote out of traces, for a rejected and a published draft", async () => {
+    const claimCanary = `claim-${randomUUID()}-canary`;
+    const person = await fx.provision(fx.tenantA, "canary-claims");
+    const profile = await seedMatrixProfile(fx, fx.tenantA, person.id);
+    const started = await startSessionForPerson(
+      fx,
+      new ActiveSessionRepository(fx.member),
+      fx.tenantA,
+      person,
+      "permitted-remote",
+      { profile: { id: profile.id } },
+    );
+    // The first revision is rejected (a fabricated quote carrying the canary,
+    // inside a claim whose text carries it too); the second is published (a
+    // general-knowledge claim whose text carries it).
+    const gateway = createFakeGateway({
+      // Revision 1 is rejected, revision 2 (the "part two") is published. The
+      // processor may hold other sessions of this suite too: it keys off the
+      // revision in the prompt, not the call count.
+      result: (request) =>
+        request.task.prompt.includes("REVISION: 1")
+          ? {
+              category: "experience-story",
+              draft: "Outline.",
+              claims: [
+                {
+                  kind: "matrix-backed",
+                  text: `Led the migration ${claimCanary}`,
+                  refs: [
+                    {
+                      sourceId: claimCanary,
+                      revision: 1,
+                      pointer: "/roles/0/responsibilities/0",
+                      quote: claimCanary,
+                    },
+                  ],
+                },
+              ],
+              star: null,
+              logistics: null,
+              codingBrief: null,
+            }
+          : {
+              category: "technical-concept",
+              draft: "Outline.",
+              claims: [
+                {
+                  kind: "general-knowledge",
+                  text: `A staged cutover keeps rollback cheap ${claimCanary}`,
+                  refs: [],
+                },
+              ],
+              star: null,
+              logistics: null,
+              codingBrief: null,
+            },
+    });
+    const traces = collectTraces();
+    const processor = buildProcessor(fx, {
+      workerId: "worker-canary-claims",
+      gateway,
+      trace: traces,
+    });
+    for (const phase of RECRUITER_SCREEN.slice(0, 2)) {
+      for (const segment of phase.segments)
+        await started.ingestor.ingest(segment);
+      await settle(processor);
+    }
+    await processor.close();
+
+    const actions = await new ActiveSessionRepository(fx.member).listActions(
+      started.scope,
+      started.sessionId,
+    );
+    expect(actions.map((action) => action.dispatchStatus)).toEqual([
+      "suppressed",
+      "succeeded",
+    ]);
+    // The published result is the owner's own stored data and holds the claim...
+    expect(JSON.stringify(actions[1]?.result)).toContain(claimCanary);
+    // ...but no trace, for either dispatch, holds any part of it.
+    expect(traces.events.length).toBeGreaterThan(0);
+    expect(
+      traces.events.some((event) => event.event === "dispatch.published"),
+    ).toBe(true);
+    expect(JSON.stringify(traces.events)).not.toContain(claimCanary);
+    expect(JSON.stringify(actions[0])).not.toContain(claimCanary);
+    await new ActiveSessionRepository(fx.member).controlSession(
+      started.scope,
+      started.sessionId,
+      "end",
+    );
   }, 60_000);
 });
