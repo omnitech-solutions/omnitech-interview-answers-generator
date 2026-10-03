@@ -199,10 +199,14 @@ describe("stream subscription", () => {
     expect(server.count("GET /:id/stream")).toBe(2);
   });
 
-  it("stops polling once the session has ended", async () => {
+  it("stops polling once a session kept after the call has ended", async () => {
     const server = activeServer(() =>
       streamPage({
-        session: sessionView({ status: "ended", endedAt: minutesAfter(2) }),
+        session: sessionView({
+          status: "ended",
+          retention: "thirty-days",
+          endedAt: minutesAfter(2),
+        }),
       }),
     );
     const store = boot(server);
@@ -210,6 +214,71 @@ describe("stream subscription", () => {
     await advance(20_000);
     expect(store.getSnapshot().session?.status).toBe("ended");
     expect(server.count("GET /:id/stream")).toBe(1);
+    expect(server.count("GET /:id")).toBe(0);
+  });
+
+  it("keeps checking an ended delete-at-end session until the purge is observed, then drops its content", async () => {
+    let purged = false;
+    const ended = (overrides = {}) =>
+      sessionView({
+        status: "ended",
+        retention: "delete-at-end",
+        endedAt: minutesAfter(2),
+        ...overrides,
+      });
+    const server = activeServer(() =>
+      streamPage({
+        session: ended(),
+        observations: [transcript(1, "Tell me about a recent project.")],
+        nextAfterSequence: 1,
+      }),
+    );
+    server.on("GET /:id", () =>
+      jsonResponse({
+        session: purged ? ended({ purged: true }) : ended(),
+      }),
+    );
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await advance(1_000);
+    expect(store.getSnapshot().observations).toHaveLength(1);
+    // Not purged yet: the store re-reads the record at the settle cadence.
+    await advance(9_000);
+    expect(server.count("GET /:id")).toBeGreaterThanOrEqual(3);
+    expect(store.getSnapshot().session?.purged).toBe(false);
+    purged = true;
+    await advance(3_100);
+    expect(store.getSnapshot().session?.purged).toBe(true);
+    expect(store.getSnapshot().observations).toEqual([]);
+    // Once observed it stops asking.
+    const reads = server.count("GET /:id");
+    await advance(20_000);
+    expect(server.count("GET /:id")).toBe(reads);
+  });
+
+  it("gives up on a purge that never settles after a bounded number of checks", async () => {
+    const server = activeServer(() =>
+      streamPage({
+        session: sessionView({
+          status: "ended",
+          retention: "delete-at-end",
+          endedAt: minutesAfter(2),
+        }),
+      }),
+    );
+    server.on("GET /:id", () =>
+      jsonResponse({
+        session: sessionView({
+          status: "ended",
+          retention: "delete-at-end",
+          endedAt: minutesAfter(2),
+        }),
+      }),
+    );
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await advance(300_000);
+    expect(server.count("GET /:id")).toBe(20);
   });
 
   it("merges a re-read action by id: the newest updatedAt wins", async () => {

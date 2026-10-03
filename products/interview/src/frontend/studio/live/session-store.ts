@@ -213,6 +213,16 @@ export function createSessionStore(
     else ensureRunning();
   }
 
+  // A session that is being deleted, or ended with delete-at-end retention
+  // and not yet seen purged: the purge happens on the server after the end, so
+  // the store keeps asking until it observes it (bounded), rather than leaving
+  // content on screen that is already gone.
+  const awaitingPurge = (session: LiveSessionView): boolean =>
+    session.status === "purging" ||
+    (session.status === "ended" &&
+      session.retention === "delete-at-end" &&
+      !session.purged);
+
   async function settlePurge(id: string) {
     busy = true;
     try {
@@ -223,7 +233,8 @@ export function createSessionStore(
     settleAttempts += 1;
     busy = false;
     if (
-      snapshot.session?.status === "purging" &&
+      snapshot.session &&
+      awaitingPurge(snapshot.session) &&
       settleAttempts < PURGE_SETTLE_ATTEMPTS
     )
       if (watching && !disposed) schedule(ensureRunning, PURGE_SETTLE_MS);
@@ -257,8 +268,12 @@ export function createSessionStore(
       if (settleAttempts < PURGE_SETTLE_ATTEMPTS) void settlePurge(session.id);
       return;
     }
-    if (!drained.has(session.id) && !halted)
+    if (!drained.has(session.id) && !halted) {
       void drainFinished(session.id).then(ensureRunning);
+      return;
+    }
+    if (awaitingPurge(session) && settleAttempts < PURGE_SETTLE_ATTEMPTS)
+      void settlePurge(session.id);
   }
 
   function hydrate(): Promise<void> {

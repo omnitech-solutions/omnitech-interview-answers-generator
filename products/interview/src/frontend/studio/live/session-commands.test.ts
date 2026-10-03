@@ -113,10 +113,13 @@ describe("session commands", () => {
     const reloaded = boot(server);
     reloaded.subscribe(() => undefined);
     await flush();
-    expect(server.calls.slice(-3)).toEqual([
+    // The session is delete-at-end and not yet seen purged, so after the
+    // drain the record is checked again for the purge.
+    expect(server.calls.slice(-4)).toEqual([
       "GET /current",
       "GET /:id",
       "GET /:id/stream",
+      "GET /:id",
     ]);
     expect(reloaded.getSnapshot().session?.status).toBe("ended");
     const reads = server.count("GET /:id/stream");
