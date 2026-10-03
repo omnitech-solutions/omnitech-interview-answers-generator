@@ -5,17 +5,25 @@
 // sandbox limits the code runner does not set, "nothing is captured" said by
 // the browser, and so on. A source scan backs it for states a render misses
 // (the Workspace draft panel). ADR-0011 and ADR-0012 are the authority.
-import type { AssistantConfig } from "@omnitech-assistant/react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { readFileSync, readdirSync } from "node:fs";
+
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AssistantConfig } from "@omnitech-assistant/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
-import { installScriptedService } from "./live-script-kit";
 import { LIVE, SCENARIOS } from "./live-scenarios";
+import { installScriptedService } from "./live-script-kit";
 import { minutesAfter, sessionView } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
+import { REPORTS } from "./setup-capability-fixtures";
 
 vi.mock("@omnitech-assistant/react", () => ({
   AssistantRoot: ({
@@ -101,6 +109,17 @@ export const FORBIDDEN: readonly [RegExp, string][] = [
     "the transcript is sent to Studio's server",
   ],
   [/tests could not run on this mac/i, "the runner is never on the Mac"],
+  // The companion's speech is on-device under BOTH policies (ADR-0012 Locality
+  // by stage; the companion requires on-device recognition), so allowing remote
+  // processing never makes an unsupported language work.
+  [
+    /or allow remote processing/i,
+    "speech stays on this Mac under both policies",
+  ],
+  [
+    /allow(ing)? remote( processing)?[^.]{0,30}(fix|enable|make .{0,20}work)/i,
+    "remote processing does not change on-device speech",
+  ],
 ];
 
 // Every attribute a screen reader or tooltip would speak, as well as the text.
@@ -222,4 +241,162 @@ describe("source scan", () => {
       for (const [pattern, why] of FORBIDDEN)
         expect(code(file), `${file}: ${pattern} (${why})`).not.toMatch(pattern);
   });
+});
+
+// Companion-side claims. The browser cannot observe the Mac, so each sentence
+// that describes what the companion does is either backed by named tests (the
+// file must exist and contain the test's exact title) and an ADR rule, or it
+// must not be shown. A claim that is shown but not listed here fails.
+const REPO = join(dirname(fileURLToPath(import.meta.url)), "../../../../../..");
+type Fact = { file: string; test: string };
+const COMPANION_CLAIMS: {
+  claim: string;
+  shown: RegExp;
+  // The ADR rule the claim cites.
+  rule: string;
+  facts: Fact[];
+}[] = [
+  {
+    claim: "stops locally if Studio is unavailable",
+    shown: /stops locally if Studio is unavailable/,
+    rule: "ADR-0012 rule:stop-authority (the local Stop works without Studio)",
+    facts: [
+      {
+        file: "apps/capture-companion/src/companion.test.ts",
+        test: "stops synchronously with Studio permanently down and sends nothing more",
+      },
+      {
+        file: "apps/capture-companion/macos/Tests/CaptureCoreTests/SessionTests.swift",
+        test: "local stop is synchronous, needs no network, zeroes audio and persists a marker",
+      },
+    ],
+  },
+  {
+    claim: "the companion can't add sources",
+    shown: /(can’t|cannot) add sources/,
+    rule: "ADR-0011 rule:credential-ingest-scope; ADR-0012 narrowing-only control",
+    facts: [
+      {
+        file: "products/interview/src/backend/live-session/ingest.test.ts",
+        test: "refuses a source kind the session never agreed to, storing nothing",
+      },
+      {
+        file: "apps/capture-companion/src/control.test.ts",
+        test: "offers only locally selected sources and can only narrow",
+      },
+      {
+        file: "apps/capture-companion/src/companion.test.ts",
+        test: "resume restarts only locally selected sources, never ones Studio refused",
+      },
+    ],
+  },
+  {
+    claim:
+      "speech runs on this Mac, in the companion (only on an on-device report)",
+    shown: /On this Mac, in the companion/,
+    rule: "ADR-0012 rule:locality-by-stage",
+    facts: [
+      {
+        file: "apps/capture-companion/src/capability.test.ts",
+        test: "is ready only with on-device recognition, a recognizer and authorization",
+      },
+      {
+        file: "apps/capture-companion/src/companion.test.ts",
+        test: "starts no source, reports why and heartbeats capturing:false",
+      },
+      {
+        file: "apps/capture-companion/macos/Tests/CaptureCoreTests/SessionTests.swift",
+        test: "a failed on-device capability check starts nothing and never falls back",
+      },
+      {
+        file: "products/interview/src/frontend/studio/live/companion-capability.test.ts",
+        test: "is ready, and on this Mac, only when on-device recognition is available and authorised",
+      },
+    ],
+  },
+];
+
+describe("companion-side claims are backed or absent", () => {
+  it.each(COMPANION_CLAIMS)(
+    "$claim cites tests that exist",
+    ({ facts, rule }) => {
+      expect(rule).toMatch(/ADR-001[12]/);
+      for (const { file, test } of facts) {
+        const path = join(REPO, file);
+        expect(existsSync(path), `${file} exists`).toBe(true);
+        expect(readFileSync(path, "utf8"), `${file} has "${test}"`).toContain(
+          test,
+        );
+      }
+    },
+  );
+
+  it("every companion claim Setup and the Sources tab show is in the table", async () => {
+    // Setup, then a live session's Sources tab, with a ready report.
+    for (const prepare of [
+      (service: ReturnType<typeof installScriptedService>) => {
+        service.script.capability = REPORTS.ready;
+      },
+      (service: ReturnType<typeof installScriptedService>) => {
+        service.script.session = sessionView({
+          lastHeartbeatAt: minutesAfter(1),
+        });
+        service.script.capability = REPORTS.ready;
+      },
+    ]) {
+      const service = installScriptedService();
+      prepare(service);
+      await open(LIVE);
+      const text = await readEverything();
+      // Every phrase that makes a companion-side claim must be one the table
+      // lists, worded exactly as listed.
+      const phrases = text.match(
+        /[^.\n]{0,40}(stops locally|(can’t|cannot) add sources|in the companion)[^.\n]{0,40}/g,
+      );
+      expect(phrases?.length ?? 0).toBeGreaterThan(0);
+      for (const phrase of phrases ?? [])
+        expect(
+          COMPANION_CLAIMS.some(({ shown }) => shown.test(phrase)),
+          `unbacked companion claim: ${phrase}`,
+        ).toBe(true);
+      cleanup();
+      resetSessionStores();
+    }
+  });
+
+  it("never says on this Mac, in the companion without an on-device report", async () => {
+    for (const report of [
+      null,
+      REPORTS.unsupported,
+      REPORTS.denied,
+      REPORTS.recognizerDown,
+    ]) {
+      const service = installScriptedService();
+      service.script.session = sessionView({
+        lastHeartbeatAt: minutesAfter(1),
+      });
+      service.script.capability = report;
+      await open(LIVE);
+      const text = await readEverything();
+      expect(text).not.toMatch(/On this Mac, in the companion/);
+      for (const [pattern, why] of FORBIDDEN)
+        expect(text, `${pattern}: ${why}`).not.toMatch(pattern);
+      cleanup();
+      resetSessionStores();
+    }
+  });
+
+  it.each(Object.entries(REPORTS))(
+    "Setup keeps every forbidden claim out with the %s report",
+    async (_name, report) => {
+      const service = installScriptedService();
+      service.script.capability = report;
+      await open(LIVE);
+      await advance(1_000);
+      const text = await readEverything();
+      for (const [pattern, why] of FORBIDDEN)
+        expect(text, `${pattern}: ${why}`).not.toMatch(pattern);
+      expect(text).not.toMatch(/companion connected|is connected/i);
+    },
+  );
 });

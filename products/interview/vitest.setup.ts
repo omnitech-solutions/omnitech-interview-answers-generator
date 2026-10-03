@@ -3,7 +3,12 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-if (typeof window.localStorage?.getItem !== "function") {
+// A test that opts into the node environment (the real-stream test, which needs
+// PostgreSQL) has no window to patch.
+if (
+  typeof window !== "undefined" &&
+  typeof window.localStorage?.getItem !== "function"
+) {
   const values = new Map<string, string>();
   const storage: Storage = {
     get length() {
