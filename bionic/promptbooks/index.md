@@ -6,8 +6,8 @@ _Last updated: 2026-10-03_
 
 | id | title | status | current_run | progress | tags | created_at |
 |---|---|---|---|---|---|---|
-| PB-0001 | Cycle: Interview Documents in Interview Studio | active | RUN-001 | 0/17 (0%) | cycle, workflow, feature, interview, documents | 2026-10-02 |
-| PB-0002 | Cycle: Active Session capability for Interview Studio | active | RUN-001 | 0/29 (0%) | cycle, workflow, feature, interview, active-session | 2026-10-03 |
+| [[promptbooks/PB-0001-interview-documents-in-interview-studio]] | Cycle: Interview Documents in Interview Studio | active | RUN-001 | 0/17 (0%) | cycle, workflow, feature, interview, documents | 2026-10-02 |
+| [[promptbooks/PB-0002-active-session-capability-for-interview-studio]] | Cycle: Active Session capability for Interview Studio | active | RUN-001 | 0/29 (0%) | cycle, workflow, feature, interview, active-session | 2026-10-03 |
 
 ## Recent runs (last 20)
 
