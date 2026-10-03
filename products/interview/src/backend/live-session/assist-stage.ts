@@ -378,22 +378,31 @@ const shown = (source: ContextSource) => ({
   text: source.text,
 });
 
+// [SAFETY] JSON for the data blocks of the prompt. JSON.stringify leaves
+// U+2028/U+2029 and bidi/format controls raw, which can fake line breaks or
+// reorder the text a reader sees, so they are written as \\u escapes.
+const RAW_CONTROLS =
+  /[\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+const dataJson = (value: unknown): string =>
+  JSON.stringify(value).replace(
+    RAW_CONTROLS,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+
 function renderPrompt(
   input: AssistInput,
   lines: readonly CapturedLine[],
   sources: readonly ContextSource[],
 ): string {
   const of = (kind: ContextSource["sourceKind"]) =>
-    JSON.stringify(
-      sources.filter((source) => source.sourceKind === kind).map(shown),
-    );
+    dataJson(sources.filter((source) => source.sourceKind === kind).map(shown));
   const profile = input.context.snapshot.profile;
   return [
     "TASK: draft_answer",
     `TASK_ID: ${input.taskId}`,
     `REVISION: ${input.revision}`,
     "BEGIN CAPTURED DATA (untrusted, JSON-encoded)",
-    JSON.stringify(lines),
+    dataJson(lines),
     "END CAPTURED DATA",
     `BEGIN APPROVED EXPERIENCE (the candidate's approved entries, pinned revision ${profile?.revision ?? "none"}; JSON-encoded)`,
     of("candidate"),

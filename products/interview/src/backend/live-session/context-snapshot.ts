@@ -74,18 +74,63 @@ export class ContextSnapshotError extends Error {
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 
+// [SAFETY] Canonical text for every comparison (review S1): NFKC (full-width
+// and compatibility forms), invisible and bidi format characters removed, and
+// every Unicode decimal digit mapped to its ASCII value. Case is left alone.
+const INVISIBLE =
+  /[\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+const digitValue = (char: string): string => {
+  let code = char.codePointAt(0) ?? 0;
+  let run = 0;
+  while (run < 50 && /^\p{Nd}$/u.test(String.fromCodePoint(code - run - 1)))
+    run += 1;
+  return String(run % 10);
+};
+export const canonicalText = (text: string): string =>
+  text
+    .normalize("NFKC")
+    .replace(INVISIBLE, "")
+    .replace(/\p{Nd}/gu, (char) => digitValue(char));
+
+// A word is suspicious when it mixes Latin with another script (a homoglyph
+// inside a Latin word) or is a non-Latin word made only of Latin look-alikes
+// (a Cyrillic "CEO"). Plain accented Latin is fine.
+const LOOKALIKE =
+  "АВЕКМНОРСТХаеорсухіјѕԁԛѵАВЕЗІЈКМНОРЅТХҮαβεικνορτυχΑΒΕΖΗΙΚΜΝΟΡΤΥΧοı";
+export const hasConfusableText = (text: string): boolean => {
+  for (const word of canonicalText(text).match(/\p{L}[\p{L}\p{M}]*/gu) ?? []) {
+    const letters = [...word].filter((char) => /\p{L}/u.test(char));
+    const latin = letters.filter((char) => /\p{Script=Latin}/u.test(char));
+    if (latin.length === letters.length) continue;
+    if (latin.length > 0) return true;
+    if (letters.every((char) => LOOKALIKE.includes(char))) return true;
+  }
+  return false;
+};
+// Folds the look-alikes onto Latin so wording lexicons still detect them.
+const FOLD_FROM = "АВЕКМНОРСТХаеорсухіјѕΑΒΕΖΗΙΚΜΝΟΡΤΥΧοι";
+const FOLD_TO = "ABEKMHOPCTXaeopcyxijsABEZHIKMNOPTYXoi";
+const foldLookalikes = (text: string) =>
+  [...text]
+    .map((char) => {
+      const at = FOLD_FROM.indexOf(char);
+      return at < 0 ? char : (FOLD_TO[at] ?? char);
+    })
+    .join("");
+const wordingText = (text: string) => foldLookalikes(canonicalText(text));
+
 // [DOMAIN] Notice period and compensation are the candidate's own facts: they
 // live only in candidate preferences. Shared with claims.ts so the snapshot and
 // the verifier agree on what counts as that wording.
 export const NOTICE_PERIOD_WORDING =
   /\bnotice\b|\bstart date\b|\bavailable to start\b|\bearliest start\b|\b(?:can|able to) start\b/i;
 export const COMPENSATION_WORDING =
-  /\bsalary\b|\bcompensation\b|\bcomp\b|\bbase pay\b|\btake-home\b|\bote\b|\bstock options?\b|\brsus?\b|\bbonus\b|\bhourly rate\b|\bday rate\b|\bper (?:hour|annum|year)\b|[$£€]\s?\d|\b\d[\d,.]*\s?(?:usd|cad|eur|gbp)\b/i;
+  /\bsalary\b|\bcompensation\b|\bcomp\b|\bbase pay\b|\btake-home\b|\bote\b|\bstock options?\b|\brsus?\b|\bbonus\b|\bhourly rate\b|\bday rate\b|\bper (?:hour|annum|year)\b|[$£€]\s?\d|\b\d[\d,.]*\s?(?:k\s?)?(?:usd|cad|eur|gbp)\b|\b(?:usd|cad|eur|gbp|aud)\s?\d/i;
 
 export const isNoticePeriodText = (text: string) =>
-  NOTICE_PERIOD_WORDING.test(text);
+  NOTICE_PERIOD_WORDING.test(wordingText(text));
 export const isCompensationText = (text: string) =>
-  COMPENSATION_WORDING.test(text);
+  COMPENSATION_WORDING.test(wordingText(text));
 
 // Employer text is an UNTRUSTED observation: the prompt builder labels every
 // source of this kind as data, never as policy.

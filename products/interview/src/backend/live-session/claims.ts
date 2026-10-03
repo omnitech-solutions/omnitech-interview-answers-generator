@@ -7,8 +7,10 @@
 // Output is PATH:CODE strings only. A violation never copies a claim, quote or
 // any other model-controlled string (rule:id-only-traces).
 import {
+  canonicalText,
   type ContextSnapshot,
   type ContextSource,
+  hasConfusableText,
   isCompensationText,
   isNoticePeriodText,
   type SourceKind,
@@ -49,21 +51,54 @@ export const MAX_VIOLATIONS = 50;
 export const MIN_SUPPORT_SHARE = 0.5;
 
 const normalizeText = (text: string) =>
-  text.toLowerCase().replace(/\s+/g, " ").trim();
+  canonicalText(text).toLowerCase().replace(/\s+/g, " ").trim();
 
-// A figure is digits with optional thousands commas or decimals, an optional %
-// or k/m/b suffix and an optional lower-bound plus. Digits glued to a letter
-// (S3, ec2, k8s) are identifiers, not figures. Spelled-out numbers are out of
-// scope by design.
-const FIGURE = /(?<![\p{L}\d.,])\d+(?:[.,]\d+)*(?:%|[kKmMbB](?![\p{L}]))?\+?/gu;
+// A figure is digits with optional thousands commas or decimals, an optional %,
+// k/m/b suffix or multiplier (x, times, -fold) and an optional lower-bound
+// plus. All text is canonicalised first (NFKC, ASCII digits). Digits glued to a
+// letter are identifiers (S3, ec2, k8s), EXCEPT after a currency code or an x
+// (USD150000, GBP90k, x40) and as a long or suffixed run (salary150000,
+// base90k), which are figures. Spelled-out numbers are out of scope by design.
+const NUMBER =
+  "\\d+(?:[.,]\\d+)*(?:%|[kKmMbB](?!\\p{L})|[xX](?!\\p{L})|\\s?times(?!\\p{L})|-?fold(?!\\p{L}))?\\+?";
+const CURRENCY_CODE = "usd|cad|eur|gbp|aud|nzd|chf|jpy|inr|cny|sek|nok|dkk";
+const FIGURE_PATTERNS = [
+  new RegExp(`(?<![\\p{L}\\d.,])${NUMBER}`, "gu"),
+  new RegExp(`(?<=(?<!\\p{L})(?:${CURRENCY_CODE}))${NUMBER}`, "giu"),
+  new RegExp(`(?<!\\p{L})[xX]${NUMBER}`, "gu"),
+  new RegExp(
+    `(?<=\\p{L})(?:\\d{3,}(?:[.,]\\d+)*|\\d+(?:%|[kKmMbB](?!\\p{L})))\\+?`,
+    "gu",
+  ),
+];
 
-// Canonical comparison key: lower case, no thousands commas. The percent sign
-// is KEPT: "40%" is a different claim from "40" (a quote of "40%" may support a
-// bare "40", a bare "40" never supports "40%", see supportedFigureKeys).
-const figureKey = (figure: string) => figure.toLowerCase().replaceAll(",", "");
+// Canonical comparison key: lower case, no thousands commas, multiplier forms
+// unified ("40 times", "40-fold", "x40" -> "40x"). The percent sign is KEPT:
+// "40%" is a different claim from "40" (a quote of "40%" may support a bare
+// "40", a bare "40" never supports "40%", see supportedFigureKeys).
+const figureKey = (figure: string) => {
+  const key = figure.toLowerCase().replaceAll(",", "");
+  const lead = key.match(/^x(\d.*)$/);
+  if (lead?.[1]) return `${lead[1]}x`;
+  return key.replace(/(?:\s?times|-?fold)(\+?)$/, "x$1");
+};
+
+type FigureMatch = { raw: string; index: number };
+function figureMatches(text: string): FigureMatch[] {
+  const clean = canonicalText(text);
+  const seen = new Set<number>();
+  const found: FigureMatch[] = [];
+  for (const pattern of FIGURE_PATTERNS)
+    for (const match of clean.matchAll(pattern))
+      if (!seen.has(match.index)) {
+        seen.add(match.index);
+        found.push({ raw: match[0], index: match.index });
+      }
+  return found;
+}
 
 export function figuresOf(text: string): Set<string> {
-  return new Set((text.match(FIGURE) ?? []).map(figureKey));
+  return new Set(figureMatches(text).map((match) => figureKey(match.raw)));
 }
 
 // A quote "4m+" supports a claim of "4m+" and of "4m"; a quote "4m" does not
@@ -97,12 +132,12 @@ export const MAX_GENERAL_INTEGER = 10;
 // Keys of the figures in text that the general-knowledge allowance does NOT
 // cover.
 export function nonGeneralFigures(text: string): string[] {
-  const clean = text.replace(COMPLEXITY_NOTATION, " ");
+  const clean = canonicalText(text).replace(COMPLEXITY_NOTATION, " ");
   const found: string[] = [];
-  for (const match of clean.matchAll(FIGURE)) {
-    const raw = match[0];
-    if (/^\d+$/.test(raw) && Number(raw) <= MAX_GENERAL_INTEGER) continue;
-    if (STANDARD_TOKEN_CONTEXT.test(clean.slice(0, match.index))) continue;
+  for (const { raw, index } of figureMatches(clean)) {
+    if (/^\d+x?$/i.test(raw) && Number.parseInt(raw, 10) <= MAX_GENERAL_INTEGER)
+      continue;
+    if (STANDARD_TOKEN_CONTEXT.test(clean.slice(0, index))) continue;
     found.push(figureKey(raw));
   }
   return found;
@@ -128,7 +163,10 @@ const stem = (word: string) => {
 // [DOMAIN] Significant words: lower-cased alphabetic words of length >= 4,
 // minus a short stopword list, stemmed. Figures are checked separately.
 export function significantWords(text: string): Set<string> {
-  const words = text.toLowerCase().match(/[a-z][a-z0-9+#]*/g) ?? [];
+  const words =
+    canonicalText(text)
+      .toLowerCase()
+      .match(/\p{L}[\p{L}\p{N}+#]*/gu) ?? [];
   return new Set(
     words.filter((word) => word.length >= 4 && !STOPWORDS.has(word)).map(stem),
   );
@@ -141,8 +179,9 @@ export function significantWords(text: string): Set<string> {
 const HIGH_RISK_SHORT = new Set(["ceo", "cto", "cfo", "coo", "aws", "gcp"]);
 export function riskTerms(text: string): Set<string> {
   const risk = new Set<string>();
-  for (const word of text.match(/(?<![A-Za-z])[A-Za-z]{3}(?![A-Za-z])/g) ??
-    []) {
+  for (const word of canonicalText(text).match(
+    /(?<!\p{L})\p{L}{3}(?!\p{L})/gu,
+  ) ?? []) {
     const lower = word.toLowerCase();
     if (word === word.toUpperCase() || HIGH_RISK_SHORT.has(lower))
       risk.add(lower);
@@ -236,6 +275,27 @@ const expectedKind = (kind: ClaimKind): SourceKind | null =>
       ? "candidate-preference"
       : null;
 
+// [SAFETY] A quote cut mid-word ("successfully" out of "unsuccessfully") can
+// flip the meaning, so each end of the quote must meet a word boundary in the
+// source (a hyphen or apostrophe joins words).
+const WORD_CHAR = /[\p{L}\p{N}'’-]/u;
+function quoteOnWordBoundaries(source: string, quote: string): boolean {
+  const startsWord = WORD_CHAR.test(quote[0] ?? "");
+  const endsWord = WORD_CHAR.test(quote.at(-1) ?? "");
+  for (
+    let at = source.indexOf(quote);
+    at >= 0;
+    at = source.indexOf(quote, at + 1)
+  ) {
+    const before = source[at - 1];
+    const after = source[at + quote.length];
+    if (startsWord && before !== undefined && WORD_CHAR.test(before)) continue;
+    if (endsWord && after !== undefined && WORD_CHAR.test(after)) continue;
+    return true;
+  }
+  return false;
+}
+
 function refPathCode(
   ref: ClaimRef,
   source: ContextSource | undefined,
@@ -256,7 +316,7 @@ function refPathCode(
     return "stale_revision";
   if (ref.pointer !== source.pointer) return "pointer_mismatch";
   const quote = normalizeText(ref.quote);
-  if (!quote || !normalizeText(source.text).includes(quote))
+  if (!quote || !quoteOnWordBoundaries(normalizeText(source.text), quote))
     return "quote_mismatch";
   return null;
 }
@@ -321,10 +381,9 @@ function supports(
   const terms = supportTerms(text);
   if (terms.size === 0) return false;
   const quoteWords = new Set(
-    quotes
-      .join(" ")
+    canonicalText(quotes.join(" "))
       .toLowerCase()
-      .match(/[a-z]+/g) ?? [],
+      .match(/\p{L}+/gu) ?? [],
   );
   for (const risk of riskTerms(text))
     if (!quoteWords.has(risk) && !quoteTerms.has(risk)) return false;
@@ -373,6 +432,7 @@ const sentencesOf = (text: string) =>
 function checkDraft(draft: string, check: DraftCheck): void {
   const { flag } = check;
   if (disparagesEmployer(draft)) flag("draft", "disparages_employer");
+  if (hasConfusableText(draft)) flag("draft", "confusable_text");
   const body = normalizeText(draft).replaceAll(
     normalizeText(LEAVING_REASON_PLACEHOLDER),
     " ",
@@ -468,6 +528,7 @@ export function verifyClaims(
       continue;
     }
     if (disparagesEmployer(claim.text)) flag(at, "disparages_employer");
+    if (hasConfusableText(claim.text)) flag(at, "confusable_text");
     const refs = Array.isArray(claim.refs) ? claim.refs : [];
     if (refs.length > MAX_REFS_PER_CLAIM)
       flag(`${at}.refs`, "too_many_references");
@@ -493,6 +554,10 @@ export function verifyClaims(
         structurallyValid = false;
       }
       for (const [refIndex, ref] of refs.entries()) {
+        if (hasConfusableText(ref.quote)) {
+          flag(`${at}.refs.${refIndex}`, "confusable_text");
+          structurallyValid = false;
+        }
         const code = refPathCode(
           ref,
           sourceById(snapshot, ref.sourceId),
@@ -578,6 +643,7 @@ export function verifyClaims(
   for (const element of context.star ?? []) {
     const at = `star.${element.element}`;
     if (disparagesEmployer(element.text)) flag(at, "disparages_employer");
+    if (hasConfusableText(element.text)) flag(at, "confusable_text");
     const refs = element.claimIndexes.flatMap((index) => {
       const claim = claims[index];
       return claim?.kind === "matrix-backed" && Array.isArray(claim.refs)
