@@ -12,6 +12,7 @@ import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
+import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
 import type { PgBossRunQueue } from "@omnitech-assistant/storage-postgres";
 import {
   afterAll,
@@ -244,7 +245,7 @@ describe("the agent jobs API", () => {
       tenantId,
       JSON.stringify({ summary: "Three points." }),
     );
-    await new PostgresAgentJobRepository(pg.owner).setResultReference(
+    await new PostgresAgentJobWorkerRepository(pg.owner).setResultReference(
       id,
       reference,
     );
@@ -255,7 +256,7 @@ describe("the agent jobs API", () => {
     ).toEqual({ id, status: "queued", result: { summary: "Three points." } });
 
     // A result that is not JSON is left out rather than failing the read.
-    await new PostgresAgentJobRepository(pg.owner).setResultReference(
+    await new PostgresAgentJobWorkerRepository(pg.owner).setResultReference(
       id,
       await new AgentPayloadStore(pg.owner, SECRET).save(tenantId, "not json"),
     );
@@ -309,7 +310,7 @@ describe("the agent jobs API", () => {
         prompt: "Fix the build.",
       })
     ).json();
-    await new PostgresAgentJobRepository(pg.owner).appendEvent(id, {
+    await new PostgresAgentJobWorkerRepository(pg.owner).appendEvent(id, {
       type: "text-delta",
       text: "Working",
     });
@@ -320,12 +321,26 @@ describe("the agent jobs API", () => {
       { type: "text-delta", text: "Working" },
     ]);
 
+    // The event gateway names the job's tenant: events are tenant-owned rows.
+    const tenantId = (
+      await pg.owner.query<{ id: string }>(
+        "SELECT id FROM platform.tenants WHERE slug = 'local'",
+      )
+    ).rows[0]!.id;
     const worker = await (
-      await call(`/api/platform/v1/agent-jobs/${id}/events?after=1`, {
-        headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
-      })
+      await call(
+        `/api/platform/v1/agent-jobs/${id}/events?after=1&tenantId=${tenantId}`,
+        { headers: { authorization: `Bearer ${SERVICE_TOKEN}` } },
+      )
     ).json();
     expect(worker).toEqual([]);
+    expect(
+      (
+        await call(`/api/platform/v1/agent-jobs/${id}/events?after=1`, {
+          headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
+        })
+      ).status,
+    ).toBe(400);
     expect(
       (
         await call(`/api/platform/v1/agent-jobs/${id}/events`, {
@@ -352,7 +367,7 @@ describe("the agent jobs API", () => {
     const refused = await resume({ prompt: "Continue." });
     expect(refused.status).toBe(409);
 
-    const repository = new PostgresAgentJobRepository(pg.owner);
+    const repository = new PostgresAgentJobWorkerRepository(pg.owner);
     await repository.setSessionId(id, "session-1");
     await repository.transition(id, ["queued"], "awaiting-input");
     const resumed = await resume({ prompt: "Continue." });

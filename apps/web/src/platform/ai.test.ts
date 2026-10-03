@@ -5,7 +5,7 @@ import {
   type DisposablePostgres,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
-import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
+import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
 import {
   afterAll,
   afterEach,
@@ -501,7 +501,6 @@ describe("image generation", () => {
 });
 
 describe("agent jobs", () => {
-  const jobs = () => new PostgresAgentJobRepository(pg.owner);
   const latestJob = async () =>
     (
       await pg.owner.query<{ id: string; status: string; profile: unknown }>(
@@ -524,10 +523,10 @@ describe("agent jobs", () => {
     });
     expect((await latestJob())?.id).toBe(execution.result.jobId);
 
-    await gateway.cancel(execution.executionId);
+    await gateway.cancel(context(), execution.executionId);
     expect((await latestJob())?.status).toBe("cancelling");
     // An unknown job has nothing to cancel.
-    await gateway.cancel("00000000-0000-4000-8000-0000000000ff");
+    await gateway.cancel(context(), "00000000-0000-4000-8000-0000000000ff");
   });
 
   it("streams a queued job as started and completed", async () => {
@@ -608,7 +607,10 @@ describe("agent jobs", () => {
       job = await latestJob();
     }
     for (const event of events)
-      await jobs().appendEvent(job.id, event as never);
+      await new PostgresAgentJobWorkerRepository(pg.owner).appendEvent(
+        job.id,
+        event as never,
+      );
     return { parts, reading, job };
   }
 
