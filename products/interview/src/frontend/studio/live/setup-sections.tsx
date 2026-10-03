@@ -253,8 +253,8 @@ export function ProcessingSection({
 }
 
 const RETENTION_COPY: Record<LiveRetentionMode, string> = {
-  "delete-at-end": "Everything is deleted when you end the session.",
-  "thirty-days": "Everything is deleted 30 days after the session ends.",
+  "delete-at-end": "Session data is deleted when you end the session.",
+  "thirty-days": "Session data is deleted 30 days after the session ends.",
   "until-deleted":
     "Kept until you delete it. Until then it blocks deleting the interview, candidacy or matrix revision it links.",
 };

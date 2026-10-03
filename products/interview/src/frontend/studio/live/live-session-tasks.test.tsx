@@ -310,7 +310,7 @@ describe("earlier tasks", () => {
     expect(screen.getByText("First answer.")).toBeVisible();
     expect(
       screen.getByText(
-        "Viewing an earlier task. The session is still listening.",
+        "Viewing an earlier task. Studio still tracks the newest one.",
       ),
     ).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Back to now" }));

@@ -209,4 +209,4 @@ export const RESUMED_RENEWED_TOAST =
   "Resumed with a renewed capture credential. Open the session to hand it to the companion.";
 export const END_TITLE = "End this session?";
 export const END_BODY =
-  "Capture stops, running work is cancelled, and any result that arrives later is discarded. This can’t be undone.";
+  "Studio stops accepting capture, cancels running work and discards any result that arrives later. This can’t be undone.";

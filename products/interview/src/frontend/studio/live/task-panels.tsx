@@ -48,7 +48,7 @@ const IDLE: Partial<Record<ActivityKey, Idle>> = {
     icon: "sensors",
     title: "Waiting for the capture companion",
     detail:
-      "Studio has recorded no contact from the companion yet, so it is not listening to anything.",
+      "Studio has recorded no contact from the companion yet, so it can’t tell whether anything is being captured.",
   },
   "companion-offline": {
     icon: "wifi_off",

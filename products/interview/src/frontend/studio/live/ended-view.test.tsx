@@ -119,7 +119,7 @@ describe("the ended view: header and results", () => {
     const view = screen.getByTestId("live-ended");
     expect(view).toHaveTextContent("Session ended · 5:00");
     expect(view).toHaveTextContent(
-      "Capture stopped and nothing is running. Nothing was submitted or sent for you.",
+      "Studio no longer accepts capture, and any result that arrives now is discarded. Nothing was submitted or sent for you.",
     );
     expect(view).toHaveTextContent("No interview linked");
   });
@@ -213,7 +213,7 @@ describe("the ended view: header and results", () => {
     await mount(ended());
     expect(screen.getByTestId("ended-no-results")).toBeVisible();
     expect(screen.getByTestId("ended-no-promotion")).toHaveTextContent(
-      "Nothing was promoted to your matrix or exercise catalogue",
+      "The session added nothing to your matrix or exercise catalogue",
     );
   });
 

@@ -160,7 +160,7 @@ export function EndedResults({
           <Icon name="lock" />
           <div className="ended-result-body">
             <div className="ended-result-title">
-              Nothing was promoted to your matrix or exercise catalogue
+              The session added nothing to your matrix or exercise catalogue
             </div>
             <div className="live-note">
               Drafts stay private to you unless you promote or export them.

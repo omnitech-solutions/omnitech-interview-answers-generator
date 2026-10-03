@@ -331,7 +331,7 @@ describe("end", () => {
     const dialog = await askEnd();
     expect(dialog).toHaveAccessibleName("End this session?");
     expect(dialog).toHaveAccessibleDescription(
-      "Capture stops, running work is cancelled, and any result that arrives later is discarded. This can’t be undone.",
+      "Studio stops accepting capture, cancels running work and discards any result that arrives later. This can’t be undone.",
     );
     expect(server.count("POST /:id/control")).toBe(0);
   });

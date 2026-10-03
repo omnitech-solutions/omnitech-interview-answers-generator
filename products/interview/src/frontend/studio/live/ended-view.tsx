@@ -96,8 +96,8 @@ export function EndedView({ studio }: EndedViewProps) {
             <p className="ended-target">{targetTitle(session, choices)}</p>
           )}
           <p className="live-note">
-            Capture stopped and nothing is running. Nothing was submitted or
-            sent for you.
+            Studio no longer accepts capture, and any result that arrives now is
+            discarded. Nothing was submitted or sent for you.
           </p>
           {session.rehearsalRunId && session.strict && (
             <p className="live-note">
@@ -120,8 +120,8 @@ export function EndedView({ studio }: EndedViewProps) {
             </h3>
             <p className="live-note">
               {session.purged
-                ? "The transcript, screenshots and drafts are gone. Only these facts remain."
-                : "The transcript, screenshots and drafts are no longer shown here."}
+                ? "The transcript, screenshots and session drafts are gone; only these facts remain. Drafts you promoted or exported to a Document are not part of the session and were not deleted."
+                : "The transcript, screenshots and session drafts are no longer shown here. Drafts you promoted or exported to a Document are not deleted."}
             </p>
             <dl className="ended-facts">
               <div>
