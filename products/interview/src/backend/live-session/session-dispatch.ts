@@ -207,6 +207,7 @@ export async function beginDispatch(
   }
   const actionId = recorded.actionId;
   const attempt = recorded.attempt;
+  run.openActionId = actionId;
   const settle = (reason: string) =>
     store.abandonAction({
       scope: run.scope,
@@ -345,7 +346,8 @@ export async function beginDispatch(
         // An effect that threw rolled the whole publish back and left the
         // action in flight; it is failed here so the bounded retry may record
         // it again. Without an effect, a throw is a database error and
-        // propagates as it always did.
+        // propagates: the processor settles the action as failed from
+        // `run.openActionId`, so it is retried within the bound.
         if (!options.effect) throw error;
         await failRetryably("publish_failed");
         return false;

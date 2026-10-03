@@ -255,10 +255,25 @@ export function createSessionProcessor(
         started = true;
         const flight = next
           .start()
-          .catch((error: unknown) => {
+          .catch(async (error: unknown) => {
             run.trace({ event: "dispatch.error", outcome: errorCode(error) });
-            // A thrown dispatch is retried by the bound, not forgotten.
+            // A thrown dispatch is retried by the bound, not forgotten: it
+            // counts toward the bound and its action is settled as failed, or
+            // it would stay in flight and every later tick would see it as a
+            // duplicate. Best effort: if the store is still down the lease
+            // handover fails it as an orphan.
             run.failures.set(next.key, (run.failures.get(next.key) ?? 0) + 1);
+            const actionId = run.openActionId;
+            run.openActionId = null;
+            if (actionId !== null)
+              await store
+                .recordFailure({
+                  scope: run.scope,
+                  sessionId,
+                  holder: run.holder,
+                  actionId,
+                })
+                .catch(() => undefined);
           })
           .finally(() => {
             if (run.inflight === flight) run.inflight = null;

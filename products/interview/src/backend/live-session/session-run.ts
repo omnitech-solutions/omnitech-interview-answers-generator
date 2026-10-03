@@ -100,6 +100,9 @@ export type SessionRun = {
   // category coding), and the newest published solution per task.
   coding: Map<string, CodingCandidate>;
   solutions: Map<string, PriorSolution>;
+  // The action the running dispatch recorded, so a dispatch that throws can
+  // be settled as failed instead of stranded in flight.
+  openActionId: string | null;
   inflight: Promise<void> | null;
   abort: AbortController;
   trace: RunTracer;
@@ -129,6 +132,7 @@ export function createRun(
     context: null,
     coding: new Map(),
     solutions: new Map(),
+    openActionId: null,
     inflight: null,
     abort: new AbortController(),
     trace,
