@@ -1,0 +1,2539 @@
+{
+  "extractor_version": "1",
+  "pages": [
+    {
+      "doc_path": "fallback/apps/agent-worker/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "70374319065ac438b60814755e62a178c281247f763ef848a1b7e4f15934cda0",
+      "source_path": "apps/agent-worker/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b5d0d0a30633f0a1bf45280d68db23718fb681bc6f74f6fe7cf85d05d353a5c6",
+      "source_path": "apps/agent-worker/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/main.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0f45bcd9796271cd7f48b8a86a1dd081d952e64ed5ca53dee5e9edaabd90b39b",
+      "source_path": "apps/agent-worker/src/main.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/agent-worker/src/main.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8cdec5f535ff669ae9cc4f8fcb153e7909d523540cfdedd450981239db140ebb",
+      "source_path": "apps/agent-worker/src/main.ts"
+    },
+    {
+      "doc_path": "fallback/apps/terminal-gateway/src/gateway.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bd49142f3be241a09a7710848695780fdd917533fd04aa661323c0547b5cf17c",
+      "source_path": "apps/terminal-gateway/src/gateway.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/terminal-gateway/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e3a4cdd60f9a2df1bfe018c35fe22a6f13bd569b3637610e14b792d6155156a1",
+      "source_path": "apps/terminal-gateway/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/terminal-gateway/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "16cac4ee5d3d043c11f5d582b9a5f1806496012b33066127762593f87ac44d98",
+      "source_path": "apps/terminal-gateway/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/apps/terminal-gateway/src/render-event.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3b6bb9c96937cf58122151b0afb26d5a68f84b1a820c2c6d956d2d72d254bc2d",
+      "source_path": "apps/terminal-gateway/src/render-event.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/[[...route]]/route.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4a635f472d33d9aeeb2010349d1eb9c42e8de1ab9183b1e0a7bd43741be86c29",
+      "source_path": "apps/web/app/api/[[...route]]/route.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/[[...route]]/route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3d920e00673612ccb2aa55a7a88b3f658922539ca1a180f6d3f740d7e72c86a8",
+      "source_path": "apps/web/app/api/[[...route]]/route.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/auth/[...nextauth]/route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "814d7fe809a9885ce6b07aec8707a5f7632f9036ab227e1a2dca04e887a25ab3",
+      "source_path": "apps/web/app/api/auth/[...nextauth]/route.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/integrations/[provider]/authorize/route.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b9ebd18dba72db1af4b2de384188b25a7b36d26af02ec00eac9a9aa463f2c10a",
+      "source_path": "apps/web/app/api/integrations/[provider]/authorize/route.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/integrations/[provider]/authorize/route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "29b4d154a589d0aacaa2a44c046614b955708820fbf7a8b8b5c5f300c172227b",
+      "source_path": "apps/web/app/api/integrations/[provider]/authorize/route.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/integrations/[provider]/callback/route.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "61a4b88e33c8e5bf849457f046ae0be3bbd307c09f6d58f9bec243cbd347625e",
+      "source_path": "apps/web/app/api/integrations/[provider]/callback/route.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/api/integrations/[provider]/callback/route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2cd89c5828a1bec41ad3fb7d5228a42554d2a71b3e473e67fa87b7c10b34f1a1",
+      "source_path": "apps/web/app/api/integrations/[provider]/callback/route.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/layout.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b50c36e6d3fe1fc2b3cac989286d669babd2afa03336a785f6dc93a784fdaf4d",
+      "source_path": "apps/web/app/layout.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/model/[...path]/route.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cefb7f573ea6d84427f5ae0c7eb4316d29832f30d965c9fc4a2b715b67593c3b",
+      "source_path": "apps/web/app/model/[...path]/route.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/model/[...path]/route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c384d0e66b456f26fc293fdcffac180ec6adaadab0677dea1b87b76a62307ddb",
+      "source_path": "apps/web/app/model/[...path]/route.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c4d74f13750383d2feca5fbf3e5e7e33da7988d24cde6cb1788bd8eb62c81ed6",
+      "source_path": "apps/web/app/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/pages.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cac6299617606a12890e2af85c1ca7fd063fa808da55e9b6210a9678552a8b8a",
+      "source_path": "apps/web/app/pages.test.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/root-pages.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3d72d4f53286c9d0f8d150ca99d7b1af07aa5e13c0d897dc7ac45e9af9439f68",
+      "source_path": "apps/web/app/root-pages.test.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/share/presentation/[token]/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9a025eb88f6bd27c071049ab5fbd1f0ce18f01fe1074ba5eef213130184f4f47",
+      "source_path": "apps/web/app/share/presentation/[token]/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/sign-in/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "35e8190dd2aee47e884c834ffa27b1a46b16285eb639532d5c6ac1d2a23c88a8",
+      "source_path": "apps/web/app/sign-in/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/t/[tenantSlug]/layout.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6d8618efac7dbfcf3cc2247c4e8a479afb8de7a3e304f68f38e7742a902c4510",
+      "source_path": "apps/web/app/t/[tenantSlug]/layout.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/t/[tenantSlug]/p/[productId]/[[...productPath]]/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ce727e0fefc8406689317ded5935025da3959c9822ed02575dba6a933e799674",
+      "source_path": "apps/web/app/t/[tenantSlug]/p/[productId]/[[...productPath]]/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/t/[tenantSlug]/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "70f52b0c682d16e1dc2eaacd67568a539331e2d06e20332fecfc31ee2881ac43",
+      "source_path": "apps/web/app/t/[tenantSlug]/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/app/t/[tenantSlug]/settings/integrations/page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "aa28dc10688cbda025621a30f0e0e14ecb2957a7b151b3e023f5cd571afd0424",
+      "source_path": "apps/web/app/t/[tenantSlug]/settings/integrations/page.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/agent-api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "904821b2cd578ef0b7ebfde7758701634ba84adea13d872d19195918473b84b0",
+      "source_path": "apps/web/src/platform/agent-api.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/agent-models.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "43c964f599aa3142820f4c556b95f601da4a007b5067f13fae158d1b9a106236",
+      "source_path": "apps/web/src/platform/agent-models.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/ai-config.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "040425d64788cee5cdfa43570f833a9a7dd01c52af6a82a4124d63e72a995ab8",
+      "source_path": "apps/web/src/platform/ai-config.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/ai-config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6696fd0044b86f1d576261dc77cfe230f7b724662d7dbd983fe45e5b73ed203f",
+      "source_path": "apps/web/src/platform/ai-config.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/ai.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d282560b39c56d94345b0175ee9a3f5ac2efda9616698e4dc45dc4424c6509b4",
+      "source_path": "apps/web/src/platform/ai.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/ai.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f7a033fd75822d0d065e910afef2b6c19d42ae1fd9b40bc6aac30eee1a8771e8",
+      "source_path": "apps/web/src/platform/ai.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "da70925b268cb8048c99b9ec855451b2ea5f645099aa774427a0f714ac15cdbb",
+      "source_path": "apps/web/src/platform/api.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/context.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2ddb63750eac6beb2872a864a4ebb1cd946ce4c7873df4ea8019edddde47b223",
+      "source_path": "apps/web/src/platform/context.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/context.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8e2b36e5efc417688633aa5d96fbde7ccc710509ce1ce4f1e1750a7ae7347970",
+      "source_path": "apps/web/src/platform/context.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/local-model.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2faf780229f40cf3af3d04da8ede099293917d3a21396bef52530d0978702dce",
+      "source_path": "apps/web/src/platform/local-model.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/local-model.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f2ac0987e245d1625b04d19beafb1473a8bb1bd8f9104f72247c134e95054f26",
+      "source_path": "apps/web/src/platform/local-model.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/optional-module-stub.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "363fc6d0768890efaaea9250f0785b1f8c9423480b29c67a193a0bc4f984002f",
+      "source_path": "apps/web/src/platform/optional-module-stub.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/platform-shell.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ada159aa1380b8b99f8c3fe1941105337b9b17948ddc7befc2660d3c18ba5ae6",
+      "source_path": "apps/web/src/platform/platform-shell.test.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/platform-shell.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "53baf45349d38d7c0bc1c2f8a3a8ae4f7ad920a9d2c1addddfdd0a16ae8a5492",
+      "source_path": "apps/web/src/platform/platform-shell.tsx"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/products.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2117c6e16773f6012867861f3eb317fc3d1076dae78bb81f7ba9346fc0b77e89",
+      "source_path": "apps/web/src/platform/products.test.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/products.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9e0c675e0bcfa73f9ae3a5e707e83cdc51a970b7a2dfc759af965958a176f97c",
+      "source_path": "apps/web/src/platform/products.ts"
+    },
+    {
+      "doc_path": "fallback/apps/web/src/platform/registry.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "03086a20e46633043fc68ef7325179c2b8cdcb8c7b3aca6316bacdfa7eec6816",
+      "source_path": "apps/web/src/platform/registry.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-job-service/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "092a5417b4412b3b33e44e8c839a3698c26ffbb17d264530bf201b744f1cb2a1",
+      "source_path": "packages/agent-job-service/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-job-service/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "23557a34c70b67afd3403a8c846293d859b1805a4681e8f4da0eed4431565a61",
+      "source_path": "packages/agent-job-service/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-claude/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cdeb842ec8c441098cba270dd70b90a6e826756053b030f4549c31a86852a20b",
+      "source_path": "packages/agent-runtime-claude/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-claude/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7d3544d3d60c04dfb89d3af75a8b00434701ce1dc389dd991826f72e28ea3401",
+      "source_path": "packages/agent-runtime-claude/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-codex/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5084737124b279dc42bad37654d19fe75728a8de4b59cb81aa54bd57da7af962",
+      "source_path": "packages/agent-runtime-codex/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-codex/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6e3d44d6e2e1c1256aa41266ba1658065aac756064d69ed0ef27ac7b791df79b",
+      "source_path": "packages/agent-runtime-codex/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-codex/src/runtime.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "270fd5b5d7d984b26f882123d6ffe13f91a917ee42f1a71d7a2578955c7ecac9",
+      "source_path": "packages/agent-runtime-codex/src/runtime.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-contracts/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "751827b7e0d76f5a597797e33a6f3ea45ca14237a3b0ac45e346159970267597",
+      "source_path": "packages/agent-runtime-contracts/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/agent-runtime-contracts/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cef2f401f127841093431ede52cd12770a3e4becf39ff581da0219789c15b9f3",
+      "source_path": "packages/agent-runtime-contracts/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-contracts/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "646d1b0507d340f3160ef27caa31709cc66bc2d80d6fe3c51f9e73bbd75e1c77",
+      "source_path": "packages/ai-contracts/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-contracts/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c304339ef20c70ff70b797513526c88911217ddddcc8dadd4f75d62caed408e3",
+      "source_path": "packages/ai-contracts/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-anthropic/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "34278d96075ecd4e89e295bab7781a18c6c4e856f35ff6ead78c958ee0c86aa4",
+      "source_path": "packages/ai-provider-anthropic/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-anthropic/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3dbad12f2afa2649ff7c5894fc9677f607914eed5b5d24bebfb1bfe019e6d310",
+      "source_path": "packages/ai-provider-anthropic/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-anthropic/src/messages-api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a47717a3155673c2281b02202414f26cd8db1ef69ba36842f3a118a132440800",
+      "source_path": "packages/ai-provider-anthropic/src/messages-api.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-images/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d42fd7c268a6fac3ccac406787e3ddafda5710fff550c30d4615274f423d63cc",
+      "source_path": "packages/ai-provider-images/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-images/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2592fd5a42d4f736e577b0236285a4b3cef9c4ff3239b2a5f94e57399b6828e1",
+      "source_path": "packages/ai-provider-images/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/catalog.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "46be1ce7e4a6032d99f3a593fafc9c8838d56ba4cb5106cd6c5430607bd20b77",
+      "source_path": "packages/ai-provider-openai/src/catalog.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/catalog.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c471bcd6b83575720153d335a966e23f3d4ddc8d0388d1e66da8fd8d01c820ca",
+      "source_path": "packages/ai-provider-openai/src/catalog.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/chat-completions.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "78a827cfb53c8e4bb4d9b3cd64958ba474bdc1083ccfbd49153b0bea2c00b068",
+      "source_path": "packages/ai-provider-openai/src/chat-completions.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/chat-completions.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0935f563fbc01a387b23e8e0821fd75de68974bfedaefbb95e0b145fe821447d",
+      "source_path": "packages/ai-provider-openai/src/chat-completions.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0f66fc825d7394d72bcbb0c5785905c5a097c121be19e6ccc6979009e7afd9fb",
+      "source_path": "packages/ai-provider-openai/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a444f054cbd12972c2e62e6c4ef0aba32d45bd5b4fda6f21b559bdd01b7d7fc1",
+      "source_path": "packages/ai-provider-openai/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/structured-chat.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "00c38210c849a73b727e8d73e279a8eabf66f9db26fb35a7f946d020ae314bb6",
+      "source_path": "packages/ai-provider-openai/src/structured-chat.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/structured-output.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9fa2d80b1008bf2e6405f09ebbf1b23cf250668a0824b708b46c47af23c56d11",
+      "source_path": "packages/ai-provider-openai/src/structured-output.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-provider-openai/src/structured-output.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "77b99cd34b7f4c6fa4a3aa3b4cb2af32e803c91f14df1f7c232af1ffa1353962",
+      "source_path": "packages/ai-provider-openai/src/structured-output.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-runtime/src/catalog.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1eaed502b9ca92c4a658e5769c1c9942c2445f22fad169ca8ed4a3289d7e07df",
+      "source_path": "packages/ai-runtime/src/catalog.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-runtime/src/gateway.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "aac4523f267a597d5ac1f4066d82448de05e6027552b20bb60b7004a9e26ed93",
+      "source_path": "packages/ai-runtime/src/gateway.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-runtime/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7814b9bcb28639f887004e31beb53e4bfe25730d4da9f2b902811559f729747e",
+      "source_path": "packages/ai-runtime/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/ai-runtime/src/structured-chat.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "39d94daea511d9855be169473e5146d6faeaa1832e9e6eba70cf0f7c9eb4f8cf",
+      "source_path": "packages/ai-runtime/src/structured-chat.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/code-runner/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "364004afc462e96c2ad71e69406cc15e3e67aae93beef165f85aa420daa64e77",
+      "source_path": "packages/code-runner/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/code-runner/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ba9e8c1917504b12367e16cbe1fde3b764fc89e27fcdbf25db229d5e0fd687d3",
+      "source_path": "packages/code-runner/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/code-runner/src/reports.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5550f1c6c19a1fedf7cff58fc020c8d285e4985dabdd361c3ebcfdb75c364e8b",
+      "source_path": "packages/code-runner/src/reports.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/code-runner/src/reports.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4d4fb4b77036e22b8f01a0f64ffd5b9bfb378574a751d7b33a598909e67a014b",
+      "source_path": "packages/code-runner/src/reports.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/connection.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "49b31aa3a1d6a1b480bdaf8256867e18398909fed273351462ca4b6c15d49319",
+      "source_path": "packages/database/src/connection.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/connection.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "23e55bf180b57f4a3f0eaaedd0a2153c3e7fe913f014a6d7bf5dd2a8cb534a41",
+      "source_path": "packages/database/src/connection.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/conventions.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "09dc9fadb87e8d8d6afa6c74adf8043e77b430e68282e1a1c2c2a3baec9a5798",
+      "source_path": "packages/database/src/conventions.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/conventions.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "296c3696449fe0d004e1b0e7e13e8aec07c7a2422281f7b92b310dc6c7348cd7",
+      "source_path": "packages/database/src/conventions.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fd5650faa82223dc2733f6bfde48ea7cda4ff1492e76276982043c94085b0731",
+      "source_path": "packages/database/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/migrate-command.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1d8560de2b262728678cc53a4130e886873956967f8739c96c947de2fc1d25be",
+      "source_path": "packages/database/src/migrate-command.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/migrate-command.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ebcbcea255ca46a3355b2f47b2082935140826b43bb8f1f47b371db15027bc09",
+      "source_path": "packages/database/src/migrate-command.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/migrate-upgrade.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a50d1c7a73b75b34dad13ba7e31eac20493fbcf721edc8fff305867e8f00bc73",
+      "source_path": "packages/database/src/migrate-upgrade.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/migrate.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bea35bc6e646dc039e794d5d12f0e5d8c6a2acb57dc7868c6ce330537a541abf",
+      "source_path": "packages/database/src/migrate.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/migrate.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3b5006613f29ab8dd74128db3ec57766a02e995f967f4eb41aa244c729eda5ed",
+      "source_path": "packages/database/src/migrate.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/test-support/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "42b3cac11f3d4c6b7171f876ceff107de87255f40901868adc64b4f702320fd6",
+      "source_path": "packages/database/src/test-support/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/test-support/postgres.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e7d08975f5d9b950cb08a9b7dc73c23b4cfc3198ad67d10d0dc378e7f777deb3",
+      "source_path": "packages/database/src/test-support/postgres.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/test-support/schema.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e20c6c3e0f77db50cae0aa06ff38141709e684abce090a484f36cf19d864d2f4",
+      "source_path": "packages/database/src/test-support/schema.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/with-tenant.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ba40e10833ed65194d55f254c8377716f789414f4d5654b06323f42379da4db6",
+      "source_path": "packages/database/src/with-tenant.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/database/src/with-tenant.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8db0d9c9a595ce9c3ca0a42071da7bab9ed6bc876eb5d5a36e670f5b87f84f21",
+      "source_path": "packages/database/src/with-tenant.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/briefing.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "72ea859c81d36f2b68572da93f744a4230b5f87961d664cddc02b73e297fd842",
+      "source_path": "packages/interview-api-client/src/briefing.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/briefing.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "968d697919d6af6071ea419c219d05d6cde7adc7798530fe10103392fffcb461",
+      "source_path": "packages/interview-api-client/src/briefing.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/briefs.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ab90c163d51fa95d57c49a0cb7e930cdf2997376d02086902c6fce976ed43c4f",
+      "source_path": "packages/interview-api-client/src/briefs.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/briefs.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0bf24d8a38630d7e2a0f0601251f82dc09d4c3b1469268ea304d14b26d35e36f",
+      "source_path": "packages/interview-api-client/src/briefs.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "493659f0ba5030e240c460ea41460a6d923941afeda8c7d1c328aa8ba7384756",
+      "source_path": "packages/interview-api-client/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5834287b869361d030d876ae0c45f60fcebdb47d1a8cf451ebb248ea1cabb935",
+      "source_path": "packages/interview-api-client/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/plan.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d288f8d47cdeda5956256629400a45b359af5bafd9d245d9048d108140df1ab7",
+      "source_path": "packages/interview-api-client/src/plan.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/plan.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3728e774f3bcf2dc332d23fa9bdb06bb8af4c7a55bcf33a9c0ca9f54782ad587",
+      "source_path": "packages/interview-api-client/src/plan.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/rehearsal.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3d26a5ea372a12baace953a899a8179c65a3eda3361a95d61e087dbc4b039219",
+      "source_path": "packages/interview-api-client/src/rehearsal.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-api-client/src/rehearsal.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "be7aebf8eefc744c68c007a276e549b743e607b3be1ecc628521d853309f76ef",
+      "source_path": "packages/interview-api-client/src/rehearsal.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/cli.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "68647f10244bbdea4ae0b857e857751c925af14d078d97dc489e9f77bc32d7a8",
+      "source_path": "packages/interview-cli/src/cli.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/cli.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e41279933d10248e3767500d063c718a1e7c72cd5781e8edbc736614d5073b2d",
+      "source_path": "packages/interview-cli/src/cli.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/config.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7e6df60a1508794d0cbcab9911d89380ee0fd3b8174f19bd353e44f10e156a41",
+      "source_path": "packages/interview-cli/src/config.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4b0ea8dcf4213559e876749d6f252ac849fd116e304fa5c4584bbd55e829d64f",
+      "source_path": "packages/interview-cli/src/config.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "418e4ac4f0b08c2ac08bf50c9d447e15221be4da83983f6b60cab39beb8bda90",
+      "source_path": "packages/interview-cli/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f142352afe30848a02fb7cdc524d2f76f269da8b74e44c6b3e4d17057eec4874",
+      "source_path": "packages/interview-cli/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-cli/src/public-types.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "834755c5b54bf1a929aa414fbd4c5962e394de0ab3707d265702ba17399f153d",
+      "source_path": "packages/interview-cli/src/public-types.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/assistant.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "554e16d5835d012bbdc907be66e5f23084e179b4121125a72aba0dd384de2317",
+      "source_path": "packages/interview-contracts/src/assistant.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/assistant.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d639e8eb374662bfbdd0ff2336baa9285c91aec07db69fae8d127bc2233c9e7b",
+      "source_path": "packages/interview-contracts/src/assistant.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/brief.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d959451cddf11cf0d5c9a0b7aab94a847201a6c84f1ce4e07c65af44189dc0f6",
+      "source_path": "packages/interview-contracts/src/brief.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/briefing.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "afe4029ac42e91db23780e9f9a261a860501755c5efdf7fea8992f34c3b83f39",
+      "source_path": "packages/interview-contracts/src/briefing.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/briefing.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d4f8a37667dce32e45749b257de6f14e3e459f8675670f7400bdf58279f9be61",
+      "source_path": "packages/interview-contracts/src/briefing.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/documents.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6e4b8c5d3855b24e31fb2dea2b2c048c7b37d2f509daf19133a4a9c30cf4cc68",
+      "source_path": "packages/interview-contracts/src/documents.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/documents.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cbeababd50f4197349bcb599cc79f7699acaae4647cd51842a6715dc7ef7dde6",
+      "source_path": "packages/interview-contracts/src/documents.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/guide.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ac90038657bbac6f9c9dd6da87dfe23184bea2a7d07d4f6af04c2892bef99a7e",
+      "source_path": "packages/interview-contracts/src/guide.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/guide.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d9b4f11d8ce2ab8c162ea9fbef5dbdedbfca966b67c6ba85e712908b780a74b1",
+      "source_path": "packages/interview-contracts/src/guide.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9564a7ff0bc80074619c962447865eafa8be8d41ae176cb37f9f720f31550fa1",
+      "source_path": "packages/interview-contracts/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/plan.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "748c1387dda1728f6676f6f22b64b5468f953d90c8632b4ca15a0cb0fe8dd535",
+      "source_path": "packages/interview-contracts/src/plan.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/practice.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b2064afe5bf27b33b0a9cab95457a5c63a32240725a176439e04838d973ad205",
+      "source_path": "packages/interview-contracts/src/practice.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/rehearsal.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "88117efea78f69d91c4afd245b7b62b017252f3bd7db70c22fb6318add293dd9",
+      "source_path": "packages/interview-contracts/src/rehearsal.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/routing.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "49c071fb6b0eeb8ee11c2ebab9171dec061d011aedd7a017ef7a5ea7348149f2",
+      "source_path": "packages/interview-contracts/src/routing.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/routing.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e588b92368b11c05b004b3821cddc91904981d97f1a57dbb2a93a81f2d832e74",
+      "source_path": "packages/interview-contracts/src/routing.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/schemas.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "584d6c47bd6c942f43e686eb8bca2a4629e69304e68e57397ba3fe77c396d969",
+      "source_path": "packages/interview-contracts/src/schemas.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/schemas.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ce04e12f66f6caaab9f6fdbd7a7889b31f2af1be8a8eeb51f41b08bf768d718c",
+      "source_path": "packages/interview-contracts/src/schemas.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-contracts/src/workflows.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a2423e3fd613c0b948d798120e2ed84b7525c9c6c1be833f7a38aed5ecfe1361",
+      "source_path": "packages/interview-contracts/src/workflows.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/benchmark.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0104f9e14d70cde52be53535af7a5d637905314afadbe97d8a0660a82c06644f",
+      "source_path": "packages/interview-library/src/benchmark.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/benchmark.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6f2d59f65b69c9a07c17976e8af973bb68f7148481198a89de020a458798c3a5",
+      "source_path": "packages/interview-library/src/benchmark.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/catalog.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c3258d90042e03db79810b79c854555f5566883bb090be7a0484f31ebbea1861",
+      "source_path": "packages/interview-library/src/catalog.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "07f20bacbfe99b79fddf83abb36824f13e39825f4be3be5450f85af3f3b2dcfc",
+      "source_path": "packages/interview-library/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a01100c018fe482ea6fe83d55bce5bd47d86c6b324df59ef07a83bbf7c60a150",
+      "source_path": "packages/interview-library/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed-laravel.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fd317e678df5aa54fed966182ee60067bee342f0be4b128e3795448be7573e4d",
+      "source_path": "packages/interview-library/src/seed-laravel.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed-php.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6d1d63490e7b546e2083eea445382a298a076e494f3e57873091430d43934ccb",
+      "source_path": "packages/interview-library/src/seed-php.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed-symfony.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "825d88582c884d5e84c2f5682ee14e4a779b66ac01b6241cebcc89343b5e650f",
+      "source_path": "packages/interview-library/src/seed-symfony.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed-usage.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7a399a9f81e28d28c78100c52e4e2665eb5afd9ab2df0c45d80373b43599fdb7",
+      "source_path": "packages/interview-library/src/seed-usage.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-library/src/seed.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7d241c06bf35b6b04f73b9e8ac894e599ee3d2a7e671c0d54a7dd49162cec998",
+      "source_path": "packages/interview-library/src/seed.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-playground-control/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "637f2ccad76830926a39e8177648bd2d09a6a6155dbc88068852cff1aca45aaa",
+      "source_path": "packages/interview-playground-control/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-playground-control/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "894d1309d3a31fa87570c6dd5dd8aa1e683d36f2e188a5f1fe0b4b42c47fa243",
+      "source_path": "packages/interview-playground-control/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-storage/src/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0289fbc987c7c1b5df3dce98481b45d2e56544dffbfa0bd50fec96266c8cc239",
+      "source_path": "packages/interview-storage/src/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/interview-storage/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4943c97b6a56c147eb8665748e4bdbedd8d73b764da275b4c1775da8edf0f108",
+      "source_path": "packages/interview-storage/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-api/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b4eeea43238d59fa893135a29b225d69c40dc6ebf7d4c7c366af8ff91e5c42ab",
+      "source_path": "packages/platform-api/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-api/src/router.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d78140ac91f48d4a40c9b0600670b051e4c4b0ee92df5b3fa25e9e88e5c62ca0",
+      "source_path": "packages/platform-api/src/router.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-api/src/router.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5b339f854e816f8c53f54d1060b4d143d6282dc59ee19c19af41cafa46d2a87c",
+      "source_path": "packages/platform-api/src/router.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-contracts/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9b4a10d70ffa4069709b2bb7ba215f479b3753a602e443d3ce0084419744dcbf",
+      "source_path": "packages/platform-contracts/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-contracts/src/platform.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "864b55dd9bf4576faf55b71cd593abfb3fb810ea1814f81e15c5a042ad91f6b5",
+      "source_path": "packages/platform-contracts/src/platform.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-contracts/src/platform.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fcef24900a7e0fb7b4d7715b57802c3c06a00ddb3fe360c553bcf1d3929a58e8",
+      "source_path": "packages/platform-contracts/src/platform.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-contracts/src/plugin.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ac4257d9304464d65f6acf81ed3a9c1d9daf2fa78bfc85f24d00d3719866502c",
+      "source_path": "packages/platform-contracts/src/plugin.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-contracts/src/plugin.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7c14c9102fa5f5ffb2147aab381511d3918165949bafc6656668432c4fcedf74",
+      "source_path": "packages/platform-contracts/src/plugin.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-integrations/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "44df9fe9f0189620a630144dad6a7ec679484554c2137f09f66acdaaff8f9793",
+      "source_path": "packages/platform-integrations/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-integrations/src/oauth-flow.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e60b2b6310f515ed896093490fefbf7796621b21074e0e3b70d9ea432e0f129c",
+      "source_path": "packages/platform-integrations/src/oauth-flow.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-integrations/src/oauth.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a1ed318eb61448630067e8aa8533946e0546dc1368a8e99b7863af33ba1a2a46",
+      "source_path": "packages/platform-integrations/src/oauth.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-integrations/src/oauth.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5c23bb6df3474581cbc3278d598fc7365d5b5465809f4b14214794d1bde7b776",
+      "source_path": "packages/platform-integrations/src/oauth.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-runtime/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "addd336aea4c01019b8b0e8d729113c251e62207c295b86d1e583a61eac25f22",
+      "source_path": "packages/platform-runtime/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-runtime/src/registry.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4a5b255948587db21b6235d64eb19691e6f5196a5ac066645293e954c3a0bea3",
+      "source_path": "packages/platform-runtime/src/registry.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-runtime/src/registry.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ccdab9af3f4659f04bc3ab9e2e9312978c806b8de042e8ac5780f49d2b60bb19",
+      "source_path": "packages/platform-runtime/src/registry.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-job-repository.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "484c7759ecb2b2cac1a1b3abc93d81dd73c090bc900d891eaec110773f0bdfa2",
+      "source_path": "packages/platform-storage/src/agent-job-repository.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-job-repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b212d0073c90974505ef6576e36343097dd5475563a3b355a99b2e99a364396a",
+      "source_path": "packages/platform-storage/src/agent-job-repository.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-job-row.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2a510383da14b72a3b66403d48e8858c1e0a3bfd2f989f713bcb2813f9f697fb",
+      "source_path": "packages/platform-storage/src/agent-job-row.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/agent-job-worker-repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "42cf0b8a28cc6c476513ad03ef6ade8597bdaa635614fcd9d4f761e8fa982ae7",
+      "source_path": "packages/platform-storage/src/agent-job-worker-repository.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/bootstrap.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "2a0b3494c54deb45104d3726a66ccc1c01cefbe17005c1a6d33044e71bf2018b",
+      "source_path": "packages/platform-storage/src/bootstrap.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/bootstrap.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a6fd600dac09124d7c82b8be1e85be7e7193d389cf48af184a58be86fae6776f",
+      "source_path": "packages/platform-storage/src/bootstrap.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/connected-account-vault.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0e8afdb360707e9eb8de1e08c07516833f38802874f3c2ca821d1914a04303c3",
+      "source_path": "packages/platform-storage/src/connected-account-vault.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/connected-account-vault.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4be5e855562a1ca104b8372cbc60afbe68d00a69e023cb5bd34b85ccde7bf5e2",
+      "source_path": "packages/platform-storage/src/connected-account-vault.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/document-artifact-repository.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "21a72a1ef65ba1787965d89ace896f19d8fcadd745c9035b96769104e00a6d60",
+      "source_path": "packages/platform-storage/src/document-artifact-repository.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/document-artifact-repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "44cb6e68b4bc6622e370fc6a251b3b9e9e82aeb00303729a9a3e66fb09043487",
+      "source_path": "packages/platform-storage/src/document-artifact-repository.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "80bc60c739cf4d4b7d9f4da6e1afcbcc2e6c37c93aa081a7ef6bdb4335b26e9b",
+      "source_path": "packages/platform-storage/src/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/membership-context.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5e547f956dee27a0f3032f05d90a2a4126fd80da09fd4383309054d10269898c",
+      "source_path": "packages/platform-storage/src/membership-context.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/platform-repository.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d6f197d905fb467fe7db3b1cd8772ec5593725fb59ec5e6106c58c34e24c14fc",
+      "source_path": "packages/platform-storage/src/platform-repository.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/platform-repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0a0e8fb479bbd2fbd88c7e72b5dc0ae74fb3c34e9dfcc439ad49b00ac07c3ee3",
+      "source_path": "packages/platform-storage/src/platform-repository.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/schema/ai.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c25b67f90d32f38b7cc1f02a1fdd2efd942359ec6869339115a562f77ac09b6a",
+      "source_path": "packages/platform-storage/src/schema/ai.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/schema/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9715ba21c60258ba44900229e4713c2f1066f8a8eb5096af57a4537097e4382f",
+      "source_path": "packages/platform-storage/src/schema/index.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/schema/platform.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e5fe5cc7518ba0ae23ce765a117e0cc43c57e5920a7fdf436fa4fe62dfb0b676",
+      "source_path": "packages/platform-storage/src/schema/platform.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/schema/schema.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "37ecd17e421dea16a2bf2e5553ebf560b481e48fef36f52a140758ceeb5f5b25",
+      "source_path": "packages/platform-storage/src/schema/schema.test.ts"
+    },
+    {
+      "doc_path": "fallback/packages/platform-storage/src/worker.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "485ec4092e9613085e9c64879e0097dd44c9e6e1be234e99f7b14b9cbe04ab00",
+      "source_path": "packages/platform-storage/src/worker.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/answer-fixture.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b6d2f843c4f7121b248a3ac0e0b989c9c12d132f09f446d366786a6cc0c53c5b",
+      "source_path": "products/interview/src/answer-fixture.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/assistant-profile.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d2af2e3aea323ede0aa2147eee5bf38072c292783d3463808ca5ca2eac8164f4",
+      "source_path": "products/interview/src/assistant-profile.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0a165a99339bd6a7cc7fad4a6df38542a784aee949e3b2272c7eb7a29b6e47d1",
+      "source_path": "products/interview/src/backend/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "892b81a9fae0ea8941649b9d95a84974034d84b725b10d04145ae2e8c3fd5cc7",
+      "source_path": "products/interview/src/backend/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant-entry.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f7d21b6963b209db43ef77f6b5d168ddaac3f13c9a5ffd4bf47c93c4395a7aa7",
+      "source_path": "products/interview/src/backend/assistant-entry.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant-models.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f2f5394553bcde178d798280a9d42caa9495c636b792306da9c20296b0bec656",
+      "source_path": "products/interview/src/backend/assistant-models.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant-models.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "66fe9018a13a155736c33202c5f575f54ea6d1c7352dadd05a06baab7ea34d73",
+      "source_path": "products/interview/src/backend/assistant-models.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/adapter-briefing.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "165953bdfd0e8a0addf7ee6a7e58805acc65ef9c472e3b5debea34fe4482c61c",
+      "source_path": "products/interview/src/backend/assistant/adapter-briefing.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/adapter-surfaces.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8bd15c5007a01ea63efdb63bf10aec0fe2c9c2845f72f491b4a95c1d23f0e404",
+      "source_path": "products/interview/src/backend/assistant/adapter-surfaces.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/adapter.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "39d3dee62def92ea4fee44e0c942f255f6f9ddf84c34948fa82a25b50cab0652",
+      "source_path": "products/interview/src/backend/assistant/adapter.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/adapter.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "544f3c753a1db26290cfe87fed83c25a3e5d26e58884a1a32e9e01e2a1a735a9",
+      "source_path": "products/interview/src/backend/assistant/adapter.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/code-effects.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "66bc6b9b8f6157164cfee09f9c1d8c8f50f8df6ea16de01aec3f7b9c377bc0be",
+      "source_path": "products/interview/src/backend/assistant/code-effects.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/combined.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c0f1bf7430b41af9a599f45dc1f2a14b622da965b276cfbb97b117a3a1ff6237",
+      "source_path": "products/interview/src/backend/assistant/combined.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/effects.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8d55937f0e5235f5c91284bc0f20b1ef3982120d42dbc444fa9132efead3440a",
+      "source_path": "products/interview/src/backend/assistant/effects.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/evidence.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "29f9ae004234a4f0f69800a51d04f486176c4580555121110316505bac1dae79",
+      "source_path": "products/interview/src/backend/assistant/evidence.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/evidence.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cb4d99985053ace3638f55ad871d0dab0374d5d624a8fe030812160e3c2da75f",
+      "source_path": "products/interview/src/backend/assistant/evidence.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/prompt.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a95a2ad4fb035bc17876bd7e8d6b27480d73ae24da5e581ffe2ad8ebf2f4ef1a",
+      "source_path": "products/interview/src/backend/assistant/prompt.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/refusals.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "99cc5d4ef04535076de2d1258cc3100efafbc30d5cc91660e377b985ca156132",
+      "source_path": "products/interview/src/backend/assistant/refusals.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/source-serialization.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0059456b86e91222b51cd8f825c6e271976e12e1e6c5ae4875da7c6077718494",
+      "source_path": "products/interview/src/backend/assistant/source-serialization.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/workspace-fixture.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "76c80d7bc17afece80919a49a2c7f7ce39e0c02dff3e8ce920138ac1a3608f76",
+      "source_path": "products/interview/src/backend/assistant/workspace-fixture.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/workspace.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "740c445a5116793640cbfccbadef18c7b2b2820a4a39ad0dd1d788d31d19547e",
+      "source_path": "products/interview/src/backend/assistant/workspace.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/assistant/workspace.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "746dd5f5e793dd48cc4abf7943267d1a15a6653aa1f6da7bd2112b5ef64f0639",
+      "source_path": "products/interview/src/backend/assistant/workspace.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing-access.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "96152dd1b2b977669aeca5c7f79d0a6c16615d52c46d891308c9b28123761253",
+      "source_path": "products/interview/src/backend/briefing-access.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing-access.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "479ecb2509b774e3df31df1df6b9ef8e514078f0f2bee714e4ba9c3feff4c8bd",
+      "source_path": "products/interview/src/backend/briefing-access.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "719282fb5298b6ea042c672161b27989cf834f683de63638ef9f479a5070c69c",
+      "source_path": "products/interview/src/backend/briefing/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "386ecc223da40863ed2586eea33fa9b7918e5e06de09d73993e9a6383f8ba717",
+      "source_path": "products/interview/src/backend/briefing/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/edits.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "771cd724d8b43fd970d8cd58ec5b26d3764d116e805f1561fdcf5a2450696d52",
+      "source_path": "products/interview/src/backend/briefing/edits.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6bc265a1a8da2cf7aa063210d60674d34ea37f4891c5a8d87d5324e6e1a5df0a",
+      "source_path": "products/interview/src/backend/briefing/repository.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/selection.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "45b12d222b6154d16ff0cdd9f1f6ea068ddf27f99317a83ccf4d3748206ee76c",
+      "source_path": "products/interview/src/backend/briefing/selection.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefing/selection.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9787834a5608dd20a542eef76b22d7e056772a1bc948737bb359fa047a4226a3",
+      "source_path": "products/interview/src/backend/briefing/selection.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefs/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "906af31ded20baa95edadf292c86931faf5ec4dcbb363d44c3a99d9b42cdf95a",
+      "source_path": "products/interview/src/backend/briefs/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/briefs/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "21776362654032c06f9eab29192cbbba2aba3249500643d5fd3f39ae675ac4bd",
+      "source_path": "products/interview/src/backend/briefs/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/documents-security.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "028631fe085eaaf134c62e3dbf881f4af8506550513a865f860a26352e487dca",
+      "source_path": "products/interview/src/backend/db/documents-security.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/documents.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "517d30ba1c202ecd349f15a92768d065ec86774acb8d6422323e600a450fdac7",
+      "source_path": "products/interview/src/backend/db/documents.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/migrated.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b846a9864828bcbb592ddd01989cab9e9f43189a0b73a289879674cd923cb53d",
+      "source_path": "products/interview/src/backend/db/migrated.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/schema.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "701224c6a7777f194522447d7e582e21747271ea1664559bc2e7791db81a1b99",
+      "source_path": "products/interview/src/backend/db/schema.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/schema.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e1271e7696280f2ef72bb430127ff25df572d6696a37f1990f4ba6cc00baf911",
+      "source_path": "products/interview/src/backend/db/schema.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/security.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "109b6e9598e392562cab26e7e2b9cc86602de999d46a1e6a0369a0b6120cad48",
+      "source_path": "products/interview/src/backend/db/security.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/db/studio.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6cea64396db99323e7d4ef4079f87af7dcdc4545d882e70332c229ee2c775763",
+      "source_path": "products/interview/src/backend/db/studio.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "450b4bcbe87004549761bbd6453c577f815b92241478ff402db276ec30557be5",
+      "source_path": "products/interview/src/backend/documents/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8387c992f9d33360bbd58d07813cff626288dab0647d1849a45d81445297d144",
+      "source_path": "products/interview/src/backend/documents/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/context.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d39a629424a098b30f39abe561121841bba46aeaf837371b16e5dc6511d73196",
+      "source_path": "products/interview/src/backend/documents/context.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/context.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cf41731ec344b901871a828b5d8b09b12e32a6acf7c5e04551cf2a0b9ac56a83",
+      "source_path": "products/interview/src/backend/documents/context.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/generate.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "13189efb06d22368d23ff9a547625b7ab5d3c5b2a8bac5916ae27092d1e9849c",
+      "source_path": "products/interview/src/backend/documents/generate.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/generate.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "44f2881e24c1ccfb22ad2ebe24b6f87e88c00ac4374a39c8363d0087d55dacbb",
+      "source_path": "products/interview/src/backend/documents/generate.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/render-docx-markdown.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fedc718434c8dd2f55bb6d3e06379ee7537cb11a137e2ff86000f2cf55b9a2e0",
+      "source_path": "products/interview/src/backend/documents/render-docx-markdown.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/render-docx.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "84919bb1d147332f30cd30da0b0ab110336de6a7ec0e801cc95d188f60518769",
+      "source_path": "products/interview/src/backend/documents/render-docx.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/render-markdown.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b24caf22d4a9e444e72d6f0e5f659883dfb3c405544f91fadcd721517707df68",
+      "source_path": "products/interview/src/backend/documents/render-markdown.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/renderers.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5c99f1b7e7863c82da7cc274c6cec5ff9a537818255f27b11085633c6fda895b",
+      "source_path": "products/interview/src/backend/documents/renderers.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/repository.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7fd54dcd3dab6ac050ac157b7b3cdb99cb09abe8463a44d57720b09ef49da9ce",
+      "source_path": "products/interview/src/backend/documents/repository.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "14d2355d62f64c94d977a07436a77c574c620c467be0f8646bf5882edee324f7",
+      "source_path": "products/interview/src/backend/documents/repository.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/template-intake.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a72f35f6ac948496512658d54df6b2d76ed8725d47084042e54dcad93d738fec",
+      "source_path": "products/interview/src/backend/documents/template-intake.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "06fab39967fa4cc6ceb2ec877bb9b1331d5562847584402cb066fc94c2da69e9",
+      "source_path": "products/interview/src/backend/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/interview-backend.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f37ae75a4c3838b607ace3d9df0471e21a3ee55a1b1a4833f96d60ed63e197e3",
+      "source_path": "products/interview/src/backend/interview-backend.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/interview-backend.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "855646df47d47769da4b6b79796e63eeadc282e647ef85366f83a2d97454b2a4",
+      "source_path": "products/interview/src/backend/interview-backend.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/library-service.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3d6360583e15e9a808df33f3d1048918c6f375828e62ae739a4f6ec6214a7ee6",
+      "source_path": "products/interview/src/backend/library-service.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/library-service.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "128c71eba07619c8fcdf20a18ee3890bb75b550f9a78cbcc5366fb01ac530806",
+      "source_path": "products/interview/src/backend/library-service.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/local-default-profile.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d1389212c9086d34407b5377d1fb2abd0fb937bceacf7458223788bc39718f60",
+      "source_path": "products/interview/src/backend/local-default-profile.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/local-default-profile.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e169307169e6a2aa01bd1929e52b19a9fae621746384891f68708b3448259ab4",
+      "source_path": "products/interview/src/backend/local-default-profile.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/plan/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "38ea41c810166c87332495f95027a86242d720eb5aacba3d9b982b93dd836c30",
+      "source_path": "products/interview/src/backend/plan/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/plan/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b1aa156e2cade73d18cdc12a105c4ed73a44515aa0961da9f2fa0ff87386aaf8",
+      "source_path": "products/interview/src/backend/plan/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/plan/repository.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e262a76ded42270c6f4e2f81172ad0d492bdacde49ea8fc5acff0b639c8922cb",
+      "source_path": "products/interview/src/backend/plan/repository.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/rehearsal/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d5e85fa39f5c1f45881e720df88ec10a4a65bf84942f82abddad4d2634322d2b",
+      "source_path": "products/interview/src/backend/rehearsal/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/rehearsal/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "965f7159dc8f243b6ffad44e954ca718090869fa8f07e2e165e073626c23a2da",
+      "source_path": "products/interview/src/backend/rehearsal/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/services.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "baaf5f9bd54138c002be60dcea7e25d5c76e12887b5802f8a785f36188fa1d02",
+      "source_path": "products/interview/src/backend/services.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/services.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "debf1aa47fe41a04056689945f42fa5c9ff231a1270133cd3a3e544ce6086c08",
+      "source_path": "products/interview/src/backend/services.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/structured.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "63a8ee117cc0bc4d337da7e49b585bc0da7f20372153d0399eccaf1dee4a9bdd",
+      "source_path": "products/interview/src/backend/structured.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/structured.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f5926c31c1978433ac5687173f287ee1d4dc9ce92d77de64675e212c78a4390c",
+      "source_path": "products/interview/src/backend/structured.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/studio/host.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d8213b702bd7a2bbfd8e4667d13b5a8b8fe37bec7b50fb60021396e14a02a43d",
+      "source_path": "products/interview/src/backend/studio/host.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/studio/host.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "87409e1556d6aedefaabb02ee787f556016c3fb3bebcf62fe1e8c598335a79a5",
+      "source_path": "products/interview/src/backend/studio/host.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/workspace-control.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "79eed7461c28052aa8897755dc8278945d6166f4aed5912bb711aa0fa2d33ab7",
+      "source_path": "products/interview/src/backend/workspace-control.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/workspace-control.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "eb157236c87cba93daf9bd6dee9c410a37098e3fd816010d9c74528f6885bce3",
+      "source_path": "products/interview/src/backend/workspace-control.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/assistant-config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ac7bb87a469f3cecda84e4239379e954f6887998ed26ed8202e8f48648da1680",
+      "source_path": "products/interview/src/frontend/assistant-config.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/example-templates.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "84a3c17b696bdbc05f7bd081b6f962dce350c246b8aac60ebd8774339549e821",
+      "source_path": "products/interview/src/frontend/example-templates.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/example-templates.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "523ee4964ddb4ea391d3d4c9fea67836efef547f0807d2fbe2432899e699a465",
+      "source_path": "products/interview/src/frontend/example-templates.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/format-timestamp.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0c7067aa9b2c18d17bf3be286fcaa51601c49bb9e3d39dfc36bbeefdad21be3d",
+      "source_path": "products/interview/src/frontend/format-timestamp.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/format-timestamp.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6327341680c8008b80f899ead7d7ef617fb31c0837010c379a3a6a074c6f34ea",
+      "source_path": "products/interview/src/frontend/format-timestamp.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "35891ea46db0f856bac133bcea66252ad16a6a20f156d29a73bf344a1f6f54d0",
+      "source_path": "products/interview/src/frontend/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/library.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4bcaecefb6ff792d8116684ab7f99c6dfad2b29a70aea7ce7d8181de8a9f6b64",
+      "source_path": "products/interview/src/frontend/library.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/library.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "551b8bc24a11b7f1fb27c0a250aed25fc5769540bd1aafbd2b5054682253b7b9",
+      "source_path": "products/interview/src/frontend/library.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/markdown-content.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "095f3caf86d019b51bfa56231424e4af0aa00a883a9de413800dff88f87699dc",
+      "source_path": "products/interview/src/frontend/markdown-content.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/markdown-content.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f70da87660a61871f56b60392b1cbf4733bfe5fe8b8127705d0df5bf5ffb6aa5",
+      "source_path": "products/interview/src/frontend/markdown-content.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/markdown-highlighting.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d6c6a721a7279bf2be0e203f2a266e421726595e722ecc8936441ee29b5456ec",
+      "source_path": "products/interview/src/frontend/markdown-highlighting.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/on-device.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4b3d9e57333b8eb1500ccf82e5d3afe424bc7f07018885af20d1a377aa305b79",
+      "source_path": "products/interview/src/frontend/on-device.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/on-device.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ec2220c21f61ccfdb3df01dec7867906c568e667fb498baa51e59856c31bd522",
+      "source_path": "products/interview/src/frontend/on-device.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/shiki-highlighter.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a5c2140b8fbfcc7a244171032c8c675f11bd18b7d05424f3c71e0710757c6baf",
+      "source_path": "products/interview/src/frontend/shiki-highlighter.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio-route.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5e8cdf111c2629fa9e91214f6697238db79b85d85fc2aee1ae7a1aa26c8951b3",
+      "source_path": "products/interview/src/frontend/studio-route.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio-route.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "01255228b0c94d755092a897305ec0141839448ac6386fbdbadde5d2323b52c0",
+      "source_path": "products/interview/src/frontend/studio-route.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/answers-tab.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7236d7472a8c07ec72bec4f83bbf77bc052dadeb6f83a32800155274c67b76cd",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/answers-tab.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/behavioural-pack.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "fbde6b10073419189d4db83f353ee6759306f6e5a85dd68b57c80e3d5cc8bf29",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/behavioural-pack.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/behavioural-pack.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3b9a0763bfe5c4a7eb1f3f475fdbe35b89884fbc38657c7365a4f1b1a0af40c0",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/behavioural-pack.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/briefing-tabs.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bdfd39babc1202524031937dbfb334525593c9409c470b412551ace5c15fa3a3",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/briefing-tabs.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5b756dd2912aa182df77ee1decd0223f93dd98aa79b3edd556be479eca4efb06",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/config.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/matrix-picker.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5e8d1aa07e8c2ff0e6809e52bf3dbf3377e6b0d4e49143c9fcbf2494e6659e8d",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/matrix-picker.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/questions-card.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "dac4358f4bd7fd5f6f1c527e157edbb9ad42c3b20f5737233a87781345c72f60",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/questions-card.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/behavioural/setup-card.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "af600b51f3a04d0250eacb8e531d859419ea35d6ad120530b0e4e54071b9f594",
+      "source_path": "products/interview/src/frontend/studio/briefings/behavioural/setup-card.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/brief-card.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bba27aef9ec2768ec1935c90c42b61bbabf4c38744e2240761a01c554ec66387",
+      "source_path": "products/interview/src/frontend/studio/briefings/brief-card.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/briefings-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a7fc00c1da87763e6918d3b2a6df5f059ce783b5750c5a2c01e61a388a24ee31",
+      "source_path": "products/interview/src/frontend/studio/briefings/briefings-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/briefings-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b200170a3a79f3412d87187fbfe30ebd62b0590ec29f779f58cbae78c6dfc4c1",
+      "source_path": "products/interview/src/frontend/studio/briefings/briefings-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/explanations-pane.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "af8f1ba51c63d605f850789a8af4538ab637a745913f81a9c032d9d58243200c",
+      "source_path": "products/interview/src/frontend/studio/briefings/explanations-pane.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/briefings/new-brief.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e23d49e32c883e09b1c4be12df9e03c1c8adf98c8fc9ad25f7b6d7d592f3dc28",
+      "source_path": "products/interview/src/frontend/studio/briefings/new-brief.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/command-palette.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cce3c483ec87b08ca94ec02b640d94783a76ce3dd0016dcb65f32e2998898273",
+      "source_path": "products/interview/src/frontend/studio/command-palette.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/config/commands.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "948fba8ceb4c871ea38af35bf37c7941bf49bd14b16f4dd53a971a6837b6d6e1",
+      "source_path": "products/interview/src/frontend/studio/config/commands.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/config/registry.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4b7460e70078b6e5be7c4186f6f15da42ecbe8146beaa19cffc2a3aaa9496b9c",
+      "source_path": "products/interview/src/frontend/studio/config/registry.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/config/views.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8cb9abe60389fa20fda5908f606b171b3d14426d381e620049127b7a812f4724",
+      "source_path": "products/interview/src/frontend/studio/config/views.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/context.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f56a11d6e7878ec8209ddbbf90fc7eb39c1e2deda17553c7b32865a24f34bdb3",
+      "source_path": "products/interview/src/frontend/studio/context.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/dock-resizer.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "68b3ebd20faca55f78612320ce1810cbf1831166efce167f6167f6eaffea59d7",
+      "source_path": "products/interview/src/frontend/studio/dock-resizer.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/documents/documents-client.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "a17444d41655e098b497112544c5c12dcd933a5e3aa7b61820b691966a7532de",
+      "source_path": "products/interview/src/frontend/studio/documents/documents-client.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/documents/documents-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0c8100d2b2200821bcbe4e7ec18a063e3d58deb4d139782cb2ac8fbc70346124",
+      "source_path": "products/interview/src/frontend/studio/documents/documents-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/documents/documents-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9a091ab3bee42c9c7b5478d41a7f61306ebe49f0f282e40cf46f281988d58648",
+      "source_path": "products/interview/src/frontend/studio/documents/documents-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/home/home-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "043e7492401f928419455fe142e7e7a3bb5ef67e17f8e084861dbf96570b765b",
+      "source_path": "products/interview/src/frontend/studio/home/home-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/home/home-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7f0bc9ed2253b823bd93ff9e943a5c9d86bc321a9c476568ba9a8f7fadbeb328",
+      "source_path": "products/interview/src/frontend/studio/home/home-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/home/interview-card.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "89374511fc88b68628c67625a0e6f80e6a3d173ee6d712512a8e3344c9bcc918",
+      "source_path": "products/interview/src/frontend/studio/home/interview-card.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/home/plan-card.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0111c9c63a5c20510550675eca96ceafac52256f11dad010cf1fb051a6e24a61",
+      "source_path": "products/interview/src/frontend/studio/home/plan-card.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/home/use-plan.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1f3e6c5728e9f03f0b20a0a9a24d2bb16be8fd4e9c3b4ca8be0791fdd0bb3302",
+      "source_path": "products/interview/src/frontend/studio/home/use-plan.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/icon.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e852832a09c23c006b2f7aaf55b62b7a245bee6d4dcf42ec27d295f5c2f4ac27",
+      "source_path": "products/interview/src/frontend/studio/icon.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/icons.generated.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0edc052edf760465f17a7dd2728dec57da0af9a45f28b774d0067c798635ad6f",
+      "source_path": "products/interview/src/frontend/studio/icons.generated.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "769c4e719aaec7f988ddebfa004b0b8fe6749b369134e1a1bbd44e25910185ba",
+      "source_path": "products/interview/src/frontend/studio/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/playground-control.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "aeabf639fff7626df8a3d25fe8d35f67457d377f88747eef1e1bd998e1c92dd8",
+      "source_path": "products/interview/src/frontend/studio/playground-control.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/playground-control.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c80b54a8931adba44cf8c9760965441b9ac3949a3230c8032229feede2cb7c0b",
+      "source_path": "products/interview/src/frontend/studio/playground-control.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/practice-timer.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "64cc0cdb52b037bbc98757113fee4e60b01a40c17a283a255a897438e61598e8",
+      "source_path": "products/interview/src/frontend/studio/practice-timer.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/config.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4041d1dcac2e605dc35cda570f5b1671f9f6d70a861a904759073b10ea016c2e",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/config.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/live-session.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "267ecf8348efd31e3f4dec9059b3ad5f17987b876720829bcae7a749313f85f8",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/live-session.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/material.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5dcf415c6cfd619987c14748718186c1ce471114bab8c4abfd08601c7a096e8d",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/material.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/rehearsal-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "567c3c9a2b1dadd011b8861d675170dd220e95e705c47b042ebcc0b1e343a91b",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/rehearsal-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/rehearsal-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9cc26408282e17c4b0eae7832517639e1de355ce77787e1e5581499bb1b8357d",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/rehearsal-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/rehearsal/scorecard.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3a90de1f83a7c4156d1c60290391c651dad89a21f627f096d6d7d1480514fe3f",
+      "source_path": "products/interview/src/frontend/studio/rehearsal/scorecard.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/resizer.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "75f2b43d0e96884dbc9fb61e3010a80334d7b067133d193965d950f76e6b8060",
+      "source_path": "products/interview/src/frontend/studio/resizer.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/run-status.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5e792ada3b5f009aae2c4943213829c000f3e764ded50d94140ae84a1551b950",
+      "source_path": "products/interview/src/frontend/studio/run-status.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/sidebar-products.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9d43386bee9f7b1360a771c53de9934c0c93e134e4f50d50dfbd79da0faf099e",
+      "source_path": "products/interview/src/frontend/studio/sidebar-products.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/sidebar.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "09b05e92806929ee9b0486176ac23f57fe7e49ea695877f64d8f481495640922",
+      "source_path": "products/interview/src/frontend/studio/sidebar.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio-fetch.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ddb4bfae76205b7592272e7fe413a0ff1ebdfeb96ecafba803516aa2781067c1",
+      "source_path": "products/interview/src/frontend/studio/studio-fetch.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio-page.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "36b1dd5a87a0bb2f27c3509f24d1a679da1b3e4d4807f5133bd894c14ca535a2",
+      "source_path": "products/interview/src/frontend/studio/studio-page.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio-page.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ae157adc87b68660c66b231ca47aac650129dc3e85611d5296178ccfd9ee0f12",
+      "source_path": "products/interview/src/frontend/studio/studio-page.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio-requests.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f69111cc5c3f3eb994fdd9e8a1e20cc52e461ce623953c7d10499e37a96334f9",
+      "source_path": "products/interview/src/frontend/studio/studio-requests.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e15971db4cd9d1ec1cbcca9b22d29f65094bf648cdc59a2373fc28393dd1f617",
+      "source_path": "products/interview/src/frontend/studio/studio.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/studio.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c3af44ef18aaf9de1fd5d83e6278605ae36d0ea93e60d7e21aa6481cd1b206a8",
+      "source_path": "products/interview/src/frontend/studio/studio.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-playground-control.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "429713a442132fc0da5875fae954656c09cf841fdca13155f09e968576b6437f",
+      "source_path": "products/interview/src/frontend/studio/use-playground-control.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-shortcuts.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5fb6e67ec43313874e07093147e2a4f8b0fc93adc2384a947ba291a839506382",
+      "source_path": "products/interview/src/frontend/studio/use-shortcuts.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-studio-lists.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "af54ed48948c530f17b923f81dc9a58dfc6e232b93001bc1ab935d1f4cdd33ad",
+      "source_path": "products/interview/src/frontend/studio/use-studio-lists.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-studio-route.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "571776b4eab546b991a627cde11ce5042708064b7aec6a80837defbede2406f8",
+      "source_path": "products/interview/src/frontend/studio/use-studio-route.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-studio-theme.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3d6d8e9ba7ed31b0cd2afd294c6c48b0477ed459890baa452fe53294bc176506",
+      "source_path": "products/interview/src/frontend/studio/use-studio-theme.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/use-studio-theme.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "89893aa03dff66fa17dbc64aeaa82854c06a1faeb814febf9963d698872b8eb7",
+      "source_path": "products/interview/src/frontend/studio/use-studio-theme.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/view-boundary.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7278154448e3db979ee18ddd069bca7272097f6f1113aac792418c806c5b4c77",
+      "source_path": "products/interview/src/frontend/studio/view-boundary.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/assistant-change.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "53fb5a146c60507704d21df0bdc76ca3f500c03726dd7d52530ca75c0df18440",
+      "source_path": "products/interview/src/frontend/studio/workspace/assistant-change.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/code-panel.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1289d066172d3b306c19707ac71e2a2debf83832679cedf98f5ba14c41ba0097",
+      "source_path": "products/interview/src/frontend/studio/workspace/code-panel.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/coverage.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9f2301624b3ffcfa180dd28afc5d69b88683eb931695c341b031e0feb23f229b",
+      "source_path": "products/interview/src/frontend/studio/workspace/coverage.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/coverage.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ed0fbdac2638384d8da2c1461d02574f14522836964d5d5ddb82756254d7064e",
+      "source_path": "products/interview/src/frontend/studio/workspace/coverage.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/inline-text.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "db5af4a1479b7c4170fab9cfffadc4666abddd415b193660365a792bd798e086",
+      "source_path": "products/interview/src/frontend/studio/workspace/inline-text.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/new-question.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "3888d082e70cd458a68a34d955c3763149f2351eee57aed9652e7be5b6cbc268",
+      "source_path": "products/interview/src/frontend/studio/workspace/new-question.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/stage-panes.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7350e7b65f29c488854aaa7ed2782b181fd2ce6e52359b6b833e31cffbe316c0",
+      "source_path": "products/interview/src/frontend/studio/workspace/stage-panes.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/stages.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "15436683d13414f45da2654f6d74669a326cbc6ec7752accc0b575ba4595d9c4",
+      "source_path": "products/interview/src/frontend/studio/workspace/stages.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/use-canonical-draft.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "30ec1b574d0913091c142ed130936394c23b3d7402bedfbaed273f7685db4187",
+      "source_path": "products/interview/src/frontend/studio/workspace/use-canonical-draft.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/versions-menu.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f0e8092c9bef3a671d801a98a455ed608cdec9f2ed071e013f1b5a0ee340fa21",
+      "source_path": "products/interview/src/frontend/studio/workspace/versions-menu.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/workspace-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5051f2597919168abde144a0663039a9d0028882f7497317c5898c179c4ee10c",
+      "source_path": "products/interview/src/frontend/studio/workspace/workspace-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/workspace/workspace-view.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "65c08d2ce52867fc52ce524926612492d76ad61e1b2e29bc71c7bf1497ec49b3",
+      "source_path": "products/interview/src/frontend/studio/workspace/workspace-view.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/manifest.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "6b0dbecbe1425a50aba5aa67fbdba643f2f53b5b0a6f261434230f5f91b01c5a",
+      "source_path": "products/interview/src/manifest.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/application/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "61613785dc305c1d15d64447ca710a17e9c18eeab4b33736855f9abc12e29880",
+      "source_path": "products/presentation/src/application/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/backend/api.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "21f8d99a9db8e38a6698a8c5e54813f9350ea352c208a18865c0e57844154b4f",
+      "source_path": "products/presentation/src/backend/api.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/backend/api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "55cd51d07090895f1bccf4a0bec6618b24b37ad30c8138fe7f962558d1ecf896",
+      "source_path": "products/presentation/src/backend/api.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/backend/db/schema.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "33a473caf15f21ee90e131522943378fdb2d224799e76478aa38125ca6a5690a",
+      "source_path": "products/presentation/src/backend/db/schema.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/backend/db/schema.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d3b4f4d058f26aa2e9146edf281c4a5cd92d6ca05100fbbe819766a6eea81073",
+      "source_path": "products/presentation/src/backend/db/schema.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/backend/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f55ed5539d992fc0fb16662e22b7253ba7222fdf38095181bb6fa52bb24258ad",
+      "source_path": "products/presentation/src/backend/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/domain/appearance.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "67be4a1e0a0fa0e9bddda7a8d04c9264496245a5919819796ee2bcd3e39c80f2",
+      "source_path": "products/presentation/src/domain/appearance.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/domain/appearance.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "4cf6f8b5a78d86d9eedb7a2bdc274747f533dc677ed39adf0387bd53e16e7622",
+      "source_path": "products/presentation/src/domain/appearance.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/domain/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "cfdd9f85ad1b62b8389f88a70e79999a23a9214ed5b426e7fca5ecfe3b3da350",
+      "source_path": "products/presentation/src/domain/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/domain/slide-blocks.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c1ebbf46c14069baae0786349728d82281271edeb2dde35c925597da1a799ab6",
+      "source_path": "products/presentation/src/domain/slide-blocks.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/domain/slide-blocks.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "1d2d7e32489152e9a546974d7b4424974a8409076e0c71147265142a2c89d4f9",
+      "source_path": "products/presentation/src/domain/slide-blocks.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/export/index.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ac45655830bfa6b762be5a47066215b860e4417a6eab27c29142f0440802449e",
+      "source_path": "products/presentation/src/export/index.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/export/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "010acf8eecb4d04480c2d08e0617476225a37550848473b2b862797ffc878d58",
+      "source_path": "products/presentation/src/export/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/editor-tools.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e7c211838503a6e04aaa3340729a1ad5f78558727ec5cb0a896343a53891a169",
+      "source_path": "products/presentation/src/frontend/editor-tools.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/editor.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "b12434905de6c30b807249653e3c93bf4c098d2a0349d2613ccc3418b1778892",
+      "source_path": "products/presentation/src/frontend/editor.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/fake-api.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "907ae59ca06134977ae63efcfd6609ecddcfdd8f3d49fd1e105e49ff94222ca8",
+      "source_path": "products/presentation/src/frontend/fake-api.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/index.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "0e9187484bd9be2ee7711f998f7296dbd1a84fd999a51d630e51f75d7a111125",
+      "source_path": "products/presentation/src/frontend/index.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/library-create.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "ced9e74b250805b8965700c00883dc3ed0b4143586590ffd00baceb16bfb97cb",
+      "source_path": "products/presentation/src/frontend/library-create.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/request-counts.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "8148afdc6a7aef7b29ba20aef7e8e0ad5d3f5f2845b44c7e5d5a19ace405e0e9",
+      "source_path": "products/presentation/src/frontend/request-counts.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/slide-blocks-view.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bf66a2962c9e25886a40278e919e0a3b9b2fec87037e9f8fecb10fb01ba60c63",
+      "source_path": "products/presentation/src/frontend/slide-blocks-view.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/slide-blocks.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "7c9d107f4aceca7d2357b79544cfdff71efe5fc48fe6127b1e8e053e0089cea5",
+      "source_path": "products/presentation/src/frontend/slide-blocks.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/slide-blocks.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d704fd3519559603fcf76f2759b08f9227f570d682501275b2c69655a43e4f45",
+      "source_path": "products/presentation/src/frontend/slide-blocks.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/slide-blocks.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "77e25809a0f6fc79fdb8ae5f5ad2537bbba02fccff3bc1f1916ca12dee4ba1a4",
+      "source_path": "products/presentation/src/frontend/slide-blocks.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/frontend/studio-screens.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "62ae11a424a5706f5956410feafa773a5dd8ce66ccb558deca42122379104f0f",
+      "source_path": "products/presentation/src/frontend/studio-screens.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/manifest.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "bf5b8c5ec3fd25239f277f08d8c87bb4b1ca3f22f09159a9891bb4f584450a10",
+      "source_path": "products/presentation/src/manifest.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/manifest.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "354fa0d626ec1e4b692d648724fa13adb622f728050a510e0aabf9b176e7ddd6",
+      "source_path": "products/presentation/src/manifest.tsx"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/repositories/index.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "834c02f65bcd217b05de70a3b147c93f54ebbb9db688c50eb37af007a98f77a7",
+      "source_path": "products/presentation/src/repositories/index.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/repositories/shared.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f533b21e17f1c0b8f37816fd0b0c77aac458dd45fe0ba896bd588a5032195493",
+      "source_path": "products/presentation/src/repositories/shared.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/theme-import.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "d2b4b3171b3c6891495065b0742a72d26fa7d469205df63231274b87dbfaf215",
+      "source_path": "products/presentation/src/theme-import.test.ts"
+    },
+    {
+      "doc_path": "fallback/products/presentation/src/theme-import.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "018b5bbc50a2d34bf6d18731eec9fd9fa1d75e515be7dc27dd5f0cfc76d3dd07",
+      "source_path": "products/presentation/src/theme-import.ts"
+    }
+  ]
+}

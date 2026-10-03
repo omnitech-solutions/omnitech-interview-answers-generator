@@ -2,6 +2,38 @@
 
 _Append-only. Newest first._
 
+## [2026-10-02] arch | regenerated bionic/arch/ (spine 39d9326b7f5e)
+
+Regenerated after ADR-0009 acceptance and Interview Documents source changes. The decision index and module graph changed; the data-model extractor remains stubbed for this Drizzle repository.
+
+## [2026-10-02] extract | regenerated bionic/code/ (361 pages: 361 added, 0 changed, 0 removed)
+
+Ran the configured TypeScript fallback extractor after Interview Documents implementation. No pages were removed.
+
+## [2026-10-02] adr | compiled bionic/adrs/doctrine/ (2 files)
+
+Updated `_meta.json` and `index.md` after ADR-0009 acceptance; confirming dry-run reported no drift.
+
+## [2026-10-02] journal | decision: Interview Documents ADR accepted after council review
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-02T22:25-06:00. Refs: [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]] rule:member-private-documents rule:immutable-document-revisions
+
+## [2026-10-02] adr | ADR-0009: accept (accepted)
+
+Keep candidate documents in the Interview product. Accepted after three council rounds.
+
+## [2026-10-02] adr | ADR-0009: Keep candidate documents in the Interview product
+
+Proposed. File `bionic/adrs/ADR-0009-keep-interview-documents-in-the-interview-product.md`. Tags: interview, documents, privacy, artifacts, ai.
+
+## [2026-10-02] promptbook | started PB-0001-interview-documents-in-interview-studio/RUN-001
+
+Book id: PB-0001. Run id: RUN-001. total_prompts: 17. current_prompt: 1.
+
+## [2026-10-02] promptbook | authored PB-0001-interview-documents-in-interview-studio (cycle)
+
+ID: PB-0001. Title: Cycle: Interview Documents in Interview Studio. total_prompts: 17. Modules: 1×ADR, 2×dev, 1×review. Cycle: assembled from modular templates.
+
 ## [2026-10-02] journal | review: Independent ADR acceptance and invariant ratification
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-02T21:30-06:00. Refs: [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] [[invariants/index]]

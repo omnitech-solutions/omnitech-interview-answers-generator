@@ -20,10 +20,11 @@ See [[research/index]].
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (9)
+## ADRs (10)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]] | Keep candidate documents in the Interview product | Accepted | 2026-10-02 |
 | [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 |
 | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | 2026-10-02 |
 | [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] | Keep login identities separate from connected provider accounts | Proposed | 2026-10-02 |
@@ -42,7 +43,7 @@ _No briefs yet._
 
 See [[journal/index]].
 
-## Promptbooks (0 active, 0 archived)
+## Promptbooks (1 active, 0 archived)
 
 See [[promptbooks/index]].
 

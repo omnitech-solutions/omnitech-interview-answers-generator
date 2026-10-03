@@ -68,7 +68,7 @@ journal:
 # ADR allocation. propose-adr reads adr.next_number, allocates it, writes the
 # new ADR, and increments this field atomically. Numbers are NEVER reused.
 adr:
-  next_number: 9
+  next_number: 10
   # The rule-length advisory baseline: the ADR identities that predate the advisory in THIS
   # tree. Empty is correct for a new tree and is self-maintaining — with no ADRs yet, every ADR
   # you write is new relative to it and is advised on. It ships as an explicit empty list rather
@@ -83,7 +83,7 @@ adr:
 # Promptbook allocation. Same contract as adr.next_number — monotonic, never
 # reused. A successor book always allocates a fresh id.
 promptbook:
-  next_number: 1
+  next_number: 2
 
 # Observations concern. next_number has the same contract as adr.next_number —
 # monotonic, never reused. Allocated by propose-observation and by the

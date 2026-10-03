@@ -1,4 +1,45 @@
 {
+  "ADR-0009/immutable-document-revisions": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Every document edit, regeneration, and restore creates an immutable revision, and each export identifies the revision it renders.",
+    "source_adr": "ADR-0009",
+    "source_status": "Accepted"
+  },
+  "ADR-0009/interview-owns-documents": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Candidate documents, templates, revisions, and exports are owned by the Interview product.",
+    "source_adr": "ADR-0009",
+    "source_status": "Accepted"
+  },
+  "ADR-0009/member-private-documents": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Private document rows and artifacts require matching tenant and actor, and a linked candidacy must identify that actor's person.",
+    "source_adr": "ADR-0009",
+    "source_status": "Accepted"
+  },
+  "ADR-0009/structured-document-generation": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Document generation uses one structured AiExecutionGateway call against a template revision and an immutable candidate-profile revision.",
+    "source_adr": "ADR-0009",
+    "source_status": "Accepted"
+  },
   "retired_slugs": {},
-  "slugs": {}
+  "slugs": {
+    "immutable-document-revisions": "ADR-0009/immutable-document-revisions",
+    "interview-owns-documents": "ADR-0009/interview-owns-documents",
+    "member-private-documents": "ADR-0009/member-private-documents",
+    "structured-document-generation": "ADR-0009/structured-document-generation"
+  }
 }
