@@ -84,7 +84,11 @@ export async function dispatchTask(
     finish("dispatch.stopped", reason);
     return true;
   };
-  const stopped = () => run.mode === "superseded";
+  // Any mode but "running" (superseded, or quiescing for a pause, end, purge or
+  // close) means this dispatch began under a standing that is gone: its result
+  // is never published, even if the session was resumed since
+  // (rule:pause-end-suppression, rule:fenced-current-publish, ADR-0011).
+  const stopped = () => run.mode !== "running";
 
   // 1. Record the action (the core decides: status, revision, dedup by
   // session, task, revision and action kind). Nothing is called yet.

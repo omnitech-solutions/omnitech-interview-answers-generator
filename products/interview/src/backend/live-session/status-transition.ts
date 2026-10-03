@@ -57,6 +57,19 @@ export async function transitionLocked(
     WHERE tenant_id = ${row.tenantId}::uuid
       AND owner_user_id = ${row.ownerUserId}::uuid
       AND id = ${row.id}::uuid`);
+  // A pause or end suppresses the session's in-flight processor actions in the
+  // same transaction as the status change, so a model result that began before
+  // it can never publish later - not even after a resume that lands before the
+  // holder notices (rule:pause-end-suppression, rule:fenced-current-publish,
+  // ADR-0011). Job-backed actions are settled by their job's cancellation.
+  if (to === "paused" || to === "ended")
+    await tx.execute(sql`
+      UPDATE interview.session_actions SET
+        dispatch_status = 'suppressed', suppression_reason = ${`session_${to}`}::text
+      WHERE tenant_id = ${row.tenantId}::uuid
+        AND owner_user_id = ${row.ownerUserId}::uuid
+        AND session_id = ${row.id}::uuid
+        AND dispatch_status = 'in_flight' AND job_id IS NULL`);
   return { changed: true, from: row.status, to };
 }
 

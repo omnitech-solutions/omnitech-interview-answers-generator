@@ -185,6 +185,14 @@ export function createSessionProcessor(
       await quiesce(run, view.status);
       return true;
     }
+    if (run.mode === "quiescing") {
+      // Resumed after a pause: the run was stopped for good (its in-flight
+      // work can never publish). Once that work has ended, drop the run and
+      // release the lease so the next claim builds a fresh run, re-seeds from
+      // the stored actions and answers what the pause suppressed.
+      if (run.inflight === null) await drop(run, true);
+      return false;
+    }
     if (run.mode !== "running") return false;
 
     if (!run.seeded) {

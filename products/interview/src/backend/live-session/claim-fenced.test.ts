@@ -348,10 +348,12 @@ describe("fenced writes (rule:fenced-current-publish)", () => {
         actionId: (dispatched as { actionId: string }).actionId,
         result: { text: "too late" },
       });
+      // The pause or end already suppressed the in-flight action in the same
+      // transaction, so the late publish finds it settled.
       expect(late).toMatchObject({
         outcome: "refused",
-        reason: command === "pause" ? "session_paused" : "session_ended",
-        suppressionRecorded: true,
+        reason: "action_settled",
+        suppressionRecorded: false,
       });
       const row = (await actionRows(id))[0];
       expect(row).toMatchObject({

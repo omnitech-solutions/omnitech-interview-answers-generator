@@ -153,8 +153,16 @@ export async function seedFromActions(
       action.actionKind,
     );
     if (action.dispatchStatus === "succeeded") run.settled.add(key);
-    else if (action.dispatchStatus === "suppressed") run.settled.add(key);
-    else if (action.dispatchStatus === "failed")
+    else if (action.dispatchStatus === "suppressed") {
+      // A pause or not-yet-started suppression is not final: the task is
+      // retried once the session is active again, matching the dispatcher,
+      // which leaves these unsettled (rule:pause-end-suppression).
+      if (
+        action.suppressionReason !== "session_paused" &&
+        action.suppressionReason !== "session_not_active"
+      )
+        run.settled.add(key);
+    } else if (action.dispatchStatus === "failed")
       run.failures.set(
         key,
         Math.max(run.failures.get(key) ?? 0, action.attempt),

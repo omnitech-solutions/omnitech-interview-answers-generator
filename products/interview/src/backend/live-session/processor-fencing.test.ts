@@ -189,6 +189,71 @@ describe("pause and end suppression", () => {
     expect(p.gateway.requests).toHaveLength(1);
   });
 
+  it("never publishes a result dispatched before a pause, even after a resume, and answers the resumed session", async () => {
+    const w = await start("pause-resume-inflight");
+    for (const segment of opening()) await w.ingestor.ingest(segment);
+    const p = processorFor("worker-resume");
+    const hold = p.gateway.hold();
+    await p.processor.tick(NEVER_ABORTED);
+    await p.gateway.called(1);
+
+    // Pause and resume land while the model call is still in flight.
+    await repo.controlSession(w.scope, w.sessionId, "pause");
+    await repo.controlSession(w.scope, w.sessionId, "resume");
+    hold.release();
+    await p.processor.idle();
+
+    const afterRelease = await actionsOf(w);
+    expect(afterRelease.filter((a) => a.result !== null)).toHaveLength(0);
+    expect(afterRelease[0]).toMatchObject({
+      dispatchStatus: "suppressed",
+      suppressionReason: "session_paused",
+    });
+
+    // The resumed session is processed again and its question is answered once.
+    await settle(p.processor);
+    const rows = await actionsOf(w);
+    expect(rows.filter((a) => a.dispatchStatus === "succeeded")).toHaveLength(
+      1,
+    );
+    expect((await sessionRow(w.sessionId)).status).toBe("active");
+  });
+
+  it("answers a question whose dispatch a pause suppressed once the session resumes", async () => {
+    const w = await start("pause-suppressed-retry");
+    for (const segment of opening()) await w.ingestor.ingest(segment);
+    let paused = false;
+    const p = processorFor("worker-retry", createFakeGateway(), {
+      wrapStore: (store: SessionStorePort): SessionStorePort => ({
+        ...store,
+        recordAction: async (input) => {
+          if (!paused) {
+            paused = true;
+            await repo.controlSession(w.scope, w.sessionId, "pause");
+          }
+          return store.recordAction(input);
+        },
+      }),
+    });
+    await p.processor.tick(NEVER_ABORTED);
+    await p.processor.idle();
+    expect(p.gateway.requests).toHaveLength(0);
+    await p.processor.tick(NEVER_ABORTED);
+    expect(p.processor.snapshot(w.sessionId)).toBeUndefined();
+
+    await repo.controlSession(w.scope, w.sessionId, "resume");
+    await settle(p.processor);
+    await settle(p.processor);
+    expect(p.gateway.requests).toHaveLength(1);
+    const rows = await actionsOf(w);
+    expect(rows.filter((a) => a.dispatchStatus === "succeeded")).toHaveLength(
+      1,
+    );
+    // Dedup intact: more ticks do not answer it again.
+    await settle(p.processor);
+    expect(p.gateway.requests).toHaveLength(1);
+  });
+
   it("pauses a session whose credential expired, cancelling its jobs, and publishes nothing late", async () => {
     const w = await start("pause-expiry");
     for (const segment of opening()) await w.ingestor.ingest(segment);
