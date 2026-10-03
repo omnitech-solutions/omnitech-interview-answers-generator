@@ -88,6 +88,8 @@ const REFUSAL_STATUS: Record<string, Status> = {
   payload_too_large: 413,
   rate_limited: 429,
   limit_reached: 409,
+  // Same source and event id, different content: the original is kept.
+  event_conflict: 409,
 };
 
 class BodyTooLarge extends Error {}
@@ -273,6 +275,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
 
     const tenantId = await installed(c.req.param("tenantSlug"));
     if (tenantId === null) return refuse();
+    let retryAfter = 60;
     const ack = await ingestObservation(
       options.database,
       credential,
@@ -282,11 +285,15 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
         ...(payload ? { payload } : {}),
         jobs: repository.jobs,
         limits: options.ingestLimits ?? {},
+        onRetryAfter: (seconds) => {
+          retryAfter = seconds;
+        },
       },
     );
     if (ack.status === "refused") {
       const response = refusedResponse(ack);
-      if (ack.code === "rate_limited") c.header("Retry-After", "60");
+      if (ack.code === "rate_limited")
+        c.header("Retry-After", String(retryAfter));
       return c.json(response.ack, response.status);
     }
     return c.json(ack, 200);
@@ -351,6 +358,14 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
   // What the setup screen offers to start a session with.
   app.get(`${base}/choices`, async (c) =>
     c.json(await repository.getSessionChoices(c.get("scope"))),
+  );
+
+  // The signed-in member's own latest companion capability report (null before
+  // the first one). Registered ahead of /:sessionId so it is never read as an id.
+  app.get(`${base}/companion-capability`, async (c) =>
+    c.json({
+      capability: await repository.getCompanionCapability(c.get("scope")),
+    }),
   );
 
   app.get(`${base}/current`, async (c) => {

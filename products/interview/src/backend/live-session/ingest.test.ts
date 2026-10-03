@@ -611,7 +611,13 @@ describe("heartbeat", () => {
       control: { state: "paused" },
     });
     await repo.controlSession(scopeOf(person), session.id, "resume");
-    expect(await ingest(credential, beat)).toMatchObject({
+    // The paused heartbeat stamped contact a moment ago; spacing is covered in
+    // ingest-hardening.test.ts, so it is switched off here.
+    expect(
+      await ingest(credential, beat, {
+        limits: { minHeartbeatIntervalMs: 0 },
+      }),
+    ).toMatchObject({
       status: "accepted",
       control: { state: "active" },
     });

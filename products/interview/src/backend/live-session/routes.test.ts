@@ -6,6 +6,7 @@
 // carried on every acknowledgement (ADR-0011, ADR-0012).
 import { randomUUID } from "node:crypto";
 import {
+  liveCompanionCapabilityResponseSchema,
   liveSessionChoicesResponseSchema,
   liveSessionErrorBodySchema,
   liveSessionListResponseSchema,
@@ -15,6 +16,7 @@ import {
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { deriveLiveModel } from "../../frontend/studio/live/session-state.js";
 import {
   type Fixture,
   type Person,
@@ -23,7 +25,6 @@ import {
   startFixture,
   transcript,
 } from "./live-session-fixture.js";
-import { deriveLiveModel } from "../../frontend/studio/live/session-state.js";
 import { createSessionRoutes } from "./routes.js";
 
 let fx: Fixture;
@@ -995,5 +996,120 @@ describe("the stream as the Live view reads it", () => {
     expect(model.banners.map((b) => b.kind)).toEqual(
       expect.arrayContaining(["permission-revoked"]),
     );
+  });
+});
+
+describe("companion capability and ingest hardening over HTTP", () => {
+  const report = (locale = "en-US") => ({
+    version: 1,
+    kind: "capability.report",
+    sourceId: "companion",
+    sentAt: "2026-10-03T10:00:00.000Z",
+    speech: {
+      locale,
+      onDeviceAvailable: true,
+      recognizerAvailable: false,
+      authorizationStatus: "authorized",
+    },
+    permissions: { microphone: "granted", screen: "not-determined" },
+  });
+
+  it("answers null before any report, then the member's own latest report", async () => {
+    const owner = await begin("cap-owner");
+    as(owner.person);
+    const before = await get("/companion-capability");
+    expect(before.status).toBe(200);
+    expect(await before.json()).toEqual({ capability: null });
+
+    const ack = await ingest(owner.credential, report());
+    expect(ack.status).toBe(200);
+    expect(await ack.json()).toMatchObject({
+      status: "accepted",
+      eventId: "capability",
+    });
+    const after = await get("/companion-capability");
+    const body = await after.json();
+    expect(body).toEqual({
+      capability: {
+        reportedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        speech: {
+          locale: "en-US",
+          onDeviceAvailable: true,
+          recognizerAvailable: false,
+          authorizationStatus: "authorized",
+        },
+        permissions: { microphone: "granted", screen: "not-determined" },
+      },
+    });
+    expect(liveCompanionCapabilityResponseSchema.safeParse(body).success).toBe(
+      true,
+    );
+  });
+
+  it("never shows one member's capability to another member, in or out of the tenant", async () => {
+    const owner = await begin("cap-private");
+    await ingest(owner.credential, report("de-DE"));
+    const sameTenantOther = await member("cap-peer");
+    as(sameTenantOther);
+    expect(await (await get("/companion-capability")).json()).toEqual({
+      capability: null,
+    });
+    // The owner reading under the OTHER tenant's scope sees nothing: the row is
+    // bound to its own tenant as well as its owner.
+    as(owner.person);
+    const crossTenant = await app().request(
+      `${base(otherSlug)}/companion-capability`,
+    );
+    expect(await crossTenant.json()).toEqual({ capability: null });
+    as(null);
+    expect((await get("/companion-capability")).status).toBe(401);
+  });
+
+  it("needs only interview.read, and is not read as a session id", async () => {
+    const owner = await begin("cap-reader");
+    await ingest(owner.credential, report());
+    as(owner.person);
+    permissions = ["interview.read"];
+    try {
+      const response = await get("/companion-capability");
+      expect(response.status).toBe(200);
+      expect(
+        ((await response.json()) as { capability: unknown }).capability,
+      ).not.toBeNull();
+    } finally {
+      permissions = ["interview.read", "interview.write"];
+    }
+  });
+
+  it("answers a too-soon heartbeat 429 with Retry-After of the spacing and a changed resend 409", async () => {
+    const owner = await begin("hb-http");
+    const beat = {
+      version: 1,
+      kind: "heartbeat",
+      sourceId: "companion",
+      sentAt: "2026-10-03T10:00:00.000Z",
+      capturing: true,
+    };
+    expect((await ingest(owner.credential, beat)).status).toBe(200);
+    const tooSoon = await ingest(owner.credential, beat);
+    expect(tooSoon.status).toBe(429);
+    expect(tooSoon.headers.get("retry-after")).toBe("1");
+    expect(await tooSoon.json()).toMatchObject({
+      status: "refused",
+      code: "rate_limited",
+      control: { state: "active" },
+    });
+
+    const first = transcript("mic", 0, "first version", "http-c-1");
+    expect((await ingest(owner.credential, first)).status).toBe(200);
+    const changed = await ingest(
+      owner.credential,
+      transcript("mic", 0, "second version", "http-c-1"),
+    );
+    expect(changed.status).toBe(409);
+    expect(await changed.json()).toMatchObject({
+      status: "refused",
+      code: "event_conflict",
+    });
   });
 });

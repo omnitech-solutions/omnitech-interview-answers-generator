@@ -313,6 +313,42 @@ export type LiveSessionChoicesResponse = z.infer<
   typeof liveSessionChoicesResponseSchema
 >;
 
+// ---- Companion capability ---------------------------------------------------
+
+// GET .../sessions/companion-capability: the capture companion's latest
+// self-reported readiness for the signed-in member (speech support and OS
+// permission states). Content-free: a locale is a language tag, never speech.
+// `capability` is null until the companion has reported once; Studio then
+// shows no blocker. It is the member's own row, so another member of the same
+// workspace never reads it.
+export const liveCompanionCapabilitySchema = z.object({
+  reportedAt: isoTime,
+  speech: z.object({
+    locale: z.string().min(1).max(35),
+    onDeviceAvailable: z.boolean(),
+    recognizerAvailable: z.boolean(),
+    authorizationStatus: z.enum([
+      "authorized",
+      "denied",
+      "restricted",
+      "not-determined",
+    ]),
+  }),
+  permissions: z.object({
+    microphone: z.enum(["granted", "denied", "not-determined"]),
+    screen: z.enum(["granted", "denied", "not-determined"]),
+  }),
+});
+export type LiveCompanionCapability = z.infer<
+  typeof liveCompanionCapabilitySchema
+>;
+export const liveCompanionCapabilityResponseSchema = z.object({
+  capability: liveCompanionCapabilitySchema.nullable(),
+});
+export type LiveCompanionCapabilityResponse = z.infer<
+  typeof liveCompanionCapabilityResponseSchema
+>;
+
 // ---- Errors ---------------------------------------------------------------
 
 // The closed set of browser-visible error codes. A body is always exactly

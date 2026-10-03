@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LIVE_SESSION_ERROR_CODES,
   LIVE_SESSION_ERROR_STATUS,
+  liveCompanionCapabilityResponseSchema,
   liveSessionControlRequestSchema,
   liveSessionErrorBodySchema,
   liveSessionListQuerySchema,
@@ -169,5 +170,43 @@ describe("liveWithheldResultSchema", () => {
         withheld: { rejectedClaimCount: -1, codes: [] },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("companion capability response", () => {
+  const capability = {
+    reportedAt: "2026-10-03T10:00:00.000Z",
+    speech: {
+      locale: "en-GB",
+      onDeviceAvailable: false,
+      recognizerAvailable: true,
+      authorizationStatus: "authorized",
+    },
+    permissions: { microphone: "granted", screen: "not-determined" },
+  };
+
+  it("parses a report and a null before the first report", () => {
+    expect(
+      liveCompanionCapabilityResponseSchema.safeParse({ capability }).success,
+    ).toBe(true);
+    expect(
+      liveCompanionCapabilityResponseSchema.parse({ capability: null }),
+    ).toEqual({ capability: null });
+  });
+
+  it("refuses a state outside the closed sets and carries no identity", () => {
+    const bad = {
+      capability: {
+        ...capability,
+        permissions: { microphone: "maybe", screen: "granted" },
+      },
+    };
+    expect(liveCompanionCapabilityResponseSchema.safeParse(bad).success).toBe(
+      false,
+    );
+    const parsed = liveCompanionCapabilityResponseSchema.parse({
+      capability: { ...capability, ownerUserId: ID },
+    });
+    expect(JSON.stringify(parsed)).not.toContain(ID);
   });
 });

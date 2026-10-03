@@ -469,6 +469,28 @@ describe("the final check (rule:complete-session-purge)", () => {
   });
 });
 
+describe("the companion capability is not session content", () => {
+  it("is left by a complete purge, for its owner only", async () => {
+    const { person, id } = await seeded("cap-owner");
+    const other = await fx.provision(tenant, "cap-other");
+    for (const user of [person, other])
+      await fx.owner.query(
+        `INSERT INTO interview.companion_capabilities
+           (tenant_id,owner_user_id,speech_locale,speech_on_device_available,speech_recognizer_available,speech_authorization_status,microphone,screen)
+         VALUES($1,$2,'en-US',true,true,'authorized','granted','granted')`,
+        [tenant, user.id],
+      );
+    const result = await purgeSession(fx.member, target(person, id), instant);
+    expect(result.outcome).toBe("complete");
+    expect(
+      await rows(
+        "SELECT owner_user_id FROM interview.companion_capabilities WHERE tenant_id=$1 AND owner_user_id = ANY($2::uuid[])",
+        [tenant, [person.id, other.id]],
+      ),
+    ).toHaveLength(2);
+  });
+});
+
 describe("the purge sweep claim", () => {
   it("returns ids only for ended delete-at-end, purging and retention-expired sessions", async () => {
     const make = async (name: string, retention: string) => {

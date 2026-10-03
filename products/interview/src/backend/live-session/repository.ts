@@ -14,6 +14,7 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { getCompanionCapability } from "./companion-capability.js";
 import {
   type ProcessingPolicy,
   type StatusActor,
@@ -33,13 +34,13 @@ import {
   type WorkspaceDraftKey,
 } from "./mapping.js";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
+import { getSessionChoices } from "./session-choices.js";
 import { mintSessionCredential } from "./session-credential.js";
 import {
   type CancellationSummary,
   cancelSessionJobs,
   type SessionJobs,
 } from "./session-jobs.js";
-import { getSessionChoices } from "./session-choices.js";
 import { listActionChanges, listSessions } from "./session-pages.js";
 import {
   getOpenSession,
@@ -565,6 +566,9 @@ export class ActiveSessionRepository {
     options?: { limit?: number; cursor?: string },
   ) {
     return listSessions(this.database, scope, options);
+  }
+  getCompanionCapability(scope: OwnerScope) {
+    return getCompanionCapability(this.database, scope);
   }
   getSessionChoices(scope: OwnerScope) {
     return getSessionChoices(this.database, scope);

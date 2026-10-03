@@ -13,13 +13,19 @@ import {
   ACTIVE_SESSION_LIMITS,
   type Acknowledgement,
   type ActiveSessionLimits,
+  CAPABILITY_ACK_EVENT_ID,
+  type CapabilityReport,
   type ControlStatus,
+  capabilityReportSchema,
   detectScreenshotMediaType,
+  HEARTBEAT_ACK_EVENT_ID,
   heartbeatSchema,
   isWithinEnvelopeByteLimit,
+  type Observation,
   type ObservationIssue,
   type RefusalCode,
   validateObservation,
+  validateWireMessage,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
@@ -27,6 +33,7 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
+import { reportedWithin, storeCapability } from "./companion-capability.js";
 import {
   decideObservation,
   dedupKey,
@@ -48,6 +55,9 @@ export type IngestOptions = {
   jobs?: SessionJobs;
   // Overrides for tests only; production uses the frozen contract constants.
   limits?: Partial<IngestLimits>;
+  // Told how long a rate_limited refusal asks the companion to wait, so the
+  // route can answer Retry-After (a spacing refusal is seconds, not a minute).
+  onRetryAfter?: (seconds: number) => void;
 };
 
 type IngestLimits = { -readonly [K in keyof ActiveSessionLimits]: number };
@@ -99,7 +109,11 @@ function parseEnvelope(
   }
 }
 
-type Locked = { ack: Acknowledgement; cancelJobs: boolean };
+type Locked = {
+  ack: Acknowledgement;
+  cancelJobs: boolean;
+  retryAfterSeconds?: number;
+};
 
 export async function ingestObservation(
   database: PlatformDatabase,
@@ -145,6 +159,8 @@ export async function ingestObservation(
       limits,
     ),
   );
+  if (outcome.retryAfterSeconds !== undefined)
+    options.onRetryAfter?.(outcome.retryAfterSeconds);
   if (outcome.cancelJobs) {
     try {
       await cancelSessionJobs(
@@ -214,11 +230,11 @@ async function ingestLocked(
   const control = controlOf(row, status);
   const closed = ingestRefusal(status);
 
-  const heartbeat =
-    typeof envelope === "object" &&
-    envelope !== null &&
-    (envelope as { kind?: unknown }).kind === "heartbeat";
-  if (heartbeat)
+  const kind =
+    typeof envelope === "object" && envelope !== null
+      ? (envelope as { kind?: unknown }).kind
+      : undefined;
+  if (kind === "heartbeat")
     return heartbeatLocked(
       tx,
       scope,
@@ -228,6 +244,18 @@ async function ingestLocked(
       closed,
       envelope,
       cancelJobs,
+      limits,
+    );
+  if (kind === "capability.report")
+    return capabilityLocked(
+      tx,
+      scope,
+      row,
+      control,
+      closed,
+      envelope,
+      cancelJobs,
+      limits,
     );
 
   // [GUARD] A session that is not capturing accepts nothing, a resend or not.
@@ -250,32 +278,62 @@ async function ingestLocked(
   // [SAFETY] The companion cannot broaden the sources fixed at start
   // (rule:versioned-wire-contract, ADR-0011): a screenshot needs the screen source
   // and a transcript needs an audio source. Refused by path and code only.
+  // A transcript that names its audio source must name one the session
+  // registered at start: microphone text never passes as application audio, or
+  // the reverse (the label is a source, never a verified identity).
   const permitted = row.sources?.captureSources ?? [];
   const needed =
     observation.kind === "screen.snapshot"
       ? ["screen"]
       : observation.kind === "transcript.final"
-        ? ["microphone", "application-audio"]
+        ? observation.content.source
+          ? [observation.content.source]
+          : ["microphone", "application-audio"]
         : null;
   if (needed && !needed.some((source) => permitted.includes(source)))
     return done(
       refusal("invalid_observation", {
         control,
-        issues: [{ path: ["kind"], code: "invalid_value" }],
+        issues: [
+          {
+            path:
+              observation.kind === "transcript.final" &&
+              observation.content.source
+                ? ["content", "source"]
+                : ["kind"],
+            code: "invalid_value",
+          },
+        ],
       }),
       cancelJobs,
     );
 
   // Stored acknowledgement of a resend, and the session's running counts.
-  const stored = await firstRow<{ sequence: string | number; ack: unknown }>(
+  const stored = await firstRow<{
+    sequence: string | number;
+    ack: unknown;
+    kind: string;
+    content: unknown;
+    payload_sha256: string | null;
+  }>(
     tx,
-    sql`SELECT sequence, ack FROM interview.session_observations
-        WHERE tenant_id = ${scope.tenantId}::uuid
-          AND owner_user_id = ${scope.actorId}::uuid
-          AND session_id = ${sessionId}::uuid
-          AND source_id = ${observation.sourceId}
-          AND event_id = ${observation.eventId}`,
+    sql`SELECT o.sequence, o.ack, o.kind, o.content,
+               a.metadata->>'sha256' AS payload_sha256
+        FROM interview.session_observations o
+        LEFT JOIN platform.artifacts a
+          ON a.tenant_id = o.tenant_id AND a.id = o.screenshot_artifact_id
+        WHERE o.tenant_id = ${scope.tenantId}::uuid
+          AND o.owner_user_id = ${scope.actorId}::uuid
+          AND o.session_id = ${sessionId}::uuid
+          AND o.source_id = ${observation.sourceId}
+          AND o.event_id = ${observation.eventId}`,
   );
+  // [SAFETY] The same source and event id with DIFFERENT content is a
+  // conflict, never a duplicate and never an overwrite: the stored original
+  // stays as it is (rule:idempotent-observation). Only an identical resend
+  // reaches the dedup below.
+  if (stored && !sameObservation(stored, observation, options.payload))
+    return done(refusal("event_conflict", { control }), cancelJobs);
   const counts = (await firstRow<{
     total: number;
     screenshots: number;
@@ -393,9 +451,66 @@ const touch = (tx: TenantDatabase, scope: OwnerScope, sessionId: string) =>
     WHERE tenant_id = ${scope.tenantId}::uuid
       AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
 
+// Key order never matters to the comparison: both sides are written in one
+// canonical form before they are compared.
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key, node: unknown) =>
+    node !== null && typeof node === "object" && !Array.isArray(node)
+      ? Object.fromEntries(
+          Object.entries(node as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : 1,
+          ),
+        )
+      : node,
+  );
+
+// Whether a stored observation is the same message as the one resent. A
+// transcript, disconnect or gap is the same when kind, source sequence and body
+// match; occurredAt is a clock stamp a companion may re-take on a resend, so it
+// is not compared. A screenshot is compared by body only (its sequence is the
+// capture loop's bookkeeping, not what was seen) plus the payload bytes when
+// both sides have them.
+function sameObservation(
+  stored: { kind: string; content: unknown; payload_sha256: string | null },
+  observation: Observation,
+  payload: Uint8Array | undefined,
+): boolean {
+  if (stored.kind !== observation.kind) return false;
+  const content = stored.content as {
+    sourceSequence?: unknown;
+    body?: unknown;
+  };
+  if (canonical(content.body) !== canonical(observation.content)) return false;
+  if (
+    observation.kind !== "screen.snapshot" &&
+    content.sourceSequence !== observation.sequence
+  )
+    return false;
+  if (!payload || stored.payload_sha256 === null) return true;
+  return (
+    createHash("sha256").update(payload).digest("hex") === stored.payload_sha256
+  );
+}
+
+const rateLimited = (
+  control: ControlStatus,
+  cancelJobs: boolean,
+  limits: IngestLimits,
+): Locked => ({
+  ack: refusal("rate_limited", { control }),
+  cancelJobs,
+  retryAfterSeconds: Math.max(
+    1,
+    Math.ceil(limits.minHeartbeatIntervalMs / 1000),
+  ),
+});
+
 // A content-free heartbeat updates the contact stamp so resume is observable. A
 // companion that reports it stopped capturing pauses the session (never ends
-// it); every answer carries the control state.
+// it); every answer carries the control state. Heartbeats are spaced by
+// minHeartbeatIntervalMs against the last contact: a closer one is refused
+// rate_limited and stores nothing. A stop report (capturing: false) is never
+// delayed by the spacing (rule:stop-authority).
 async function heartbeatLocked(
   tx: TenantDatabase,
   scope: OwnerScope,
@@ -405,6 +520,7 @@ async function heartbeatLocked(
   closed: RefusalCode | null,
   envelope: unknown,
   cancelJobs: boolean,
+  limits: IngestLimits,
 ): Promise<Locked> {
   const parsed = heartbeatSchema.safeParse(envelope);
   if (!parsed.success)
@@ -417,6 +533,15 @@ async function heartbeatLocked(
     };
   if (status === "ended" || status === "purging")
     return { ack: refusal(closed ?? "session_ended", { control }), cancelJobs };
+  // Standing keeps precedence over the spacing: only an active session's
+  // capturing heartbeat is spaced; a paused one still answers session_paused.
+  if (
+    status === "active" &&
+    parsed.data.capturing &&
+    row.lastHeartbeatAt !== null &&
+    row.nowMs - row.lastHeartbeatAt.getTime() < limits.minHeartbeatIntervalMs
+  )
+    return rateLimited(control, cancelJobs, limits);
   await touch(tx, scope, row.id);
   if (status === "active" && !parsed.data.capturing) {
     await transitionLocked(tx, { ...row, status }, "pause", "companion-stop");
@@ -434,7 +559,53 @@ async function heartbeatLocked(
       version: WIRE_VERSION,
       status: "accepted",
       sourceId: parsed.data.sourceId,
-      eventId: "heartbeat",
+      eventId: HEARTBEAT_ACK_EVENT_ID,
+      control,
+    },
+    cancelJobs,
+  };
+}
+
+// A capability report is the companion's own local readiness (speech support
+// and permission states, never content). It is accepted before capture starts
+// (a created or paused session) and while active, replaces the owner's latest
+// report, and is spaced like a heartbeat.
+async function capabilityLocked(
+  tx: TenantDatabase,
+  scope: OwnerScope,
+  row: SessionRecord,
+  control: ControlStatus,
+  closed: RefusalCode | null,
+  envelope: unknown,
+  cancelJobs: boolean,
+  limits: IngestLimits,
+): Promise<Locked> {
+  const validated = validateWireMessage<CapabilityReport>(
+    capabilityReportSchema,
+    envelope,
+  );
+  if (!validated.ok)
+    return {
+      ack: refusal(
+        validated.issues.some((i) => i.code === "unsupported_version")
+          ? "unsupported_version"
+          : "invalid_observation",
+        { control, issues: validated.issues },
+      ),
+      cancelJobs,
+    };
+  if (closed && control.state !== "paused" && control.state !== "active")
+    return { ack: refusal(closed, { control }), cancelJobs };
+  if (await reportedWithin(tx, scope, limits.minHeartbeatIntervalMs))
+    return rateLimited(control, cancelJobs, limits);
+  await storeCapability(tx, scope, validated.value);
+  await touch(tx, scope, row.id);
+  return {
+    ack: {
+      version: WIRE_VERSION,
+      status: "accepted",
+      sourceId: validated.value.sourceId,
+      eventId: CAPABILITY_ACK_EVENT_ID,
       control,
     },
     cancelJobs,

@@ -5,6 +5,7 @@
 // error never carries the response body or any session content
 // (rule:id-only-traces): a code is all a screen may show.
 import {
+  type LiveCompanionCapability,
   type LiveCredential,
   type LiveProcessingPolicy,
   type LiveRetentionMode,
@@ -15,6 +16,7 @@ import {
   type LiveSessionStartResponse,
   type LiveSessionView,
   type LiveStreamResponse,
+  liveCompanionCapabilityResponseSchema,
   liveCredentialRenewResponseSchema,
   liveSessionChoicesResponseSchema,
   liveSessionErrorBodySchema,
@@ -66,6 +68,8 @@ export type SessionClient = {
     cursor?: string;
   }): Promise<LiveSessionListResponse>;
   choices(): Promise<LiveSessionChoicesResponse>;
+  // The companion's latest self-reported readiness; null before its first report.
+  companionCapability(): Promise<LiveCompanionCapability | null>;
   stream(sessionId: string, cursor?: StreamCursor): Promise<LiveStreamResponse>;
   control(
     sessionId: string,
@@ -179,6 +183,13 @@ export function createSessionClient(
         await send(`${base}/choices`),
         liveSessionChoicesResponseSchema,
       );
+    },
+    async companionCapability() {
+      const { capability } = await read(
+        await send(`${base}/companion-capability`),
+        liveCompanionCapabilityResponseSchema,
+      );
+      return capability;
     },
     async stream(sessionId, cursor = {}) {
       const query = new URLSearchParams();
