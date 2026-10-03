@@ -5,7 +5,7 @@ book_content_hash: sha256:2be77b967379fcbc3b6aff840358fcb010a6db518117caf6ea5bf1
 started_at: '2026-10-03T06:36:52Z'
 completed_at: null
 status: in_progress
-current_prompt: 23
+current_prompt: 24
 base_commit: 4479e9d8a7e18d38a3abf12971ffc8953bab5009
 prompts:
 - n: 1
@@ -164,15 +164,15 @@ prompts:
   artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 23
   title: 'Develop #4: run quality gates; loop until clean'
-  state: "running"
+  state: "done"
   started: "2026-10-03T16:27:16Z"
-  completed: null
-  result: ''
-  artifacts: []
+  completed: "2026-10-03T16:35:20Z"
+  result: "Quality gates clean in round 2: lint, format, typecheck 54/54, test:coverage 258 files / 2692 tests, scripts 25, build 29/29, Swift build + 40-check harness, pnpm verify exit 0. Round 1 failed 2 test defects (promotion scan counted hardening support; resend used wrong sequence), fixed failing-first. README env rows deferred to prep."
+  artifacts: ["bionic/promptbooks/runs/PB-0002-active-session-capability-for-interview-studio/run-RUN-001.yaml"]
 - n: 24
   title: 'Develop #4: internal review'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T16:35:20Z"
   completed: null
   result: ''
   artifacts: []
@@ -443,6 +443,15 @@ notes: |
   - Latency (E-A2): 11 synthetic sets, 35 questions at 1x and 34 at 4x; question-end to first draft p50 2400 ms / p95 2400 (1x) and 2462.5 (4x) on a virtual clock with an 800 ms simulated model; processing-only p50/p95 about 114/123 ms (1x) and 111/123 (4x). REAL-model latency UNOBSERVED.
   - Relay rows: unobserved (no relay table exists; a test fails if one is added).
   - Accepted limitation: a heartbeat sent after a capability report inside the same second gets 429, so transcripts queued in the first second are held and retried.
+
+  ## Quality gates (prompt 23, dev loop #4), round 2 clean (round 1 failed two tests)
+  - Round 1: pnpm lint -> exit 0 (1 info); pnpm format -> exit 0 (788 files); pnpm typecheck -> 54 of 54 tasks successful; pnpm test:coverage --maxWorkers=3 -> 256 of 258 files passed, 2 failed: (a) no-promotion.test.ts source scan counted hardening/world.ts (the REQUIRED real-stream -> deriveLiveModel support file, which imports the Studio view model on purpose) as production code; (b) processor-replay.test.ts "never dispatches twice for a resent observation" resent with sequence 999, which the new event_conflict check correctly refuses (a true resend carries the same sequence). Both were test defects, not product defects; fixed with the tests failing first (commit 6740e59: the scan skips the hardening support directory; the resend uses the original source and sequence).
+  - Loose end closed (commit 4662de7): session-bar.test.tsx now resolves session-bar.css from import.meta.url, so it holds from the repo root or the package directory (it passed from root and was cwd-dependent).
+  - Round 2 (all gates re-run): pnpm lint -> exit 0; pnpm format -> exit 0; pnpm typecheck -> 54 of 54 tasks successful; pnpm test:coverage --maxWorkers=3 (incl. Docker suites) -> 258 files / 2692 tests passed; pnpm vitest run scripts -> 3 files / 25 passed; pnpm build -> 29 of 29 tasks successful; cd apps/capture-companion/macos && swift build -> Build complete; swift run capture-core-tests -> 40 passed, 0 failed (biome ignores **/.build, so no rm -rf .build was needed).
+  - pnpm verify as ONE command (default parallelism) -> exit 0 (typecheck 54/54, 258 files / 2692 tests, build 29/29). The verify log shows the REPLAY and LATENCY lines (p50 2400 / p95 2400 ms at 1x on the virtual clock with an 800 ms simulated model).
+  - Security analysis: no separate SAST tool configured; RLS and cross-user suites, no-content canary, egress and boundary/Swift-source scan tests passed inside the full run.
+  - Deferred to the prep prompt (not trivial, README has no ACTIVE_SESSION rows at all): README env table rows for ACTIVE_SESSION_CODE_RUNNER, ACTIVE_SESSION_RUNNER_DEVICE_LOCAL, ACTIVE_SESSION_AGENT_ESCALATION. verify-code-docs not regenerated (code/arch docs known to drift until prep).
+  - Unobserved: Swift adapters' runtime behaviour, packaged .app, real companion pairing, real call workload, real-model latency, browser rendering.
 
 pr_draft: ""
 summary: ""
