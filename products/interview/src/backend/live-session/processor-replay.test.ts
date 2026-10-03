@@ -16,7 +16,10 @@ import {
   startSessionFor,
 } from "./processor-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
-import { RECRUITER_SCREEN } from "./session-replay-fixtures.js";
+import {
+  FIXTURE_SOURCES,
+  RECRUITER_SCREEN,
+} from "./session-replay-fixtures.js";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;
@@ -182,6 +185,12 @@ describe("dispatch deduplication", () => {
     for (const segment of firstQuestion()) await w.ingestor.ingest(segment);
     // The companion resends the question's segment: the original ack returns.
     const question = firstQuestion().at(-1);
+    // A true resend carries the SAME source and sequence; a different body
+    // under the same event id would be an event_conflict, not a duplicate.
+    const source = FIXTURE_SOURCES[question?.role ?? "interviewer"];
+    const sequence = firstQuestion().filter(
+      (segment) => FIXTURE_SOURCES[segment.role].sourceId === source.sourceId,
+    ).length;
     const resent = await ingestObservation(
       fx.member,
       w.ingestor.credential,
@@ -189,12 +198,12 @@ describe("dispatch deduplication", () => {
       {
         version: 1,
         kind: "transcript.final",
-        sourceId: "application-audio",
+        sourceId: source.sourceId,
         eventId: question?.eventId,
         occurredAt: "2026-10-03T10:00:00.000Z",
-        sequence: 999,
+        sequence,
         content: {
-          speaker: "speaker-1",
+          speaker: source.speaker,
           text: question?.text,
           startMs: question?.startMs,
           endMs: question?.endMs,

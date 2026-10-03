@@ -25,11 +25,14 @@ import { seg } from "./session-replay-fixtures.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// Production sources of the live session: no tests, no test-support fixtures.
+// Production sources of the live session: no tests, no test-support fixtures,
+// and not the hardening suite's own support files (world.ts, egress-guard.ts),
+// which drive the real stream through the Studio view model on purpose.
 function productionSources(directory = here): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) return productionSources(path);
+    if (entry.isDirectory())
+      return entry.name === "hardening" ? [] : productionSources(path);
     const test =
       !entry.name.endsWith(".ts") ||
       entry.name.endsWith(".test.ts") ||
