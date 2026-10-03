@@ -1,0 +1,2 @@
+CREATE POLICY "agent_artifacts_private_parent_insert" ON "ai"."agent_artifacts" AS RESTRICTIVE FOR INSERT TO public WITH CHECK ((EXISTS (SELECT 1 FROM ai.agent_jobs j WHERE j.tenant_id = agent_artifacts.tenant_id AND j.id = agent_artifacts.job_id)));--> statement-breakpoint
+CREATE POLICY "agent_job_events_private_parent_insert" ON "ai"."agent_job_events" AS RESTRICTIVE FOR INSERT TO public WITH CHECK ((EXISTS (SELECT 1 FROM ai.agent_jobs j WHERE j.tenant_id = agent_job_events.tenant_id AND j.id = agent_job_events.job_id)));

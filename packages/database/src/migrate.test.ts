@@ -35,6 +35,7 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "agent_job_private_marker",
     "active_sessions",
     "companion_capabilities",
+    "agent_job_child_insert_guard",
   ]);
 
   // No workflow engine exists: no thread table, no conversation link to one,

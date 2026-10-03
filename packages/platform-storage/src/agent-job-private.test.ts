@@ -146,7 +146,7 @@ describe("a private job", () => {
     ).toBe("not-found");
   });
 
-  it("refuses another member's resume and lets the creator resume", async () => {
+  it("refuses another member's resume and an unguarded resume, even the creator's", async () => {
     const job = await privateJobOf(alice);
     await worker.setSessionId(job.id, "s-1");
     await repository.requestCancellation(tenantId, alice, job.id);
@@ -158,12 +158,32 @@ describe("a private job", () => {
     expect(
       await repository.requestResume(tenantId, null, job.id, "agent-payload:n"),
     ).toBe(false);
+    // ADR-0012 no-resume-after-end: only a guard that verifies the session
+    // active may resume a private job; the generic path has none.
     expect(
       await repository.requestResume(
         tenantId,
         alice,
         job.id,
         "agent-payload:a",
+      ),
+    ).toBe(false);
+    expect((await repository.get(tenantId, alice, job.id))?.status).toBe(
+      "cancelled",
+    );
+  });
+
+  it("refuses a non-private session job's guardless resume no differently than before", async () => {
+    const job = await repository.create(base(alice));
+    await worker.setSessionId(job.id, "s-open");
+    await repository.requestCancellation(tenantId, alice, job.id);
+    await worker.transition(job.id, ["cancelling"], "cancelled");
+    expect(
+      await repository.requestResume(
+        tenantId,
+        alice,
+        job.id,
+        "agent-payload:o",
       ),
     ).toBe(true);
   });
@@ -254,6 +274,37 @@ describe("a private job", () => {
       await repository.eventsAfter(tenantId, alice, job.id, 0),
     ).toHaveLength(2);
     expect(await repository.get(tenantId, alice, job.id)).toBeDefined();
+  });
+
+  it("refuses a same-tenant member's insert of events and artifacts naming it", async () => {
+    const job = await privateJobOf(alice);
+    await expect(
+      asActor(bob, (query) =>
+        query(
+          "INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event) VALUES ($1, $2, 99, '{}')",
+          [tenantId, job.id],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asActor(bob, (query) =>
+        query(
+          "INSERT INTO ai.agent_artifacts (tenant_id, job_id, artifact_reference, kind) VALUES ($1, $2, 'artifact:bob', 'file')",
+          [tenantId, job.id],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    // The creator and the agent worker still append.
+    await asActor(alice, (query) =>
+      query(
+        "INSERT INTO ai.agent_artifacts (tenant_id, job_id, artifact_reference, kind) VALUES ($1, $2, 'artifact:alice', 'file')",
+        [tenantId, job.id],
+      ),
+    );
+    await worker.appendEvent(job.id, { type: "text-delta", text: "ok" });
+    expect(
+      await repository.eventsAfter(tenantId, alice, job.id, 0),
+    ).toHaveLength(1);
   });
 
   it("is refused to the creator in another tenant", async () => {

@@ -62,6 +62,11 @@ export const agentArtifacts = ai.table.withRLS(
       for: "select",
       using: parentJobVisible("agent_artifacts"),
     }),
+    pgPolicy("agent_artifacts_private_parent_insert", {
+      as: "restrictive",
+      for: "insert",
+      withCheck: parentJobVisible("agent_artifacts"),
+    }),
     pgPolicy("agent_artifacts_private_parent_update", {
       as: "restrictive",
       for: "update",
@@ -112,6 +117,11 @@ export const agentJobEvents = ai.table.withRLS(
       as: "restrictive",
       for: "select",
       using: parentJobVisible("agent_job_events"),
+    }),
+    pgPolicy("agent_job_events_private_parent_insert", {
+      as: "restrictive",
+      for: "insert",
+      withCheck: parentJobVisible("agent_job_events"),
     }),
     pgPolicy("agent_job_events_private_parent_update", {
       as: "restrictive",

@@ -165,7 +165,10 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
 
   // The optional guard runs first, in this transaction, so a session job's
   // caller can take the session-row lock and verify the session is active
-  // before the job row is touched (session row, then job row).
+  // before the job row is touched (session row, then job row). A private
+  // (session) job resumes only through such a guard: without one the update
+  // matches no private row, so the generic resume path cannot revive a job
+  // of an ended or paused session (ADR-0012 no-resume-after-end).
   async requestResume(
     tenantId: string,
     actorId: JobActor,
@@ -181,8 +184,9 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
            result_reference = NULL, updated_at = now()
          WHERE tenant_id = $1 AND id = $2
            AND status IN ('awaiting-input', 'failed', 'cancelled')
-           AND session_id IS NOT NULL`,
-        [tenantId, jobId, promptReference],
+           AND session_id IS NOT NULL
+           AND (NOT private OR $4::boolean)`,
+        [tenantId, jobId, promptReference, options.guard !== undefined],
       );
       return (result.rowCount ?? 0) === 1;
     });
