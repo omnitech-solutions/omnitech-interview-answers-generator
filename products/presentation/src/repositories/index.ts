@@ -15,6 +15,7 @@ import type {
 import {
   PresentationConflictError,
   PresentationNotFoundError,
+  PresentationThemeNotFoundError,
 } from "../domain/index.js";
 
 type SummaryRow = {
@@ -62,7 +63,7 @@ async function requireTheme(
      WHERE id = $2 AND (tenant_id IS NULL OR tenant_id = $1)`,
     [tenantId, themeId],
   );
-  if (!found.rows[0]) throw new Error("Theme not found.");
+  if (!found.rows[0]) throw new PresentationThemeNotFoundError();
 }
 
 export class PresentationRepository {

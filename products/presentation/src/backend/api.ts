@@ -7,6 +7,7 @@ import { PresentationService } from "../application/index.js";
 import {
   PresentationConflictError,
   PresentationNotFoundError,
+  PresentationThemeNotFoundError,
 } from "../domain/index.js";
 import { PresentationRepository } from "../repositories/index.js";
 import { importPowerPointTheme } from "../theme-import.js";
@@ -104,6 +105,14 @@ function validateImageAssetReference(
   }
 }
 
+/** The request carries no tenant membership; the only cause of a 401. */
+class UnauthorizedError extends Error {
+  constructor() {
+    super("Unauthorized");
+    this.name = "UnauthorizedError";
+  }
+}
+
 export interface PresentationApiOptions {
   database: PlatformDatabase;
   resolveContext(tenantSlug: string): Promise<PlatformContext | null>;
@@ -118,7 +127,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
 
   async function contextFor(tenantSlug: string) {
     const context = await options.resolveContext(tenantSlug);
-    if (!context) throw new Error("Unauthorized");
+    if (!context) throw new UnauthorizedError();
     return {
       access: context,
       tenant: {
@@ -168,10 +177,16 @@ export function createPresentationApi(options: PresentationApiOptions) {
       });
       return context.json({ id }, 201);
     } catch (error) {
-      if (error instanceof z.ZodError) {
+      if (error instanceof z.ZodError || error instanceof SyntaxError) {
         return context.json({ error: "Invalid presentation input." }, 400);
       }
-      return context.json({ error: "Unauthorized" }, 401);
+      if (error instanceof PresentationThemeNotFoundError) {
+        return context.json({ error: error.message }, 400);
+      }
+      if (error instanceof UnauthorizedError) {
+        return context.json({ error: "Unauthorized" }, 401);
+      }
+      throw error;
     }
   });
 
@@ -221,10 +236,16 @@ export function createPresentationApi(options: PresentationApiOptions) {
       if (error instanceof PresentationConflictError) {
         return context.json({ error: error.message }, 409);
       }
-      if (error instanceof z.ZodError) {
+      if (error instanceof z.ZodError || error instanceof SyntaxError) {
         return context.json({ error: "Invalid presentation update." }, 400);
       }
-      return context.json({ error: "Unauthorized" }, 401);
+      if (error instanceof PresentationThemeNotFoundError) {
+        return context.json({ error: error.message }, 400);
+      }
+      if (error instanceof UnauthorizedError) {
+        return context.json({ error: "Unauthorized" }, 401);
+      }
+      throw error;
     }
   });
 

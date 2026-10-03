@@ -82,6 +82,14 @@ export class PresentationNotFoundError extends Error {
   }
 }
 
+/** The theme is missing or belongs to another tenant. */
+export class PresentationThemeNotFoundError extends Error {
+  constructor() {
+    super("Theme not found.");
+    this.name = "PresentationThemeNotFoundError";
+  }
+}
+
 export class PresentationConflictError extends Error {
   constructor() {
     super("The presentation changed since it was loaded.");

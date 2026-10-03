@@ -320,6 +320,41 @@ describe("documents", () => {
     expect(missing).toEqual({ status: 404, body: { error: "Not found" } });
   });
 
+  it("rejects an unknown theme as a bad request, not an authentication failure", async () => {
+    const unknownTheme = "00000000-0000-4000-8000-0000000000aa";
+    const badTheme = { status: 400, body: { error: "Theme not found." } };
+    expect(
+      await call("north", "POST", "/documents", {
+        title: "Unthemed",
+        themeId: unknownTheme,
+        idempotencyKey: crypto.randomUUID(),
+      }),
+    ).toEqual(badTheme);
+    const document = await createDocument("north", "Retheme me");
+    expect(
+      await call("north", "PATCH", `/documents/${document["id"]}`, {
+        themeId: unknownTheme,
+        expectedRevision: document["revision"],
+      }),
+    ).toEqual(badTheme);
+    // The refused save left the document untouched.
+    expect(
+      (await call("north", "GET", `/documents/${document["id"]}`)).body,
+    ).toMatchObject({ revision: document["revision"], themeId: null });
+    // A body that is not JSON is equally a bad request.
+    for (const [method, path] of [
+      ["POST", "/presentation/v1/documents?tenant=north"],
+      ["PATCH", `/presentation/v1/documents/${document["id"]}?tenant=north`],
+    ] as const) {
+      const response = await app.request(path, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      });
+      expect(response.status).toBe(400);
+    }
+  });
+
   it("hides one tenant's documents from another tenant", async () => {
     const document = await createDocument("north", "North only", ["A", "B"]);
     const id = document["id"];
