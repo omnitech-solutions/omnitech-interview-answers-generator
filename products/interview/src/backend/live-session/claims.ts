@@ -15,6 +15,7 @@ import {
   isNoticePeriodText,
   type SourceKind,
 } from "./context-snapshot.js";
+import { hasUnapprovedLogisticsFigure } from "./logistics-figures.js";
 import {
   digitAvailability,
   foldSpoken,
@@ -455,6 +456,7 @@ type DraftCheck = {
   matrixClaimTexts: readonly string[];
   groundedFigures: ReadonlySet<string>;
   preferenceFigures: ReadonlySet<string>;
+  preferenceQuotes: readonly string[];
   capturedFigures: ReadonlySet<string>;
   sourceFigures: ReadonlySet<string>;
 };
@@ -509,11 +511,10 @@ function checkDraft(draft: string, check: DraftCheck): void {
         break;
       }
   if (check.logistics) {
-    for (const key of figuresOf(draft))
-      if (!check.preferenceFigures.has(key)) {
-        flag("draft", "ungrounded_logistics_figure");
-        break;
-      }
+    // [SAFETY] Allowlist (round 5): the only figure, unit or date a logistics
+    // draft may carry is a verbatim span of an approved preference quote.
+    if (hasUnapprovedLogisticsFigure(draft, check.preferenceQuotes))
+      flag("draft", "ungrounded_logistics_figure");
   } else {
     for (const sentence of sentences) {
       const topical =
@@ -586,6 +587,7 @@ export function verifyClaims(
   // Figures that a preference-backed claim legitimately carries, for the
   // logistics draft check.
   const preferenceFigures = new Set<string>();
+  const preferenceQuotes: string[] = [];
   // Figures a VERIFIED matrix- or preference-backed claim carries (its quotes
   // and its own text): the only non-general figures a draft may speak.
   const groundedFigures = new Set<string>();
@@ -603,6 +605,10 @@ export function verifyClaims(
     if (refs.length > MAX_REFS_PER_CLAIM)
       flag(`${at}.refs`, "too_many_references");
     const claimFigures = figuresOf(claim.text);
+    // Logistics: a claim that is not preference-backed carries no figure-like
+    // text at all (the allowlist has no approved span for it).
+    const logisticsFigure =
+      logistics && hasUnapprovedLogisticsFigure(claim.text, []);
     const preferenceOnlyTopic =
       isNoticePeriodText(claim.text) || isCompensationText(claim.text);
 
@@ -612,7 +618,11 @@ export function verifyClaims(
     if (required) {
       if (preferenceOnlyTopic && claim.kind !== "preference-backed")
         flag(at, "preference_only_topic");
-      if (logistics && claim.kind !== "preference-backed" && claimFigures.size)
+      if (
+        logistics &&
+        claim.kind !== "preference-backed" &&
+        (claimFigures.size || logisticsFigure)
+      )
         flag(at, "ungrounded_logistics_figure");
       if (refs.length === 0) {
         flag(`${at}.refs`, "missing_reference");
@@ -664,6 +674,7 @@ export function verifyClaims(
           groundedFigures.add(key);
         if (claim.kind === "preference-backed")
           for (const ref of refs) {
+            preferenceQuotes.push(ref.quote);
             for (const key of supportedFigureKeys([ref.quote]))
               preferenceFigures.add(key);
           }
@@ -678,7 +689,11 @@ export function verifyClaims(
       // [SAFETY] A not-in-matrix claim is labelled, never evidence: it carries
       // no figure beyond the general allowance, not even one the interviewer
       // said aloud (that would re-state an unverified claim as a fact).
-      if (logistics ? claimFigures.size : nonGeneralFigures(claim.text).length)
+      if (
+        logistics
+          ? claimFigures.size || logisticsFigure
+          : nonGeneralFigures(claim.text).length
+      )
         flag(
           at,
           logistics ? "ungrounded_logistics_figure" : "ungrounded_figure",
@@ -694,7 +709,7 @@ export function verifyClaims(
       if (!placeholder) flag(at, "generated_reason");
     }
     if (preferenceOnlyTopic) flag(at, "preference_only_topic");
-    if (logistics && claimFigures.size) {
+    if (logistics && (claimFigures.size || logisticsFigure)) {
       flag(at, "ungrounded_logistics_figure");
       continue;
     }
@@ -746,6 +761,7 @@ export function verifyClaims(
         .map((claim) => normalizeText(claim.text)),
       groundedFigures,
       preferenceFigures,
+      preferenceQuotes,
       capturedFigures,
       sourceFigures,
     });

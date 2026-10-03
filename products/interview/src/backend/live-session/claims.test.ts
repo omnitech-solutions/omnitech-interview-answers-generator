@@ -405,8 +405,11 @@ describe("preference-backed", () => {
       refs: [ref(built, "/context/candidatePreferences/0")],
     };
     expect(
-      run([claim], built, "logistics", [], "Four weeks, so 4 weeks."),
+      run([claim], built, "logistics", [], "My notice is 4 weeks."),
     ).toEqual([]);
+    expect(
+      run([claim], built, "logistics", [], "Four weeks, so 4 weeks."),
+    ).toEqual(["draft:ungrounded_logistics_figure"]);
     expect(run([claim], built, "logistics", [], "Maybe 6 weeks.")).toEqual([
       "draft:ungrounded_logistics_figure",
     ]);

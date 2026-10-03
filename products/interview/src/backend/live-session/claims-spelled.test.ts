@@ -98,14 +98,15 @@ describe("round 3: ordinary drafts are not withheld", () => {
     for (const draft of ORDINARY)
       it(`${category}: ${draft}`, () => {
         // logistics rejects every figure, spelled or not, when digits would.
-        const expected = category === "logistics" && /three months/.test(draft);
+        // Round 5: spelled quantities ("two", "three") are figures there too.
+        const expected =
+          category === "logistics" && /three months|two queues/.test(draft);
         expect(blocked(draft, category)).toBe(expected);
       });
 
-  it("allows a spelled figure that equals the approved preference figure", () => {
-    expect(blockedWithPreference("My notice period is four weeks.")).toBe(
-      false,
-    );
+  it("allows only the approved preference text itself (round 5 allowlist)", () => {
+    expect(blockedWithPreference("My notice period is 4 weeks.")).toBe(false);
+    expect(blockedWithPreference("My notice period is four weeks.")).toBe(true);
     expect(blockedWithPreference("My notice period is six weeks.")).toBe(true);
   });
 });
