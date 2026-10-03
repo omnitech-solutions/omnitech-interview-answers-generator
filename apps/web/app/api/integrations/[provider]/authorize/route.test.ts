@@ -14,6 +14,10 @@ beforeEach(() => {
     "INTEGRATION_STATE_SECRET",
     "integration-state-secret-at-least-32",
   );
+  vi.stubEnv(
+    "CONNECTED_ACCOUNT_SECRET",
+    "connected-account-secret-at-least-32",
+  );
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -54,11 +58,19 @@ it("does not know providers other than Google and LinkedIn", async () => {
   expect(await response.json()).toEqual({ error: "Integration not found." });
 });
 
-it("returns 503 when state signing is not configured", async () => {
-  vi.stubEnv("INTEGRATION_STATE_SECRET", "");
-  const response = await authorize("linkedin");
-  expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({
-    error: "Integration state signing is not configured.",
-  });
-});
+// The callback cannot sign state or store tokens without these, so the
+// browser is never sent to a provider it could not come back from.
+it.each(["INTEGRATION_STATE_SECRET", "CONNECTED_ACCOUNT_SECRET"])(
+  "returns 503 without redirecting when %s is not configured",
+  async (name) => {
+    vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+    vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "client-secret");
+    vi.stubEnv(name, "");
+    const response = await authorize("google");
+    expect(response.status).toBe(503);
+    expect(response.headers.get("location")).toBeNull();
+    expect(await response.json()).toEqual({
+      error: "Integration secrets are not configured.",
+    });
+  },
+);

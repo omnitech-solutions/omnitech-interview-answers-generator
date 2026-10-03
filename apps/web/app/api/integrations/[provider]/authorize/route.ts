@@ -27,10 +27,12 @@ export async function GET(
       { status: 404 },
     );
   }
+  // The callback signs nothing and stores no token without these, so the
+  // browser is never sent to a provider it could not come back from.
   const secret = process.env["INTEGRATION_STATE_SECRET"];
-  if (!secret) {
+  if (!secret || !process.env["CONNECTED_ACCOUNT_SECRET"]) {
     return NextResponse.json(
-      { error: "Integration state signing is not configured." },
+      { error: "Integration secrets are not configured." },
       { status: 503 },
     );
   }

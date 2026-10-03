@@ -26,17 +26,35 @@ export async function GET(
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const signedState = url.searchParams.get("state");
-  const stateSecret = process.env["INTEGRATION_STATE_SECRET"];
-  const tokenSecret = process.env["CONNECTED_ACCOUNT_SECRET"];
-  if (!provider || !code || !signedState || !stateSecret || !tokenSecret) {
+  if (!provider || !code || !signedState) {
     return NextResponse.json(
       { error: "The integration callback is incomplete." },
       { status: 400 },
     );
   }
-  const state = verifyIntegrationState(signedState, stateSecret);
+  // ADR-0006 D3: a missing signing or vault secret is an operator gap.
+  const stateSecret = process.env["INTEGRATION_STATE_SECRET"];
+  const tokenSecret = process.env["CONNECTED_ACCOUNT_SECRET"];
+  if (!stateSecret || !tokenSecret) {
+    return NextResponse.json(
+      { error: "Integration secrets are not configured." },
+      { status: 503 },
+    );
+  }
+  // [SAFETY] A tampered, malformed or expired state is refused, as is one
+  // signed for another workspace or member.
+  let state: ReturnType<typeof verifyIntegrationState>;
+  try {
+    state = verifyIntegrationState(signedState, stateSecret);
+  } catch {
+    return NextResponse.json(
+      { error: "The integration context is invalid." },
+      { status: 403 },
+    );
+  }
   const context = await resolvePlatformContext(state.tenantSlug);
   if (
+    !context ||
     state.provider !== provider ||
     context?.tenant.id !== state.tenantId ||
     context.user.id !== state.userId
