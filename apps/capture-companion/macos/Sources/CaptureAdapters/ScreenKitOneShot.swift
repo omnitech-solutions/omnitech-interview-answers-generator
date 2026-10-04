@@ -8,17 +8,23 @@ import ScreenCaptureKit
 // CaptureRequests.swift in Core). It uses ScreenCaptureKit's still-image API
 // (macOS 14+, the package's floor), so no stream is started and no frame is
 // kept. Three modes:
-//   focused-window  the frontmost application's largest on-screen layer-0 window
+//   focused-window  the largest on-screen layer-0 window of the application that was
+//                   frontmost when the request was TAKEN (FocusSample), not at capture time
 //   region          a normalised rectangle of the MAIN display, cropped here
 //   display         the main display
 // [SAFETY] A focused window that cannot be found is a visible loss, never the
 // whole display. A region is cropped before encoding, so pixels outside it
 // never leave this Mac. The label is the application name only, never a title.
 public enum ScreenKitOneShot {
-    public static func capture(_ request: CaptureRequest) async -> CaptureOutcome {
+    // The frontmost application now; the session samples it when a request is taken.
+    public static func sampleFocus() -> FocusSample {
+        FocusSample(frontmostPid: NSWorkspace.shared.frontmostApplication?.processIdentifier)
+    }
+
+    public static func capture(_ request: CaptureRequest, focus: FocusSample) async -> CaptureOutcome {
         // Never prompt from a one-shot: the screen source was selected (and
         // authorised) at start; a revoked grant is a loss, reported as such.
-        guard CGPreflightScreenCaptureAccess() else { return .lost(.captureFailed) }
+        guard CGPreflightScreenCaptureAccess() else { return .lost(.permissionDenied) }
         let content: SCShareableContent
         do {
             content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -31,8 +37,7 @@ public enum ScreenKitOneShot {
         switch request.mode {
         case .focusedWindow:
             let candidates = content.windows.map(Self.candidate)
-            let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            guard let index = FocusedWindow.choose(frontmostPid: frontmost, windows: candidates) else {
+            guard let index = FocusedWindow.choose(frontmostPid: focus.frontmostPid, windows: candidates) else {
                 return .lost(.noFocusedWindow)
             }
             let window = content.windows[index]

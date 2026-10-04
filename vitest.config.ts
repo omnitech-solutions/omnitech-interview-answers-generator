@@ -25,6 +25,9 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
+          // The suites boot real servers and workers; 10 s is the ceiling.
+          testTimeout: 10_000,
+          hookTimeout: 10_000,
           include: [
             "packages/*/src/**/*.test.ts",
             "scripts/**/*.test.ts",
@@ -60,6 +63,8 @@ export default defineConfig({
         test: {
           name: "react",
           environment: "jsdom",
+          testTimeout: 10_000,
+          hookTimeout: 10_000,
           include: ["products/*/src/frontend/**/*.test.{ts,tsx}"],
           setupFiles: ["./products/interview/vitest.setup.ts"],
         },

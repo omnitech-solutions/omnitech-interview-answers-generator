@@ -49,6 +49,7 @@ describe("wire client", () => {
     expect(request?.headers).toEqual({
       Authorization: `Bearer ${FAKE_CREDENTIAL}`,
       "Content-Type": "application/json",
+      "x-companion-features": "capture-request.v1",
     });
     expect(request?.url).not.toContain(FAKE_CREDENTIAL);
     expect(request?.url).not.toContain("?");
@@ -73,6 +74,7 @@ describe("wire client", () => {
     // The multipart body carries no content-type: fetch supplies the boundary.
     expect(request?.headers).toEqual({
       Authorization: `Bearer ${FAKE_CREDENTIAL}`,
+      "x-companion-features": "capture-request.v1",
     });
   });
 

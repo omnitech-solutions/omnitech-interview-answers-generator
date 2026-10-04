@@ -19,7 +19,10 @@ export type CaptureProgress =
   | { phase: "asking"; mode: LiveCaptureMode }
   | { phase: "captured"; baseline: number }
   | { phase: "expired" }
-  | { phase: "refused"; reason: string | null };
+  | { phase: "refused"; reason: string | null }
+  // The companion was asked and said it could not capture: shown at once, with
+  // its closed code, never held until the request expires.
+  | { phase: "failed"; reason: string | null };
 
 export function useCompanionCapture(
   actions: SessionActions,
@@ -63,7 +66,9 @@ export function useCompanionCapture(
             ? { phase: "captured", baseline: latest.current.activityCount }
             : state.status === "expired"
               ? { phase: "expired" }
-              : { phase: "refused", reason: state.reason ?? null },
+              : state.status === "failed"
+                ? { phase: "failed", reason: state.reason ?? null }
+                : { phase: "refused", reason: state.reason ?? null },
         );
         return true;
       };

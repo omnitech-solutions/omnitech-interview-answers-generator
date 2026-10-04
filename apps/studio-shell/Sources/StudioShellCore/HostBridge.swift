@@ -18,16 +18,55 @@ public enum HostCapability: String, CaseIterable, Sendable {
     case pinOnTop = "pin-on-top"
     case hotkeys
     case openExternal = "open-external"
+    // The hands-free engine (StudioShellEngine): window.studioHost.engine.
+    case engine
 }
 
-public enum HostCommand: String, Sendable {
-    case captureAnalyze = "capture-analyze"
+// [DOMAIN] An intent the shell sends to the pages. The page decides what it
+// means; the shell runs no workflow of its own.
+public enum HostCommand: Equatable, Sendable {
+    case autoToggle
+    case captureAnalyze
+    case solutionGenerate
+    case transcribeToggle
+    case skillNext
+    case skillPrevious
+    case setSkill(OwnerSkill)
+    case sessionClear
+
+    // The typed command names pages subscribe to (`onHotkey`).
+    public var wireName: String {
+        switch self {
+        case .autoToggle: "auto.toggle"
+        case .captureAnalyze: "capture.analyze"
+        case .solutionGenerate: "solution.generate"
+        case .transcribeToggle: "transcribe.toggle"
+        case .skillNext: "skill.next"
+        case .skillPrevious: "skill.prev"
+        case .setSkill(let skill): "skill.set:\(skill.rawValue)"
+        case .sessionClear: "session.clear"
+        }
+    }
+
+    // The one panel that acts on an action intent; nil: every page (they mirror
+    // session-level state commands).
+    public var target: PanelKind? {
+        switch self {
+        case .captureAnalyze, .solutionGenerate: .analysis
+        case .transcribeToggle: .chat
+        case .autoToggle: .pill
+        case .skillNext, .skillPrevious, .setSkill, .sessionClear: nil
+        }
+    }
 }
 
 public enum HostCall: Equatable, Sendable {
-    case captureScreen(CaptureRequest)
+    // displayId binds a region to the display it was defined for (nil: the main display, as before).
+    case captureScreen(CaptureRequest, displayId: UInt32?)
     case pinOnTop(Bool)
     case openExternal(URL)
+    // The typed presentation commands (window.studioHost.presentation).
+    case presentation(PresentationCommand)
 }
 
 public enum HostCallError: Error, Equatable, Sendable {
@@ -43,12 +82,24 @@ public enum HostCallDecoder {
     // expected shape. A region is finite, inside the unit square, and present
     // exactly when the mode is "region"; an address is http(s) with no user info.
     public static func decode(_ body: Any, requestId: String = UUID().uuidString) -> Result<HostCall, HostCallError> {
-        guard let message = body as? [String: Any] else { return .failure(.malformed) }
+        guard let message = body as? [String: Any], Set(message.keys).isSubset(of: ["v", "method", "params"]) else {
+            return .failure(.malformed)
+        }
         guard let version = number(message["v"]), version == Double(HostBridge.version) else {
             return .failure(.unsupportedVersion)
         }
-        guard let method = message["method"] as? String else { return .failure(.malformed) }
+        guard let method = message["method"] as? String, method.count <= 32 else { return .failure(.malformed) }
         let params = message["params"] as? [String: Any] ?? [:]
+        // [GUARD] Each method takes exactly its own keys; an extra key is a refusal, not ignored.
+        let allowed: Set<String>
+        switch method {
+        case "captureScreen": allowed = ["mode", "region", "displayId"]
+        case "pinOnTop": allowed = ["pinned"]
+        case "openExternal": allowed = ["url"]
+        case "presentation": allowed = ["op", "panel", "layout", "visible", "on", "mode", "enabled", "value"]
+        default: return .failure(.unknownMethod)
+        }
+        guard Set(params.keys).isSubset(of: allowed) else { return .failure(.invalidParameters) }
         switch method {
         case "captureScreen": return decodeCapture(params, requestId: requestId)
         case "pinOnTop":
@@ -59,8 +110,41 @@ public enum HostCallDecoder {
                 return .failure(.invalidParameters)
             }
             return .success(.openExternal(url))
+        case "presentation": return decodePresentation(params)
         default: return .failure(.unknownMethod)
         }
+    }
+
+    // [GUARD] Each operation takes exactly its own parameters, every value from a
+    // closed set or a Bool; anything else is invalid.
+    private static func decodePresentation(_ params: [String: Any]) -> Result<HostCall, HostCallError> {
+        guard let op = params["op"] as? String else { return .failure(.invalidParameters) }
+        let needs: [String: Set<String>] = [
+            "open": ["panel"], "close": ["panel"], "focus": ["panel"], "setLayout": ["layout"],
+            "setVisible": ["visible"], "setInteractionMode": ["on"], "setAppMode": ["mode"],
+            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"],
+        ]
+        guard let required = needs[op], Set(params.keys).subtracting(["op"]) == required else {
+            return .failure(.invalidParameters)
+        }
+        func panel() -> PanelKind? { (params["panel"] as? String).flatMap(PanelKind.init(rawValue:)) }
+        func bool(_ key: String) -> Bool? { params[key] as? Bool }
+        let command: PresentationCommand?
+        switch op {
+        case "open": command = panel().map(PresentationCommand.openPanel)
+        case "close": command = panel().map(PresentationCommand.closePanel)
+        case "focus": command = panel().map(PresentationCommand.focusPanel)
+        case "setLayout": command = (params["layout"] as? String).flatMap(LayoutPreset.init(rawValue:)).map(PresentationCommand.applyLayout)
+        case "setVisible": command = bool("visible").map(PresentationCommand.setPanelsVisible)
+        case "setInteractionMode": command = bool("on").map(PresentationCommand.setInteractionMode)
+        case "setAppMode": command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
+        case "setOpacity":
+            guard let value = number(params["value"]), value.isFinite else { return .failure(.invalidParameters) }
+            command = .setOpacity(value)
+        default: command = bool("enabled").map(PresentationCommand.setHotkeysEnabled)
+        }
+        guard let command else { return .failure(.invalidParameters) }
+        return .success(.presentation(command))
     }
 
     private static func decodeCapture(_ params: [String: Any], requestId: String) -> Result<HostCall, HostCallError> {
@@ -68,9 +152,17 @@ public enum HostCallDecoder {
             return .failure(.invalidParameters)
         }
         let rawRegion = params["region"]
+        var displayId: UInt32?
+        if let raw = params["displayId"], !(raw is NSNull) {
+            // Only a region is bound to a display; the id is a plain unsigned 32-bit integer.
+            guard mode == .region, let value = number(raw), value >= 0, value <= Double(UInt32.max),
+                value == value.rounded()
+            else { return .failure(.invalidParameters) }
+            displayId = UInt32(value)
+        }
         guard mode == .region else {
             return rawRegion == nil || rawRegion is NSNull
-                ? .success(.captureScreen(CaptureRequest(requestId: requestId, mode: mode)))
+                ? .success(.captureScreen(CaptureRequest(requestId: requestId, mode: mode, expiresAt: Self.pageRequestExpiry), displayId: nil))
                 : .failure(.invalidParameters)
         }
         guard let fields = rawRegion as? [String: Any],
@@ -81,8 +173,13 @@ public enum HostCallDecoder {
         else { return .failure(.invalidParameters) }
         return .success(.captureScreen(CaptureRequest(
             requestId: requestId, mode: .region,
-            region: CaptureRegion(x: x, y: y, width: width, height: height))))
+            region: CaptureRegion(x: x, y: y, width: width, height: height),
+            expiresAt: Self.pageRequestExpiry), displayId: displayId))
     }
+
+    // A page-initiated capture is not a companion request: the bridge bounds it by its own
+    // single-flight ticket and timeout, so the wire expiry is a fixed far-future placeholder.
+    public static let pageRequestExpiry = "9999-12-31T23:59:59.000Z"
 
     // JavaScript numbers arrive as NSNumber; Bool is an NSNumber too and is not a number here.
     private static func number(_ value: Any?) -> Double? {
@@ -100,11 +197,33 @@ public enum HostCallDecoder {
 }
 
 public enum HostReply {
-    public static func capture(_ outcome: CaptureOutcome, screenAccessGranted: Bool) -> [String: Any] {
+    // Whether a presentation command took effect; a refusal is `false`, never a throw.
+    @MainActor
+    public static func tookEffect(_ command: PresentationCommand, _ state: PresentationState) -> Bool {
+        switch command {
+        case .openPanel(let kind), .focusPanel(let kind): state.panels.contains(kind) && state.layout == .panels
+        case .closePanel(let kind): !state.panels.contains(kind)
+        case .setPanelsVisible(let visible): state.allHidden != visible
+        case .applyLayout(let preset): state.layout == (preset == .compact ? .compact : .panels)
+        case .setInteractionMode(let on): state.interaction.isInteractive == on
+        case .setAppMode(let mode): state.appMode == mode
+        case .setHotkeysEnabled(let on): state.hotkeysEnabled == on
+        case .setOpacity(let value): abs(state.opacity - PanelOpacity.clamp(value)) < 0.001
+        default: true
+        }
+    }
+
+    // `displayId` names the display the pixels came from, so a page can carry it
+    // back with a later region request and the shell can refuse a changed display.
+    public static func capture(
+        _ outcome: CaptureOutcome, screenAccessGranted: Bool, displayId: UInt32? = nil
+    ) -> [String: Any] {
         switch outcome {
         case .image(let jpeg, _):
             // The application name stays here: the page labels a frame by kind only.
-            return ["ok": true, "mediaType": "image/jpeg", "base64": jpeg.base64EncodedString()]
+            var reply: [String: Any] = ["ok": true, "mediaType": "image/jpeg", "base64": jpeg.base64EncodedString()]
+            if let displayId { reply["displayId"] = Int(displayId) }
+            return reply
         case .lost(let loss):
             if !screenAccessGranted { return failure("permission-denied") }
             return failure(loss == .noFocusedWindow ? "no-focused-window" : "capture-failed")
@@ -121,7 +240,13 @@ public enum HostReply {
 // entry the shell calls for a hotkey. Page scripts can read it and call it; they
 // cannot reach anything the shell has not decoded and bounded above.
 public enum HostBridgeScript {
-    public static func source(capabilities: [HostCapability]) -> String {
+    public static func source(
+        capabilities: [HostCapability], engineObject: String? = nil, engineEmit: String? = nil
+    ) -> String {
+        // The engine's page object and emit entry come from its own module
+        // (Core cannot import it); they are spliced in only when supplied.
+        let engineMember = engineObject.map { "engine: \($0),\n            " } ?? ""
+        let engineDefinition = engineEmit ?? ""
         let names = capabilities.map { "\"\($0.rawValue)\"" }.joined(separator: ",")
         return """
         (function () {
@@ -130,6 +255,37 @@ public enum HostBridgeScript {
             && window.webkit.messageHandlers.\(HostBridge.handlerName);
           if (!handler) return;
           var listeners = [];
+          var modeListeners = [];
+          var engineListeners = [];
+          // Synchronous reads come from the last state the shell pushed.
+          var shown = { mode: "expanded", panels: [], interactive: true, opacity: 1, handsFree: false };
+          function op(name, params) {
+            var message = { op: name };
+            Object.keys(params || {}).forEach(function (key) { message[key] = params[key]; });
+            return call("presentation", message).then(function (took) { return took === true; });
+          }
+          var presentation = Object.freeze({
+            capabilities: Object.freeze([\(PresentationCapability.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]),
+            open: function (panel) { return op("open", { panel: String(panel) }); },
+            close: function (panel) { return op("close", { panel: String(panel) }); },
+            focus: function (panel) { return op("focus", { panel: String(panel) }); },
+            openPanels: function () { return shown.panels.slice(); },
+            setLayout: function (layout) { return op("setLayout", { layout: String(layout) }); },
+            setVisible: function (visible) { return op("setVisible", { visible: !!visible }); },
+            interactionMode: function () { return shown.interactive; },
+            setInteractionMode: function (on) { return op("setInteractionMode", { on: !!on }); },
+            onInteractionMode: function (listener) {
+              if (typeof listener !== "function") return function () {};
+              modeListeners.push(listener);
+              return function () { modeListeners = modeListeners.filter(function (each) { return each !== listener; }); };
+            },
+            // Beyond the layout contract: the app's expanded/minified form, and the global keys.
+            appMode: function () { return shown.mode; },
+            setAppMode: function (mode) { return op("setAppMode", { mode: String(mode) }); },
+            setHotkeysEnabled: function (enabled) { return op("setHotkeysEnabled", { enabled: !!enabled }); },
+            opacity: function () { return shown.opacity; },
+            setOpacity: function (value) { return op("setOpacity", { value: Number(value) }); }
+          });
           function call(method, params) {
             return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });
           }
@@ -140,6 +296,7 @@ public enum HostBridgeScript {
             captureScreen: function (request) { return call("captureScreen", request); },
             pinOnTop: function (pinned) { return call("pinOnTop", { pinned: !!pinned }); },
             openExternal: function (url) { return call("openExternal", { url: String(url) }); },
+            \(engineMember)presentation: presentation,
             onHotkey: function (listener) {
               if (typeof listener !== "function") return function () {};
               listeners.push(listener);
@@ -153,12 +310,31 @@ public enum HostBridgeScript {
             },
             configurable: false
           });
+          \(engineDefinition)
+          Object.defineProperty(window, "__studioHostPresentation", {
+            value: function (state) {
+              var before = shown.interactive;
+              shown = { mode: String(state.mode), panels: Array.isArray(state.panels) ? state.panels.map(String) : [], interactive: !!state.interactive, opacity: Number(state.opacity) || 1, handsFree: !!state.handsFree };
+              if (before !== shown.interactive) {
+                modeListeners.slice().forEach(function (listener) { try { listener(shown.interactive); } catch (e) {} });
+              }
+            },
+            configurable: false
+          });
         })();
         """
     }
 
     // The call the shell evaluates in the page for a hotkey.
     public static func emit(_ command: HostCommand) -> String {
-        "window.__studioHostEmit && window.__studioHostEmit(\"\(command.rawValue)\");"
+        "window.__studioHostEmit && window.__studioHostEmit(\"\(command.wireName)\");"
+    }
+
+    // Pushes the presentation state to a page: it reads it synchronously and
+    // hears an interaction-mode change as `onInteractionMode`.
+    public static func emitPresentation(_ state: PresentationState) -> String {
+        let json = (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return "window.__studioHostPresentation && window.__studioHostPresentation(\(json));"
     }
 }

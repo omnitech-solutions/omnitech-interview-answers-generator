@@ -60,14 +60,17 @@ export function ownerInputDeps(
   | "requestCapture"
   | "captureStatus"
   | "submitFollowUp"
+  | "submitHeard"
+  | "solveTask"
 > {
   const client = createSessionClient(tenant, fetcher);
+  const solveIds = new Map<string, string>();
   const send = (sessionId: string, input: LiveOwnerInputRequest) =>
     client.sendOwnerInput(sessionId, input);
   return {
-    async analyzeLatestCapture(sessionId, target, hints) {
+    async analyzeLatestCapture(sessionId, target, hints, chosen) {
       const held = snapshot();
-      const latest = latestSnapshotIds(held);
+      const latest = chosen ?? latestSnapshotIds(held);
       // Nothing was captured yet: there is nothing to analyse.
       if (latest === null) throw new SessionApiError("invalid_input", 0);
       // Without a target Analyze starts its own task; with one (the owner's
@@ -94,6 +97,7 @@ export function ownerInputDeps(
         requestId: requestId(),
         mode: input.mode,
         ...(input.region ? { region: input.region } : {}),
+        ...(input.selection ? { selection: input.selection } : {}),
         ...(input.target
           ? {
               targetTaskId: input.target.taskId,
@@ -105,6 +109,30 @@ export function ownerInputDeps(
     },
     captureStatus(sessionId, id) {
       return client.getCaptureRequest(sessionId, id);
+    },
+    async submitHeard(sessionId, text, heardId) {
+      await client.sendHeard(sessionId, {
+        requestId: heardId,
+        operation: "heard",
+        text,
+      });
+    },
+    async solveTask(sessionId, target, hints) {
+      // One request id per task revision, so a repeat is the server's
+      // idempotent resend and never a second run.
+      const key = `${sessionId}/${target.taskId}/${target.revision}`;
+      let id = solveIds.get(key);
+      if (!id) {
+        id = requestId();
+        solveIds.set(key, id);
+      }
+      await send(sessionId, {
+        requestId: id,
+        operation: "solve",
+        target,
+        ...hintFields(hints),
+        snapshots: [],
+      });
     },
     async submitFollowUp(sessionId, text, hints) {
       const target = latestTarget(snapshot());

@@ -39,7 +39,10 @@ export function startNativeShare(): NativeShareHandle {
     },
     async grab(mask) {
       const frame = await captureThroughHost(mask);
-      if (!frame.ok) throw new FrameError("not-ready");
+      if (!frame.ok)
+        throw new FrameError(
+          frame.reason === "display-changed" ? "display-changed" : "not-ready",
+        );
       return {
         blob: frame.blob,
         label: frameLabel("This Mac", frame.masked),

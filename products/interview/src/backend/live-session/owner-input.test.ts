@@ -4,7 +4,10 @@
 // snapshot ids against the owner's own session, dedups on the request id, and
 // can never arrive on the capture wire (ADR-0016 Decision 4).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { OWNER_INPUT_SOURCE_ID } from "../db/live-session.js";
+import {
+  OWNER_INPUT_SOURCE_ID,
+  OWNER_MICROPHONE_SOURCE_ID,
+} from "../db/live-session.js";
 import { ingestObservation } from "./ingest.js";
 import {
   type Fixture,
@@ -401,5 +404,93 @@ describe("purging a session with owner inputs", () => {
       [`%${canary}%`],
     );
     expect(leftovers.rows).toHaveLength(0);
+  });
+});
+
+describe("heard speech (ADR-0022)", () => {
+  it("stores a heard phrase as a transcript from the reserved owner microphone source, idempotent by request id", async () => {
+    const world = await begin("heard-store");
+    const input = {
+      requestId: "h-1",
+      operation: "heard",
+      text: "Tell me about a time you led a team?",
+    };
+    const ack = await repo.submitOwnerInput(
+      world.scope,
+      world.session.id,
+      input,
+    );
+    expect(ack.requestId).toBe("h-1");
+    const stored = await rows(world.session.id, "transcript.final");
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({
+      source_id: OWNER_MICROPHONE_SOURCE_ID,
+      event_id: "h-1",
+    });
+    expect(stored[0].content.body).toMatchObject({
+      speaker: "microphone",
+      text: input.text,
+    });
+    // A resend returns the same acknowledgement and stores nothing more.
+    expect(
+      await repo.submitOwnerInput(world.scope, world.session.id, input),
+    ).toEqual(ack);
+    expect(await rows(world.session.id, "transcript.final")).toHaveLength(1);
+    // The same id with other words is refused and the original stays.
+    await expect(
+      repo.submitOwnerInput(world.scope, world.session.id, {
+        ...input,
+        text: "something else",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("refuses bounded-text violations and takes none while paused or from another owner", async () => {
+    const world = await begin("heard-refusals");
+    await expect(
+      repo.submitOwnerInput(world.scope, world.session.id, {
+        requestId: "h-long",
+        operation: "heard",
+        text: "x".repeat(1_001),
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      repo.submitOwnerInput(world.scope, world.session.id, {
+        requestId: "h-extra",
+        operation: "heard",
+        text: "hello",
+        snapshots: [],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    const intruder = await fx.provision(tenant, "heard-intruder");
+    await expect(
+      repo.submitOwnerInput(scopeOf(intruder), world.session.id, {
+        requestId: "h-2",
+        operation: "heard",
+        text: "hello",
+      }),
+    ).rejects.toMatchObject({ code: "not_found" });
+    await repo.controlSession(world.scope, world.session.id, "pause");
+    await expect(
+      repo.submitOwnerInput(world.scope, world.session.id, {
+        requestId: "h-3",
+        operation: "heard",
+        text: "hello",
+      }),
+    ).rejects.toMatchObject({ code: "status_refused" });
+    expect(await rows(world.session.id, "transcript.final")).toHaveLength(0);
+  });
+
+  it("refuses the reserved source id on the capture wire", async () => {
+    const world = await begin("heard-wire");
+    const claimed = await ingest(world.credential, {
+      ...transcript("mic", 0, "words", "w-1"),
+      sourceId: OWNER_MICROPHONE_SOURCE_ID,
+    });
+    expect(claimed).toMatchObject({
+      status: "refused",
+      code: "invalid_observation",
+      issues: [{ path: ["sourceId"], code: "invalid_value" }],
+    });
   });
 });

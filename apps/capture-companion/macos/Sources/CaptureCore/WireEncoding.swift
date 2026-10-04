@@ -84,12 +84,26 @@ extension CapabilityReport {
     }
 }
 
+extension CaptureFailure {
+    public var json: JSONValue {
+        .object([
+            "version": .number(Double(wireVersion)),
+            "kind": .string("capture.failure"),
+            "sourceId": .string(sourceId),
+            "sentAt": .string(sentAt),
+            "requestId": .string(requestId),
+            "code": .string(code.rawValue),
+        ])
+    }
+}
+
 extension IngestMessage {
     public var json: JSONValue {
         switch self {
         case .observation(let observation): return observation.json
         case .heartbeat(let heartbeat): return heartbeat.json
         case .capabilityReport(let report): return report.json
+        case .captureFailure(let failure): return failure.json
         }
     }
 
@@ -100,7 +114,9 @@ extension CaptureRequest {
     var json: JSONValue {
         var fields: [String: JSONValue] = [
             "requestId": .string(requestId), "mode": .string(mode.rawValue),
+            "expiresAt": .string(expiresAt),
         ]
+        if let selection { fields["selection"] = .string(selection) }
         if let region {
             fields["region"] = .object([
                 "x": .number(region.x), "y": .number(region.y),

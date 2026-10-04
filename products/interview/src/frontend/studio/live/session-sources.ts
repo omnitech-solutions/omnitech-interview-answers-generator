@@ -64,6 +64,8 @@ export type SourceStatus = {
 // its capture source in the content, which teaches the mapping for that id.
 const ALIAS: readonly [RegExp, LiveCaptureSource][] = [
   [/^(mic|microphone)/i, "microphone"],
+  // The owner's own browser microphone (ADR-0022): heard through Auto.
+  [/^studio\.owner-microphone$/, "microphone"],
   [/^(app|application)/i, "application-audio"],
   [/^(scr|screen)/i, "screen"],
 ];

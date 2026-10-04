@@ -7,6 +7,7 @@ import { Icon, type IconName } from "../../icon";
 import type { TaskView } from "../session-tasks";
 import { TASK_KIND } from "../task-panels";
 import type { SessionDraftLink } from "../workspace-handoff";
+import { LiveCodeCanvas } from "./code-canvas";
 import {
   type Approach,
   type DisclosureRow,
@@ -170,7 +171,12 @@ export function SolutionBlock({
       </button>
       {open && (
         <>
-          <pre className="ov-code">{solution.code}</pre>
+          <LiveCodeCanvas
+            result={solution.result}
+            revision={solution.revision}
+            size={defaultOpen ? "maximized" : "compact"}
+            onCopy={onCopy}
+          />
           <ul className="ov-badges" aria-label="Verification">
             {solution.badges.map((badge) => (
               <li key={badge.label} data-ok={badge.ok}>
@@ -183,14 +189,6 @@ export function SolutionBlock({
             ))}
           </ul>
           <div className="ov-solution-actions">
-            <button
-              type="button"
-              className="ov-button"
-              onClick={() => onCopy(solution.code)}
-            >
-              <Icon name="content_copy" />
-              Copy
-            </button>
             <button
               type="button"
               className="ov-button"

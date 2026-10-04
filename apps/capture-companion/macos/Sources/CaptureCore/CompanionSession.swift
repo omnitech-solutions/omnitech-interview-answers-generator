@@ -24,6 +24,12 @@ public final class CompanionSession {
     private var lastHeartbeatAt: Date?
     private var finalHeartbeatSent = false
     private let captureInbox = CaptureRequestInbox()
+    // The driver's token for the selected screen source (display identity plus a generation that
+    // changes whenever the selection restarts), and the platform's focus sampler.
+    private let screenSelection: @MainActor () -> String?
+    private let focusSampler: @MainActor () -> FocusSample
+    // The failure to report for the one request in flight, until Studio has answered it.
+    private var pendingFailure: CaptureFailure?
     public let heartbeatIntervalSeconds: Double
     // While the screen source runs, Studio may hand over a capture-now request
     // on any acknowledgement, so the heartbeat pulls this often instead.
@@ -33,8 +39,11 @@ public final class CompanionSession {
         selection: Set<CaptureSource>, runId: String, endpoint: Endpoint, credentials: CredentialStore,
         transport: Transport, clock: WallClock, sources: SourceControl, marker: StopMarkerStore,
         buffers: [AudioRingBuffer], backoff: Backoff, outboxCapacity: Int = 500,
-        heartbeatIntervalSeconds: Double = 5
+        heartbeatIntervalSeconds: Double = 5, screenSelection: @escaping @MainActor () -> String? = { nil },
+        focusSampler: @escaping @MainActor () -> FocusSample = { .none }
     ) {
+        self.screenSelection = screenSelection
+        self.focusSampler = focusSampler
         machine = CompanionStateMachine(selection: selection)
         factory = ObservationFactory(runId: runId, clock: clock)
         outbox = Outbox(capacity: outboxCapacity, factory: factory)
@@ -117,8 +126,34 @@ public final class CompanionSession {
     // Honoured only while the screen source is running; anything else is dropped
     // visibly so the person can see why nothing was captured.
     public func takeCaptureRequest() -> CaptureTake {
-        guard let request = captureInbox.take() else { return .nothing }
-        return screenRunning ? .honour(request) : .ignored
+        guard let (request, focus) = captureInbox.takeWithFocus() else { return .nothing }
+        // [SAFETY] Every way a request cannot be honoured is reported to Studio as one typed
+        // failure for that id (except a missed deadline, which Studio already expired), so the
+        // owner hears at once instead of at expiry. Nothing is ever captured wider instead.
+        if let deadline = TimeText.parse(request.expiresAt), clock.now() >= deadline { return .expired }
+        guard screenRunning else {
+            reportCaptureFailure(request, .sourceGone)
+            return .ignored
+        }
+        if let selection = request.selection, selection != screenSelection() {
+            reportCaptureFailure(request, .sourceChanged)
+            return .sourceChanged
+        }
+        return .honour(request, focus)
+    }
+
+    // Queues the failure; `tick` sends it, and resends it until Studio has answered.
+    public func reportCaptureFailure(_ request: CaptureRequest, _ code: CaptureFailureCode) {
+        guard !machine.isTerminal else { return }
+        pendingFailure = CaptureFailure(
+            sourceId: factory.companionId, sentAt: TimeText.iso(clock.now()), requestId: request.requestId, code: code)
+    }
+
+    private func sendPendingFailure() async {
+        guard let failure = pendingFailure else { return }
+        guard let result = await send(.captureFailure(failure), payload: nil, answering: nil) else { return }
+        if case .refused(.rateLimited, _, _) = result.ack { return }
+        pendingFailure = nil
     }
 
     // Sends what one capture-now request produced, tagged with its id. The
@@ -129,6 +164,7 @@ public final class CompanionSession {
         guard screenRunning else { return .dropped }
         switch outcome {
         case .lost(let loss):
+            reportCaptureFailure(request, loss.failureCode)
             return .lost(loss)
         case .image(let jpeg, let windowLabel):
             let sent = submitScreenshot(
@@ -164,6 +200,7 @@ public final class CompanionSession {
             pull.credentialExpired()
         }
         guard !machine.isTerminal || machine.state == .stoppedLocally else { return }
+        await sendPendingFailure()
         await flush(now: now)
         await heartbeatIfDue(now: now)
     }
@@ -218,7 +255,8 @@ public final class CompanionSession {
     // there was no usable answer (unreachable, malformed, server error).
     private func send(_ message: IngestMessage, payload: Data?, answering observation: Observation?) async -> (ack: Acknowledgement, retryAfter: Double?)? {
         guard let credential = try? credentials.load(),
-            let request = endpoint.request(for: message, payload: payload, credential: credential)
+            let request = endpoint.request(
+                for: message, payload: payload, credential: credential, screenSelection: screenSelection())
         else {
             // No usable credential stored: nothing can be sent; capture is not continued blindly.
             pull.credentialExpired()
@@ -243,8 +281,8 @@ public final class CompanionSession {
             // carries the ORIGINAL ack, and a finished run takes nothing.
             if !machine.isTerminal {
                 switch ack {
-                case .accepted(let accepted): captureInbox.offer(accepted.control.capture)
-                case .refused(_, let control, _): captureInbox.offer(control?.capture)
+                case .accepted(let accepted): captureInbox.offer(accepted.control.capture, sampleFocus: focusSampler)
+                case .refused(_, let control, _): captureInbox.offer(control?.capture, sampleFocus: focusSampler)
                 case .duplicate: break
                 }
             }

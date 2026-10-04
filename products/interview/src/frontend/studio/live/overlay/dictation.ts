@@ -8,6 +8,7 @@
 // rather than sending audio to a speech service. In a remote session Chrome may
 // use its own speech service, which the tooltip says.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createRestartPolicy } from "./auto-restart";
 
 type RecognitionResult = { isFinal: boolean; 0: { transcript: string } };
 type RecognitionEvent = {
@@ -26,7 +27,13 @@ export type Recognition = {
   stop(): void;
   abort(): void;
 };
-type RecognitionCtor = new () => Recognition;
+type OnDeviceOptions = { langs: string[]; processLocally: true };
+type RecognitionCtor = (new () => Recognition) & {
+  // The on-device capability check and language-pack install, where the browser
+  // has them (Chrome 139+).
+  available?: (options: OnDeviceOptions) => Promise<string>;
+  install?: (options: OnDeviceOptions) => Promise<boolean>;
+};
 
 export function recognitionCtor(): RecognitionCtor | null {
   const host = window as unknown as {
@@ -44,6 +51,8 @@ export const DICTATION_MESSAGES = {
     "This browser has no dictation. Use Chrome or Edge, or type the follow-up.",
   deviceOnlyUnsupported:
     "Device-only mode needs on-device dictation, which this browser can’t do, so dictation is off. Type the follow-up instead.",
+  deviceOnlyUnavailable:
+    "Device-only mode needs on-device dictation, and it isn’t available for your language in this browser, so dictation is off. Type the follow-up instead.",
   denied:
     "Microphone permission was denied. Allow it for this site in the browser’s site settings, then try again.",
   noSpeech: "No speech heard. Try again closer to the microphone.",
@@ -125,11 +134,50 @@ async function startMeter(
   };
 }
 
+// [SAFETY] Device-only: on-device recognition must be established BEFORE any
+// audio is recorded. A browser that cannot say so (no available()) is refused,
+// as is one whose language pack is missing and cannot be installed.
+async function establishOnDevice(
+  Ctor: RecognitionCtor,
+  rec: Recognition,
+  lang: string,
+): Promise<string | null> {
+  if (!("processLocally" in rec) || typeof Ctor.available !== "function")
+    return DICTATION_MESSAGES.deviceOnlyUnsupported;
+  const options: OnDeviceOptions = { langs: [lang], processLocally: true };
+  try {
+    let availability = await Ctor.available(options);
+    if (
+      (availability === "downloadable" || availability === "downloading") &&
+      typeof Ctor.install === "function"
+    ) {
+      if (!(await Ctor.install(options)))
+        return DICTATION_MESSAGES.deviceOnlyUnavailable;
+      availability = await Ctor.available(options);
+    }
+    if (availability !== "available")
+      return DICTATION_MESSAGES.deviceOnlyUnavailable;
+  } catch {
+    return DICTATION_MESSAGES.deviceOnlyUnavailable;
+  }
+  rec.processLocally = true;
+  return null;
+}
+
 export function useDictation({
   deviceOnly,
+  bindingKey = null,
+  persistent = false,
   onFinal,
 }: {
+  // Hands-free Auto: listening carries on through silence timeouts and errors
+  // that retrying can fix (restarting with a growing wait), and only stops for
+  // one that cannot be fixed by retrying (permission, no microphone).
+  persistent?: boolean;
   deviceOnly: boolean;
+  // The session dictation belongs to: phrases heard under another one are
+  // dropped, and a change of session ends listening.
+  bindingKey?: string | null;
   onFinal(text: string): void;
 }) {
   const [state, setState] = useState<DictationState>("idle");
@@ -140,12 +188,25 @@ export function useDictation({
   // Nothing at all heard since listening began, and for how long.
   const [silent, setSilent] = useState(false);
   const [heard, setHeard] = useState(false);
+  // When a phrase last arrived (Date.now), and whether the browser said the
+  // microphone is not allowed: the real state behind the lights.
+  const [heardAt, setHeardAt] = useState<number | null>(null);
+  const [denied, setDenied] = useState(false);
+  const restart = useRef(createRestartPolicy());
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivity = useRef(0);
   const stopMeter = useRef<(() => void) | null>(null);
   const recognition = useRef<Recognition | null>(null);
   const wanted = useRef(false);
+  // Bumped by every stop and every new attempt: an on-device check that
+  // finishes after either is ignored.
+  const attempt = useRef(0);
+  const binding = useRef(bindingKey);
+  binding.current = bindingKey;
   const final = useRef(onFinal);
   final.current = onFinal;
+  const keepAlive = useRef(persistent);
+  keepAlive.current = persistent;
   const supported = recognitionCtor() !== null;
 
   const endMeter = useCallback(() => {
@@ -155,6 +216,10 @@ export function useDictation({
   }, []);
 
   const stop = useCallback(() => {
+    attempt.current += 1;
+    if (restartTimer.current !== null) clearTimeout(restartTimer.current);
+    restartTimer.current = null;
+    restart.current.reset();
     endMeter();
     setSilent(false);
     setHeard(false);
@@ -165,6 +230,118 @@ export function useDictation({
     setInterim("");
   }, [endMeter]);
 
+  const begin = useCallback(
+    (rec: Recognition) => {
+      const origin = binding.current;
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = navigator.language || "en-US";
+      rec.onresult = (event) => {
+        lastActivity.current = Date.now();
+        restart.current.heard();
+        setSilent(false);
+        setHeard(true);
+        setHeardAt(lastActivity.current);
+        let pending = "";
+        for (let at = event.resultIndex; at < event.results.length; at += 1) {
+          const result = event.results[at];
+          if (!result) continue;
+          const text = result[0].transcript;
+          if (result.isFinal) {
+            const phrase = text.trim();
+            // [SAFETY] Words heard for one session never land in another's input.
+            if (phrase !== "" && origin === binding.current)
+              final.current(phrase);
+          } else pending += text;
+        }
+        setInterim(pending.trim());
+      };
+      rec.onerror = (event) => {
+        if (
+          event.error === "not-allowed" ||
+          event.error === "service-not-allowed"
+        )
+          setDenied(true);
+        // Silence and a dropped connection are expected in a long listen: the
+        // restart below handles them, and they are not shown as errors.
+        if (
+          keepAlive.current &&
+          (event.error === "no-speech" ||
+            event.error === "aborted" ||
+            event.error === "network")
+        ) {
+          if (event.error === "network") setError(messageFor(event.error));
+          return;
+        }
+        setError(messageFor(event.error));
+        if (FATAL.has(event.error)) wanted.current = false;
+      };
+      rec.onend = () => {
+        // The browser ends a session after a pause; carry on while it is wanted.
+        if (wanted.current) {
+          const wait = restart.current.ended(Date.now());
+          const again = () => {
+            restartTimer.current = null;
+            if (!wanted.current) return;
+            try {
+              restart.current.started(Date.now());
+              rec.start();
+            } catch {
+              wanted.current = false;
+              recognition.current = null;
+              endMeter();
+              setState("idle");
+              setInterim("");
+            }
+          };
+          // [SAFETY] A run that dies young waits longer each time: no storm.
+          if (wait === 0) {
+            try {
+              restart.current.started(Date.now());
+              rec.start();
+              return;
+            } catch {
+              // Fall through to idle.
+            }
+          } else {
+            restartTimer.current = setTimeout(again, wait);
+            return;
+          }
+        }
+        wanted.current = false;
+        recognition.current = null;
+        endMeter();
+        setState("idle");
+        setInterim("");
+      };
+      setError(null);
+      setDenied(false);
+      try {
+        restart.current.reset();
+        restart.current.started(Date.now());
+        rec.start();
+      } catch {
+        setError(DICTATION_MESSAGES.other);
+        return;
+      }
+      recognition.current = rec;
+      wanted.current = true;
+      lastActivity.current = Date.now();
+      setSilent(false);
+      setHeard(false);
+      setState("listening");
+      // Best effort: a refusal here (no permission) is dictation's own error.
+      void startMeter(setLevel).then(
+        (end) => {
+          if (wanted.current) stopMeter.current = end;
+          else end();
+        },
+        () => undefined,
+      );
+    },
+    [endMeter],
+  );
+
   const start = useCallback(() => {
     const Ctor = recognitionCtor();
     if (!Ctor) {
@@ -172,80 +349,36 @@ export function useDictation({
       return;
     }
     const rec = new Ctor();
-    if (deviceOnly) {
-      // [SAFETY] On this device or not at all.
-      if (!("processLocally" in rec)) {
-        setError(DICTATION_MESSAGES.deviceOnlyUnsupported);
-        return;
-      }
-      rec.processLocally = true;
-    }
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = navigator.language || "en-US";
-    rec.onresult = (event) => {
-      lastActivity.current = Date.now();
-      setSilent(false);
-      setHeard(true);
-      let pending = "";
-      for (let at = event.resultIndex; at < event.results.length; at += 1) {
-        const result = event.results[at];
-        if (!result) continue;
-        const text = result[0].transcript;
-        if (result.isFinal) {
-          const phrase = text.trim();
-          if (phrase !== "") final.current(phrase);
-        } else pending += text;
-      }
-      setInterim(pending.trim());
-    };
-    rec.onerror = (event) => {
-      setError(messageFor(event.error));
-      if (FATAL.has(event.error)) wanted.current = false;
-    };
-    rec.onend = () => {
-      // The browser ends a session after a pause; carry on while it is wanted.
-      if (wanted.current) {
-        try {
-          rec.start();
-          return;
-        } catch {
-          // Fall through to idle.
-        }
-      }
-      wanted.current = false;
-      recognition.current = null;
-      endMeter();
-      setState("idle");
-      setInterim("");
-    };
-    setError(null);
-    try {
-      rec.start();
-    } catch {
-      setError(DICTATION_MESSAGES.other);
+    if (!deviceOnly) {
+      begin(rec);
       return;
     }
-    recognition.current = rec;
-    wanted.current = true;
-    lastActivity.current = Date.now();
-    setSilent(false);
-    setHeard(false);
-    setState("listening");
-    // Best effort: a refusal here (no permission) is dictation's own error.
-    void startMeter(setLevel).then(
-      (end) => {
-        if (wanted.current) stopMeter.current = end;
-        else end();
+    // [SAFETY] On this device or not at all, and decided before recording.
+    const mine = ++attempt.current;
+    setError(null);
+    void establishOnDevice(Ctor, rec, navigator.language || "en-US").then(
+      (refusal) => {
+        if (mine !== attempt.current) return;
+        if (refusal) setError(refusal);
+        else begin(rec);
       },
-      () => undefined,
     );
-  }, [deviceOnly, endMeter]);
+  }, [deviceOnly, begin]);
 
   const toggle = useCallback(() => {
     if (wanted.current) stop();
     else start();
   }, [start, stop]);
+
+  // Another session: listening ends, whatever was being heard is dropped.
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
+  useEffect(() => {
+    return () => {
+      attempt.current += 1;
+      if (wanted.current) stopRef.current();
+    };
+  }, [bindingKey]);
 
   // After a few seconds of nothing, say so.
   useEffect(() => {
@@ -262,6 +395,7 @@ export function useDictation({
   useEffect(
     () => () => {
       wanted.current = false;
+      if (restartTimer.current !== null) clearTimeout(restartTimer.current);
       recognition.current?.abort();
       stopMeter.current?.();
     },
@@ -275,9 +409,12 @@ export function useDictation({
     supported,
     level,
     heard,
+    heardAt,
+    denied,
     // "Heard nothing": listening for a while and not a word yet.
     heardNothing: state === "listening" && silent && !heard,
     toggle,
+    start,
     stop,
     clearInterim,
   };

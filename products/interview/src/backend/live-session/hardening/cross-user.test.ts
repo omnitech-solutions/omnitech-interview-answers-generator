@@ -4,8 +4,9 @@
 // (transcripts, a screenshot, a capability report), the real processor and a
 // private job; member B and member C then try every path as themselves. Each
 // negative has a positive control: A reads the same thing and gets content.
-import { sql } from "drizzle-orm";
+
 import * as fixture from "@omnitech/capture-companion/fixture";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PNG_BYTES } from "../live-session-fixture.js";
 import {

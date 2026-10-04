@@ -7,7 +7,9 @@
 @import "./session-view.css";
 @import "./ended.css";
 @import "./workspace-handoff.css";
+@import "./overlay/code-canvas.css";
 @import "./overlay/overlay.css";
+@import "./overlay/panels/panels.css";
 
 .live-page {
   flex: 1;

@@ -10,13 +10,13 @@ private func call(_ method: String, _ params: [String: Any] = [:], v: Any = 1) -
 func bridgeDecodeTests(_ t: Harness) async {
     await t.test("captureScreen decodes each mode; a region is exact") {
         t.expectEqual(call("captureScreen", ["mode": "focused-window"]),
-            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .focusedWindow))))
+            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .focusedWindow, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
         t.expectEqual(call("captureScreen", ["mode": "display"]),
-            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .display))))
+            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .display, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
         let region: [String: Any] = ["x": 0.1, "y": 0.2, "width": 0.5, "height": 0.4]
         t.expectEqual(call("captureScreen", ["mode": "region", "region": region]),
             .success(.captureScreen(CaptureRequest(
-                requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4)))))
+                requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4), expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
     }
 
     await t.test("a region outside the unit square, empty, missing or unexpected is refused") {
@@ -35,6 +35,31 @@ func bridgeDecodeTests(_ t: Harness) async {
         t.expectEqual(call("captureScreen", ["mode": "everything"]), .failure(.invalidParameters))
         t.expectEqual(call("captureScreen", ["mode": "region", "region": ["x": true, "y": 0, "width": 1, "height": 1]]),
             .failure(.invalidParameters), "a Bool is not a number")
+    }
+
+    await t.test("a region may carry the display id it was defined for; nothing else may") {
+        let region: [String: Any] = ["x": 0, "y": 0, "width": 0.5, "height": 0.5]
+        t.expectEqual(call("captureScreen", ["mode": "region", "region": region, "displayId": 69_733_378]),
+            .success(.captureScreen(
+                CaptureRequest(requestId: "r", mode: .region, region: CaptureRegion(x: 0, y: 0, width: 0.5, height: 0.5), expiresAt: HostCallDecoder.pageRequestExpiry),
+                displayId: 69_733_378)))
+        for bad: Any in [-1, 1.5, "7", true, 4_294_967_296] {
+            t.expectEqual(call("captureScreen", ["mode": "region", "region": region, "displayId": bad]),
+                .failure(.invalidParameters), "\(bad)")
+        }
+        t.expectEqual(call("captureScreen", ["mode": "display", "displayId": 1]), .failure(.invalidParameters))
+    }
+
+    await t.test("unknown keys, over-long methods and extra top-level fields are refused") {
+        t.expectEqual(call("captureScreen", ["mode": "display", "path": "/etc/passwd"]), .failure(.invalidParameters))
+        t.expectEqual(call("pinOnTop", ["pinned": true, "shell": "rm"]), .failure(.invalidParameters))
+        t.expectEqual(call("openExternal", ["url": "https://example.com", "headers": [:]]), .failure(.invalidParameters))
+        t.expectEqual(call(String(repeating: "a", count: 33)), .failure(.malformed))
+        t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "pinOnTop", "params": ["pinned": true], "fs": "read"] as [String: Any]),
+            .failure(.malformed))
+        for method in ["readFile", "exec", "fetch", "httpProxy"] {
+            t.expectEqual(call(method), .failure(.unknownMethod), method)
+        }
     }
 
     await t.test("pinOnTop and openExternal are bounded") {
@@ -60,6 +85,8 @@ func bridgeDecodeTests(_ t: Harness) async {
         t.expectEqual(ok["ok"] as? Bool, true)
         t.expectEqual(ok["base64"] as? String, "/9j/2Q==")
         t.expect(!"\(ok)".contains("Secret App"), "the application name is not sent")
+        let bound = HostReply.capture(.image(jpeg: Data([0xff]), windowLabel: "x"), screenAccessGranted: true, displayId: 7)
+        t.expectEqual(bound["displayId"] as? Int, 7, "a frame names the display it came from")
         t.expectEqual(HostReply.capture(.lost(.noFocusedWindow), screenAccessGranted: true)["reason"] as? String, "no-focused-window")
         t.expectEqual(HostReply.capture(.lost(.captureFailed), screenAccessGranted: true)["reason"] as? String, "capture-failed")
         t.expectEqual(HostReply.capture(.lost(.captureFailed), screenAccessGranted: false)["reason"] as? String, "permission-denied")

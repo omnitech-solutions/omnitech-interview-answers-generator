@@ -2,18 +2,18 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   type BriefingContext,
   type BriefingDraft,
-  type BriefingQuestion,
   type BriefingPrepared,
-  briefingPreparedContentSchema,
-  briefingCategoryOf as categoryOf,
+  type BriefingQuestion,
   briefingApplySchema,
   briefingAskSchema,
-  briefingPrepareSchema,
   briefingDraftSchema,
+  briefingPreparedContentSchema,
+  briefingPrepareSchema,
   briefingProfileImportSchema,
   briefingProposalRequestSchema,
   briefingPutSchema,
   briefingSaveSchema,
+  briefingCategoryOf as categoryOf,
 } from "@omnitech/interview-contracts";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -23,10 +23,10 @@ import {
   WorkspaceError,
   type WorkspaceScope,
 } from "../assistant/workspace.js";
-import { BriefingRepository } from "./repository.js";
-import { userEditedBriefing } from "./edits.js";
-import { selectCandidateFragments } from "./selection.js";
 import { generateChecked, type StructuredGenerate } from "../structured.js";
+import { userEditedBriefing } from "./edits.js";
+import { BriefingRepository } from "./repository.js";
+import { selectCandidateFragments } from "./selection.js";
 
 const prefix = "/api/interview/briefing";
 const citationSchema = z.strictObject({

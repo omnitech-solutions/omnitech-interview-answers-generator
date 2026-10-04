@@ -29,3 +29,18 @@ export function tellHost(event: OverlayEvent): void {
       window.location.origin,
     );
 }
+
+// /t/<tenant>/p/<product>/live/overlay?panel=<panel>[&host=...][&session=<id>]
+export function panelUrl(
+  panel: "pill" | "analysis" | "chat" | "settings",
+  host: "pip" | "native" | "window" = "window",
+  sessionId?: string | null,
+): string {
+  const base =
+    parseRoute(window.location).base ||
+    `/t/${encodeURIComponent(tenantFromLocation())}/p/interview`;
+  const query = new URLSearchParams({ panel });
+  if (host !== "window") query.set("host", host);
+  if (sessionId) query.set("session", sessionId);
+  return `${base}/live/overlay?${query.toString()}`;
+}

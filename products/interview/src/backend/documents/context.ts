@@ -170,4 +170,5 @@ export async function resolveDocumentContext(
     { database },
   );
 }
+
 import { createHash } from "node:crypto";

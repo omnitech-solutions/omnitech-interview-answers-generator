@@ -27,7 +27,7 @@
 // publisher is built in a later loop); nothing here reads it, and a pause or end
 // cancels the job through the same actions that name it.
 import type { CodingBrief } from "./assist-stage.js";
-import type { Escalation, CodingSolution } from "./coding-stage.js";
+import type { CodingSolution, Escalation } from "./coding-stage.js";
 import type { ProcessingPolicy, Task } from "./core/index.js";
 import { reserveJobId, type SessionJobRequest } from "./fenced-writes.js";
 import type { SessionStorePort } from "./processor-ports.js";

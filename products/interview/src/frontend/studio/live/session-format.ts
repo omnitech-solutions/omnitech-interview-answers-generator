@@ -38,14 +38,37 @@ export function sinceMs(
 // What the server's record says about the companion, in one place for the
 // pairing chip and the Sources row. "In contact" only on a recorded heartbeat
 // (never from a source's history): never-seen is never connected.
-export function companionContact(companion: CompanionModel): {
-  tone: "amber" | "green" | "red";
+export function companionContact(
+  companion: CompanionModel,
+  // The selected inputs that only the companion can supply (microphone,
+  // application audio). Empty: the companion is optional for this session.
+  dependsOn: readonly string[] = [],
+): {
+  tone: "neutral" | "green" | "red";
   text: string;
 } {
   if (companion.status === "never-seen")
-    return { tone: "amber", text: "No contact yet" };
+    // Optional and unused is not an alarm; a selected companion input that has
+    // never connected is.
+    return dependsOn.length === 0
+      ? { tone: "neutral", text: "No contact yet" }
+      : { tone: "red", text: "Capture companion hasn’t made contact" };
   const age = ageLabel(companion.ageMs ?? 0);
   return companion.status === "online"
     ? { tone: "green", text: `In contact · last heard ${age} ago` }
-    : { tone: "red", text: `No contact for ${age}` };
+    : {
+        tone: "red",
+        text: `Capture companion went offline. No contact for ${age}`,
+      };
+}
+
+// What an absent companion affects, in terms of the selected inputs only: the
+// session's own state and Studio's activity are said elsewhere and are not
+// changed by it. null while the companion is in contact or nothing depends on it.
+export function companionImpact(
+  companion: CompanionModel,
+  dependsOn: readonly string[],
+): string | null {
+  if (companion.status === "online" || dependsOn.length === 0) return null;
+  return `Affected inputs: ${dependsOn.join(", ")}. Nothing arrives from them until the companion is heard from again; the session itself and Studio keep running.`;
 }

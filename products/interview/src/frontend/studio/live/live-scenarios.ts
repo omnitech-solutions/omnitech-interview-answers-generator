@@ -47,10 +47,16 @@ export const SCENARIOS: Scenario[] = [
     prepare: ({ script }) => {
       script.session = sessionView({ status: "created" });
     },
-    must: [/No contact yet/, /Capture companion: not connected/],
+    must: [
+      /Capture companion hasn’t made contact/,
+      /Capture companion: not connected/,
+      /Not receiving/,
+    ],
+    // "Not receiving" is honest; a bare "receiving" and any "waiting" are not.
     mustNot: [
       /(?<!not )connected/i,
-      /receiving/i,
+      /(?<!not )receiving/i,
+      /waiting/i,
       /In contact/,
       /Waiting for the capture companion/,
     ],

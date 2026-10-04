@@ -11,7 +11,27 @@ import Foundation
 public enum CaptureLoss: String, Equatable, Sendable {
     // The frontmost application has no capturable window. Never widened to the display.
     case noFocusedWindow = "no-focused-window"
+    // Screen Recording permission was revoked after the screen source was selected.
+    case permissionDenied = "permission-denied"
     case captureFailed = "capture-failed"
+
+    // The closed code reported to Studio for this loss.
+    public var failureCode: CaptureFailureCode {
+        switch self {
+        case .noFocusedWindow: return .noFocusedWindow
+        case .permissionDenied: return .permissionDenied
+        case .captureFailed: return .captureFailed
+        }
+    }
+}
+
+// The frontmost application sampled when the request was TAKEN from an acknowledgement (the
+// earliest the companion learns of it), not when the capture runs and not at the owner's press,
+// which happens in Studio and moves focus there. A focused-window capture uses this sample only.
+public struct FocusSample: Equatable, Sendable {
+    public let frontmostPid: Int32?
+    public init(frontmostPid: Int32?) { self.frontmostPid = frontmostPid }
+    public static let none = FocusSample(frontmostPid: nil)
 }
 
 public enum CaptureOutcome: Equatable, Sendable {
@@ -22,10 +42,15 @@ public enum CaptureOutcome: Equatable, Sendable {
 
 public enum CaptureTake: Equatable, Sendable {
     case nothing
-    case honour(CaptureRequest)
+    case honour(CaptureRequest, FocusSample)
     // A request arrived while the screen source could not honour it (paused,
-    // lost, revoked, refused or never selected); it is dropped visibly.
+    // lost, revoked, refused or never selected); it is dropped visibly and
+    // reported to Studio as source-gone.
     case ignored
+    // The request's deadline passed before it could be honoured; Studio has expired it already.
+    case expired
+    // The region was drawn against another screen selection; reported as source-changed.
+    case sourceChanged
 }
 
 public enum CaptureCompletion: Equatable, Sendable {
@@ -41,19 +66,29 @@ public final class CaptureRequestInbox {
     private static let remembered = 32
     private var handled: [String] = []
     private var wanted: CaptureRequest?
+    private var focus = FocusSample.none
 
     public init() {}
 
-    public func offer(_ request: CaptureRequest?) {
+    // `sampleFocus` runs only for a newly accepted focused-window request, at this moment.
+    public func offer(_ request: CaptureRequest?, sampleFocus: () -> FocusSample = { .none }) {
         guard let request, !handled.contains(request.requestId) else { return }
         handled.append(request.requestId)
         if handled.count > Self.remembered { handled.removeFirst() }
         wanted = request
+        focus = request.mode == .focusedWindow ? sampleFocus() : .none
     }
 
     public func take() -> CaptureRequest? {
-        defer { wanted = nil }
-        return wanted
+        takeWithFocus()?.request
+    }
+
+    public func takeWithFocus() -> (request: CaptureRequest, focus: FocusSample)? {
+        defer {
+            wanted = nil
+            focus = .none
+        }
+        return wanted.map { ($0, focus) }
     }
 }
 

@@ -13,9 +13,14 @@ import {
   type AgentResumeRequest,
   type AgentRunRequest,
   type AgentRuntimeAdapter,
+  failureReasonOf,
   stagedImages,
   TOOL_REFUSED_FAILURE,
 } from "@omnitech/agent-runtime-contracts";
+
+// The SDK's result subtype as the typed failure reason, only when it is one of
+// the closed vocabulary; any other subtype carries no reason (never free text).
+const resultReason = (subtype: string) => failureReasonOf(subtype);
 
 export interface ClaudeRuntimeOptions {
   environment?: Readonly<Record<string, string>>;
@@ -274,8 +279,11 @@ export function createClaudeRuntimeAdapter(
                   code: session.cancelRequested ? "cancelled" : "provider",
                   // [SAFETY] Fixed text naming only the SDK's result subtype
                   // (a closed vocabulary); the SDK's own error strings may
-                  // quote model output and never leave the adapter.
+                  // quote model output and never leave the adapter. The
+                  // subtype also travels as the typed `reason`, which is what
+                  // consumers read; the message is for people only.
                   message: `Claude ended with ${message.subtype}.`,
+                  ...resultReason(message.subtype),
                   retryable: false,
                 },
               });
@@ -291,6 +299,7 @@ export function createClaudeRuntimeAdapter(
             error: {
               code: session.cancelRequested ? "cancelled" : "provider",
               message: "Claude ended without a result.",
+              reason: "no_result",
               retryable: false,
             },
           });

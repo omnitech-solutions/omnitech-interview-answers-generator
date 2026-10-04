@@ -6,13 +6,13 @@ import {
   generateRequestSchema,
   libraryItemInputSchema,
   librarySearchQuerySchema,
+  renderGuideMarkdown,
   routeQuestion,
   routeRequestSchema,
   runAllRequestSchema,
   runRequestSchema,
   saveAnswerRequestSchema,
   saveExplanationRequestSchema,
-  renderGuideMarkdown,
   syntaxCheckRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
@@ -29,7 +29,6 @@ import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace.js";
 import { LibraryIndexUnavailableError } from "./library-service.js";
-import { playgroundControlStore } from "./workspace-control.js";
 import {
   answerRepository,
   codeRunner,
@@ -40,6 +39,7 @@ import {
   libraryService,
 } from "./services.js";
 import type { StructuredGenerate } from "./structured.js";
+import { playgroundControlStore } from "./workspace-control.js";
 
 type ApiEnvironment = {
   Variables: {

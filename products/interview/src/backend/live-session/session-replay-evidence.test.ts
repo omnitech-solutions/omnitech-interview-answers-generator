@@ -11,6 +11,7 @@
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
+import { LEAVING_REASON_PLACEHOLDER } from "./claims.js";
 import {
   fakeRunner,
   isSolutionRequest,
@@ -23,8 +24,6 @@ import {
   type Fixture,
   startFixture,
 } from "./live-session-fixture.js";
-import { createDatabaseStorePort } from "./session-ports.js";
-import type { SessionProcessorPorts } from "./processor-ports.js";
 import {
   buildProcessor,
   type CollectedTrace,
@@ -37,9 +36,10 @@ import {
   settle,
   startSessionForPerson,
 } from "./processor-fixture.js";
+import type { SessionProcessorPorts } from "./processor-ports.js";
 import {
-  answer,
   agentJobCount,
+  answer,
   capturedText,
   protectedTableDigests,
   refFor,
@@ -57,7 +57,7 @@ import {
 } from "./replay-fixtures-hazards.js";
 import { MANAGER_FIXTURE } from "./replay-fixtures-manager.js";
 import { ActiveSessionRepository } from "./repository.js";
-import { LEAVING_REASON_PLACEHOLDER } from "./claims.js";
+import { createDatabaseStorePort } from "./session-ports.js";
 import type { ReplayPhase } from "./session-replay-fixtures.js";
 import type { SessionCodeRunner } from "./session-run.js";
 

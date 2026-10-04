@@ -101,7 +101,8 @@ struct SessionHarness {
 @MainActor
 func makeSession(
     selection: Set<CaptureSource> = [.microphone, .screen], capacity: Int = 500,
-    responder: @escaping ScriptedTransport.Responder = { acceptedResult(for: $0) }
+    responder: @escaping ScriptedTransport.Responder = { acceptedResult(for: $0) },
+    screenSelection: String? = "disp-1.1", focusPid: Int32? = 4242
 ) -> SessionHarness {
     let clock = FakeClock()
     let credentials = FakeCredentials()
@@ -113,7 +114,8 @@ func makeSession(
     let session = CompanionSession(
         selection: selection, runId: "r1", endpoint: endpoint, credentials: credentials,
         transport: transport, clock: clock, sources: sources, marker: marker, buffers: buffers,
-        backoff: Backoff(random: { 0 }), outboxCapacity: capacity)
+        backoff: Backoff(random: { 0 }), outboxCapacity: capacity,
+        screenSelection: { screenSelection }, focusSampler: { FocusSample(frontmostPid: focusPid) })
     return SessionHarness(
         session: session, clock: clock, credentials: credentials, sources: sources, marker: marker,
         transport: transport, buffers: buffers)

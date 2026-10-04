@@ -9,9 +9,10 @@ import {
   type LiveCaptureState,
   type LiveCompanionCapability,
   type LiveCredential,
+  type LiveHeardRequest,
   type LiveOwnerInputRequest,
-  type LiveOwnerLanguage,
-  type LiveOwnerSkill,
+  type LiveOwnerLanguageHint,
+  type LiveOwnerSkillHint,
   type LiveProcessingPolicy,
   type LiveRetentionMode,
   type LiveSessionChoicesResponse,
@@ -104,6 +105,8 @@ export type SessionClient = {
     sessionId: string,
     input: LiveOwnerInputRequest,
   ): Promise<void>;
+  // One heard phrase (hands-free Auto), to the same input route.
+  sendHeard(sessionId: string, input: LiveHeardRequest): Promise<void>;
   // Capture and analyze: one multipart request carrying the frame the browser
   // just took (already cropped to the owner's region) and its hints. This is the
   // one function that knows the route's wire shape.
@@ -127,8 +130,8 @@ export type CaptureUpload = {
   image: Blob;
   label?: string;
   target?: { taskId: string; revision: number };
-  skill?: LiveOwnerSkill | undefined;
-  language?: LiveOwnerLanguage | undefined;
+  skill?: LiveOwnerSkillHint | undefined;
+  language?: LiveOwnerLanguageHint | undefined;
 };
 
 async function errorFrom(response: Response): Promise<SessionApiError> {
@@ -280,6 +283,12 @@ export function createSessionClient(
       return session;
     },
     async sendOwnerInput(sessionId, input) {
+      await read(
+        await post(at(sessionId, "/input"), input),
+        liveOwnerInputResponseSchema,
+      );
+    },
+    async sendHeard(sessionId, input) {
       await read(
         await post(at(sessionId, "/input"), input),
         liveOwnerInputResponseSchema,

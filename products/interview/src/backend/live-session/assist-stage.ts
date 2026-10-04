@@ -17,10 +17,11 @@
 //
 // No tools exist in this call (rule:fast-path-no-tools); the coding path is a
 // separate stage that uses the coding brief this stage produces.
-import type {
-  CandidateMatrix,
-  LiveOwnerLanguage,
-  LiveOwnerSkill,
+import {
+  type CandidateMatrix,
+  LIVE_OWNER_LANGUAGES,
+  type LiveOwnerLanguage,
+  type LiveOwnerSkill,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
 import {
@@ -85,7 +86,6 @@ export const LOGISTICS_FIELDS = [
   "work-arrangement",
 ] as const;
 export type LogisticsField = (typeof LOGISTICS_FIELDS)[number];
-export const CODING_LANGUAGES = ["typescript", "react"] as const;
 
 export type CapturedLine = { speaker: string; text: string };
 
@@ -177,7 +177,7 @@ const logisticsSchema = z.strictObject({
   missing: z.array(z.enum(LOGISTICS_FIELDS)).max(LOGISTICS_FIELDS.length),
 });
 export const codingBriefSchema = z.strictObject({
-  language: z.enum(CODING_LANGUAGES),
+  language: z.enum(LIVE_OWNER_LANGUAGES),
   restatement: z.string().min(1).max(1_000),
   constraints: z.array(z.string().min(1).max(300)).max(10),
 });
@@ -310,7 +310,7 @@ const RESPONSE_SCHEMA = {
       additionalProperties: false,
       required: ["language", "restatement", "constraints"],
       properties: {
-        language: { type: "string", enum: [...CODING_LANGUAGES] },
+        language: { type: "string", enum: [...LIVE_OWNER_LANGUAGES] },
         restatement: { type: "string", maxLength: 1_000 },
         constraints: {
           type: "array",
@@ -341,7 +341,7 @@ const SYSTEM_POLICY = [
   'For leadership-behavioural, "star" is {situation, task, action, result, missing}; each element is {"text","claimIndexes"} citing at least one matrix-backed claim, or it is listed in "missing" with empty text and no claim indexes. Never invent a story.',
   'For logistics, "logistics" is {"found":[{"field","claimIndex"}],"missing":[fields]}; found lists only preference-backed claims.',
   `For leaving-role, never generate the reason for leaving: write exactly "${LEAVING_REASON_PLACEHOLDER}" in the draft and as the only suggested-interpretation. Employer names and dates only as matrix-backed claims. Never disparage an employer.`,
-  'For coding, "codingBrief" is {"language":"typescript"|"react","restatement","constraints"}.',
+  `For coding, "codingBrief" is {"language":${LIVE_OWNER_LANGUAGES.map((l) => `"${l}"`).join("|")},"restatement","constraints"}.`,
   'Use null for "star", "logistics" and "codingBrief" when the category does not need them.',
 ].join("\n");
 
@@ -358,22 +358,22 @@ const IMAGE_POLICY = [
 // One constant sentence per owner hint value (no free text ever interpolated).
 export const SKILL_POLICY: Record<LiveOwnerSkill, string> = {
   programming:
-    "The candidate says this is a programming question: treat it as a coding or software-engineering problem and prefer the coding category when it presents a problem to solve.",
-  dsa: "The candidate says this is a data structures and algorithms question: treat it as a coding problem and state the approach and its time and space complexity in complexity notation.",
+    "The candidate says this is a programming question: treat it as a coding or software-engineering problem and prefer the coding category when it presents a problem to solve. Style: practical and concrete, name the language idioms and the edge cases.",
+  dsa: "The candidate says this is a data structures and algorithms question: treat it as a coding problem and state the approach and its time and space complexity in complexity notation. Style: lead with the brute-force idea, then the optimal one, and name the invariant.",
   "system-design":
-    "The candidate says this is a system design question: outline requirements, components, data flow and trade-offs in the draft.",
+    "The candidate says this is a system design question: outline requirements, components, data flow and trade-offs in the draft. Style: start with requirements and scale, then a component outline, then the trade-offs and the failure modes.",
   behavioral:
-    "The candidate says this is a behavioural question: answer in the STAR shape using only approved experience, and list missing elements instead of inventing a story.",
+    "The candidate says this is a behavioural question: answer in the STAR shape using only approved experience, and list missing elements instead of inventing a story. Style: first person, specific and brief, with the result stated last.",
   "data-science":
-    "The candidate says this is a data science question: cover the method, assumptions, evaluation and trade-offs.",
+    "The candidate says this is a data science question: cover the method, assumptions, evaluation and trade-offs. Style: name the metric and the validation first, then the model choice and its risks.",
   "sales-business":
-    "The candidate says this is a sales or business question: be concrete about the customer, the value and the commercial trade-offs.",
+    "The candidate says this is a sales or business question: be concrete about the customer, the value and the commercial trade-offs. Style: lead with the customer outcome, then the proof and the ask.",
   presentation:
-    "The candidate says this is a presentation question: structure the answer as a clear spoken opening, key points and a close.",
+    "The candidate says this is a presentation question: structure the answer as a clear spoken opening, key points and a close. Style: short spoken sentences, three key points at most, and a clear call to action.",
   negotiation:
-    "The candidate says this is a negotiation question: cover interests, alternatives and the candidate's stated preferences only.",
+    "The candidate says this is a negotiation question: cover interests, alternatives and the candidate's stated preferences only. Style: calm and collaborative, anchor on interests, never state a figure that is not a cited preference.",
   devops:
-    "The candidate says this is a DevOps question: cover delivery, infrastructure, reliability and observability trade-offs.",
+    "The candidate says this is a DevOps question: cover delivery, infrastructure, reliability and observability trade-offs. Style: walk the pipeline from commit to production, then the rollback and monitoring story.",
 };
 export const LANGUAGE_POLICY: Record<LiveOwnerLanguage, string> = {
   typescript:

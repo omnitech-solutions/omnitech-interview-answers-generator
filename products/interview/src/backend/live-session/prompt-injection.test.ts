@@ -61,8 +61,8 @@ import {
   protectedTableDigests,
   sessionPrivacyColumns,
 } from "./replay-evidence-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
 import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
+import { ActiveSessionRepository } from "./repository.js";
 import { seg } from "./session-replay-fixtures.js";
 
 let fx: Fixture;

@@ -14,6 +14,7 @@ import { CompanionError } from "./errors.js";
 import { FAKE_CREDENTIAL, fakeStudio } from "./fixture/fake-studio.js";
 import {
   capabilityReportMessage,
+  captureFailureMessage,
   captureGapMessage,
   heartbeatMessage,
   screenSnapshotMessage,
@@ -49,6 +50,7 @@ const builders: Record<string, (body: never) => unknown> = {
   "capture.gap": captureGapMessage,
   heartbeat: heartbeatMessage,
   "capability.report": capabilityReportMessage,
+  "capture.failure": captureFailureMessage,
 };
 
 const validIngest = entries.filter(

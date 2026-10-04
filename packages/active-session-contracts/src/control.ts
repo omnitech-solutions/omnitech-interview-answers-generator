@@ -42,22 +42,56 @@ export const captureRegionSchema = z
     { message: "region outside display" },
   );
 export type CaptureRegion = z.infer<typeof captureRegionSchema>;
+// Why the companion could not capture, as a closed set of content-free codes
+// (ADR-0020). "no-focused-window" never widens to the display; "source-changed"
+// means the screen source the request was made against is no longer the one
+// selected; "source-gone" means the screen source is not running (paused, lost,
+// refused or never selected).
+export const CAPTURE_FAILURE_CODES = [
+  "no-focused-window",
+  "permission-denied",
+  "source-gone",
+  "source-changed",
+  "capture-failed",
+] as const;
+export const captureFailureCodeSchema = z.enum(CAPTURE_FAILURE_CODES);
+export type CaptureFailureCode = z.infer<typeof captureFailureCodeSchema>;
+
+// What the companion receives (ADR-0018, ADR-0020). Emitted only to a companion
+// that declared "capture-request.v1" (see negotiation.ts), because this strict
+// object is not readable by an older companion.
+//   - expiresAt is the request's deadline: the companion captures nothing at or
+//     after it (Studio refuses a late frame anyway);
+//   - selection binds a region to the screen selection it was drawn against (the
+//     companion's own token from x-companion-screen); present exactly when the
+//     mode is region, and a companion whose current selection differs reports
+//     "source-changed" instead of cropping;
+//   - focused-window is sampled when the companion takes the request from an
+//     acknowledgement, never later and never from the press that made it.
 export const captureRequestSchema = z
   .strictObject({
     requestId: opaqueIdSchema,
     mode: z.enum(CAPTURE_REQUEST_MODES),
     region: captureRegionSchema.optional(),
+    selection: opaqueIdSchema.optional(),
+    expiresAt: isoTimestampSchema,
   })
   .refine((request) => (request.mode === "region") === !!request.region, {
     path: ["region"],
     message: "region iff mode is region",
+  })
+  .refine((request) => (request.mode === "region") === !!request.selection, {
+    path: ["selection"],
+    message: "selection iff mode is region",
   });
 export type CaptureRequest = z.infer<typeof captureRequestSchema>;
 
 // Control reaches the companion only as these fields of acknowledgements and
 // refusals; the companion holds no control credential. `capture` is the one
-// pending capture request, present only while it is live (additive: a
-// companion that does not know it ignores it).
+// pending capture request, present only while it is live and only on an answer
+// to a companion that declared support for it. The object stays strict, so it
+// is NOT additive for a reader that does not know the field: negotiation
+// (negotiation.ts), not permissiveness, keeps an older companion working.
 export const controlStatusSchema = z.strictObject({
   state: sessionControlStateSchema,
   credentialExpiresAt: isoTimestampSchema,
@@ -96,6 +130,10 @@ export const REFUSAL_CODES = [
   // The same source and event id arrived with different content; the original
   // is kept and never overwritten.
   "event_conflict",
+  // A screenshot named a capture request that is expired, replaced, cancelled,
+  // failed or unknown. Nothing is stored; a snapshot with no requestId is
+  // unaffected (ADR-0020).
+  "capture_request_stale",
 ] as const;
 export const refusalCodeSchema = z.enum(REFUSAL_CODES);
 export type RefusalCode = z.infer<typeof refusalCodeSchema>;
@@ -180,10 +218,27 @@ export const capabilityReportSchema = z.strictObject({
 });
 export type CapabilityReport = z.infer<typeof capabilityReportSchema>;
 
+// Fixed acknowledgement event id for a capture failure report.
+export const CAPTURE_FAILURE_ACK_EVENT_ID = "capture-failure";
+
+// The companion could not capture for one request. Correlated by requestId and
+// bounded to a closed code: no message, title or path. Sent only after the
+// companion was handed a request, which only a negotiating Studio does.
+export const captureFailureSchema = z.strictObject({
+  version: wireVersionSchema,
+  kind: z.literal("capture.failure"),
+  sourceId: opaqueIdSchema,
+  sentAt: isoTimestampSchema,
+  requestId: opaqueIdSchema,
+  code: captureFailureCodeSchema,
+});
+export type CaptureFailure = z.infer<typeof captureFailureSchema>;
+
 export const ingestMessageSchema = z.union([
   observationSchema,
   heartbeatSchema,
   capabilityReportSchema,
+  captureFailureSchema,
 ]);
 export type IngestMessage = z.infer<typeof ingestMessageSchema>;
 
@@ -200,6 +255,9 @@ export function validateIngestMessage(
   if (kind === "heartbeat") return validateWireMessage(heartbeatSchema, input);
   if (kind === "capability.report") {
     return validateWireMessage(capabilityReportSchema, input);
+  }
+  if (kind === "capture.failure") {
+    return validateWireMessage(captureFailureSchema, input);
   }
   return validateObservation(input);
 }

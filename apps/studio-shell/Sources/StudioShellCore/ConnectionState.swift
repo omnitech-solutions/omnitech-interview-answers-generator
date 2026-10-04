@@ -9,6 +9,8 @@ public enum ConnectionState: Equatable, Sendable {
     case connecting
     case connected
     case unreachable
+    // Studio answers, but the web view's own sign-in is missing or expired.
+    case signInRequired
 
     public var title: String {
         switch self {
@@ -16,6 +18,7 @@ public enum ConnectionState: Equatable, Sendable {
         case .connecting: "Connecting…"
         case .connected: "Connected"
         case .unreachable: "Studio not reachable"
+        case .signInRequired: "Sign in to Studio"
         }
     }
 
@@ -30,10 +33,17 @@ public enum ProbeResult: Equatable, Sendable {
 public enum ConnectionRules {
     // A paired shell is connected when Studio's probe answers 200; any other
     // answer or none is unreachable. Before a pairing there is nothing to probe.
-    public static func state(paired: Bool, probe: ProbeResult?) -> ConnectionState {
+    // `signedIn` is the web view's own session (nil: not yet known);
+    // `signInAvailable` is whether Studio has a real login provider. The paired
+    // capture credential never decides it; only Studio's answer to the page does.
+    public static func state(paired: Bool, probe: ProbeResult?, signedIn: Bool? = nil, signInAvailable: Bool? = nil) -> ConnectionState {
         guard paired else { return .notPaired }
         guard let probe else { return .connecting }
-        if case .answered(let status) = probe, status == 200 { return .connected }
+        if case .answered(let status) = probe, status == 200 {
+            // Prompt only when Studio says signed out AND has a real login
+            // provider (nil: not yet known). The default dev user never prompts.
+            return signedIn == false && signInAvailable != false ? .signInRequired : .connected
+        }
         return .unreachable
     }
 }

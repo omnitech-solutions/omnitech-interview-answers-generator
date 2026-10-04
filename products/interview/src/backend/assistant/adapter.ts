@@ -1,4 +1,16 @@
 import { createHash } from "node:crypto";
+import type { CodeRunner } from "@omnitech/code-runner";
+import {
+  answerGuideSchema,
+  type BriefingDraft,
+  guideText,
+  type InterviewProvenance,
+  interviewClaimsSchema,
+  interviewMetricSchema,
+  languageSchema,
+  renderGuideMarkdown,
+  runResultSchema,
+} from "@omnitech/interview-contracts";
 import {
   type DatabasePort,
   evidenceListSchema,
@@ -14,22 +26,10 @@ import {
   type Scope,
   type Transaction,
 } from "@omnitech-assistant/contracts";
-import type { CodeRunner } from "@omnitech/code-runner";
+import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { userEditedBriefing } from "../briefing/edits.js";
 import { BriefingRepository } from "../briefing/repository.js";
-import {
-  answerGuideSchema,
-  type BriefingDraft,
-  guideText,
-  type InterviewProvenance,
-  interviewClaimsSchema,
-  interviewMetricSchema,
-  languageSchema,
-  renderGuideMarkdown,
-  runResultSchema,
-} from "@omnitech/interview-contracts";
-import { z } from "zod";
 import {
   answerProse,
   type EvidenceAuthority,

@@ -3,13 +3,19 @@ export {
   acceptedAckSchema,
   acknowledgementSchema,
   CAPABILITY_ACK_EVENT_ID,
+  CAPTURE_FAILURE_ACK_EVENT_ID,
+  CAPTURE_FAILURE_CODES,
   CAPTURE_REQUEST_MODES,
   type CapabilityReport,
+  type CaptureFailure,
+  type CaptureFailureCode,
   type CaptureRegion,
   type CaptureRequest,
   type ControlMessage,
   type ControlStatus,
   capabilityReportSchema,
+  captureFailureCodeSchema,
+  captureFailureSchema,
   captureRegionSchema,
   captureRequestSchema,
   controlMessageSchema,
@@ -48,6 +54,14 @@ export {
   wireVersionSchema,
 } from "./ids.js";
 export { ACTIVE_SESSION_LIMITS, type ActiveSessionLimits } from "./limits.js";
+export {
+  COMPANION_FEATURE_CAPTURE_REQUEST,
+  COMPANION_FEATURES_HEADER,
+  COMPANION_SCREEN_HEADER,
+  type CompanionDeclaration,
+  formatCompanionFeatures,
+  parseCompanionDeclaration,
+} from "./negotiation.js";
 export {
   type CaptureGap,
   captureGapSchema,

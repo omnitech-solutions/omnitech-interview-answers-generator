@@ -37,6 +37,15 @@ public enum TimeText {
     }
 }
 
+// Negotiation (ADR-0020): every request declares what this companion understands, in headers
+// outside the strict bodies. A Studio that does not know them ignores them and never sends a
+// capture request; one that does hands over a request only to a companion that declared it.
+public enum Negotiation {
+    public static let featuresHeader = "x-companion-features"
+    public static let screenHeader = "x-companion-screen"
+    public static let captureRequestFeature = "capture-request.v1"
+}
+
 public struct OutgoingRequest: Equatable, Sendable {
     public let url: URL
     public let headers: [String: String]
@@ -101,10 +110,14 @@ public struct Endpoint: Equatable, Sendable {
     // credential so a bad paste is never put on the wire.
     public func request(
         for message: IngestMessage, payload: Data? = nil, credential: String,
-        boundary: String = "asc-" + UUID().uuidString
+        screenSelection: String? = nil, boundary: String = "asc-" + UUID().uuidString
     ) -> OutgoingRequest? {
         guard Self.isCredentialShape(credential) else { return nil }
-        var headers = ["Authorization": "Bearer \(credential)"]
+        var headers = [
+            "Authorization": "Bearer \(credential)",
+            Negotiation.featuresHeader: Negotiation.captureRequestFeature,
+        ]
+        if let screenSelection { headers[Negotiation.screenHeader] = screenSelection }
         let envelope = message.encoded()
         guard case .observation(let observation) = message, case .screenSnapshot(let content) = observation.body,
             let payload

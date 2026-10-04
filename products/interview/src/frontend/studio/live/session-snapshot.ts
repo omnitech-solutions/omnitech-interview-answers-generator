@@ -29,6 +29,7 @@ export type SessionCommand =
   | "delete"
   | "analyze"
   | "follow-up"
+  | "solve"
   | "capture-request"
   | "switch";
 
@@ -102,6 +103,9 @@ export type SessionActions = {
   analyzeLatestCapture(
     target?: { taskId: string; revision: number },
     hints?: OwnerHints,
+    // The stored capture to analyze (its identity as shown to the owner);
+    // without it, the newest stored one.
+    snapshot?: { sourceId: string; eventId: string },
   ): Promise<CommandResult>;
   // Capture and analyze: the frame the browser just took.
   analyzeCapture(input: CaptureInput): Promise<CommandResult>;
@@ -110,6 +114,15 @@ export type SessionActions = {
   requestCapture(input: CompanionCaptureInput): Promise<CaptureRequestResult>;
   captureStatus(requestId: string): Promise<CaptureRequestResult>;
   submitFollowUp(text: string, hints?: OwnerHints): Promise<CommandResult>;
+  // Generate the solution code for one task revision (the coding stage). One
+  // request per revision: asking again for the same one is the same request.
+  solveTask(
+    target: { taskId: string; revision: number },
+    hints?: OwnerHints,
+  ): Promise<CommandResult>;
+  // Hands-free Auto: one heard phrase, idempotent by `requestId`. A failure is
+  // returned, never held as the session's command error.
+  submitHeard(text: string, requestId: string): Promise<CommandResult>;
   // Forget the held credential (the owner has handed it over).
   dismissPairing(): void;
   // Leave a finished session's summary for a fresh setup. Only a finished

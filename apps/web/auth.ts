@@ -1,5 +1,5 @@
-import { PlatformRepository } from "@omnitech/platform-storage";
 import { getPlatformDatabase } from "@omnitech/database";
+import { PlatformRepository } from "@omnitech/platform-storage";
 import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
@@ -27,6 +27,14 @@ const authSecret =
   (process.env["NODE_ENV"] === "production"
     ? undefined
     : "development-only-auth-secret-change-before-deployment");
+
+// The session cookie's name, for the native handoff redemption, which sets
+// the same cookie Auth.js would (it is also the JWT salt).
+export function sessionCookieName(secure: boolean): string {
+  if (process.env["NODE_ENV"] !== "production") return "omnitech.dev-session";
+  return secure ? "__Secure-authjs.session-token" : "authjs.session-token";
+}
+export { authSecret };
 
 if (process.env["AUTH_GOOGLE_ID"] && process.env["AUTH_GOOGLE_SECRET"]) {
   providers.push(

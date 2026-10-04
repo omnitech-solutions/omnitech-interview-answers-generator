@@ -1,5 +1,5 @@
-import type { Proposal } from "@omnitech-assistant/contracts";
 import type { BriefingDraft } from "@omnitech/interview-contracts";
+import type { Proposal } from "@omnitech-assistant/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BriefingRepository } from "../briefing/repository.js";
 import { createInterviewAdapter, describeChanges } from "./adapter.js";

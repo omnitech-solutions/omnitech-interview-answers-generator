@@ -9,7 +9,15 @@ import {
   reportAge,
   speechState,
 } from "./companion-capability";
+import { saveAutoPreferred } from "./overlay/auto-prefs";
+import {
+  handsFreeSummary,
+  prepareHandsFree,
+  releaseHandsFree,
+} from "./overlay/hands-free";
+import { announceHandsFree } from "./overlay/share-handoff";
 import type { SessionErrorCode } from "./session-client";
+import { tenantFromLocation } from "./session-registry";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import { SwitchRow } from "./setup-controls";
 import {
@@ -127,11 +135,22 @@ export function SetupView({
         ? "Confirm that everyone has agreed."
         : null;
 
-  async function start() {
+  async function start(handsFree = false) {
     if (!request || !canStart) return;
     setFailure(null);
+    // Hands-free asks for the screen and the microphone in this very click,
+    // before anything is awaited (the browser needs the user gesture).
+    const asked = handsFree
+      ? prepareHandsFree({ deviceOnly: form.policy === "device-only" })
+      : null;
+    const outcome = asked ? await asked : null;
+    if (outcome) saveAutoPreferred(tenantFromLocation(), true);
     const result = await actions.start(request);
-    if (result.ok) return;
+    if (result.ok) {
+      if (outcome) announceHandsFree(handsFreeSummary(outcome));
+      return;
+    }
+    if (outcome) releaseHandsFree();
     setFailure(result.code);
     // A refused link means the choices changed under us: read them again.
     if (result.code === "link_refused") reload();
@@ -289,10 +308,21 @@ export function SetupView({
           type="button"
           className="studio-button primary"
           disabled={!canStart}
-          onClick={() => void start()}
+          onClick={() => void start(false)}
         >
           <Icon name="sensors" />
           {pending ? "Starting…" : "Start session"}
+        </button>
+        <button
+          type="button"
+          className="studio-button"
+          disabled={!canStart}
+          data-testid="start-hands-free"
+          title="Asks once for your screen and microphone, then listens and captures on its own while Auto is on. Audio from a call or another tab needs the native companion."
+          onClick={() => void start(true)}
+        >
+          <Icon name="visibility" />
+          Start hands-free
         </button>
         {missing && !pending && <span className="setup-muted">{missing}</span>}
       </div>

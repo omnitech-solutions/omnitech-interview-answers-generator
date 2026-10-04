@@ -24,7 +24,6 @@ import {
 } from "./live-session-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
 import { claimSessions, type SessionClaim } from "./session-claim.js";
-import { createDatabaseStorePort } from "./session-ports.js";
 import {
   buildSessionDraft,
   sessionArtifactId,
@@ -34,6 +33,7 @@ import {
   sessionWorkspaceId,
   workspaceTransaction,
 } from "./session-drafts.js";
+import { createDatabaseStorePort } from "./session-ports.js";
 import { asSessionPurge } from "./session-purge.js";
 
 let fx: Fixture;

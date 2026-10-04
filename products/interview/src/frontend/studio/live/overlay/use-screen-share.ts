@@ -1,8 +1,11 @@
 // The shared source for this card: started from a click, kept open until the
 // person stops it (here or from the browser's own control) or the card goes
 // away. The preview is the stream itself, shown locally and never uploaded.
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { nativeCaptureAvailable } from "../host-adapter";
+import { holdAwake } from "../keep-awake";
+import { type FrameHash, sampleVideo } from "./auto-hash";
 import {
   type Frame,
   grabFrame,
@@ -13,6 +16,7 @@ import {
 } from "./capture-source";
 import type { Rect } from "./mask-geometry";
 import { isNativeShare, startNativeShare } from "./native-share";
+import { takeParkedShare } from "./share-handoff";
 
 export type ShareStatus = "idle" | "starting" | "sharing";
 
@@ -41,6 +45,34 @@ export function useScreenShare() {
     setStream(null);
   }, []);
 
+  const adopt = useCallback(
+    (started: ShareHandle) => {
+      handle.current = started;
+      removeEnded.current = started.onEnded(() => {
+        release();
+        setMessage(SHARE_MESSAGES.ended);
+      });
+      setKind(started.kind);
+      setStream(started.stream);
+      setStatus("sharing");
+    },
+    [release],
+  );
+
+  // A live share keeps the session store reading while this page is hidden.
+  useEffect(() => {
+    if (!stream) return;
+    return holdAwake();
+  }, [stream]);
+
+  // A share asked for by "Start hands-free", in the click that started the
+  // session, is taken over once the card is here.
+  useEffect(() => {
+    const parked = takeParkedShare();
+    if (parked && !handle.current) adopt(parked);
+    else parked?.stop();
+  }, [adopt]);
+
   // Straight from a click handler: the browser requires the user gesture.
   const start = useCallback(async () => {
     if (handle.current) return true;
@@ -50,14 +82,7 @@ export function useScreenShare() {
       const started = nativeCaptureAvailable()
         ? startNativeShare()
         : await startShare();
-      handle.current = started;
-      removeEnded.current = started.onEnded(() => {
-        release();
-        setMessage(SHARE_MESSAGES.ended);
-      });
-      setKind(started.kind);
-      setStream(started.stream);
-      setStatus("sharing");
+      adopt(started);
       return true;
     } catch (error) {
       setStatus("idle");
@@ -65,7 +90,7 @@ export function useScreenShare() {
       setMessage(SHARE_MESSAGES[code]);
       return false;
     }
-  }, [release]);
+  }, [release, adopt]);
 
   const stop = useCallback(() => {
     const current = handle.current;
@@ -82,6 +107,18 @@ export function useScreenShare() {
       : grabFrame(current, mask);
   }, []);
 
+  // A hash of the shared frame inside the region, for Auto. Browser shares
+  // only: the host adapter captures one image per request, never a stream.
+  const sample = useCallback((mask: Rect): FrameHash | null => {
+    const current = handle.current;
+    if (!current || isNativeShare(current)) return null;
+    try {
+      return sampleVideo(current.video, mask);
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(
     () => () => {
       handle.current?.stop();
@@ -89,5 +126,5 @@ export function useScreenShare() {
     [],
   );
 
-  return { status, kind, stream, message, start, stop, grab };
+  return { status, kind, stream, message, start, stop, grab, sample };
 }

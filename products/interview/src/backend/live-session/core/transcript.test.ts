@@ -1,7 +1,7 @@
 // The merge gap is a fact of the transcript: it decides what one utterance is,
 // so a changed gap changes which question a task is named after.
 import { describe, expect, it } from "vitest";
-import { type Segment, MERGE_GAP_MS, coalesceSegments } from "./transcript.js";
+import { coalesceSegments, MERGE_GAP_MS, type Segment } from "./transcript.js";
 
 const segment = (
   eventId: string,

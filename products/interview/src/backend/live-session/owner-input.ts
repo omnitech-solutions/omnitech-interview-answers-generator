@@ -15,10 +15,14 @@
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import {
   type LiveOwnerInputRequest,
+  liveHeardRequestSchema,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { OWNER_INPUT_SOURCE_ID } from "../db/live-session.js";
+import {
+  OWNER_INPUT_SOURCE_ID,
+  OWNER_MICROPHONE_SOURCE_ID,
+} from "../db/live-session.js";
 import { assertUuid, SessionError } from "./errors.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import { lockSession, type SessionRecord } from "./session-record.js";
@@ -165,6 +169,88 @@ export async function insertOwnerInput(
   return ack;
 }
 
+// Heard speech per session: the owner's own recognised phrases, one row each.
+// A two-hour interview is a few hundred phrases; the bound only stops a
+// runaway client.
+export const OWNER_HEARD_MAX_PER_SESSION = 1_500;
+
+// Stores one heard phrase (ADR-0022) as a `transcript.final` from the reserved
+// owner microphone source, so the processor reads it like any heard speech.
+// The row carries no `source` label: the browser microphone hears the room,
+// the other side of the call included, so the policy must not treat it as the
+// candidate's own speech. Idempotent by request id (the event id); a paused or
+// finished session takes none.
+async function storeHeard(
+  database: PlatformDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  request: { requestId: string; text: string },
+): Promise<OwnerInputAck> {
+  const { requestId, text } = request;
+  return inOwnerScope(database, scope, async (tx) => {
+    const row = await lockSession(tx, scope, sessionId);
+    assertAcceptsOwnerInput(row);
+    // [SAFETY] Speech is only heard while the session is capturing.
+    if (row.status === "paused") throw new SessionError("status_refused");
+
+    const stored = await firstRow<{
+      sequence: string | number;
+      content: unknown;
+    }>(
+      tx,
+      sql`SELECT sequence, content FROM interview.session_observations
+          WHERE tenant_id = ${scope.tenantId}::uuid
+            AND owner_user_id = ${scope.actorId}::uuid
+            AND session_id = ${sessionId}::uuid
+            AND source_id = ${OWNER_MICROPHONE_SOURCE_ID}
+            AND event_id = ${requestId}`,
+    );
+    if (stored) {
+      const body = (stored.content as { body?: { text?: unknown } }).body;
+      if (body?.text !== text) throw new SessionError("invalid_input");
+      return { requestId, sequence: Number(stored.sequence) };
+    }
+
+    const counts = await firstRow<{
+      heard: number;
+      max_sequence: string | number;
+    }>(
+      tx,
+      sql`SELECT (count(*) FILTER (WHERE source_id = ${OWNER_MICROPHONE_SOURCE_ID}))::int AS heard,
+                 COALESCE(max(sequence), 0) AS max_sequence
+          FROM interview.session_observations
+          WHERE tenant_id = ${scope.tenantId}::uuid
+            AND owner_user_id = ${scope.actorId}::uuid
+            AND session_id = ${sessionId}::uuid`,
+    );
+    if (Number(counts?.heard ?? 0) >= OWNER_HEARD_MAX_PER_SESSION)
+      throw new SessionError("status_refused");
+    const sequence = Number(counts?.max_sequence ?? 0) + 1;
+    // Media time is the time since the session was created, so utterances
+    // coalesce and order as they would from a companion.
+    const atMs = Math.max(0, row.nowMs - row.createdAt.getTime());
+    const ack: OwnerInputAck = { requestId, sequence };
+    await tx.execute(sql`
+      INSERT INTO interview.session_observations
+        (tenant_id, owner_user_id, session_id, source_id, event_id, sequence,
+         kind, content, ack)
+      VALUES (${scope.tenantId}::uuid, ${scope.actorId}::uuid, ${sessionId}::uuid,
+        ${OWNER_MICROPHONE_SOURCE_ID}, ${requestId}, ${sequence}, 'transcript.final',
+        ${JSON.stringify({
+          occurredAt: new Date(row.nowMs).toISOString(),
+          sourceSequence: sequence,
+          body: {
+            speaker: "microphone",
+            text,
+            startMs: atMs,
+            endMs: atMs,
+          },
+        })}::jsonb,
+        ${JSON.stringify(ack)}::jsonb)`);
+    return ack;
+  });
+}
+
 // Stores one owner input for the owner's open session. The session row lock
 // serializes it with ingest, the processor's writes and the purge.
 export async function storeOwnerInput(
@@ -174,6 +260,9 @@ export async function storeOwnerInput(
   raw: unknown,
 ): Promise<OwnerInputAck> {
   assertUuid(sessionId);
+  // Heard speech (ADR-0022) has its own, smaller request and its own row.
+  const heard = liveHeardRequestSchema.safeParse(raw);
+  if (heard.success) return storeHeard(database, scope, sessionId, heard.data);
   const parsed = liveOwnerInputRequestSchema.safeParse(raw);
   if (!parsed.success) throw new SessionError("invalid_input");
   const { requestId, ...body } = parsed.data;

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { PlatformContext } from "@omnitech/platform-contracts";
+import { describe, expect, it } from "vitest";
 import * as access from "./briefing-access.js";
 
 const context = {

@@ -11,6 +11,10 @@
 import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
+import {
+  CAPTURE_UPDATE_LINE,
+  captureRequestSupport,
+} from "../companion-capability";
 import { cardSize, presentation, usePresentation } from "../focus-presentation";
 import { copyText } from "../live-session-view";
 import type { ActivityKey } from "../session-banners";
@@ -18,17 +22,19 @@ import type { SessionErrorCode } from "../session-client";
 import { isOpenSession } from "../session-deps";
 import { latestTarget } from "../session-owner-input";
 import { idleCopy } from "../task-panels";
+import { useCompanionCapability } from "../use-companion-capability";
 import { useLiveSession } from "../use-live-session";
 import { useSessionDraftLink } from "../workspace-handoff";
+import { AutoStatus } from "./auto-status";
 import { FrameError } from "./capture-source";
+import { claimCaptureTrigger } from "./capture-trigger";
 import { useCardDrag } from "./card-position";
 import { ChatLog } from "./chat-log";
 import { CommandBar } from "./command-bar";
 import { CompanionSetup } from "./companion-setup";
-import { useDictation } from "./dictation";
 import { ListeningHint } from "./listening-hint";
 import { MaskEditor } from "./mask-editor";
-import { isFull, toDisplayRegion } from "./mask-geometry";
+import { FULL, isFull, toDisplayRegion } from "./mask-geometry";
 import {
   type AnalyzeChoice,
   type AnalyzeVia,
@@ -67,6 +73,7 @@ import {
 } from "./overlay-task";
 import { SessionSwitcher } from "./session-switcher";
 import { SettingsPopover } from "./settings-popover";
+import { takeAnnouncement } from "./share-handoff";
 import { SourcePopover } from "./source-popover";
 import {
   type CardVariant,
@@ -74,10 +81,19 @@ import {
   openStartPage,
   openSummary,
 } from "./studio-links";
+import { useAutoMode } from "./use-auto-mode";
 import { useCapturePrefs } from "./use-capture-prefs";
 import { useCompanionCapture } from "./use-companion-capture";
 import { useHostHotkeys } from "./use-host-hotkeys";
 import { useScreenShare } from "./use-screen-share";
+
+// How often the companion's capability report is read again.
+const CAPABILITY_REFRESH_MS = 10_000;
+
+// What an automatic capture is called in the transcript and Activity.
+export const AUTO_CAPTURE_LABEL = "Auto-captured · screen changed";
+
+export const ANNOUNCE_MS = 8_000;
 
 // How long the "Captured" preview stays.
 export const FLASH_MS = 2_500;
@@ -148,15 +164,54 @@ export function OverlayCard({
     snapshot.session?.id ?? null,
     snapshot.actions.length,
   );
-  const dictation = useDictation({
+  const capability = useCompanionCapability(CAPABILITY_REFRESH_MS);
+  const support = captureRequestSupport(
+    capability.status === "ready" ? capability.capability : null,
+  );
+  const auto = useAutoMode({
+    tenant: snapshot.tenant,
+    sessionId: snapshot.session?.id ?? null,
+    open: isOpenSession(snapshot.session),
+    paused: snapshot.session?.status === "paused",
     deviceOnly,
-    onFinal: (phrase) => {
+    wantsScreen: snapshot.session?.captureSources.includes("screen") ?? false,
+    sharing: share.status === "sharing",
+    watchable: share.kind !== "This Mac" && share.kind !== null,
+    sample: share.sample,
+    mask: prefs.mask,
+    busy:
+      grabbing ||
+      snapshot.pending.includes("analyze") ||
+      companionCapture.progress?.phase === "asking",
+    capture: () => autoCapture(),
+    submitHeard: actions.submitHeard,
+    resume: actions.resume,
+    onManualFinal: (phrase) => {
       setFollowText((text) =>
         text.trim() === "" ? phrase : `${text.trimEnd()} ${phrase}`,
       );
       addEntry("Dictated", phrase);
     },
   });
+  const dictation = auto.dictation;
+  // "Hands-free is on." from Start hands-free, shown for a few seconds.
+  const [announced, setAnnounced] = useState<string | null>(takeAnnouncement);
+  useEffect(() => {
+    if (!announced) return;
+    const timer = setTimeout(() => setAnnounced(null), ANNOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [announced]);
+  // Text typed or dictated for one session is never sent to another.
+  const sessionKey = snapshot.session?.id ?? null;
+  const sessionNow = useRef(sessionKey);
+  sessionNow.current = sessionKey;
+  const lastKey = useRef(sessionKey);
+  useEffect(() => {
+    if (lastKey.current === sessionKey) return;
+    lastKey.current = sessionKey;
+    setFollowText("");
+    setNote(null);
+  }, [sessionKey]);
   const tasks = model.tasks;
   const newest = tasks[tasks.length - 1];
   const selected = tasks.find((task) => task.taskId === pinnedTaskId) ?? newest;
@@ -213,13 +268,17 @@ export function OverlayCard({
   const answer = selected ? approach(selected) : null;
   const code = selected ? solution(selected) : null;
 
+  // An unset hint is sent as "auto": it resets an earlier hint, where omitting
+  // it would keep it.
   const hints = {
-    ...(prefs.settings.skill ? { skill: prefs.settings.skill } : {}),
-    ...(prefs.settings.language ? { language: prefs.settings.language } : {}),
+    skill: prefs.settings.skill ?? ("auto" as const),
+    language: prefs.settings.language ?? ("auto" as const),
   };
   const companionScreen = model.sources.find(
     (item) => item.source === "screen",
   );
+  // The stored image "Analyze stored capture" would use, by identity.
+  const stored = capture;
   const companionReady =
     companionScreen?.selected === true &&
     companionScreen.health === "receiving" &&
@@ -230,15 +289,23 @@ export function OverlayCard({
     : null;
   const companionCanCapture =
     companionScreen?.selected === true &&
-    companionScreen.health === "receiving";
+    companionScreen.health === "receiving" &&
+    support.supported !== false;
   // Why the companion cannot be asked, from the source's own advice.
   const companionReason =
-    screenAdvice?.reason ?? "The companion’s screen source isn’t available.";
+    support.supported === false
+      ? CAPTURE_UPDATE_LINE
+      : (screenAdvice?.reason ??
+        "The companion’s screen source isn’t available.");
 
   // Capture & analyze: a FRESH frame of the shared source (cropped to the
   // region in this browser), or the companion's newest capture.
   async function analyze(choice: AnalyzeChoice, via: AnalyzeVia) {
     setNote(null);
+    // The session this capture was asked for: its outcome is shown only while
+    // that is still the one on screen.
+    const origin = sessionNow.current;
+    const here = () => sessionNow.current === origin;
     const attach =
       choice.kind === "attach" && selected
         ? { taskId: selected.taskId, revision: selected.currentRevision }
@@ -249,7 +316,7 @@ export function OverlayCard({
         target: attach,
         ...hints,
       });
-      if (!sent.ok) fail(sent.code);
+      if (!sent.ok && here()) fail(sent.code);
       return;
     }
     if (via === "region") {
@@ -257,13 +324,30 @@ export function OverlayCard({
       return;
     }
     if (via === "companion") {
-      const result = await actions.analyzeLatestCapture(attach, hints);
-      if (!result.ok) fail(result.code);
+      // [SAFETY] Only an explicit stored capture, by the identity shown in the
+      // menu. A failed fresh capture never reaches this branch.
+      if (!stored) return;
+      const result = await actions.analyzeLatestCapture(attach, hints, {
+        sourceId: stored.sourceId,
+        eventId: stored.eventId,
+      });
+      if (!result.ok && here()) fail(result.code);
       return;
     }
+    await shareCapture(attach, undefined, here);
+  }
+  // A fresh frame of the shared source, cropped to the owner's region here, then
+  // sent through the capture route. `label` names an automatic capture; true
+  // when the frame was sent.
+  async function shareCapture(
+    attach: { taskId: string; revision: number } | undefined,
+    label?: string,
+    here: () => boolean = () => true,
+  ): Promise<boolean> {
     setGrabbing(true);
     try {
       const frame = await share.grab(prefs.mask);
+      if (!here()) return false;
       // The frame is taken: from here the card is sending it, not capturing.
       setGrabbing(false);
       setFlash({
@@ -277,12 +361,22 @@ export function OverlayCard({
       });
       const result = await actions.analyzeCapture({
         image: frame.blob,
-        label: frame.label,
+        label: label ?? frame.label,
         target: attach,
         ...hints,
       });
-      if (!result.ok) fail(result.code);
+      if (!result.ok && here()) fail(result.code);
+      return result.ok;
     } catch (error) {
+      if (!here()) return false;
+      if (error instanceof FrameError && error.code === "display-changed") {
+        // The stored area belonged to another display: drop it, ask again.
+        prefs.setMask(FULL);
+        setNote(
+          "Your display changed, so the capture area was cleared. Choose the area again.",
+        );
+        return false;
+      }
       setNote(
         error instanceof FrameError && error.code === "too-large"
           ? "That frame is too large to send. Choose a smaller region."
@@ -290,9 +384,20 @@ export function OverlayCard({
             ? "The shared source isn’t ready yet. Try again in a moment."
             : "Couldn’t capture the shared source. Share it again.",
       );
+      return false;
     } finally {
       setGrabbing(false);
     }
+  }
+  // Auto: the screen changed and settled. The same fresh capture a press takes,
+  // as a new task, named in the transcript as automatic.
+  async function autoCapture(): Promise<boolean> {
+    const origin = sessionNow.current;
+    const sent = await shareCapture(undefined, AUTO_CAPTURE_LABEL, () => {
+      return sessionNow.current === origin;
+    });
+    if (sent) addEntry("Auto", AUTO_CAPTURE_LABEL);
+    return sent;
   }
   // Alt+Shift+A and the bar's capture button: analyze the shared source as a
   // new task, or choose a source first.
@@ -310,7 +415,9 @@ export function OverlayCard({
   }
   async function send(text: string) {
     setNote(null);
+    const origin = sessionNow.current;
     const result = await actions.submitFollowUp(text, hints);
+    if (origin !== sessionNow.current) return result;
     if (result.ok) addEntry("Typed", text.trim());
     else fail(result.code);
     return result;
@@ -319,8 +426,11 @@ export function OverlayCard({
     const shortcut = shortcutOf(event);
     if (!shortcut) return;
     event.preventDefault();
-    if (shortcut === "analyze") captureNow();
-    else if (shortcut === "dictate") dictation.toggle();
+    if (shortcut === "analyze")
+      void claimCaptureTrigger().then((granted) => {
+        if (granted) captureNow();
+      });
+    else if (shortcut === "dictate") auto.toggleListening();
     else if (shortcut === "mask") setMaskOpen(true);
     else setSettingsOpen(true);
   }
@@ -433,9 +543,22 @@ export function OverlayCard({
           skill={prefs.settings.skill}
           sharing={share.status === "sharing"}
           onCapture={captureNow}
-          onDictate={dictation.toggle}
+          onDictate={auto.toggleListening}
           onSettings={() => setSettingsOpen(true)}
+          auto={{
+            on: auto.on,
+            mic: auto.mic,
+            onToggle: () => auto.setOn(!auto.on),
+          }}
         />
+      )}
+      {open && announced && (
+        <p className="ov-auto ok" role="status" data-testid="hands-free-on">
+          {announced}
+        </p>
+      )}
+      {open && auto.line && (
+        <AutoStatus line={auto.line} onStop={() => auto.setOn(false)} />
       )}
       <div className="ov-chips">
         <span className="ov-chip" data-testid="ov-locality">
@@ -480,7 +603,7 @@ export function OverlayCard({
                           : source === "microphone"
                             ? {
                                 label: "Dictate in this browser",
-                                run: dictation.toggle,
+                                run: auto.toggleListening,
                               }
                             : undefined
                       }
@@ -575,6 +698,7 @@ export function OverlayCard({
             masked={masked}
             last={capture}
             companionReady={companionReady}
+            stored={stored}
             companionCanCapture={companionCanCapture}
             companionReason={companionReason}
             progress={companionCapture.progress}
@@ -787,10 +911,21 @@ export function OverlayCard({
                     revision: selected.currentRevision,
                   }
                 : undefined;
+            if (support.supported === false) {
+              setNote(CAPTURE_UPDATE_LINE);
+              return;
+            }
+            if (!support.selection) {
+              setNote(
+                "The companion hasn’t said which screen it is capturing yet. Check it is running with a screen source selected, then draw the region again.",
+              );
+              return;
+            }
             void companionCapture
               .start({
                 mode: "region",
                 region: toDisplayRegion(rect),
+                selection: support.selection ?? undefined,
                 target: attach,
                 ...hints,
               })

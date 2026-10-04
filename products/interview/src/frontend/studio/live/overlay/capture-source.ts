@@ -29,7 +29,13 @@ export class ShareError extends Error {
   }
 }
 export class FrameError extends Error {
-  constructor(readonly code: "not-ready" | "too-large" | "encode-failed") {
+  constructor(
+    readonly code:
+      | "not-ready"
+      | "too-large"
+      | "encode-failed"
+      | "display-changed",
+  ) {
     super(code);
   }
 }

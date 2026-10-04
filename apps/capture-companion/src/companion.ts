@@ -5,6 +5,7 @@
 import {
   ACTIVE_SESSION_LIMITS,
   type Acknowledgement,
+  type CaptureFailureCode,
   type CaptureRequest,
   type CaptureSource,
   type IngestMessage,
@@ -15,12 +16,13 @@ import {
 } from "@omnitech/active-session-contracts";
 import { type Backoff, createBackoff } from "./backoff.js";
 import { type CapabilityProbe, probeCapability } from "./capability.js";
-import type { CaptureDriver } from "./capture-driver.js";
+import type { CaptureDriver, FocusSample } from "./capture-driver.js";
 import { type Clock, isoAt } from "./clock.js";
 import { SourceSelection, StudioControl } from "./control.js";
 import { stopLocally } from "./local-stop.js";
 import {
   capabilityReportMessage,
+  captureFailureMessage,
   captureGapMessage,
   heartbeatMessage,
   screenSnapshotMessage,
@@ -98,8 +100,13 @@ export class Companion {
   private readonly heartbeatIntervalMs: number;
   private readonly maxScreenshots: number;
   private pendingCapability: IngestMessage | undefined;
-  // The capture request handed over and not yet taken, and the ids taken.
+  // The failure to report for the one capture request in flight, until Studio
+  // has answered it (a newer failure replaces an undelivered one).
+  private pendingFailure: IngestMessage | undefined;
+  // The capture request handed over and not yet taken, the focus sampled the
+  // moment it was taken from the acknowledgement, and the ids taken.
   private wantedCapture: CaptureRequest | undefined;
+  private wantedFocus: FocusSample;
   private readonly handledRequests: string[] = [];
   private holdUntil = 0;
   private lastHeartbeatAt = Number.NEGATIVE_INFINITY;
@@ -110,7 +117,10 @@ export class Companion {
   private started = false;
 
   constructor(private readonly options: CompanionOptions) {
-    this.client = createWireClient(options);
+    this.client = createWireClient({
+      ...options,
+      screenSelection: () => options.capture.screenSelection(),
+    });
     this.clock = options.clock;
     this.capture = options.capture;
     this.outbox = new Outbox(
@@ -376,7 +386,8 @@ export class Companion {
     const heartbeatIn = Math.max(1, heartbeatDue - now);
     // An undelivered message is retried as soon as its hold ends.
     const retryIn = this.holdUntil - now;
-    const waiting = this.outbox.size > 0 || this.pendingCapability;
+    const waiting =
+      this.outbox.size > 0 || this.pendingCapability || this.pendingFailure;
     return waiting && retryIn > 0
       ? Math.min(heartbeatIn, retryIn)
       : heartbeatIn;
@@ -386,13 +397,20 @@ export class Companion {
   // ids until Studio answers, then moves on. A failure sets a hold instead of
   // sleeping, so the loop (or a test clock) decides when to try again.
   private async drain(): Promise<void> {
-    while (this.canCapture() || this.pendingCapability) {
+    while (this.canCapture() || this.pendingCapability || this.pendingFailure) {
       if (this.state.terminalPhase || this.clock.now() < this.holdUntil) return;
       if (this.pendingCapability) {
         const outcome = await this.client.send(this.pendingCapability);
         if (this.state.terminalPhase) return;
         if (this.settle(outcome)) return;
         this.pendingCapability = undefined;
+        continue;
+      }
+      if (this.pendingFailure) {
+        const outcome = await this.client.send(this.pendingFailure);
+        if (this.state.terminalPhase) return;
+        if (this.settle(outcome)) return;
+        this.pendingFailure = undefined;
         continue;
       }
       const entry = this.outbox.head();
@@ -491,26 +509,75 @@ export class Companion {
     if (this.handledRequests.length > HANDLED_REQUESTS)
       this.handledRequests.shift();
     this.wantedCapture = request;
+    // [SAFETY] Focused window is sampled NOW, as the request is taken from the
+    // acknowledgement, not when the capture runs and not at the owner's press
+    // (which is in Studio and moves focus there).
+    this.wantedFocus =
+      request.mode === "focused-window"
+        ? this.capture.sampleFocus()
+        : undefined;
+  }
+
+  // Reports that this request could not be captured, as one bounded typed
+  // message correlated by id. Nothing but the closed code leaves the Mac.
+  private reportFailure(requestId: string, code: CaptureFailureCode): void {
+    this.pendingFailure = captureFailureMessage({
+      sourceId: COMPANION_SOURCE_ID,
+      sentAt: isoAt(this.clock.now()),
+      requestId,
+      code,
+    });
+  }
+
+  private expired(request: CaptureRequest): boolean {
+    return this.clock.now() >= Date.parse(request.expiresAt);
   }
 
   // Captures once for the request taken. [SAFETY] Honoured only while the
-  // screen source the user selected at start is running (not paused, lost,
-  // refused or never selected); anything else is ignored visibly. A capture
-  // that finds nothing to capture is a visible loss, never a wider capture.
+  // screen source the user selected at start is running, before the request's
+  // deadline, and against the screen selection the request was made for. Every
+  // way it cannot be honoured is a visible notice AND a typed failure Studio
+  // hears at once (except a missed deadline, which Studio has already
+  // expired). A capture that finds nothing is a loss, never a wider capture.
   private async fulfilCapture(): Promise<void> {
     const request = this.wantedCapture;
+    const focus = this.wantedFocus;
     this.wantedCapture = undefined;
+    this.wantedFocus = undefined;
     if (!request) return;
-    if (!this.accepting("screen")) {
-      this.state.notice({ code: "capture-request-ignored", source: "screen" });
+    if (this.expired(request)) {
+      this.state.notice({ code: "capture-request-expired", source: "screen" });
       return;
     }
-    const result = await this.capture.captureOnce(request);
+    if (!this.accepting("screen")) {
+      this.state.notice({ code: "capture-request-ignored", source: "screen" });
+      this.reportFailure(request.requestId, "source-gone");
+      await this.flush();
+      return;
+    }
+    // A mask drawn against another screen selection is never applied here.
+    if (
+      request.selection !== undefined &&
+      request.selection !== this.capture.screenSelection()
+    ) {
+      this.state.notice({ code: "capture-source-changed", source: "screen" });
+      this.reportFailure(request.requestId, "source-changed");
+      await this.flush();
+      return;
+    }
+    const result = await this.capture.captureOnce(request, focus);
     // The world may have changed while capturing: pause, end or a stop means
     // nothing captured is sent.
     if (!this.accepting("screen")) return;
     if (result.kind === "lost") {
       this.state.notice({ code: result.code, source: "screen" });
+      this.reportFailure(request.requestId, result.code);
+      await this.flush();
+      return;
+    }
+    // A frame finished after the deadline would be refused as stale: drop it.
+    if (this.expired(request)) {
+      this.state.notice({ code: "capture-request-expired", source: "screen" });
       return;
     }
     await this.observeScreenshot({
@@ -569,6 +636,7 @@ export class Companion {
     this.capture.stopAll();
     this.outbox.clear();
     this.pendingCapability = undefined;
+    this.pendingFailure = undefined;
     for (const source of this.active) this.state.setSource(source, "idle");
     this.active.clear();
   }

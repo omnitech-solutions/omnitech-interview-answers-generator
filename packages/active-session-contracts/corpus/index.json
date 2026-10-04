@@ -58,6 +58,20 @@
       "issueCodes": ["unknown_field"]
     },
     {
+      "file": "invalid/capture-failure-bad-code.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "capture.failure",
+      "issueCodes": ["invalid_value"]
+    },
+    {
+      "file": "invalid/capture-failure-extra-field.json",
+      "outcome": "invalid",
+      "family": "ingest",
+      "kind": "capture.failure",
+      "issueCodes": ["unknown_field"]
+    },
+    {
       "file": "invalid/end-before-start.json",
       "outcome": "invalid",
       "family": "ingest",
@@ -197,6 +211,12 @@
       "kind": "acknowledgement.accepted"
     },
     {
+      "file": "valid/ack-accepted-capture-request-focused-window.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
       "file": "valid/ack-accepted-capture-request.json",
       "outcome": "valid",
       "family": "acknowledgement",
@@ -225,6 +245,12 @@
       "outcome": "valid",
       "family": "acknowledgement",
       "kind": "acknowledgement.duplicate"
+    },
+    {
+      "file": "valid/ack-refused-capture-request-stale.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.refused"
     },
     {
       "file": "valid/ack-refused-credential-refused.json",
@@ -303,6 +329,36 @@
       "outcome": "valid",
       "family": "ingest",
       "kind": "capability.report"
+    },
+    {
+      "file": "valid/capture-failure-capture-failed.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.failure"
+    },
+    {
+      "file": "valid/capture-failure-no-focused-window.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.failure"
+    },
+    {
+      "file": "valid/capture-failure-permission-denied.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.failure"
+    },
+    {
+      "file": "valid/capture-failure-source-changed.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.failure"
+    },
+    {
+      "file": "valid/capture-failure-source-gone.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "capture.failure"
     },
     {
       "file": "valid/capture-gap-buffer-overflow.json",

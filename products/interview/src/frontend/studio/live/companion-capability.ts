@@ -169,3 +169,36 @@ export function reportAge(
     ? "reported at an unknown time"
     : `reported ${ageLabel(nowMs - at)} ago`;
 }
+
+// Whether the companion's last report says it can take capture requests, and
+// the screen selection it declared. `supported: null` means the report does not
+// say (an older report), which is never turned into a claim either way.
+export type CaptureRequestSupport = {
+  supported: boolean | null;
+  selection: string | null;
+  line: string;
+};
+
+export const CAPTURE_UPDATE_LINE =
+  "This companion build can’t take capture requests. Update the companion to capture from here.";
+
+export function captureRequestSupport(
+  capability: LiveCompanionCapability | null,
+): CaptureRequestSupport {
+  const selection = capability?.screenSelection ?? null;
+  if (!capability || capability.captureRequests === undefined)
+    return {
+      supported: null,
+      selection,
+      line: "Capture requests: not reported yet.",
+    };
+  return capability.captureRequests
+    ? {
+        supported: true,
+        selection,
+        line: selection
+          ? "Capture requests: supported. The companion has a screen source selected."
+          : "Capture requests: supported. No screen source selected in the companion yet.",
+      }
+    : { supported: false, selection, line: CAPTURE_UPDATE_LINE };
+}

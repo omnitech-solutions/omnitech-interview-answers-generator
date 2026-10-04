@@ -1,0 +1,320 @@
+/* The four panels (panels/panel-views.tsx). They reuse the overlay's --ov-*
+   tokens (declared on .ov-root) by redeclaring them on .pn-root, so a panel
+   document needs nothing else. With a native host the page is transparent and
+   only the rounded card paints; a plain window gets a solid backdrop. */
+.pn-root {
+  --ov-bg: rgba(26, 26, 30, 0.82);
+  --ov-text: rgba(255, 255, 255, 0.93);
+  --ov-muted: rgba(255, 255, 255, 0.66);
+  --ov-faint: rgba(255, 255, 255, 0.46);
+  --ov-line: rgba(255, 255, 255, 0.1);
+  --ov-chip: rgba(255, 255, 255, 0.08);
+  --ov-code: rgba(0, 0, 0, 0.32);
+  --ov-accent: #8fb0ff;
+  --ov-accent-ink: #10131c;
+  --ov-green: #6ddc93;
+  --ov-amber: #f5c56b;
+  --ov-red: #ff6b61;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Geist", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ov-text);
+  background: #14141a;
+  container-type: inline-size;
+}
+:root[data-panel-host="native"] body,
+:root[data-panel-host="native"] .pn-root {
+  background: transparent;
+}
+.pn-root *,
+.pn-root *::before,
+.pn-root *::after {
+  box-sizing: border-box;
+}
+.pn-root button,
+.pn-root input,
+.pn-root select {
+  font: inherit;
+  color: inherit;
+}
+.pn-root :is(button, input, select):focus-visible {
+  outline: 2px solid var(--ov-accent);
+  outline-offset: 1px;
+}
+.pn-card,
+.pn-pill {
+  background: var(--ov-bg);
+  backdrop-filter: blur(28px) saturate(1.6);
+  border-radius: 14px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+}
+.pn-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+}
+.pn-unavailable {
+  margin: auto;
+  flex: 0;
+  flex-direction: row;
+  gap: 8px;
+}
+.pn-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  flex-wrap: wrap;
+}
+.pn-icon,
+.pn-skill,
+.pn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ov-chip);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.pn-icon:hover,
+.pn-skill:hover,
+.pn-toggle:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.pn-icon:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pn-icon kbd {
+  font-size: 11px;
+  color: var(--ov-muted);
+}
+.pn-icon[data-mic="listening"] {
+  color: var(--ov-red);
+}
+.pn-toggle[aria-pressed="true"] {
+  background: var(--ov-accent);
+  color: var(--ov-accent-ink);
+}
+.pn-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ov-faint);
+  display: inline-block;
+}
+.pn-dot[data-tone="green"] {
+  background: var(--ov-green);
+}
+.pn-dot[data-tone="red"] {
+  background: var(--ov-red);
+}
+.pn-dot[data-tone="amber"] {
+  background: var(--ov-amber);
+}
+.pn-hint,
+.pn-muted,
+.pn-time {
+  color: var(--ov-muted);
+}
+.pn-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 0.5px solid var(--ov-line);
+}
+.pn-title {
+  font-weight: 600;
+  flex: 1;
+}
+.pn-body {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+}
+.pn-problem {
+  margin: 0;
+  font-size: 15px;
+}
+.pn-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ov-faint);
+}
+.pn-kv,
+.pn-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pn-chip {
+  background: var(--ov-chip);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.pn-section p {
+  margin: 2px 0;
+}
+.pn-select,
+.pn-input {
+  background: var(--ov-chip);
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+.pn-select option {
+  color: #111;
+}
+.pn-analyzing {
+  color: var(--ov-accent);
+}
+.pn-ellipsis i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pn-pulse 1s infinite ease-in-out;
+}
+.pn-ellipsis i + i {
+  animation-delay: 0.25s;
+}
+@keyframes pn-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.pn-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pn-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 6px;
+}
+.pn-row[data-kind="assistant"] .pn-who {
+  color: var(--ov-accent);
+}
+.pn-row[data-kind="heard"] .pn-who {
+  color: var(--ov-green);
+}
+.pn-system {
+  margin: 2px 0;
+  color: var(--ov-amber);
+}
+.pn-interim {
+  margin: 2px 0;
+  color: var(--ov-muted);
+}
+.pn-note {
+  margin: 0 0 6px;
+  color: var(--ov-amber);
+}
+.pn-compose {
+  display: flex;
+  gap: 6px;
+}
+.pn-input {
+  flex: 1;
+}
+.pn-send {
+  background: var(--ov-accent);
+  color: var(--ov-accent-ink);
+}
+.pn-shortcut {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 1px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.pn-shortcut code {
+  color: var(--ov-faint);
+}
+.pn-footer {
+  margin: 0;
+  color: var(--ov-faint);
+  font-size: 12px;
+}
+.pn-toasts {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.pn-toast {
+  background: var(--ov-bg);
+  border-radius: 999px;
+  padding: 4px 12px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+}
+@media (prefers-color-scheme: light) {
+  .pn-root[data-theme="auto"] {
+    --ov-bg: rgba(250, 250, 252, 0.86);
+    --ov-text: rgba(0, 0, 0, 0.88);
+    --ov-muted: rgba(0, 0, 0, 0.6);
+    --ov-faint: rgba(0, 0, 0, 0.42);
+    --ov-line: rgba(0, 0, 0, 0.1);
+    --ov-chip: rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* A native panel window is transparent: only the rounded cards paint. The shell
+   draws a drag strip over the top edge (the pill's left edge), so the content
+   is inset from it. */
+:root[data-panel-host="native"],
+:root[data-panel-host="native"] body {
+  background: transparent;
+}
+:root[data-panel-host="native"] .pn-root {
+  padding-top: 24px;
+}
+:root[data-panel-host="native"] .pn-root[data-panel="pill"] {
+  padding-top: 8px;
+  padding-left: 22px;
+}
+.pn-visible {
+  font-size: 11px;
+  color: var(--ov-faint);
+  white-space: nowrap;
+}

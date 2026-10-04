@@ -8,7 +8,8 @@
     "source.disconnected",
     "capture.gap",
     "heartbeat",
-    "capability.report"
+    "capability.report",
+    "capture.failure"
   ],
   "companionMessage": {
     "anyOf": [
@@ -420,6 +421,55 @@
           "permissions"
         ],
         "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "const": 1
+          },
+          "kind": {
+            "type": "string",
+            "const": "capture.failure"
+          },
+          "sourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "no-focused-window",
+              "permission-denied",
+              "source-gone",
+              "source-changed",
+              "capture-failed"
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "sourceId",
+          "sentAt",
+          "requestId",
+          "code"
+        ],
+        "additionalProperties": false
       }
     ]
   },
@@ -499,9 +549,20 @@
                     },
                     "required": ["x", "y", "width", "height"],
                     "additionalProperties": false
+                  },
+                  "selection": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9._:-]+$"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                   }
                 },
-                "required": ["requestId", "mode"],
+                "required": ["requestId", "mode", "expiresAt"],
                 "additionalProperties": false
               }
             },
@@ -597,9 +658,20 @@
                         },
                         "required": ["x", "y", "width", "height"],
                         "additionalProperties": false
+                      },
+                      "selection": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9._:-]+$"
+                      },
+                      "expiresAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                       }
                     },
-                    "required": ["requestId", "mode"],
+                    "required": ["requestId", "mode", "expiresAt"],
                     "additionalProperties": false
                   }
                 },
@@ -638,7 +710,8 @@
               "payload_too_large",
               "rate_limited",
               "limit_reached",
-              "event_conflict"
+              "event_conflict",
+              "capture_request_stale"
             ]
           },
           "control": {
@@ -692,9 +765,20 @@
                     },
                     "required": ["x", "y", "width", "height"],
                     "additionalProperties": false
+                  },
+                  "selection": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9._:-]+$"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
                   }
                 },
-                "required": ["requestId", "mode"],
+                "required": ["requestId", "mode", "expiresAt"],
                 "additionalProperties": false
               }
             },

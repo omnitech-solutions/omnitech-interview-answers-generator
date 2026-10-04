@@ -7,6 +7,10 @@ await pairingTests(harness)
 await bridgeDecodeTests(harness)
 await bridgeScriptTests(harness)
 await stateTests(harness)
+await nativeSignInTests(harness)
+await bridgeTrustTests(harness)
+await presentationTests(harness)
+await engineTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("studio-shell-tests: \(harness.passed) passed, \(harness.failures.count) failed")

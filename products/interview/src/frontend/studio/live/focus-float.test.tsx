@@ -241,7 +241,7 @@ describe("the card", () => {
     ).toBeEnabled();
     // The default session has no companion screen source.
     expect(
-      menu.getByRole("menuitem", { name: /companion’s latest capture/ }),
+      menu.getByRole("menuitem", { name: /Analyze stored capture/ }),
     ).toBeDisabled();
     // No companion screen source here, so the companion can't be asked: both
     // choices are disabled, with the source's own reason.
@@ -344,7 +344,7 @@ describe("the card", () => {
     expect(deps.submitFollowUp).toHaveBeenCalledWith(
       expect.any(String),
       "and the cost?",
-      {},
+      { skill: "auto", language: "auto" },
     );
     expect(input).toHaveValue("");
     input.focus();

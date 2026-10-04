@@ -1,6 +1,7 @@
 // Switching sessions on the one store: results and errors of reads that began
 // under the session left behind are ignored, and only the latest request wins.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { StoreDeps } from "./session-deps";
 import {
   jsonResponse,
   minutesAfter,
@@ -42,7 +43,7 @@ function gate<T>() {
   return { promise, resolve, reject };
 }
 
-function boot() {
+function boot(extra: Partial<StoreDeps> = {}) {
   const server = createTestServer();
   server.on("GET /current", () => jsonResponse({ session: views[SESSION_ID] }));
   server.on("GET /:id", ({ url }) =>
@@ -52,6 +53,7 @@ function boot() {
     fetch: server.fetch,
     isVisible: () => true,
     storage: { read: () => null, write: () => {}, remove: () => {} },
+    ...extra,
   });
   const store = getSessionStore("local");
   store.subscribe(() => undefined);
@@ -217,5 +219,235 @@ describe("rapid switches", () => {
     await away;
     await back;
     expect(store.getSnapshot().session?.id).toBe(SESSION_ID);
+  });
+});
+
+const notFound = () => jsonResponse({ error: { code: "not_found" } }, 404);
+const conflict = () => jsonResponse({ error: { code: "conflict" } }, 409);
+
+describe("a hydration failure of the binding left behind", () => {
+  it("cannot clear the pin or the switched-to marker of the session now bound", async () => {
+    const { server, store } = boot();
+    const ended = sessionView({
+      id: THIRD,
+      status: "ended",
+      endedAt: minutesAfter(2),
+      createdAt: minutesAfter(-60),
+    });
+    views[THIRD] = ended;
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(streamPage({ session: views[idOf(url)] as never })),
+    );
+    await flush();
+    await flush();
+    await store.actions.switchSession(OTHER);
+    // A refresh begins under the pin on OTHER, and its read is held.
+    const held = gate<Response>();
+    let holding = true;
+    server.on("GET /:id", ({ url }) => {
+      const id = idOf(url);
+      if (id === OTHER && holding) {
+        holding = false;
+        return held.promise;
+      }
+      return Promise.resolve(jsonResponse({ session: views[id] }));
+    });
+    void store.actions.refresh();
+    await flush();
+    // The owner switches to the finished THIRD, then the old read fails.
+    await store.actions.switchSession(THIRD);
+    expect(store.getSnapshot().switchedTo).toBe(THIRD);
+    held.resolve(notFound());
+    await flush();
+    await advance(1_500);
+    expect(store.getSnapshot().switchedTo).toBe(THIRD);
+    expect(store.getSnapshot().session?.id).toBe(THIRD);
+    // The pin survives: a refresh reads THIRD, not "current".
+    const current = server.count("GET /current");
+    await store.actions.refresh();
+    expect(server.count("GET /current")).toBe(current);
+    expect(store.getSnapshot().session?.id).toBe(THIRD);
+  });
+});
+
+describe("a command of the binding left behind", () => {
+  const control = (
+    server: ReturnType<typeof boot>["server"],
+    answer: (action: string) => Promise<Response>,
+  ) =>
+    server.on("POST /:id/control", ({ body }) =>
+      answer((body as { action: string }).action),
+    );
+
+  it("a late pause cannot adopt the session left behind again", async () => {
+    const { server, store } = boot();
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(streamPage({ session: views[idOf(url)] as never })),
+    );
+    await flush();
+    await flush();
+    const held = gate<Response>();
+    control(server, () => held.promise);
+    const pausing = store.actions.pause();
+    await flush();
+    expect(store.getSnapshot().pending).toEqual(["pause"]);
+    await store.actions.switchSession(OTHER);
+    // The pending mark belongs to A: B shows none.
+    expect(store.getSnapshot().pending).toEqual([]);
+    held.resolve(
+      jsonResponse({ session: { ...views[SESSION_ID], status: "paused" } }),
+    );
+    await expect(pausing).resolves.toEqual({ ok: true });
+    await flush();
+    expect(store.getSnapshot().session).toMatchObject({
+      id: OTHER,
+      status: "active",
+    });
+    expect(store.getSnapshot().pending).toEqual([]);
+  });
+
+  it("a late resume cannot adopt the session left behind again", async () => {
+    const { server, store } = boot();
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(streamPage({ session: views[idOf(url)] as never })),
+    );
+    await flush();
+    await flush();
+    const held = gate<Response>();
+    control(server, () => held.promise);
+    const resuming = store.actions.resume();
+    await flush();
+    await store.actions.switchSession(OTHER);
+    held.resolve(jsonResponse({ session: views[SESSION_ID] }));
+    await resuming;
+    await flush();
+    expect(store.getSnapshot().session?.id).toBe(OTHER);
+  });
+
+  it("a late failure neither sets the error nor rolls back the session now bound", async () => {
+    const { server, store } = boot();
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(streamPage({ session: views[idOf(url)] as never })),
+    );
+    await flush();
+    await flush();
+    const held = gate<Response>();
+    control(server, () => held.promise);
+    const pausing = store.actions.pause();
+    await flush();
+    expect(store.getSnapshot().session?.status).toBe("paused");
+    await store.actions.switchSession(OTHER);
+    held.resolve(conflict());
+    await expect(pausing).resolves.toMatchObject({ ok: false });
+    expect(store.getSnapshot().commandError).toBeNull();
+    expect(store.getSnapshot().session).toMatchObject({
+      id: OTHER,
+      status: "active",
+    });
+  });
+
+  it("the same command on two sessions is two operations", async () => {
+    const { server, store } = boot();
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(streamPage({ session: views[idOf(url)] as never })),
+    );
+    await flush();
+    await flush();
+    const heldA = gate<Response>();
+    const heldB = gate<Response>();
+    let calls = 0;
+    control(server, () => (++calls === 1 ? heldA.promise : heldB.promise));
+    const pauseA = store.actions.pause();
+    await flush();
+    await store.actions.switchSession(OTHER);
+    const pauseB = store.actions.pause();
+    await flush();
+    expect(calls).toBe(2);
+    expect(store.getSnapshot().pending).toEqual(["pause"]);
+    heldB.resolve(
+      jsonResponse({ session: { ...views[OTHER], status: "paused" } }),
+    );
+    await pauseB;
+    expect(store.getSnapshot().session).toMatchObject({
+      id: OTHER,
+      status: "paused",
+    });
+    heldA.resolve(jsonResponse({ session: views[SESSION_ID] }));
+    await pauseA;
+    expect(store.getSnapshot().session?.id).toBe(OTHER);
+  });
+});
+
+describe("capture requests across a switch", () => {
+  const pendingState = {
+    requestId: "req-1",
+    status: "pending" as const,
+    expiresAt: minutesAfter(5),
+  };
+
+  it("polls the session that made the request, and stops once another is bound", async () => {
+    const requestCapture = vi.fn(async () => pendingState);
+    const captureStatus = vi.fn(async () => pendingState);
+    const { store } = boot({ requestCapture, captureStatus });
+    await flush();
+    await flush();
+    await store.actions.requestCapture({ mode: "focused-window" });
+    await store.actions.captureStatus("req-1");
+    expect(captureStatus).toHaveBeenLastCalledWith(SESSION_ID, "req-1");
+    await store.actions.switchSession(OTHER);
+    const after = await store.actions.captureStatus("req-1");
+    expect(after).toEqual({ ok: false, code: "not_found" });
+    expect(captureStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a poll answer that arrives after the switch", async () => {
+    const held = gate<typeof pendingState>();
+    const captureStatus = vi.fn(() => held.promise);
+    const { store } = boot({
+      requestCapture: async () => pendingState,
+      captureStatus,
+    });
+    await flush();
+    await flush();
+    await store.actions.requestCapture({ mode: "focused-window" });
+    const polling = store.actions.captureStatus("req-1");
+    await flush();
+    await store.actions.switchSession(OTHER);
+    held.resolve({ ...pendingState, status: "captured" as never });
+    await expect(polling).resolves.toEqual({ ok: false, code: "not_found" });
+  });
+
+  it("a request answered after the switch sets no error and clears its own pending mark", async () => {
+    const held = gate<typeof pendingState>();
+    const { store } = boot({ requestCapture: () => held.promise });
+    await flush();
+    await flush();
+    const asking = store.actions.requestCapture({ mode: "focused-window" });
+    await flush();
+    await store.actions.switchSession(OTHER);
+    expect(store.getSnapshot().pending).toEqual([]);
+    held.reject(new Error("boom"));
+    await expect(asking).resolves.toMatchObject({ ok: false });
+    expect(store.getSnapshot().commandError).toBeNull();
+    expect(store.getSnapshot().pending).toEqual([]);
+  });
+
+  it("a browser capture finishing after the switch sends to its own session and updates nothing", async () => {
+    const held = gate<undefined>();
+    const analyzeCapture = vi.fn(() => held.promise as Promise<void>);
+    const { store } = boot({ analyzeCapture });
+    await flush();
+    await flush();
+    const sending = store.actions.analyzeCapture({
+      image: new Blob(["x"]),
+    });
+    await flush();
+    expect(analyzeCapture).toHaveBeenCalledWith(SESSION_ID, expect.anything());
+    await store.actions.switchSession(OTHER);
+    held.reject(new Error("late"));
+    await expect(sending).resolves.toMatchObject({ ok: false });
+    expect(store.getSnapshot().commandError).toBeNull();
+    expect(store.getSnapshot().session?.id).toBe(OTHER);
+    expect(store.getSnapshot().pending).toEqual([]);
   });
 });

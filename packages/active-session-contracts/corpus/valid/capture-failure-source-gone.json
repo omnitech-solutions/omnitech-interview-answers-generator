@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "kind": "capture.failure",
+  "sourceId": "companion-1",
+  "sentAt": "2026-10-03T10:00:05.000Z",
+  "requestId": "cap-1",
+  "code": "source-gone"
+}

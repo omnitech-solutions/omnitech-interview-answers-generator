@@ -21,6 +21,7 @@ import {
   type Acknowledgement,
   CREDENTIAL_TRANSPORT,
   controlMessageSchema,
+  parseCompanionDeclaration,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
@@ -94,6 +95,8 @@ const REFUSAL_STATUS: Record<string, Status> = {
   limit_reached: 409,
   // Same source and event id, different content: the original is kept.
   event_conflict: 409,
+  // The named capture request is not the pending one: nothing was stored.
+  capture_request_stale: 409,
 };
 
 class BodyTooLarge extends Error {}
@@ -292,6 +295,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       {
         ...(payload ? { payload } : {}),
         jobs: repository.jobs,
+        declaration: parseCompanionDeclaration((name) => c.req.header(name)),
         limits: options.ingestLimits ?? {},
         onRetryAfter: (seconds) => {
           retryAfter = seconds;

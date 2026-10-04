@@ -1,4 +1,5 @@
 import CaptureCore
+import CoreGraphics
 import Foundation
 
 // What the capture adapters report back. All values are Sendable plain data;
@@ -19,6 +20,14 @@ public struct CaptureEvents: Sendable {
     }
 }
 
+// A counter read and bumped from adapter and main-actor contexts.
+private final class Generation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func bump() { lock.withLock { count += 1 } }
+}
+
 // [SAFETY] Core's SourceControl over the real capture objects. Only sources in
 // the person's selection are ever constructed, so there is nothing here that
 // could start another one. start() returns at once; the OS start-up (and any
@@ -28,6 +37,8 @@ public final class SystemCaptureSources: SourceControl, Sendable {
     private let applicationAudio: ScreenKitSource?
     private let screen: ScreenKitSource?
     private let screenSelected: Bool
+    // Bumped on every screen start, so a mask drawn before a pause or restart never applies after.
+    private let screenGeneration = Generation()
 
     public init(selection: Set<CaptureSource>, windowTitleContains: String?, events: CaptureEvents) {
         microphone = selection.contains(.microphone)
@@ -58,15 +69,23 @@ public final class SystemCaptureSources: SourceControl, Sendable {
             Task { _ = await applicationAudio.start() }
         case .screen:
             guard let screen else { return }
+            screenGeneration.bump()
             Task { _ = await screen.start() }
         }
     }
 
     // [SAFETY] One capture for a capture-now request. Only a screen source the
     // person selected at start can capture; otherwise nothing is captured.
-    public func captureOnce(_ request: CaptureRequest) async -> CaptureOutcome {
+    public func captureOnce(_ request: CaptureRequest, focus: FocusSample) async -> CaptureOutcome {
         guard screenSelected else { return .lost(.captureFailed) }
-        return await ScreenKitOneShot.capture(request)
+        return await ScreenKitOneShot.capture(request, focus: focus)
+    }
+
+    // The token Studio binds a region to: the main display's identity and this run's screen
+    // selection generation. Absent when no screen source was selected.
+    public func screenSelection() -> String? {
+        guard screenSelected else { return nil }
+        return "\(CGMainDisplayID()).\(screenGeneration.value)"
     }
 
     // The microphone stops synchronously; ScreenCaptureKit streams are asked

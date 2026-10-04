@@ -85,6 +85,7 @@ describe("owner input actions", () => {
       SESSION_ID,
       undefined,
       undefined,
+      undefined,
     );
     expect(submitFollowUp).toHaveBeenCalledWith(
       SESSION_ID,

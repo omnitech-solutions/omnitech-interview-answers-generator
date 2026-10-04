@@ -1,7 +1,7 @@
 import {
   canonicalDocumentField,
-  InvalidDocumentTemplateError,
   MARKDOWN_FIELD as FIELD,
+  InvalidDocumentTemplateError,
 } from "./template-intake";
 
 export const MISSING_DOCUMENT_FIELD = "[[MISSING_DATA]]";

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   captureRequestFor,
   captureThroughHost,
+  forgetHostDisplay,
   nativeCaptureAvailable,
   onHostHotkey,
   openExternalThroughHost,
@@ -35,6 +36,7 @@ function installHost(over: Record<string, unknown> = {}) {
 }
 
 afterEach(() => {
+  forgetHostDisplay();
   delete window.studioHost;
 });
 
@@ -156,5 +158,54 @@ describe("the native share source", () => {
       FrameError,
     );
     vi.unstubAllGlobals();
+  });
+});
+
+describe("the display a region belongs to", () => {
+  const region = { x: 0, y: 0, w: 0.5, h: 0.5 };
+  it("sends back the display of the last result with a region request", async () => {
+    const host = installHost({
+      captureScreen: vi.fn(async () => ({
+        ok: true,
+        mediaType: "image/jpeg",
+        base64: JPEG_BASE64,
+        displayId: "display-1",
+      })),
+    });
+    await captureThroughHost(FULL);
+    await captureThroughHost(region);
+    expect(host.captureScreen).toHaveBeenLastCalledWith({
+      mode: "region",
+      region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+      displayId: "display-1",
+    });
+  });
+
+  it("reports a refused region as a display change and forgets the display", async () => {
+    let refuse = false;
+    const host = installHost({
+      captureScreen: vi.fn(async () =>
+        refuse
+          ? { ok: false, reason: "capture-failed" }
+          : {
+              ok: true,
+              mediaType: "image/jpeg",
+              base64: JPEG_BASE64,
+              displayId: "display-1",
+            },
+      ),
+    });
+    await captureThroughHost(FULL);
+    refuse = true;
+    expect(await captureThroughHost(region)).toEqual({
+      ok: false,
+      reason: "display-changed",
+    });
+    await captureThroughHost(region);
+    // Forgotten: the next request carries no display, so a plain failure.
+    expect(host.captureScreen).toHaveBeenLastCalledWith({
+      mode: "region",
+      region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+    });
   });
 });

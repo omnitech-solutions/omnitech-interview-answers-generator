@@ -1,6 +1,7 @@
 // One session store per tenant slug, for the life of the page. A module-level
 // registry (not React state) is what lets the session outlive every view.
 import { studioFetch } from "../studio-fetch";
+import { isHeldAwake, onAwakeChange } from "./keep-awake";
 import type { StoreDeps } from "./session-deps";
 import { ownerInputDeps } from "./session-owner-input";
 import type { SessionStore } from "./session-snapshot";
@@ -15,12 +16,19 @@ function browserDeps(): StoreDeps {
     setTimer: (run, ms) => globalThis.setTimeout(run, ms),
     clearTimer: (handle) =>
       globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+    // Hidden pages keep reading while the page holds the mic or a share.
     isVisible: () =>
-      typeof document === "undefined" || document.visibilityState !== "hidden",
+      typeof document === "undefined" ||
+      document.visibilityState !== "hidden" ||
+      isHeldAwake(),
     onVisibilityChange: (listener) => {
       if (typeof document === "undefined") return () => undefined;
       document.addEventListener("visibilitychange", listener);
-      return () => document.removeEventListener("visibilitychange", listener);
+      const stopAwake = onAwakeChange(listener);
+      return () => {
+        document.removeEventListener("visibilitychange", listener);
+        stopAwake();
+      };
     },
     // sessionStorage: per tab, gone with it; only the finished session's id.
     storage: {

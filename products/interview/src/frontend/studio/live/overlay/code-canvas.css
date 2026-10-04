@@ -1,0 +1,208 @@
+/* The live code canvas (code-canvas.tsx). It lives in the overlay card
+   (--ov-* tokens, dark glass) and in the dashboard's Live view (Studio tokens,
+   light or dark), so each colour names both. The editor and results are a dark
+   code surface in every theme, like the Workspace's. */
+.lc-canvas {
+  --lc-line: var(--ov-line, var(--border));
+  --lc-text: var(--ov-text, var(--text));
+  --lc-muted: var(--ov-muted, var(--muted));
+  --lc-chip: var(--ov-btn, var(--subtle));
+  --lc-chip-hover: var(--ov-btn-hover, var(--hover));
+  --lc-accent: var(--ov-accent, var(--accent));
+  --lc-amber: var(--ov-amber, var(--amber));
+  --lc-amber-soft: var(--ov-amber-soft, var(--amber-soft));
+  --lc-surface: oklch(0.2 0.012 260);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  border: 0.5px solid var(--lc-line);
+  border-radius: 10px;
+  overflow: hidden;
+  color: var(--lc-text);
+  background: var(--lc-surface);
+  font-size: 12px;
+}
+.lc-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 0.5px solid var(--lc-line);
+  /* Narrow cards scroll the bar instead of wrapping it. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+.lc-bar::-webkit-scrollbar {
+  display: none;
+}
+.lc-tabs,
+.lc-panel-tabs {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.lc-panel-tabs {
+  padding: 2px 0 4px;
+}
+.lc-tab {
+  height: 26px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lc-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.lc-tab[aria-selected="true"] {
+  background: var(--lc-chip);
+  color: var(--lc-text);
+}
+.lc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lc-amber);
+}
+.lc-spacer {
+  flex: 1;
+}
+.lc-edited {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--lc-amber-soft);
+  color: var(--lc-amber);
+  font-size: 11px;
+}
+.lc-button {
+  flex: none;
+  height: 24px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--lc-chip);
+  color: var(--lc-text);
+  font: inherit;
+  cursor: pointer;
+}
+.lc-button:hover:not(:disabled) {
+  background: var(--lc-chip-hover);
+}
+.lc-button[aria-pressed="true"] {
+  outline: 1px solid var(--lc-accent);
+}
+.lc-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lc-run {
+  background: var(--lc-accent);
+  color: var(--ov-accent-ink, var(--on-accent));
+  font-weight: 600;
+}
+.lc-run:hover:not(:disabled) {
+  background: var(--lc-accent);
+  filter: brightness(1.1);
+}
+.lc-revision {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  background: var(--lc-amber-soft);
+  color: var(--lc-amber);
+  border-bottom: 0.5px solid var(--lc-line);
+}
+.lc-revision-text {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.lc-editor {
+  min-width: 0;
+  font-size: 12px;
+}
+.lc-editor .cm-editor {
+  background: transparent;
+}
+.lc-editor .cm-scroller {
+  font-family: "Geist Mono", "Geist Mono Variable", ui-monospace, monospace;
+  line-height: 1.55;
+}
+.lc-results {
+  border-top: 0.5px solid var(--lc-line);
+  min-width: 0;
+}
+.lc-results-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--lc-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lc-results-title {
+  font-weight: 600;
+}
+.lc-results-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--lc-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-origin {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--lc-chip);
+  color: var(--lc-muted);
+  font-size: 11px;
+}
+.lc-origin.amber {
+  background: var(--lc-amber-soft);
+  color: var(--lc-amber);
+}
+.lc-results-body {
+  max-height: 220px;
+  overflow: auto;
+  padding: 0 6px 8px;
+}
+.lc-canvas[data-size="maximized"] .lc-results-body {
+  max-height: 320px;
+}
+
+/* Controls stay small to fit a 440 px card; their touch target is 40 px. */
+.lc-tab,
+.lc-button,
+.lc-results-head {
+  position: relative;
+}
+.lc-tab::before,
+.lc-button::before,
+.lc-results-head::before {
+  content: "";
+  position: absolute;
+  inset: -8px -2px;
+}
+.lc-results-head::before {
+  inset: -4px 0;
+}

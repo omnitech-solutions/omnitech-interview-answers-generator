@@ -45,6 +45,7 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "owner_input_observation",
     "owner_capture",
     "capture_request",
+    "companion_declaration",
   ]);
 
   // No workflow engine exists: no thread table, no conversation link to one,

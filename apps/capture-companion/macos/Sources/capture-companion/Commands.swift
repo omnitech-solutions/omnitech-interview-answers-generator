@@ -180,7 +180,8 @@ func runCommand(arguments: [String], paths: CompanionPaths) async -> Int32 {
     let session = CompanionSession(
         selection: options.selection, runId: runId, endpoint: endpoint, credentials: credentials,
         transport: URLSessionTransport(), clock: SystemClock(), sources: sources, marker: marker,
-        buffers: Array(box.rings.values), backoff: Backoff(random: { Double.random(in: 0..<1) }))
+        buffers: Array(box.rings.values), backoff: Backoff(random: { Double.random(in: 0..<1) }),
+        screenSelection: { sources.screenSelection() }, focusSampler: { ScreenKitOneShot.sampleFocus() })
     box.session = session
     installLocalStopTriggers(box)
     print(Status.selected(options.selection.sorted { $0.rawValue < $1.rawValue }))
@@ -285,10 +286,12 @@ private func serveCaptureRequest(session: CompanionSession, sources: SystemCaptu
     switch session.takeCaptureRequest() {
     case .nothing: return
     case .ignored: print(Status.captureIgnored)
-    case .honour(let request):
+    case .expired: print(Status.captureExpired)
+    case .sourceChanged: print(Status.captureSourceChanged)
+    case .honour(let request, let focus):
         flight.busy = true
         Task { @MainActor in
-            let outcome = await sources.captureOnce(request)
+            let outcome = await sources.captureOnce(request, focus: focus)
             switch session.completeCapture(request, outcome: outcome) {
             case .submitted: print(Status.captureDone(request.mode))
             case .lost(let loss): print(Status.captureLoss(loss))

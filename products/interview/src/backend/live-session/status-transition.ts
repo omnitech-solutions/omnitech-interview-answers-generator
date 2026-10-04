@@ -54,7 +54,9 @@ export async function transitionLocked(
       purge_started_at = CASE WHEN ${to}::text = 'purging'
         THEN COALESCE(purge_started_at, now()) ELSE purge_started_at END,
       credential_revoked_at = CASE WHEN ${to}::text IN ('ended', 'purging')
-        THEN COALESCE(credential_revoked_at, now()) ELSE credential_revoked_at END
+        THEN COALESCE(credential_revoked_at, now()) ELSE credential_revoked_at END,
+      last_heartbeat_at = CASE WHEN ${command}::text = 'resume'
+        THEN NULL ELSE last_heartbeat_at END
     WHERE tenant_id = ${row.tenantId}::uuid
       AND owner_user_id = ${row.ownerUserId}::uuid
       AND id = ${row.id}::uuid`);
@@ -106,6 +108,11 @@ export async function reconcileLocked(
     return { status: "ended", applied: "end" };
   }
   if (row.status !== "active") return { status: row.status, applied: null };
+  // A companion rule applies only to a session a companion has contacted: a
+  // session captured from the browser alone has no companion to lose, and a
+  // resume clears the old heartbeat so a stale one cannot re-pause it.
+  if (row.lastHeartbeatAt === null)
+    return { status: row.status, applied: null };
   const credentialDead =
     row.credentialHash === null ||
     row.credentialRevokedAt !== null ||

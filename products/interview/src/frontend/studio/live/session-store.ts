@@ -307,14 +307,21 @@ export function createSessionStore(
     if (snapshot.hydration !== "ready") set({ hydration: "loading" });
     hydrating = (async () => {
       try {
-        let view = pinned
-          ? await client.get(pinned).catch((error) => {
-              if (codeOf(error) !== "not_found") throw error;
-              pinned = null;
-              set({ switchedTo: null });
-              return client.current();
-            })
-          : await client.current();
+        // [SAFETY] A failure of a binding already left behind clears nothing:
+        // the pin, the switched-to marker and the fallback are the new one's.
+        const target = pinned;
+        let view: LiveSessionView | null;
+        if (target) {
+          try {
+            view = await client.get(target);
+          } catch (error) {
+            if (codeOf(error) !== "not_found") throw error;
+            if (bound !== bindEpoch) return;
+            pinned = null;
+            set({ switchedTo: null });
+            view = await client.current();
+          }
+        } else view = await client.current();
         if (bound !== bindEpoch) return;
         // No open session: the finished one this tab remembers, if any.
         const known = snapshot.session?.id ?? snapshot.endedSessionId;
@@ -323,6 +330,7 @@ export function createSessionStore(
             view = await client.get(known);
           } catch (error) {
             if (codeOf(error) !== "not_found") throw error;
+            if (bound !== bindEpoch) return;
             forget();
           }
         }
@@ -362,6 +370,7 @@ export function createSessionStore(
     set,
     adopt,
     forget,
+    bindEpoch: () => bindEpoch,
     bindSession(view) {
       // [SAFETY] Another session's content is dropped whole before the new
       // one is adopted; a read still in flight for the old id is ignored.
@@ -437,6 +446,8 @@ export function createSessionStore(
     ...(deps.requestCapture ? { requestCapture: deps.requestCapture } : {}),
     ...(deps.captureStatus ? { captureStatus: deps.captureStatus } : {}),
     ...(deps.submitFollowUp ? { submitFollowUp: deps.submitFollowUp } : {}),
+    ...(deps.submitHeard ? { submitHeard: deps.submitHeard } : {}),
+    ...(deps.solveTask ? { solveTask: deps.solveTask } : {}),
     async refresh() {
       failures = 0;
       halted = false;

@@ -4,10 +4,12 @@
 // package, not here.
 import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative } from "node:path";
-import type {
-  AgentAttachment,
-  AiFailure,
-  AiUsage,
+import {
+  type AgentAttachment,
+  AI_FAILURE_REASONS,
+  type AiFailure,
+  type AiFailureReason,
+  type AiUsage,
 } from "@omnitech/ai-contracts";
 
 export type AgentRuntimeId = "codex" | "claude-code";
@@ -133,16 +135,25 @@ export function validateAgentProfile(profile: AgentProfile): void {
   }
 }
 
+// A closed-vocabulary reason from an adapter's own fixed label (such as an SDK
+// result subtype), or no reason at all: free text never becomes one.
+export function failureReasonOf(label: string): { reason?: AiFailureReason } {
+  const reason = AI_FAILURE_REASONS.find((known) => known === label);
+  return reason ? { reason } : {};
+}
+
 // The typed refusal an adapter turns into a failed event; never carries a
 // path, an attachment name or provider text.
 export const TOOL_REFUSED_FAILURE: AiFailure = {
   code: "policy-refused",
+  reason: "tool_refused",
   message: "A tool-less request attempted to use a tool.",
   retryable: false,
 };
 
 export const ATTACHMENT_REFUSED_FAILURE: AiFailure = {
   code: "policy-refused",
+  reason: "attachment_refused",
   message: "An attachment was refused.",
   retryable: false,
 };

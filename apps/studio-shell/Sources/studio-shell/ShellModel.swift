@@ -13,9 +13,43 @@ final class ShellModel {
     private(set) var sessions: [SessionChoice] = []
     private(set) var current: SessionChoice?
     var onChange: () -> Void = {}
+    // Generation of the page that may receive privileged replies (BridgeEpoch).
+    let epoch = BridgeEpoch()
+    // The web view's own sign-in as Studio answers it (nil: not yet known).
+    private(set) var signedIn: Bool?
+    // Whether Studio has a real login provider (nil: not asked yet). Without one
+    // the shell never prompts to sign in: the default dev user needs none.
+    private(set) var signInAvailable: Bool?
+    // Set by the app: runs the native sign-in round trip / abandons it.
+    var onSignInRequested: () -> Void = {}
+    var onSignInAbandoned: () -> Void = {}
+    private var lastProbe: ProbeResult?
 
     let pairing = StudioPairing(credentials: KeychainCredentialStore(), paths: CompanionPaths())
-    weak var webView: WKWebView?
+    // Every web view the shell hosts (main window, compact window, panels). Each
+    // is the same Studio origin and the same persistent data store, and each is
+    // trusted by the bridge only while it is registered here (BridgeTrust).
+    private let hostedViews = NSHashTable<WKWebView>.weakObjects()
+    func register(_ view: WKWebView) { hostedViews.add(view) }
+    func owns(_ view: WKWebView?) -> Bool { view.map { hostedViews.contains($0) } ?? false }
+    // One view at Studio's origin, for calls the shell makes through a page
+    // (the session list, sign-in redemption); nil when none is loaded.
+    var webView: WKWebView? {
+        let views = hostedViews.allObjects
+        guard let location else { return views.first }
+        return views.first { $0.url.map(location.isStudio) ?? false } ?? views.first
+    }
+    func isAtStudio(_ view: WKWebView?) -> Bool {
+        guard let location, let url = view?.url else { return false }
+        return location.isStudio(url)
+    }
+    var allViews: [WKWebView] { hostedViews.allObjects }
+
+    let prefs = ShellPrefs(store: UserDefaultsStore())
+    var skill: OwnerSkill {
+        get { prefs.skill }
+        set { prefs.skill = newValue }
+    }
     private let probeSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil
@@ -31,13 +65,27 @@ final class ShellModel {
         set { UserDefaults.standard.set(newValue, forKey: "pinned") }
     }
 
+
     func load() {
         location = pairing.current()
         connection = ConnectionRules.state(paired: location != nil, probe: nil)
         onChange()
     }
 
+    // True while a hosted page is at Studio's configured origin.
+    var webViewIsAtStudio: Bool { isAtStudio(webView) }
+
+    // [SAFETY] A rebind (new address or workspace) invalidates in-flight
+    // requests, forgets the old sign-in and, when the origin changed, erases the
+    // web view's stored site data so one origin's session never meets another.
     func paired(_ location: StudioLocation) {
+        let previous = self.location
+        epoch.advance()
+        onSignInAbandoned()
+        signedIn = nil
+        signInAvailable = nil
+        lastProbe = nil
+        if previous?.origin != location.origin { clearWebsiteData() }
         self.location = location
         connection = .connecting
         sessions = []
@@ -46,12 +94,25 @@ final class ShellModel {
     }
 
     func disconnect() {
+        epoch.advance()
+        onSignInAbandoned()
+        clearWebsiteData()
+        for view in allViews { view.load(URLRequest(url: URL(string: "about:blank")!)) }
+        signedIn = nil
+        signInAvailable = nil
+        lastProbe = nil
         pairing.forget()
         location = nil
         sessions = []
         current = nil
         connection = .notPaired
         onChange()
+    }
+
+    // Signs the web view out of everything it stored (it holds only Studio).
+    func clearWebsiteData() {
+        let store = WKWebsiteDataStore.default()
+        store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {}
     }
 
     // [SAFETY] The probe is a plain GET of Studio's public manifest: no cookie,
@@ -66,36 +127,81 @@ final class ShellModel {
             } catch {
                 result = .noAnswer
             }
-            connection = ConnectionRules.state(paired: true, probe: result)
+            lastProbe = result
+            connection = ConnectionRules.state(
+                paired: true, probe: result, signedIn: signedIn, signInAvailable: signInAvailable)
             onChange()
             if connection.isConnected { await refreshSessions() }
         }
     }
 
     // Calls a Studio session route from inside the web view, with the person's
-    // own sign-in; the shell sees only the response text.
+    // own sign-in; the shell sees only the status and response text.
     @MainActor
-    func studioFetch(path: String, method: String = "GET", body: String? = nil) async -> String? {
-        guard let webView else { return nil }
+    func studioFetch(path: String, method: String = "GET", body: String? = nil) async -> (status: Int, text: String?)? {
+        guard let webView, webViewIsAtStudio else { return nil }
         let script = """
         const response = await fetch(path, {
           method: method, credentials: "same-origin",
           headers: body === null ? {} : { "content-type": "application/json" },
           body: body });
-        return response.ok ? await response.text() : null;
+        return { status: response.status, text: response.ok ? await response.text() : null };
         """
         let value = try? await webView.callAsyncJavaScript(
             script, arguments: ["path": path, "method": method, "body": body as Any? ?? NSNull()],
             in: nil, contentWorld: .page)
-        return value as? String
+        guard let object = value as? [String: Any], let status = object["status"] as? Int else { return nil }
+        return (status, object["text"] as? String)
+    }
+
+    // 401/403 from Studio's own session route means the web view is signed out
+    // or expired: the state says so ("Sign in to Studio") instead of failing
+    // silently, and a drop from signed-in invalidates in-flight requests.
+    @MainActor
+    private func noteAuth(status: Int) {
+        let now: Bool? = status == 401 || status == 403 ? false : (status == 200 ? true : signedIn)
+        if signedIn == true, now == false { epoch.advance() }
+        signedIn = now
+        if now != false { signInAvailable = nil }
+        if let lastProbe {
+            connection = ConnectionRules.state(
+                paired: true, probe: lastProbe, signedIn: signedIn, signInAvailable: signInAvailable)
+        }
+    }
+
+    // Asked only once Studio says signed out: a plain, cookie-free GET of
+    // Studio's public providers route. An unanswered ask means no prompt.
+    @MainActor
+    private func refreshSignInAvailability() async {
+        guard let location, signedIn == false, signInAvailable == nil else { return }
+        var available = false
+        if let (data, response) = try? await probeSession.data(from: location.signInProvidersURL),
+            (response as? HTTPURLResponse)?.statusCode == 200,
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            available = object["configured"] as? Bool ?? false
+        }
+        signInAvailable = available
+        if let lastProbe {
+            connection = ConnectionRules.state(
+                paired: true, probe: lastProbe, signedIn: signedIn, signInAvailable: signInAvailable)
+        }
     }
 
     @MainActor
     func refreshSessions() async {
         guard let location else { return }
-        if let list = await studioFetch(path: location.sessionsPath) { sessions = SessionChoices.parseList(list) }
-        if let now = await studioFetch(path: location.sessionsPath + "/current") {
-            current = SessionChoices.parseCurrent(now)
+        if let list = await studioFetch(path: location.sessionsPath) {
+            noteAuth(status: list.status)
+            await refreshSignInAvailability()
+            if let text = list.text { sessions = SessionChoices.parseList(text) } else { sessions = [] }
+        }
+        if signedIn != false, let now = await studioFetch(path: location.sessionsPath + "/current"),
+            let text = now.text
+        {
+            current = SessionChoices.parseCurrent(text)
+        } else if signedIn == false {
+            current = nil
         }
         onChange()
     }
@@ -107,5 +213,14 @@ final class ShellModel {
             path: "\(location.sessionsPath)/\(current.id)/control", method: "POST",
             body: SessionChoices.controlBody(pause: !current.isPaused))
         await refreshSessions()
+    }
+}
+
+// UserDefaults behind the Core's SettingsStore: window frames, mode and
+// visibility only. Never content, an address or a credential.
+struct UserDefaultsStore: SettingsStore {
+    func string(forKey key: String) -> String? { UserDefaults.standard.string(forKey: "shell." + key) }
+    func set(_ value: String?, forKey key: String) {
+        if let value { UserDefaults.standard.set(value, forKey: "shell." + key) } else { UserDefaults.standard.removeObject(forKey: "shell." + key) }
     }
 }

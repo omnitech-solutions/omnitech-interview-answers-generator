@@ -73,6 +73,10 @@ export const OWNER_INPUT_SOURCE_ID = "studio.owner-input";
 // observations written only by the owner capture route. Ingest refuses it as a
 // sender's source id; the CHECK below keeps it to stored screen snapshots.
 export const OWNER_CAPTURE_SOURCE_ID = "studio.owner-capture";
+// The reserved source id of the owner's own heard speech (ADR-0022):
+// `transcript.final` observations written only by the owner input route.
+// Ingest refuses it as a sender's source id.
+export const OWNER_MICROPHONE_SOURCE_ID = "studio.owner-microphone";
 export const dispatchStatuses = [
   "in_flight",
   "succeeded",
@@ -472,8 +476,18 @@ export const companionCapabilities = interview.table.withRLS(
     speechAuthorizationStatus: text("speech_authorization_status").notNull(),
     microphone: text("microphone").notNull(),
     screen: text("screen").notNull(),
+    // What the companion declared on its ingest requests (ADR-0022): whether it
+    // can take capture requests, and its token for the selected screen source.
+    captureRequestSupport: boolean("capture_request_support")
+      .notNull()
+      .default(false),
+    screenSelection: text("screen_selection"),
   },
   (t) => [
+    check(
+      "companion_capabilities_screen_selection_check",
+      sql`screen_selection IS NULL OR screen_selection ~ '^[A-Za-z0-9._:-]{1,128}$'`,
+    ),
     primaryKey({
       name: "companion_capabilities_pkey",
       columns: [t.tenantId, t.ownerUserId],

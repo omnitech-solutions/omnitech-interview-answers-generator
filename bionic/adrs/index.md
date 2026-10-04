@@ -2,6 +2,9 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0022 | Allow owner-enabled hands-free listening and automatic capture | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, overlay, capture, privacy, hands-free |
+| ADR-0021 | Negotiate companion capture requests and report their failures | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, companion, wire, negotiation, capture |
+| ADR-0020 | Sign in to Studio from the native shell through a one-time handoff | Proposed | 2026-10-04 | — (amends ADR-0019) | — | active-session, native, auth, oauth, privacy |
 | ADR-0019 | Host the overlay in a native shell through one host adapter | Accepted | 2026-10-04 | — (amends ADR-0017, ADR-0018) | — | active-session, overlay, native, macos, adapter, privacy |
 | ADR-0018 | Capture on demand with masks and owner-requested companion captures | Accepted | 2026-10-04 | — (amends ADR-0016) | — | active-session, capture, privacy, companion, overlay |
 | ADR-0017 | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | 2026-10-03 | — (amends ADR-0016) | — | active-session, overlay, pip, agents, isolation, structured-output |

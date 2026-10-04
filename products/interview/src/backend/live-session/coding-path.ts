@@ -43,8 +43,8 @@ import {
   type WorkspaceOutcome,
 } from "./session-drafts.js";
 import {
-  capturedFor,
   type CodingCandidate,
+  capturedFor,
   noteSolution,
   type SessionCodeRunner,
   type SessionRun,

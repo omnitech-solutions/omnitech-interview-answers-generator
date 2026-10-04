@@ -14,7 +14,6 @@ import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { Clock } from "./core/index.js";
 import type { AgentEscalationPort } from "./escalation.js";
-import type { SessionCodeRunner } from "./session-run.js";
 import {
   createInterviewSessionPolicy,
   type InterviewSessionPolicy,
@@ -29,6 +28,7 @@ import {
   createDatabaseStorePort,
   type DatabasePortOptions,
 } from "./session-ports.js";
+import type { SessionCodeRunner } from "./session-run.js";
 import { createLoggerTraceSink, type TraceSink } from "./trace.js";
 
 export {
@@ -36,26 +36,26 @@ export {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "../../assistant-profile.js";
+export type { AgentEscalationPort } from "./escalation.js";
 export {
   SESSION_GATEWAY_CONTEXT,
   sessionGatewayContext,
 } from "./gateway-context.js";
-export type { SessionProcessor } from "./processor.js";
 export {
   isOwnerInputProvenanceId,
   isSnapshotProvenanceId,
   parseSnapshotProvenanceId,
 } from "./owner-input.js";
-export { createSessionStillPermitted } from "./session-standing.js";
+export type { SessionProcessor } from "./processor.js";
+export type { SessionProcessorOptions } from "./processor-ports.js";
 export {
   createSessionScreenshotLoader,
   loadVerifiedScreenshot,
   type SnapshotRead,
   type StoredSnapshot,
 } from "./screenshot-loader.js";
-export type { AgentEscalationPort } from "./escalation.js";
 export type { SessionCodeRunner } from "./session-run.js";
-export type { SessionProcessorOptions } from "./processor-ports.js";
+export { createSessionStillPermitted } from "./session-standing.js";
 export {
   createLoggerTraceSink,
   type SessionTraceEvent,

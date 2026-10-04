@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
+import { fakeStream } from "./overlay/capture-fixtures";
 import { jsonResponse, minutesAfter, sessionView } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
 import { createTestServer, type TestServer } from "./session-test-server";
@@ -530,5 +531,85 @@ describe("Start failures", () => {
     release(jsonResponse({ error: { code: "invalid_input" } }, 400));
     await screen.findByTestId("setup-failure");
     expect(start()).toBeEnabled();
+  });
+});
+
+describe("Start hands-free", () => {
+  const handsFree = () =>
+    screen.getByRole("button", { name: /Start hands-free/ });
+
+  it("asks for the screen and the microphone in the starting click, parks the share and remembers the choice", async () => {
+    const shared = fakeStream();
+    const stream = shared.stream;
+    const mic = { getTracks: () => [{ stop: vi.fn() }] };
+    const getDisplayMedia = vi.fn(async () => stream);
+    const getUserMedia = vi.fn(async () => mic);
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getDisplayMedia, getUserMedia },
+      configurable: true,
+    });
+    HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
+    await open();
+    pickInterview();
+    consent();
+    // A permitted-remote session, so the screen is asked for too.
+    fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
+    fireEvent.click(handsFree());
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(getDisplayMedia).toHaveBeenCalledTimes(1);
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
+    expect(
+      window.localStorage.getItem("interview-studio.live.auto.local"),
+    ).toBe("on");
+    // The card that mounts takes the parked share and the announcement.
+    const { takeAnnouncement, takeParkedShare } = await import(
+      "./overlay/share-handoff"
+    );
+    expect(takeAnnouncement()).toBe("Hands-free is on.");
+    expect(takeParkedShare()).not.toBeNull();
+  });
+
+  it("asks for no screen in a device-only session, and says what is missing when the microphone is refused", async () => {
+    const getDisplayMedia = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getDisplayMedia,
+        getUserMedia: vi.fn(async () => {
+          throw Object.assign(new Error("x"), { name: "NotAllowedError" });
+        }),
+      },
+      configurable: true,
+    });
+    await open();
+    pickInterview();
+    consent();
+    fireEvent.click(handsFree());
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(getDisplayMedia).not.toHaveBeenCalled();
+    const { takeAnnouncement } = await import("./overlay/share-handoff");
+    expect(takeAnnouncement()).toMatch(/the microphone wasn’t allowed/);
+  });
+
+  it("releases the share when the session does not start", async () => {
+    const shared = fakeStream();
+    const stop = shared.track.stop;
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getDisplayMedia: vi.fn(async () => shared.stream),
+        getUserMedia: vi.fn(async () => ({ getTracks: () => [] })),
+      },
+      configurable: true,
+    });
+    HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
+    server.on("POST /", () =>
+      jsonResponse({ error: { code: "link_refused" } }, 422),
+    );
+    await open();
+    pickInterview();
+    consent();
+    fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
+    fireEvent.click(handsFree());
+    await screen.findByTestId("setup-failure");
+    expect(stop).toHaveBeenCalled();
   });
 });

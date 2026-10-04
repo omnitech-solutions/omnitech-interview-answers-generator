@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   acknowledgementSchema,
   capabilityReportSchema,
+  captureFailureSchema,
   heartbeatSchema,
 } from "./control.js";
 import { WIRE_VERSION } from "./ids.js";
@@ -18,12 +19,14 @@ export const COMPANION_MESSAGE_KINDS = [
   "capture.gap",
   "heartbeat",
   "capability.report",
+  "capture.failure",
 ] as const;
 
 const companionMessageSchema = z.union([
   observationSchema,
   heartbeatSchema,
   capabilityReportSchema,
+  captureFailureSchema,
 ]);
 
 const toJsonSchema = (schema: z.ZodType) => {

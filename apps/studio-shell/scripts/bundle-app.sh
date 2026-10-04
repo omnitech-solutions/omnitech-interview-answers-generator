@@ -7,9 +7,10 @@
 #   swift build -c release && scripts/bundle-app.sh
 #   open .build/InterviewStudioShell.app
 #
-# LSUIElement: an accessory app (menu-bar item, no Dock icon, not in the app
-# switcher), so pressing the floating window never makes the shell the frontmost
-# app; "capture the focused window" keeps reading the window being interviewed in.
+# A regular app (Dock icon, app menu): no LSUIElement. The floating panels are
+# non-activating, so pressing one never makes the shell the frontmost app;
+# "capture the focused window" keeps reading the window being interviewed in
+# (FocusSampling falls back to the last other app while the main window is key).
 # There is no App Sandbox: the web view needs only outbound network, and
 # ScreenCaptureKit needs the user's Screen Recording grant, not an entitlement.
 set -eu
@@ -40,8 +41,16 @@ cat >"$bundle/Contents/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>LSUIElement</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleURLName</key><string>com.omnitech.studio-shell.signin</string>
+    <key>CFBundleURLSchemes</key><array><string>omnitech-studio</string></array>
+  </dict></array>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Interview Studio listens to your microphone during a live session you start, so your assistant can hear the interviewer. Speech is turned into text on this Mac and no audio is recorded or kept.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Interview Studio recognises speech on this Mac, never on a server, to turn what is said in your live session into text.</string>
   <key>NSAppTransportSecurity</key>
   <dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>

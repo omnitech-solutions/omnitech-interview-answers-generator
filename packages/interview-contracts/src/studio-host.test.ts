@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { negotiateStudioHost, STUDIO_HOST_VERSION } from "./studio-host.js";
+import {
+  isStudioHostDisplayId,
+  negotiateStudioHost,
+  STUDIO_HOST_VERSION,
+} from "./studio-host.js";
 
 const bridge = (over: Record<string, unknown> = {}) => ({
   version: STUDIO_HOST_VERSION,
@@ -39,5 +43,13 @@ describe("negotiateStudioHost", () => {
       }),
     );
     expect([...(info?.capabilities ?? [])]).toEqual(["capture-screen"]);
+  });
+});
+
+describe("isStudioHostDisplayId", () => {
+  it("accepts a short opaque id and refuses anything else", () => {
+    expect(isStudioHostDisplayId("69733250.2")).toBe(true);
+    for (const bad of ["", "a b", "x".repeat(65), 5, undefined, "a/b"])
+      expect(isStudioHostDisplayId(bad)).toBe(false);
   });
 });

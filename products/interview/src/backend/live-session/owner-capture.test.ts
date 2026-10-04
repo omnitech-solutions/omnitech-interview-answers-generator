@@ -18,7 +18,6 @@ import {
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session.js";
-import { CODING_LANGUAGES } from "./assist-stage.js";
 import { ingestObservation } from "./ingest.js";
 import {
   type Fixture,
@@ -113,8 +112,8 @@ const refused = async (promise: Promise<unknown>) => {
 };
 
 describe("the hint enums", () => {
-  it("offer exactly the languages the coding path supports", () => {
-    expect([...LIVE_OWNER_LANGUAGES]).toEqual([...CODING_LANGUAGES]);
+  it("offer nine skills and the one supported-language list the stages import", () => {
+    expect(LIVE_OWNER_LANGUAGES).toEqual(["typescript", "react"]);
     expect(LIVE_OWNER_SKILLS).toHaveLength(9);
   });
 });

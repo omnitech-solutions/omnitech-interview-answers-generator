@@ -5,7 +5,11 @@
 import {
   type Acknowledgement,
   CAPABILITY_ACK_EVENT_ID,
+  CAPTURE_FAILURE_ACK_EVENT_ID,
+  type CaptureFailureCode,
   type CaptureRequest,
+  COMPANION_FEATURE_CAPTURE_REQUEST,
+  COMPANION_FEATURES_HEADER,
   HEARTBEAT_ACK_EVENT_ID,
   type RefusalCode,
   type SessionControlState,
@@ -72,6 +76,13 @@ export const refusedAck = (
   ...(state ? { control: control(state, capture) } : {}),
 });
 
+const declaresCaptureRequests = (headers: Record<string, string>) =>
+  Object.entries(headers).some(
+    ([name, value]) =>
+      name.toLowerCase() === COMPANION_FEATURES_HEADER &&
+      value.split(/[\s,]+/).includes(COMPANION_FEATURE_CAPTURE_REQUEST),
+  );
+
 export type FakeStudio = {
   fetch: FetchLike;
   requests: RecordedRequest[];
@@ -84,6 +95,12 @@ export type FakeStudio = {
   capture?: CaptureRequest | undefined;
   // Ids of requests fulfilled by a snapshot, in order.
   readonly fulfilled: string[];
+  // Capture failures reported for the pending request, in order.
+  readonly failures: { requestId: string; code: CaptureFailureCode }[];
+  // An older Studio: it never hands over a request and (strict) refuses the
+  // capture.failure kind it does not know. Otherwise Studio negotiates: a
+  // request is handed over only on a request that declared support for it.
+  legacy: boolean;
   // Decides a reply before the default; return undefined to fall through.
   script?:
     | ((request: RecordedRequest, index: number) => Reply | undefined)
@@ -94,6 +111,8 @@ export function fakeStudio(): FakeStudio {
   const studio: FakeStudio = {
     requests: [],
     fulfilled: [],
+    failures: [],
+    legacy: false,
     state: "active",
     down: false,
     fetch: async (url, init) => {
@@ -125,9 +144,37 @@ export function fakeStudio(): FakeStudio {
         studio.fulfilled.push(requestId);
         studio.capture = undefined;
       }
+      const failure = request.message as unknown as {
+        kind: string;
+        requestId?: string;
+        code?: CaptureFailureCode;
+      };
+      if (failure.kind === "capture.failure" && !studio.legacy) {
+        if (
+          failure.requestId !== undefined &&
+          failure.requestId === studio.capture?.requestId
+        ) {
+          studio.failures.push({
+            requestId: failure.requestId,
+            code: failure.code as CaptureFailureCode,
+          });
+          studio.capture = undefined;
+        }
+      }
+      const handOver =
+        !studio.legacy && declaresCaptureRequests(request.headers)
+          ? studio.capture
+          : undefined;
       const reply =
         studio.script?.(request, index) ??
-        acceptedAck(request.message, studio.state, studio.capture);
+        (failure.kind === "capture.failure" && studio.legacy
+          ? refusedAck("invalid_observation", studio.state)
+          : failure.kind === "capture.failure"
+            ? {
+                ...acceptedAck(request.message, studio.state),
+                eventId: CAPTURE_FAILURE_ACK_EVENT_ID,
+              }
+            : acceptedAck(request.message, studio.state, handOver));
       if (reply === "network-error") throw new Error("network");
       const respond = (json: unknown, retryAfter?: string): FetchResponse => ({
         headers: {

@@ -2,8 +2,8 @@ import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
-  builtInTemplates,
   type BuiltInKey,
+  builtInTemplates,
 } from "./documents/built-in-templates.js";
 
 // Private local data (the experience matrix, the author's real templates)

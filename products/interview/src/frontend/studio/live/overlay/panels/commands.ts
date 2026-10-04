@@ -1,0 +1,204 @@
+// The typed command set every page understands, however it is issued: by the
+// in-page keymap, or by a hotkey the host registered system-wide. Pure: this
+// file maps keys to commands and claims one run per physical press; the
+// controller (use-panel-session) says what each command does.
+import {
+  LIVE_OWNER_SKILLS,
+  type LiveOwnerSkill,
+  type StudioHostHotkey,
+} from "@omnitech/interview-contracts";
+import type { PanelKind } from "./panel-kinds";
+
+export const COMMANDS = [
+  "auto.toggle",
+  "capture.analyze",
+  "solution.generate",
+  "transcribe.toggle",
+  "skill.next",
+  "skill.prev",
+  "session.clear",
+  "panel.toggle",
+] as const;
+export type Command = (typeof COMMANDS)[number];
+
+export type CommandKey = {
+  command: Command;
+  keys: string;
+  code: string;
+  shift: boolean;
+  label: string;
+};
+
+// Alt combinations, so they are safe while typing; matched on the physical key
+// (Alt changes the character on macOS). The first two are the card's own keys.
+export const COMMAND_KEYS: readonly CommandKey[] = [
+  {
+    command: "capture.analyze",
+    keys: "Alt+Shift+A",
+    code: "KeyA",
+    shift: true,
+    label: "Capture & analyze",
+  },
+  {
+    command: "transcribe.toggle",
+    keys: "Alt+R",
+    code: "KeyR",
+    shift: false,
+    label: "Microphone on or off",
+  },
+  {
+    command: "auto.toggle",
+    keys: "Alt+Shift+H",
+    code: "KeyH",
+    shift: true,
+    label: "Auto (hands-free) on or off",
+  },
+  {
+    command: "solution.generate",
+    keys: "Alt+Shift+S",
+    code: "KeyS",
+    shift: true,
+    label: "Generate the solution",
+  },
+  {
+    command: "skill.next",
+    keys: "Alt+]",
+    code: "BracketRight",
+    shift: false,
+    label: "Next skill",
+  },
+  {
+    command: "skill.prev",
+    keys: "Alt+[",
+    code: "BracketLeft",
+    shift: false,
+    label: "Previous skill",
+  },
+  {
+    command: "session.clear",
+    keys: "Alt+Shift+C",
+    code: "KeyC",
+    shift: true,
+    label: "Clear session memory",
+  },
+  {
+    command: "panel.toggle",
+    keys: "Alt+Shift+P",
+    code: "KeyP",
+    shift: true,
+    label: "Show or hide the analysis panel",
+  },
+];
+
+export const commandKeys = (command: Command): string =>
+  COMMAND_KEYS.find((each) => each.command === command)?.keys ?? "";
+
+type KeyLike = {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+  code: string;
+  isComposing?: boolean;
+};
+
+// The command a key press is, or null. Never during an IME composition, never
+// with Ctrl or Meta.
+export function commandOf(event: KeyLike): Command | null {
+  if (event.isComposing || !event.altKey || event.ctrlKey || event.metaKey)
+    return null;
+  return (
+    COMMAND_KEYS.find(
+      (each) => each.code === event.code && each.shift === event.shiftKey,
+    )?.command ?? null
+  );
+}
+
+// What a host hotkey name asks for: a command, a skill to set ("auto" is no
+// hint), or null for a name this page does not know. The dotted names are the
+// commands themselves; "capture-analyze" is the original spelling.
+export type Intent =
+  | { kind: "command"; command: Command }
+  | { kind: "skill"; skill: LiveOwnerSkill | undefined };
+
+export function intentOf(hotkey: StudioHostHotkey | string): Intent | null {
+  if (hotkey === "capture-analyze")
+    return { kind: "command", command: "capture.analyze" };
+  const command = COMMANDS.find((each) => each === hotkey);
+  if (command) return { kind: "command", command };
+  if (hotkey.startsWith("skill.set:")) {
+    const id = hotkey.slice("skill.set:".length);
+    if (id === "auto") return { kind: "skill", skill: undefined };
+    const skill = LIVE_OWNER_SKILLS.find((each) => each === id);
+    if (skill) return { kind: "skill", skill };
+  }
+  return null;
+}
+
+// Which panel's document runs a host intent when the shell opens one document
+// per panel; the rest are for every panel (they claim one run between them).
+export const INTENT_TARGET: Partial<Record<Command, PanelKind>> = {
+  "capture.analyze": "analysis",
+  "solution.generate": "analysis",
+  "transcribe.toggle": "chat",
+  "auto.toggle": "pill",
+};
+
+// The next or previous skill, wrapping through "auto" (no hint) at the end.
+export function cycleSkill(
+  current: LiveOwnerSkill | undefined,
+  step: 1 | -1,
+): LiveOwnerSkill | undefined {
+  const ring: (LiveOwnerSkill | undefined)[] = [
+    undefined,
+    ...LIVE_OWNER_SKILLS,
+  ];
+  const at = ring.indexOf(current);
+  return ring[(at + step + ring.length) % ring.length];
+}
+
+// One physical press is one run, however many documents hear it (a host hotkey
+// reaches every page it hosts; the in-page key also fires). Granted once per
+// window per command, here by timestamp and across same-origin windows by a Web
+// Lock nobody else can take meanwhile.
+export const COMMAND_WINDOW_MS = 400;
+const lastGranted = new Map<Command, number>();
+
+export function resetCommandClaims(): void {
+  lastGranted.clear();
+}
+
+export async function claimCommand(command: Command): Promise<boolean> {
+  const now = Date.now();
+  if (
+    now - (lastGranted.get(command) ?? Number.NEGATIVE_INFINITY) <
+    COMMAND_WINDOW_MS
+  )
+    return false;
+  lastGranted.set(command, now);
+  const locks =
+    typeof navigator === "undefined"
+      ? undefined
+      : (navigator as { locks?: LockManager }).locks;
+  if (!locks) return true;
+  try {
+    return await new Promise<boolean>((resolve) => {
+      void locks
+        .request(
+          `interview-studio.command.${command}`,
+          { ifAvailable: true },
+          (lock) => {
+            resolve(lock !== null);
+            return lock
+              ? new Promise<void>((release) =>
+                  setTimeout(release, COMMAND_WINDOW_MS),
+                )
+              : undefined;
+          },
+        )
+        .catch(() => resolve(true));
+    });
+  } catch {
+    return true;
+  }
+}

@@ -2,9 +2,11 @@
 // and what is known about the solution. Generated, tests passed and fully
 // verified are three separate facts and are never merged: "verified" is shown
 // only when the server says fullyVerified (rule:fenced-current-publish and
-// code-states.ts). The code itself lives in the Workspace draft, not here.
+// code-states.ts). The code is an editable, runnable canvas
+// (overlay/code-canvas.tsx); the Workspace draft remains the saved copy.
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { Icon } from "../icon";
+import { LiveCodeCanvas } from "./overlay/code-canvas";
 import { RUNNER_NOTE, STATE_REASON } from "./session-draft-facts";
 import type { CodeResult } from "./session-results";
 import type { TaskView } from "./session-tasks";
@@ -173,6 +175,13 @@ export function CodingPanel({
           />
         )}
       </div>
+      {code && (
+        <LiveCodeCanvas
+          result={code}
+          revision={codeRevision?.revision ?? null}
+          size="maximized"
+        />
+      )}
       {codeRevision && (
         <p className="live-note">
           Solution for task rev {codeRevision.revision}

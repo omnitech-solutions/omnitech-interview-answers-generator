@@ -17,6 +17,12 @@ export type RecordingCapture = CaptureDriver & {
   readonly captured: CaptureRequest[];
   // What the next capture-now returns (a small JPEG by default).
   nextCapture: CaptureOnceResult;
+  // The screen selection token the driver reports; undefined clears it.
+  selection: string | undefined;
+  // The focus sample handed to the next captureOnce (taken by sampleFocus).
+  focus: string;
+  // Every focus sample passed to captureOnce, in order.
+  readonly focusUsed: unknown[];
 };
 
 export const fixtureJpeg = (): Uint8Array =>
@@ -26,9 +32,13 @@ export function recordingCapture(): RecordingCapture {
   const running = new Set<CaptureSource>();
   const log: string[] = [];
   const captured: CaptureRequest[] = [];
+  const focusUsed: unknown[] = [];
   const capture: RecordingCapture = {
     log,
     captured,
+    focusUsed,
+    selection: "disp-1.1",
+    focus: "focus-1",
     nextCapture: {
       kind: "image",
       payload: fixtureJpeg(),
@@ -48,8 +58,11 @@ export function recordingCapture(): RecordingCapture {
       running.clear();
       log.push("stop:all");
     },
-    async captureOnce(request) {
+    screenSelection: () => capture.selection,
+    sampleFocus: () => capture.focus,
+    async captureOnce(request, focus) {
       captured.push(request);
+      focusUsed.push(focus);
       log.push(`capture:${request.mode}`);
       return capture.nextCapture;
     },

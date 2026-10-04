@@ -33,6 +33,7 @@ export function CommandBar({
   onCapture,
   onDictate,
   onSettings,
+  auto,
 }: {
   status: BarStatus;
   dictation: DictationState;
@@ -41,6 +42,8 @@ export function CommandBar({
   onCapture(): void;
   onDictate(): void;
   onSettings(): void;
+  // Hands-free Auto: on or off, and the microphone's real state.
+  auto?: { on: boolean; mic: "listening" | "denied" | "off"; onToggle(): void };
 }) {
   const listening = dictation === "listening";
   return (
@@ -75,12 +78,30 @@ export function CommandBar({
         className={`ov-icon-button ov-mic${listening ? " live" : ""}`}
         aria-label={listening ? "Stop dictation" : "Dictate"}
         aria-pressed={listening}
-        title={`${tip(listening ? "Stop dictation" : "Dictate a follow-up", "dictate")}. ${DICTATION_NOTE}`}
+        data-mic={auto?.mic}
+        title={`${tip(listening ? "Stop dictation" : "Dictate a follow-up", "dictate")}. ${DICTATION_NOTE}${auto?.mic === "denied" ? " The browser says the microphone is not allowed." : ""}`}
         onClick={onDictate}
       >
         <Icon name="mic" filled={listening} />
         {listening && <span className="ov-rec" aria-hidden="true" />}
       </button>
+      {auto && (
+        <button
+          type="button"
+          className={`ov-pill-button ov-auto-toggle${auto.on ? " on" : ""}`}
+          aria-pressed={auto.on}
+          data-testid="auto-toggle"
+          title={
+            auto.on
+              ? "Auto is on: it listens and captures the shared screen when it changes. Press to turn it off."
+              : "Turn Auto on: hands-free listening and capture when the shared screen changes."
+          }
+          onClick={auto.onToggle}
+        >
+          <Icon name="visibility" />
+          Auto{auto.on ? " · on" : ""}
+        </button>
+      )}
       <button
         type="button"
         className="ov-pill-button"

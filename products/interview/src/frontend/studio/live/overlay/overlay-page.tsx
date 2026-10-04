@@ -18,8 +18,17 @@ import { useLiveSession } from "../use-live-session";
 import { OverlayCard } from "./overlay-card";
 import { sendIntent } from "./overlay-intents";
 import { tellHost } from "./overlay-url";
+import { parsePanel } from "./panels/panel-kinds";
+import { PanelsRoot } from "./panels/panels-root";
 
+// `?panel=pill|analysis|chat|settings` shows one focused panel of the same
+// session; without it (or with an unknown value) this is the compact card.
 export function OverlayPage() {
+  const panel = parsePanel(window.location.search);
+  return panel ? <PanelsRoot panel={panel} /> : <CardOverlayPage />;
+}
+
+function CardOverlayPage() {
   const { snapshot, actions } = useLiveSession();
   const params = new URLSearchParams(window.location.search);
   const requested = params.get("session");

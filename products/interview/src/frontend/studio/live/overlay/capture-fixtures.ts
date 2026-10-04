@@ -64,6 +64,32 @@ export function installVideoSize(width = 1920, height = 1080) {
   HTMLMediaElement.prototype.play = vi.fn(async () => undefined);
 }
 
+// The picture the shared screen currently shows, as the grey ramp Auto's
+// perceptual hash reads: "rising" and "falling" differ in every bit, so each is
+// a clearly different screen. The same name twice is the same picture.
+let screenPicture: "rising" | "falling" | "rising-noisy" = "rising";
+export const paintScreen = (
+  picture: "rising" | "falling" | "rising-noisy",
+): void => {
+  screenPicture = picture;
+};
+function pixelsFor(width: number, height: number): Uint8ClampedArray {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let row = 0; row < height; row += 1)
+    for (let column = 0; column < width; column += 1) {
+      const ramp = screenPicture === "falling" ? width - column : column;
+      // A little noise on one pixel: below the jitter allowance.
+      const noise = screenPicture === "rising-noisy" && column === 4 ? 1 : 0;
+      const value = ramp * 20 + noise;
+      const at = (row * width + column) * 4;
+      data[at] = value;
+      data[at + 1] = value;
+      data[at + 2] = value;
+      data[at + 3] = 255;
+    }
+  return data;
+}
+
 export type Draw = {
   args: number[];
   canvasWidth: number;
@@ -78,6 +104,10 @@ export function installFakeCanvas(
   const qualities: number[] = [];
   const getContext = vi.fn(function (this: HTMLCanvasElement) {
     return {
+      // What Auto's 9x8 sample reads: the picture set by `paintScreen`.
+      getImageData: (_x: number, _y: number, w: number, h: number) => ({
+        data: pixelsFor(w, h),
+      }),
       drawImage: (_video: unknown, ...args: number[]) =>
         draws.push({
           args,
@@ -112,6 +142,23 @@ export function installFakeCanvas(
 export class FakeRecognition {
   static instances: FakeRecognition[] = [];
   static localCapable = true;
+  // On-device capability, as Chrome reports it; undefined: the browser has no
+  // available() at all. Calls are recorded in order with `start`.
+  static availability: string | undefined = "available";
+  static installResult = true;
+  static log: string[] = [];
+  static available: ((options: unknown) => Promise<string>) | undefined = (
+    options,
+  ) => {
+    FakeRecognition.log.push(`available:${JSON.stringify(options)}`);
+    return Promise.resolve(FakeRecognition.availability ?? "unavailable");
+  };
+  static install: ((options: unknown) => Promise<boolean>) | undefined = () => {
+    FakeRecognition.log.push("install");
+    if (FakeRecognition.installResult)
+      FakeRecognition.availability = "available";
+    return Promise.resolve(FakeRecognition.installResult);
+  };
   continuous = false;
   interimResults = false;
   lang = "";
@@ -119,7 +166,9 @@ export class FakeRecognition {
   onresult: ((event: unknown) => void) | null = null;
   onerror: ((event: { error: string }) => void) | null = null;
   onend: (() => void) | null = null;
-  start: Mock = vi.fn();
+  start: Mock = vi.fn(() => {
+    FakeRecognition.log.push("start");
+  });
   stop: Mock = vi.fn(() => this.onend?.());
   abort: Mock = vi.fn();
   constructor() {
@@ -143,6 +192,9 @@ export class FakeRecognition {
 export function installRecognition(enabled = true) {
   FakeRecognition.instances = [];
   FakeRecognition.localCapable = true;
+  FakeRecognition.availability = "available";
+  FakeRecognition.installResult = true;
+  FakeRecognition.log = [];
   const host = window as unknown as Record<string, unknown>;
   if (enabled) host["webkitSpeechRecognition"] = FakeRecognition;
   else {

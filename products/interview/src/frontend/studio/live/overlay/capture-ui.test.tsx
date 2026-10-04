@@ -36,6 +36,7 @@ import {
   installVideoSize,
   SECRET_TITLE,
 } from "./capture-fixtures";
+import { resetCaptureTrigger } from "./capture-trigger";
 import { resetPosition } from "./card-position";
 import { DICTATION_MESSAGES } from "./dictation";
 import { MASK_NOTE } from "./mask-editor";
@@ -131,6 +132,7 @@ class TestPointerEvent extends MouseEvent {
 }
 
 beforeEach(() => {
+  resetCaptureTrigger();
   vi.useFakeTimers();
   vi.setSystemTime(new Date(minutesAfter(1)));
   vi.stubGlobal("PointerEvent", TestPointerEvent);
@@ -274,8 +276,13 @@ describe("capture & analyze", () => {
     );
     await settle();
     const names = (captures[0] as Posted).entries.map(([k]) => k);
-    expect(names).not.toContain("skill");
-    expect(names).not.toContain("language");
+    // An unset hint is "auto" (it resets an earlier one); no task is attached.
+    expect((captures[0] as Posted).entries).toEqual(
+      expect.arrayContaining([
+        ["skill", "auto"],
+        ["language", "auto"],
+      ]),
+    );
     expect(names).not.toContain("targetTaskId");
     expect(screen.queryByTestId("analyzing")).toBeNull();
   });
@@ -284,7 +291,7 @@ describe("capture & analyze", () => {
     await openCard();
     await click(/Capture & analyze/);
     const item = screen.getByRole("menuitem", {
-      name: /companion’s latest capture/,
+      name: /Analyze stored capture/,
     });
     expect(item).toBeEnabled();
     fireEvent.click(item);
@@ -309,7 +316,7 @@ describe("capture & analyze", () => {
     await settle();
     await click(/Capture & analyze/);
     expect(
-      screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+      screen.getByRole("menuitem", { name: /Analyze stored capture/ }),
     ).toBeDisabled();
   });
 
@@ -588,6 +595,56 @@ describe("dictation", () => {
     await flush();
     expect(instance().processLocally).toBe(true);
     expect(instance().start).toHaveBeenCalled();
+  });
+
+  it("establishes on-device recognition before it starts recording", async () => {
+    await openCard(remote({ processingPolicy: "device-only" }));
+    fireEvent.click(mic());
+    await flush();
+    expect(FakeRecognition.log[0]).toMatch(
+      /^available:.*"processLocally":true/,
+    );
+    expect(FakeRecognition.log.at(-1)).toBe("start");
+    expect(FakeRecognition.log.indexOf("start")).toBeGreaterThan(0);
+  });
+
+  it("installs a downloadable on-device pack first, then records", async () => {
+    FakeRecognition.availability = "downloadable";
+    await openCard(remote({ processingPolicy: "device-only" }));
+    fireEvent.click(mic());
+    await flush();
+    const log = FakeRecognition.log;
+    expect(log.indexOf("install")).toBeGreaterThan(0);
+    expect(log.indexOf("install")).toBeLessThan(log.indexOf("start"));
+  });
+
+  it("refuses without recording when the on-device pack is unavailable or cannot install", async () => {
+    FakeRecognition.availability = "unavailable";
+    await openCard(remote({ processingPolicy: "device-only" }));
+    fireEvent.click(mic());
+    await flush();
+    expect(instance().start).not.toHaveBeenCalled();
+    expect(within(card()).getByRole("alert")).toHaveTextContent(
+      DICTATION_MESSAGES.deviceOnlyUnavailable,
+    );
+    expect(mic()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("refuses a device-only session when the browser cannot report availability", async () => {
+    FakeRecognition.available = undefined;
+    await openCard(remote({ processingPolicy: "device-only" }));
+    fireEvent.click(mic());
+    await flush();
+    expect(instance().start).not.toHaveBeenCalled();
+    expect(within(card()).getByRole("alert")).toHaveTextContent(
+      DICTATION_MESSAGES.deviceOnlyUnsupported,
+    );
+  });
+
+  it("does not check or restrict a remote session", async () => {
+    await openCard();
+    fireEvent.click(mic());
+    expect(FakeRecognition.log).toEqual(["start"]);
   });
 
   it("leaves processing to the browser in a remote session", async () => {
@@ -985,7 +1042,8 @@ describe("choosing the area has one clear entry", () => {
     await openCard();
     const bar = within(screen.getByTestId("command-bar"));
     expect(bar.queryByRole("button", { name: /region|area|crop/i })).toBeNull();
-    expect(bar.getAllByRole("button")).toHaveLength(4);
+    // Capture, dictate, Auto, topic and settings.
+    expect(bar.getAllByRole("button")).toHaveLength(5);
   });
 
   it("opens from Choose area… in the source menu, with nothing shared and when sharing", async () => {

@@ -2,6 +2,7 @@ import Foundation
 import CaptureCore
 
 private let region = #"{"x":0.1,"y":0.2,"width":0.5,"height":0.4}"#
+private let far = "2099-01-01T00:00:00.000Z"
 
 private func controlWithCapture(_ capture: String, state: String = "active") -> String {
     #"{"state":"\#(state)","credentialExpiresAt":"2026-10-03T12:00:00.000Z","capture":\#(capture)}"#
@@ -25,7 +26,7 @@ private func acceptedWithCapture(_ request: OutgoingRequest, capture: String, st
     return .response(status: 200, body: Data(body.utf8), retryAfterSeconds: nil)
 }
 
-private let focused = #"{"requestId":"cap-1","mode":"focused-window"}"#
+private let focused = #"{"requestId":"cap-1","mode":"focused-window","expiresAt":"2099-01-01T00:00:00.000Z"}"#
 private let jpegBytes = Data([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0xff, 0xd9])
 
 private func screenshotRequestIds(_ transport: ScriptedTransport) async -> [String?] {
@@ -42,10 +43,15 @@ private func screenshotRequestIds(_ transport: ScriptedTransport) async -> [Stri
     return ids
 }
 
+private final class Flag: @unchecked Sendable { var on = true }
+
 @MainActor
 func captureRequestTests(_ t: Harness) async {
     await t.test("control.capture parses each mode and re-encodes to the same JSON") {
-        for capture in [focused, #"{"requestId":"cap-1","mode":"display"}"#, #"{"requestId":"cap-1","mode":"region","region":\#(region)}"#] {
+        for capture in [
+            focused, #"{"requestId":"cap-1","mode":"display","expiresAt":"2099-01-01T00:00:00.000Z"}"#,
+            #"{"requestId":"cap-1","mode":"region","region":\#(region),"selection":"disp-1.1","expiresAt":"2099-01-01T00:00:00.000Z"}"#,
+        ] {
             guard case .ok(let ack) = parsedControl(capture) else {
                 t.expect(false, "\(capture) should parse")
                 continue
@@ -53,11 +59,11 @@ func captureRequestTests(_ t: Harness) async {
             t.expectEqual(ack.control?.capture?.requestId, "cap-1")
             t.expectEqual(JSONValue.parse(ack.json.canonicalData()), JSONValue.parse(Data(ackJSON(capture: capture).utf8)), capture)
         }
-        guard case .ok(let ack) = parsedControl(#"{"requestId":"r","mode":"region","region":\#(region)}"#) else {
+        guard case .ok(let ack) = parsedControl(#"{"requestId":"r","mode":"region","region":\#(region),"selection":"d.1","expiresAt":"2099-01-01T00:00:00.000Z"}"#) else {
             t.expect(false, "region parses")
             return
         }
-        t.expectEqual(ack.control?.capture, CaptureRequest(requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4)))
+        t.expectEqual(ack.control?.capture, CaptureRequest(requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4), selection: "d.1", expiresAt: far))
         // An acknowledgement without a capture is unchanged (additive field).
         t.expectEqual(WireValidator.validateAcknowledgement(data: Data(#"{"version":1,"status":"accepted","sourceId":"s","eventId":"e","control":\#(controlJSON("active"))}"#.utf8)).value?.control?.capture, nil)
     }
@@ -78,6 +84,12 @@ func captureRequestTests(_ t: Harness) async {
             #"{"requestId":"bad id","mode":"display"}"#,
             #"{"requestId":"r","mode":"display","title":"x"}"#,
             #"{"mode":"display"}"#,
+            // The deadline is required; a selection exists exactly when the mode is region.
+            #"{"requestId":"r","mode":"display"}"#,
+            #"{"requestId":"r","mode":"display","expiresAt":"soon"}"#,
+            #"{"requestId":"r","mode":"region","region":\#(region),"expiresAt":"2099-01-01T00:00:00.000Z"}"#,
+            #"{"requestId":"r","mode":"display","selection":"d.1","expiresAt":"2099-01-01T00:00:00.000Z"}"#,
+            #"{"requestId":"r","mode":"region","region":\#(region),"selection":"bad id","expiresAt":"2099-01-01T00:00:00.000Z"}"#,
         ]
         for capture in bad { t.expect(parsedControl(capture).value == nil, "\(capture) must be refused") }
     }
@@ -107,8 +119,8 @@ func captureRequestTests(_ t: Harness) async {
 
     await t.test("the inbox takes each request id once and a newer id replaces a waiting one") {
         let inbox = CaptureRequestInbox()
-        let one = CaptureRequest(requestId: "a", mode: .display)
-        let two = CaptureRequest(requestId: "b", mode: .focusedWindow)
+        let one = CaptureRequest(requestId: "a", mode: .display, expiresAt: far)
+        let two = CaptureRequest(requestId: "b", mode: .focusedWindow, expiresAt: far)
         t.expectEqual(inbox.take(), nil)
         inbox.offer(one)
         inbox.offer(one)
@@ -165,11 +177,11 @@ func captureRequestTests(_ t: Harness) async {
         let h = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused) })
         h.session.start(capability: nil)
         await h.session.tick()
-        guard case .honour(let request) = h.session.takeCaptureRequest() else {
+        guard case .honour(let request, _) = h.session.takeCaptureRequest() else {
             t.expect(false, "the request is handed to the loop")
             return
         }
-        t.expectEqual(request, CaptureRequest(requestId: "cap-1", mode: .focusedWindow))
+        t.expectEqual(request, CaptureRequest(requestId: "cap-1", mode: .focusedWindow, expiresAt: far))
         t.expectEqual(h.session.takeCaptureRequest(), .nothing, "taken once")
         t.expectEqual(h.session.completeCapture(request, outcome: .image(jpeg: jpegBytes, windowLabel: "Xcode")), .submitted)
         await h.session.tick()
@@ -203,7 +215,7 @@ func captureRequestTests(_ t: Harness) async {
         })
         h.session.start(capability: nil)
         await h.session.tick()
-        t.expectEqual(h.session.takeCaptureRequest(), .honour(CaptureRequest(requestId: "cap-1", mode: .focusedWindow)))
+        t.expectEqual(h.session.takeCaptureRequest(), .honour(CaptureRequest(requestId: "cap-1", mode: .focusedWindow, expiresAt: far), FocusSample(frontmostPid: 4242)))
     }
 
     await t.test("a request is honoured only for a screen source selected at start and still running") {
@@ -217,7 +229,7 @@ func captureRequestTests(_ t: Harness) async {
         lost.session.sourceLost(.screen, reason: .permissionRevoked)
         await lost.session.tick()
         t.expectEqual(lost.session.takeCaptureRequest(), .ignored, "a revoked screen source captures nothing")
-        t.expectEqual(lost.session.completeCapture(CaptureRequest(requestId: "cap-1", mode: .display), outcome: .image(jpeg: jpegBytes, windowLabel: "x")), .dropped)
+        t.expectEqual(lost.session.completeCapture(CaptureRequest(requestId: "cap-1", mode: .display, expiresAt: far), outcome: .image(jpeg: jpegBytes, windowLabel: "x")), .dropped)
 
         let paused = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused, state: "paused") })
         paused.session.start(capability: nil)
@@ -234,7 +246,7 @@ func captureRequestTests(_ t: Harness) async {
         let h = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused) })
         h.session.start(capability: nil)
         await h.session.tick()
-        guard case .honour(let request) = h.session.takeCaptureRequest() else {
+        guard case .honour(let request, _) = h.session.takeCaptureRequest() else {
             t.expect(false, "handed over")
             return
         }
@@ -271,5 +283,159 @@ func captureRequestTests(_ t: Harness) async {
         audio.clock.advance(2.6)
         await audio.session.tick()
         t.expectEqual(await heartbeats(audio.transport), 2)
+    }
+
+    await t.test("every request declares what the companion understands, with the screen selection") {
+        let h = makeSession(selection: [.screen])
+        h.session.start(capability: nil)
+        await h.session.tick()
+        let requests = await h.transport.requests
+        t.expect(!requests.isEmpty, "a heartbeat was sent")
+        for request in requests {
+            t.expectEqual(request.headers["x-companion-features"], "capture-request.v1")
+            t.expectEqual(request.headers["x-companion-screen"], "disp-1.1")
+        }
+        // No screen selected: nothing to bind, so no selection header, but features still declared.
+        let audio = makeSession(selection: [.microphone], screenSelection: nil)
+        audio.session.start(capability: readyCapability)
+        await audio.session.tick()
+        for request in await audio.transport.requests {
+            t.expectEqual(request.headers["x-companion-features"], "capture-request.v1")
+            t.expect(request.headers["x-companion-screen"] == nil, "no screen token without a screen source")
+        }
+    }
+
+    await t.test("an older Studio's answers (no capture, no new codes) work unchanged") {
+        let h = makeSession(selection: [.screen])
+        h.session.start(capability: nil)
+        await h.session.tick()
+        t.expectEqual(h.session.takeCaptureRequest(), .nothing)
+        t.expect(h.session.machine.isCapturing, "still capturing")
+    }
+
+    await t.test("the focused window is sampled when the request is taken from the acknowledgement") {
+        let h = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused) }, focusPid: 777)
+        h.session.start(capability: nil)
+        await h.session.tick()
+        guard case .honour(_, let focus) = h.session.takeCaptureRequest() else {
+            t.expect(false, "handed over")
+            return
+        }
+        t.expectEqual(focus, FocusSample(frontmostPid: 777))
+        // Other modes take no sample.
+        let display = makeSession(
+            selection: [.screen],
+            responder: { acceptedWithCapture($0, capture: #"{"requestId":"d","mode":"display","expiresAt":"2099-01-01T00:00:00.000Z"}"#) },
+            focusPid: 777)
+        display.session.start(capability: nil)
+        await display.session.tick()
+        guard case .honour(_, let none) = display.session.takeCaptureRequest() else {
+            t.expect(false, "handed over")
+            return
+        }
+        t.expectEqual(none, FocusSample.none)
+    }
+
+    func failures(_ transport: ScriptedTransport) async -> [(String, String)] {
+        var found: [(String, String)] = []
+        for request in await transport.requests where stringField(envelopeJSON(of: request), "kind") == "capture.failure" {
+            found.append((stringField(envelopeJSON(of: request), "requestId") ?? "", stringField(envelopeJSON(of: request), "code") ?? ""))
+        }
+        return found
+    }
+
+    await t.test("a loss is reported to Studio as one typed failure for that request, never a wider capture") {
+        let h = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused) })
+        h.session.start(capability: nil)
+        await h.session.tick()
+        guard case .honour(let request, _) = h.session.takeCaptureRequest() else {
+            t.expect(false, "handed over")
+            return
+        }
+        t.expectEqual(h.session.completeCapture(request, outcome: .lost(.permissionDenied)), .lost(.permissionDenied))
+        await h.session.tick()
+        let sent = await failures(h.transport)
+        t.expectEqual(sent.count, 1)
+        t.expectEqual(sent.first?.0, "cap-1")
+        t.expectEqual(sent.first?.1, "permission-denied")
+        t.expectEqual(await screenshotRequestIds(h.transport), [], "no image was sent")
+        // The encoded message carries exactly the bounded fields.
+        let failure = CaptureFailure(sourceId: "companion-r1", sentAt: "2026-10-03T10:00:00.000Z", requestId: "cap-1", code: .noFocusedWindow)
+        t.expectEqual(WireValidator.validateIngest(failure.json).value, .captureFailure(failure))
+        // Delivered once: a later tick does not resend it.
+        h.clock.advance(3)
+        await h.session.tick()
+        t.expectEqual((await failures(h.transport)).count, 1)
+    }
+
+    await t.test("a request the screen source cannot honour is reported source-gone; a changed selection source-changed") {
+        let lost = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: focused) })
+        lost.session.start(capability: nil)
+        lost.session.sourceLost(.screen, reason: .permissionRevoked)
+        await lost.session.tick()
+        t.expectEqual(lost.session.takeCaptureRequest(), .ignored)
+        await lost.session.tick()
+        t.expectEqual((await failures(lost.transport)).map { $0.1 }, ["source-gone"])
+
+        let bound = #"{"requestId":"cap-r","mode":"region","region":\#(region),"selection":"disp-1.0","expiresAt":"2099-01-01T00:00:00.000Z"}"#
+        let moved = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: bound) })
+        moved.session.start(capability: nil)
+        await moved.session.tick()
+        t.expectEqual(moved.session.takeCaptureRequest(), .sourceChanged, "the selection is disp-1.1 now")
+        await moved.session.tick()
+        let sent = await failures(moved.transport)
+        t.expectEqual(sent.first?.0, "cap-r")
+        t.expectEqual(sent.first?.1, "source-changed")
+
+        let same = #"{"requestId":"cap-r","mode":"region","region":\#(region),"selection":"disp-1.1","expiresAt":"2099-01-01T00:00:00.000Z"}"#
+        let kept = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: same) })
+        kept.session.start(capability: nil)
+        await kept.session.tick()
+        guard case .honour = kept.session.takeCaptureRequest() else {
+            t.expect(false, "the same selection is honoured")
+            return
+        }
+    }
+
+    await t.test("a request at or past its deadline captures nothing and reports nothing") {
+        let late = #"{"requestId":"cap-1","mode":"display","expiresAt":"1970-01-01T00:00:00.000Z"}"#
+        let h = makeSession(selection: [.screen], responder: { acceptedWithCapture($0, capture: late) })
+        h.session.start(capability: nil)
+        await h.session.tick()
+        t.expectEqual(h.session.takeCaptureRequest(), .expired)
+        await h.session.tick()
+        t.expectEqual((await failures(h.transport)).count, 0)
+    }
+
+    await t.test("an undelivered failure is retried until Studio answers") {
+        let outage = Flag()
+        let h = makeSession(selection: [.screen], responder: { request in
+            if stringField(envelopeJSON(of: request), "kind") == "capture.failure", outage.on { return .unreachable }
+            return acceptedWithCapture(request, capture: focused)
+        })
+        h.session.start(capability: nil)
+        await h.session.tick()
+        guard case .honour(let request, _) = h.session.takeCaptureRequest() else {
+            t.expect(false, "handed over")
+            return
+        }
+        _ = h.session.completeCapture(request, outcome: .lost(.noFocusedWindow))
+        await h.session.tick()
+        outage.on = false
+        h.clock.advance(30)
+        await h.session.tick()
+        t.expectEqual((await failures(h.transport)).count, 2, "tried again after the outage")
+        h.clock.advance(30)
+        await h.session.tick()
+        t.expectEqual((await failures(h.transport)).count, 2, "and not again once answered")
+    }
+
+    await t.test("capture_request_stale parses as a permanent refusal") {
+        let body = #"{"version":1,"status":"refused","code":"capture_request_stale","control":\#(controlJSON("active"))}"#
+        guard case .ok(let ack) = WireValidator.validateAcknowledgement(data: Data(body.utf8)) else {
+            t.expect(false, "parses")
+            return
+        }
+        t.expectEqual(ack, .refused(code: .captureRequestStale, control: ack.control, issues: nil))
     }
 }

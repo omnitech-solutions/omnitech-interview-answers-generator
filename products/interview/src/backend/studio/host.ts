@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { CodeRunner } from "@omnitech/code-runner";
 import {
   type DatabasePort,
   type ModelCatalog,
@@ -17,27 +18,28 @@ import {
   createAttachmentService,
 } from "@omnitech-assistant/server";
 import {
-  RunRepository,
   type PgBossRunQueue,
+  RunRepository,
 } from "@omnitech-assistant/storage-postgres";
-import type { CodeRunner } from "@omnitech/code-runner";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
-import { createInterviewAdapter } from "../assistant/adapter.js";
+import {
+  INTERVIEW_ASSISTANT_PROFILE,
+  INTERVIEW_PRODUCT_ID,
+} from "../../assistant-profile.js";
+import {
+  createInterviewAdapter,
+  interviewPatchJsonSchema,
+} from "../assistant/adapter.js";
 import { interviewRunVersions } from "../assistant/prompt.js";
 import {
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
 } from "../assistant/workspace.js";
-import { interviewPatchJsonSchema } from "../assistant/adapter.js";
 import { createBriefingApi } from "../briefing/api.js";
 import { createBriefsApi } from "../briefs/api.js";
 import { createPlanApi } from "../plan/api.js";
 import { createRehearsalApi, rehearsalStatus } from "../rehearsal/api.js";
-import {
-  INTERVIEW_ASSISTANT_PROFILE,
-  INTERVIEW_PRODUCT_ID,
-} from "../../assistant-profile.js";
 
 const NEW_QUESTION = "New interview question";
 // The Workspace id prefix of a session-owned draft (live-session/session-drafts.ts).

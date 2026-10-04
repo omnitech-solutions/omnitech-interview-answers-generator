@@ -14,9 +14,12 @@ import {
   type Acknowledgement,
   type ActiveSessionLimits,
   CAPABILITY_ACK_EVENT_ID,
+  CAPTURE_FAILURE_ACK_EVENT_ID,
   type CapabilityReport,
+  type CompanionDeclaration,
   type ControlStatus,
   capabilityReportSchema,
+  captureFailureSchema,
   detectScreenshotMediaType,
   HEARTBEAT_ACK_EVENT_ID,
   heartbeatSchema,
@@ -35,10 +38,21 @@ import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
   OWNER_CAPTURE_SOURCE_ID,
   OWNER_INPUT_SOURCE_ID,
+  OWNER_MICROPHONE_SOURCE_ID,
   SESSION_SCREENSHOT_ARTIFACT_TYPE,
 } from "../db/live-session.js";
-import { fulfilCaptureRequest, pendingCaptureOf } from "./capture-request.js";
-import { reportedWithin, storeCapability } from "./companion-capability.js";
+import {
+  checkSnapshotRequest,
+  failCaptureRequest,
+  failIfSelectionChanged,
+  fulfilCaptureRequest,
+  pendingCaptureOf,
+} from "./capture-request.js";
+import {
+  noteDeclaration,
+  reportedWithin,
+  storeCapability,
+} from "./companion-capability.js";
 import {
   decideObservation,
   dedupKey,
@@ -58,6 +72,10 @@ export type IngestOptions = {
   // The screenshot's bytes, which travel apart from the envelope.
   payload?: Uint8Array;
   jobs?: SessionJobs;
+  // What the companion declared on this request (negotiation.ts). Absent reads
+  // as an older companion: it is never handed a capture request and a capture
+  // request is never promised to it.
+  declaration?: CompanionDeclaration;
   // Overrides for tests only; production uses the frozen contract constants.
   limits?: Partial<IngestLimits>;
   // Told how long a rate_limited refusal asks the companion to wait, so the
@@ -87,8 +105,9 @@ const controlState = (status: SessionStatus): ControlStatus["state"] =>
 const controlOf = (
   row: SessionRecord,
   status: SessionStatus,
+  declaration: CompanionDeclaration,
 ): ControlStatus => {
-  const capture = pendingCaptureOf(row, status);
+  const capture = pendingCaptureOf(row, status, declaration);
   return {
     state: controlState(status),
     credentialExpiresAt: (
@@ -233,8 +252,9 @@ async function ingestLocked(
 
   // The lock serializes this message against control, other ingest, the
   // processor's writes and the purge.
-  const row = await lockSession(tx, scope, sessionId);
-  if (!row) return done(refusal("credential_refused"));
+  const locked = await lockSession(tx, scope, sessionId);
+  if (!locked) return done(refusal("credential_refused"));
+  let row: SessionRecord = locked;
   const credentialLive =
     row.credentialHash === credentialHash &&
     row.credentialRevokedAt === null &&
@@ -245,7 +265,14 @@ async function ingestLocked(
   const status = reconciled.status;
   // An expired, revoked or replaced credential is the same single refusal.
   if (!credentialLive) return done(refusal("credential_refused"), cancelJobs);
-  const control = controlOf(row, status);
+  // [SAFETY] A declaration is recorded, and the request bound to a selection
+  // that is no longer the companion's is failed, before anything is answered.
+  const declaration = options.declaration ?? { captureRequests: false };
+  if (options.declaration) {
+    await noteDeclaration(tx, scope, options.declaration);
+    row = await failIfSelectionChanged(tx, scope, row, options.declaration);
+  }
+  const control = controlOf(row, status, declaration);
   const closed = ingestRefusal(status);
 
   const kind =
@@ -274,6 +301,18 @@ async function ingestLocked(
       envelope,
       cancelJobs,
       limits,
+      declaration,
+    );
+  if (kind === "capture.failure")
+    return captureFailureLocked(
+      tx,
+      scope,
+      row,
+      status,
+      control,
+      closed,
+      envelope,
+      cancelJobs,
     );
 
   // [GUARD] A session that is not capturing accepts nothing, a resend or not.
@@ -296,7 +335,8 @@ async function ingestLocked(
   // companion can never pre-claim the dedup key of an owner input.
   if (
     observation.sourceId === OWNER_INPUT_SOURCE_ID ||
-    observation.sourceId === OWNER_CAPTURE_SOURCE_ID
+    observation.sourceId === OWNER_CAPTURE_SOURCE_ID ||
+    observation.sourceId === OWNER_MICROPHONE_SOURCE_ID
   )
     return done(
       refusal("invalid_observation", {
@@ -376,9 +416,9 @@ async function ingestLocked(
     // toward neither the capture cap nor the capture rate (they still take a
     // sequence number, hence max_sequence covers every row).
     // The owner's own browser captures are exempt too.
-    sql`SELECT (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID}))::int AS total,
+    sql`SELECT (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id NOT IN (${OWNER_CAPTURE_SOURCE_ID}, ${OWNER_MICROPHONE_SOURCE_ID})))::int AS total,
                (count(*) FILTER (WHERE kind = 'screen.snapshot' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID}))::int AS screenshots,
-               (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID} AND received_at > now() - interval '1 minute'))::int AS recent,
+               (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id NOT IN (${OWNER_CAPTURE_SOURCE_ID}, ${OWNER_MICROPHONE_SOURCE_ID}) AND received_at > now() - interval '1 minute'))::int AS recent,
                COALESCE(max(sequence), 0) AS max_sequence
         FROM interview.session_observations
         WHERE tenant_id = ${scope.tenantId}::uuid
@@ -454,6 +494,23 @@ async function ingestLocked(
         }),
         cancelJobs,
       );
+    // [SAFETY] A snapshot that names a capture request must match this
+    // session's pending, unexpired one NOW, before anything is stored: an
+    // expired, replaced, failed, finished or unknown id is refused, not kept as
+    // an ordinary snapshot. No requestId: a plain snapshot, unchanged.
+    if (observation.content.requestId !== undefined) {
+      const standing = await checkSnapshotRequest(
+        tx,
+        scope,
+        sessionId,
+        row,
+        observation.content.requestId,
+      );
+      if (standing === "stale")
+        return done(refusal("capture_request_stale", { control }), cancelJobs);
+      if (standing === "limit")
+        return done(refusal("limit_reached", { control }), cancelJobs);
+    }
     screenshot = { bytes, mediaType: detected };
   }
 
@@ -637,6 +694,7 @@ async function capabilityLocked(
   envelope: unknown,
   cancelJobs: boolean,
   limits: IngestLimits,
+  declaration: CompanionDeclaration,
 ): Promise<Locked> {
   const validated = validateWireMessage<CapabilityReport>(
     capabilityReportSchema,
@@ -656,7 +714,7 @@ async function capabilityLocked(
     return { ack: refusal(closed, { control }), cancelJobs };
   if (await reportedWithin(tx, scope, limits.minHeartbeatIntervalMs))
     return rateLimited(control, cancelJobs, limits);
-  await storeCapability(tx, scope, validated.value);
+  await storeCapability(tx, scope, validated.value, declaration);
   await touch(tx, scope, row.id);
   return {
     ack: {
@@ -664,6 +722,52 @@ async function capabilityLocked(
       status: "accepted",
       sourceId: validated.value.sourceId,
       eventId: CAPABILITY_ACK_EVENT_ID,
+      control,
+    },
+    cancelJobs,
+  };
+}
+
+// The companion's report that it could not capture for one request: closed
+// code, correlated by id, content-free. It is accepted in any capturing state
+// (a paused or ended session answers with its standing) and changes only the
+// matching pending request. Not spaced: only the first report for a request
+// writes, and a repeat or a stranger's id changes nothing.
+async function captureFailureLocked(
+  tx: TenantDatabase,
+  scope: OwnerScope,
+  row: SessionRecord,
+  status: SessionStatus,
+  control: ControlStatus,
+  closed: RefusalCode | null,
+  envelope: unknown,
+  cancelJobs: boolean,
+): Promise<Locked> {
+  const parsed = captureFailureSchema.safeParse(envelope);
+  if (!parsed.success)
+    return {
+      ack: refusal("invalid_observation", {
+        control,
+        issues: [{ path: ["capture.failure"], code: "invalid" }],
+      }),
+      cancelJobs,
+    };
+  if (closed && status !== "active")
+    return { ack: refusal(closed, { control }), cancelJobs };
+  await failCaptureRequest(
+    tx,
+    scope,
+    row,
+    parsed.data.requestId,
+    parsed.data.code,
+  );
+  await touch(tx, scope, row.id);
+  return {
+    ack: {
+      version: WIRE_VERSION,
+      status: "accepted",
+      sourceId: parsed.data.sourceId,
+      eventId: CAPTURE_FAILURE_ACK_EVENT_ID,
       control,
     },
     cancelJobs,

@@ -123,7 +123,26 @@ export type AiEvent<T = unknown> =
   | { type: "completed"; result: T }
   | { type: "failed"; error: AiFailure };
 
+// Why a failure happened, as a closed, bounded vocabulary of fixed codes (never
+// provider text, a path or content). Set by an adapter that knows the cause;
+// consumers branch on it and never parse `message`.
+export const AI_FAILURE_REASONS = [
+  // The Claude SDK's result subtypes.
+  "error_max_turns",
+  "error_during_execution",
+  "error_max_budget_usd",
+  "error_max_structured_output_retries",
+  // The runtime ended without producing a result.
+  "no_result",
+  // The runtime reported its turn failed.
+  "turn_failed",
+  "tool_refused",
+  "attachment_refused",
+] as const;
+export type AiFailureReason = (typeof AI_FAILURE_REASONS)[number];
+
 export interface AiFailure {
+  reason?: AiFailureReason;
   code:
     | "configuration"
     | "permission"

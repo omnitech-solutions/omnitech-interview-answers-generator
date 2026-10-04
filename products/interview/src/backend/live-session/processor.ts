@@ -25,6 +25,7 @@ import {
   allSlots,
   cancelSupersededSlots,
   createRun,
+  handledThrough,
   nextPending,
   nextPendingCoding,
   occupySlot,
@@ -35,7 +36,6 @@ import {
   replayObservations,
   type SessionRun,
   seedFromActions,
-  handledThrough,
   slotFor,
 } from "./session-run.js";
 import { type SessionTraceEvent } from "./trace.js";

@@ -43,7 +43,7 @@ const FILES: readonly { id: EditorFile; icon: IconName }[] = [
   { id: "tests", icon: "science" },
 ];
 
-function languageExtensions(language: Language) {
+export function languageExtensions(language: Language) {
   if (language === "php") return [php({ plain: true })];
   if (language === "react")
     return [javascript({ jsx: true, typescript: true })];
@@ -67,7 +67,7 @@ function markedLines(lines: readonly number[], className: string) {
   );
 }
 
-function summary(run: RunState) {
+export function summary(run: RunState) {
   if (run.kind === "running") return "Running tests…";
   if (run.kind === "error") return "Couldn’t run";
   if (run.kind === "idle") return "Not run yet · ⌘↵";
@@ -300,7 +300,7 @@ export function CodePanel({
   );
 }
 
-function TestsTab({
+export function TestsTab({
   run,
   onGoTo,
 }: {

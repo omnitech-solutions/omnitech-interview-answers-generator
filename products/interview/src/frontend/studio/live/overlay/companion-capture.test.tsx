@@ -1,7 +1,10 @@
 // Asking the native companion to capture: follow the focused window, or a region
 // of the main display. The request's fields, how it is followed, what is said
 // when it ends, and why the choices are disabled when they cannot be used.
-import { liveCaptureRequestSchema } from "@omnitech/interview-contracts";
+import {
+  type LiveCompanionCapability,
+  liveCaptureRequestSchema,
+} from "@omnitech/interview-contracts";
 import {
   act,
   cleanup,
@@ -15,6 +18,7 @@ import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
 import { answerAction } from "../live-view-kit";
 import {
+  capabilityReport,
   disconnected,
   jsonResponse,
   minutesAfter,
@@ -61,6 +65,10 @@ const remote = (over: Parameters<typeof sessionView>[0] = {}) =>
     ...over,
   });
 
+// What the companion last reported: it takes capture requests and has a screen
+// selected (the region's binding).
+let report: LiveCompanionCapability | null;
+
 function serve(view = remote(), extra: Partial<typeof page> = {}) {
   page = streamPage({
     session: view,
@@ -71,6 +79,9 @@ function serve(view = remote(), extra: Partial<typeof page> = {}) {
   });
   server = createTestServer(() => page);
   server.on("GET /current", () => jsonResponse({ session: view }));
+  server.on("GET /companion-capability", () =>
+    jsonResponse({ capability: report }),
+  );
   server.on("POST /:id/capture-request", ({ body }) => {
     requests.push(body as Record<string, unknown>);
     return jsonResponse(
@@ -91,6 +102,10 @@ function serve(view = remote(), extra: Partial<typeof page> = {}) {
       ...status(id, reads[id] as number),
     });
   });
+  // The card reads the companion's report with the page's own fetch.
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+    server.fetch(String(input), init),
+  );
   configureSessionStores({
     fetch: server.fetch,
     isVisible: () => true,
@@ -127,6 +142,10 @@ beforeEach(() => {
   resetPosition();
   requests = [];
   reads = {};
+  report = capabilityReport({
+    captureRequests: true,
+    screenSelection: "sel-1",
+  });
   status = () => ({ status: "pending" });
 });
 afterEach(() => {
@@ -134,6 +153,7 @@ afterEach(() => {
   presentation.reset();
   resetSessionStores();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -240,6 +260,39 @@ describe("Follow focused window", () => {
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
     expect(progress()).toHaveTextContent("refused (vision_unavailable)");
+  });
+
+  it.each([
+    ["no-focused-window", /no focused window/],
+    ["permission-denied", /Screen Recording/],
+    ["source-gone", /is gone/],
+    ["source-changed", /source changed/],
+    ["capture-failed", /couldn’t take the capture/],
+  ])(
+    "says a companion failure (%s) at once, never waiting for expiry",
+    async (reason, text) => {
+      status = () => ({ status: "failed", reason });
+      await open();
+      await choose(/^Follow focused window/);
+      await advance(POLL_MS);
+      expect(progress()).toHaveAttribute("data-phase", "failed");
+      expect(progress()).toHaveTextContent(text);
+      await advance(5 * POLL_MS);
+      expect(polls()).toBe(1);
+    },
+  );
+
+  it.each([
+    ["companion_update_required", /too old to take capture requests/],
+    ["source_changed", /Choose the region again/],
+    ["capture_request_stale", /out of date/],
+    ["limit_reached", /capture limit/],
+  ])("explains the refusal %s in plain words", async (reason, text) => {
+    status = () => ({ status: "refused", reason });
+    await open();
+    await choose(/^Follow focused window/);
+    await advance(POLL_MS);
+    expect(progress()).toHaveTextContent(text);
   });
 
   it("shows an immediate refusal from the request itself", async () => {
@@ -376,6 +429,8 @@ describe("Companion · region", () => {
     expect(requests[0]).toMatchObject({
       mode: "region",
       region: { x: 0.5, y: 0, width: 0.5, height: 1 },
+      // Bound to the companion's declared screen selection, explicitly.
+      selection: "sel-1",
     });
     expect(liveCaptureRequestSchema.safeParse(requests[0]).success).toBe(true);
     expect(
@@ -427,6 +482,17 @@ describe("Companion · region", () => {
     expect(liveCaptureRequestSchema.safeParse(requests[0]).success).toBe(true);
   });
 
+  it("asks for no region until the companion has declared a screen selection", async () => {
+    report = capabilityReport({ captureRequests: true });
+    await open();
+    await choose(/^Companion · region/);
+    await click("Save & capture");
+    expect(requests).toEqual([]);
+    expect(within(card()).getByRole("alert")).toHaveTextContent(
+      /hasn’t said which screen/,
+    );
+  });
+
   it("sends nothing when the editor is cancelled", async () => {
     await open();
     await choose(/^Companion · region/);
@@ -453,6 +519,14 @@ describe("when the companion cannot be asked", () => {
     expect(await reasonFor(remote({ captureSources: ["microphone"] }))).toBe(
       "This source wasn’t turned on when the session started.",
     );
+  });
+
+  it("is disabled, with the update prompt, when the companion build cannot take capture requests", async () => {
+    report = capabilityReport({
+      captureRequests: false,
+      screenSelection: "sel-1",
+    });
+    expect(await reasonFor(remote())).toMatch(/Update the companion/);
   });
 
   it("is disabled, with the reason, when the companion has not made contact", async () => {
@@ -495,8 +569,84 @@ describe("when the companion cannot be asked", () => {
     ).toBeEnabled();
     // Nothing to use as "latest capture" yet.
     expect(
-      screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+      screen.getByRole("menuitem", { name: /Analyze stored capture/ }),
     ).toBeDisabled();
+  });
+
+  it("names the stored capture it would analyze, by identity and age", async () => {
+    await open();
+    await click(/Capture & analyze/);
+    const item = screen.getByRole("menuitem", {
+      name: /Analyze stored capture/,
+    });
+    expect(item).toHaveTextContent("Not a new capture");
+    expect(item).toHaveTextContent("S1 · Chrome · LeetCode");
+    expect(item).toHaveTextContent("ago");
+  });
+
+  it("analyzes exactly the stored capture it named", async () => {
+    const analyzeLatestCapture = vi.fn(async () => undefined);
+    serve();
+    configureSessionStores({
+      fetch: server.fetch,
+      isVisible: () => true,
+      storage: { read: () => null, write: () => {}, remove: () => {} },
+      analyzeLatestCapture,
+    });
+    render(<LiveCardHost />);
+    act(() => presentation.setMode("card"));
+    await flush();
+    await flush();
+    await choose(/Analyze stored capture/);
+    expect(analyzeLatestCapture).toHaveBeenCalledWith(
+      expect.any(String),
+      undefined,
+      expect.anything(),
+      { sourceId: "screen", eventId: "evt-1" },
+    );
+  });
+
+  it.each(["refused", "expired"])(
+    "a fresh capture that ends %s never analyzes the older stored image",
+    async (outcome) => {
+      const analyzeLatestCapture = vi.fn(async () => undefined);
+      status = () => ({ status: outcome, reason: "vision_unavailable" });
+      serve();
+      configureSessionStores({
+        fetch: server.fetch,
+        isVisible: () => true,
+        storage: { read: () => null, write: () => {}, remove: () => {} },
+        analyzeLatestCapture,
+      });
+      render(<LiveCardHost />);
+      act(() => presentation.setMode("card"));
+      await flush();
+      await flush();
+      await choose(/^Follow focused window/);
+      await advance(POLL_MS * 3);
+      expect(analyzeLatestCapture).not.toHaveBeenCalled();
+      expect(server.count("POST /:id/input")).toBe(0);
+    },
+  );
+
+  it("a fresh capture request that fails outright never analyzes the stored image", async () => {
+    const analyzeLatestCapture = vi.fn(async () => undefined);
+    serve();
+    server.on("POST /:id/capture-request", () =>
+      jsonResponse({ error: { code: "conflict" } }, 409),
+    );
+    configureSessionStores({
+      fetch: server.fetch,
+      isVisible: () => true,
+      storage: { read: () => null, write: () => {}, remove: () => {} },
+      analyzeLatestCapture,
+    });
+    render(<LiveCardHost />);
+    act(() => presentation.setMode("card"));
+    await flush();
+    await flush();
+    await choose(/^Follow focused window/);
+    expect(analyzeLatestCapture).not.toHaveBeenCalled();
   });
 
   it("while a request is being followed, Capture & analyze waits", async () => {

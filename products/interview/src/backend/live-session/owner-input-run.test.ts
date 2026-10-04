@@ -130,6 +130,33 @@ describe("an owner capture with hints", () => {
       skill: "programming",
       language: "typescript",
     });
+    // An input that omits both keeps them; "auto" RESETS the one it names.
+    await replay(run, [
+      input("r-3", {
+        operation: "follow-up",
+        text: "more",
+        target: { taskId: "task-i.r-1", revision: 1 },
+        snapshots: [],
+      }),
+    ]);
+    processOwnerInputs(run);
+    expect(hintsFor(run, run.tasks.tasks["task-i.r-1"] as never)).toEqual({
+      skill: "programming",
+      language: "typescript",
+    });
+    await replay(run, [
+      input("r-4", {
+        operation: "follow-up",
+        text: "detect it",
+        language: "auto",
+        target: { taskId: "task-i.r-1", revision: 1 },
+        snapshots: [],
+      }),
+    ]);
+    processOwnerInputs(run);
+    expect(hintsFor(run, run.tasks.tasks["task-i.r-1"] as never)).toEqual({
+      skill: "programming",
+    });
   });
 });
 
@@ -414,5 +441,41 @@ describe("restart", () => {
     expect(Object.keys(second.tasks.tasks)).toEqual(
       Object.keys(first.tasks.tasks),
     );
+  });
+});
+
+describe("heard speech from the owner microphone (ADR-0022)", () => {
+  // As the owner input route stores it: no `source` label, because the browser
+  // microphone hears the room, the other side of the call included.
+  const heard = (eventId: string, text: string) =>
+    observation("transcript.final", "studio.owner-microphone", eventId, {
+      speaker: "microphone",
+      text,
+      startMs: 1_000,
+      endMs: 1_000,
+    });
+
+  it("opens a task for a question heard through the microphone, like a companion transcript", async () => {
+    const run = newRun();
+    await replay(run, [
+      heard("h-1", "Can you implement a rate limiter in TypeScript?"),
+    ]);
+    await processUtterances(run, policy, 10_000, 0);
+    expect(Object.keys(run.tasks.tasks)).toHaveLength(1);
+  });
+
+  it("is ignored when the very same words carry the candidate's microphone label", async () => {
+    const run = newRun();
+    await replay(run, [
+      observation("transcript.final", "mic", "m-1", {
+        speaker: "microphone",
+        source: "microphone",
+        text: "Can you implement a rate limiter in TypeScript?",
+        startMs: 1_000,
+        endMs: 1_000,
+      }),
+    ]);
+    await processUtterances(run, policy, 10_000, 0);
+    expect(Object.keys(run.tasks.tasks)).toHaveLength(0);
   });
 });

@@ -15,7 +15,8 @@ const seen: {
   options?: Record<string, unknown>;
   queries: number;
 } = { queries: 0 };
-let scenario: "text" | "tool-use" | "structured" = "text";
+let scenario: "text" | "tool-use" | "structured" | "max-turns" | "odd-subtype" =
+  "text";
 
 const toolStart = (name: string) => ({
   type: "stream_event",
@@ -39,6 +40,18 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
         for await (const user of params.prompt) {
           seen.user = user;
           break;
+        }
+        if (scenario === "max-turns" || scenario === "odd-subtype") {
+          yield { type: "system", session_id: "s1" };
+          yield {
+            type: "result",
+            subtype:
+              scenario === "max-turns" ? "error_max_turns" : "error_novel_case",
+            session_id: "s1",
+            usage: { input_tokens: 1, output_tokens: 1 },
+            total_cost_usd: 0,
+          };
+          return;
         }
         if (scenario === "tool-use") {
           yield toolStart("Bash");
@@ -232,6 +245,7 @@ describe("Claude runtime session path", () => {
           error: {
             code: "policy-refused",
             message: "An attachment was refused.",
+            reason: "attachment_refused",
             retryable: false,
           },
         },
@@ -268,10 +282,30 @@ describe("Claude runtime session path", () => {
         error: {
           code: "policy-refused",
           message: "A tool-less request attempted to use a tool.",
+          reason: "tool_refused",
           retryable: false,
         },
       },
     ]);
+  });
+
+  it("carries the SDK's result subtype as a typed reason, and none for a subtype outside the vocabulary", async () => {
+    scenario = "max-turns";
+    const known = await run({ toolless: true });
+    scenario = "odd-subtype";
+    const odd = await run({ toolless: true });
+    scenario = "text";
+    expect(known.at(-1)).toMatchObject({
+      type: "failed",
+      error: {
+        code: "provider",
+        message: "Claude ended with error_max_turns.",
+        reason: "error_max_turns",
+      },
+    });
+    const unknown = odd.at(-1);
+    expect(unknown).toMatchObject({ type: "failed" });
+    expect(unknown).not.toHaveProperty("error.reason");
   });
 
   it("allows the synthetic StructuredOutput tool_use and completes with its output", async () => {

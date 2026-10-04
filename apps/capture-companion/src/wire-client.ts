@@ -4,8 +4,11 @@
 import {
   type Acknowledgement,
   acknowledgementSchema,
+  COMPANION_FEATURES_HEADER,
+  COMPANION_SCREEN_HEADER,
   CREDENTIAL_TRANSPORT,
   credentialShapeSchema,
+  formatCompanionFeatures,
   type IngestMessage,
   isWithinEnvelopeByteLimit,
   validateIngestMessage,
@@ -34,6 +37,8 @@ export type WireClientOptions = {
   tenantSlug: string;
   credential: string;
   fetch: FetchLike;
+  // The token for the selected screen source, sent with every request.
+  screenSelection?: () => string | undefined;
 };
 
 export type SendOutcome =
@@ -106,9 +111,15 @@ export function createWireClient(options: WireClientOptions): WireClient {
       if (!checked.ok || !isWithinEnvelopeByteLimit(envelope)) {
         throw new CompanionError("invalid_message");
       }
+      // [DOMAIN] Negotiation (ADR-0020): every request declares what this
+      // companion understands, outside the strict bodies. A Studio that does
+      // not know the headers ignores them and never sends capture requests.
       const headers: Record<string, string> = {
         [CREDENTIAL_TRANSPORT.header]: authorization,
+        [COMPANION_FEATURES_HEADER]: formatCompanionFeatures(),
       };
+      const screen = options.screenSelection?.();
+      if (screen !== undefined) headers[COMPANION_SCREEN_HEADER] = screen;
       let body: string | FormData;
       if (message.kind === "screen.snapshot") {
         // [DOMAIN] A screenshot travels as `envelope` (JSON string) plus a

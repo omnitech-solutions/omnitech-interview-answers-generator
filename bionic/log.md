@@ -2,6 +2,18 @@
 
 _Append-only. Newest first._
 
+## [2026-10-04] adr | ADR-0022: Allow owner-enabled hands-free listening and automatic capture
+
+Proposed. File `bionic/adrs/ADR-0022-allow-owner-enabled-hands-free-listening-and-automatic-capture.md`. Amends ADR-0018. Tags: active-session, overlay, capture, privacy, hands-free.
+
+## [2026-10-04] adr | ADR-0021: Negotiate companion capture requests and report their failures
+
+Proposed. File `bionic/adrs/ADR-0021-negotiate-companion-capture-requests-and-report-their-failures.md`. Amends ADR-0018. Tags: active-session, companion, wire, negotiation, capture.
+
+## [2026-10-04] adr | ADR-0020: Sign in to Studio from the native shell through a one-time handoff
+
+Proposed. File `bionic/adrs/ADR-0020-sign-in-to-studio-from-the-native-shell-through-a-one-time-handoff.md`. Amends ADR-0019; cites ADR-0006. Tags: active-session, native, auth, oauth, privacy.
+
 ## [2026-10-04] adr | ADR-0019: accepted
 
 Host the overlay in a native shell through one host adapter. Amends ADR-0017 and ADR-0018; accepted on the owner's request for a native shell that hosts the one route, with no concealment.

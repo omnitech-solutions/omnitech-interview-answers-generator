@@ -122,7 +122,7 @@ describe("Sources tab: the companion's speech state", () => {
       /connected|In contact/,
     );
     expect(screen.getByTestId("companion-row")).toHaveTextContent(
-      /No contact yet|never|Waiting|No recent contact/i,
+      /No contact yet|hasn’t made contact|never|Waiting|No recent contact/i,
     );
   });
 

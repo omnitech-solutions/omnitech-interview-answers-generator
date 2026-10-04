@@ -1,0 +1,3 @@
+ALTER TABLE "interview"."companion_capabilities" ADD COLUMN "capture_request_support" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "interview"."companion_capabilities" ADD COLUMN "screen_selection" text;--> statement-breakpoint
+ALTER TABLE "interview"."companion_capabilities" ADD CONSTRAINT "companion_capabilities_screen_selection_check" CHECK (screen_selection IS NULL OR screen_selection ~ '^[A-Za-z0-9._:-]{1,128}$');

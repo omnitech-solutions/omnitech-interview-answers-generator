@@ -147,7 +147,7 @@ describe("Codex App Server runtime", () => {
     );
     expect(events.at(-1)).toMatchObject({
       type: "failed",
-      error: { message: "Quota exceeded" },
+      error: { message: "Quota exceeded", reason: "turn_failed" },
     });
   });
   it("refuses to resume another run's live thread", async () => {
@@ -284,6 +284,7 @@ describe("Codex App Server runtime", () => {
             error: {
               code: "policy-refused",
               message: "An attachment was refused.",
+              reason: "attachment_refused",
               retryable: false,
             },
           },
@@ -303,6 +304,7 @@ describe("Codex App Server runtime", () => {
         error: {
           code: "policy-refused",
           message: "A tool-less request attempted to use a tool.",
+          reason: "tool_refused",
           retryable: false,
         },
       });

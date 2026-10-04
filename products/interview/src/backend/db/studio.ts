@@ -2,18 +2,18 @@
 // briefings, candidate profiles, concept briefs, plans and rehearsals.
 import { sql } from "drizzle-orm";
 import {
-  pgSchema,
-  text,
-  timestamp,
   bigint,
   boolean,
+  check,
+  foreignKey,
+  index,
   integer,
   jsonb,
-  index,
-  foreignKey,
-  primaryKey,
-  check,
   pgPolicy,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
 } from "drizzle-orm/pg-core";
 
 export const interview = pgSchema("interview");

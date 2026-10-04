@@ -394,6 +394,7 @@ describe("session agent port", () => {
         error: {
           code: "policy-refused",
           message: "An attachment was refused.",
+          reason: "attachment_refused",
           retryable: false,
         },
       };
@@ -402,6 +403,71 @@ describe("session agent port", () => {
       (await rejection(port(refused.runtime).execute(task(), aiProfile)))
         .sessionCode,
     ).toBe("attachment-refused");
+
+    // The typed reason decides, never the wording: the same text with no reason
+    // is a plain policy refusal.
+    const worded = fakeRuntime(async function* () {
+      yield {
+        type: "failed",
+        error: {
+          code: "policy-refused",
+          message: "An attachment was refused.",
+          retryable: false,
+        },
+      };
+    });
+    expect(
+      (await rejection(port(worded.runtime).execute(task(), aiProfile)))
+        .sessionCode,
+    ).toBe("policy-refused");
+  });
+
+  it("carries the adapter's typed reason on the error and the failed event, with no suffix in any message", async () => {
+    const ended = fakeRuntime(async function* () {
+      yield {
+        type: "failed",
+        error: {
+          code: "provider",
+          // Looks like the old suffix and the old subtype wording: neither is parsed.
+          message: "Claude ended with error_max_turns. [reason: tool_refused]",
+          reason: "error_max_turns",
+          retryable: false,
+        },
+      };
+    });
+    const error = await rejection(
+      port(ended.runtime).execute(task(), aiProfile),
+    );
+    expect(error.sessionCode).toBe("provider");
+    expect(error.reason).toBe("error_max_turns");
+    expect(error.failure).toMatchObject({ reason: "error_max_turns" });
+    expect(error.message).not.toContain("reason");
+
+    const events: AgentEvent[] = [];
+    for await (const event of port(ended.runtime).stream(task(), aiProfile))
+      events.push(event as AgentEvent);
+    const failed = events.at(-1);
+    expect(failed).toMatchObject({
+      type: "failed",
+      error: { code: "provider", reason: "error_max_turns" },
+    });
+    expect(JSON.stringify(failed)).not.toContain("[reason");
+
+    // A message that merely looks like a reason is not one.
+    const lookalike = fakeRuntime(async function* () {
+      yield {
+        type: "failed",
+        error: {
+          code: "provider",
+          message: "Claude ended with error_max_turns.",
+          retryable: false,
+        },
+      };
+    });
+    expect(
+      (await rejection(port(lookalike.runtime).execute(task(), aiProfile)))
+        .reason,
+    ).toBeUndefined();
   });
 
   it("bounds output and attempt time", async () => {

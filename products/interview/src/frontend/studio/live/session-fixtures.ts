@@ -202,9 +202,17 @@ export function capabilityReport(
     speech?: Partial<LiveCompanionCapability["speech"]>;
     permissions?: Partial<LiveCompanionCapability["permissions"]>;
     reportedAt?: string;
+    captureRequests?: boolean;
+    screenSelection?: string;
   } = {},
 ): LiveCompanionCapability {
   return {
+    ...(overrides.captureRequests !== undefined
+      ? { captureRequests: overrides.captureRequests }
+      : {}),
+    ...(overrides.screenSelection !== undefined
+      ? { screenSelection: overrides.screenSelection }
+      : {}),
     reportedAt: overrides.reportedAt ?? minutesAfter(0),
     speech: {
       locale: "en-GB",

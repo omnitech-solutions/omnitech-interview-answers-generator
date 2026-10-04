@@ -10,6 +10,7 @@ import {
   SESSION_AGENT_CLAUDE_PROFILE,
   SESSION_AGENT_CODEX_PROFILE,
   SESSION_AGENT_MIN_TURNS,
+  SessionGatewayConfigError,
 } from "./session-gateway.js";
 
 const REMOTE = {
@@ -131,6 +132,57 @@ describe("session agent port selection (ships disabled)", () => {
     // The assistant profile allows one turn, which ends a tool-less structured
     // run with error_max_turns whenever the model writes text first.
     expect(turns).toBeGreaterThanOrEqual(SESSION_AGENT_MIN_TURNS);
+  });
+
+  it("declares its turn bound in the session profile and refuses a configured bound below the minimum", async () => {
+    const seen: number[] = [];
+    const recording = {
+      ...runtime("claude-code"),
+      capabilities: { ...runtime("claude-code").capabilities, toolless: true },
+      run: async function* (request: { profile: { maximumTurns: number } }) {
+        seen.push(request.profile.maximumTurns);
+        yield {
+          type: "completed" as const,
+          result: { sessionId: "s", output: {} },
+        };
+      },
+    };
+    const run = async (extra: Record<string, string>) => {
+      const gateway = createSessionGateway(
+        { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on", ...extra },
+        { runtimes: { ...runtimes, "claude-code": recording } },
+      );
+      await gateway?.gateway.execute({
+        context: {
+          tenantId: "t",
+          userId: "u",
+          productId: "p",
+          permissions: ["interview.read"],
+        },
+        profileId: SESSION_AGENT_CLAUDE_PROFILE,
+        processingPolicy: "permitted-remote",
+        task: {
+          type: "structured-generation",
+          prompt: "x",
+          schema: { type: "object" },
+        },
+      });
+    };
+    await run({});
+    await run({ ACTIVE_SESSION_AGENT_MAX_TURNS: "9" });
+    expect(seen).toEqual([SESSION_AGENT_MIN_TURNS, 9]);
+    for (const bad of ["1", "5", "six", "6.5", "-6"]) {
+      expect(() =>
+        createSessionGateway(
+          {
+            ...REMOTE,
+            ACTIVE_SESSION_AGENT_PORT: "on",
+            ACTIVE_SESSION_AGENT_MAX_TURNS: bad,
+          },
+          { runtimes },
+        ),
+      ).toThrow(SessionGatewayConfigError);
+    }
   });
 
   it("refuses an agent profile for a device-only request", async () => {

@@ -32,6 +32,8 @@ enum Status {
     }
     static let windowsUnavailable = "windows: unavailable (ScreenCaptureKit could not list windows)"
     static let captureIgnored = "capture-request-ignored: the screen source is not running"
+    static let captureExpired = "capture-request-expired: its deadline passed before it could be captured"
+    static let captureSourceChanged = "capture-request-refused: the screen selection changed since the region was drawn"
     static func captureLoss(_ loss: CaptureLoss) -> String { "capture-lost: \(loss.rawValue)" }
     static func captureDone(_ mode: CaptureMode) -> String { "capture-sent: \(mode.rawValue)" }
     // One diagnostic row: the owning application's NAME, its layer, flags and

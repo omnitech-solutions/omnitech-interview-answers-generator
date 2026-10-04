@@ -6,8 +6,7 @@
 // holds layout only: it never touches the session, and pinning is
 // presentation (no submit, no counts).
 //
-// The in-tab mode (full, card or maximized) is remembered for the browser
-// session in sessionStorage, where the browser allows it.
+// Nothing here is persisted: a new visit to the live page is always Full.
 import { useSyncExternalStore } from "react";
 
 export type TabMode = "full" | "card" | "maximized";
@@ -26,9 +25,6 @@ export type Presentation = {
   pinnedTaskId: string | null;
 };
 
-const STORAGE_KEY = "interview-studio.live.presentation";
-const TAB_MODES: readonly string[] = ["full", "card", "maximized"];
-
 const INITIAL: Presentation = {
   mode: "full",
   previousMode: "full",
@@ -36,31 +32,11 @@ const INITIAL: Presentation = {
   pinnedTaskId: null,
 };
 
-function remembered(): TabMode {
-  try {
-    const stored = window.sessionStorage.getItem(STORAGE_KEY);
-    if (stored && TAB_MODES.includes(stored)) return stored as TabMode;
-  } catch {
-    // Storage is optional.
-  }
-  return "full";
-}
-function remember(mode: PresentationMode) {
-  if (mode === "floating") return;
-  try {
-    if (mode === "full") window.sessionStorage.removeItem(STORAGE_KEY);
-    else window.sessionStorage.setItem(STORAGE_KEY, mode);
-  } catch {
-    // Kept in memory only.
-  }
-}
-
 let state: Presentation | null = null;
 const current = (): Presentation => {
-  if (!state) {
-    const mode = remembered();
-    state = { ...INITIAL, mode };
-  }
+  // Never remembered across visits: /live always opens the full Studio view,
+  // and the card and the float are explicit, per-visit actions.
+  if (!state) state = { ...INITIAL };
   return state;
 };
 const listeners = new Set<() => void>();
@@ -76,7 +52,6 @@ function update(patch: Partial<Presentation>) {
   )
     return;
   state = next;
-  if (next.mode !== before.mode) remember(next.mode);
   for (const listener of [...listeners]) listener();
 }
 
@@ -104,7 +79,6 @@ export const presentation = {
     const changed =
       state !== null && JSON.stringify(state) !== JSON.stringify(INITIAL);
     state = { ...INITIAL };
-    remember("full");
     if (changed) for (const listener of [...listeners]) listener();
   },
   // The float went away by choice (or the card was closed): back to the tab

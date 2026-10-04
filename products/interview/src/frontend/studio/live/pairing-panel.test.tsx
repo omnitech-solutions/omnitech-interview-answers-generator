@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { companionChip, PairingPanel } from "./pairing-panel";
+import { PairingPanel } from "./pairing-panel";
 import {
   jsonResponse,
   minutesAfter,
@@ -96,9 +96,9 @@ describe("PairingPanel", () => {
     render(<PairingPanel />);
     await screen.findByTestId("pairing-panel");
     expect(screen.queryByTestId("pairing-credential")).not.toBeInTheDocument();
-    expect(screen.getByTestId("pairing-status")).toHaveTextContent(
-      "No contact yet",
-    );
+    // No title and no status of its own: the Sources tab's companion block owns them.
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.queryByTestId("pairing-status")).toBeNull();
     expect(screen.getByTestId("pairing-panel")).toHaveTextContent(
       "no longer shown",
     );
@@ -197,34 +197,5 @@ describe("PairingPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "status_refused",
     );
-  });
-
-  it("flags an expired or revoked credential", async () => {
-    install(sessionView({ status: "paused", credentialRevoked: true }));
-    render(<PairingPanel />);
-    expect(await screen.findByTestId("pairing-note")).toHaveTextContent(
-      "revoked",
-    );
-  });
-});
-
-describe("companionChip", () => {
-  const base = {
-    lastContactAt: null,
-    ageMs: null,
-    credential: "valid" as const,
-    credentialExpiresInMs: 1,
-  };
-  it("is in contact only after a recorded heartbeat, and offline when stale", () => {
-    expect(companionChip({ ...base, status: "never-seen" })).toEqual({
-      tone: "amber",
-      text: "No contact yet",
-    });
-    expect(companionChip({ ...base, status: "online", ageMs: 20_000 })).toEqual(
-      { tone: "green", text: "In contact · last heard less than a minute ago" },
-    );
-    expect(
-      companionChip({ ...base, status: "offline", ageMs: 5 * 60_000 }),
-    ).toEqual({ tone: "red", text: "No contact for 5 min" });
   });
 });

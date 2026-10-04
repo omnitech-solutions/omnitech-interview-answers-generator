@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   acknowledgementSchema,
   CAPABILITY_ACK_EVENT_ID,
+  CAPTURE_FAILURE_CODES,
   capabilityReportSchema,
   captureRequestSchema,
   controlMessageSchema,
+  controlStatusSchema,
   heartbeatSchema,
   ingestMessageSchema,
   REFUSAL_CODES,
+  sessionControlStateSchema,
   validateIngestMessage,
 } from "./control.js";
+import { isoTimestampSchema } from "./ids.js";
+import {
+  COMPANION_FEATURE_CAPTURE_REQUEST,
+  COMPANION_FEATURES_HEADER,
+  COMPANION_SCREEN_HEADER,
+  formatCompanionFeatures,
+  parseCompanionDeclaration,
+} from "./negotiation.js";
 
 const control = {
   state: "active",
@@ -226,16 +238,23 @@ describe("heartbeat and control message", () => {
 
 describe("capture request control", () => {
   const region = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
+  const expiresAt = "2026-10-03T12:00:20.000Z";
+  const request = (over: Record<string, unknown> = {}) => ({
+    requestId: "c",
+    mode: "display",
+    expiresAt,
+    ...over,
+  });
   const withCapture = (capture: unknown) => ({
     ...accepted,
     control: { ...control, capture },
   });
 
-  it("carries a pending request on any acknowledgement's control", () => {
+  it("carries a pending request, with its deadline, on any control", () => {
     for (const capture of [
-      { requestId: "cap-1", mode: "focused-window" },
-      { requestId: "cap-1", mode: "display" },
-      { requestId: "cap-1", mode: "region", region },
+      request({ mode: "focused-window" }),
+      request(),
+      request({ mode: "region", region, selection: "disp-1.3" }),
     ]) {
       expect(
         acknowledgementSchema.safeParse(withCapture(capture)).success,
@@ -246,22 +265,37 @@ describe("capture request control", () => {
         version: 1,
         status: "refused",
         code: "rate_limited",
-        control: { ...control, capture: { requestId: "c", mode: "display" } },
+        control: { ...control, capture: request() },
       }).success,
     ).toBe(true);
   });
 
-  it("requires a region exactly when the mode is region", () => {
+  it("requires the deadline", () => {
+    const { expiresAt: _omitted, ...bare } = request();
+    expect(captureRequestSchema.safeParse(bare).success).toBe(false);
     expect(
-      captureRequestSchema.safeParse({ requestId: "c", mode: "region" })
+      captureRequestSchema.safeParse(request({ expiresAt: "soon" })).success,
+    ).toBe(false);
+  });
+
+  it("requires a region and its selection exactly when the mode is region", () => {
+    expect(
+      captureRequestSchema.safeParse(request({ mode: "region" })).success,
+    ).toBe(false);
+    expect(
+      captureRequestSchema.safeParse(request({ mode: "region", region }))
         .success,
     ).toBe(false);
     expect(
-      captureRequestSchema.safeParse({
-        requestId: "c",
-        mode: "display",
-        region,
-      }).success,
+      captureRequestSchema.safeParse(
+        request({ mode: "region", selection: "d.1" }),
+      ).success,
+    ).toBe(false);
+    expect(captureRequestSchema.safeParse(request({ region })).success).toBe(
+      false,
+    );
+    expect(
+      captureRequestSchema.safeParse(request({ selection: "d.1" })).success,
     ).toBe(false);
   });
 
@@ -274,25 +308,89 @@ describe("capture request control", () => {
     { x: "0", y: 0, width: 0.5, height: 0.5 },
   ])("refuses a region outside the unit display: %j", (bad) => {
     expect(
-      captureRequestSchema.safeParse({
-        requestId: "c",
-        mode: "region",
-        region: bad,
-      }).success,
+      captureRequestSchema.safeParse(
+        request({ mode: "region", region: bad, selection: "d.1" }),
+      ).success,
     ).toBe(false);
   });
 
   it("refuses unknown capture fields and modes", () => {
     expect(
-      captureRequestSchema.safeParse({
-        requestId: "c",
-        mode: "display",
-        window: "x",
-      }).success,
+      captureRequestSchema.safeParse(request({ window: "x" })).success,
     ).toBe(false);
     expect(
-      captureRequestSchema.safeParse({ requestId: "c", mode: "window" })
-        .success,
+      captureRequestSchema.safeParse(request({ mode: "window" })).success,
     ).toBe(false);
+  });
+});
+
+describe("capture failure message", () => {
+  const failure = {
+    version: 1,
+    kind: "capture.failure",
+    sourceId: "companion",
+    sentAt: "2026-10-03T12:00:05.000Z",
+    requestId: "cap-1",
+    code: "no-focused-window",
+  };
+
+  it("accepts each closed code and refuses anything else", () => {
+    for (const code of CAPTURE_FAILURE_CODES) {
+      expect(validateIngestMessage({ ...failure, code }).ok).toBe(true);
+    }
+    expect(validateIngestMessage({ ...failure, code: "boom" }).ok).toBe(false);
+    expect(validateIngestMessage({ ...failure, message: "x" }).ok).toBe(false);
+    const { requestId: _omitted, ...bare } = failure;
+    expect(validateIngestMessage(bare).ok).toBe(false);
+  });
+});
+
+// Conformance for the strict-reader hazard (ADR-0020). LEGACY_CONTROL is the
+// control object exactly as the companion read it before capture requests: a
+// strict reader. The new field is not readable by it, which is why Studio
+// emits it only to a companion that declared the feature.
+describe("capture request negotiation", () => {
+  const LEGACY_CONTROL = z.strictObject({
+    state: sessionControlStateSchema,
+    credentialExpiresAt: isoTimestampSchema,
+  });
+  const capture = {
+    requestId: "c",
+    mode: "display",
+    expiresAt: "2026-10-03T12:00:20.000Z",
+  };
+
+  it("a strict legacy reader rejects control.capture, so it is never additive", () => {
+    expect(LEGACY_CONTROL.safeParse({ ...control, capture }).success).toBe(
+      false,
+    );
+    expect(LEGACY_CONTROL.safeParse(control).success).toBe(true);
+  });
+
+  it("the current reader accepts a control with and without capture", () => {
+    expect(controlStatusSchema.safeParse(control).success).toBe(true);
+    expect(controlStatusSchema.safeParse({ ...control, capture }).success).toBe(
+      true,
+    );
+  });
+
+  it("reads the declaration tolerantly and never throws", () => {
+    const headers = (values: Record<string, string>) => (name: string) =>
+      values[name] ?? null;
+    expect(
+      parseCompanionDeclaration(
+        headers({
+          [COMPANION_FEATURES_HEADER]: `future.v9, ${COMPANION_FEATURE_CAPTURE_REQUEST}`,
+          [COMPANION_SCREEN_HEADER]: "disp-1.3",
+        }),
+      ),
+    ).toEqual({ captureRequests: true, screenSelection: "disp-1.3" });
+    expect(parseCompanionDeclaration(headers({}))).toEqual({
+      captureRequests: false,
+    });
+    expect(
+      parseCompanionDeclaration(headers({ [COMPANION_SCREEN_HEADER]: "a b" })),
+    ).toEqual({ captureRequests: false });
+    expect(formatCompanionFeatures()).toBe(COMPANION_FEATURE_CAPTURE_REQUEST);
   });
 });

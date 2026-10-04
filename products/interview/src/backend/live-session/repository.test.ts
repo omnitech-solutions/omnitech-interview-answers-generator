@@ -390,7 +390,7 @@ describe("control authority (rule:owner-starts-and-resumes)", () => {
     const { session } = await start(vic);
     const scope = scopeOf(vic);
     await fx.owner.query(
-      "UPDATE interview.active_sessions SET credential_expires_at = now() - interval '1 second' WHERE id=$1",
+      "UPDATE interview.active_sessions SET credential_expires_at = now() - interval '1 second', last_heartbeat_at = now() WHERE id=$1",
       [session.id],
     );
     const afterExpiry = await repo.reconcileSession(scope, session.id);
@@ -412,6 +412,34 @@ describe("control authority (rule:owner-starts-and-resumes)", () => {
     expect(
       (await repo.reconcileSession(scopeOf(xia), third.session.id)).status,
     ).toBe("active");
+    // A session no companion ever contacted is captured from the browser: an
+    // expired credential has nothing to pause.
+    await fx.owner.query(
+      "UPDATE interview.active_sessions SET credential_expires_at = now() - interval '1 second' WHERE id=$1",
+      [third.session.id],
+    );
+    expect(
+      (await repo.reconcileSession(scopeOf(xia), third.session.id)).status,
+    ).toBe("active");
+  });
+
+  it("a resume clears a stale companion heartbeat so it cannot re-pause the session", async () => {
+    const abe = await fresh("abe");
+    const { session } = await start(abe);
+    const scope = scopeOf(abe);
+    await fx.owner.query(
+      "UPDATE interview.active_sessions SET last_heartbeat_at = now() - interval '1 hour' WHERE id=$1",
+      [session.id],
+    );
+    expect((await repo.reconcileSession(scope, session.id)).status).toBe(
+      "paused",
+    );
+    expect(
+      (await repo.controlSession(scope, session.id, "resume")).status,
+    ).toBe("active");
+    expect((await repo.reconcileSession(scope, session.id)).status).toBe(
+      "active",
+    );
   });
 
   it("ends a session past its duration cap", async () => {

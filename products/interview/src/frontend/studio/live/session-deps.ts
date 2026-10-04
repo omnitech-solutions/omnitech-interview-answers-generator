@@ -37,6 +37,8 @@ export type StoreDeps = {
     sessionId: string,
     target?: { taskId: string; revision: number },
     hints?: OwnerHints,
+    // The stored capture the owner chose; without it, the newest one.
+    snapshot?: { sourceId: string; eventId: string },
   ): Promise<void>;
   // Capture and analyze: the browser's own fresh frame.
   analyzeCapture?(sessionId: string, input: CaptureInput): Promise<void>;
@@ -53,6 +55,20 @@ export type StoreDeps = {
     sessionId: string,
     text: string,
     hints?: OwnerHints,
+  ): Promise<void>;
+  // Generate the solution code for one task revision. Idempotent: the same
+  // task revision always carries the same request id.
+  solveTask?(
+    sessionId: string,
+    target: { taskId: string; revision: number },
+    hints?: OwnerHints,
+  ): Promise<void>;
+  // Hands-free Auto: one final phrase the browser heard, by its own request id
+  // (a retry of the same phrase reuses it). Never logged or stored here.
+  submitHeard?(
+    sessionId: string,
+    text: string,
+    requestId: string,
   ): Promise<void>;
   // Only the finished session's id is ever stored; failures are the caller's.
   storage: {

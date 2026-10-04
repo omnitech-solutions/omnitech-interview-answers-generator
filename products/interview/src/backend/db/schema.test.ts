@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
+import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { expect, it } from "vitest";
 import {
   briefingLinks,

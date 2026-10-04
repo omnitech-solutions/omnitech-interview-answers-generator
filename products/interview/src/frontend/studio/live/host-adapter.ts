@@ -43,13 +43,27 @@ export function shareMenuCopy(): { label: string; sub: string } {
 
 // A full mask asks for the focused window; a partial one for that region of the
 // main display (the same meaning as the companion's two modes in ADR-0018).
-export function captureRequestFor(mask: Rect): StudioHostCaptureRequest {
+export function captureRequestFor(
+  mask: Rect,
+  displayId: string | null = null,
+): StudioHostCaptureRequest {
   if (isFull(mask)) return { mode: "focused-window" };
   return {
     mode: "region",
     region: { x: mask.x, y: mask.y, width: mask.w, height: mask.h },
+    ...(displayId ? { displayId } : {}),
   };
 }
+
+// The display the host last captured from. A region is drawn relative to it, so
+// it is sent back with each region request; the host refuses a region when the
+// main display has changed, and the caller then drops the stored area. Kept in
+// memory only.
+let knownDisplayId: string | null = null;
+export const hostDisplayId = (): string | null => knownDisplayId;
+export const forgetHostDisplay = (): void => {
+  knownDisplayId = null;
+};
 
 export type HostFrame =
   | { ok: true; blob: Blob; masked: boolean }
@@ -59,6 +73,7 @@ export type HostFrame =
         | "unavailable"
         | "permission-denied"
         | "no-focused-window"
+        | "display-changed"
         | "failed";
     };
 
@@ -71,11 +86,19 @@ export async function captureThroughHost(
   if (!info || !info.capabilities.has("capture-screen"))
     return { ok: false, reason: "unavailable" };
   let result: Awaited<ReturnType<typeof info.host.captureScreen>>;
+  const request = captureRequestFor(mask, knownDisplayId);
   try {
-    result = await info.host.captureScreen(captureRequestFor(mask));
+    result = await info.host.captureScreen(request);
   } catch {
     return { ok: false, reason: "failed" };
   }
+  // A region the host would not apply to the display it now captures: the area
+  // no longer means what the person drew.
+  if (!result.ok && request.displayId && result.reason === "capture-failed") {
+    knownDisplayId = null;
+    return { ok: false, reason: "display-changed" };
+  }
+  if (result.ok && result.displayId) knownDisplayId = result.displayId;
   if (!result.ok)
     return {
       ok: false,

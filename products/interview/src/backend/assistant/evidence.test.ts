@@ -4,9 +4,9 @@ import {
   renderGuideMarkdown,
 } from "@omnitech/interview-contracts";
 import { expect, it } from "vitest";
+import { guidedProse } from "../../answer-fixture.js";
 import { validateClaims } from "./evidence.js";
 import type { InterviewEvidence } from "./workspace.js";
-import { guidedProse } from "../../answer-fixture.js";
 
 function check(generated: string, quoted: string, value: number, unit = "%") {
   const source: InterviewEvidence = {

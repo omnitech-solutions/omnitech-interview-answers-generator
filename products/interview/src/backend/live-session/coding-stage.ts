@@ -17,6 +17,7 @@
 // The stage lists only the permitted-remote profile: there is no device
 // implementation, so a device-only session refuses it with stage_unlisted
 // (rule:unlisted-stage-refused).
+import { LIVE_OWNER_LANGUAGES } from "@omnitech/interview-contracts";
 import { z } from "zod";
 import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
 import {
@@ -45,7 +46,7 @@ export const MAX_REPORT_TESTS = 40;
 const MAX_REPORT_NAME_CHARS = 120;
 
 const solutionSchema = z.strictObject({
-  language: z.enum(["typescript", "react"]),
+  language: z.enum(LIVE_OWNER_LANGUAGES),
   code: z.string().min(1).max(MAX_CODE_CHARS),
   usageCode: z.string().max(MAX_USAGE_CHARS).optional(),
   testCode: z.string().min(1).max(MAX_CODE_CHARS),
@@ -72,7 +73,7 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
   required: ["language", "code", "testCode", "coverage", "escalation", "notes"],
   properties: {
-    language: { type: "string", enum: ["typescript", "react"] },
+    language: { type: "string", enum: [...LIVE_OWNER_LANGUAGES] },
     code: { type: "string", maxLength: MAX_CODE_CHARS },
     usageCode: { type: "string", maxLength: MAX_USAGE_CHARS },
     testCode: { type: "string", maxLength: MAX_CODE_CHARS },

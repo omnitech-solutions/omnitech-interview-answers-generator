@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
+import { guideText, type InterviewClaim } from "@omnitech/interview-contracts";
 import type {
   Evidence,
   Scope,
   Transaction,
 } from "@omnitech-assistant/contracts";
-import { guideText, type InterviewClaim } from "@omnitech/interview-contracts";
 import {
   type InterviewDraft,
   type InterviewEvidence,

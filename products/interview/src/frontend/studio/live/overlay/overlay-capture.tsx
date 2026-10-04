@@ -28,6 +28,37 @@ export const DEVICE_ONLY_ANALYZE =
 export const EXPIRED_NOTE =
   "The companion did not answer within 20 s. Is it running with the screen source selected?";
 
+// One plain line, with the fix, for each closed reason a capture request can end
+// with. A failed or refused request never falls back to an older image.
+const REFUSAL_TEXT: Record<string, string> = {
+  vision_device_only: DEVICE_ONLY_ANALYZE,
+  companion_update_required:
+    "This companion is too old to take capture requests. Update the companion, then try again.",
+  source_changed:
+    "The screen the region was drawn on has changed. Choose the region again.",
+  capture_request_stale:
+    "That capture request is out of date. Press Capture & analyze again.",
+  limit_reached:
+    "This session has reached its capture limit, so nothing more can be captured.",
+};
+const FAILURE_TEXT: Record<string, string> = {
+  "no-focused-window":
+    "The companion found no focused window to capture. Click the window you want, then try again.",
+  "permission-denied":
+    "The companion isn’t allowed to record the screen. Allow Screen Recording for it in System Settings, then try again.",
+  "source-gone":
+    "The window or screen the companion was capturing is gone. Pick a source in the companion, then try again.",
+  "source-changed":
+    "The companion’s screen source changed, so the capture was dropped. Try again.",
+  "capture-failed": "The companion couldn’t take the capture. Try again.",
+};
+export const refusalText = (reason: string | null): string =>
+  (reason ? REFUSAL_TEXT[reason] : undefined) ??
+  `The companion’s capture was refused${reason ? ` (${reason})` : ""}.`;
+export const failureText = (reason: string | null): string =>
+  (reason ? FAILURE_TEXT[reason] : undefined) ??
+  `The companion couldn’t capture${reason ? ` (${reason})` : ""}. Nothing was analysed.`;
+
 // What the strip says while a request to the companion is followed, or how it
 // ended. null: nothing to say.
 export function progressText(progress: CaptureProgress | null): string | null {
@@ -44,9 +75,9 @@ export function progressText(progress: CaptureProgress | null): string | null {
     case "expired":
       return EXPIRED_NOTE;
     case "refused":
-      return progress.reason === "vision_device_only"
-        ? DEVICE_ONLY_ANALYZE
-        : `The companion’s capture was refused${progress.reason ? ` (${progress.reason})` : ""}.`;
+      return refusalText(progress.reason);
+    case "failed":
+      return failureText(progress.reason);
   }
 }
 
@@ -61,6 +92,8 @@ export type CaptureStripProps = {
   last: Capture | null;
   // The companion's screen source is receiving and has a capture to use.
   companionReady: boolean;
+  // That stored capture: an image already sent, shown by identity and age.
+  stored: Capture | null;
   // The companion's screen source is receiving, so it can be asked to capture.
   // Otherwise `reason` is why not, from the source's own advice.
   companionCanCapture: boolean;
@@ -112,6 +145,7 @@ export function CaptureStrip(props: CaptureStripProps) {
     masked,
     last,
     companionReady,
+    stored,
     companionCanCapture,
     companionReason,
     progress,
@@ -351,18 +385,16 @@ export function CaptureStrip(props: CaptureStripProps) {
                 type="button"
                 role="menuitem"
                 className="ov-menu-item"
-                disabled={!companionReady}
+                disabled={!companionReady || !stored}
                 onClick={() => choose({ kind: "new" }, "companion")}
               >
                 <Icon name="desktop_windows" />
                 <span className="ov-menu-text">
-                  <span className="ov-menu-label">
-                    Use the companion’s latest capture
-                  </span>
+                  <span className="ov-menu-label">Analyze stored capture</span>
                   <span className="ov-menu-sub">
-                    {companionReady
-                      ? `Starts ${nextTaskLabel} from the newest frame it sent`
-                      : "The companion’s screen source isn’t receiving"}
+                    {companionReady && stored
+                      ? `Not a new capture: ${stored.id} · ${stored.sourceLabel}${stored.ageText ? ` · ${stored.ageText}` : ""}. Starts ${nextTaskLabel}`
+                      : "No stored capture, or the companion’s screen source isn’t receiving"}
                   </span>
                 </span>
               </button>
@@ -376,7 +408,8 @@ export function CaptureStrip(props: CaptureStripProps) {
                   <Icon name="link" />
                   <span className="ov-menu-text">
                     <span className="ov-menu-label">
-                      Attach the companion’s capture to {attachTo.label}
+                      Attach stored capture{stored ? ` ${stored.id}` : ""} to{" "}
+                      {attachTo.label}
                     </span>
                     <span className="ov-menu-sub">Revises that task</span>
                   </span>

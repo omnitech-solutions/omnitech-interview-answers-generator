@@ -109,6 +109,19 @@ public enum RefusalCode: String, CaseIterable, Sendable {
     case rateLimited = "rate_limited"
     case limitReached = "limit_reached"
     case eventConflict = "event_conflict"
+    // A screenshot named a capture request that is not the pending one; nothing was stored.
+    case captureRequestStale = "capture_request_stale"
+}
+
+// Why a capture request could not be honoured: a closed set of content-free codes (ADR-0020).
+public enum CaptureFailureCode: String, CaseIterable, Sendable {
+    case noFocusedWindow = "no-focused-window"
+    case permissionDenied = "permission-denied"
+    // The screen source is not running (paused, lost, refused or never selected).
+    case sourceGone = "source-gone"
+    // The screen selection a region was drawn against is no longer the selected one.
+    case sourceChanged = "source-changed"
+    case captureFailed = "capture-failed"
 }
 
 // MARK: - Messages
@@ -257,6 +270,23 @@ public enum IngestMessage: Equatable, Sendable {
     case observation(Observation)
     case heartbeat(Heartbeat)
     case capabilityReport(CapabilityReport)
+    case captureFailure(CaptureFailure)
+}
+
+// The companion could not capture for one request: correlated by id, bounded to a closed code.
+// Sent only after Studio handed over a request, which only a negotiating Studio does.
+public struct CaptureFailure: Equatable, Sendable {
+    public let sourceId: String
+    public let sentAt: String
+    public let requestId: String
+    public let code: CaptureFailureCode
+
+    public init(sourceId: String, sentAt: String, requestId: String, code: CaptureFailureCode) {
+        self.sourceId = sourceId
+        self.sentAt = sentAt
+        self.requestId = requestId
+        self.code = code
+    }
 }
 
 // MARK: - Acknowledgements
@@ -284,16 +314,25 @@ public struct CaptureRegion: Equatable, Sendable {
 }
 
 // The one pending capture-now request, carried only inside `control` on an
-// acknowledgement. It names what to capture and nothing else.
+// acknowledgement. It names what to capture and nothing else. `expiresAt` is its
+// deadline; `selection` binds a region to the screen selection it was drawn against
+// (present exactly when the mode is region).
 public struct CaptureRequest: Equatable, Sendable {
     public let requestId: String
     public let mode: CaptureMode
     public let region: CaptureRegion?
+    public let selection: String?
+    public let expiresAt: String
 
-    public init(requestId: String, mode: CaptureMode, region: CaptureRegion? = nil) {
+    public init(
+        requestId: String, mode: CaptureMode, region: CaptureRegion? = nil, selection: String? = nil,
+        expiresAt: String
+    ) {
         self.requestId = requestId
         self.mode = mode
         self.region = region
+        self.selection = selection
+        self.expiresAt = expiresAt
     }
 }
 
@@ -403,6 +442,9 @@ public enum WireValidator {
         case .string("capability.report"):
             object.markUsed("kind")
             parsed = parseCapabilityReport(object).map(IngestMessage.capabilityReport)
+        case .string("capture.failure"):
+            object.markUsed("kind")
+            parsed = parseCaptureFailure(object).map(IngestMessage.captureFailure)
         default:
             // An unknown or missing kind stops here: its other fields cannot be judged.
             reader.issues.append(WireIssue(path: [.key("kind")], code: .unknownKind))
@@ -563,6 +605,16 @@ public enum WireValidator {
         return Heartbeat(sourceId: sourceId, sentAt: sentAt, capturing: capturing)
     }
 
+    private static func parseCaptureFailure(_ object: ObjectReader) -> CaptureFailure? {
+        let sourceId = object.id("sourceId")
+        let sentAt = object.timestamp("sentAt")
+        let requestId = object.id("requestId")
+        let code = object.enumeration("code", CaptureFailureCode.self)
+        object.finish()
+        guard let sourceId, let sentAt, let requestId, let code else { return nil }
+        return CaptureFailure(sourceId: sourceId, sentAt: sentAt, requestId: requestId, code: code)
+    }
+
     private static func parseCapabilityReport(_ object: ObjectReader) -> CapabilityReport? {
         let sourceId = object.id("sourceId")
         let sentAt = object.timestamp("sentAt")
@@ -612,6 +664,8 @@ public enum WireValidator {
         guard let object else { return nil }
         let requestId = object.id("requestId")
         let mode = object.enumeration("mode", CaptureMode.self)
+        let selection = object.present("selection") ? object.id("selection") : nil
+        let expiresAt = object.timestamp("expiresAt")
         var region: CaptureRegion?
         if object.present("region"), let regionObject = object.object("region") {
             let x = regionObject.number("x", min: 0, max: 1)
@@ -629,14 +683,20 @@ public enum WireValidator {
             }
         }
         object.finish()
-        guard let requestId, let mode else { return nil }
+        guard let requestId, let mode, let expiresAt else { return nil }
         if (mode == .region) != object.present("region") {
             object.reader.issues.append(
                 WireIssue(path: object.path + [.key("region")], code: .invalidValue))
             return nil
         }
-        if mode == .region, region == nil { return nil }
-        return CaptureRequest(requestId: requestId, mode: mode, region: region)
+        if (mode == .region) != object.present("selection") {
+            object.reader.issues.append(
+                WireIssue(path: object.path + [.key("selection")], code: .invalidValue))
+            return nil
+        }
+        if mode == .region, region == nil || selection == nil { return nil }
+        return CaptureRequest(
+            requestId: requestId, mode: mode, region: region, selection: selection, expiresAt: expiresAt)
     }
 
     private static func parseAccepted(_ object: ObjectReader) -> AcceptedAck? {

@@ -134,7 +134,12 @@ async function begin(name: string) {
 const ingest = (
   credential: string | null,
   envelope: unknown,
-  extra: { forSlug?: string; query?: string; a?: ReturnType<typeof app> } = {},
+  extra: {
+    forSlug?: string;
+    query?: string;
+    a?: ReturnType<typeof app>;
+    headers?: Record<string, string>;
+  } = {},
 ) =>
   (extra.a ?? app()).request(
     `${base(extra.forSlug)}/ingest${extra.query ?? ""}`,
@@ -143,6 +148,7 @@ const ingest = (
       headers: {
         "content-type": "application/json",
         ...(credential ? { authorization: `Bearer ${credential}` } : {}),
+        ...extra.headers,
       },
       body: typeof envelope === "string" ? envelope : JSON.stringify(envelope),
     },
@@ -1039,11 +1045,30 @@ describe("companion capability and ingest hardening over HTTP", () => {
           authorizationStatus: "authorized",
         },
         permissions: { microphone: "granted", screen: "not-determined" },
+        // No declaration headers on this report: an older companion.
+        captureRequests: false,
       },
     });
     expect(liveCompanionCapabilityResponseSchema.safeParse(body).success).toBe(
       true,
     );
+  });
+
+  it("reads the companion's declaration headers and shows them in its own capability", async () => {
+    const owner = await begin("cap-declared");
+    as(owner.person);
+    const ack = await ingest(owner.credential, report(), {
+      headers: {
+        "x-companion-features": "capture-request.v1",
+        "x-companion-screen": "disp-1.3",
+      },
+    });
+    expect(ack.status).toBe(200);
+    const body = await (await get("/companion-capability")).json();
+    expect(body.capability).toMatchObject({
+      captureRequests: true,
+      screenSelection: "disp-1.3",
+    });
   });
 
   it("never shows one member's capability to another member, in or out of the tenant", async () => {

@@ -36,9 +36,13 @@ import type { AgentAttachment } from "@omnitech/ai-contracts";
 import { MAX_TASK_ATTACHMENTS } from "@omnitech/ai-contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import {
+  LIVE_OWNER_HINT_AUTO,
+  LIVE_OWNER_SOLVE_TEXT,
   type LiveOwnerInputRequest,
   type LiveOwnerLanguage,
+  type LiveOwnerLanguageHint,
   type LiveOwnerSkill,
+  type LiveOwnerSkillHint,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
@@ -169,8 +173,8 @@ export type SessionRun = {
     string,
     {
       text: string | null;
-      skill?: LiveOwnerSkill;
-      language?: LiveOwnerLanguage;
+      skill?: LiveOwnerSkillHint;
+      language?: LiveOwnerLanguageHint;
     }
   >;
   pendingInputs: PendingOwnerInput[];
@@ -609,7 +613,10 @@ function queueOwnerInput(run: SessionRun, stored: StoredObservation): void {
     return;
   }
   run.ownerInputs.set(provenanceId, {
-    text: parsed.data.text ?? null,
+    text:
+      parsed.data.operation === "solve"
+        ? LIVE_OWNER_SOLVE_TEXT
+        : (parsed.data.text ?? null),
     ...(parsed.data.skill ? { skill: parsed.data.skill } : {}),
     ...(parsed.data.language ? { language: parsed.data.language } : {}),
   });
@@ -658,6 +665,16 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
   const target = input.target
     ? run.tasks.tasks[input.target.taskId]
     : undefined;
+  // [SAFETY] "Solve" is bound to the revision the owner saw: a task that has
+  // moved on since is left alone (the owner asks again for the new one).
+  if (input.operation === "solve") {
+    const latest = target?.revisions[target.revisions.length - 1]?.revision;
+    if (!target || latest !== input.target?.revision) {
+      run.processed.add(provenanceId);
+      run.trace({ event: "owner-input.stale-solve", outcome: "skipped" });
+      return;
+    }
+  }
   const provenance = [
     provenanceId,
     ...input.snapshots.map((snapshot) =>
@@ -943,7 +960,9 @@ export function capturedFor(run: SessionRun, task: Task) {
 }
 
 // The owner's hints a task rests on: the newest skill and language any of its
-// owner inputs carried (closed enums; never text).
+// owner inputs carried (closed enums; never text). An input that omits a hint
+// keeps the earlier one; an input that says "auto" RESETS it to none, so the
+// owner choosing automatic detection again is honoured.
 export function hintsFor(
   run: SessionRun,
   task: Task,
@@ -952,8 +971,11 @@ export function hintsFor(
   let language: LiveOwnerLanguage | undefined;
   for (const id of provenanceOf(task)) {
     const input = run.ownerInputs.get(id);
-    if (input?.skill) skill = input.skill;
-    if (input?.language) language = input.language;
+    if (input?.skill)
+      skill = input.skill === LIVE_OWNER_HINT_AUTO ? undefined : input.skill;
+    if (input?.language)
+      language =
+        input.language === LIVE_OWNER_HINT_AUTO ? undefined : input.language;
   }
   return {
     ...(skill ? { skill } : {}),

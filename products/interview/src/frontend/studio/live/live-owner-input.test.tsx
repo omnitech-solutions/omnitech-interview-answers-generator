@@ -38,7 +38,7 @@ const click = async (name: string | RegExp) => {
 async function analyzeNew() {
   await click(/Capture & analyze/);
   fireEvent.click(
-    screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+    screen.getByRole("menuitem", { name: /Analyze stored capture/ }),
   );
   await flush();
 }
@@ -136,7 +136,7 @@ describe("Analyze latest capture and follow-ups", () => {
     expect(sent["requestId"]).toEqual(expect.stringMatching(/^r-/));
     // No bytes, paths, text or identity travel with it.
     expect(Object.keys(sent).sort()).toEqual(
-      ["operation", "requestId", "snapshots"].sort(),
+      ["language", "operation", "requestId", "skill", "snapshots"].sort(),
     );
     await advance(1_500);
     expect(
@@ -186,7 +186,7 @@ describe("Analyze latest capture and follow-ups", () => {
     // Nothing from the companion to use: that choice is disabled.
     await click(/Capture & analyze/);
     expect(
-      screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+      screen.getByRole("menuitem", { name: /Analyze stored capture/ }),
     ).toBeDisabled();
     expect(bodies).toEqual([]);
   });

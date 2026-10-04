@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { describeChanges, pickSurfaces } from "./adapter.js";
 import { guidedProse } from "../../answer-fixture.js";
+import { describeChanges, pickSurfaces } from "./adapter.js";
 
 type Draft = Parameters<typeof describeChanges>[0];
 type Patch = Parameters<typeof describeChanges>[1];

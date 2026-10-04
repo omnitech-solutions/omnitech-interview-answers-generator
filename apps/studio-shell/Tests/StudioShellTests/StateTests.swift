@@ -11,6 +11,14 @@ func stateTests(_ t: Harness) async {
         t.expectEqual(ConnectionRules.state(paired: true, probe: .noAnswer), .unreachable)
     }
 
+    await t.test("an expired or missing web sign-in is a visible Sign in to Studio state") {
+        t.expectEqual(ConnectionRules.state(paired: true, probe: .answered(status: 200), signedIn: false), .signInRequired)
+        t.expectEqual(ConnectionRules.state(paired: true, probe: .answered(status: 200), signedIn: true), .connected)
+        t.expectEqual(ConnectionRules.state(paired: true, probe: .noAnswer, signedIn: false), .unreachable)
+        t.expectEqual(ConnectionState.signInRequired.title, "Sign in to Studio")
+        t.expect(!ConnectionState.signInRequired.isConnected)
+    }
+
     await t.test("the window states that it is visible in screen shares") {
         t.expectEqual(VisibilityTruth.line, "Visible window · shows in screen shares")
     }
@@ -36,7 +44,7 @@ func stateTests(_ t: Harness) async {
 
     await t.test("hotkeys are distinct and need no extra permission combination") {
         let keys = HotkeyBinding.all
-        t.expectEqual(Set(keys.map(\.keyCode)).count, keys.count)
+        t.expectEqual(Set(keys.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count, keys.count)
         t.expectEqual(HotkeyBinding.optionShift, 0x0A00)
         t.expectEqual(keys.first { $0.action == .captureAnalyze }?.label, "⌥⇧A")
     }

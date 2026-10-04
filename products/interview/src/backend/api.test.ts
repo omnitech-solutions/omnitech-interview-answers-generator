@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generatedAnswerSchema } from "@omnitech/interview-contracts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guidedProse } from "../answer-fixture.js";
 
 const mocks = vi.hoisted(() => ({
@@ -74,11 +74,11 @@ vi.mock("./services", () => ({
   },
 }));
 
-import { WorkspaceError } from "./assistant/workspace";
 import {
   createApi as createInterviewApi,
   type InterviewApiOptions,
 } from "./api";
+import { WorkspaceError } from "./assistant/workspace";
 
 const scope = { tenantId: "t", actorId: "a", productId: "omnitech.interview" };
 

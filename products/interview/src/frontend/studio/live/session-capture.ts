@@ -4,13 +4,14 @@
 import type {
   LiveCaptureMode,
   LiveCaptureRegion,
-  LiveOwnerLanguage,
-  LiveOwnerSkill,
+  LiveOwnerLanguageHint,
+  LiveOwnerSkillHint,
 } from "@omnitech/interview-contracts";
 
 export type OwnerHints = {
-  skill?: LiveOwnerSkill | undefined;
-  language?: LiveOwnerLanguage | undefined;
+  // "auto" resets an earlier hint; omitted keeps it.
+  skill?: LiveOwnerSkillHint | undefined;
+  language?: LiveOwnerLanguageHint | undefined;
 };
 
 // A frame the browser took and cropped itself. `label` is plain text such as
@@ -27,5 +28,7 @@ export type CaptureInput = OwnerHints & {
 export type CompanionCaptureInput = OwnerHints & {
   mode: LiveCaptureMode;
   region?: LiveCaptureRegion | undefined;
+  // The companion's screen-selection token the region was drawn against.
+  selection?: string | undefined;
   target?: { taskId: string; revision: number } | undefined;
 };

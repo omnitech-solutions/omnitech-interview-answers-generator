@@ -223,15 +223,17 @@ export const LIVE_OWNER_SKILL_LABELS: Record<LiveOwnerSkill, string> = {
   programming: "Programming",
   dsa: "Data Structures & Algorithms",
   "system-design": "System Design",
-  behavioral: "Behavioral",
+  behavioral: "Behavioral Interview",
   "data-science": "Data Science",
   "sales-business": "Sales & Business",
-  presentation: "Presentation",
+  presentation: "Presentation Skills",
   negotiation: "Negotiation",
-  devops: "DevOps",
+  devops: "DevOps & Infrastructure",
 };
-// What the Active Session coding path supports today (assist-stage
-// CODING_LANGUAGES); a test keeps the two lists equal.
+// The ONE definition of what the Active Session coding path supports today:
+// the owner hints, the assist stage's coding brief and the coding stage's
+// solution all import it, so a language added here is offered, accepted and
+// generated everywhere or nowhere.
 export const LIVE_OWNER_LANGUAGES = ["typescript", "react"] as const;
 export const liveOwnerLanguageSchema = z.enum(LIVE_OWNER_LANGUAGES);
 export type LiveOwnerLanguage = z.infer<typeof liveOwnerLanguageSchema>;
@@ -239,17 +241,33 @@ export const LIVE_OWNER_LANGUAGE_LABELS: Record<LiveOwnerLanguage, string> = {
   typescript: "TypeScript",
   react: "React",
 };
+// A hint value on the wire: a closed value, or "auto". The owner's hints are
+// sticky within a task: the newest input that carries one wins and an input
+// that OMITS the hint keeps the earlier one. "auto" is the owner choosing
+// automatic detection again, so it RESETS any earlier hint to none (it is
+// never itself a hint a prompt sees).
+export const LIVE_OWNER_HINT_AUTO = "auto" as const;
+export const liveOwnerSkillHintSchema = z.enum([
+  ...LIVE_OWNER_SKILLS,
+  LIVE_OWNER_HINT_AUTO,
+]);
+export const liveOwnerLanguageHintSchema = z.enum([
+  ...LIVE_OWNER_LANGUAGES,
+  LIVE_OWNER_HINT_AUTO,
+]);
+export type LiveOwnerSkillHint = z.infer<typeof liveOwnerSkillHintSchema>;
+export type LiveOwnerLanguageHint = z.infer<typeof liveOwnerLanguageHintSchema>;
 // One fragment, spread into both owner request schemas.
 export const liveOwnerHintFields = {
-  skill: liveOwnerSkillSchema.optional(),
-  language: liveOwnerLanguageSchema.optional(),
+  skill: liveOwnerSkillHintSchema.optional(),
+  language: liveOwnerLanguageHintSchema.optional(),
 };
 
 export const liveOwnerInputRequestSchema = z
   .strictObject({
     requestId: ownerInputId,
     ...liveOwnerHintFields,
-    operation: z.enum(["analyze", "follow-up"]),
+    operation: z.enum(["analyze", "follow-up", "solve"]),
     // When the input is about an existing task revision the owner can see.
     target: z
       .strictObject({
@@ -273,8 +291,36 @@ export const liveOwnerInputRequestSchema = z
       context.addIssue({ code: "custom", path: ["text"] });
     if (input.operation === "follow-up" && input.snapshots.length > 0)
       context.addIssue({ code: "custom", path: ["snapshots"] });
+    // "solve" (generate the solution code): bound to ONE task revision the
+    // owner can see, with no free text and no images of its own.
+    if (input.operation === "solve") {
+      if (input.target === undefined)
+        context.addIssue({ code: "custom", path: ["target"] });
+      if (input.text !== undefined)
+        context.addIssue({ code: "custom", path: ["text"] });
+      if (input.snapshots.length > 0)
+        context.addIssue({ code: "custom", path: ["snapshots"] });
+    }
   });
 export type LiveOwnerInputRequest = z.infer<typeof liveOwnerInputRequestSchema>;
+
+// The constant instruction a "solve" input stands for. No free text from the
+// owner ever travels with it.
+export const LIVE_OWNER_SOLVE_TEXT =
+  "Write the complete solution code for this problem, with usage and tests.";
+
+// Heard speech (ADR-0022): one final phrase the owner's own browser heard through
+// the microphone while hands-free Auto is on, sent to the same /input route.
+// The server stores it as a transcript segment from the reserved owner
+// microphone source, so the processor reads it like any heard speech. Bounded
+// text only: no snapshots, no target and no hints.
+export const LIVE_HEARD_MAX_TEXT_CHARS = 1_000;
+export const liveHeardRequestSchema = z.strictObject({
+  requestId: ownerInputId,
+  operation: z.literal("heard"),
+  text: z.string().min(1).max(LIVE_HEARD_MAX_TEXT_CHARS),
+});
+export type LiveHeardRequest = z.infer<typeof liveHeardRequestSchema>;
 export const liveOwnerInputResponseSchema = z.object({
   input: z.object({
     requestId: z.string(),
@@ -346,6 +392,11 @@ export const liveCaptureRequestSchema = z
     requestId: ownerInputId,
     mode: liveCaptureModeSchema,
     region: liveCaptureRegionSchema.optional(),
+    // The screen selection the region was drawn against (the companion's token,
+    // read from the companion capability). A region is bound to it: it is never
+    // applied after the source changes. Omitted, Studio binds the region to the
+    // selection the companion last declared at submission.
+    selection: ownerInputId.optional(),
     targetTaskId: z
       .string()
       .min(1)
@@ -358,6 +409,8 @@ export const liveCaptureRequestSchema = z
   .superRefine((request, context) => {
     if ((request.mode === "region") !== (request.region !== undefined))
       context.addIssue({ code: "custom", path: ["region"] });
+    if (request.selection !== undefined && request.mode !== "region")
+      context.addIssue({ code: "custom", path: ["selection"] });
     if (
       (request.targetTaskId === undefined) !==
       (request.targetRevision === undefined)
@@ -369,10 +422,30 @@ export const liveCaptureStatusSchema = z.enum([
   "pending",
   "captured",
   "expired",
+  // Studio would not ask the companion (see LIVE_CAPTURE_REFUSALS).
   "refused",
+  // The companion was asked and reported it could not capture (see
+  // LIVE_CAPTURE_FAILURES); reported as soon as it says so, not at expiry.
+  "failed",
 ]);
 export type LiveCaptureStatus = z.infer<typeof liveCaptureStatusSchema>;
-// `reason` is a fixed code, present when refused ("vision_device_only").
+// Fixed reason codes. Refused: the session cannot send an image to an agent,
+// the connected companion build cannot take capture requests (an update is
+// needed), or the region was drawn against a screen selection that changed.
+// Failed: the companion's own closed failure code.
+export const LIVE_CAPTURE_REFUSALS = [
+  "vision_device_only",
+  "companion_update_required",
+  "source_changed",
+] as const;
+export const LIVE_CAPTURE_FAILURES = [
+  "no-focused-window",
+  "permission-denied",
+  "source-gone",
+  "source-changed",
+  "capture-failed",
+] as const;
+// `reason` is a fixed code, present when refused or failed.
 export const liveCaptureStateSchema = z.object({
   requestId: z.string(),
   status: liveCaptureStatusSchema,
@@ -538,6 +611,12 @@ export const liveCompanionCapabilitySchema = z.object({
     microphone: z.enum(["granted", "denied", "not-determined"]),
     screen: z.enum(["granted", "denied", "not-determined"]),
   }),
+  // Whether the companion declared it can take capture requests (false: an
+  // older build; a request is refused with companion_update_required).
+  captureRequests: z.boolean().optional(),
+  // The companion's token for its selected screen source, when it declared one:
+  // the value a region request is bound to.
+  screenSelection: z.string().min(1).max(128).optional(),
 });
 export type LiveCompanionCapability = z.infer<
   typeof liveCompanionCapabilitySchema

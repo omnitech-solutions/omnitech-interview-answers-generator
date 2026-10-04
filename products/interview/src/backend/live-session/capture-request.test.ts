@@ -29,6 +29,9 @@ let tenant = "";
 let slug = "";
 let acting: Person | null = null;
 const scopeOf = (person: Person) => ({ tenantId: tenant, actorId: person.id });
+// What a current companion declares on every request (negotiation.ts).
+const SEL = "disp-1.3";
+const DECLARED = { captureRequests: true, screenSelection: SEL };
 const instant = { waitMs: 0, pollMs: 1, sleep: async () => {} };
 
 beforeAll(async () => {
@@ -88,7 +91,7 @@ async function controlOf(world: World) {
       sentAt: "2026-10-03T10:00:00.000Z",
       capturing: true,
     },
-    { limits: { minHeartbeatIntervalMs: 0 } },
+    { limits: { minHeartbeatIntervalMs: 0 }, declaration: DECLARED },
   );
   return ack.status === "accepted" ? ack.control : undefined;
 }
@@ -106,6 +109,7 @@ const snapshot = (
 const send = (world: World, message: unknown): Promise<Acknowledgement> =>
   ingestObservation(fx.member, world.credential, tenant, message, {
     payload: PNG_BYTES,
+    declaration: DECLARED,
     limits: { minHeartbeatIntervalMs: 0 },
   });
 
@@ -150,6 +154,7 @@ describe("the request lifecycle", () => {
     expect(control?.capture).toEqual({
       requestId: "cap-1",
       mode: "focused-window",
+      expiresAt: state.expiresAt,
     });
     expect(captureRequestSchema.safeParse(control?.capture).success).toBe(true);
 
@@ -190,17 +195,19 @@ describe("the request lifecycle", () => {
   it("carries the region in the control and is deduped on the request id", async () => {
     const world = await begin("region");
     const region = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
-    const first = await request(world, { mode: "region", region });
-    expect((await controlOf(world))?.capture).toEqual({
+    const bound = { mode: "region", region, selection: SEL };
+    const first = await request(world, bound);
+    expect((await controlOf(world))?.capture).toMatchObject({
       requestId: "cap-1",
       mode: "region",
       region,
+      selection: SEL,
     });
-    expect(await request(world, { mode: "region", region })).toEqual(first);
+    expect(await request(world, bound)).toEqual(first);
     // The same id with different content is refused; the original stays.
     await refusal(request(world, { mode: "display" }), "invalid_input");
     await refusal(
-      request(world, { mode: "region", region: { ...region, x: 0.2 } }),
+      request(world, { ...bound, region: { ...region, x: 0.2 } }),
       "invalid_input",
     );
     expect((await controlOf(world))?.capture?.mode).toBe("region");
@@ -218,8 +225,12 @@ describe("the request lifecycle", () => {
       requestId: "new",
       mode: "display",
     });
-    // NEGATIVE: the replaced request's id analyses nothing.
-    expect((await send(world, snapshot("old"))).status).toBe("accepted");
+    // NEGATIVE: the replaced request's id is refused and nothing is stored.
+    expect(await send(world, snapshot("old"))).toMatchObject({
+      status: "refused",
+      code: "capture_request_stale",
+    });
+    expect(await observations(world.id)).toHaveLength(0);
     expect(await inputs(world.id)).toHaveLength(0);
     expect(
       (await repo.getCaptureRequest(world.scope, world.id, "new")).status,
@@ -230,19 +241,26 @@ describe("the request lifecycle", () => {
 });
 
 describe("a companion snapshot is never analysed on its own", () => {
-  it("NEGATIVE: with no pending request a requestId is ignored and the snapshot is stored as today", async () => {
+  it("NEGATIVE: with no pending request a named requestId is refused and nothing is retained; a passive snapshot is stored as today", async () => {
     const world = await begin("none");
-    const ack = await send(world, snapshot("made-up"));
-    expect(ack.status).toBe("accepted");
+    expect(await send(world, snapshot("made-up"))).toMatchObject({
+      status: "refused",
+      code: "capture_request_stale",
+    });
+    expect(await observations(world.id)).toHaveLength(0);
+    expect((await send(world, snapshot(undefined))).status).toBe("accepted");
     const stored = await observations(world.id);
     expect(stored.map((r) => r.kind)).toEqual(["screen.snapshot"]);
     expect(await inputs(world.id)).toHaveLength(0);
   });
 
-  it("NEGATIVE: a mismatching id leaves the request pending and the snapshot plain", async () => {
+  it("NEGATIVE: a mismatching id is refused unstored and leaves the request pending; a passive snapshot is plain", async () => {
     const world = await begin("mismatch");
     await request(world);
-    expect((await send(world, snapshot("cap-2"))).status).toBe("accepted");
+    expect(await send(world, snapshot("cap-2"))).toMatchObject({
+      code: "capture_request_stale",
+    });
+    expect(await observations(world.id)).toHaveLength(0);
     // A snapshot without any id while a request waits is plain too.
     expect((await send(world, snapshot(undefined))).status).toBe("accepted");
     expect(await inputs(world.id)).toHaveLength(0);
@@ -257,8 +275,10 @@ describe("a companion snapshot is never analysed on its own", () => {
     await request(world);
     await expire(world.id);
     expect((await controlOf(world))?.capture).toBeUndefined();
-    expect((await send(world, snapshot("cap-1"))).status).toBe("accepted");
-    expect(await inputs(world.id)).toHaveLength(0);
+    expect(await send(world, snapshot("cap-1"))).toMatchObject({
+      code: "capture_request_stale",
+    });
+    expect(await observations(world.id)).toHaveLength(0);
     expect(
       (await repo.getCaptureRequest(world.scope, world.id, "cap-1")).status,
     ).toBe("expired");
@@ -270,9 +290,16 @@ describe("a companion snapshot is never analysed on its own", () => {
   it("NEGATIVE: an already captured request analyses nothing a second time", async () => {
     const world = await begin("twice");
     await request(world);
-    await send(world, snapshot("cap-1"));
-    await send(world, snapshot("cap-1"));
+    await send(world, snapshot("cap-1", "s-twice"));
+    expect(await send(world, snapshot("cap-1", "s-twice"))).toMatchObject({
+      status: "duplicate",
+    });
+    // A different snapshot naming the finished request is refused unstored.
+    expect(await send(world, snapshot("cap-1", "s-late"))).toMatchObject({
+      code: "capture_request_stale",
+    });
     expect(await inputs(world.id)).toHaveLength(1);
+    expect(await observations(world.id)).toHaveLength(2);
   });
 
   it("does not hand a request to a paused session", async () => {
@@ -320,7 +347,9 @@ describe("refusals", () => {
       await repo.getCaptureRequest(world.scope, world.id, "cap-1"),
     ).toEqual(state);
     expect((await controlOf(world))?.capture).toBeUndefined();
-    expect((await send(world, snapshot("cap-1"))).status).toBe("accepted");
+    expect(await send(world, snapshot("cap-1"))).toMatchObject({
+      code: "capture_request_stale",
+    });
     expect(await inputs(world.id)).toHaveLength(0);
   });
 
@@ -437,6 +466,7 @@ describe("the routes", () => {
       requestId: "rt-1",
       mode: "region",
       region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+      selection: SEL,
     });
     expect(response.status).toBe(202);
     const body = liveCaptureStateSchema.parse(await response.json());
@@ -447,6 +477,7 @@ describe("the routes", () => {
           requestId: "rt-1",
           mode: "region",
           region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+          selection: SEL,
         })
       ).status,
     ).toBe(202);
@@ -478,5 +509,174 @@ describe("the routes", () => {
     expect(
       (await post(world.id, { requestId: "x", mode: "display" })).status,
     ).not.toBe(202);
+  });
+});
+
+// ---- Negotiation, failure and selection binding (ADR-0020) ----------------
+
+const REPORT = {
+  version: 1,
+  kind: "capability.report",
+  sourceId: "companion",
+  sentAt: "2026-10-03T10:00:00.000Z",
+  speech: {
+    locale: "en-GB",
+    onDeviceAvailable: true,
+    recognizerAvailable: true,
+    authorizationStatus: "authorized",
+  },
+  permissions: { microphone: "granted", screen: "granted" },
+};
+const FAILURE = (requestId: string, code = "no-focused-window") => ({
+  version: 1,
+  kind: "capture.failure",
+  sourceId: "companion",
+  sentAt: "2026-10-03T10:00:03.000Z",
+  requestId,
+  code,
+});
+const asCompanion = (
+  world: World,
+  message: unknown,
+  declaration?: { captureRequests: boolean; screenSelection?: string },
+) =>
+  ingestObservation(fx.member, world.credential, tenant, message, {
+    ...(declaration ? { declaration } : {}),
+    limits: { minHeartbeatIntervalMs: 0 },
+  });
+const beat = {
+  version: 1,
+  kind: "heartbeat",
+  sourceId: "companion",
+  sentAt: "2026-10-03T10:00:00.000Z",
+  capturing: true,
+};
+const stateOf = (world: World, id = "cap-1") =>
+  repo.getCaptureRequest(world.scope, world.id, id);
+
+describe("negotiation", () => {
+  it("an older companion (no declaration) is never handed a request, old-client against new-server", async () => {
+    const world = await begin("old-client");
+    await request(world);
+    for (const declaration of [undefined, { captureRequests: false }]) {
+      const ack = await asCompanion(world, beat, declaration);
+      expect(ack.status).toBe("accepted");
+      expect(JSON.stringify(ack)).not.toContain("capture");
+    }
+    // The same request is handed to a companion that declares it.
+    expect((await controlOf(world))?.capture?.requestId).toBe("cap-1");
+  });
+
+  it("refuses with companion_update_required once the owner's companion reported without support, and never asks it", async () => {
+    const world = await begin("old-report");
+    await asCompanion(world, REPORT, { captureRequests: false });
+    const state = await request(world);
+    expect(state).toMatchObject({
+      status: "refused",
+      reason: "companion_update_required",
+    });
+    expect(
+      (await asCompanion(world, beat, { captureRequests: false })).status,
+    ).toBe("accepted");
+    // The read model says why, so the page can disable the control.
+    expect(await repo.getCompanionCapability(world.scope)).toMatchObject({
+      captureRequests: false,
+    });
+  });
+
+  it("stores the declaration with the report and a later request is accepted, new-client", async () => {
+    const world = await begin("new-report");
+    await asCompanion(world, REPORT, DECLARED);
+    expect(await repo.getCompanionCapability(world.scope)).toMatchObject({
+      captureRequests: true,
+      screenSelection: SEL,
+    });
+    expect(await request(world)).toMatchObject({ status: "pending" });
+  });
+});
+
+describe("a failure the companion reports", () => {
+  it("turns the request failed at once, with the closed code, and refuses a late snapshot", async () => {
+    const world = await begin("failure");
+    await request(world);
+    const ack = await asCompanion(world, FAILURE("cap-1"), DECLARED);
+    expect(ack).toMatchObject({
+      status: "accepted",
+      eventId: "capture-failure",
+    });
+    expect(await stateOf(world)).toMatchObject({
+      status: "failed",
+      reason: "no-focused-window",
+    });
+    expect((await controlOf(world))?.capture).toBeUndefined();
+    expect(await send(world, snapshot("cap-1"))).toMatchObject({
+      code: "capture_request_stale",
+    });
+    expect(await observations(world.id)).toHaveLength(0);
+  });
+
+  it("changes nothing for an unknown, replaced, finished or expired id", async () => {
+    const world = await begin("failure-noop");
+    await request(world);
+    await asCompanion(world, FAILURE("other"), DECLARED);
+    expect((await stateOf(world)).status).toBe("pending");
+    await send(world, snapshot("cap-1", "s-ok"));
+    await asCompanion(world, FAILURE("cap-1"), DECLARED);
+    expect((await stateOf(world)).status).toBe("captured");
+    await request(world, { requestId: "cap-2" });
+    await expire(world.id);
+    await asCompanion(world, FAILURE("cap-2"), DECLARED);
+    expect((await stateOf(world, "cap-2")).status).toBe("expired");
+  });
+
+  it("is refused as invalid for a code outside the closed set", async () => {
+    const world = await begin("failure-bad");
+    await request(world);
+    expect(
+      await asCompanion(world, FAILURE("cap-1", "free text"), DECLARED),
+    ).toMatchObject({ status: "refused", code: "invalid_observation" });
+    expect((await stateOf(world)).status).toBe("pending");
+  });
+});
+
+describe("a region is bound to its screen selection", () => {
+  const region = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
+
+  it("takes the selection the companion last declared when the owner gave none", async () => {
+    const world = await begin("bind-default");
+    await asCompanion(world, REPORT, DECLARED);
+    await request(world, { mode: "region", region });
+    expect((await controlOf(world))?.capture).toMatchObject({
+      mode: "region",
+      selection: SEL,
+    });
+  });
+
+  it("refuses a region drawn against another selection, and one that cannot be bound", async () => {
+    const world = await begin("bind-refuse");
+    await asCompanion(world, REPORT, DECLARED);
+    expect(
+      await request(world, { mode: "region", region, selection: "disp-9.1" }),
+    ).toMatchObject({ status: "refused", reason: "source_changed" });
+    const unknown = await begin("bind-none");
+    expect(await request(unknown, { mode: "region", region })).toMatchObject({
+      status: "refused",
+      reason: "source_changed",
+    });
+  });
+
+  it("fails a pending region at once when the companion's selection changes, and never hands it over", async () => {
+    const world = await begin("bind-change");
+    await request(world, { mode: "region", region, selection: SEL });
+    const changed = { captureRequests: true, screenSelection: "disp-1.4" };
+    const ack = await asCompanion(world, beat, changed);
+    expect(ack.status === "accepted" && ack.control.capture).toBeFalsy();
+    expect(await stateOf(world)).toMatchObject({
+      status: "failed",
+      reason: "source-changed",
+    });
+    expect(await send(world, snapshot("cap-1"))).toMatchObject({
+      code: "capture_request_stale",
+    });
   });
 });

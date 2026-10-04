@@ -23,8 +23,8 @@ import {
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "../../assistant-profile.js";
 import {
-  BURSTS,
   BUCKET,
+  BURSTS,
   fakeRunner,
   NARRATE_1,
   NARRATE_2,

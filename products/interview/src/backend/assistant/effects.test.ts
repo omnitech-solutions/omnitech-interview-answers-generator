@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { guidedProse } from "../../answer-fixture.js";
 import { InterviewWorkspaceRepository } from "./workspace.js";
 import { disposablePostgres } from "./workspace-fixture.js";
-import { guidedProse } from "../../answer-fixture.js";
 
 const scope = {
   tenantId: "effects",

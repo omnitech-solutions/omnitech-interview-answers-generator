@@ -412,6 +412,9 @@ export function createCodexRuntimeAdapter(
         error: {
           code: cancellationRequested ? "cancelled" : "provider",
           message: error instanceof Error ? error.message : "Codex failed.",
+          // The turn itself reported failure (typed; the message above is for
+          // people and is never parsed).
+          ...(error === failure ? { reason: "turn_failed" as const } : {}),
           retryable: false,
         },
       };

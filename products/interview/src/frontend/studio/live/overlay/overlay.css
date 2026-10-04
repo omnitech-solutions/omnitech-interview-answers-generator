@@ -1588,3 +1588,25 @@
   overflow-x: auto;
   white-space: nowrap;
 }
+
+/* Hands-free Auto (ADR-0022): the toggle and its one status line. */
+.ov-auto-toggle.on {
+  background: var(--ov-accent-soft);
+  color: var(--ov-accent);
+}
+.ov-auto {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  font-size: 11.5px;
+  color: var(--ov-muted, inherit);
+}
+.ov-auto.problem {
+  color: var(--ov-amber);
+}
+.ov-auto-text {
+  flex: 1;
+  min-width: 0;
+}

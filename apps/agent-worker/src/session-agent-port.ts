@@ -37,6 +37,7 @@ import type {
   AiExecution,
   AiExecutionRequest,
   AiFailure,
+  AiFailureReason,
   AiUsage,
 } from "@omnitech/ai-contracts";
 import type { AgentExecutionPort, AiProfile } from "@omnitech/ai-runtime";
@@ -134,14 +135,19 @@ const FAILURES: Readonly<
 export class SessionAgentError extends Error {
   readonly retryable: boolean;
   readonly failure: AiFailure;
-  // A fixed-vocabulary reason (an SDK result subtype), never provider text.
+  // A closed-vocabulary reason (AiFailureReason: an SDK result subtype or an
+  // adapter's typed cause), never provider text. It travels as a typed field on
+  // the failure, and nothing reads it back out of the message.
   constructor(
     readonly sessionCode: SessionAgentErrorCode,
-    readonly reason?: string,
+    readonly reason?: AiFailureReason,
   ) {
     super(FAILURES[sessionCode].message);
     this.name = "SessionAgentError";
-    this.failure = { ...FAILURES[sessionCode] };
+    this.failure = {
+      ...FAILURES[sessionCode],
+      ...(reason === undefined ? {} : { reason }),
+    };
     this.retryable = this.failure.retryable;
   }
   get code(): AiFailure["code"] {
@@ -483,11 +489,18 @@ export function createSessionAgentPort(
     return staged;
   }
 
+  // What one attempt yields: the gateway's events, except that a failure keeps
+  // the typed SessionAgentError it came from, so execute() rethrows the same
+  // error and stream() reports its failure with no message round trip.
+  type AttemptEvent =
+    | Exclude<AiEvent, { type: "failed" }>
+    | { type: "failed"; error: SessionAgentError };
+
   async function* attempt(
     request: AiExecutionRequest,
     profile: AiProfile,
     executionId: string,
-  ): AsyncIterable<AiEvent> {
+  ): AsyncIterable<AttemptEvent> {
     const controller = new AbortController();
     const forward = () => controller.abort();
     request.signal?.addEventListener("abort", forward, { once: true });
@@ -530,7 +543,7 @@ export function createSessionAgentPort(
       // A timeout or cancel ends the attempt even if the runtime is slow to
       // answer its own cancel: the pull below races this promise.
       let stop: SessionAgentErrorCode | undefined;
-      let stopReason: string | undefined;
+      let stopReason: AiFailureReason | undefined;
       let halt: () => void = () => undefined;
       const halted = new Promise<"halted">((resolve) => {
         halt = () => resolve("halted");
@@ -589,10 +602,10 @@ export function createSessionAgentPort(
             yield { type: "completed", result: event.result.output };
             return;
           } else if (event.type === "failed") {
-            // Provider text is dropped; only the code (and the adapter's fixed
-            // result subtype, when it names one) maps across.
+            // Provider text is dropped; only the code and the adapter's typed
+            // reason map across.
             stop ??= codeFor(event.error);
-            stopReason ??= reasonOf(event.error);
+            stopReason ??= event.error.reason;
             break;
           } else if (event.type === "awaiting-input") {
             // A tool-less single turn never asks the owner for input.
@@ -610,22 +623,12 @@ export function createSessionAgentPort(
         controller.signal.removeEventListener("abort", onCancel);
       }
     } catch (error) {
-      const failure =
-        error instanceof SessionAgentError
-          ? error.failure
-          : FAILURES["provider"];
-      // The fixed reason rides in a closed-vocabulary suffix so execute() can
-      // report the same typed error stream() does.
-      const reason =
-        error instanceof SessionAgentError ? error.reason : undefined;
       yield {
         type: "failed",
-        error: {
-          ...failure,
-          ...(reason === undefined
-            ? {}
-            : { message: `${failure.message} [reason: ${reason}]` }),
-        },
+        error:
+          error instanceof SessionAgentError
+            ? error
+            : new SessionAgentError("provider"),
       };
     } finally {
       request.signal?.removeEventListener("abort", forward);
@@ -646,33 +649,12 @@ export function createSessionAgentPort(
     if (error.code === "rate-limit") return "rate-limit";
     if (error.code === "policy-refused") {
       // The adapter's own typed refusals keep their meaning.
-      return error.message === FAILURES["attachment-refused"].message
+      return error.reason === "attachment_refused"
         ? "attachment-refused"
-        : error.message === FAILURES["tool-refused"].message
+        : error.reason === "tool_refused"
           ? "tool-refused"
           : "policy-refused";
     }
-    return "provider";
-  }
-
-  // Maps a failed event's AiFailure back to its session code by its fixed
-  // message, so execute() throws the same typed error stream() reports.
-  // The SDK result subtype the Claude adapter names in its fixed failure text.
-  function reasonOf(error: AiFailure): string | undefined {
-    return /^Claude ended with ([a-z_]{1,64})\.$/.exec(error.message)?.[1];
-  }
-
-  // The reason a failed event carries in its closed-vocabulary suffix.
-  function causeOf(error: AiFailure): string | undefined {
-    return /\[reason: ([a-z_]{1,64})\]$/.exec(error.message)?.[1];
-  }
-
-  // Maps a failed event's AiFailure back to its session code by its fixed
-  // message, so execute() throws the same typed error stream() reports.
-  function sessionCodeOf(error: AiFailure): SessionAgentErrorCode {
-    for (const [code, failure] of Object.entries(FAILURES))
-      if (error.message.startsWith(failure.message))
-        return code as SessionAgentErrorCode;
     return "provider";
   }
 
@@ -696,16 +678,16 @@ export function createSessionAgentPort(
             result: event.result,
             ...(usage === undefined ? {} : { usage }),
           };
-        if (event.type === "failed")
-          throw new SessionAgentError(
-            sessionCodeOf(event.error),
-            causeOf(event.error),
-          );
+        if (event.type === "failed") throw event.error;
       }
       throw new SessionAgentError("provider");
     },
-    stream: (request, profile) =>
-      attempt(request, profile, crypto.randomUUID()),
+    async *stream(request, profile) {
+      for await (const event of attempt(request, profile, crypto.randomUUID()))
+        yield event.type === "failed"
+          ? { type: "failed", error: event.error.failure }
+          : event;
+    },
     async cancel(context: AiAccessContext, executionId: string) {
       // [SAFETY] An execution id never reaches across tenants.
       const entry = active.get(executionId);

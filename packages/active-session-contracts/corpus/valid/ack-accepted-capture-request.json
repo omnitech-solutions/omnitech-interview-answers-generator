@@ -9,7 +9,14 @@
     "capture": {
       "requestId": "cap-1",
       "mode": "region",
-      "region": { "x": 0.1, "y": 0.2, "width": 0.5, "height": 0.4 }
+      "region": {
+        "x": 0.1,
+        "y": 0.2,
+        "width": 0.5,
+        "height": 0.4
+      },
+      "selection": "display-1.3",
+      "expiresAt": "2026-10-03T10:00:20.000Z"
     }
   }
 }

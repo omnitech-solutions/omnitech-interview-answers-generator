@@ -26,11 +26,15 @@ public struct StudioLocation: Equatable, Sendable {
 
     private var productBase: String { "/t/\(tenantSlug)/p/\(Self.productId)" }
 
-    // /t/:tenant/p/interview/live/overlay?host=native[&session=<id>]
-    public func overlayURL(sessionId: String? = nil) -> URL {
+    // /t/:tenant/p/interview/live/overlay?host=native[&panel=<name>][&handsfree=1][&session=<id>]
+    // `panel` selects a panel variant of the route (?panel=pill|analysis|chat|settings).
+    public func overlayURL(sessionId: String? = nil, panel: PanelKind? = nil, handsFree: Bool = false) -> URL {
         var components = URLComponents(url: origin, resolvingAgainstBaseURL: false) ?? URLComponents()
         components.path = "\(productBase)/live/overlay"
         var query = [URLQueryItem(name: "host", value: "native")]
+        if let panel { query.append(URLQueryItem(name: "panel", value: panel.queryName)) }
+        // The minified shell is a hands-free host: Studio defaults Auto on.
+        if handsFree { query.append(URLQueryItem(name: "handsfree", value: "1")) }
         if let sessionId, Self.isSessionId(sessionId) { query.append(URLQueryItem(name: "session", value: sessionId)) }
         components.queryItems = query
         return components.url ?? origin
@@ -62,7 +66,8 @@ public struct StudioLocation: Equatable, Sendable {
         let own = origin
         let ownPort = own.port ?? (own.scheme == "https" ? 443 : 80)
         let theirPort = port ?? (scheme == "https" ? 443 : 80)
-        return scheme == own.scheme && host == own.host && theirPort == ownPort
+        return scheme.lowercased() == own.scheme?.lowercased() && host.lowercased() == own.host?.lowercased()
+            && theirPort == ownPort
     }
 
     public func isStudio(_ url: URL) -> Bool {

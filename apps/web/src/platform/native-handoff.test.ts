@@ -1,0 +1,98 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  ATTEMPT_TTL_MS,
+  configuredLoginProviders,
+  HANDOFF_TTL_MS,
+  isAttemptState,
+  NativeHandoffStore,
+} from "./native-handoff";
+
+const ORIGIN = "https://studio.test";
+const STATE = "a".repeat(43);
+const OTHER_STATE = "b".repeat(43);
+const identity = { email: "me@example.test", name: "Me", image: null };
+
+function store() {
+  const clock = { now: 1_000_000 };
+  return { clock, store: new NativeHandoffStore(() => clock.now) };
+}
+
+describe("native sign-in handoff", () => {
+  it("issues a code for a pending attempt and consumes it once", () => {
+    const { store: handoffs } = store();
+    expect(handoffs.beginAttempt(STATE)).toBe(true);
+    const code = handoffs.issue(STATE, ORIGIN, identity);
+    expect(code).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(handoffs.consume(code!, STATE, ORIGIN)).toEqual(identity);
+    // Replay of a spent code fails.
+    expect(handoffs.consume(code!, STATE, ORIGIN)).toBeNull();
+  });
+
+  it("refuses a completion with no pending attempt, and a second completion", () => {
+    const { store: handoffs } = store();
+    expect(handoffs.issue(STATE, ORIGIN, identity)).toBeNull();
+    handoffs.beginAttempt(STATE);
+    expect(handoffs.issue(STATE, ORIGIN, identity)).not.toBeNull();
+    expect(handoffs.issue(STATE, ORIGIN, identity)).toBeNull();
+  });
+
+  it("expires a code after 60 seconds and an attempt after its window", () => {
+    const { clock, store: handoffs } = store();
+    handoffs.beginAttempt(STATE);
+    const code = handoffs.issue(STATE, ORIGIN, identity)!;
+    clock.now += HANDOFF_TTL_MS;
+    expect(handoffs.consume(code, STATE, ORIGIN)).toBeNull();
+
+    handoffs.beginAttempt(OTHER_STATE);
+    clock.now += ATTEMPT_TTL_MS;
+    expect(handoffs.issue(OTHER_STATE, ORIGIN, identity)).toBeNull();
+    expect(HANDOFF_TTL_MS).toBeLessThanOrEqual(60_000);
+  });
+
+  it("is bound to the attempt and the origin, and a wrong try spends the code", () => {
+    const { store: handoffs } = store();
+    handoffs.beginAttempt(STATE);
+    const code = handoffs.issue(STATE, ORIGIN, identity)!;
+    expect(handoffs.consume(code, OTHER_STATE, ORIGIN)).toBeNull();
+    expect(handoffs.consume(code, STATE, ORIGIN)).toBeNull();
+
+    handoffs.beginAttempt(STATE);
+    const next = handoffs.issue(STATE, ORIGIN, identity)!;
+    expect(handoffs.consume(next, STATE, "https://evil.test")).toBeNull();
+    expect(handoffs.consume(next, STATE, ORIGIN)).toBeNull();
+  });
+
+  it("rejects malformed states, unknown and oversized codes", () => {
+    const { store: handoffs } = store();
+    expect(handoffs.beginAttempt("short")).toBe(false);
+    expect(isAttemptState("x".repeat(65))).toBe(false);
+    expect(isAttemptState("has space ".repeat(5))).toBe(false);
+    expect(handoffs.consume("unknown", STATE, ORIGIN)).toBeNull();
+    expect(handoffs.consume("x".repeat(500), STATE, ORIGIN)).toBeNull();
+  });
+
+  it("holds codes only as hashes", () => {
+    const { store: handoffs } = store();
+    handoffs.beginAttempt(STATE);
+    const code = handoffs.issue(STATE, ORIGIN, identity)!;
+    expect(
+      JSON.stringify([...(handoffs as any).handoffs.keys()]),
+    ).not.toContain(code);
+  });
+});
+
+describe("configured login providers", () => {
+  it("is empty by default, so the shell never prompts for the dev user", () => {
+    expect(configuredLoginProviders({ FAKE_AUTH_ENABLED: "true" })).toEqual([]);
+  });
+  it("lists a provider only with both id and secret", () => {
+    expect(
+      configuredLoginProviders({
+        AUTH_GOOGLE_ID: "id",
+        AUTH_GOOGLE_SECRET: "secret",
+        AUTH_LINKEDIN_ID: "id",
+      }),
+    ).toEqual(["google"]);
+  });
+});

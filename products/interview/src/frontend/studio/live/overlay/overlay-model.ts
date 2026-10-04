@@ -15,6 +15,7 @@ import { ageLabel, clockLabel } from "../session-format";
 import { formatElapsed } from "../session-merge";
 import {
   type AnswerResult,
+  type CodeResult,
   parseResultMeta,
   parseSnapshotContent,
 } from "../session-results";
@@ -311,6 +312,10 @@ export function approach(task: TaskView): Approach | null {
 export type SolutionView = {
   language: string;
   code: string;
+  // The whole result (solution, usage, tests and the worker's verification),
+  // which the code canvas edits and runs, and the task revision it answers.
+  result: CodeResult;
+  revision: number | null;
   // One line of status for the collapsed header.
   status: string;
   badges: { ok: boolean; label: string }[];
@@ -326,6 +331,10 @@ export function solution(task: TaskView): SolutionView | null {
   return {
     language: result.language,
     code: result.code,
+    result,
+    revision:
+      [...task.revisions].reverse().find((r) => r.code === result)?.revision ??
+      null,
     status: states.fullyVerified
       ? "Fully verified"
       : states.testsPassed
@@ -539,7 +548,7 @@ export function sourceAdvice(
 
 export type ChatEntry = {
   key: string;
-  kind: "Dictated" | "Typed";
+  kind: "Dictated" | "Typed" | "Auto";
   text: string;
   at: number;
 };

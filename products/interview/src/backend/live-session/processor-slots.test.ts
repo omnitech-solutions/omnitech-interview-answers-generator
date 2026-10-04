@@ -19,7 +19,6 @@ import {
   revisionOf,
   solutionFor,
 } from "./coding-fixture.js";
-import { capturedText } from "./replay-evidence-fixture.js";
 import { type Fixture, startFixture } from "./live-session-fixture.js";
 import {
   buildProcessor,
@@ -29,6 +28,7 @@ import {
   settle,
   startSessionFor,
 } from "./processor-fixture.js";
+import { capturedText } from "./replay-evidence-fixture.js";
 import { ActiveSessionRepository } from "./repository.js";
 import { seg } from "./session-replay-fixtures.js";
 

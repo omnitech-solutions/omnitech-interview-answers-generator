@@ -310,3 +310,27 @@ describe("live capture request", () => {
       expect(parse(body).success).toBe(false);
   });
 });
+
+describe("solve (generate the solution code)", () => {
+  const solve = {
+    requestId: "r-solve",
+    operation: "solve",
+    target: { taskId: "task-q1", revision: 2 },
+    snapshots: [],
+  };
+  it("is bound to one task revision and carries no text or images", () => {
+    expect(liveOwnerInputRequestSchema.safeParse(solve).success).toBe(true);
+    const { target: _target, ...unbound } = solve;
+    expect(liveOwnerInputRequestSchema.safeParse(unbound).success).toBe(false);
+    expect(
+      liveOwnerInputRequestSchema.safeParse({ ...solve, text: "anything" })
+        .success,
+    ).toBe(false);
+    expect(
+      liveOwnerInputRequestSchema.safeParse({
+        ...solve,
+        snapshots: [{ sourceId: "s", eventId: "e" }],
+      }).success,
+    ).toBe(false);
+  });
+});

@@ -31,10 +31,10 @@ import {
   type TaskState,
 } from "./core/index.js";
 import { assertUuid, SessionError } from "./errors.js";
-import { MAX_REASON_CHARS } from "./withheld.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import type { SessionJobs } from "./session-jobs.js";
 import { lockSession, type SessionRecord } from "./session-record.js";
+import { MAX_REASON_CHARS } from "./withheld.js";
 
 // The lease token a worker holds: the id it claimed under and the fence its
 // acquire produced.

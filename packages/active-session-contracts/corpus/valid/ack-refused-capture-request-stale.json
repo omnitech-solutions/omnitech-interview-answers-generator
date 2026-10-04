@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "status": "refused",
+  "code": "capture_request_stale",
+  "control": {
+    "state": "active",
+    "credentialExpiresAt": "2026-10-03T12:00:00.000Z"
+  }
+}

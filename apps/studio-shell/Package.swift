@@ -33,20 +33,35 @@ let package = Package(
         // AppKit, WebKit and Carbon callbacks are main-thread C and Objective-C
         // APIs; the shell is written for the Swift 5 concurrency model. All
         // decisions live in StudioShellCore, which is Swift 6.
-        .executableTarget(
-            name: "studio-shell",
+        // The embedded hands-free engine (owner-route pairing, the companion's
+        // session and sources). A library so the engine's state machine is tested
+        // with fakes; the shell target excludes its folder.
+        .target(
+            name: "StudioShellEngine",
             dependencies: [
                 "StudioShellCore",
                 .product(name: "CaptureCore", package: "macos"),
                 .product(name: "CaptureAdapters", package: "macos"),
             ],
+            path: "Sources/studio-shell/Engine"
+        ),
+        .executableTarget(
+            name: "studio-shell",
+            dependencies: [
+                "StudioShellCore",
+                "StudioShellEngine",
+                .product(name: "CaptureCore", package: "macos"),
+                .product(name: "CaptureAdapters", package: "macos"),
+            ],
             path: "Sources/studio-shell",
+            exclude: ["Engine"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
             name: "StudioShellTests",
             dependencies: [
                 "StudioShellCore",
+                "StudioShellEngine",
                 .product(name: "CaptureCore", package: "macos"),
                 .product(name: "CaptureAdapters", package: "macos"),
             ],

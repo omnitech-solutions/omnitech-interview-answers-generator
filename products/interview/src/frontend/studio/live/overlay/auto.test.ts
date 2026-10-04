@@ -1,0 +1,191 @@
+// Hands-free Auto's decisions as pure units (ADR-0022): the perceptual hash, the
+// change/stability detector, the rate limits, the restart backoff and the one
+// status line.
+import { describe, expect, it } from "vitest";
+import {
+  CHANGE_BITS,
+  createChangeDetector,
+  JITTER_BITS,
+  STABLE_MS,
+} from "./auto-change";
+import {
+  AUTO_MAX_PER_SESSION,
+  AUTO_MIN_GAP_MS,
+  type AutoGateInput,
+  gateAutoCapture,
+} from "./auto-gate";
+import { dHash, hamming } from "./auto-hash";
+import { type AutoLineInput, autoLine } from "./auto-line";
+import {
+  createRestartPolicy,
+  HEALTHY_RUN_MS,
+  RESTART_BASE_MS,
+  RESTART_MAX_MS,
+} from "./auto-restart";
+
+const ramp = (descending = false) =>
+  Array.from({ length: 72 }, (_, at) => {
+    const column = at % 9;
+    return (descending ? 9 - column : column) * 20;
+  });
+
+describe("dHash", () => {
+  it("is the same for the same picture and tolerant of tiny noise", () => {
+    const base = dHash(ramp());
+    expect(hamming(base, dHash(ramp()))).toBe(0);
+    const noisy = ramp();
+    noisy[4] = (noisy[4] ?? 0) + 1;
+    expect(hamming(base, dHash(noisy))).toBeLessThanOrEqual(JITTER_BITS);
+  });
+  it("differs in many bits for a different picture", () => {
+    expect(hamming(dHash(ramp()), dHash(ramp(true)))).toBeGreaterThanOrEqual(
+      CHANGE_BITS,
+    );
+  });
+});
+
+describe("change detector", () => {
+  const rising = dHash(ramp());
+  const falling = dHash(ramp(true));
+
+  it("captures the first picture once it has held still, then skips near-identical frames", () => {
+    const detector = createChangeDetector();
+    expect(detector.observe(rising, 0)).toBe("settling");
+    expect(detector.observe(rising, 2_000)).toBe("settling");
+    expect(detector.observe(rising, STABLE_MS)).toBe("ready");
+    detector.markCaptured();
+    expect(detector.observe(rising, 5_000)).toBe("same");
+    const noisy = ramp();
+    noisy[4] = (noisy[4] ?? 0) + 1;
+    expect(detector.observe(dHash(noisy), 7_000)).toBe("same");
+  });
+
+  it("waits for a changed picture to stay stable for STABLE_MS", () => {
+    const detector = createChangeDetector();
+    detector.observe(rising, 0);
+    detector.observe(rising, STABLE_MS);
+    detector.markCaptured();
+    // It changes, and keeps changing: never ready while moving.
+    expect(detector.observe(falling, 10_000)).toBe("settling");
+    expect(detector.observe(rising, 12_000)).toBe("same");
+    expect(detector.observe(falling, 14_000)).toBe("settling");
+    expect(detector.observe(falling, 16_000)).toBe("settling");
+    expect(detector.observe(falling, 14_000 + STABLE_MS)).toBe("ready");
+  });
+
+  it("stays pending when a capture was not taken, and starts over on reset", () => {
+    const detector = createChangeDetector();
+    detector.observe(rising, 0);
+    expect(detector.observe(rising, STABLE_MS)).toBe("ready");
+    // Not marked captured (a gate refused it): still ready on the next sample.
+    expect(detector.observe(rising, STABLE_MS + 2_000)).toBe("ready");
+    detector.reset();
+    expect(detector.observe(rising, 20_000)).toBe("settling");
+  });
+});
+
+describe("gate", () => {
+  const ok: AutoGateInput = {
+    nowMs: 100_000,
+    open: true,
+    paused: false,
+    deviceOnly: false,
+    sharing: true,
+    inFlight: false,
+    autoCount: 0,
+    lastAutoAtMs: null,
+  };
+  const reason = (over: Partial<AutoGateInput>) => {
+    const result = gateAutoCapture({ ...ok, ...over });
+    return result.ok ? "ok" : result.reason;
+  };
+  it("allows a capture with nothing in the way", () => {
+    expect(reason({})).toBe("ok");
+  });
+  it("refuses, with a reason, for each limit", () => {
+    expect(reason({ open: false })).toBe("not-open");
+    expect(reason({ paused: true })).toBe("paused");
+    expect(reason({ deviceOnly: true })).toBe("device-only");
+    expect(reason({ sharing: false })).toBe("no-source");
+    expect(reason({ inFlight: true })).toBe("busy");
+    expect(reason({ autoCount: AUTO_MAX_PER_SESSION })).toBe("cap");
+    expect(reason({ autoCount: AUTO_MAX_PER_SESSION - 1 })).toBe("ok");
+  });
+  it("keeps at least 15 s between automatic analyses", () => {
+    expect(reason({ lastAutoAtMs: ok.nowMs - AUTO_MIN_GAP_MS + 1 })).toBe(
+      "too-soon",
+    );
+    expect(reason({ lastAutoAtMs: ok.nowMs - AUTO_MIN_GAP_MS })).toBe("ok");
+  });
+});
+
+describe("restart policy", () => {
+  it("restarts a healthy or productive run at once", () => {
+    const policy = createRestartPolicy();
+    policy.started(0);
+    expect(policy.ended(HEALTHY_RUN_MS)).toBe(0);
+    policy.started(0);
+    policy.heard();
+    expect(policy.ended(100)).toBe(0);
+  });
+  it("backs off, doubling to a cap, when runs die young, and recovers", () => {
+    const policy = createRestartPolicy();
+    const waits: number[] = [];
+    for (let i = 0; i < 9; i += 1) {
+      policy.started(0);
+      waits.push(policy.ended(10));
+    }
+    expect(waits.slice(0, 4)).toEqual([
+      0,
+      RESTART_BASE_MS,
+      RESTART_BASE_MS * 2,
+      RESTART_BASE_MS * 4,
+    ]);
+    expect(Math.max(...waits)).toBe(RESTART_MAX_MS);
+    policy.started(0);
+    policy.heard();
+    expect(policy.ended(10)).toBe(0);
+    policy.started(0);
+    expect(policy.ended(10)).toBe(0);
+  });
+});
+
+describe("the one status line", () => {
+  const base: AutoLineInput = {
+    open: true,
+    paused: false,
+    ownerPaused: false,
+    resumeFailed: false,
+    micDenied: false,
+    micUnsupported: false,
+    micError: null,
+    listening: true,
+    heardAgoMs: null,
+    wantsScreen: true,
+    deviceOnly: false,
+    sharing: true,
+    watchable: true,
+    block: null,
+  };
+  const text = (over: Partial<AutoLineInput>) =>
+    autoLine({ ...base, ...over })?.text;
+  it("says what Auto is doing", () => {
+    expect(text({})).toBe("Auto · listening · watching screen");
+    expect(text({ heardAgoMs: 4_200 })).toBe(
+      "Auto · listening · heard 4 s ago · watching screen",
+    );
+  });
+  it("names the single action when something is lost", () => {
+    expect(text({ sharing: false })).toMatch(/needs one click to share again/);
+    expect(text({ micDenied: true })).toMatch(/Allow it in the browser/);
+    expect(text({ paused: true, ownerPaused: true })).toMatch(/paused by you/);
+    expect(text({ paused: true })).toMatch(/resuming/);
+    expect(text({ paused: true, resumeFailed: true })).toMatch(/Press Resume/);
+  });
+  it("says device-only never watches the screen, and nothing once ended", () => {
+    expect(text({ deviceOnly: true, sharing: false })).toMatch(
+      /screen not analysed \(device-only\)/,
+    );
+    expect(autoLine({ ...base, open: false })).toBeNull();
+  });
+});

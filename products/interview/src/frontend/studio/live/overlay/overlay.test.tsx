@@ -713,7 +713,12 @@ describe("header and chips", () => {
     await click("Maximize");
     expect(open(/Activity/)).toBe("true");
     expect(open(/Solution/)).toBe("true");
-    expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
+    // The solution is an editor canvas with a Run button.
+    const canvas = within(screen.getByTestId("solution")).getByLabelText(
+      "Code canvas",
+    );
+    expect(within(canvas).getByRole("button", { name: "Run" })).toBeVisible();
+    expect(within(canvas).getByRole("button", { name: "Copy" })).toBeVisible();
     // The person's own choice survives a resize.
     fireEvent.click(screen.getByRole("button", { name: /Activity/ }));
     await click("Restore");

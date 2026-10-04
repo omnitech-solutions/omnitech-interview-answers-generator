@@ -11,6 +11,7 @@ import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
 import {
+  captureRequestSupport,
   NO_REPORT_DETAIL,
   permissionLines,
   reportAge,
@@ -23,7 +24,7 @@ import {
   retentionMeaning,
   shorterRetentions,
 } from "./ended-summary";
-import { ageLabel, companionContact } from "./session-format";
+import { ageLabel, companionContact, companionImpact } from "./session-format";
 import type { SessionActions } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT, type SourceHealth } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
@@ -39,12 +40,22 @@ const SOURCE_ICON: Record<string, IconName> = {
 };
 const HEALTH: Record<SourceHealth, { text: string; tone: string }> = {
   receiving: { text: "Receiving", tone: "green" },
-  waiting: { text: "Waiting for the companion", tone: "neutral" },
+  waiting: { text: "Not receiving", tone: "neutral" },
   disconnected: { text: "Disconnected", tone: "red" },
   "lost-permission": { text: "Permission revoked", tone: "red" },
   lost: { text: "Lost", tone: "red" },
   gap: { text: "Audio was dropped", tone: "amber" },
   "not-selected": { text: "Not selected", tone: "neutral" },
+};
+
+// What each source needs when the capture companion is not in contact. The
+// browser covers screen capture and dictation on its own; system audio needs the
+// companion.
+const WITHOUT_COMPANION: Record<string, string> = {
+  microphone:
+    "Needs the capture companion. Dictation in the browser works without it.",
+  "application-audio": "Needs the capture companion for system audio.",
+  screen: "Use Capture & analyze to share a window or screen.",
 };
 
 const NO_RECENT_CONTACT = { text: "No recent contact", tone: "neutral" };
@@ -134,6 +145,9 @@ function CompanionReport({ state }: { state: CompanionCapabilityState }) {
         Last capability report ({reportAge(capability, Date.now())}):{" "}
         {speech.detail}
       </p>
+      <p className="live-note" data-testid="capture-request-support">
+        {captureRequestSupport(capability).line}
+      </p>
       <p className="live-note">
         {permissionLines(capability)
           .map((line) => `${line.label} ${line.text}`)
@@ -143,15 +157,30 @@ function CompanionReport({ state }: { state: CompanionCapabilityState }) {
   );
 }
 
+// The ONE companion block: its title, its status once, its credential line once,
+// and the pairing credential controls directly beneath (they add no title or
+// status of their own).
 function CompanionRow({
   model,
   capability,
+  pairing,
 }: {
   model: LiveViewModel;
   capability: CompanionCapabilityState;
+  pairing: ReactNode;
 }) {
   const { companion } = model;
-  const contact = companionContact(companion);
+  // Only the companion can supply the microphone and application audio; the
+  // screen can also be shared from the browser.
+  const dependsOn = model.sources
+    .filter(
+      (item) =>
+        item.selected &&
+        (item.source === "microphone" || item.source === "application-audio"),
+    )
+    .map((item) => item.label);
+  const contact = companionContact(companion, dependsOn);
+  const impact = companionImpact(companion, dependsOn);
   const credential: Record<typeof companion.credential, string> = {
     none: "No credential recorded.",
     valid: `Credential valid for about ${ageLabel(companion.credentialExpiresInMs ?? 0)}.`,
@@ -165,10 +194,19 @@ function CompanionRow({
       <div>
         <div className="live-source-head">
           <strong>Capture companion</strong>
-          <span className={`live-source-state ${contact.tone}`}>
+          <span
+            className={`live-source-state ${contact.tone}`}
+            data-testid="pairing-status"
+            role="status"
+          >
             {contact.text}
           </span>
         </div>
+        {impact && (
+          <p className="live-note" data-testid="companion-impact" role="alert">
+            {impact}
+          </p>
+        )}
         <p className="live-note">{credential[companion.credential]}</p>
         <p className="live-note">
           The credential is bound to this session. It can add observations,
@@ -177,6 +215,7 @@ function CompanionRow({
           {CREDENTIAL_LIFETIME_TEXT} and is renewed here, by you.
         </p>
         <CompanionReport state={capability} />
+        {pairing}
       </div>
     </li>
   );
@@ -226,14 +265,17 @@ export function SourcesTab({
                     {health.text}
                   </span>
                 </div>
-                <p className="live-note">{source.note}</p>
+                <p className="live-note">
+                  {model.companion.status !== "online" && source.selected
+                    ? (WITHOUT_COMPANION[source.source] ?? source.note)
+                    : source.note}
+                </p>
               </div>
             </li>
           );
         })}
-        <CompanionRow model={model} capability={capability} />
+        <CompanionRow model={model} capability={capability} pairing={pairing} />
       </ul>
-      {pairing}
       {locality && (
         <section className="live-block" aria-label="Processing">
           <h4>Processing</h4>

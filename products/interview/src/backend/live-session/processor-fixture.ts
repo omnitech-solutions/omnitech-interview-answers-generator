@@ -23,8 +23,8 @@ import type {
   SessionProcessorPorts,
   SessionStorePort,
 } from "./processor-ports.js";
-import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
 import { capturedText } from "./replay-evidence-fixture.js";
+import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
 import { ActiveSessionRepository } from "./repository.js";
 import {
   createDatabaseClaimPort,

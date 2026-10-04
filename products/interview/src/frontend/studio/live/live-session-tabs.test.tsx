@@ -282,15 +282,51 @@ describe("sources", () => {
     });
     open();
     expect(screen.getByText("Microphone")).toBeVisible();
+    // Without the companion each row says what it needs, and never "waiting".
     expect(
-      screen.getByText("Labelled “Microphone”, not a speaker name"),
+      screen.getByText(
+        "Needs the capture companion. Dictation in the browser works without it.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Needs the capture companion for system audio."),
     ).toBeVisible();
     expect(screen.getByText("Not selected")).toBeVisible();
     const companion = screen.getByTestId("companion-row");
-    expect(companion).toHaveTextContent("No contact yet");
-    expect(companion).not.toHaveTextContent(/connected/i);
+    // The microphone is selected and only the companion can supply it.
+    expect(companion).toHaveTextContent(
+      "Capture companion hasn’t made contact",
+    );
+    expect(companion).toHaveTextContent("Affected inputs");
+    expect(companion).not.toHaveTextContent(/In contact/i);
     expect(companion).toHaveTextContent("renewed here, by you");
     expect(companion).not.toHaveTextContent(/10 min/);
+  });
+
+  it("keeps the neutral optional line for a session that needs no companion", () => {
+    show({
+      session: { lastHeartbeatAt: null, captureSources: ["screen"] },
+      observations: [],
+    });
+    open();
+    const companion = screen.getByTestId("companion-row");
+    expect(companion).toHaveTextContent("No contact yet");
+    expect(companion).not.toHaveTextContent("Affected inputs");
+    expect(companion).not.toHaveTextContent("went offline");
+  });
+
+  it("says the companion went offline, and what it affects, after it was heard", () => {
+    show({
+      session: { lastHeartbeatAt: minutesAfter(0, 10) },
+      observations: [],
+      nowMinutes: 5,
+    });
+    open();
+    const companion = screen.getByTestId("companion-row");
+    expect(companion).toHaveTextContent("Capture companion went offline");
+    expect(screen.getByTestId("companion-impact")).toHaveTextContent(
+      "the session itself and Studio keep running",
+    );
   });
 
   it("never lists a source as receiving while the companion is out of contact", () => {
@@ -323,6 +359,48 @@ describe("sources", () => {
       "In contact · last heard less than a minute ago",
     );
     expect(companion).toHaveTextContent("Credential expires in 6 min.");
+  });
+
+  it("says Not receiving, never waiting, for a selected source when the companion has never made contact", () => {
+    show({
+      session: {
+        lastHeartbeatAt: null,
+        captureSources: ["microphone", "application-audio", "screen"],
+      },
+      observations: [],
+    });
+    open();
+    const rows = screen
+      .getByRole("list", { name: "Capture sources" })
+      .querySelectorAll("li[data-health]");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row).toHaveAttribute("data-health", "waiting");
+      expect(row).toHaveTextContent("Not receiving");
+    }
+    expect(
+      screen.getByRole("list", { name: "Capture sources" }),
+    ).not.toHaveTextContent(/waiting/i);
+    // The screen says the browser does it without the companion.
+    expect(
+      screen.getByText("Use Capture & analyze to share a window or screen."),
+    ).toBeVisible();
+  });
+
+  it("has ONE companion block: one title, one status, one credential line, the controls inside", () => {
+    show({ session: { lastHeartbeatAt: null, credentialRevoked: true } });
+    open();
+    expect(screen.getAllByText("Capture companion")).toHaveLength(1);
+    expect(screen.getAllByTestId("pairing-status")).toHaveLength(1);
+    expect(
+      screen.queryByRole("heading", { name: "Capture companion" }),
+    ).toBeNull();
+    const companion = screen.getByTestId("companion-row");
+    // The credential is said once, as a status line, not again as a second note.
+    expect(companion.textContent?.match(/Credential revoked/g)).toHaveLength(1);
+    expect(companion.textContent).not.toMatch(/was revoked\. Renew to pair/);
+    // The pairing controls sit inside that block.
+    expect(within(companion).getByTestId("pairing-slot")).toBeInTheDocument();
   });
 
   it("mounts the pairing panel in the tab", () => {

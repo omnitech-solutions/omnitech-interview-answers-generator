@@ -20,10 +20,13 @@ See [[research/index]].
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (20)
+## ADRs (23)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0022-allow-owner-enabled-hands-free-listening-and-automatic-capture]] | Allow owner-enabled hands-free listening and automatic capture | Proposed | 2026-10-04 |
+| [[adrs/ADR-0021-negotiate-companion-capture-requests-and-report-their-failures]] | Negotiate companion capture requests and report their failures | Proposed | 2026-10-04 |
+| [[adrs/ADR-0020-sign-in-to-studio-from-the-native-shell-through-a-one-time-handoff]] | Sign in to Studio from the native shell through a one-time handoff | Proposed | 2026-10-04 |
 | [[adrs/ADR-0019-host-the-overlay-in-a-native-shell-through-one-host-adapter]] | Host the overlay in a native shell through one host adapter | Accepted | 2026-10-04 |
 | [[adrs/ADR-0018-capture-on-demand-with-masks-and-owner-requested-companion-captures]] | Capture on demand with masks and owner-requested companion captures | Accepted | 2026-10-04 |
 | [[adrs/ADR-0017-host-the-active-session-overlay-as-one-route-and-isolate-providers]] | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | 2026-10-03 |

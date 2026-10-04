@@ -3,6 +3,7 @@
 // each builder reproduces the shared valid messages exactly.
 import {
   type CapabilityReport,
+  type CaptureFailure,
   type CaptureGap,
   type Heartbeat,
   type ScreenSnapshot,
@@ -40,6 +41,14 @@ export const sourceDisconnectedMessage = (
 export const captureGapMessage = (body: Body<CaptureGap>): CaptureGap => ({
   version: WIRE_VERSION,
   kind: "capture.gap",
+  ...body,
+});
+
+export const captureFailureMessage = (
+  body: Body<CaptureFailure>,
+): CaptureFailure => ({
+  version: WIRE_VERSION,
+  kind: "capture.failure",
   ...body,
 });
 

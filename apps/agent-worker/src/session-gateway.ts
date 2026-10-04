@@ -98,7 +98,33 @@ function outputTokens(env: Environment, baseUrl: string): number {
 // three turns still lose a screenshot call that glitches repeatedly. With no
 // tools the extra turns can only be this structured-output retry; the profile's
 // own timeout still bounds the run.
+//
+// The session's own agent profile therefore DECLARES that bound as its
+// maximumTurns (a derived `session-<assistant profile>`; the shared assistant
+// profile keeps its single turn for its own callers). A configured bound is
+// honoured or refused, never silently raised: ACTIVE_SESSION_AGENT_MAX_TURNS
+// below the minimum fails startup naming the minimum.
 export const SESSION_AGENT_MIN_TURNS = 6;
+export const SESSION_AGENT_TURNS_ENV = "ACTIVE_SESSION_AGENT_MAX_TURNS";
+
+export class SessionGatewayConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionGatewayConfigError";
+  }
+}
+
+function sessionMaximumTurns(env: Environment): number {
+  const configured = env[SESSION_AGENT_TURNS_ENV]?.trim();
+  if (configured === undefined || configured === "")
+    return SESSION_AGENT_MIN_TURNS;
+  const turns = Number(configured);
+  if (!Number.isInteger(turns) || turns < SESSION_AGENT_MIN_TURNS)
+    throw new SessionGatewayConfigError(
+      `${SESSION_AGENT_TURNS_ENV} must be an integer of at least ${SESSION_AGENT_MIN_TURNS}: a structured session answer needs the turns of its structured-output retries.`,
+    );
+  return turns;
+}
 
 export const SESSION_VISION_PROFILE_ENV = "ACTIVE_SESSION_AGENT_PROFILE";
 const VISION_PROFILES: Readonly<Record<string, string>> = {
@@ -136,6 +162,7 @@ function createAgentPort(
   options: SessionGatewayOptions,
 ) {
   const agentProfiles = resolveAgentProfiles(env);
+  const maximumTurns = sessionMaximumTurns(env);
   const mapped = new Map<string, AgentProfile>();
   const profiles: AiProfile[] = [];
   for (const entry of SESSION_AGENT_PROFILES) {
@@ -143,7 +170,8 @@ function createAgentPort(
     if (!agent || !runtimes[entry.runtime]) continue;
     mapped.set(entry.id, {
       ...agent,
-      maximumTurns: Math.max(agent.maximumTurns, SESSION_AGENT_MIN_TURNS),
+      id: `session-${agent.id}`,
+      maximumTurns,
     });
     profiles.push({
       id: entry.id,
