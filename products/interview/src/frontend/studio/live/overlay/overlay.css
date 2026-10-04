@@ -1725,3 +1725,22 @@
   --ov-muted: rgba(255, 255, 255, 0.84);
   --ov-faint: rgba(255, 255, 255, 0.72);
 }
+
+/* ---- Native app: a calm, Mac-like card ---------------------------------------
+   In the native shell the card is the whole window, so it shows what matters
+   (status, the answer, the code, the follow-up box) and tucks the plumbing away:
+   the policy chip, the companion line, the session switcher, the capture detail
+   and the slot cards. They remain in Settings and the Studio window. The window
+   draws the real traffic lights in the top-left, so the content clears them. */
+:root[data-panel-host="native"] .ov-root {
+  padding-top: 30px;
+}
+:root[data-panel-host="native"] .ov-chips,
+:root[data-panel-host="native"] .ov-companion,
+:root[data-panel-host="native"] .ov-switcher,
+:root[data-panel-host="native"] .ov-slots {
+  display: none;
+}
+:root[data-panel-host="native"] .ov-capture .ov-capture-label {
+  display: none;
+}

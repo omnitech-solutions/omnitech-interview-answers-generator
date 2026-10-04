@@ -52,13 +52,14 @@ export function shareMenuCopy(): { label: string; sub: string } {
       };
 }
 
-// A full mask asks for the focused window; a partial one for that region of the
-// main display (the same meaning as the companion's two modes in ADR-0018).
+// A full mask asks for the whole main display, like OpenCluely: the simplest
+// capture, with no "which window" guess to get wrong (the shell leaves its own
+// windows out). A partial mask asks for that region of the main display.
 export function captureRequestFor(
   mask: Rect,
   displayId: string | null = null,
 ): StudioHostCaptureRequest {
-  if (isFull(mask)) return { mode: "focused-window" };
+  if (isFull(mask)) return { mode: "display" };
   return {
     mode: "region",
     region: { x: mask.x, y: mask.y, width: mask.w, height: mask.h },

@@ -25,7 +25,7 @@ import {
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session.js";
-import { assertUuid, SessionError } from "./errors.js";
+import { assertUuid, type InvalidReason, SessionError } from "./errors.js";
 import { storeScreenshot } from "./ingest.js";
 import {
   assertAcceptsOwnerInput,
@@ -43,7 +43,8 @@ import { lockSession } from "./session-record.js";
 // bounds stored bytes (400 x 2 MiB is the companion's own bound).
 export const OWNER_CAPTURE_MAX_PER_SESSION = 200;
 
-const invalid = () => new SessionError("invalid_input");
+const invalid = (reason: InvalidReason = "fields") =>
+  new SessionError("invalid_input", [], reason);
 
 export async function storeOwnerCapture(
   database: PlatformDatabase,
@@ -54,31 +55,29 @@ export async function storeOwnerCapture(
 ): Promise<LiveOwnerCaptureResponse> {
   assertUuid(sessionId);
   const parsed = liveOwnerCaptureRequestSchema.safeParse(fields);
-  if (!parsed.success) throw invalid();
+  if (!parsed.success) throw invalid("fields");
   const { requestId, targetTaskId, targetRevision, label, skill, language } =
     parsed.data;
   if ((targetTaskId === undefined) !== (targetRevision === undefined))
-    throw invalid();
+    throw invalid("target");
 
   // [SAFETY] The image is judged by its own bytes: size, magic-byte media type,
   // and decoded dimensions read from the header (nothing is decoded).
-  if (
-    image.byteLength === 0 ||
-    image.byteLength > ACTIVE_SESSION_LIMITS.maxScreenshotBytes
-  )
-    throw invalid();
+  if (image.byteLength === 0) throw invalid("image_empty");
+  if (image.byteLength > ACTIVE_SESSION_LIMITS.maxScreenshotBytes)
+    throw invalid("image_too_large");
   const mediaType = detectScreenshotMediaType(image);
-  if (mediaType === null) throw invalid();
+  if (mediaType === null) throw invalid("image_type");
   const size = readImageSize(image, mediaType);
+  if (size === null) throw invalid("image_unreadable");
   if (
-    size === null ||
     size.width < 1 ||
     size.height < 1 ||
     size.width > SCREENSHOT_LOAD_LIMITS.maxSide ||
     size.height > SCREENSHOT_LOAD_LIMITS.maxSide ||
     size.width * size.height > SCREENSHOT_LOAD_LIMITS.maxPixels
   )
-    throw invalid();
+    throw invalid("image_dimensions");
   const digest = createHash("sha256").update(image).digest("hex");
 
   const snapshotRef = { sourceId: OWNER_CAPTURE_SOURCE_ID, eventId: requestId };

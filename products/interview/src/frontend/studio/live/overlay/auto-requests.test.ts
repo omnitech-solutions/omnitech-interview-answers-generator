@@ -104,7 +104,8 @@ describe("Auto's requests satisfy the server schemas", () => {
 
 describe("a failed Auto request is said plainly, with its code", () => {
   it("names the code and that the session is unchanged", () => {
-    expect(failureNote("invalid_input")).toMatch(/invalid_input.*too large/);
+    expect(failureNote("invalid_input")).toMatch(/invalid_input/);
+    expect(failureNote("invalid_input")).toMatch(/session is unchanged/);
     expect(failureNote("not_found")).toMatch(/not_found.*unchanged/);
   });
 });

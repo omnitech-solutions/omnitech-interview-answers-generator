@@ -65,8 +65,8 @@ describe("with a native host", () => {
     expect(shareMenuCopy().label).toBe("This Mac (native)");
   });
 
-  it("asks for the focused window with a full mask, a region otherwise", () => {
-    expect(captureRequestFor(FULL)).toEqual({ mode: "focused-window" });
+  it("asks for the whole display with a full mask, a region otherwise", () => {
+    expect(captureRequestFor(FULL)).toEqual({ mode: "display" });
     expect(captureRequestFor({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 })).toEqual({
       mode: "region",
       region: { x: 0.1, y: 0.2, width: 0.5, height: 0.4 },

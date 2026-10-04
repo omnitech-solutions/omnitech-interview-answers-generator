@@ -126,12 +126,13 @@ describe("the native-host stylesheet", () => {
     expect(text).toMatch(/\[data-panel-host="native"\] body/);
     expect(text).toMatch(/\.pn-root[\s\S]*background: transparent/);
   });
-  it("keeps the surface tint dense enough for AA text, and lifts muted text", () => {
+  it("keeps the tint light enough to see through, with text kept legible by shadow and lifted muted text", () => {
     const floor = [...css.matchAll(/--ov-a: max\(([0-9.]+),/g)].map((m) =>
       Number(m[1]),
     );
     expect(floor.length).toBeGreaterThan(0);
-    for (const value of floor) expect(value).toBeGreaterThanOrEqual(0.6);
+    // The user asked for genuinely see-through panels: a light floor, with legibility from the text shadow.
+    for (const value of floor) expect(value).toBeGreaterThanOrEqual(0.3);
     expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.5/);
     expect(css).toMatch(/--ov-muted: rgba\(255, 255, 255, 0\.84\)/);
   });

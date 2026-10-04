@@ -181,8 +181,12 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
 
   app.onError((error, c) => {
     c.header("Cache-Control", "no-store");
-    if (error instanceof SessionError)
+    if (error instanceof SessionError) {
+      // The body stays uniform per code; the refusal reason (a fixed word, never
+      // content) rides in a header so a client or log can say which check failed.
+      if (error.reason) c.header("X-Refusal-Reason", error.reason);
       return c.json(errorBody(error.code), ERROR_STATUS[error.code]);
+    }
     if (error instanceof BodyTooLarge)
       return c.json(errorBody("body_too_large"), 413);
     // [SAFETY] Never logged and never echoed: an unexpected failure is a
@@ -516,9 +520,9 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
             : value;
       }
     } catch {
-      throw new SessionError("invalid_input");
+      throw new SessionError("invalid_input", [], "body");
     }
-    if (!image) throw new SessionError("invalid_input");
+    if (!image) throw new SessionError("invalid_input", [], "no_image");
     const capture = await repository.submitOwnerCapture(
       c.get("scope"),
       c.req.param("sessionId"),

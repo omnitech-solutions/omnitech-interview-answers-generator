@@ -35,7 +35,21 @@ const MESSAGES: Record<SessionErrorCode, string> = {
   purge_incomplete: "The Active Session purge final check did not pass.",
 };
 
+// Why an input was refused: a fixed vocabulary, never content, so a client (and a
+// log line) can say WHICH check failed instead of a generic "invalid".
+export type InvalidReason =
+  | "fields"
+  | "body"
+  | "no_image"
+  | "image_empty"
+  | "image_too_large"
+  | "image_type"
+  | "image_unreadable"
+  | "image_dimensions"
+  | "target";
+
 export class SessionError extends Error {
+  readonly reason: InvalidReason | undefined;
   // Table names the purge's final check found uncovered. Names are schema
   // identifiers, never content.
   readonly uncoveredTables: readonly string[];
@@ -43,10 +57,12 @@ export class SessionError extends Error {
   constructor(
     readonly code: SessionErrorCode,
     uncoveredTables: readonly string[] = [],
+    reason?: InvalidReason,
   ) {
     super(MESSAGES[code]);
     this.name = "SessionError";
     this.uncoveredTables = uncoveredTables;
+    this.reason = reason;
   }
 }
 

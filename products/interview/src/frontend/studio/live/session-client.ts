@@ -134,7 +134,14 @@ export type CaptureUpload = {
   language?: LiveOwnerLanguageHint | undefined;
 };
 
+// The server's refusal reason for the latest failed request (a fixed word from
+// the X-Refusal-Reason header, never content), so a message can say WHICH check
+// failed rather than a generic "invalid".
+let lastRefusalReason: string | null = null;
+export const latestRefusalReason = (): string | null => lastRefusalReason;
+
 async function errorFrom(response: Response): Promise<SessionApiError> {
+  lastRefusalReason = response.headers.get("x-refusal-reason");
   try {
     const body = liveSessionErrorBodySchema.safeParse(await response.json());
     if (body.success)

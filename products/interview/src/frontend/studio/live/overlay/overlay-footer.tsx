@@ -1,6 +1,7 @@
 // Follow-up input and the footer: the honest "Visible window" note, Pause or
 // Resume, and End (with its own confirmation). Each calls a store action.
 
+import { latestRefusalReason } from "../session-client";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
@@ -10,11 +11,27 @@ import { BUILD_ID } from "./build-id";
 export const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
 
+// What each fixed refusal reason from the server means, in plain words.
+const REFUSAL_REASONS: Record<string, string> = {
+  fields: "the request had a missing or unexpected field",
+  body: "the upload could not be read as a form",
+  no_image: "no image came with the request",
+  image_empty: "the image was empty",
+  image_too_large: "the image was over the 2 MB limit",
+  image_type: "the image was not a JPEG, PNG or WebP",
+  image_unreadable: "the image header could not be read",
+  image_dimensions: "the image dimensions were out of range",
+  target: "the task to attach it to was not valid",
+};
+
 export const failureNote = (code: SessionErrorCode): string =>
   code === "unavailable"
     ? UNAVAILABLE_NOTE
     : code === "invalid_input"
-      ? "The server refused that capture (invalid_input): the image was too large or unreadable. The session is unchanged; the next capture tries again."
+      ? `The server refused that capture (invalid_input${(() => {
+          const reason = latestRefusalReason();
+          return reason ? `: ${REFUSAL_REASONS[reason] ?? reason}` : "";
+        })()}). The session is unchanged; the next capture tries again.`
       : code === "status_refused"
         ? "The session is not taking captures now (status_refused). Resume it or start a new one."
         : `That didn’t work (${code}). The session is unchanged.`;

@@ -40,6 +40,7 @@ import {
 } from "./panels/panel-bus";
 import { type OwnerKind, useOwnsSession } from "./panels/panel-owner";
 import { takeAnnouncement } from "./share-handoff";
+import { engineHost, useEngine } from "./panels/use-engine";
 import { useAutoMode } from "./use-auto-mode";
 import { useCapturePrefs } from "./use-capture-prefs";
 import { useCompanionCapture } from "./use-companion-capture";
@@ -277,7 +278,13 @@ export function useHandsFree(kind: OwnerKind) {
   }
 
   // ---- Auto -------------------------------------------------------------------
+  // With a native engine the shell is the listener (the web view has no speech
+  // recogniser and would only raise its own microphone prompt): the browser
+  // recogniser stays off unless the engine refused to start.
+  const [engineRefused, setEngineRefused] = useState(false);
+  const engineListening = engineHost() !== null && !engineRefused;
   const auto = useAutoMode({
+    engineListening,
     tenant,
     sessionId: sessionKey,
     // Only the owner listens and watches.
@@ -303,6 +310,20 @@ export function useHandsFree(kind: OwnerKind) {
       addEntry("Dictated", phrase);
     },
   });
+  const engine = useEngine({
+    sessionId: sessionKey,
+    wanted: owns && open && auto.on,
+    paused,
+    sources: [
+      "microphone",
+      ...(!deviceOnly && (session?.captureSources.includes("screen") ?? false)
+        ? (["screen"] as const)
+        : []),
+    ],
+  });
+  useEffect(() => {
+    setEngineRefused(engine.refused !== null);
+  }, [engine.refused]);
   // The shell mounts this before any session exists. Setup's "Start hands-free"
   // (or another window) turns the preference on in the meantime, so it is read
   // again when a session opens here.

@@ -152,6 +152,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         let window = PanelWindow(kind: kind, webView: makeWebView(), frame: frame) { [weak self] frame in
             self?.model.prefs.saveFrame(kind, frame)
         }
+        wireControls(window)
         panels[kind] = window
         load(window.webView, .panel(kind), onlyIfBlank: true)
         return window
@@ -167,9 +168,16 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         let window = PanelWindow(kind: nil, webView: makeWebView(), frame: frame) { frame in
             UserDefaults.standard.set(PanelFrameCodec.encode(frame), forKey: "shell.compact.frame")
         }
+        wireControls(window)
         compact = window
         load(window.webView, .compact, onlyIfBlank: true)
         return window
+    }
+
+    // The strip's buttons: close quits the app; expand opens the main Studio window.
+    private func wireControls(_ window: PanelWindow) {
+        window.onClose = { NSApp.terminate(nil) }
+        window.onExpand = { [weak self] in self?.requestMode(.expanded) }
     }
 
     private func showMain() {
@@ -217,6 +225,9 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     let webView: WKWebView
     private let onFrame: (CGRect) -> Void
     private var effect: NSVisualEffectView?
+    /// What the strip's buttons ask for: quit the app, or open the main window.
+    var onClose: (() -> Void)?
+    var onExpand: (() -> Void)?
 
     init(kind: PanelKind?, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.kind = kind
@@ -234,9 +245,21 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         super.init()
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        panel.standardWindowButton(.closeButton)?.isHidden = true
+        // The real traffic lights, so it looks and feels like a Mac window: red quits
+        // the app, green opens the main Studio window, yellow is hidden (a floating
+        // overlay has nothing to minimise to). The slim pill keeps none of them.
+        let showControls = kind != .pill
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        if let close = panel.standardWindowButton(.closeButton) {
+            close.isHidden = !showControls
+            close.target = self
+            close.action = #selector(closeTapped)
+        }
+        if let zoom = panel.standardWindowButton(.zoomButton) {
+            zoom.isHidden = !showControls
+            zoom.target = self
+            zoom.action = #selector(zoomTapped)
+        }
         panel.isMovableByWindowBackground = true
         panel.setFrame(frame, display: false)
         panel.delegate = self
@@ -280,6 +303,16 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         container.addSubview(effect)
         container.addSubview(webView)
         container.addSubview(handle)
+        // [DOMAIN] Real controls, because a chromeless window has no title bar to
+        // close it by: close (quits the app), expand (the main Studio window), and
+        // resize handles on every edge and corner (a borderless-looking window gets
+        // no native edge-resize where the web view covers the frame).
+        for edge in ResizeHandle.Edge.allCases {
+            let handle = ResizeHandle(edge: edge, minSize: panel.minSize)
+            handle.frame = edge.frame(in: size)
+            handle.autoresizingMask = edge.autoresizing
+            container.addSubview(handle)
+        }
         container.layer?.backgroundColor = CGColor.clear
         container.layer?.isOpaque = false
         effect.layer?.backgroundColor = nil
@@ -312,6 +345,9 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         let problems = PanelChrome.violations(snapshot)
         if !problems.isEmpty { NSLog("studio-shell: panel is not see-through: %@", problems.joined(separator: "; ")) }
     }
+
+    @objc private func closeTapped() { onClose?() }
+    @objc private func zoomTapped() { onExpand?() }
 
     func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }
     func setOpacity(_ value: Double) { effect?.alphaValue = CGFloat(value) }
@@ -395,5 +431,85 @@ final class ToastPresenter {
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: work)
+    }
+}
+
+
+// An edge or corner that resizes its window by dragging. The panel's own resize
+// zone is covered by the web view, so the handles are explicit.
+final class ResizeHandle: NSView {
+    enum Edge: CaseIterable {
+        case left, right, bottom, bottomLeft, bottomRight
+        static let thickness: CGFloat = 8
+        static let corner: CGFloat = 18
+
+        func frame(in size: CGSize) -> CGRect {
+            let t = Edge.thickness, c = Edge.corner
+            switch self {
+            case .left: return CGRect(x: 0, y: c, width: t, height: max(0, size.height - 2 * c))
+            case .right: return CGRect(x: size.width - t, y: c, width: t, height: max(0, size.height - 2 * c))
+            case .bottom: return CGRect(x: c, y: 0, width: max(0, size.width - 2 * c), height: t)
+            case .bottomLeft: return CGRect(x: 0, y: 0, width: c, height: c)
+            case .bottomRight: return CGRect(x: size.width - c, y: 0, width: c, height: c)
+            }
+        }
+        var autoresizing: NSView.AutoresizingMask {
+            switch self {
+            case .left: return [.height]
+            case .right: return [.minXMargin, .height]
+            case .bottom: return [.width]
+            case .bottomLeft: return []
+            case .bottomRight: return [.minXMargin]
+            }
+        }
+        var affectsLeft: Bool { self == .left || self == .bottomLeft }
+        var affectsRight: Bool { self == .right || self == .bottomRight }
+        var affectsBottom: Bool { self == .bottom || self == .bottomLeft || self == .bottomRight }
+    }
+
+    private let edge: Edge
+    private let minSize: CGSize
+    private var startFrame = CGRect.zero
+    private var startMouse = CGPoint.zero
+
+    init(edge: Edge, minSize: CGSize) {
+        self.edge = edge
+        self.minSize = minSize
+        super.init(frame: .zero)
+    }
+    required init?(coder: NSCoder) { nil }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func resetCursorRects() {
+        switch edge {
+        case .left, .right: addCursorRect(bounds, cursor: .resizeLeftRight)
+        case .bottom: addCursorRect(bounds, cursor: .resizeUpDown)
+        case .bottomLeft, .bottomRight: addCursorRect(bounds, cursor: .crosshair)
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let window else { return }
+        startFrame = window.frame
+        startMouse = NSEvent.mouseLocation
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let window else { return }
+        let dx = NSEvent.mouseLocation.x - startMouse.x
+        let dy = NSEvent.mouseLocation.y - startMouse.y
+        var frame = startFrame
+        if edge.affectsRight { frame.size.width = max(minSize.width, startFrame.width + dx) }
+        if edge.affectsLeft {
+            let width = max(minSize.width, startFrame.width - dx)
+            frame.origin.x = startFrame.maxX - width
+            frame.size.width = width
+        }
+        if edge.affectsBottom {
+            let height = max(minSize.height, startFrame.height - dy)
+            frame.origin.y = startFrame.maxY - height
+            frame.size.height = height
+        }
+        window.setFrame(frame, display: true)
     }
 }
