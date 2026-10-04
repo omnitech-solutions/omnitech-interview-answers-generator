@@ -61,5 +61,11 @@ cat >"$bundle/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --sign - "$bundle" >/dev/null
+# A stable designated requirement (the bundle identifier, not the code hash) so macOS
+# keeps the Screen Recording / Microphone / Speech grants across rebuilds. A plain
+# ad-hoc signature is keyed on the code hash, which changes every build, so every
+# rebuild silently lost its permissions.
+codesign --force --sign - \
+  --requirements '=designated => identifier "com.omnitech.studio-shell"' \
+  "$bundle" >/dev/null
 echo "$bundle"

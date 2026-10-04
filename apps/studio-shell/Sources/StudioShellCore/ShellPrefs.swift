@@ -15,15 +15,16 @@ public enum LayoutMode: String, Sendable {
     case compact
 }
 
-// [DOMAIN] Interaction mode. OFF (the default): every panel is click-through so
-// the page underneath keeps the mouse. ON: panels take clicks. The shell owns
-// it, persists it and mirrors it to the pages; the dot says which it is.
+// [DOMAIN] Interaction mode. ON (the default): panels take clicks, so they can be
+// moved and used. OFF: every panel is click-through so the page underneath keeps
+// the mouse. The shell owns it, persists it and mirrors it to the pages; the dot
+// says which it is. (It defaulted to OFF at first, which made every panel inert.)
 public struct InteractionState: Equatable, Sendable {
     public enum Dot: String, Sendable { case green, red }
 
     public private(set) var isInteractive: Bool
 
-    public init(isInteractive: Bool = false) { self.isInteractive = isInteractive }
+    public init(isInteractive: Bool = true) { self.isInteractive = isInteractive }
 
     public var ignoresMouseEvents: Bool { !isInteractive }
     public var dot: Dot { isInteractive ? .green : .red }
@@ -56,8 +57,9 @@ public struct ShellPrefs {
     public init(store: SettingsStore) { self.store = store }
 
     public var interaction: InteractionState {
-        get { InteractionState(isInteractive: store.string(forKey: "interactive") == "1") }
-        nonmutating set { store.set(newValue.isInteractive ? "1" : "0", forKey: "interactive") }
+        // "interactive2": an earlier build persisted OFF as its default; start fresh.
+        get { InteractionState(isInteractive: store.string(forKey: "interactive2") != "0") }
+        nonmutating set { store.set(newValue.isInteractive ? "1" : "0", forKey: "interactive2") }
     }
 
     public var skill: OwnerSkill {
@@ -76,8 +78,9 @@ public struct ShellPrefs {
     }
 
     public var layout: LayoutMode {
-        get { store.string(forKey: "layout").flatMap(LayoutMode.init(rawValue:)) ?? .panels }
-        nonmutating set { store.set(newValue.rawValue, forKey: "layout") }
+        // One compact window by default; "layout2" drops the old default of three panels.
+        get { store.string(forKey: "layout2").flatMap(LayoutMode.init(rawValue:)) ?? .compact }
+        nonmutating set { store.set(newValue.rawValue, forKey: "layout2") }
     }
 
     public func isVisible(_ kind: PanelKind) -> Bool {

@@ -222,10 +222,23 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         self.kind = kind
         self.webView = webView
         self.onFrame = onFrame
+        // [DOMAIN] A titled window with its title bar hidden and the content drawn
+        // under it: macOS gives edge-resize, dragging and a proper key window to a
+        // titled window, but not to a .borderless one (which could not be resized
+        // or reliably selected). It still looks chromeless: the bar is transparent,
+        // the title and buttons are hidden and the content fills the frame.
         panel = StudioPanel(
-            contentRect: frame, styleMask: [.borderless, .nonactivatingPanel, .resizable],
+            contentRect: frame,
+            styleMask: [.titled, .fullSizeContentView, .resizable, .nonactivatingPanel],
             backing: .buffered, defer: false)
         super.init()
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        panel.isMovableByWindowBackground = true
+        panel.setFrame(frame, display: false)
         panel.delegate = self
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false

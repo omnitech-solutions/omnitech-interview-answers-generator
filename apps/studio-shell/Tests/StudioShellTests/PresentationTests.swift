@@ -94,21 +94,21 @@ func presentationTests(_ t: Harness) async {
     }
 
     // MARK: interaction mode
-    await t.test("interaction mode: default OFF is click-through; ON takes clicks; dot and toast say which") {
+    await t.test("interaction mode: default ON takes clicks; OFF is click-through; dot and toast say which") {
         var state = InteractionState()
+        t.expect(state.isInteractive && !state.ignoresMouseEvents, "panels must be usable by default")
+        t.expectEqual(state.dot, .green)
+        t.expect(state.toast.hasPrefix("Interaction Mode: ON"))
+        state.toggle()
         t.expect(!state.isInteractive && state.ignoresMouseEvents)
         t.expectEqual(state.dot, .red)
         t.expect(state.toast.hasPrefix("Interaction Mode: OFF"))
-        state.toggle()
-        t.expect(state.isInteractive && !state.ignoresMouseEvents)
-        t.expectEqual(state.dot, .green)
-        t.expect(state.toast.hasPrefix("Interaction Mode: ON"))
-        t.expect(!state.set(true), "setting the same value changes nothing")
-        t.expect(state.set(false))
+        t.expect(!state.set(false), "setting the same value changes nothing")
+        t.expect(state.set(true))
         let prefs = ShellPrefs(store: MemoryStore())
-        t.expect(!prefs.interaction.isInteractive)
-        prefs.interaction = InteractionState(isInteractive: true)
-        t.expect(prefs.interaction.isInteractive, "persisted")
+        t.expect(prefs.interaction.isInteractive, "interactive by default")
+        prefs.interaction = InteractionState(isInteractive: false)
+        t.expect(!prefs.interaction.isInteractive, "persisted")
     }
 
     // MARK: window policy
@@ -180,8 +180,10 @@ func presentationTests(_ t: Harness) async {
         controller.perform(.toggleAppMode)
         t.expectEqual(controller.state.appMode, .minified)
         t.expect(!controller.state.mainWindowShown)
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat])
+        t.expect(controller.state.compactShown && controller.state.shownPanels.isEmpty, "minified is ONE compact window by default")
         t.expectEqual(store.values["appMode"], "minified", "last mode remembered")
+        controller.perform(.applyLayout(.all))
+        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat])
 
         controller.perform(.closePanel(.chat))
         t.expectEqual(controller.state.shownPanels, [.pill, .analysis])
@@ -201,10 +203,10 @@ func presentationTests(_ t: Harness) async {
         // Interaction mode toggles with a toast, persists, and is pushed to pages.
         surface.toasts = []
         controller.perform(.toggleInteractionMode)
-        t.expect(controller.state.interaction.isInteractive)
+        t.expect(!controller.state.interaction.isInteractive, "default ON, so the first toggle turns it OFF")
         t.expectEqual(surface.toasts.count, 1)
-        t.expectEqual(store.values["interactive"], "1")
-        controller.perform(.setInteractionMode(true))
+        t.expectEqual(store.values["interactive2"], "0")
+        controller.perform(.setInteractionMode(false))
         t.expectEqual(surface.toasts.count, 1, "no toast when nothing changed")
 
         // Settings is for clicking: opening it turns interaction ON.
