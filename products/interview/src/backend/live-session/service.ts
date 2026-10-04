@@ -64,6 +64,8 @@ export async function planAssist(
     store: SessionStorePort;
     stage: AssistStage;
     deviceOnly: boolean;
+    // How many screenshots travel with the call (0: none).
+    imageCount?: number;
   },
 ): Promise<AssistPlan> {
   const { store, stage, deviceOnly } = input;
@@ -77,6 +79,7 @@ export async function planAssist(
     captured,
     context,
     deviceOnly,
+    imageCount: input.imageCount ?? 0,
   });
   if (!prepared.ok)
     return { outcome: "prompt_too_large", byteCount: prepared.byteCount };

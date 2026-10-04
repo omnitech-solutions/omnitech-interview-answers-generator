@@ -94,6 +94,16 @@ export type SessionProcessorPorts = {
   // The host's typed agent profiles and prompt store for escalation jobs; no
   // port, no job (the solution still publishes).
   agentEscalation?: AgentEscalationPort;
+  // The gateway profile that serves a task carrying screenshots (ADR-0016): an
+  // agent profile whose runtime takes image input. A dispatch with images
+  // uses it and nothing else; without one, or in a device-only session, the
+  // dispatch is refused with a typed reason, never answered text-only and
+  // never routed to another profile.
+  visionProfileId?: string;
+  // Told after each completed purge, so the host removes content it staged
+  // outside the database (screenshots handed to an agent runtime). It runs
+  // whether or not any model is configured; a failure is traced by code only.
+  afterPurge?(target: SessionTarget): Promise<void>;
 };
 
 export type SessionProcessorOptions = {
@@ -115,4 +125,7 @@ export type SessionProcessorOptions = {
   // expires on its own, so another worker can then take the session.
   maxRenewFailures?: number;
   observationPage?: number;
+  // Runs only the cap and purge sweeps: claims no session and calls no model.
+  // A host with no language model still deletes ended sessions' content.
+  sweepOnly?: boolean;
 };

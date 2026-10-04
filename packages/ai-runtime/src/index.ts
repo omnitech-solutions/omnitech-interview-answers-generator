@@ -18,6 +18,7 @@ import {
   type AiTargetFilter,
   type AiTargetSummary,
   type ImageProviderAdapter,
+  MAX_TASK_ATTACHMENTS,
   type ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
 
@@ -103,6 +104,21 @@ function requirePolicy(
     throw new AiPolicyRefusedError(profile.id, "device-only");
 }
 
+// [SAFETY] Attachments reach only an agent runtime and stay bounded. A
+// direct-model or image profile refuses them: answering a screenshot question
+// text-only would silently drop evidence the caller believes was seen.
+function requireAttachmentsFit(
+  request: AiExecutionRequest,
+  profile: AiProfile,
+): void {
+  const count = request.task.attachments?.length ?? 0;
+  if (count === 0) return;
+  if (profile.family !== "agent-runtime")
+    throw new Error("The profile does not accept attachments.");
+  if (count > MAX_TASK_ATTACHMENTS)
+    throw new Error("The request carries too many attachments.");
+}
+
 export function createAiExecutionGateway(
   options: CreateAiExecutionGatewayOptions,
 ): AiExecutionGateway {
@@ -167,6 +183,7 @@ export function createAiExecutionGateway(
     ) {
       throw unavailable();
     }
+    requireAttachmentsFit(request, profile);
     return profile;
   }
 

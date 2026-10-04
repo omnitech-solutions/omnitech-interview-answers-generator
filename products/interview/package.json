@@ -24,6 +24,10 @@
       "types": "./dist/backend/session-worker-entry.d.ts",
       "import": "./dist/backend/session-worker-entry.js"
     },
+    "./session-testing": {
+      "types": "./dist/backend/session-testing-entry.d.ts",
+      "import": "./dist/backend/session-testing-entry.js"
+    },
     "./studio.css": "./src/frontend/studio/tokens.css"
   },
   "scripts": {

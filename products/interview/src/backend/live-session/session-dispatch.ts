@@ -19,6 +19,7 @@
 // and there is NEVER a fallback to another profile: a refusal is final, an
 // unavailable device is a retryable outcome that tries the same profile again.
 import {
+  type AgentAttachment,
   type AiExecutionGateway,
   type AiExecutionRequest,
   AiPolicyRefusedError,
@@ -31,10 +32,12 @@ import type { InterviewSessionPolicy } from "./interview-policy.js";
 import type { SessionStorePort } from "./processor-ports.js";
 import { planAssist } from "./service.js";
 import {
+  attachmentsFor,
   keyOf,
   noteCodingTask,
   noteRecorded,
   type SessionCodeRunner,
+  slotFor,
   type SessionRun,
 } from "./session-run.js";
 import type { LocalityDecision } from "./trace.js";
@@ -58,6 +61,13 @@ export type DispatchDeps = {
   // Where an escalation job's typed profile and prompt reference come from; no
   // port, no job.
   agentEscalation?: AgentEscalationPort;
+  // The ONE pinned agent profile (ADR-0016): present when the worker's agent
+  // port is on and the host pinned a configured provider. It serves screenshot
+  // dispatches and, for a session that may use remote processing, the assist
+  // and coding stages too (tool-less, text-only for those). A device-only
+  // session never uses it: it keeps the direct device profile, and there is no
+  // fallback to another provider.
+  visionProfileId?: string;
 };
 
 // Refusals that mean this holder is no longer the holder: it stops and writes
@@ -82,6 +92,15 @@ export type DispatchPrompt = {
   prompt: string;
   schema: Readonly<Record<string, unknown>>;
   byteCount: number;
+  // Frozen images that travel with the prompt, named by provenance id only.
+  // The dispatch must have begun with the same images, so its profile is the
+  // vision profile; the runtime and the loader do the rest.
+  attachments?: readonly AgentAttachment[];
+};
+
+// What a dispatch needs beyond its stage: the images its answer rests on.
+export type DispatchOptions = {
+  attachments?: readonly AgentAttachment[];
 };
 
 export type DispatchDetail = Record<string, string | number | boolean>;
@@ -144,8 +163,10 @@ export async function beginDispatch(
   task: Task,
   deps: DispatchDeps,
   stage: DispatchStage,
+  options: DispatchOptions = {},
 ): Promise<Dispatch | null> {
   const { store, gateway, clock } = deps;
+  const imageAttachments = options.attachments ?? [];
   const sessionId = run.claim.sessionId;
   const revision = task.revision;
   const startedAt = clock.nowMs();
@@ -178,6 +199,10 @@ export async function beginDispatch(
     return true;
   };
   const stopped = () => run.mode !== "running";
+  // This dispatch's own slot and abort signal (a child of the run's), so a
+  // newer revision of its task cancels it without touching the other slot.
+  const slot = slotFor(run, stage.actionKind);
+  const signal = (slot.abort ?? run.abort).signal;
 
   // 1. Record the action (the core decides: status, revision, dedup by
   // session, task, revision and action kind). Nothing is called yet.
@@ -217,7 +242,7 @@ export async function beginDispatch(
   }
   const actionId = recorded.actionId;
   const attempt = recorded.attempt;
-  run.openActionId = actionId;
+  slot.actionId = actionId;
   const settle = (reason: string) =>
     store.abandonAction({
       scope: run.scope,
@@ -253,6 +278,9 @@ export async function beginDispatch(
     return null;
   }
   locality = standing.processingPolicy;
+  // The policy this slot's work runs under, so a later tighten to device-only
+  // can abort exactly the attempts that began as permitted-remote.
+  slot.policy = standing.processingPolicy;
   if (standing.status !== "active") {
     if (!stopped()) await settle(`session_${standing.status}`);
     finish("dispatch.suppressed", `session_${standing.status}`);
@@ -269,7 +297,23 @@ export async function beginDispatch(
   // uses the device profile alone; a stage without one is refused
   // (rule:unlisted-stage-refused), and there is never a fallback.
   const deviceOnly = standing.processingPolicy === "device-only";
-  profileId = deviceOnly ? stage.deviceProfileId : stage.profileId;
+  if (imageAttachments.length > 0) {
+    // [SAFETY] Screenshots fail closed (ADR-0016): a device-only session never
+    // sends an image to an agent runtime, and with no vision profile the
+    // dispatch is refused - it is never answered text-only and never falls
+    // back to another profile.
+    if (deviceOnly || deps.visionProfileId === undefined) {
+      const reason = deviceOnly ? "vision_device_only" : "vision_unavailable";
+      run.settled.add(key);
+      if (!stopped()) await settle(reason);
+      finish("dispatch.refused", reason.replace(/_/g, "-"));
+      return null;
+    }
+    profileId = deps.visionProfileId;
+  } else
+    profileId = deviceOnly
+      ? stage.deviceProfileId
+      : (deps.visionProfileId ?? stage.profileId);
   if (profileId === undefined) {
     run.settled.add(key);
     if (!stopped()) await settle("stage_unlisted");
@@ -340,6 +384,15 @@ export async function beginDispatch(
       // the start of the dispatch: a repair is a second call.
       if (!(await stillStanding())) return { ok: false };
       bytesIn += prompt.byteCount;
+      const sent = prompt.attachments ?? [];
+      // [SAFETY] Images only ever ride a dispatch that began with them (and so
+      // with the vision profile).
+      if (sent.length > 0 && imageAttachments.length === 0) {
+        run.settled.add(key);
+        await settle("vision_unavailable");
+        finish("dispatch.refused", "vision-unavailable");
+        return { ok: false };
+      }
       const request: AiExecutionRequest = {
         context: sessionGatewayContext(run.scope),
         profileId: chosenProfile,
@@ -348,10 +401,11 @@ export async function beginDispatch(
           system: prompt.system,
           prompt: prompt.prompt,
           schema: prompt.schema,
+          ...(sent.length > 0 ? { attachments: sent } : {}),
         },
         processingPolicy: standing.processingPolicy,
         idempotencyKey: `${sessionId}:${task.taskId}:${revision}:${stage.actionKind}:${attempt}${tag}`,
-        signal: run.abort.signal,
+        signal,
       };
       try {
         const execution = await gateway.execute(request);
@@ -364,17 +418,56 @@ export async function beginDispatch(
       } catch (error) {
         if (stopped()) return { ok: false };
         if (isPolicyRefusal(error)) {
-          // Non-retryable: change the policy or the profile, never try again.
+          // The refusal may be the session flipping to device-only before the
+          // processor's tighten-abort fired: re-read the standing, and if the
+          // policy changed this is retryable under the device profile, never a
+          // final refusal of the task.
+          const now = await store
+            .readDispatchStanding({
+              scope: run.scope,
+              sessionId,
+              holder: run.holder,
+            })
+            .catch(() => null);
+          if (now === null) {
+            await failRetryably("unavailable");
+            return { ok: false };
+          }
+          if (now.outcome === "refused") {
+            lost(now.reason);
+            return { ok: false };
+          }
+          if (now.processingPolicy !== standing.processingPolicy) {
+            locality = now.processingPolicy;
+            await settle("policy_changed");
+            finish("dispatch.suppressed", "policy_changed");
+            return { ok: false };
+          }
+          // A real denial on an unchanged session: non-retryable.
           run.settled.add(key);
-          await settle("policy_refused");
-          finish("dispatch.refused", "policy-refused");
+          // A refusal of a request that carried images (the runtime cannot
+          // see them, or an attachment was refused) says so.
+          await settle(sent.length > 0 ? "vision_refused" : "policy_refused");
+          finish(
+            "dispatch.refused",
+            sent.length > 0 ? "vision-refused" : "policy-refused",
+          );
           return { ok: false };
         }
-        // Unavailable (or cancelled): retried against the same profile, with
-        // no fallback to another.
-        await failRetryably(
-          run.abort.signal.aborted ? "cancelled" : "unavailable",
-        );
+        // The agent port's retryable "session not active" (a pause or end
+        // seen after a capacity wait or a screenshot read): suppressed like a
+        // pause, unsettled, so it is answered once the session is active.
+        if (
+          (error as { sessionCode?: unknown } | null)?.sessionCode ===
+          "session-not-active"
+        ) {
+          await settle("session_not_active");
+          finish("dispatch.suppressed", "session_not_active");
+          return { ok: false };
+        }
+        // Unavailable (a failed standing or screenshot read, or cancelled):
+        // retried against the same profile, with no fallback to another.
+        await failRetryably(signal.aborted ? "cancelled" : "unavailable");
         return { ok: false };
       }
     },
@@ -430,7 +523,10 @@ export async function dispatchTask(
 ): Promise<void> {
   const { store, policy } = deps;
   const stage = policy.assist;
-  const d = await beginDispatch(run, task, deps, stage);
+  // The screenshots this revision rests on, if any (ADR-0016): the dispatch
+  // begins with them so it is bound to the vision profile or refused.
+  const attachments = attachmentsFor(run, task);
+  const d = await beginDispatch(run, task, deps, stage, { attachments });
   if (d === null) return;
 
   // The pinned context is read once per run through the store port; a failed
@@ -440,6 +536,7 @@ export async function dispatchTask(
     store,
     stage,
     deviceOnly: d.deviceOnly,
+    imageCount: attachments.length,
   });
   if (d.stopped()) return;
   if (plan.outcome === "context_unavailable") {
@@ -453,7 +550,10 @@ export async function dispatchTask(
   }
 
   // The one gateway call.
-  const called = await d.call(plan.prompt);
+  const called = await d.call({
+    ...plan.prompt,
+    ...(attachments.length > 0 ? { attachments } : {}),
+  });
   if (!called.ok) return;
 
   // Validate against the closed schema. A violation records a suppression by

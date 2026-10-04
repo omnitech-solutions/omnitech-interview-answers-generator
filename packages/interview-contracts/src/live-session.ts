@@ -181,6 +181,63 @@ export const liveSessionRetentionRequestSchema = z.strictObject({
   retention: liveRetentionModeSchema,
 });
 
+// ---- Owner input ----------------------------------------------------------
+
+// The owner's own request for assistance (Analyze latest capture, or a typed
+// follow-up), POSTed to .../sessions/:id/input. It is product-owned: stored
+// DB-side only as an `owner.input` observation, never part of the capture wire
+// (ADR-0016). Screen evidence is named by exact snapshot observation ids
+// (source and event id), never by bytes or paths; the server joins them to the
+// owner's session. Dedup is by `requestId`.
+export const LIVE_OWNER_INPUT_MAX_TEXT_CHARS = 2_000;
+export const LIVE_OWNER_INPUT_MAX_SNAPSHOTS = 4;
+const wireId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+// A request id becomes part of a task's id, so it is shorter than a wire id.
+const ownerInputId = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+export const liveOwnerInputRequestSchema = z
+  .strictObject({
+    requestId: ownerInputId,
+    operation: z.enum(["analyze", "follow-up"]),
+    // When the input is about an existing task revision the owner can see.
+    target: z
+      .strictObject({
+        taskId: z
+          .string()
+          .min(1)
+          .max(160)
+          .regex(/^[A-Za-z0-9._:-]+$/),
+        revision: z.number().int().min(1).max(1_000_000),
+      })
+      .optional(),
+    text: z.string().min(1).max(LIVE_OWNER_INPUT_MAX_TEXT_CHARS).optional(),
+    snapshots: z
+      .array(z.strictObject({ sourceId: wireId, eventId: wireId }))
+      .max(LIVE_OWNER_INPUT_MAX_SNAPSHOTS),
+  })
+  .superRefine((input, context) => {
+    if (input.operation === "analyze" && input.snapshots.length === 0)
+      context.addIssue({ code: "custom", path: ["snapshots"] });
+    if (input.operation === "follow-up" && input.text === undefined)
+      context.addIssue({ code: "custom", path: ["text"] });
+    if (input.operation === "follow-up" && input.snapshots.length > 0)
+      context.addIssue({ code: "custom", path: ["snapshots"] });
+  });
+export type LiveOwnerInputRequest = z.infer<typeof liveOwnerInputRequestSchema>;
+export const liveOwnerInputResponseSchema = z.object({
+  input: z.object({
+    requestId: z.string(),
+    sequence: z.number().int().nonnegative(),
+  }),
+});
+
 // ---- Stream ---------------------------------------------------------------
 
 export const liveObservationSchema = z.object({

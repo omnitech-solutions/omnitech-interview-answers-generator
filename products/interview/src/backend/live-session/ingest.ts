@@ -32,7 +32,10 @@ import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
+import {
+  OWNER_INPUT_SOURCE_ID,
+  SESSION_SCREENSHOT_ARTIFACT_TYPE,
+} from "../db/live-session.js";
 import { reportedWithin, storeCapability } from "./companion-capability.js";
 import {
   decideObservation,
@@ -274,6 +277,16 @@ async function ingestLocked(
     );
   }
   const observation = validated.value;
+  // [SAFETY] The owner-input source namespace is reserved (ADR-0016): the
+  // companion can never pre-claim the dedup key of an owner input.
+  if (observation.sourceId === OWNER_INPUT_SOURCE_ID)
+    return done(
+      refusal("invalid_observation", {
+        control,
+        issues: [{ path: ["sourceId"], code: "invalid_value" }],
+      }),
+      cancelJobs,
+    );
 
   // [SAFETY] The companion cannot broaden the sources fixed at start
   // (rule:versioned-wire-contract, ADR-0011): a screenshot needs the screen source
@@ -341,9 +354,12 @@ async function ingestLocked(
     max_sequence: string | number;
   }>(
     tx,
-    sql`SELECT count(*)::int AS total,
+    // Owner inputs are the owner's own requests, stored DB-side: they count
+    // toward neither the capture cap nor the capture rate (they still take a
+    // sequence number, hence max_sequence covers every row).
+    sql`SELECT (count(*) FILTER (WHERE kind <> 'owner.input'))::int AS total,
                (count(*) FILTER (WHERE kind = 'screen.snapshot'))::int AS screenshots,
-               (count(*) FILTER (WHERE received_at > now() - interval '1 minute'))::int AS recent,
+               (count(*) FILTER (WHERE kind <> 'owner.input' AND received_at > now() - interval '1 minute'))::int AS recent,
                COALESCE(max(sequence), 0) AS max_sequence
         FROM interview.session_observations
         WHERE tenant_id = ${scope.tenantId}::uuid

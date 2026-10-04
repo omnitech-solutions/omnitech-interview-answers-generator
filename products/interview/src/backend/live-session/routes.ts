@@ -402,6 +402,8 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     const found = await repository.listObservations(scope, sessionId, {
       afterSequence: after,
       limit: limit + 1,
+      // The owner's own inputs are DB-side only and never echoed back.
+      excludeOwnerInput: true,
     });
     const observations = found.slice(0, limit);
     const changes = await repository.listActionChanges(scope, sessionId, {
@@ -443,6 +445,20 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       parsed.data.action,
     );
     return c.json({ session });
+  });
+
+  // The owner's own request for assistance: Analyze latest capture or a typed
+  // follow-up (ADR-0016). Owner-authenticated like every user route (tenant
+  // membership and interview.write are resolved before any domain work); the
+  // body names exact snapshot observation ids, never bytes, and carries no
+  // identity.
+  app.post(`${base}/:sessionId/input`, async (c) => {
+    const input = await repository.submitOwnerInput(
+      c.get("scope"),
+      c.req.param("sessionId"),
+      await jsonBody(c.req.raw),
+    );
+    return c.json({ input }, 202);
   });
 
   app.post(`${base}/:sessionId/credential`, async (c) => {

@@ -59,10 +59,17 @@ export interface InstructionBundle {
   outputSchema?: Readonly<Record<string, unknown>>;
 }
 
+// An attachment list stays small: a request names a few frozen images, not a
+// folder (ADR-0016). The gateway refuses a longer list before any dispatch.
+export const MAX_TASK_ATTACHMENTS = 4;
+
 export interface AiTask {
   type: AiTaskType;
   prompt: string;
   system?: string;
+  // Reaches agent runtimes only; a direct-model profile refuses them rather
+  // than answering text-only (ADR-0016 screenshot-attachments-fail-closed).
+  attachments?: readonly AgentAttachment[];
   messages?: readonly {
     role: "system" | "user" | "assistant";
     content: string;

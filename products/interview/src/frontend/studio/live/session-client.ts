@@ -16,8 +16,10 @@ import {
   type LiveSessionStartResponse,
   type LiveSessionView,
   type LiveStreamResponse,
+  type LiveOwnerInputRequest,
   liveCompanionCapabilityResponseSchema,
   liveCredentialRenewResponseSchema,
+  liveOwnerInputResponseSchema,
   liveSessionChoicesResponseSchema,
   liveSessionErrorBodySchema,
   liveSessionListResponseSchema,
@@ -38,7 +40,9 @@ export type SessionFetch = (
 export type SessionErrorCode =
   | LiveSessionErrorCode
   | "network"
-  | "invalid_response";
+  | "invalid_response"
+  // The owner-input route does not exist on this server (yet).
+  | "unavailable";
 
 export class SessionApiError extends Error {
   readonly code: SessionErrorCode;
@@ -88,6 +92,12 @@ export type SessionClient = {
   ): Promise<LiveSessionView>;
   // 202: the session is purging; the returned view says so.
   deleteSession(sessionId: string): Promise<LiveSessionView>;
+  // The owner's own request for assistance (Analyze latest capture, a typed
+  // follow-up). Stored on the server only; the answer arrives in the stream.
+  sendOwnerInput(
+    sessionId: string,
+    input: LiveOwnerInputRequest,
+  ): Promise<void>;
 };
 
 async function errorFrom(response: Response): Promise<SessionApiError> {
@@ -237,6 +247,12 @@ export function createSessionClient(
         liveSessionResponseSchema,
       );
       return session;
+    },
+    async sendOwnerInput(sessionId, input) {
+      await read(
+        await post(at(sessionId, "/input"), input),
+        liveOwnerInputResponseSchema,
+      );
     },
     async deleteSession(sessionId) {
       const { session } = await read(

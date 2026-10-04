@@ -14,11 +14,15 @@ import { AgentPayloadStore } from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
 import {
   type AgentEscalationPort,
+  createSessionScreenshotLoader,
+  createSessionStillPermitted,
+  createSessionSweeper,
   createSessionWorker,
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
 import { runAgentWorker } from "./index.js";
-import { createSessionGateway } from "./session-gateway.js";
+import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway.js";
+import { defaultStagingBase, sweepStagingBase } from "./session-agent-port.js";
 import { runSessionLoop, sessionWorkerId } from "./session-loop.js";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -242,10 +246,24 @@ export function sessionLoop(
   env: Environment,
   database: PlatformDatabase,
   log: (line: string) => void,
+  runtimes?: Readonly<Record<string, AgentRuntimeAdapter>>,
 ): WorkerLoop | null {
   let session: ReturnType<typeof createSessionGateway>;
   try {
-    session = createSessionGateway(env);
+    // The agent port is off unless the explicit flag is set (ADR-0016).
+    session = createSessionGateway(
+      env,
+      env[SESSION_AGENT_FLAG] === "on"
+        ? {
+            runtimes: runtimes ?? agentRuntimes(env),
+            // Screenshots reach a runtime only through the product's loader:
+            // observation ids joined to the owner's session, verified, capped.
+            attachmentSource: createSessionScreenshotLoader(database),
+            // After any capacity wait the port re-reads the session row.
+            stillPermitted: createSessionStillPermitted(database),
+          }
+        : {},
+    );
   } catch {
     // A misconfigured model must not take the job loop down with it.
     log("session loop disabled: language model unusable");
@@ -258,8 +276,11 @@ export function sessionLoop(
   const escalation = sessionAgentEscalation(env, database);
   return {
     name: "session",
-    run: (signal) =>
-      runSessionLoop({
+    run: async (signal) => {
+      // Staged screenshots left by a previous process are removed first.
+      if (session.agentStaging)
+        await sweepStagingAtStartup(session.agentStaging.sweep, log);
+      await runSessionLoop({
         processor: createSessionWorker({
           database,
           gateway: session.gateway,
@@ -267,10 +288,59 @@ export function sessionLoop(
           log,
           ...sessionRunnerOptions(env),
           ...(escalation ? { agentEscalation: escalation } : {}),
+          ...(session.visionProfileId
+            ? { visionProfileId: session.visionProfileId }
+            : {}),
+          // Content staged outside the database goes with every purge.
+          afterPurge: async () => session?.agentStaging?.sweepIdle(),
         }),
         signal,
         log,
-      }),
+      });
+    },
+  };
+}
+
+// The startup sweep of staged screenshots. A staging directory this worker
+// cannot trust (a link, another owner's, open to others) is refused: the worker
+// keeps running and says so, naming no path and no id.
+export async function sweepStagingAtStartup(
+  sweep: () => Promise<void>,
+  log: (line: string) => void,
+): Promise<void> {
+  try {
+    await sweep();
+  } catch {
+    log("session staging sweep refused: staging directory is not private");
+  }
+}
+
+// The cap and purge sweeps for a host with no language model (ADR-0016): ended
+// sessions still delete their observations, owner inputs and artifacts, and
+// staged screenshots left by any earlier process are removed. It claims no
+// session and calls no model.
+export function sessionSweepLoop(
+  env: Environment,
+  database: PlatformDatabase,
+  log: (line: string) => void,
+): WorkerLoop {
+  const stagingBase =
+    env["ACTIVE_SESSION_AGENT_STAGING_DIR"] ?? defaultStagingBase();
+  return {
+    name: "session-sweep",
+    run: async (signal) => {
+      await sweepStagingAtStartup(() => sweepStagingBase(stagingBase), log);
+      await runSessionLoop({
+        processor: createSessionSweeper({
+          database,
+          workerId: sessionWorkerId(env),
+          log,
+          afterPurge: () => sweepStagingBase(stagingBase),
+        }),
+        signal,
+        log,
+      });
+    },
   };
 }
 
@@ -290,7 +360,10 @@ export async function runConfiguredAgentWorker(
   const database = createPlatformDatabase(env["DATABASE_URL"]);
   const loops = [
     agentJobLoop(env, database, payloadSecret, runtimes),
-    sessionLoop(env, database, log),
+    // Without a usable model there is no session loop, but ended sessions are
+    // still purged (their observations, owner inputs and staged images).
+    sessionLoop(env, database, log, runtimes) ??
+      sessionSweepLoop(env, database, log),
   ].filter((loop): loop is WorkerLoop => loop !== null);
   try {
     await runWorkerLoops(loops, signal, database, log);

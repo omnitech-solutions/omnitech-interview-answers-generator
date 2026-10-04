@@ -121,9 +121,12 @@ function Status({
 export function CodingPanel({
   task,
   session,
+  showWorkspaceLink = true,
 }: {
   task: TaskView;
   session: LiveSessionView | null;
+  // Focus has its own Open in Workspace control.
+  showWorkspaceLink?: boolean;
 }) {
   const link = useSessionDraftLink(session, task.taskId);
   // The status grid and chip describe what the Workspace draft holds; a held
@@ -187,10 +190,10 @@ export function CodingPanel({
           </p>
         </div>
       )}
-      {(draftLabel || link) && (
+      {(draftLabel || (showWorkspaceLink && link)) && (
         <div className="live-workspace-link">
           {draftLabel && <span className="live-chip green">{draftLabel}</span>}
-          {link && (
+          {showWorkspaceLink && link && (
             <button
               type="button"
               className="studio-button"

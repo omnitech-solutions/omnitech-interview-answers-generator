@@ -32,6 +32,9 @@ export type CommandContext = {
   // A fresh start: failures and purge waits no longer apply.
   resetLoop(): void;
   refresh(): Promise<void>;
+  // The deps' owner-input methods; absent until the server route ships.
+  analyzeLatestCapture?(sessionId: string): Promise<void>;
+  submitFollowUp?(sessionId: string, text: string): Promise<void>;
 };
 
 export function createSessionActions(context: CommandContext): SessionActions {
@@ -138,6 +141,23 @@ export function createSessionActions(context: CommandContext): SessionActions {
       run("delete", async () => {
         applied(await client.deleteSession(sessionId()));
         context.resetLoop();
+        context.restartLoop();
+      }),
+    analyzeLatestCapture: () =>
+      run("analyze", async () => {
+        const send = context.analyzeLatestCapture;
+        if (!send) throw new SessionApiError("unavailable", 0);
+        await send(sessionId());
+        context.restartLoop();
+      }),
+    submitFollowUp: (text) =>
+      run("follow-up", async () => {
+        const send = context.submitFollowUp;
+        if (!send) throw new SessionApiError("unavailable", 0);
+        // [GUARD] Nothing empty is sent; the text goes to the route only.
+        const trimmed = text.trim();
+        if (trimmed === "") throw new SessionApiError("invalid_input", 0);
+        await send(sessionId(), trimmed);
         context.restartLoop();
       }),
     dismissPairing: () => {

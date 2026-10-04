@@ -7,6 +7,7 @@
 @import "./session-view.css";
 @import "./ended.css";
 @import "./workspace-handoff.css";
+@import "./focus.css";
 
 .live-page {
   flex: 1;

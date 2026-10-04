@@ -21,6 +21,12 @@ export type StoreDeps = {
   isVisible(): boolean;
   // Calls back when the page becomes visible or hidden; returns the remover.
   onVisibilityChange(listener: () => void): () => void;
+  // Owner input over the one session: ask for an answer from the newest
+  // capture, or send a typed follow-up. The server route is optional until it
+  // ships; a missing method is answered with the "unavailable" code. Failures
+  // are thrown as SessionApiError. The text is never logged or stored here.
+  analyzeLatestCapture?(sessionId: string): Promise<void>;
+  submitFollowUp?(sessionId: string, text: string): Promise<void>;
   // Only the finished session's id is ever stored; failures are the caller's.
   storage: {
     read(key: string): string | null;

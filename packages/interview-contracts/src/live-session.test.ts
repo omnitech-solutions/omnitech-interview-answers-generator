@@ -3,6 +3,7 @@ import {
   LIVE_SESSION_ERROR_CODES,
   LIVE_SESSION_ERROR_STATUS,
   liveCompanionCapabilityResponseSchema,
+  liveOwnerInputRequestSchema,
   liveSessionControlRequestSchema,
   liveSessionErrorBodySchema,
   liveSessionListQuerySchema,
@@ -208,5 +209,63 @@ describe("companion capability response", () => {
       capability: { ...capability, ownerUserId: ID },
     });
     expect(JSON.stringify(parsed)).not.toContain(ID);
+  });
+});
+
+describe("owner input request", () => {
+  const shot = { sourceId: "screen", eventId: "evt-2" };
+  const ok = (body: unknown) => liveOwnerInputRequestSchema.safeParse(body);
+
+  it("takes an analyze that names snapshots, and a follow-up that carries text", () => {
+    expect(
+      ok({ requestId: "r-1", operation: "analyze", snapshots: [shot] }).success,
+    ).toBe(true);
+    expect(
+      ok({
+        requestId: "r-2",
+        operation: "follow-up",
+        text: "and the cost?",
+        target: { taskId: "task-q1", revision: 2 },
+        snapshots: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses an analyze with no snapshot, a follow-up with no text or with images, and extras", () => {
+    for (const body of [
+      { requestId: "r", operation: "analyze", snapshots: [] },
+      { requestId: "r", operation: "follow-up", snapshots: [] },
+      { requestId: "r", operation: "follow-up", text: "x", snapshots: [shot] },
+      {
+        requestId: "r",
+        operation: "analyze",
+        snapshots: [shot],
+        bytes: "AAAA",
+      },
+      {
+        requestId: "r",
+        operation: "analyze",
+        snapshots: [shot],
+        ownerUserId: ID,
+      },
+      {
+        requestId: "r",
+        operation: "analyze",
+        snapshots: [shot, shot, shot, shot, shot],
+      },
+      { requestId: "bad id!", operation: "analyze", snapshots: [shot] },
+      {
+        requestId: "r",
+        operation: "follow-up",
+        text: "x".repeat(2_001),
+        snapshots: [],
+      },
+      {
+        requestId: "r",
+        operation: "analyze",
+        snapshots: [{ sourceId: "../x", eventId: "e" }],
+      },
+    ])
+      expect(ok(body).success).toBe(false);
   });
 });

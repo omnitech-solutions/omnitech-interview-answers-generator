@@ -11,6 +11,7 @@ import { Icon } from "../icon";
 import { ActivityTab } from "./activity-tab";
 import type { BannerAction } from "./banner-copy";
 import { PairingPanel } from "./pairing-panel";
+import { PresentationSwitch } from "./presentation-switch";
 import { SessionBanners } from "./session-banner-list";
 import { SessionBar } from "./session-bar";
 import type { SessionActions } from "./session-snapshot";
@@ -71,6 +72,7 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
   return (
     <div className="live-page" data-testid="live-panel">
       <SessionBar variant="header" onOpen={() => undefined} />
+      {snapshot.session && <PresentationSwitch where="full" />}
       {snapshot.session && (
         <LiveSessionBody
           session={snapshot.session}

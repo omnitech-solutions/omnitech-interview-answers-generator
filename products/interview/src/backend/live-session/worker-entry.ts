@@ -20,7 +20,10 @@ import {
   type InterviewSessionPolicy,
 } from "./interview-policy.js";
 import { createSessionProcessor, type SessionProcessor } from "./processor.js";
-import type { SessionProcessorOptions } from "./processor-ports.js";
+import type {
+  SessionProcessorOptions,
+  SessionProcessorPorts,
+} from "./processor-ports.js";
 import {
   createDatabaseClaimPort,
   createDatabaseStorePort,
@@ -38,6 +41,18 @@ export {
   sessionGatewayContext,
 } from "./gateway-context.js";
 export type { SessionProcessor } from "./processor.js";
+export {
+  isOwnerInputProvenanceId,
+  isSnapshotProvenanceId,
+  parseSnapshotProvenanceId,
+} from "./owner-input.js";
+export { createSessionStillPermitted } from "./session-standing.js";
+export {
+  createSessionScreenshotLoader,
+  loadVerifiedScreenshot,
+  type SnapshotRead,
+  type StoredSnapshot,
+} from "./screenshot-loader.js";
 export type { AgentEscalationPort } from "./escalation.js";
 export type { SessionCodeRunner } from "./session-run.js";
 export type { SessionProcessorOptions } from "./processor-ports.js";
@@ -67,6 +82,11 @@ export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
     // The typed agent profiles and prompt store for escalation jobs. Absent:
     // an escalation request creates no job.
     agentEscalation?: AgentEscalationPort;
+    // The gateway profile that serves a task carrying screenshots (an agent
+    // profile whose runtime takes image input). Absent: such a task is refused.
+    visionProfileId?: string;
+    // Removes content the host staged outside the database after a purge.
+    afterPurge?: SessionProcessorPorts["afterPurge"];
   };
 
 export type SessionWorker = SessionProcessor;
@@ -87,6 +107,8 @@ export function createSessionWorker(
     codeRunner,
     runnerDeviceLocal,
     agentEscalation,
+    visionProfileId,
+    afterPurge,
     ...rest
   } = options;
   const portOptions: DatabasePortOptions = {
@@ -108,6 +130,8 @@ export function createSessionWorker(
       ...(codeRunner ? { codeRunner } : {}),
       ...(runnerDeviceLocal === undefined ? {} : { runnerDeviceLocal }),
       ...(agentEscalation ? { agentEscalation } : {}),
+      ...(visionProfileId ? { visionProfileId } : {}),
+      ...(afterPurge ? { afterPurge } : {}),
     },
     {
       workerId,
@@ -128,6 +152,41 @@ export function createSessionWorker(
       ...(rest.observationPage === undefined
         ? {}
         : { observationPage: rest.observationPage }),
+      ...(rest.sweepOnly ? { sweepOnly: true } : {}),
     },
   );
+}
+
+// A gateway that refuses everything: the sweep-only worker never calls a model.
+const refusingGateway: AiExecutionGateway = {
+  async execute() {
+    throw new Error("No model is configured.");
+  },
+  async *streamStructured() {
+    throw new Error("No model is configured.");
+  },
+  async *stream() {
+    throw new Error("No model is configured.");
+  },
+  async cancel() {},
+  async *resume() {
+    throw new Error("No model is configured.");
+  },
+  async listAvailableTargets() {
+    return [];
+  },
+};
+
+// The cap and purge sweeps alone, for a host with no language model: ended
+// sessions still delete their observations (owner inputs included), artifacts
+// and staged content. It claims no session and never calls a model.
+export function createSessionSweeper(
+  options: Omit<SessionWorkerOptions, "gateway" | "sweepOnly">,
+): SessionWorker {
+  return createSessionWorker({
+    ...options,
+    gateway: refusingGateway,
+    sweepOnly: true,
+    sweepEveryMs: options.sweepEveryMs ?? 30_000,
+  });
 }

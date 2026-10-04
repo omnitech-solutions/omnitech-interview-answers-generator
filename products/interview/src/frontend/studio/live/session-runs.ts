@@ -138,6 +138,21 @@ const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
     label: "Assistance is off for this session.",
   },
   job_refused: { state: "refused", label: "The agent job was refused." },
+  // Screenshots fail closed (ADR-0016): never answered text-only.
+  vision_unavailable: {
+    state: "refused",
+    label:
+      "No screenshot-capable assistant is set up, so the capture was not analysed.",
+  },
+  vision_device_only: {
+    state: "refused",
+    label: "Device-only mode never sends a screenshot to an assistant.",
+  },
+  vision_refused: {
+    state: "refused",
+    label:
+      "The assistant could not take this screenshot, so nothing was answered.",
+  },
 };
 
 // A withheld solution failed its structural checks (language, tests,

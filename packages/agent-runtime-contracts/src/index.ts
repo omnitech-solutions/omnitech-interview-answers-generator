@@ -1,3 +1,9 @@
+// BACKEND-ONLY: this package uses node:fs (attachment path checks), so it is
+// imported by workers, runtimes and server code and never by a frontend or
+// browser bundle. Types that a client needs belong in a separate contracts
+// package, not here.
+import { lstat, realpath } from "node:fs/promises";
+import { isAbsolute, relative } from "node:path";
 import type {
   AgentAttachment,
   AiFailure,
@@ -22,6 +28,13 @@ export interface AgentCapabilities {
   structuredOutput: boolean;
   attachments: boolean;
   tools: boolean;
+  // Forwards staged image attachments to the model; true only where an
+  // adapter fixture test proves it (ADR-0016).
+  // Absent means false (fail closed).
+  imageInput?: boolean;
+  // Can run a request that must use no tools: tools are disabled, or any tool
+  // use is detected and failed (ADR-0016 worker-local-tool-less-inference).
+  toolless?: boolean;
 }
 
 export interface AgentProfile {
@@ -54,6 +67,15 @@ export interface AgentRunRequest {
   workingDirectory: string;
   additionalDirectories: readonly string[];
   attachments: readonly AgentAttachment[];
+  // Attachment references must resolve inside this private staging directory;
+  // a request with attachments and no root is refused.
+  attachmentRoot?: string;
+  // No tool may run: the adapter disables tools and fails the attempt on any
+  // tool-started event. Always set for Active Session actions.
+  toolless?: boolean;
+  // Per-attempt environment (an ephemeral provider home), merged over the
+  // adapter's own.
+  environment?: Readonly<Record<string, string>>;
   outputSchema?: Readonly<Record<string, unknown>>;
   timeoutMs: number;
 }
@@ -109,4 +131,87 @@ export function validateAgentProfile(profile: AgentProfile): void {
       "Non-interactive profiles cannot combine workspace writes with no approvals.",
     );
   }
+}
+
+// The typed refusal an adapter turns into a failed event; never carries a
+// path, an attachment name or provider text.
+export const TOOL_REFUSED_FAILURE: AiFailure = {
+  code: "policy-refused",
+  message: "A tool-less request attempted to use a tool.",
+  retryable: false,
+};
+
+export const ATTACHMENT_REFUSED_FAILURE: AiFailure = {
+  code: "policy-refused",
+  message: "An attachment was refused.",
+  retryable: false,
+};
+
+export class AgentAttachmentRefusedError extends Error {
+  readonly failure = ATTACHMENT_REFUSED_FAILURE;
+  constructor() {
+    super(ATTACHMENT_REFUSED_FAILURE.message);
+    this.name = "AgentAttachmentRefusedError";
+  }
+}
+
+export const AGENT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+const IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
+export interface StagedImage {
+  path: string;
+  mimeType: string;
+}
+
+// [SAFETY] Resolves a request's attachments to staged image files. Everything
+// else is refused with one typed error: a non-image kind, an unsupported type,
+// a reference that is relative, a symlink, outside the staging root (after
+// resolving links), not a regular file, or over the byte bound. Attachments
+// without a staging root are refused, never ignored.
+export async function stagedImages(
+  request: Pick<AgentRunRequest, "attachments" | "attachmentRoot">,
+): Promise<StagedImage[]> {
+  if (request.attachments.length === 0) return [];
+  if (request.attachmentRoot === undefined)
+    throw new AgentAttachmentRefusedError();
+  let root: string;
+  try {
+    root = await realpath(request.attachmentRoot);
+  } catch {
+    throw new AgentAttachmentRefusedError();
+  }
+  const staged: StagedImage[] = [];
+  for (const attachment of request.attachments) {
+    if (
+      attachment.kind !== "image" ||
+      attachment.mimeType === undefined ||
+      !IMAGE_TYPES.has(attachment.mimeType) ||
+      !isAbsolute(attachment.reference)
+    )
+      throw new AgentAttachmentRefusedError();
+    try {
+      const link = await lstat(attachment.reference);
+      const real = await realpath(attachment.reference);
+      const inside = relative(root, real);
+      if (
+        link.isSymbolicLink() ||
+        !link.isFile() ||
+        link.size > AGENT_IMAGE_MAX_BYTES ||
+        inside === "" ||
+        inside.startsWith("..") ||
+        isAbsolute(inside)
+      )
+        throw new AgentAttachmentRefusedError();
+      staged.push({ path: real, mimeType: attachment.mimeType });
+    } catch {
+      throw new AgentAttachmentRefusedError();
+    }
+  }
+  return staged;
 }

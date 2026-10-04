@@ -1,5 +1,15 @@
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { agentEnvironment, runWorkerLoops, sessionLoop } from "./main.js";
+import {
+  agentEnvironment,
+  runWorkerLoops,
+  sessionLoop,
+  sessionSweepLoop,
+  sweepStagingAtStartup,
+} from "./main.js";
+import { sweepStagingBase } from "./session-agent-port.js";
 
 const CANARY = "canary-question-text";
 const gate = () => {
@@ -183,5 +193,43 @@ describe("session loop registration", () => {
     expect(sessionLoop(env, {} as never, () => undefined)?.name).toBe(
       "session",
     );
+  });
+});
+
+describe("session sweep loop (no model configured)", () => {
+  it("is a named loop that claims nothing, so ended sessions are still purged", () => {
+    expect(sessionSweepLoop({}, {} as never, () => undefined).name).toBe(
+      "session-sweep",
+    );
+  });
+});
+
+describe("startup staging sweep", () => {
+  it("logs a content-free line, naming no path, when the staging directory is refused", async () => {
+    const root = await mkdtemp(join(tmpdir(), "loops-staging-"));
+    try {
+      const open = join(root, `${CANARY}-staging`);
+      await mkdir(open, { mode: 0o755 });
+      await chmod(open, 0o755);
+      const lines: string[] = [];
+      await sweepStagingAtStartup(
+        () => sweepStagingBase(open),
+        (line) => lines.push(line),
+      );
+      expect(lines).toEqual([
+        "session staging sweep refused: staging directory is not private",
+      ]);
+      expect(lines.join("\n")).not.toContain(CANARY);
+      expect(lines.join("\n")).not.toContain(root);
+      // A private directory sweeps silently.
+      const quiet: string[] = [];
+      await sweepStagingAtStartup(
+        () => sweepStagingBase(join(root, "fresh")),
+        (line) => quiet.push(line),
+      );
+      expect(quiet).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

@@ -31,6 +31,7 @@ import {
 } from "./context";
 import { Icon } from "./icon";
 import { SessionBar } from "./live/session-bar";
+import { LiveFloatHost } from "./live/float-host";
 import { useSessionStoreWatch } from "./live/use-live-session";
 import { Sidebar } from "./sidebar";
 import { studioFetch } from "./studio-fetch";
@@ -476,6 +477,8 @@ function StudioFrame({
         <div className="studio-view">{renderView(actions)}</div>
       </main>
       {host.open && <DockResizer stored={dock.stored} />}
+      {/* Beside the store watch, so the floating window persists across pages. */}
+      <LiveFloatHost />
       {paletteOpen && (
         <CommandPalette
           items={paletteItems}

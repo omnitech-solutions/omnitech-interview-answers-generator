@@ -8,6 +8,10 @@
 // model's declared locality; the device profile exists only when that declared
 // locality is `device`, so a device-only session can only ever reach a model
 // the environment declared to run on this device.
+import type {
+  AgentProfile,
+  AgentRuntimeAdapter,
+} from "@omnitech/agent-runtime-contracts";
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
 import {
@@ -16,9 +20,15 @@ import {
   createAiExecutionGateway,
 } from "@omnitech/ai-runtime";
 import {
+  resolveAgentProfiles,
   resolveDefaultLanguageModel,
   withDeclaredLocality,
 } from "@omnitech/ai-runtime/config";
+import {
+  createSessionAgentPort,
+  type AttachmentSource,
+  type SessionAgentPortOptions,
+} from "./session-agent-port.js";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -28,6 +38,29 @@ import {
 type Environment = Readonly<Record<string, string | undefined>>;
 
 const SESSION_MODEL_TARGET = "interview-session-model";
+
+// Agent-runtime session profiles (ADR-0016): tool-less, per-attempt isolated,
+// served by the worker's AgentExecutionPort. They exist only when the explicit
+// flag below is on; the default gateway keeps `noAgents`.
+export const SESSION_AGENT_FLAG = "ACTIVE_SESSION_AGENT_PORT";
+export const SESSION_AGENT_CLAUDE_PROFILE = "interview-session-agent-claude";
+export const SESSION_AGENT_CODEX_PROFILE = "interview-session-agent-codex";
+
+// Gateway profile id -> the bounded agent profile it runs (never user input).
+const SESSION_AGENT_PROFILES = [
+  {
+    id: SESSION_AGENT_CLAUDE_PROFILE,
+    label: "Interview session assistance (Claude Code)",
+    runtime: "claude-code",
+    agentProfile: "assistant-claude-code",
+  },
+  {
+    id: SESSION_AGENT_CODEX_PROFILE,
+    label: "Interview session assistance (Codex)",
+    runtime: "codex",
+    agentProfile: "assistant-codex",
+  },
+] as const;
 
 // The session worker never starts agent jobs or images through its gateway.
 const noAgents: AgentExecutionPort = {
@@ -52,14 +85,85 @@ function outputTokens(env: Environment, baseUrl: string): number {
   return Math.min(8192, Math.floor(contextTokens / 4));
 }
 
+// Which agent profile is pinned by the host for the whole worker (ADR-0016: one
+// profile for answer and code, no cross-provider fallback). It serves
+// screenshot tasks and, for sessions that may use remote processing, the assist
+// and coding stages (tool-less; text-only unless a screenshot rides along).
+// Device-only sessions keep the direct device model.
+export const SESSION_VISION_PROFILE_ENV = "ACTIVE_SESSION_AGENT_PROFILE";
+const VISION_PROFILES: Readonly<Record<string, string>> = {
+  claude: SESSION_AGENT_CLAUDE_PROFILE,
+  codex: SESSION_AGENT_CODEX_PROFILE,
+};
+
 export type SessionGateway = {
   gateway: AiExecutionGateway;
   profileIds: readonly string[];
+  // The pinned agent profile (see above); present only when the agent port is
+  // on and the host pinned a provider that is configured. The name is kept from
+  // when it served screenshots alone.
+  visionProfileId?: string;
+  // Present only with the agent port: the startup sweep and the purge hooks for
+  // staged screenshots.
+  agentStaging?: {
+    sweep(): Promise<void>;
+    purge(): Promise<void>;
+    sweepIdle(): Promise<void>;
+  };
 };
+
+export type SessionGatewayOptions = {
+  // The worker's agent runtime adapters, used only when the flag is on.
+  runtimes?: Readonly<Record<string, AgentRuntimeAdapter>>;
+  attachmentSource?: AttachmentSource;
+  stillPermitted?: SessionAgentPortOptions["stillPermitted"];
+  isBackground?: SessionAgentPortOptions["isBackground"];
+};
+
+function createAgentPort(
+  env: Environment,
+  runtimes: Readonly<Record<string, AgentRuntimeAdapter>>,
+  options: SessionGatewayOptions,
+) {
+  const agentProfiles = resolveAgentProfiles(env);
+  const mapped = new Map<string, AgentProfile>();
+  const profiles: AiProfile[] = [];
+  for (const entry of SESSION_AGENT_PROFILES) {
+    const agent = agentProfiles.get(entry.agentProfile);
+    if (!agent || !runtimes[entry.runtime]) continue;
+    mapped.set(entry.id, agent);
+    profiles.push({
+      id: entry.id,
+      label: entry.label,
+      family: "agent-runtime",
+      targetId: entry.runtime,
+      taskTypes: ["structured-generation"],
+      enabled: true,
+    });
+  }
+  const port = createSessionAgentPort({
+    runtimes,
+    profiles: mapped,
+    ...(env["ACTIVE_SESSION_AGENT_STAGING_DIR"]
+      ? { stagingBase: env["ACTIVE_SESSION_AGENT_STAGING_DIR"] }
+      : {}),
+    ...(options.attachmentSource
+      ? { attachmentSource: options.attachmentSource }
+      : {}),
+    ...(options.stillPermitted
+      ? { stillPermitted: options.stillPermitted }
+      : {}),
+    ...(options.isBackground ? { isBackground: options.isBackground } : {}),
+  });
+  return { port, profiles };
+}
 
 // Null when no language model is configured: the caller disables the session
 // loop rather than crashing the worker.
-export function createSessionGateway(env: Environment): SessionGateway | null {
+export function createSessionGateway(
+  env: Environment,
+  options: SessionGatewayOptions = {},
+): SessionGateway | null {
   const language = resolveDefaultLanguageModel(env);
   if (!language) return null;
   const adapter = createOpenAiModelAdapter({
@@ -104,12 +208,34 @@ export function createSessionGateway(env: Environment): SessionGateway | null {
         ]
       : []),
   ];
+  // Ships disabled: only an explicit flag and supplied runtimes select the
+  // worker's agent port; otherwise `noAgents` stays.
+  const agentPort =
+    env[SESSION_AGENT_FLAG] === "on" && options.runtimes
+      ? createAgentPort(env, options.runtimes, options)
+      : undefined;
+  if (agentPort) profiles.push(...agentPort.profiles);
+  const pinned = VISION_PROFILES[env[SESSION_VISION_PROFILE_ENV] ?? ""];
+  const visionProfileId =
+    pinned && agentPort?.profiles.some((entry) => entry.id === pinned)
+      ? pinned
+      : undefined;
   return {
+    ...(visionProfileId ? { visionProfileId } : {}),
+    ...(agentPort
+      ? {
+          agentStaging: {
+            sweep: agentPort.port.sweep,
+            purge: agentPort.port.purge,
+            sweepIdle: agentPort.port.sweepIdle,
+          },
+        }
+      : {}),
     gateway: createAiExecutionGateway({
       profiles,
       models: [adapter],
       images: [],
-      agents: noAgents,
+      agents: agentPort?.port ?? noAgents,
       authorize: async (context) =>
         context.permissions.includes("interview.read"),
     }),

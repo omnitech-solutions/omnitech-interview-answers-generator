@@ -5,13 +5,113 @@ import {
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "@omnitech/product-interview/session-worker";
 import { describe, expect, it } from "vitest";
-import { createSessionGateway } from "./session-gateway.js";
+import {
+  createSessionGateway,
+  SESSION_AGENT_CLAUDE_PROFILE,
+  SESSION_AGENT_CODEX_PROFILE,
+} from "./session-gateway.js";
 
 const REMOTE = {
   AI_BASE_URL: "https://models.example.test/v1",
   AI_MODEL: "m",
   AI_API_KEY: "test-key",
 };
+
+describe("session agent port selection (ships disabled)", () => {
+  const runtime = (id: "codex" | "claude-code") => ({
+    runtime: id,
+    capabilities: {
+      resume: false,
+      structuredOutput: true,
+      attachments: true,
+      tools: false,
+    },
+    run: async function* () {},
+    resume: async function* () {},
+    cancel: async () => {},
+  });
+  const runtimes = {
+    codex: runtime("codex"),
+    "claude-code": runtime("claude-code"),
+  };
+
+  it("keeps noAgents by default, and with runtimes but no flag", () => {
+    const plain = createSessionGateway(REMOTE, { runtimes });
+    expect(plain?.profileIds).not.toContain(SESSION_AGENT_CLAUDE_PROFILE);
+    expect(plain?.agentStaging).toBeUndefined();
+    const flagOnly = createSessionGateway({
+      ...REMOTE,
+      ACTIVE_SESSION_AGENT_PORT: "on",
+    });
+    expect(flagOnly?.profileIds).not.toContain(SESSION_AGENT_CODEX_PROFILE);
+  });
+
+  it("adds both agent profiles and the staging hooks only with the flag and runtimes", () => {
+    const enabled = createSessionGateway(
+      { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" },
+      { runtimes },
+    );
+    expect(enabled?.profileIds).toEqual(
+      expect.arrayContaining([
+        SESSION_AGENT_CLAUDE_PROFILE,
+        SESSION_AGENT_CODEX_PROFILE,
+      ]),
+    );
+    expect(enabled?.agentStaging).toBeDefined();
+  });
+
+  it("names the vision profile only when the host pinned a configured provider", () => {
+    const env = { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" };
+    expect(
+      createSessionGateway(env, { runtimes })?.visionProfileId,
+    ).toBeUndefined();
+    expect(
+      createSessionGateway(
+        { ...env, ACTIVE_SESSION_AGENT_PROFILE: "claude" },
+        { runtimes },
+      )?.visionProfileId,
+    ).toBe(SESSION_AGENT_CLAUDE_PROFILE);
+    expect(
+      createSessionGateway(
+        { ...env, ACTIVE_SESSION_AGENT_PROFILE: "codex" },
+        { runtimes },
+      )?.visionProfileId,
+    ).toBe(SESSION_AGENT_CODEX_PROFILE);
+    // An unknown name, or the pin without the flag, selects nothing.
+    expect(
+      createSessionGateway(
+        { ...env, ACTIVE_SESSION_AGENT_PROFILE: "other" },
+        { runtimes },
+      )?.visionProfileId,
+    ).toBeUndefined();
+    expect(
+      createSessionGateway({
+        ...REMOTE,
+        ACTIVE_SESSION_AGENT_PROFILE: "claude",
+      })?.visionProfileId,
+    ).toBeUndefined();
+  });
+
+  it("refuses an agent profile for a device-only request", async () => {
+    const enabled = createSessionGateway(
+      { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" },
+      { runtimes },
+    );
+    await expect(
+      enabled?.gateway.execute({
+        context: {
+          tenantId: "t",
+          userId: "u",
+          productId: "p",
+          permissions: ["interview.read"],
+        },
+        profileId: SESSION_AGENT_CLAUDE_PROFILE,
+        processingPolicy: "device-only",
+        task: { type: "structured-generation", prompt: "x" },
+      }),
+    ).rejects.toThrow(/device-only/);
+  });
+});
 
 describe("session gateway composition", () => {
   it("is null when no language model is configured", () => {

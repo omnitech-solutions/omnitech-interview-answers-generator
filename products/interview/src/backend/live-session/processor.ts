@@ -12,6 +12,7 @@
 // each of which opens an actor-scoped transaction for the session owner.
 
 import { dispatchCoding } from "./coding-path.js";
+import { CODING_ACTION_KIND } from "./coding-stage.js";
 import { revisionStanding } from "./core/index.js";
 import { SessionError } from "./errors.js";
 import type {
@@ -21,16 +22,21 @@ import type {
 import type { SessionTarget } from "./session-claim.js";
 import { type DispatchDeps, dispatchTask } from "./session-dispatch.js";
 import {
+  allSlots,
+  cancelSupersededSlots,
   createRun,
   nextPending,
   nextPendingCoding,
-  processUtterances,
+  occupySlot,
+  processInOrder,
   type RunSnapshot,
   type RunTracer,
+  releaseSlot,
   replayObservations,
   type SessionRun,
   seedFromActions,
   handledThrough,
+  slotFor,
 } from "./session-run.js";
 import { type SessionTraceEvent } from "./trace.js";
 
@@ -63,6 +69,9 @@ export function errorCode(error: unknown): string {
   return error instanceof SessionError ? error.code : "unexpected_error";
 }
 
+const slotsIdle = (run: SessionRun): boolean =>
+  allSlots(run).every((slot) => slot.inflight === null);
+
 export function createSessionProcessor(
   ports: SessionProcessorPorts,
   options: SessionProcessorOptions,
@@ -79,6 +88,9 @@ export function createSessionProcessor(
       : { runnerDeviceLocal: ports.runnerDeviceLocal }),
     ...(ports.agentEscalation
       ? { agentEscalation: ports.agentEscalation }
+      : {}),
+    ...(ports.visionProfileId
+      ? { visionProfileId: ports.visionProfileId }
       : {}),
   };
   const settings = { ...DEFAULTS, ...options };
@@ -151,7 +163,7 @@ export function createSessionProcessor(
         run.trace({ event: "session.cancel_jobs", outcome: errorCode(error) });
       }
     }
-    if (run.inflight === null) await drop(run, true);
+    if (slotsIdle(run)) await drop(run, true);
   }
 
   // Stores how far this holder has handled the transcript (a number), so a
@@ -174,6 +186,46 @@ export function createSessionProcessor(
         outcome: errorCode(error),
       });
     }
+  }
+
+  // Starts one dispatch in its slot. A thrown dispatch is retried by the
+  // bound, not forgotten: it counts toward the bound and settles ONLY its own
+  // slot's action as failed (best effort: if the store is still down the lease
+  // handover fails it as an orphan), so it never settles the other slot's.
+  function startSlot(
+    run: SessionRun,
+    sessionId: string,
+    task: { taskId: string; revision: number },
+    key: string,
+    actionKind: string,
+    start: () => Promise<void>,
+  ): boolean {
+    const slot = slotFor(run, actionKind);
+    occupySlot(run, slot, task.taskId, task.revision);
+    const flight = start()
+      .catch(async (error: unknown) => {
+        run.trace({ event: "dispatch.error", outcome: errorCode(error) });
+        run.failures.set(key, (run.failures.get(key) ?? 0) + 1);
+        const actionId = slot.actionId;
+        slot.actionId = null;
+        if (actionId !== null)
+          await store
+            .recordFailure({
+              scope: run.scope,
+              sessionId,
+              holder: run.holder,
+              actionId,
+            })
+            .catch(() => undefined);
+      })
+      .finally(() => {
+        // The dispatch has settled (or failed above): no action stays open,
+        // so a later failure cannot settle one that finished.
+        slot.actionId = null;
+        if (slot.inflight === flight) releaseSlot(slot);
+      });
+    slot.inflight = flight;
+    return true;
   }
 
   async function processRun(run: SessionRun): Promise<boolean> {
@@ -228,10 +280,19 @@ export function createSessionProcessor(
       // work can never publish). Once that work has ended, drop the run and
       // release the lease so the next claim builds a fresh run, re-seeds from
       // the stored actions and answers what the pause suppressed.
-      if (run.inflight === null) await drop(run, true);
+      if (slotsIdle(run)) await drop(run, true);
       return false;
     }
     if (run.mode !== "running") return false;
+
+    // [SAFETY] A tighten to device-only also ends remote work already in the
+    // air: every slot whose dispatch began as permitted-remote is aborted (its
+    // provider attempt is cancelled and its result can never publish); the next
+    // dispatch of that task runs under the device policy.
+    if (view.processingPolicy === "device-only")
+      for (const slot of allSlots(run))
+        if (slot.inflight !== null && slot.policy === "permitted-remote")
+          slot.abort?.abort();
 
     // Device-only means no remote job may launch: the agent worker claims any
     // queued job without a policy check, so a job queued before a tighten
@@ -261,7 +322,10 @@ export function createSessionProcessor(
       now,
       settings.observationPage,
     );
-    const handled = await processUtterances(
+    // Spoken utterances and owner inputs (Analyze latest capture, typed
+    // follow-ups) are applied in observation order, so a rebuilt run numbers
+    // revisions as the live run did and an input aimed at a spoken task finds it.
+    const { utterances: handled, inputs } = await processInOrder(
       run,
       policy,
       now,
@@ -270,59 +334,44 @@ export function createSessionProcessor(
 
     await persistHandled(run);
 
-    // At most one model call per session at a time; replay keeps going while
-    // it runs, so a newer revision makes an in-flight result stale. The prose
-    // draft is always first: a coding solution is owed only when no draft is
-    // pending, so coding never delays an answer.
+    // Two slots (ADR-0016): short assistance and coding each run at most one
+    // dispatch at a time, independently, so a spoken correction is answered
+    // while older coding still runs. Replay keeps going while they run, so a
+    // newer revision aborts the slot whose revision it passed; fenced
+    // publication still refuses a stale result.
+    cancelSupersededSlots(run);
     let started = false;
-    if (view.liveAssistance && run.inflight === null) {
-      const prose = nextPending(
-        run,
-        policy.assist.actionKind,
-        settings.maxAttempts,
-      );
-      const coding = prose
-        ? null
-        : nextPendingCoding(run, settings.maxAttempts);
-      const next = prose
-        ? { key: prose.key, start: () => dispatchTask(run, prose.task, deps) }
-        : coding
-          ? { key: coding.key, start: () => dispatchCoding(run, coding, deps) }
+    if (view.liveAssistance) {
+      const prose =
+        run.slots.assist.inflight === null
+          ? nextPending(run, policy.assist.actionKind, settings.maxAttempts)
           : null;
-      if (next) {
-        started = true;
-        const flight = next
-          .start()
-          .catch(async (error: unknown) => {
-            run.trace({ event: "dispatch.error", outcome: errorCode(error) });
-            // A thrown dispatch is retried by the bound, not forgotten: it
-            // counts toward the bound and its action is settled as failed, or
-            // it would stay in flight and every later tick would see it as a
-            // duplicate. Best effort: if the store is still down the lease
-            // handover fails it as an orphan.
-            run.failures.set(next.key, (run.failures.get(next.key) ?? 0) + 1);
-            const actionId = run.openActionId;
-            run.openActionId = null;
-            if (actionId !== null)
-              await store
-                .recordFailure({
-                  scope: run.scope,
-                  sessionId,
-                  holder: run.holder,
-                  actionId,
-                })
-                .catch(() => undefined);
-          })
-          .finally(() => {
-            // The dispatch has settled (or failed above): no action stays
-            // open, so a later failure cannot settle one that finished.
-            run.openActionId = null;
-            if (run.inflight === flight) run.inflight = null;
-          });
-        run.inflight = flight;
-      }
+      const coding =
+        run.slots.coding.inflight === null
+          ? nextPendingCoding(run, settings.maxAttempts)
+          : null;
+      if (prose)
+        started =
+          startSlot(
+            run,
+            sessionId,
+            prose.task,
+            prose.key,
+            policy.assist.actionKind,
+            () => dispatchTask(run, prose.task, deps),
+          ) || started;
+      if (coding)
+        started =
+          startSlot(
+            run,
+            sessionId,
+            coding.task,
+            coding.key,
+            CODING_ACTION_KIND,
+            () => dispatchCoding(run, coding, deps),
+          ) || started;
     }
-    return replayed > 0 || handled > 0 || started;
+    return replayed > 0 || handled > 0 || inputs > 0 || started;
   }
 
   async function claimNew(): Promise<boolean> {
@@ -369,6 +418,11 @@ export function createSessionProcessor(
       for (const target of await claim.purgeCandidates(settings.sweepBatch)) {
         try {
           const result = await store.purge(target);
+          try {
+            await ports.afterPurge?.(target);
+          } catch (error) {
+            targetTrace(target, "session.purge_staged", errorCode(error));
+          }
           emit({
             event: "session.purge",
             sessionId: target.sessionId,
@@ -404,7 +458,9 @@ export function createSessionProcessor(
   async function idle(): Promise<void> {
     for (;;) {
       const pending = [
-        ...[...runs.values()].map((run) => run.inflight),
+        ...[...runs.values()].flatMap((run) =>
+          allSlots(run).map((slot) => slot.inflight),
+        ),
         sweep,
       ].filter((promise): promise is Promise<void> => promise !== null);
       if (pending.length === 0) return;
@@ -417,7 +473,7 @@ export function createSessionProcessor(
       if (closed || signal.aborted) return false;
       let worked = false;
       try {
-        worked = await claimNew();
+        if (!settings.sweepOnly) worked = await claimNew();
       } catch (error) {
         emit(sweepFailure("claim", error));
       }

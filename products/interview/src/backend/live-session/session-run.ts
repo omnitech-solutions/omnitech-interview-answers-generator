@@ -9,9 +9,35 @@
 //
 // The core decides ordering, supersession, task identity and revisions; this
 // module only feeds it and never inspects utterance text. Screenshots are
-// stored by ingest but not interpreted here: image interpretation is refused in
-// device-only and belongs to loop 2.
-import { transcriptFinalSchema } from "@omnitech/active-session-contracts";
+// stored by ingest and never interpreted here: a screen snapshot is only
+// remembered by id, and an owner's Analyze request (an `owner.input`
+// observation, ADR-0016) names the exact snapshots a task revision rests on.
+// That provenance travels with the revision (basedOn: spoken segment ids,
+// `snap/...` snapshot ids and `input/...` owner-input ids), so replay,
+// supersession, publication checks and the purge all see it; image
+// interpretation is refused in device-only.
+//
+// Contents, in file order:
+//   types      PendingOwnerInput, SessionRun, ActionSlot
+//   slots      slotFor, allSlots, occupySlot, releaseSlot
+//   run        createRun, keyOf, requestOf
+//   restart    seedFromActions (what stored actions remember)
+//   replay     replayObservations, noteSnapshot, queueOwnerInput
+//   evidence   attachmentsFor, capturedFor
+//   apply      processInOrder (utterances and owner inputs in observation
+//              order), processOwnerInputs, processUtterances
+//   progress   noteRecorded, handledThrough, nextPending, nextPendingCoding
+//   cancel     cancelSupersededSlots
+import {
+  screenSnapshotSchema,
+  transcriptFinalSchema,
+} from "@omnitech/active-session-contracts";
+import type { AgentAttachment } from "@omnitech/ai-contracts";
+import { MAX_TASK_ATTACHMENTS } from "@omnitech/ai-contracts";
+import {
+  type LiveOwnerInputRequest,
+  liveOwnerInputRequestSchema,
+} from "@omnitech/interview-contracts";
 import type { CodeRunner } from "@omnitech/code-runner";
 import {
   ASSIST_ACTION_KIND,
@@ -32,6 +58,7 @@ import {
   type IdGenerator,
   markSegmentsSuperseded,
   processUtterance,
+  type ProcessingPolicy,
   type RememberedRevision,
   restoreTasks,
   TASK_ID_PREFIX,
@@ -43,12 +70,29 @@ import {
 } from "./core/index.js";
 import type { FenceHolder } from "./fenced-writes.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
+import {
+  isSnapshotProvenanceId,
+  ownerInputProvenanceId,
+  snapshotProvenanceId,
+} from "./owner-input.js";
 import type { SessionStorePort } from "./processor-ports.js";
 import type { OwnerScope } from "./scope.js";
 import type { SessionContext } from "./session-context.js";
 import type { SessionClaim } from "./session-claim.js";
 import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionTraceEvent } from "./trace.js";
+
+// An owner input replayed and waiting to be applied to the task state after the
+// spoken utterances have been (so a follow-up finds the task it targets).
+export type PendingOwnerInput = {
+  provenanceId: string;
+  input: LiveOwnerInputRequest;
+  // The observation sequence it was stored at: its place among the spoken
+  // utterances, so a replay applies it where the live run did.
+  sequence: number;
+  // Ticks it has been held back waiting for its target task to exist.
+  deferrals: number;
+};
 
 export type RunMode = "running" | "quiescing" | "superseded";
 
@@ -114,13 +158,93 @@ export type SessionRun = {
   // category coding), and the newest published solution per task.
   coding: Map<string, CodingCandidate>;
   solutions: Map<string, PriorSolution>;
-  // The action the running dispatch recorded, so a dispatch that throws can
-  // be settled as failed instead of stranded in flight.
-  openActionId: string | null;
-  inflight: Promise<void> | null;
+  // Screen snapshots this run has replayed, by provenance id (the media type
+  // the companion declared; the loader re-detects it from the bytes).
+  snapshots: Map<string, { mediaType: string }>;
+  // Owner inputs (ADR-0016) by provenance id, with the typed text they carry,
+  // and those replayed but not yet applied to the task state.
+  ownerInputs: Map<string, { text: string | null }>;
+  pendingInputs: PendingOwnerInput[];
+  // Two action slots (ADR-0016): short assistance (draft-answer) and coding
+  // (solve-code) each own their action id, in-flight promise and child abort,
+  // so a spoken question is never serialised behind older coding work.
+  slots: { assist: ActionSlot; coding: ActionSlot };
+  // The run's own abort; every slot's abort is a child of it.
   abort: AbortController;
   trace: RunTracer;
 };
+
+// One slot's state. `actionId` is the action the running dispatch recorded, so
+// a dispatch that throws settles ITS OWN action as failed instead of leaving it
+// stranded in flight; `taskId`/`revision` say which task revision the slot's
+// work was started for.
+export type ActionSlot = {
+  actionId: string | null;
+  inflight: Promise<void> | null;
+  abort: AbortController | null;
+  taskId: string | null;
+  revision: number;
+  // The processing policy the running dispatch read when it began; null until
+  // it has read one. A tighten to device-only aborts a "permitted-remote" one.
+  policy: ProcessingPolicy | null;
+  // Detaches the slot's child abort from the run's once the slot settles.
+  detach: (() => void) | null;
+};
+
+const emptySlot = (): ActionSlot => ({
+  actionId: null,
+  inflight: null,
+  abort: null,
+  taskId: null,
+  revision: 0,
+  policy: null,
+  detach: null,
+});
+
+// The slot an action kind runs in: the coding solution has its own, everything
+// else is short assistance.
+export const slotFor = (run: SessionRun, actionKind: string): ActionSlot =>
+  actionKind === CODING_ACTION_KIND ? run.slots.coding : run.slots.assist;
+
+export const allSlots = (run: SessionRun): ActionSlot[] => [
+  run.slots.assist,
+  run.slots.coding,
+];
+
+// Claims a slot for a task revision with a fresh child of the run's abort, so
+// aborting the run (quiesce, close, supersession) still aborts both slots.
+export function occupySlot(
+  run: SessionRun,
+  slot: ActionSlot,
+  taskId: string,
+  revision: number,
+): AbortController {
+  const child = new AbortController();
+  slot.detach?.();
+  slot.detach = null;
+  if (run.abort.signal.aborted) child.abort();
+  else {
+    const forward = () => child.abort();
+    run.abort.signal.addEventListener("abort", forward, { once: true });
+    // Removed when the slot settles, so a long-lived run does not accumulate
+    // one listener per dispatch.
+    slot.detach = () => run.abort.signal.removeEventListener("abort", forward);
+  }
+  slot.abort = child;
+  slot.taskId = taskId;
+  slot.revision = revision;
+  slot.actionId = null;
+  slot.policy = null;
+  return child;
+}
+
+// Called when a slot's dispatch has settled.
+export function releaseSlot(slot: ActionSlot): void {
+  slot.detach?.();
+  slot.detach = null;
+  slot.inflight = null;
+  slot.abort = null;
+}
 
 export function createRun(
   claim: SessionClaim,
@@ -150,8 +274,10 @@ export function createRun(
     context: null,
     coding: new Map(),
     solutions: new Map(),
-    openActionId: null,
-    inflight: null,
+    snapshots: new Map(),
+    ownerInputs: new Map(),
+    pendingInputs: [],
+    slots: { assist: emptySlot(), coding: emptySlot() },
     abort: new AbortController(),
     trace,
   };
@@ -399,6 +525,14 @@ export async function replayObservations(
     for (const stored of batch) {
       run.cursor = Math.max(run.cursor, stored.sequence);
       replayed += 1;
+      if (stored.kind === "screen.snapshot") {
+        noteSnapshot(run, stored);
+        continue;
+      }
+      if (stored.kind === "owner.input") {
+        queueOwnerInput(run, stored);
+        continue;
+      }
       if (stored.kind !== "transcript.final") continue;
       const body = (
         stored.content as { body?: unknown; sourceSequence?: number }
@@ -438,6 +572,177 @@ export async function replayObservations(
   }
 }
 
+// Remembers a replayed screen snapshot by its provenance id, so a task that
+// rests on it can name it as an attachment. Only the declared media type is
+// kept; the pixels are loaded, verified and staged later, by the loader.
+function noteSnapshot(run: SessionRun, stored: StoredObservation): void {
+  const body = (stored.content as { body?: unknown }).body;
+  const parsed = screenSnapshotSchema.shape.content.safeParse(body);
+  if (!parsed.success || stored.screenshotArtifactId === null) return;
+  run.snapshots.set(
+    snapshotProvenanceId(run.claim.sessionId, stored.sourceId, stored.eventId),
+    { mediaType: parsed.data.mediaType },
+  );
+}
+
+// Queues a replayed owner input. One already part of a remembered task
+// revision (its provenance id is in the restored, processed set) was applied by
+// a previous holder and is never applied again.
+function queueOwnerInput(run: SessionRun, stored: StoredObservation): void {
+  const provenanceId = ownerInputProvenanceId(stored.eventId);
+  const body = (stored.content as { body?: unknown }).body;
+  const parsed = liveOwnerInputRequestSchema.safeParse({
+    ...(typeof body === "object" && body !== null ? body : {}),
+    requestId: stored.eventId,
+  });
+  if (!parsed.success) {
+    run.trace({ event: "observation.unreadable", outcome: "invalid" });
+    return;
+  }
+  run.ownerInputs.set(provenanceId, { text: parsed.data.text ?? null });
+  if (run.processed.has(provenanceId)) return;
+  run.pendingInputs.push({
+    provenanceId,
+    input: parsed.data,
+    sequence: stored.sequence,
+    deferrals: 0,
+  });
+}
+
+// A task's provenance ids: everything any of its revisions rests on.
+const provenanceOf = (task: Task): string[] => [
+  ...new Set(task.revisions.flatMap((entry) => entry.basedOn)),
+];
+
+// The images a task revision's answer rests on, newest last and bounded, as
+// attachments that name only provenance ids (the loader resolves them).
+export function attachmentsFor(run: SessionRun, task: Task): AgentAttachment[] {
+  return provenanceOf(task)
+    .filter(isSnapshotProvenanceId)
+    .slice(-MAX_TASK_ATTACHMENTS)
+    .map((id, index) => ({
+      id,
+      kind: "image" as const,
+      name: `screenshot-${index + 1}`,
+      reference: id,
+      ...(run.snapshots.get(id)
+        ? {
+            mimeType: (run.snapshots.get(id) as { mediaType: string })
+              .mediaType,
+          }
+        : {}),
+    }));
+}
+
+// Applies one queued owner input to the task state. An owner input is never a
+// transcript segment: an analyze or typed question opens its own task (named
+// after its request id, so a rebuilt run names it the same), and an input aimed
+// at an existing task revises it. The revision rests on the input's and
+// snapshots' provenance ids, which the action row remembers, so replay,
+// supersession and the purge all see them.
+function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
+  const { input, provenanceId } = pending;
+  const target = input.target
+    ? run.tasks.tasks[input.target.taskId]
+    : undefined;
+  const provenance = [
+    provenanceId,
+    ...input.snapshots.map((snapshot) =>
+      snapshotProvenanceId(
+        run.claim.sessionId,
+        snapshot.sourceId,
+        snapshot.eventId,
+      ),
+    ),
+  ];
+  const utterance: Utterance = {
+    id: provenanceId,
+    speaker: "owner",
+    segmentIds: provenance,
+    startMs: 0,
+    endMs: 0,
+    text: "",
+  };
+  const step = applyVerdict(
+    run.tasks,
+    utterance,
+    "substantive",
+    target
+      ? { kind: "revise", taskId: target.taskId, reason: "follow_up" }
+      : { kind: "open", taskKey: `i.${input.requestId}` },
+    idsOf(run),
+  );
+  run.tasks = step.state;
+  fromCore(run, step.trace);
+  for (const id of provenance) run.processed.add(id);
+}
+
+// Applies queued owner inputs to the task state, in arrival order, after the
+// spoken utterances. Returns how many inputs were applied.
+export function processOwnerInputs(run: SessionRun): number {
+  let handled = 0;
+  const waiting: PendingOwnerInput[] = [];
+  const spokenPending = effectiveSegments(run.transcript).some(
+    (segment) => !run.processed.has(segment.eventId),
+  );
+  for (const pending of run.pendingInputs) {
+    const { input } = pending;
+    // A target that is not a task yet may be one of the utterances still
+    // settling: wait one pass for it, then treat the input as a new question.
+    if (
+      input.target &&
+      !run.tasks.tasks[input.target.taskId] &&
+      spokenPending &&
+      pending.deferrals < 1
+    ) {
+      pending.deferrals += 1;
+      waiting.push(pending);
+      continue;
+    }
+    applyOwnerInput(run, pending);
+    handled += 1;
+  }
+  run.pendingInputs = waiting;
+  return handled;
+}
+
+// Spoken utterances and owner inputs in OBSERVATION order, so a rebuilt run
+// numbers every task revision as the live run did: each input is applied only
+// after every utterance stored before it has been processed, and an utterance
+// stored after it is never coalesced into one before it. An earlier utterance
+// still settling holds the input (and any later one) for the next pass.
+export async function processInOrder(
+  run: SessionRun,
+  policy: InterviewSessionPolicy,
+  nowMs: number,
+  settleMs: number,
+): Promise<{ utterances: number; inputs: number }> {
+  let utterances = 0;
+  let inputs = 0;
+  const ordered = [...run.pendingInputs].sort(
+    (a, b) => a.sequence - b.sequence,
+  );
+  for (const pending of ordered) {
+    utterances += await processUtterances(
+      run,
+      policy,
+      nowMs,
+      settleMs,
+      pending.sequence,
+    );
+    const earlierOpen = effectiveSegments(run.transcript).some(
+      (segment) =>
+        segment.seq < pending.sequence && !run.processed.has(segment.eventId),
+    );
+    if (earlierOpen) break;
+    applyOwnerInput(run, pending);
+    run.pendingInputs = run.pendingInputs.filter((entry) => entry !== pending);
+    inputs += 1;
+  }
+  utterances += await processUtterances(run, policy, nowMs, settleMs);
+  return { utterances, inputs };
+}
+
 // The task a corrected segment replaces the source of: some revision was built
 // on the superseded segment this utterance's segment supersedes.
 function correctionTarget(
@@ -472,13 +777,17 @@ export async function processUtterances(
   policy: InterviewSessionPolicy,
   nowMs: number,
   settleMs: number,
+  // Only segments stored before this observation sequence are considered
+  // (an owner input's place among the utterances).
+  beforeSequence = Number.POSITIVE_INFINITY,
 ): Promise<number> {
   // [STATE] Closed utterances are out of the picture: what is left coalesces
   // into new utterances, so a question that follows an already-handled
   // statement of the same speaker is still evaluated.
   const utterances = coalesceSegments(
     effectiveSegments(run.transcript).filter(
-      (segment) => !run.processed.has(segment.eventId),
+      (segment) =>
+        !run.processed.has(segment.eventId) && segment.seq < beforeSequence,
     ),
     (segment) => policy.isBackchannel(segment.text),
   );
@@ -605,12 +914,19 @@ export function nextPendingCoding(
 // effective segments, so a "part two" carries the question it follows.
 export function capturedFor(run: SessionRun, task: Task) {
   const ids = new Set(task.revisions.flatMap((entry) => entry.basedOn));
-  return Object.values(run.transcript.segments)
+  const spoken = Object.values(run.transcript.segments)
     .filter(
       (segment) => ids.has(segment.eventId) && segment.supersededBy === null,
     )
     .sort((a, b) => a.startMs - b.startMs || a.seq - b.seq)
     .map((segment) => ({ speaker: segment.speaker, text: segment.text }));
+  // The owner's typed text follows the spoken lines it was written after. It
+  // is the owner's own words, but it still travels as captured data.
+  const typed = [...ids].flatMap((id) => {
+    const text = run.ownerInputs.get(id)?.text;
+    return text ? [{ speaker: "owner", text }] : [];
+  });
+  return [...spoken, ...typed];
 }
 
 // What a test or an operator may read about a run: ids, revisions, counts.
@@ -625,3 +941,14 @@ export type RunSnapshot = {
   }[];
   deferred: string[];
 };
+
+// Aborts the work of any slot whose task revision the task has moved past (a
+// correction replaced it, or the task is gone). The slot stays occupied until
+// its dispatch settles; fenced publication refuses its result either way.
+export function cancelSupersededSlots(run: SessionRun): void {
+  for (const slot of allSlots(run)) {
+    if (slot.inflight === null || slot.taskId === null) continue;
+    const task = run.tasks.tasks[slot.taskId];
+    if (!task || task.revision > slot.revision) slot.abort?.abort();
+  }
+}

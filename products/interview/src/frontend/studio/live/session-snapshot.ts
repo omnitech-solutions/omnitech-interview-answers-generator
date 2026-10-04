@@ -19,7 +19,9 @@ export type SessionCommand =
   | "revoke"
   | "tighten"
   | "shorten"
-  | "delete";
+  | "delete"
+  | "analyze"
+  | "follow-up";
 
 export type LiveSnapshot = {
   tenant: string;
@@ -75,6 +77,10 @@ export type SessionActions = {
   // Shorten only: the server answers retention_lengthening_refused otherwise.
   shortenRetention(retention: LiveRetentionMode): Promise<CommandResult>;
   deleteSession(): Promise<CommandResult>;
+  // Owner input: thin calls to the session deps. "unavailable" when the server
+  // has no such route; "invalid_input" for an empty follow-up.
+  analyzeLatestCapture(): Promise<CommandResult>;
+  submitFollowUp(text: string): Promise<CommandResult>;
   // Forget the held credential (the owner has handed it over).
   dismissPairing(): void;
   // Leave a finished session's summary for a fresh setup. Only a finished
@@ -86,11 +92,21 @@ export type SessionActions = {
   refresh(): Promise<void>;
 };
 
+export type DocumentVisibility = {
+  isVisible(): boolean;
+  // Calls back when it becomes visible or hidden; returns the remover.
+  onChange(listener: () => void): () => void;
+};
+
 export type SessionStore = {
   // useSyncExternalStore pair. The first subscriber hydrates the store.
   subscribe(listener: () => void): () => void;
   getSnapshot(): LiveSnapshot;
   actions: SessionActions;
+  // Another document (the floating window) that shows the session: polling
+  // continues while it or the page is visible. Same loop, no second poll.
+  // Returns the remover.
+  watchDocument(source: DocumentVisibility): () => void;
   // Cancel timers and drop listeners; the store is not used afterwards.
   dispose(): void;
 };

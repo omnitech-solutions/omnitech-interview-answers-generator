@@ -149,6 +149,25 @@ describe("session client", () => {
     });
   });
 
+  it("posts owner input to the session's input route and reads the acknowledgement", async () => {
+    const { client, calls } = clientWith(
+      jsonResponse({ input: { requestId: "r-1", sequence: 4 } }, 202),
+      jsonResponse({ error: { code: "status_refused" } }, 409),
+    );
+    const input = {
+      requestId: "r-1",
+      operation: "analyze" as const,
+      snapshots: [{ sourceId: "screen", eventId: "evt-2" }],
+    };
+    await client.sendOwnerInput(SESSION_ID, input);
+    expect(calls[0]?.url).toBe(`${base}/${SESSION_ID}/input`);
+    expect(calls[0]?.init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual(input);
+    expect(
+      await client.sendOwnerInput(SESSION_ID, input).catch((e) => e),
+    ).toMatchObject({ code: "status_refused", status: 409 });
+  });
+
   it("never copies a response body into an error", async () => {
     const { client } = clientWith(
       new Response("<html>secret transcript text</html>", { status: 500 }),

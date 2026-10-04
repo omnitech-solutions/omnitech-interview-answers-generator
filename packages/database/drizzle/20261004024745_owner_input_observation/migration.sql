@@ -1,0 +1,2 @@
+ALTER TABLE "interview"."session_observations" ADD CONSTRAINT "session_observations_owner_source_check" CHECK ((kind = 'owner.input') = (source_id = 'studio.owner-input'));--> statement-breakpoint
+ALTER TABLE "interview"."session_observations" DROP CONSTRAINT "session_observations_kind_check", ADD CONSTRAINT "session_observations_kind_check" CHECK (kind IN ('transcript.final', 'screen.snapshot', 'source.disconnected', 'capture.gap', 'owner.input'));

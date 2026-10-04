@@ -1113,3 +1113,84 @@ describe("companion capability and ingest hardening over HTTP", () => {
     });
   });
 });
+
+describe("owner input route (ADR-0016)", () => {
+  const input = (overrides: Record<string, unknown> = {}) => ({
+    requestId: `r-${randomUUID().slice(0, 8)}`,
+    operation: "follow-up",
+    text: "and the cost?",
+    snapshots: [],
+    ...overrides,
+  });
+
+  it("accepts the owner's input with 202 and never echoes it on the stream", async () => {
+    const owner = await begin("input-ok");
+    as(null);
+    await ingest(owner.credential, transcript("mic", 0, "hello", "i-1"));
+    as(owner.person);
+    const body = input();
+    const response = await post(`/${owner.id}/input`, body);
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({
+      input: { requestId: body.requestId, sequence: 2 },
+    });
+    // A resend is acknowledged with the original.
+    expect(await (await post(`/${owner.id}/input`, body)).json()).toEqual({
+      input: { requestId: body.requestId, sequence: 2 },
+    });
+    // The owner's own words are not sent back down the stream.
+    const stream = await get(`/${owner.id}/stream`);
+    const text = await stream.text();
+    expect(text).not.toContain("and the cost?");
+    expect(text).not.toContain("owner.input");
+  });
+
+  it("needs a signed-in member with interview.write, same-origin, and the owner's own session", async () => {
+    const owner = await begin("input-auth");
+    as(null);
+    expect((await post(`/${owner.id}/input`, input())).status).toBe(401);
+    as(await member("input-other"));
+    expect((await post(`/${owner.id}/input`, input())).status).toBe(404);
+    as(owner.person);
+    permissions = ["interview.read"];
+    try {
+      expect((await post(`/${owner.id}/input`, input())).status).toBe(401);
+    } finally {
+      permissions = ["interview.read", "interview.write"];
+    }
+    const crossSite = await app().request(`${base()}/${owner.id}/input`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "sec-fetch-site": "cross-site",
+      },
+      body: JSON.stringify(input()),
+    });
+    expect(crossSite.status).toBe(403);
+  });
+
+  it("maps a bad body, an unknown snapshot and an ended session to fixed codes", async () => {
+    const owner = await begin("input-errors");
+    expect(
+      (await post(`/${owner.id}/input`, { operation: "analyze" })).status,
+    ).toBe(400);
+    const unknown = await post(
+      `/${owner.id}/input`,
+      input({
+        operation: "analyze",
+        text: undefined,
+        snapshots: [{ sourceId: "scr", eventId: "ghost" }],
+      }),
+    );
+    expect(unknown.status).toBe(400);
+    expect(await unknown.json()).toEqual({ error: { code: "invalid_input" } });
+    await post(`/${owner.id}/control`, {
+      version: 1,
+      kind: "session.control",
+      action: "end",
+    });
+    const ended = await post(`/${owner.id}/input`, input());
+    expect(ended.status).toBe(409);
+    expect(await ended.json()).toEqual({ error: { code: "status_refused" } });
+  });
+});

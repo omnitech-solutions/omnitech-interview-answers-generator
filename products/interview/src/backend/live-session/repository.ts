@@ -35,6 +35,7 @@ import {
 } from "./mapping.js";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
 import { getSessionChoices } from "./session-choices.js";
+import { storeOwnerInput } from "./owner-input.js";
 import { mintSessionCredential } from "./session-credential.js";
 import {
   type CancellationSummary,
@@ -551,9 +552,17 @@ export class ActiveSessionRepository {
   listObservations(
     scope: OwnerScope,
     sessionId: string,
-    options?: { afterSequence?: number; limit?: number },
+    options?: {
+      afterSequence?: number;
+      limit?: number;
+      excludeOwnerInput?: boolean;
+    },
   ) {
     return listObservations(this.database, scope, sessionId, options);
+  }
+  // The owner's own request for assistance (ADR-0016): stored DB-side only.
+  submitOwnerInput(scope: OwnerScope, sessionId: string, input: unknown) {
+    return storeOwnerInput(this.database, scope, sessionId, input);
   }
   listActions(
     scope: OwnerScope,

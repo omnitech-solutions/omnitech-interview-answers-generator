@@ -42,6 +42,7 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
     "agent-execution-identities",
     "document-generation-batches",
     "document-generation-batch-usage",
+    "owner_input_observation",
   ]);
 
   // No workflow engine exists: no thread table, no conversation link to one,

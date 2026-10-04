@@ -32,7 +32,11 @@ import {
   mergeObservations,
   serverClockOffset,
 } from "./session-merge";
-import type { LiveSnapshot, SessionStore } from "./session-snapshot";
+import type {
+  DocumentVisibility,
+  LiveSnapshot,
+  SessionStore,
+} from "./session-snapshot";
 
 export function createSessionStore(
   tenant: string,
@@ -62,6 +66,12 @@ export function createSessionStore(
   let watching = false;
   let disposed = false;
   let removeVisibility: (() => void) | null = null;
+  // Other documents showing this session (the floating window).
+  const documents = new Set<DocumentVisibility>();
+  const documentRemovers = new Map<DocumentVisibility, () => void>();
+  // Visible while the page or any watched document is: one loop, one clock.
+  const visible = () =>
+    deps.isVisible() || [...documents].some((doc) => doc.isVisible());
   let timer: unknown = null;
   // True while the loop is waiting on a hydration, a read or a purge check, so
   // no second one starts beside it.
@@ -199,7 +209,7 @@ export function createSessionStore(
     busy = false;
     if (halted) return;
     // The next read waits for the page to be visible again.
-    if (!watching || disposed || !deps.isVisible()) return;
+    if (!watching || disposed || !visible()) return;
     const latest = snapshot.session;
     if (latest && isOpen(latest))
       schedule(
@@ -261,7 +271,7 @@ export function createSessionStore(
     const session = snapshot.session;
     if (!session) return;
     if (isOpen(session)) {
-      if (deps.isVisible() && !halted) void pump();
+      if (visible() && !halted) void pump();
       return;
     }
     if (session.status === "purging") {
@@ -315,7 +325,7 @@ export function createSessionStore(
 
   function onVisibility() {
     clearTimer();
-    if (deps.isVisible()) ensureRunning();
+    if (visible()) ensureRunning();
   }
 
   const actions = createSessionActions({
@@ -361,6 +371,10 @@ export function createSessionStore(
       halted = false;
       settleAttempts = 0;
     },
+    ...(deps.analyzeLatestCapture
+      ? { analyzeLatestCapture: deps.analyzeLatestCapture }
+      : {}),
+    ...(deps.submitFollowUp ? { submitFollowUp: deps.submitFollowUp } : {}),
     async refresh() {
       failures = 0;
       halted = false;
@@ -390,11 +404,25 @@ export function createSessionStore(
     },
     getSnapshot: () => snapshot,
     actions,
+    watchDocument(source) {
+      documents.add(source);
+      documentRemovers.set(source, source.onChange(onVisibility));
+      // A document that is visible while the page is hidden resumes the loop.
+      if (watching && !disposed) ensureRunning();
+      return () => {
+        documentRemovers.get(source)?.();
+        documentRemovers.delete(source);
+        documents.delete(source);
+      };
+    },
     dispose() {
       disposed = true;
       watching = false;
       removeVisibility?.();
       removeVisibility = null;
+      for (const remove of documentRemovers.values()) remove();
+      documentRemovers.clear();
+      documents.clear();
       clearTimer();
       listeners.clear();
     },

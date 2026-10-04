@@ -61,7 +61,14 @@ export const observationKinds = [
   "screen.snapshot",
   "source.disconnected",
   "capture.gap",
+  // DB-only (ADR-0016): the owner's own request for assistance. It is not
+  // part of the capture wire and the companion credential cannot store it.
+  "owner.input",
 ] as const;
+// The reserved source id of `owner.input` observations. The capture wire
+// refuses it as a sender's source id, and the CHECK below keeps the pairing
+// exact, so a companion can never pre-claim an owner input's dedup key.
+export const OWNER_INPUT_SOURCE_ID = "studio.owner-input";
 export const dispatchStatuses = [
   "in_flight",
   "succeeded",
@@ -295,6 +302,10 @@ export const sessionObservations = interview.table.withRLS(
     }),
     check("session_observations_kind_check", inList("kind", observationKinds)),
     check("session_observations_sequence_check", sql`sequence >= 0`),
+    check(
+      "session_observations_owner_source_check",
+      sql`(kind = 'owner.input') = (source_id = '${sql.raw(OWNER_INPUT_SOURCE_ID)}')`,
+    ),
     check(
       "session_observations_artifact_kind_check",
       sql`screenshot_artifact_id IS NULL OR kind = 'screen.snapshot'`,

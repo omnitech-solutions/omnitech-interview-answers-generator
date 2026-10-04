@@ -1193,6 +1193,8 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
       codeRunner: "sandboxed test run",
       runnerDeviceLocal: "host declaration",
       agentEscalation: "typed job profile and prompt store",
+      visionProfileId: "host declaration",
+      afterPurge: "host cleanup of staged content",
     };
     const external =
       /send|submit|type|click|keyboard|mouse|post|email|message|operate|automat|webhook|http/i;

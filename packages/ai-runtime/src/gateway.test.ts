@@ -254,6 +254,45 @@ describe("AI execution gateway", () => {
     ]);
   });
 
+  it("forwards attachments to an agent profile only, bounded, never text-only", async () => {
+    const { gateway: ai, calls } = gateway();
+    const attachment = (id: string) => ({
+      id,
+      kind: "image" as const,
+      name: id,
+      reference: `/stage/${id}.png`,
+      mimeType: "image/png",
+    });
+    const withAttachments = (profileId: string, count: number) => ({
+      ...request(
+        profileId,
+        profileId === "coach" ? "agent-job" : "text-generation",
+      ),
+      task: {
+        type: (profileId === "coach" ? "agent-job" : "text-generation") as
+          | "agent-job"
+          | "text-generation",
+        prompt: "look",
+        attachments: Array.from({ length: count }, (_, i) =>
+          attachment(`a${i}`),
+        ),
+      },
+    });
+
+    await ai.execute(withAttachments("coach", 1));
+    expect(calls).toEqual(["execute:coach"]);
+    await expect(ai.execute(withAttachments("writer", 1))).rejects.toThrow(
+      "does not accept attachments",
+    );
+    await expect(ai.execute(withAttachments("coach", 5))).rejects.toThrow(
+      "too many attachments",
+    );
+    // An empty list is no attachment at all.
+    await expect(
+      ai.execute(withAttachments("writer", 0)),
+    ).resolves.toBeDefined();
+  });
+
   it("streams a model profile's events", async () => {
     const events = await collect(
       gateway().gateway.stream(request("writer", "streaming-chat")),

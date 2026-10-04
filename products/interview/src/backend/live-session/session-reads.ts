@@ -66,7 +66,13 @@ export async function listObservations(
   database: PlatformDatabase,
   scope: OwnerScope,
   sessionId: string,
-  options: { afterSequence?: number; limit?: number } = {},
+  options: {
+    afterSequence?: number;
+    limit?: number;
+    // The browser's stream never carries the owner's own inputs back to it
+    // (they are DB-side only); the worker reads every kind.
+    excludeOwnerInput?: boolean;
+  } = {},
 ): Promise<StoredObservation[]> {
   assertUuid(sessionId);
   const after = options.afterSequence ?? 0;
@@ -82,6 +88,7 @@ export async function listObservations(
           WHERE tenant_id = ${scope.tenantId}::uuid
             AND owner_user_id = ${scope.actorId}::uuid
             AND session_id = ${sessionId}::uuid AND sequence > ${after}
+            ${options.excludeOwnerInput ? sql`AND kind <> 'owner.input'` : sql``}
           ORDER BY sequence LIMIT ${limit}`,
     );
     return rows.map((row) => ({

@@ -113,12 +113,14 @@ export function TaskPanel({
   session,
   policy,
   onCopy,
+  showWorkspaceLink = true,
 }: {
   task: TaskView;
   number: number;
   session: LiveSessionView | null;
   policy: LiveProcessingPolicy | null;
   onCopy(text: string): void;
+  showWorkspaceLink?: boolean;
 }) {
   const kind = TASK_KIND[task.kind];
   const noticed = noticesFor(task, policy).length > 0;
@@ -138,7 +140,11 @@ export function TaskPanel({
       </header>
       <RunNotices task={task} policy={policy} />
       {task.kind === "programming-challenge" ? (
-        <CodingPanel task={task} session={session} />
+        <CodingPanel
+          task={task}
+          session={session}
+          showWorkspaceLink={showWorkspaceLink}
+        />
       ) : task.answer ? (
         <AnswerBody task={task} answer={task.answer} onCopy={onCopy} />
       ) : (

@@ -1,0 +1,166 @@
+// Analyze latest capture and typed follow-ups end to end through the real
+// store, the real session client and the real Focus view, against a scripted
+// server: the request names the newest snapshot by its observation ids (and a
+// follow-up the task revision last answered), carries no bytes or identity,
+// and the answer the server then publishes shows up in the Focus view.
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LiveFloatHost } from "./float-host";
+import { presentation } from "./focus-presentation";
+import { LiveSessionView } from "./live-view";
+import { answerAction } from "./live-view-kit";
+import {
+  jsonResponse,
+  minutesAfter,
+  sessionView,
+  snapshot,
+  streamPage,
+} from "./session-fixtures";
+import { resetSessionStores, configureSessionStores } from "./session-registry";
+import { answerResult } from "./session-result-fixtures";
+import { createTestServer, type TestServer } from "./session-test-server";
+
+const studio = {} as never;
+let server: TestServer;
+let page: ReturnType<typeof streamPage>;
+let bodies: unknown[] = [];
+
+const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+const click = async (name: string | RegExp) => {
+  fireEvent.click(screen.getByRole("button", { name }));
+  await flush();
+};
+
+async function openFocus() {
+  render(
+    <>
+      <LiveSessionView rest={[]} studio={studio} />
+      <LiveFloatHost />
+    </>,
+  );
+  await flush();
+  await flush();
+  await click("Focus view");
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(minutesAfter(1)));
+  window.history.replaceState({}, "", "/");
+  resetSessionStores();
+  presentation.reset();
+  bodies = [];
+  page = streamPage({
+    // Two captures: the request must name the newest.
+    observations: [snapshot(1), snapshot(2, "Problem statement")],
+    nextAfterSequence: 2,
+    actions: [
+      answerAction(answerResult(), { taskId: "task-spoken", taskRevision: 2 }),
+    ],
+  });
+  server = createTestServer(() => page);
+  server.on("GET /current", () => jsonResponse({ session: sessionView() }));
+  configureSessionStores({
+    fetch: server.fetch,
+    isVisible: () => true,
+    storage: { read: () => null, write: () => {}, remove: () => {} },
+  });
+});
+afterEach(() => {
+  presentation.reset();
+  resetSessionStores();
+  vi.useRealTimers();
+});
+
+describe("Analyze latest capture and follow-ups", () => {
+  it("sends the newest snapshot's observation ids and shows the answer that follows", async () => {
+    server.on("POST /:id/input", ({ body }) => {
+      bodies.push(body);
+      // The worker answers the screenshot as a new task; the stream carries it.
+      page = {
+        ...page,
+        actions: [
+          ...page.actions,
+          answerAction(
+            answerResult({ draft: "Read the screenshot: a sliding window." }),
+            {
+              taskId: "task-i.r-1",
+              taskRevision: 1,
+              createdAt: minutesAfter(2),
+            },
+          ),
+        ],
+      };
+      return jsonResponse(
+        {
+          input: {
+            requestId: (body as { requestId: string }).requestId,
+            sequence: 9,
+          },
+        },
+        202,
+      );
+    });
+    await openFocus();
+    await click(/Analyze latest capture/);
+    expect(bodies).toHaveLength(1);
+    const sent = bodies[0] as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      operation: "analyze",
+      snapshots: [{ sourceId: "screen", eventId: "evt-2" }],
+    });
+    expect(sent["requestId"]).toEqual(expect.stringMatching(/^r-/));
+    // No bytes, paths, text or identity travel with it.
+    expect(Object.keys(sent).sort()).toEqual(
+      ["operation", "requestId", "snapshots"].sort(),
+    );
+    await advance(1_500);
+    expect(
+      screen.getByText("Read the screenshot: a sliding window."),
+    ).toBeVisible();
+  });
+
+  it("sends a typed follow-up aimed at the task revision last answered", async () => {
+    server.on("POST /:id/input", ({ body }) => {
+      bodies.push(body);
+      return jsonResponse({ input: { requestId: "r", sequence: 3 } }, 202);
+    });
+    await openFocus();
+    fireEvent.change(screen.getByLabelText("Follow-up"), {
+      target: { value: "  and the cost?  " },
+    });
+    await click("Send follow-up");
+    expect(bodies[0]).toMatchObject({
+      operation: "follow-up",
+      text: "and the cost?",
+      target: { taskId: "task-spoken", revision: 2 },
+      snapshots: [],
+    });
+  });
+
+  it("explains a refusal from the server in the Focus view", async () => {
+    server.on("POST /:id/input", () =>
+      jsonResponse({ error: { code: "status_refused" } }, 409),
+    );
+    await openFocus();
+    await click(/Analyze latest capture/);
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(server.count("POST /:id/input")).toBe(1);
+  });
+
+  it("with no capture yet, asks for nothing and sends nothing", async () => {
+    page = { ...page, observations: [], nextAfterSequence: 0 };
+    server.on("POST /:id/input", ({ body }) => {
+      bodies.push(body);
+      return jsonResponse({ input: { requestId: "r", sequence: 1 } }, 202);
+    });
+    await openFocus();
+    const analyze = screen.getByRole("button", {
+      name: /Analyze latest capture/,
+    });
+    if (!(analyze as HTMLButtonElement).disabled) fireEvent.click(analyze);
+    await flush();
+    expect(bodies).toEqual([]);
+  });
+});

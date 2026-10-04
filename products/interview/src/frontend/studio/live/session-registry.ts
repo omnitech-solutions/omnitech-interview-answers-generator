@@ -1,6 +1,7 @@
 // One session store per tenant slug, for the life of the page. A module-level
 // registry (not React state) is what lets the session outlive every view.
 import { studioFetch } from "../studio-fetch";
+import { ownerInputDeps } from "./session-owner-input";
 import type { StoreDeps } from "./session-deps";
 import { createSessionStore } from "./session-store";
 import type { SessionStore } from "./session-snapshot";
@@ -42,7 +43,17 @@ let overrides: Partial<StoreDeps> = {};
 export function getSessionStore(tenant: string): SessionStore {
   let store = stores.get(tenant);
   if (!store) {
-    store = createSessionStore(tenant, { ...browserDeps(), ...overrides });
+    const created: { current?: SessionStore } = {};
+    const deps = { ...browserDeps(), ...overrides };
+    store = createSessionStore(tenant, {
+      // Owner input reads the store's own held snapshot (the newest capture and
+      // the task last answered), so it is built beside the store.
+      ...ownerInputDeps(tenant, deps.fetch, () =>
+        (created.current as SessionStore).getSnapshot(),
+      ),
+      ...deps,
+    });
+    created.current = store;
     stores.set(tenant, store);
   }
   return store;

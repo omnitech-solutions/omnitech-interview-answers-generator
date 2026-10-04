@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import type { StudioActions } from "../config/commands";
 import { EndedView, SessionNotFound } from "./ended-view";
+import { FocusView } from "./focus-view";
+import { focusInTab, usePresentation } from "./focus-presentation";
 import { LiveSessionPanel } from "./live-session-view";
 import { SetupView } from "./setup-view";
 import { useLiveSession } from "./use-live-session";
@@ -14,7 +16,14 @@ export type LiveSessionViewProps = {
 // The Live session view: setup, the live session and the ended summary are
 // states of one view, chosen from the session store, not from this component's
 // own state, so leaving and coming back lands on the same screen.
-export function LiveSessionView({ rest, studio }: LiveSessionViewProps) {
+export function LiveSessionView(props: LiveSessionViewProps) {
+  // The float host lives in the Studio shell (studio.tsx), not here, so the
+  // floating window persists across pages.
+  return <LiveSessionState {...props} />;
+}
+
+function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
+  const presented = usePresentation();
   const { snapshot, actions, model } = useLiveSession();
   const requested = rest[0];
 
@@ -51,7 +60,12 @@ export function LiveSessionView({ rest, studio }: LiveSessionViewProps) {
   // The address names a session the server does not know.
   if (requested && snapshot.notFoundSessionId === requested)
     return <SessionNotFound studio={studio} />;
-  if (model.phase === "open") return <LiveSessionPanel studio={studio} />;
+  if (model.phase === "open")
+    return focusInTab(presented) ? (
+      <FocusView />
+    ) : (
+      <LiveSessionPanel studio={studio} />
+    );
   if (model.phase === "finished") return <EndedView studio={studio} />;
   return <SetupView studio={studio} />;
 }

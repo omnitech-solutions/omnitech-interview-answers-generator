@@ -10,6 +10,8 @@ describe("Codex agent runtime", () => {
       structuredOutput: true,
       attachments: true,
       tools: true,
+      imageInput: true,
+      toolless: true,
     });
   });
 });

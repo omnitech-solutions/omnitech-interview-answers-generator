@@ -137,6 +137,19 @@ describe("validateObservation", () => {
     });
   });
 
+  it("refuses owner.input: the owner's own requests never cross the capture wire", () => {
+    const result = validateObservation({
+      ...envelope,
+      sourceId: "studio.owner-input",
+      kind: "owner.input",
+      content: { operation: "follow-up", text: "hello" },
+    });
+    expect(result).toEqual({
+      ok: false,
+      issues: [{ path: ["kind"], code: "unknown_kind" }],
+    });
+  });
+
   it("refuses an audio kind: no raw audio crosses the wire", () => {
     const result = validateObservation({
       ...envelope,
