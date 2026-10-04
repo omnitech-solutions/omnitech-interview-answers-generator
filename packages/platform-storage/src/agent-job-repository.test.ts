@@ -462,6 +462,58 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
   );
 });
 
+it("keeps one execution identity across an awaiting-input suspension", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
+  while (await worker.claim("drain-before-suspension", 60_000)) {}
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:question",
+  });
+  const claimed = await worker.claim("suspended-claim", 30_000);
+  expect(claimed?.id).toBe(created.id);
+  expect(
+    await worker.transition(
+      created.id,
+      ["claimed"],
+      "running",
+      "suspended-claim",
+    ),
+  ).toBe(true);
+  await worker.setSessionId(created.id, "owner-session", "suspended-claim");
+  expect(
+    await worker.finalize(
+      created.id,
+      ["running"],
+      "awaiting-input",
+      { type: "awaiting-input", request: "Continue?" },
+      "suspended-claim",
+    ),
+  ).toBe(true);
+  expect(
+    await repository.requestResume(
+      tenantId,
+      userId,
+      created.id,
+      "agent-payload:answer",
+    ),
+  ).toBe(true);
+  expect(await repository.get(tenantId, userId, created.id)).toMatchObject({
+    status: "queued",
+    executionId: created.executionId,
+    sessionId: "owner-session",
+  });
+  expect(
+    (await repository.eventsAfter(tenantId, userId, created.id, 0))[0],
+  ).toMatchObject({
+    executionId: created.executionId,
+    attemptId: "suspended-claim",
+  });
+});
+
 it("ends a cancel that no worker is running, so it never stays cancelling", async () => {
   const repository = new PostgresAgentJobRepository(member);
   const worker = new PostgresAgentJobWorkerRepository(member);

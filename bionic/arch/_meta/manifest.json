@@ -314,7 +314,7 @@
     "packages/platform-runtime/src/registry.test.ts": "f41fab20ef71b8c759cf699d95a2c39ed7c1767a284df58d3d3adf7feef1ad41",
     "packages/platform-runtime/src/registry.ts": "5b026e4573237e69091e3eea9d57638510dfa680d34037af0100e7e5d1201389",
     "packages/platform-storage/src/agent-job-private.test.ts": "185629aa51399ca18b396afdfb00af31045d98ac3f555b27b47ac943a93ea4f5",
-    "packages/platform-storage/src/agent-job-repository.test.ts": "bd6f3a63ca9befcdbbb0739b8f749c05b9f3c38a74f215ad722fbcf0b5322332",
+    "packages/platform-storage/src/agent-job-repository.test.ts": "618403beb7755bd7e45bd6675d062248a7b2cc2af648585ebb00fe5c740f7cee",
     "packages/platform-storage/src/agent-job-repository.ts": "66bb95bdccb5ed293e3d69dfbdc5807e6da4736e2cc29e6f68ebfb05bdbcacfe",
     "packages/platform-storage/src/agent-job-row.ts": "c66f6283b1b73da9c39e8bd6a8577ce1e1c0e4b0ccb89f0817265cdb59e5f949",
     "packages/platform-storage/src/agent-job-worker-repository.ts": "cde9ec7410e9f1091e4b3b10ac3394eac3671b2704a346338bb8f73f05c8f4cd",
