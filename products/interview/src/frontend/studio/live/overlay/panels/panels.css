@@ -1,23 +1,21 @@
-/* The four panels (panels/panel-views.tsx). They reuse the overlay's --ov-*
-   tokens (declared on .ov-root) by redeclaring them on .pn-root, so a panel
-   document needs nothing else. With a native host the page is transparent and
-   only the rounded card paints; a plain window gets a solid backdrop. */
+/* The four panels (panels/panel-views.tsx), as the OpenCluely recording shows
+   them: translucent dark-grey surfaces over whatever is behind, white text with
+   a soft shadow, rounded corners, and no window chrome of their own (the native
+   shell draws the window frame). They reuse the overlay's --ov-* tokens by
+   redeclaring them on .pn-root, so a panel document needs nothing else. */
 .pn-root {
-  /* The card tint. --ov-a follows the shell's opacity setting in a native host
-     (see panels-root.tsx); a plain window keeps the denser default. */
+  /* The surface tint. --ov-a follows the shell's opacity setting in a native
+     host (below); a plain window keeps the denser default. */
   --ov-a: 0.82;
-  --ov-bg: rgba(20, 20, 24, var(--ov-a));
-  --ov-text: rgba(255, 255, 255, 0.93);
-  --ov-muted: rgba(255, 255, 255, 0.66);
-  --ov-faint: rgba(255, 255, 255, 0.46);
-  --ov-line: rgba(255, 255, 255, 0.1);
-  --ov-chip: rgba(255, 255, 255, 0.08);
-  --ov-code: rgba(0, 0, 0, 0.32);
+  --ov-bg: rgba(58, 58, 62, var(--ov-a));
+  --ov-text: rgba(255, 255, 255, 0.95);
+  --ov-muted: rgba(255, 255, 255, 0.68);
+  --ov-faint: rgba(255, 255, 255, 0.5);
+  --ov-line: rgba(255, 255, 255, 0.12);
+  --ov-chip: rgba(255, 255, 255, 0.14);
   --ov-accent: #8fb0ff;
-  --ov-accent-ink: #10131c;
-  --ov-green: #6ddc93;
-  --ov-amber: #f5c56b;
-  --ov-red: #ff6b61;
+  --ov-green: #4cd964;
+  --ov-red: #ff453a;
   position: fixed;
   inset: 0;
   z-index: 2147483000;
@@ -27,15 +25,11 @@
   padding: 8px;
   box-sizing: border-box;
   font-family: -apple-system, BlinkMacSystemFont, "Geist", system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--ov-text);
-  background: #14141a;
-  container-type: inline-size;
-}
-:root[data-panel-host="native"] body,
-:root[data-panel-host="native"] .pn-root {
-  background: transparent;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  background: #2a2a2e;
 }
 .pn-root *,
 .pn-root *::before,
@@ -52,12 +46,26 @@
   outline: 2px solid var(--ov-accent);
   outline-offset: 1px;
 }
+
+/* A native panel window is transparent: only the rounded surfaces paint, and
+   they are tinted lightly so the page behind shows through. */
+:root[data-panel-host="native"],
+:root[data-panel-host="native"] body,
+:root[data-panel-host="native"] .pn-root {
+  background: transparent;
+}
+:root[data-panel-host="native"] .pn-root {
+  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.6));
+  padding: 0;
+}
+
 .pn-card,
-.pn-pill {
+.pn-pill,
+.pn-codecard {
   background: var(--ov-bg);
-  backdrop-filter: blur(28px) saturate(1.6);
-  border-radius: 14px;
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+  border-radius: 10px;
 }
 .pn-card {
   flex: 1;
@@ -66,53 +74,65 @@
   flex-direction: column;
   padding: 10px 12px;
 }
+.pn-muted {
+  color: var(--ov-muted);
+}
+.pn-centered {
+  margin: auto;
+}
 .pn-unavailable {
   margin: auto;
   flex: 0;
   flex-direction: row;
   gap: 8px;
 }
+
+/* ---- Bar ---- */
 .pn-pill {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 520px;
+  height: 35px;
   align-self: center;
-  max-width: 100%;
-  padding: 4px 8px;
-  border-radius: 999px;
-  flex-wrap: wrap;
+  padding: 0 14px;
+  border-radius: 18px;
+  white-space: nowrap;
+  font-size: 12px;
 }
-.pn-icon,
-.pn-skill,
-.pn-toggle {
+:root[data-panel-host="native"] .pn-root[data-panel="pill"] {
+  justify-content: center;
+}
+.pn-bar-button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   border: 0;
-  border-radius: 999px;
-  background: var(--ov-chip);
-  padding: 4px 8px;
+  background: none;
+  padding: 2px 4px;
+  border-radius: 6px;
   cursor: pointer;
+  text-shadow: inherit;
 }
-.pn-icon:hover,
-.pn-skill:hover,
-.pn-toggle:hover {
-  background: rgba(255, 255, 255, 0.16);
+.pn-bar-button:hover {
+  background: var(--ov-chip);
 }
-.pn-icon:disabled {
-  opacity: 0.4;
+.pn-bar-button:disabled {
+  opacity: 0.45;
   cursor: default;
 }
-.pn-icon kbd {
+.pn-bar-button kbd {
+  font: inherit;
   font-size: 11px;
   color: var(--ov-muted);
 }
-.pn-icon[data-mic="listening"] {
+.pn-bar-button[data-mic="listening"] {
   color: var(--ov-red);
 }
-.pn-toggle[aria-pressed="true"] {
-  background: var(--ov-accent);
-  color: var(--ov-accent-ink);
+.pn-skill {
+  font-weight: 600;
 }
 .pn-dot {
   width: 9px;
@@ -120,6 +140,7 @@
   border-radius: 50%;
   background: var(--ov-faint);
   display: inline-block;
+  flex: none;
 }
 .pn-dot[data-tone="green"] {
   background: var(--ov-green);
@@ -127,20 +148,13 @@
 .pn-dot[data-tone="red"] {
   background: var(--ov-red);
 }
-.pn-dot[data-tone="amber"] {
-  background: var(--ov-amber);
-}
-.pn-hint,
-.pn-muted,
-.pn-time {
-  color: var(--ov-muted);
-}
+
+/* ---- Heads, fields, chips ---- */
 .pn-head {
   display: flex;
   align-items: center;
   gap: 8px;
   padding-bottom: 6px;
-  border-bottom: 0.5px solid var(--ov-line);
 }
 .pn-title {
   font-weight: 600;
@@ -151,61 +165,96 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-top: 8px;
-}
-.pn-problem {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding-top: 4px;
 }
 .pn-label {
   font-size: 11px;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--ov-faint);
 }
-.pn-kv,
 .pn-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
-.pn-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.pn-chip {
-  background: var(--ov-chip);
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-.pn-section p {
-  margin: 2px 0;
-  font-size: 14px;
-}
 .pn-select,
 .pn-input {
   background: var(--ov-chip);
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 5px 8px;
+  min-width: 0;
 }
 .pn-select option {
   color: #111;
 }
+.pn-danger {
+  border: 0;
+  border-radius: 6px;
+  padding: 3px 10px;
+  background: rgba(255, 69, 58, 0.85);
+  color: #fff;
+  cursor: pointer;
+}
+.pn-danger:hover {
+  background: var(--ov-red);
+}
+.pn-footer {
+  margin: 0;
+  color: var(--ov-faint);
+  font-size: 11px;
+}
+.pn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.pn-chip {
+  background: var(--ov-chip);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+/* ---- Analysis ---- */
+.pn-analysis {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+}
+.pn-analysis-text {
+  flex: 1.25;
+  min-width: 0;
+}
+.pn-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-scroll p {
+  margin: 2px 0;
+}
+.pn-problem {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
 .pn-analyzing {
-  color: var(--ov-accent);
+  margin: auto;
+  font-size: 14px;
+  color: var(--ov-text);
 }
 .pn-ellipsis i {
   display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-left: 3px;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
   border-radius: 50%;
   background: currentColor;
   animation: pn-pulse 1s infinite ease-in-out;
@@ -218,137 +267,199 @@
     opacity: 0.25;
   }
 }
-.pn-log {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.pn-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 6px;
-}
-.pn-row[data-kind="assistant"] .pn-who {
-  color: var(--ov-accent);
-}
-.pn-row[data-kind="heard"] .pn-who {
-  color: var(--ov-green);
-}
-.pn-system {
-  margin: 2px 0;
-  color: var(--ov-amber);
-}
-.pn-interim {
-  margin: 2px 0;
-  color: var(--ov-muted);
-}
 .pn-note {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--ov-amber);
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #ffd479;
 }
 .pn-note span {
   flex: 1;
   min-width: 0;
 }
-.pn-restated {
+.pn-note-close {
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.pn-codecol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-codecard {
+  background: rgba(24, 24, 28, 0.78);
+  padding: 8px 10px;
+  min-height: 0;
+  overflow: auto;
+}
+.pn-codecard-head {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ov-muted);
+  margin-bottom: 4px;
+}
+.pn-codecard-pre {
+  margin: 0;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+.pn-codecard .cm-editor,
+.pn-codecard .cm-scroller,
+.pn-codecard .cm-gutters {
+  background: transparent;
   font-size: 12px;
+}
+.pn-codecard .cm-content {
+  padding: 0;
+}
+
+/* ---- Chat ---- */
+.pn-chat {
+  padding: 8px 10px;
+}
+.pn-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+.pn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(100, 120, 150, 0.45);
+}
+.pn-row[data-kind="heard"],
+.pn-row[data-kind="typed"] {
+  background: rgba(60, 150, 95, 0.5);
+}
+.pn-row[data-kind="assistant"] {
+  background: rgba(125, 85, 180, 0.5);
+}
+.pn-time {
+  font-size: 10px;
   color: var(--ov-muted);
 }
-.pn-restated p {
-  margin: 4px 0 0;
-  font-size: 14px;
+.pn-text {
+  overflow-wrap: anywhere;
+}
+.pn-answer p {
+  margin: 2px 0;
+}
+.pn-answer-head {
+  font-weight: 700;
+  margin-top: 6px;
+}
+.pn-answer-line::before {
+  content: "• ";
+}
+.pn-answer pre {
+  margin: 4px 0;
+  padding: 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+.pn-interim {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
   color: var(--ov-text);
 }
 .pn-compose {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 .pn-input {
   flex: 1;
 }
-.pn-send {
-  background: var(--ov-accent);
-  color: var(--ov-accent-ink);
-}
-.pn-shortcut {
-  display: flex;
-  gap: 8px;
+.pn-round {
+  display: inline-flex;
   align-items: center;
-  width: 100%;
-  background: none;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: 0;
-  padding: 1px 0;
-  text-align: left;
+  border-radius: 6px;
+  color: #fff;
   cursor: pointer;
 }
-.pn-shortcut code {
-  color: var(--ov-faint);
+.pn-mic {
+  background: rgba(255, 69, 58, 0.9);
 }
-.pn-footer {
-  margin: 0;
-  color: var(--ov-faint);
-  font-size: 12px;
+.pn-send {
+  background: rgba(90, 130, 230, 0.9);
 }
+.pn-round:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- PiP: the bar's one-window switch (not shown natively) ---- */
+.pn-switch {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.pn-switch .pn-bar-button[aria-pressed="true"] {
+  background: var(--ov-chip);
+}
+
+/* ---- Toasts: bottom-left, large white text on a dark left-to-right fade ---- */
 .pn-toasts {
   position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   pointer-events: none;
 }
 .pn-toast {
-  background: var(--ov-bg);
-  border-radius: 999px;
-  padding: 4px 12px;
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.2);
+  padding: 14px 72px 14px 22px;
+  color: #fff;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.78),
+    rgba(0, 0, 0, 0.55) 70%,
+    rgba(0, 0, 0, 0)
+  );
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
-@media (prefers-color-scheme: light) {
-  .pn-root[data-theme="auto"] {
-    --ov-bg: rgba(250, 250, 252, 0.86);
-    --ov-text: rgba(0, 0, 0, 0.88);
-    --ov-muted: rgba(0, 0, 0, 0.6);
-    --ov-faint: rgba(0, 0, 0, 0.42);
-    --ov-line: rgba(0, 0, 0, 0.1);
-    --ov-chip: rgba(0, 0, 0, 0.06);
-  }
+.pn-toast-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.pn-toast-detail {
+  font-size: 15px;
+  opacity: 0.92;
 }
 
-/* A native panel window is transparent: only the rounded cards paint, and they
-   are tinted lightly (default alpha 0.45) so the desktop shows through. The
-   shell draws a drag strip over the top edge (the pill's left edge), so the
-   content is inset from it. */
-:root[data-panel-host="native"] .pn-root {
-  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.55));
+/* The native surface rule in overlay.css paints every .pn-toast like a card;
+   a toast is the dark fade instead (more specific, so it wins). */
+:root[data-panel-host="native"] .pn-root .pn-toast {
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.78),
+    rgba(0, 0, 0, 0.55) 70%,
+    rgba(0, 0, 0, 0)
+  );
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
-:root[data-panel-host="native"] .pn-card,
-:root[data-panel-host="native"] .pn-pill {
-  /* Light text on a light desktop stays readable. */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
-:root[data-panel-host="native"],
-:root[data-panel-host="native"] body {
-  background: transparent;
-}
-:root[data-panel-host="native"] .pn-root {
-  padding-top: 24px;
-}
-:root[data-panel-host="native"] .pn-root[data-panel="pill"] {
-  padding-top: 8px;
-  padding-left: 22px;
-}
-.pn-visible {
-  font-size: 11px;
-  color: var(--ov-faint);
-  white-space: nowrap;
-}
+

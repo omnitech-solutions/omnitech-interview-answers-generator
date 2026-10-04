@@ -41,7 +41,11 @@ export function startNativeShare(): NativeShareHandle {
       const frame = await captureThroughHost(mask);
       if (!frame.ok)
         throw new FrameError(
-          frame.reason === "display-changed" ? "display-changed" : "not-ready",
+          frame.reason === "display-changed" ||
+            frame.reason === "permission-denied" ||
+            frame.reason === "no-focused-window"
+            ? frame.reason
+            : "not-ready",
         );
       return {
         blob: frame.blob,

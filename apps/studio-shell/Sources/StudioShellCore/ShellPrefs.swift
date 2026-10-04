@@ -39,16 +39,63 @@ public struct InteractionState: Equatable, Sendable {
 
     public mutating func toggle() { isInteractive.toggle() }
 
-    public var toast: String {
-        isInteractive
-            ? "Interaction Mode: ON — green dot: panels take clicks"
-            : "Interaction Mode: OFF — red dot shows interaction mode is off"
+    public var toast: Toast { ToastText.interaction(isInteractive) }
+}
+
+// [DOMAIN] A native toast: a large headline and a smaller line under it.
+public struct Toast: Equatable, Sendable {
+    public let title: String
+    public let subtitle: String
+    public init(_ title: String, _ subtitle: String) {
+        self.title = title
+        self.subtitle = subtitle
     }
 }
 
+// The exact words of the reference video's toasts.
 public enum ToastText {
-    public static func skillChanged(_ skill: OwnerSkill) -> String { "Skill changed to \(skill.label)" }
-    public static func currentSkill(_ skill: OwnerSkill) -> String { "Current skill \(skill.label) — ⌘↑/⌘↓" }
+    public static func interaction(_ on: Bool) -> Toast {
+        on
+            ? Toast("Interaction Mode: ON", "Green dot, Interact with window like scroll, copy, move")
+            : Toast("Interaction Mode: OFF", "Red dot shows interaction mode is off")
+    }
+    public static let recording = Toast("Start/Stop Recording", "option + R")
+    public static func skillChanged(_ skill: OwnerSkill) -> Toast {
+        Toast("Skill changed to - \(skill.label)", "Look in the small tab above")
+    }
+    public static func currentSkill(_ skill: OwnerSkill) -> Toast {
+        Toast("Current Skill - \(skill.label)", "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)")
+    }
+}
+
+// Where a toast sits: bottom-left of the display, as wide as its gradient.
+public enum ToastLayout {
+    public static let seconds = 3.0
+    public static let padding = 28.0
+    public static let height = 100.0
+    public static let bottomInset = 48.0
+
+    public static func frame(on screen: CGRect) -> CGRect {
+        CGRect(x: screen.minX, y: screen.minY + bottomInset, width: min(900, screen.width * 0.6), height: height)
+    }
+}
+
+// [DOMAIN] First-run consent. The person confirms once, natively, that everyone
+// in the conversation agrees to recording and AI assistance; until then the
+// pages must start nothing. The flag the pages read is `studio.shell.consented`
+// in localStorage, set for the Studio origin before any page script runs.
+public enum Consent {
+    public static let prompt = "Everyone in this conversation agrees to it being recorded and to using AI assistance. Continue?"
+    public static let storageKey = "studio.shell.consented"
+    static let prefKey = "consent.v1"
+
+    public static func isGranted(_ store: SettingsStore) -> Bool { store.string(forKey: prefKey) == "1" }
+    public static func grant(_ store: SettingsStore) { store.set("1", forKey: prefKey) }
+
+    // The document-start script, only when consent was given: nothing otherwise.
+    public static func pageScript(_ store: SettingsStore) -> String? {
+        isGranted(store) ? "try { localStorage.setItem(\"\(storageKey)\", \"1\"); } catch (e) {}" : nil
+    }
 }
 
 public struct ShellPrefs {
@@ -68,8 +115,9 @@ public struct ShellPrefs {
     }
 
     public var appMode: AppMode {
-        get { store.string(forKey: "appMode").flatMap(AppMode.init(rawValue:)) ?? .expanded }
-        nonmutating set { store.set(newValue.rawValue, forKey: "appMode") }
+        // "appMode2": the default is the video's panels, not the main window.
+        get { store.string(forKey: "appMode2").flatMap(AppMode.init(rawValue:)) ?? .minified }
+        nonmutating set { store.set(newValue.rawValue, forKey: "appMode2") }
     }
 
     public var opacity: Double {
@@ -78,13 +126,13 @@ public struct ShellPrefs {
     }
 
     public var layout: LayoutMode {
-        // One compact window by default; "layout2" drops the old default of three panels.
-        get { store.string(forKey: "layout2").flatMap(LayoutMode.init(rawValue:)) ?? .compact }
-        nonmutating set { store.set(newValue.rawValue, forKey: "layout2") }
+        // The video's panels by default; the compact window stays reachable from the menu.
+        get { store.string(forKey: "layout3").flatMap(LayoutMode.init(rawValue:)) ?? .panels }
+        nonmutating set { store.set(newValue.rawValue, forKey: "layout3") }
     }
 
     public func isVisible(_ kind: PanelKind) -> Bool {
-        switch store.string(forKey: "panel.\(kind.rawValue).visible") {
+        switch store.string(forKey: "panel.\(kind.rawValue).visible2") {
         case "1": true
         case "0": false
         default: kind.startsVisible
@@ -92,15 +140,15 @@ public struct ShellPrefs {
     }
 
     public func setVisible(_ kind: PanelKind, _ visible: Bool) {
-        store.set(visible ? "1" : "0", forKey: "panel.\(kind.rawValue).visible")
+        store.set(visible ? "1" : "0", forKey: "panel.\(kind.rawValue).visible2")
     }
 
     public func savedFrame(_ kind: PanelKind, displays: [CGRect]) -> CGRect? {
-        PanelFrameCodec.restore(kind, saved: store.string(forKey: "panel.\(kind.rawValue).frame"), displays: displays)
+        PanelFrameCodec.restore(kind, saved: store.string(forKey: "panel.\(kind.rawValue).frame2"), displays: displays)
     }
 
     public func saveFrame(_ kind: PanelKind, _ frame: CGRect) {
-        store.set(PanelFrameCodec.encode(frame), forKey: "panel.\(kind.rawValue).frame")
+        store.set(PanelFrameCodec.encode(frame), forKey: "panel.\(kind.rawValue).frame2")
     }
 
     // The expanded main window's frame (minified frames are per panel).
@@ -121,8 +169,8 @@ public struct ShellPrefs {
     // "Layout reset": forget placement and visibility.
     public func resetLayout() {
         for kind in PanelKind.allCases {
-            store.set(nil, forKey: "panel.\(kind.rawValue).frame")
-            store.set(nil, forKey: "panel.\(kind.rawValue).visible")
+            store.set(nil, forKey: "panel.\(kind.rawValue).frame2")
+            store.set(nil, forKey: "panel.\(kind.rawValue).visible2")
         }
         store.set(nil, forKey: "main.frame")
     }

@@ -66,11 +66,11 @@ describe("host intents", () => {
     expect(intentOf("skill.set:wizardry")).toBeNull();
     expect(intentOf("rm -rf")).toBeNull();
   });
-  it("routes capture and solve to analysis, the mic to chat, auto to the pill, and the rest to every panel", () => {
+  it("routes capture, solve, the mic and auto to the always-open bar, and the rest to every panel", () => {
     expect(INTENT_TARGET).toEqual({
-      "capture.analyze": "analysis",
-      "solution.generate": "analysis",
-      "transcribe.toggle": "chat",
+      "capture.analyze": "pill",
+      "solution.generate": "pill",
+      "transcribe.toggle": "pill",
       "auto.toggle": "pill",
     });
     expect(INTENT_TARGET["skill.next"]).toBeUndefined();
@@ -79,10 +79,11 @@ describe("host intents", () => {
 });
 
 describe("skills", () => {
-  it("cycles through every skill and auto, both ways", () => {
-    expect(cycleSkill(undefined, 1)).toBe(LIVE_OWNER_SKILLS[0]);
-    expect(cycleSkill(LIVE_OWNER_SKILLS.at(-1), 1)).toBeUndefined();
-    expect(cycleSkill(undefined, -1)).toBe(LIVE_OWNER_SKILLS.at(-1));
+  it("cycles through the nine skills both ways, from DSA when none is chosen", () => {
+    expect(cycleSkill(undefined, 1)).toBe("system-design");
+    expect(cycleSkill(undefined, -1)).toBe("programming");
+    expect(cycleSkill(LIVE_OWNER_SKILLS.at(-1), 1)).toBe(LIVE_OWNER_SKILLS[0]);
+    expect(cycleSkill(LIVE_OWNER_SKILLS[0], -1)).toBe(LIVE_OWNER_SKILLS.at(-1));
     expect(cycleSkill(LIVE_OWNER_SKILLS[1], -1)).toBe(LIVE_OWNER_SKILLS[0]);
   });
 });

@@ -13,7 +13,8 @@ private final class MemoryStore: SettingsStore {
 private final class RecordingSurface: PresentationSurface {
     var rendered: [PresentationState] = []
     var focused: [PanelKind] = []
-    var toasts: [String] = []
+    var toasts: [Toast] = []
+    var quits = 0
     var moves: [(Double, Double)] = []
     var resets = 0
     func render(_ state: PresentationState) { rendered.append(state) }
@@ -22,7 +23,8 @@ private final class RecordingSurface: PresentationSurface {
     func movePanels(dx: Double, dy: Double) { moves.append((dx, dy)) }
     func resizePanel(_ panel: PanelKind, dw: Double, dh: Double) {}
     func bringToFront() {}
-    func toast(_ text: String) { toasts.append(text) }
+    func toast(_ toast: Toast) { toasts.append(toast) }
+    func quit() { quits += 1 }
 }
 
 private let display = CGRect(x: 0, y: 25, width: 1440, height: 875)
@@ -30,25 +32,35 @@ private let display = CGRect(x: 0, y: 25, width: 1440, height: 875)
 @MainActor
 func presentationTests(_ t: Harness) async {
     // MARK: layout maths
-    await t.test("default layout: pill top-centre, analysis centre-left under it, chat left/bottom, all inside the display") {
+    await t.test("default layout is the video's: bar top-centre, chat left, analysis right of it, settings top-right") {
         let pill = PanelLayout.defaultFrame(.pill, in: display)
+        t.expectEqual(pill.size, CGSize(width: 520, height: 35))
         t.expectEqual(pill.midX, display.midX)
         t.expectEqual(pill.maxY, display.maxY - PanelLayout.topInset)
         let analysis = PanelLayout.defaultFrame(.analysis, in: display)
         let chat = PanelLayout.defaultFrame(.chat, in: display)
-        t.expect(analysis.maxY <= pill.minY, "analysis sits under the pill")
-        t.expect(analysis.minY >= chat.maxY, "analysis sits above the chat")
-        t.expectEqual(analysis.minX, display.minX + PanelLayout.margin)
-        t.expectEqual(chat.minY, display.minY + PanelLayout.margin)
+        t.expectEqual(analysis.size, CGSize(width: 700, height: 400))
+        t.expectEqual(chat.size, CGSize(width: 320, height: 440))
+        t.expect(analysis.maxY <= pill.minY && chat.maxY <= pill.minY, "both sit under the bar")
+        t.expectEqual(chat.minX, display.minX + PanelLayout.margin)
+        t.expect(analysis.minX >= chat.maxX, "analysis is right of the chat")
         for kind in PanelKind.allCases {
             let frame = PanelLayout.defaultFrame(kind, in: display)
             t.expect(display.contains(frame), "\(kind) inside the display")
         }
         let settings = PanelLayout.defaultFrame(.settings, in: display)
-        t.expectEqual(settings.midX, display.midX)
+        t.expectEqual(settings.size, CGSize(width: 400, height: 380))
+        t.expectEqual(settings.maxX, display.maxX - PanelLayout.margin)
+        t.expectEqual(settings.maxY, display.maxY - PanelLayout.topInset)
+        t.expect(!PanelKind.pill.isResizable && PanelKind.analysis.isResizable && PanelKind.chat.isResizable)
+        t.expect(PanelKind.settings.startsVisible == false, "settings opens on demand")
         // A small display still fits every panel.
         let small = CGRect(x: 0, y: 0, width: 800, height: 500)
         for kind in PanelKind.allCases { t.expect(small.contains(PanelLayout.defaultFrame(kind, in: small)), "\(kind) fits small") }
+        // A full-HD-class display too.
+        let big = CGRect(x: 0, y: 0, width: 1920, height: 1055)
+        t.expectEqual(PanelLayout.defaultFrame(.pill, in: big).midX, big.midX)
+        t.expectEqual(PanelLayout.defaultFrame(.analysis, in: big).size, CGSize(width: 700, height: 400))
     }
 
     await t.test("nudge and resize stay on the display and respect minimum sizes") {
@@ -71,7 +83,7 @@ func presentationTests(_ t: Harness) async {
         let prefs = ShellPrefs(store: store)
         let frame = CGRect(x: 120, y: 200, width: 500, height: 400)
         prefs.saveFrame(.analysis, frame)
-        t.expectEqual(store.values["panel.analysis.frame"], "120,200,500,400")
+        t.expectEqual(store.values["panel.analysis.frame2"], "120,200,500,400")
         t.expectEqual(prefs.savedFrame(.analysis, displays: [display]), frame)
         // Off every display: default wins.
         prefs.saveFrame(.analysis, CGRect(x: 9000, y: 9000, width: 500, height: 400))
@@ -84,13 +96,13 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(PanelFrameCodec.decode("a,b,c,d"), nil)
         t.expectEqual(PanelFrameCodec.decode("1,2,nan,4"), nil)
         // A fixed-size pill keeps only its saved origin.
-        store.values["panel.pill.frame"] = "300,800,50,10"
+        store.values["panel.pill.frame2"] = "300,800,50,10"
         t.expectEqual(prefs.savedFrame(.pill, displays: [display])?.size, PanelKind.pill.defaultSize)
         // The main window has its own frame, and a layout reset forgets everything placed.
         prefs.saveMainWindowFrame(CGRect(x: 50, y: 60, width: 1000, height: 700))
         t.expectEqual(prefs.mainWindowFrame(displays: [display], main: display), CGRect(x: 50, y: 60, width: 1000, height: 700))
         prefs.resetLayout()
-        t.expect(store.values["main.frame"] == nil && store.values["panel.analysis.frame"] == nil, "reset clears frames")
+        t.expect(store.values["main.frame"] == nil && store.values["panel.analysis.frame2"] == nil, "reset clears frames")
     }
 
     // MARK: interaction mode
@@ -98,11 +110,11 @@ func presentationTests(_ t: Harness) async {
         var state = InteractionState()
         t.expect(state.isInteractive && !state.ignoresMouseEvents, "panels must be usable by default")
         t.expectEqual(state.dot, .green)
-        t.expect(state.toast.hasPrefix("Interaction Mode: ON"))
+        t.expectEqual(state.toast, Toast("Interaction Mode: ON", "Green dot, Interact with window like scroll, copy, move"))
         state.toggle()
         t.expect(!state.isInteractive && state.ignoresMouseEvents)
         t.expectEqual(state.dot, .red)
-        t.expect(state.toast.hasPrefix("Interaction Mode: OFF"))
+        t.expectEqual(state.toast, Toast("Interaction Mode: OFF", "Red dot shows interaction mode is off"))
         t.expect(!state.set(false), "setting the same value changes nothing")
         t.expect(state.set(true))
         let prefs = ShellPrefs(store: MemoryStore())
@@ -147,6 +159,8 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(effect(.skillPrevious, true), .intent(.skillPrevious))
         t.expectEqual(effect(.moveUp), .present(.movePanels(dx: 0, dy: 40)))
         t.expectEqual(effect(.resizeWider), .present(.resizePanel(.analysis, dw: 40, dh: 0)))
+        t.expectEqual(effect(.showChat), .present(.focusPanel(.chat)))
+        t.expectEqual(effect(.openSettings), .present(.openPanel(.settings)))
         // Every binding has a mapping when interactive.
         for binding in HotkeyBinding.all { t.expect(effect(binding.action, true) != nil, "\(binding.label) maps") }
         // Wire names are the page-facing typed commands.
@@ -165,6 +179,86 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(HotkeyBinding.all.filter(\.requiresInteractive).map(\.action), [.skillPrevious, .skillNext])
     }
 
+    await t.test("the video's hotkey table: Carbon codes and modifiers, secondary aliases after, skill keys gated") {
+        let c = HotkeyBinding.command, sh = HotkeyBinding.shift, o = HotkeyBinding.option
+        func binding(_ action: HotkeyBinding.Action) -> HotkeyBinding? { HotkeyBinding.all.first { $0.action == action } }
+        let table: [(HotkeyBinding.Action, UInt32, UInt32, String)] = [
+            (.captureAnalyze, 0x01, c | sh, "⌘⇧S"), (.toggleMic, 0x0F, o, "⌥R"), (.toggleInteraction, 0x22, c | sh, "⌘⇧I"),
+            (.toggleVisibility, 0x09, c | sh, "⌘⇧V"), (.showChat, 0x08, c | sh, "⌘⇧C"), (.clearSession, 0x2A, c | sh, "⌘⇧\\"),
+            (.skillPrevious, 0x7E, c, "⌘↑"), (.skillNext, 0x7D, c, "⌘↓"), (.openSettings, 0x2B, c, "⌘,"),
+        ]
+        for (action, code, mods, label) in table {
+            let found = binding(action)
+            t.expectEqual(found?.keyCode, code, "\(label) key")
+            t.expectEqual(found?.carbonModifiers, mods, "\(label) modifiers")
+            t.expectEqual(found?.label, label)
+        }
+        // Only the skill keys wait for interaction mode: without it they are not registered
+        // and the routing refuses them.
+        let always = HotkeyBinding.all.filter { !$0.requiresInteractive }
+        t.expect(!always.contains { $0.action == .skillNext || $0.action == .skillPrevious })
+        t.expectEqual(HotkeyRouting.effect(for: .skillPrevious, interactive: false), nil)
+        t.expectEqual(HotkeyRouting.effect(for: .skillNext, interactive: true), .intent(.skillNext))
+        // The old Option+Shift chords remain as aliases of the same actions.
+        t.expect(HotkeyBinding.all.contains { $0.label == "⌥⇧A" && $0.action == .captureAnalyze })
+        t.expect(HotkeyBinding.all.contains { $0.label == "⌥⇧R" && $0.action == .toggleMic })
+        // No two bindings share a key combination.
+        t.expectEqual(Set(HotkeyBinding.all.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count, HotkeyBinding.all.count)
+    }
+
+    await t.test("toasts use the video's exact words and appear for the right keys") {
+        t.expectEqual(ToastText.recording, Toast("Start/Stop Recording", "option + R"))
+        t.expectEqual(ToastText.skillChanged(.systemDesign), Toast("Skill changed to - System Design", "Look in the small tab above"))
+        t.expectEqual(ToastText.currentSkill(.dsa), Toast("Current Skill - DSA", "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)"))
+        t.expectEqual(HotkeyRouting.toast(for: .toggleMic, skill: .dsa), ToastText.recording)
+        t.expectEqual(HotkeyRouting.toast(for: .skillNext, skill: .systemDesign), ToastText.skillChanged(.systemDesign))
+        t.expectEqual(HotkeyRouting.toast(for: .skillPrevious, skill: .programming), ToastText.skillChanged(.programming))
+        t.expectEqual(HotkeyRouting.toast(for: .captureAnalyze, skill: .dsa), ToastText.currentSkill(.dsa))
+        t.expectEqual(HotkeyRouting.toast(for: .clearSession, skill: .dsa), nil)
+        // Bottom-left of the display, click-through banner ~3 s.
+        let frame = ToastLayout.frame(on: display)
+        t.expectEqual(frame.minX, display.minX)
+        t.expect(frame.minY < display.midY && display.contains(frame), "bottom-left, on screen")
+        t.expectEqual(ToastLayout.seconds, 3)
+        // The pages are told the shell shows them, so they do not duplicate.
+        t.expectEqual(PresentationState.initial.wire["nativeToasts"] as? Bool, true)
+    }
+
+    await t.test("consent is asked once, persisted, and only then do pages get the flag") {
+        let store = MemoryStore()
+        t.expect(!Consent.isGranted(store))
+        t.expect(Consent.pageScript(store) == nil, "no flag before consent")
+        t.expect(Consent.prompt.hasPrefix("Everyone in this conversation agrees to it being recorded and to using AI assistance"))
+        Consent.grant(store)
+        t.expect(Consent.isGranted(store))
+        t.expect(Consent.pageScript(store)?.contains("studio.shell.consented") == true)
+        t.expect(Consent.isGranted(store), "persisted for the next launch")
+    }
+
+    await t.test("Settings Quit ends the app and Close hides it; first run is the video's panels") {
+        let store = MemoryStore()
+        let controller = PresentationController(prefs: ShellPrefs(store: store))
+        let surface = RecordingSurface()
+        controller.surface = surface
+        t.expectEqual(controller.state.appMode, .minified)
+        t.expectEqual(controller.state.layout, .panels)
+        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat], "no compact window by default")
+        t.expect(!controller.state.compactShown)
+        controller.perform(.openPanel(.settings))
+        t.expect(controller.state.shownPanels.contains(.settings))
+        controller.perform(.closePanel(.settings))
+        t.expect(!controller.state.shownPanels.contains(.settings))
+        controller.perform(.openPanel(.settings))
+        t.expectEqual(PresentationController(prefs: ShellPrefs(store: store)).state.panels.contains(.settings), false, "settings never reopens by itself")
+        t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit"]]), .success(.presentation(.quitApp)))
+        t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit", "x": 1]]), .failure(.invalidParameters))
+        controller.perform(.quitApp)
+        t.expectEqual(surface.quits, 1)
+        // The compact window stays reachable.
+        controller.perform(.applyLayout(.compact))
+        t.expect(controller.state.compactShown)
+    }
+
     // MARK: presentation reducer
     await t.test("one command entry: minify/expand, panels, layout, interaction mode, opacity, persisted") {
         let store = MemoryStore()
@@ -174,14 +268,16 @@ func presentationTests(_ t: Harness) async {
         controller.surface = surface
         var pushed = 0
         controller.onChange = { _ in pushed += 1 }
-        t.expectEqual(controller.state.appMode, .expanded, "first run is the main window")
-        t.expect(controller.state.mainWindowShown && controller.state.shownPanels.isEmpty)
+        t.expectEqual(controller.state.appMode, .minified, "first run is the video's panels")
+        t.expect(!controller.state.mainWindowShown && controller.state.shownPanels == [.pill, .analysis, .chat])
 
         controller.perform(.toggleAppMode)
-        t.expectEqual(controller.state.appMode, .minified)
-        t.expect(!controller.state.mainWindowShown)
-        t.expect(controller.state.compactShown && controller.state.shownPanels.isEmpty, "minified is ONE compact window by default")
-        t.expectEqual(store.values["appMode"], "minified", "last mode remembered")
+        t.expectEqual(controller.state.appMode, .expanded)
+        t.expect(controller.state.mainWindowShown && controller.state.shownPanels.isEmpty)
+        controller.perform(.toggleAppMode)
+        controller.perform(.applyLayout(.compact))
+        t.expect(controller.state.compactShown && controller.state.shownPanels.isEmpty, "the compact window is still reachable")
+        t.expectEqual(store.values["appMode2"], "minified", "last mode remembered")
         controller.perform(.applyLayout(.all))
         t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat])
 
@@ -279,6 +375,8 @@ func presentationTests(_ t: Harness) async {
         context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.capabilities.join(',')")?.toString(),
             "multi-panel,always-on-top,click-through,all-spaces")
+        t.expectEqual(context.evaluateScript("window.studioHost.presentation.nativeToasts")?.toBool(), true, "pages must not duplicate toasts")
+        t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.quit")?.toString(), "function")
         for method in ["open", "close", "focus", "openPanels", "setLayout", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode"] {
             t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "function", method)
         }

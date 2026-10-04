@@ -99,7 +99,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let pstate = actions.presentation()
         let pin = add("Pin on Top", #selector(togglePin), enabled: true)
         pin.state = model.pinned ? .on : .off
-        let keys = Dictionary(uniqueKeysWithValues: HotkeyBinding.all.map { ($0.action, $0) })
+        let keys = Dictionary(HotkeyBinding.all.map { ($0.action, $0) }, uniquingKeysWith: { first, _ in first })
         add(keyed("Capture & Analyze", keys[.captureAnalyze]), #selector(captureAnalyze), enabled: paired)
         add(keyed("Start/Stop Listening", keys[.toggleMic]), #selector(toggleMic), enabled: paired)
         if let hint = actions.engineHint() {
@@ -129,7 +129,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let layoutItem = NSMenuItem(title: "Layout", action: nil, keyEquivalent: "")
         let layoutMenu = NSMenu()
         for (index, preset) in LayoutPreset.allCases.enumerated() {
-            let entry = NSMenuItem(title: preset.rawValue.capitalized, action: #selector(applyLayout(_:)), keyEquivalent: "")
+            let title = switch preset {
+            case .compact: "Compact window"
+            case .reading: "Bar + Analysis"
+            case .all: "Panels (bar, analysis, chat)"
+            }
+            let entry = NSMenuItem(title: title, action: #selector(applyLayout(_:)), keyEquivalent: "")
             entry.target = self
             entry.tag = index
             layoutMenu.addItem(entry)

@@ -27,6 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wasSignedOut = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // First run: one native consent, before any page exists. Without it nothing
+        // starts (the pages see no `studio.shell.consented` flag).
+        guard requireConsent() else { exit(0) }
         model.load()
         engine = SystemEngine.make(webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location })
         engine.onChange = { [weak self] snapshot in
@@ -85,7 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 present: { [weak self] command in self?.present(command) },
                 presentation: { [weak self] in self?.controller.state ?? PresentationState.initial },
                 send: { [weak self] command in self?.send(command) },
-                setSkill: { [weak self] skill in self?.send(.setSkill(skill)) },
+                setSkill: { [weak self] skill in
+                    self?.model.skill = skill
+                    self?.send(.setSkill(skill))
+                },
                 connect: { [weak self] in self?.connect() },
                 disconnect: { [weak self] in
                     guard let self else { return }
@@ -147,11 +153,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func fire(_ action: HotkeyBinding.Action) {
-        switch HotkeyRouting.effect(for: action, interactive: controller.state.interaction.isInteractive) {
+        guard let effect = HotkeyRouting.effect(for: action, interactive: controller.state.interaction.isInteractive) else { return }
+        switch effect {
         case .intent(let command): send(command)
         case .present(let command): present(command)
-        case nil: break
         }
+        // The skill is the shell's to name in the toast; the page gets the intent.
+        if action == .skillNext { model.skill = model.skill.cycled(by: 1) }
+        if action == .skillPrevious { model.skill = model.skill.cycled(by: -1) }
+        if let toast = HotkeyRouting.toast(for: action, skill: model.skill) { surface.toast(toast) }
+    }
+
+    // [SAFETY] The first-run agreement. Persisted once; Quit leaves nothing running.
+    private func requireConsent() -> Bool {
+        let store = UserDefaultsStore()
+        if Consent.isGranted(store) { return true }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = Consent.prompt
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Quit")
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        Consent.grant(store)
+        return true
     }
 
     // MARK: pages

@@ -33,20 +33,45 @@ import {
   claimCommand,
   commandOf,
   cycleSkill,
+  DEFAULT_SKILL,
   INTENT_TARGET,
   intentOf,
 } from "./commands";
 import { openPanelBus, type PanelMessage, type PanelState } from "./panel-bus";
 import type { PanelKind } from "./panel-kinds";
+import type { SystemLine } from "./panel-model";
 import { useOwnsSession } from "./panel-owner";
 import { useInteractionMode } from "./presentation-host";
 import { engineHost, engineLine, useEngine } from "./use-engine";
 
-export const AUTO_CAPTURE_LABEL = "Auto-captured · screen changed";
 export const TOAST_MS = 3_000;
 export const MAX_LINES = 40;
 
-export type Toast = { key: number; text: string };
+// The exact toast words (bottom-left, large white text, gone after ~3 s).
+export type Toast = { key: number; title: string; detail: string };
+export const TOAST_TEXT = {
+  interaction: (on: boolean): Omit<Toast, "key"> => ({
+    title: `Interaction Mode: ${on ? "ON" : "OFF"}`,
+    detail: on
+      ? "Green dot, Interact with window like scroll, copy, move"
+      : "Red dot shows interaction mode is off",
+  }),
+  recording: (): Omit<Toast, "key"> => ({
+    title: "Start/Stop Recording",
+    detail: "option + R",
+  }),
+  skillChanged: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
+    title: `Skill changed to - ${LIVE_OWNER_SKILL_LABELS[skill]}`,
+    detail: "Look in the small tab above",
+  }),
+  skillCurrent: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
+    title: `Current Skill - ${LIVE_OWNER_SKILL_LABELS[skill]}`,
+    detail: "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)",
+  }),
+};
+export const RECORDING_LINE =
+  "Recording in Progress. press Alt+R to stop recording.";
+export const CLEARED_LINE = "Session memory has been cleared";
 
 const OFF: PanelState = {
   auto: false,
@@ -80,18 +105,27 @@ export function usePanelSession(
   // ---- Lines, toasts, notes -------------------------------------------------
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [draft, setDraft] = useState("");
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNoteState] = useState<string | null>(null);
+  const setNote = setNoteState;
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [grabbing, setGrabbing] = useState(false);
-  const [cleared, setCleared] = useState(false);
+  // System lines of the chat, and the time before which rows were cleared.
+  const [system, setSystem] = useState<SystemLine[]>([]);
+  const [clearedAt, setClearedAt] = useState(0);
   const toastSeq = useRef(0);
-  const toast = useCallback((text: string) => {
+  const toast = useCallback((text: Omit<Toast, "key">) => {
     toastSeq.current += 1;
     const key = toastSeq.current;
-    setToasts((now) => [...now.slice(-2), { key, text }]);
+    setToasts((now) => [...now.slice(-1), { key, ...text }]);
     setTimeout(
       () => setToasts((now) => now.filter((t) => t.key !== key)),
       TOAST_MS,
+    );
+  }, []);
+  const addSystem = useCallback((text: string) => {
+    const at = Date.now();
+    setSystem((now) =>
+      [...now, { key: `sys-${at}-${now.length}`, text, at }].slice(-MAX_LINES),
     );
   }, []);
   const addLine = useCallback(
@@ -108,12 +142,12 @@ export function usePanelSession(
   const lastSession = useRef(sessionId);
   useEffect(() => {
     if (lastSession.current === sessionId) return;
-    const had = lastSession.current !== null;
     lastSession.current = sessionId;
     setEntries([]);
+    setSystem([]);
+    setClearedAt(0);
     setDraft("");
     setNote(null);
-    setCleared(had);
   }, [sessionId]);
 
   // ---- The bus ----------------------------------------------------------------
@@ -124,8 +158,10 @@ export function usePanelSession(
   }));
 
   // ---- Capturing (owner only) -------------------------------------------------
+  // The skill shapes every answer; DSA until the person picks another.
+  const skill = prefs.settings.skill ?? DEFAULT_SKILL;
   const hints = {
-    skill: prefs.settings.skill ?? ("auto" as const),
+    skill,
     language: prefs.settings.language ?? ("auto" as const),
   };
   const latest = useRef({ hints, mask: prefs.mask, deviceOnly });
@@ -136,6 +172,12 @@ export function usePanelSession(
   async function grabAndAnalyze(label?: string): Promise<boolean> {
     const origin = sessionNow.current;
     const here = () => sessionNow.current === origin;
+    // Show a refusal here AND in every other panel (the analysis panel is where
+    // the person is looking, but the capture may run in the bar's document).
+    const setNote = (text: string | null) => {
+      setNoteState(text);
+      if (text) bus.post({ type: "note", text });
+    };
     setNote(null);
     if (latest.current.deviceOnly) {
       setNote(DEVICE_ONLY_ANALYZE);
@@ -169,7 +211,9 @@ export function usePanelSession(
         setNote(
           error instanceof FrameError && error.code === "display-changed"
             ? "Your display changed, so the capture area was cleared. Choose the area again."
-            : "Couldn’t capture. Check the share and try again.",
+            : error instanceof FrameError && error.code === "permission-denied"
+              ? "Screen Recording is off for this app. Turn on Interview Studio in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen it."
+              : "Couldn’t capture. Check the share and try again.",
         );
       return false;
     } finally {
@@ -178,21 +222,6 @@ export function usePanelSession(
   }
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
-
-  async function autoCapture(): Promise<boolean> {
-    const sent = await grabAndAnalyze(AUTO_CAPTURE_LABEL);
-    if (sent) {
-      addLine("Auto", AUTO_CAPTURE_LABEL);
-      bus.post({
-        type: "line",
-        sessionId: sessionNow.current,
-        kind: "Auto",
-        text: AUTO_CAPTURE_LABEL,
-        at: Date.now(),
-      });
-    }
-    return sent;
-  }
 
   // With a native engine the shell is the listener: the browser recogniser
   // stays off unless the engine refused to start.
@@ -206,13 +235,14 @@ export function usePanelSession(
     open: owns && open,
     paused,
     deviceOnly,
-    wantsScreen: session?.captureSources.includes("screen") ?? false,
+    // Captures happen on the capture hotkey only: no interval watching.
+    wantsScreen: false,
     sharing: share.status === "sharing",
     watchable: share.kind !== "This Mac" && share.kind !== null,
     sample: share.sample,
     mask: prefs.mask,
     busy: grabbing || snapshot.pending.includes("analyze"),
-    capture: autoCapture,
+    capture: async () => false,
     submitHeard: actions.submitHeard,
     resume: actions.resume,
     onManualFinal: (phrase) => {
@@ -252,10 +282,12 @@ export function usePanelSession(
     sessionId,
     wanted: owns && open && auto.on,
     paused,
+    // The shell listens (microphone, and the app's audio when the session has
+    // it); the screen is captured on the capture command only.
     sources: [
       "microphone",
-      ...(!deviceOnly && (session?.captureSources.includes("screen") ?? false)
-        ? (["screen"] as const)
+      ...(session?.captureSources.includes("application-audio")
+        ? (["application-audio"] as const)
         : []),
     ],
   });
@@ -291,6 +323,7 @@ export function usePanelSession(
     report();
   }, [report, live.auto, live.mic, live.interim, live.sharing, live.phase]);
 
+  useEffect(() => {}, [owns, open, bus]);
   const press = useCallback(
     (command: "capture" | "toggle-mic") => {
       if (!owns) {
@@ -318,6 +351,10 @@ export function usePanelSession(
         if (ownsRef.current && open_.current) pressRef.current(message.command);
       } else if (message.type === "clear") {
         if (message.sessionId === sessionNow.current) clearMemory(false);
+      } else if (message.type === "note") {
+        setNote(message.text);
+      } else if (message.type === "session") {
+        // Handled by the auto-session hook of this document.
       } else if (message.sessionId === sessionNow.current) {
         if (message.kind === "Dictated")
           setDraft((text) =>
@@ -361,17 +398,18 @@ export function usePanelSession(
 
   function clearMemory(announce: boolean) {
     setEntries([]);
+    setSystem([]);
+    setClearedAt(Date.now());
     setDraft("");
     setNote(null);
-    setCleared(true);
-    if (announce) {
-      toast("Session memory cleared");
-      bus.post({ type: "clear", sessionId: sessionNow.current });
-    }
+    addSystem(CLEARED_LINE);
+    if (announce) bus.post({ type: "clear", sessionId: sessionNow.current });
   }
 
   // ---- Commands -----------------------------------------------------------------
   // Every command, from the in-page keymap or a host hotkey, runs here once.
+  const interactionRef = useRef(interaction);
+  interactionRef.current = interaction;
   const settingsRef = useRef(prefs.settings);
   settingsRef.current = prefs.settings;
   const selectedRef = useRef<typeof selected>(undefined);
@@ -399,20 +437,24 @@ export function usePanelSession(
             { taskId: task.taskId, revision: task.currentRevision },
             latest.current.hints,
           );
-          if (result.ok) toast("Generating the solution…");
-          else setNote(failureNote(result.code));
+          if (!result.ok) setNote(failureNote(result.code));
           return;
         }
         case "skill.next":
-        case "skill.prev":
+        case "skill.prev": {
+          // Skills change only in interaction mode; otherwise this says which
+          // one is current.
+          const current = settingsRef.current.skill ?? DEFAULT_SKILL;
+          if (interactionRef.current === false) {
+            toast(TOAST_TEXT.skillCurrent(current));
+            return;
+          }
           prefs.setSettings({
             ...settingsRef.current,
-            skill: cycleSkill(
-              settingsRef.current.skill,
-              command === "skill.next" ? 1 : -1,
-            ),
+            skill: cycleSkill(current, command === "skill.next" ? 1 : -1),
           });
           return;
+        }
         case "session.clear":
           clearMemory(true);
           return;
@@ -421,7 +463,7 @@ export function usePanelSession(
           const done = await (shown
             ? presentation.close("analysis")
             : presentation.open("analysis"));
-          if (!done) toast("This window can’t show other panels.");
+          if (!done) setNote("This window can’t show other panels.");
           return;
         }
       }
@@ -458,9 +500,11 @@ export function usePanelSession(
         });
         return;
       }
-      // With one document per panel the intent goes to the panel it is for.
-      const target = INTENT_TARGET[intent.command];
-      if (target && perPanelHost.current && target !== panel) return;
+      // Whichever document the shell delivered the key to runs it once (a Web Lock
+      // dedupes a key several documents hear); a document that is not the owner
+      // hands it to the owner over the panel bus (see `press`). Filtering by
+      // "the panel it is for" dropped the key whenever the shell delivered it to a
+      // different panel than the page expected.
       runOnce(intent.command);
     });
     return () => {
@@ -470,22 +514,34 @@ export function usePanelSession(
   }, [runOnce, panel, prefs.setSettings]);
 
   // ---- Toasts for changes -------------------------------------------------------
-  const skill = prefs.settings.skill;
-  const lastSkill = useRef<LiveOwnerSkill | undefined>(skill);
+  const lastSkill = useRef<LiveOwnerSkill>(skill);
   useEffect(() => {
     if (lastSkill.current === skill) return;
     lastSkill.current = skill;
-    toast(
-      `Skill changed to ${skill ? LIVE_OWNER_SKILL_LABELS[skill] : "Auto-detect"}`,
-    );
+    toast(TOAST_TEXT.skillChanged(skill));
   }, [skill, toast]);
   const lastMode = useRef(interaction);
   useEffect(() => {
     if (lastMode.current === interaction) return;
     lastMode.current = interaction;
-    if (interaction !== null)
-      toast(`Interaction mode: ${interaction ? "ON" : "OFF"}`);
+    if (interaction !== null) toast(TOAST_TEXT.interaction(interaction));
   }, [interaction, toast]);
+  // Recording starts or stops (here or in the owner's document): the toast and,
+  // when it starts, the chat's system line.
+  const recording = live.mic === "listening";
+  const lastRecording = useRef(recording);
+  useEffect(() => {
+    if (lastRecording.current === recording) return;
+    lastRecording.current = recording;
+    toast(TOAST_TEXT.recording());
+    if (recording) addSystem(RECORDING_LINE);
+  }, [recording, toast, addSystem]);
+  // A session that is already recording when this panel opens says so once.
+  useEffect(() => {
+    if (recording) addSystem(RECORDING_LINE);
+    // Only on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- Typing -----------------------------------------------------------------
   const send = useCallback(
@@ -495,7 +551,6 @@ export function usePanelSession(
       const result = await actions.submitFollowUp(text, latest.current.hints);
       if (origin !== sessionNow.current) return result;
       if (result.ok) {
-        setCleared(false);
         const at = Date.now();
         addLine("Typed", text.trim(), at);
         bus.post({
@@ -533,7 +588,9 @@ export function usePanelSession(
     live,
     interaction,
     entries,
-    cleared,
+    system,
+    clearedAt,
+    skill,
     draft,
     setDraft,
     note,
@@ -550,6 +607,5 @@ export function usePanelSession(
     dictationError: owns ? auto.dictation.error : null,
     dictationSupported: auto.dictation.supported,
     engineAvailable: engineListening,
-    autoLine: owns ? auto.line : null,
   };
 }

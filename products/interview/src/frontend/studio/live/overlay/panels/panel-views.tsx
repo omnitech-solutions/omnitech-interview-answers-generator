@@ -1,68 +1,61 @@
-// The four panels. Each takes the one panel session (usePanelSession) and
-// renders a focused, translucent-friendly view of it; none fetches or decides
-// anything of its own. Views read presentation CAPABILITIES, never host names.
+// The four panels, as the OpenCluely recording shows them and nothing more:
+// the bar, the analysis (text column plus a separate code card), the live
+// transcription and chat, and settings. Each takes the one panel session
+// (usePanelSession) and renders it; none fetches or decides anything itself.
 //
 // [SAFETY] The settings footer says plainly that this is a visible window that
 // shows in screen shares. Nothing here hides a window or conceals capture.
-import { BUILD_ID } from "../build-id";
 import {
   LIVE_OWNER_SKILL_LABELS,
   LIVE_OWNER_SKILLS,
   type LiveOwnerSkill,
   type PresentationHost,
-  type PresentationPanel,
 } from "@omnitech/interview-contracts";
 import { type FormEvent, useState } from "react";
 import { Icon } from "../../../icon";
-import { TASK_KIND } from "../../task-panels";
-import { LiveCodeCanvas } from "../code-canvas";
-import { DeviceOnlyCard } from "../device-only-notice";
-import { MaskEditor } from "../mask-editor";
-import { localityChips, solution } from "../overlay-model";
-import { shortcutKeys } from "../overlay-shortcuts";
-import { taskHeading } from "../overlay-task";
-import { openStartPage } from "../studio-links";
-import { COMMAND_KEYS } from "./commands";
+import { BUILD_ID } from "../build-id";
+import type { ApproachItem } from "../overlay-model";
+import { CodeCard, TextCard } from "./code-card";
+import { DEFAULT_SKILL } from "./commands";
 import {
   languageOptions,
   NOT_SUPPORTED_YET,
   supportedLanguage,
 } from "./languages";
-import { PANEL_LABEL } from "./panel-kinds";
-import { clock, panelRows, taskSections } from "./panel-model";
-import { hasCapability } from "./presentation-host";
+import { analysisView, clock, type PanelRow, panelRows } from "./panel-model";
+import { quitShell } from "./shell-bridge";
 import type { usePanelSession } from "./use-panel-session";
 
 export type PanelSession = ReturnType<typeof usePanelSession>;
-type Tone = "green" | "red" | "amber" | "neutral";
+type Tone = "green" | "red" | "neutral";
 
-// green: live. red: recording, or interaction is off. amber: paused.
+// The hotkey the bar shows for the capture (the shell registers it).
+export const CAPTURE_HINT = "⌘⇧S";
+export const CHAT_PLACEHOLDER = "Type a message or transcription…";
+
+// green: interaction on. red: interaction off, or recording.
 export function pillTone(s: PanelSession): { tone: Tone; label: string } {
   if (!s.open) return { tone: "neutral", label: "Ended" };
-  if (s.paused) return { tone: "amber", label: "Paused" };
   if (s.live.mic === "listening") return { tone: "red", label: "Recording" };
   if (s.interaction === false) return { tone: "red", label: "Interaction off" };
-  return { tone: "green", label: "Live" };
+  return { tone: "green", label: "Interaction on" };
 }
 
-export const skillLabel = (skill: LiveOwnerSkill | undefined): string =>
-  skill ? LIVE_OWNER_SKILL_LABELS[skill] : "Auto-detect";
+// The short names the bar uses; every other skill shows its full name.
+const BAR_NAME: Partial<Record<LiveOwnerSkill, string>> = {
+  dsa: "DSA",
+  behavioral: "Behavioral",
+};
+export const skillName = (skill: LiveOwnerSkill | undefined): string => {
+  const chosen = skill ?? DEFAULT_SKILL;
+  return BAR_NAME[chosen] ?? LIVE_OWNER_SKILL_LABELS[chosen];
+};
 
-// ---- Pill -------------------------------------------------------------------
+// ---- Bar --------------------------------------------------------------------
 
-export function PillPanel({
-  s,
-  presentation,
-}: {
-  s: PanelSession;
-  presentation: PresentationHost;
-}) {
+export function PillPanel({ s }: { s: PanelSession }) {
   const status = pillTone(s);
-  const [refused, setRefused] = useState<PresentationPanel | null>(null);
-  const openPanel = async (panel: PresentationPanel) => {
-    setRefused((await presentation.open(panel)) ? null : panel);
-  };
-  const analyze = shortcutKeys("analyze");
+  const recording = s.live.mic === "listening";
   return (
     <div
       className="pn-pill"
@@ -72,41 +65,29 @@ export function PillPanel({
     >
       <button
         type="button"
-        className="pn-icon"
+        className="pn-bar-button"
         aria-label="Capture screenshot"
-        title={`Capture & analyze (${analyze})`}
+        title="Capture and analyze the screen"
         disabled={!s.open}
         onClick={() => s.press("capture")}
       >
         <Icon name="screenshot_monitor" />
-        <kbd>{analyze}</kbd>
+        <kbd>{CAPTURE_HINT}</kbd>
       </button>
       <button
         type="button"
-        className="pn-icon"
-        aria-label={
-          s.live.mic === "listening" ? "Stop microphone" : "Start microphone"
-        }
-        aria-pressed={s.live.mic === "listening"}
+        className="pn-bar-button"
+        aria-label={recording ? "Stop microphone" : "Start microphone"}
+        aria-pressed={recording}
         data-mic={s.live.mic}
-        title={`Microphone (${shortcutKeys("dictate")})`}
         disabled={!s.open}
         onClick={() => s.press("toggle-mic")}
       >
-        <Icon
-          name={s.live.mic === "listening" ? "mic" : "mic_off"}
-          filled={s.live.mic === "listening"}
-        />
+        <Icon name={recording ? "mic" : "mic_off"} filled={recording} />
       </button>
-      <button
-        type="button"
-        className="pn-skill"
-        data-testid="pn-skill"
-        title="Active skill: change it in Settings"
-        onClick={() => void openPanel("settings")}
-      >
-        {skillLabel(s.prefs.settings.skill)}
-      </button>
+      <span className="pn-skill" data-testid="pn-skill">
+        {skillName(s.skill)}
+      </span>
       <span
         className="pn-dot"
         data-tone={status.tone}
@@ -115,145 +96,110 @@ export function PillPanel({
         title={status.label}
         data-testid="pn-dot"
       />
-      <button
-        type="button"
-        className="pn-icon"
-        aria-label="Open analysis"
-        onClick={() => void openPanel("analysis")}
-      >
-        <Icon name="psychology" />
-      </button>
-      <button
-        type="button"
-        className="pn-icon"
-        aria-label="Open chat"
-        onClick={() => void openPanel("chat")}
-      >
-        <Icon name="forum" />
-      </button>
-      <button
-        type="button"
-        className="pn-icon"
-        aria-label="Open settings"
-        onClick={() => void openPanel("settings")}
-      >
-        <Icon name="settings" />
-      </button>
-      <span className="pn-visible" data-testid="pn-visible">
-        Visible window · shows in screen shares
-      </span>
-      {s.engineLine && (
-        <span className="pn-hint" role="status" data-testid="pn-engine">
-          {s.engineLine}
-        </span>
-      )}
-      {refused && (
-        <span className="pn-hint" role="status">
-          This window can’t open the {PANEL_LABEL[refused]} panel.
-        </span>
-      )}
     </div>
   );
 }
 
 // ---- Analysis ---------------------------------------------------------------
 
+const Lines = ({ lines }: { lines: readonly string[] }) => (
+  <>
+    {lines.map((line) => (
+      <p key={line}>{line}</p>
+    ))}
+  </>
+);
+
 export function AnalysisPanel({ s }: { s: PanelSession }) {
   const task = s.selected;
-  const code = task ? solution(task) : null;
-  const kind = task ? TASK_KIND[task.kind] : null;
-  const constraints =
-    task?.constraints.filter((c) => c.status === "current") ?? [];
-  const sections = task ? taskSections(task) : [];
-  const heading = task ? taskHeading(task) : null;
+  const view = task ? analysisView(task) : null;
   // The one error line can be dismissed; a different message shows again.
   const [dismissed, setDismissed] = useState<string | null>(null);
+  const note = s.note && s.note !== dismissed ? s.note : null;
   return (
-    <div className="pn-card" data-testid="pn-analysis">
-      <header className="pn-head">
-        <span className="pn-title">{PANEL_LABEL.analysis}</span>
-        {s.phase && (
-          <span
-            className="pn-analyzing"
-            role="status"
-            data-testid="pn-analyzing"
-          >
-            {s.phase === "capturing" ? "Capturing" : "Analyzing"}
+    <div className="pn-analysis" data-testid="pn-analysis">
+      <div className="pn-card pn-analysis-text">
+        {s.phase ? (
+          <p className="pn-analyzing" role="status" data-testid="pn-analyzing">
+            Analyzing
             <span className="pn-ellipsis" aria-hidden="true">
               <i />
               <i />
             </span>
-          </span>
-        )}
-      </header>
-      {s.note && s.note !== dismissed && (
-        <p className="pn-note" role="alert">
-          <span>{s.note}</span>
-          <button
-            type="button"
-            className="pn-icon"
-            aria-label="Dismiss message"
-            onClick={() => setDismissed(s.note)}
-          >
-            <Icon name="close" />
-          </button>
-        </p>
-      )}
-      {!task ? (
-        <p className="pn-muted" data-testid="pn-analysis-empty">
-          Nothing analysed yet. Capture the screen or ask a question.
-        </p>
-      ) : (
-        <div className="pn-body">
-          <h2 className="pn-problem" data-testid="pn-problem">
-            {heading?.title}
-          </h2>
-          {heading?.restated && (
-            <details className="pn-restated">
-              <summary>Restated task</summary>
-              <p>{heading.restated}</p>
-            </details>
-          )}
-          <div className="pn-kv">
-            <span className="pn-label">Problem type</span>
-            <span data-testid="pn-type">{kind?.label}</span>
-          </div>
-          {constraints.length > 0 && (
-            <div className="pn-chips" aria-label="Constraints">
-              {constraints.map((c) => (
-                <span key={c.text} className="pn-chip">
-                  {c.text}
-                </span>
-              ))}
-            </div>
-          )}
-          {sections.map((section) => (
-            <section
-              key={section.name}
-              className="pn-section"
-              aria-label={section.name}
-            >
-              <div className="pn-label">{section.name}</div>
-              {section.lines.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </section>
-          ))}
-          {code && (
-            <section
-              className="pn-code"
-              aria-label="Code"
-              data-testid="pn-code"
-            >
-              <div className="pn-label">
-                CODE · <span data-testid="pn-language">{code.language}</span>
+          </p>
+        ) : !view ? (
+          <p className="pn-muted pn-centered" data-testid="pn-analysis-empty">
+            Press {CAPTURE_HINT} to analyze the screen
+          </p>
+        ) : (
+          <div className="pn-scroll" data-testid="pn-answer">
+            <h2 className="pn-problem" data-testid="pn-problem">
+              {view.title}
+            </h2>
+            <p>
+              <strong>Problem Type:</strong>{" "}
+              <span data-testid="pn-type">{view.problemType}</span>
+            </p>
+            {view.constraints.length > 0 && (
+              <div className="pn-constraints">
+                <strong>Constraints:</strong>
+                <div className="pn-chips" aria-label="Constraints">
+                  {view.constraints.map((text) => (
+                    <span key={text} className="pn-chip">
+                      {text}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <LiveCodeCanvas
-                result={code.result}
-                revision={code.revision}
-                density="maximized"
-              />
-            </section>
+            )}
+            {(view.input.length > 0 || view.output.length > 0) && (
+              <div>
+                <strong>Input/Output:</strong>
+                {view.input.length > 0 && (
+                  <p>
+                    <b>Input:</b> {view.input.join(" ")}
+                  </p>
+                )}
+                {view.output.length > 0 && (
+                  <p>
+                    <b>Output:</b> {view.output.join(" ")}
+                  </p>
+                )}
+              </div>
+            )}
+            {view.steps.map((step) => (
+              <div key={step.heading}>
+                <strong>{step.heading}</strong>
+                <Lines lines={step.lines} />
+              </div>
+            ))}
+            {view.complexity.length > 0 && (
+              <div>
+                <strong>Complexity</strong>
+                <Lines lines={view.complexity} />
+              </div>
+            )}
+          </div>
+        )}
+        {note && (
+          <p className="pn-note" role="alert">
+            <span>{note}</span>
+            <button
+              type="button"
+              className="pn-note-close"
+              aria-label="Dismiss message"
+              onClick={() => setDismissed(note)}
+            >
+              <Icon name="close" />
+            </button>
+          </p>
+        )}
+      </div>
+      {!s.phase && view && (view.example || view.code) && (
+        <div className="pn-codecol">
+          {view.example && <TextCard text={view.example} />}
+          {view.code && (
+            <CodeCard language={view.code.language} text={view.code.text} />
           )}
         </div>
       )}
@@ -263,10 +209,63 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
 
 // ---- Chat / transcription ---------------------------------------------------
 
+// **bold** inside a line; the text itself is inert (never HTML).
+function Inline({ text }: { text: string }) {
+  return (
+    <>
+      {text
+        .split("**")
+        .map((part, at) =>
+          at % 2 === 1 ? <strong key={at}>{part}</strong> : part,
+        )}
+    </>
+  );
+}
+
+const HEADING = /^(?:phase\s+\d+\b.*|[^:]{2,60}:)$/i;
+
+// The assistant's formatted answer: headings in bold, lines as bullets, fenced
+// blocks as code.
+function AnswerText({ items }: { items: readonly ApproachItem[] }) {
+  return (
+    <div className="pn-answer">
+      {items.map((item, at) =>
+        item.kind === "code" ? (
+          <pre key={at}>{item.text}</pre>
+        ) : HEADING.test(item.text) ? (
+          <p key={at} className="pn-answer-head">
+            <Inline text={item.text} />
+          </p>
+        ) : (
+          <p key={at} className="pn-answer-line">
+            <Inline text={item.text} />
+          </p>
+        ),
+      )}
+    </div>
+  );
+}
+
+function Row({ row }: { row: PanelRow }) {
+  return (
+    <div className="pn-row" data-kind={row.kind}>
+      <span className="pn-time">{clock(row.at)}</span>
+      {row.kind === "assistant" && row.items ? (
+        <AnswerText items={row.items} />
+      ) : (
+        <span className="pn-text">{row.text}</span>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel({ s }: { s: PanelSession }) {
-  const rows = panelRows(s.model, s.entries);
+  const rows = panelRows(s.model, s.entries, s.system, s.clearedAt);
   const recording = s.live.mic === "listening";
-  const stop = shortcutKeys("dictate");
+  const lastSaid = [...rows].reverse().find((row) => row.kind !== "system");
+  // A reply is on its way: the last thing said has no answer yet.
+  const loading =
+    s.phase === "analyzing" && (!lastSaid || lastSaid.kind !== "assistant");
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const text = s.draft.trim();
@@ -275,67 +274,56 @@ export function ChatPanel({ s }: { s: PanelSession }) {
     if (result.ok) s.setDraft("");
   };
   return (
-    <div className="pn-card" data-testid="pn-chat">
+    <div className="pn-card pn-chat" data-testid="pn-chat">
       <header className="pn-head">
         <span className="pn-title">Live Transcription &amp; Chat</span>
-        <span
-          className="pn-dot"
-          data-tone={recording ? "red" : "neutral"}
-          role="status"
-          aria-label={recording ? "Recording" : "Not recording"}
-          data-testid="pn-rec"
-        />
-      </header>
-      <DeviceOnlyCard
-        tenant={s.tenant}
-        input={{
-          deviceOnly: s.deviceOnly,
-          autoOn: s.live.auto,
-          engine: s.engineAvailable,
-          dictationError: s.dictationError,
-          dictationSupported: s.dictationSupported,
-        }}
-        onStartRemote={() => openStartPage("overlay")}
-      />
-      <div className="pn-log" role="log" aria-label="Transcript and chat">
-        {s.cleared && rows.length === 0 && (
-          <p className="pn-system">Session memory cleared</p>
-        )}
-        {rows.map((row) => (
-          <div key={row.key} className="pn-row" data-kind={row.kind}>
-            <span className="pn-time">{clock(row.at)}</span>
-            <span className="pn-who">{row.label}</span>
-            <span className="pn-text">{row.text}</span>
-          </div>
-        ))}
         {recording && (
-          <p className="pn-system" data-testid="pn-recording-line">
-            Recording in progress — press {stop} to stop
-          </p>
+          <span
+            className="pn-dot"
+            data-tone="red"
+            role="status"
+            aria-label="Recording"
+            data-testid="pn-rec"
+          />
         )}
-        {s.live.interim !== "" && (
-          <p className="pn-interim" data-testid="pn-interim">
-            <em>{s.live.interim}</em>
-          </p>
+      </header>
+      <div className="pn-log" role="log" aria-label="Transcript and chat">
+        {rows.map((row) => (
+          <Row key={row.key} row={row} />
+        ))}
+        {loading && (
+          <div
+            className="pn-row"
+            data-kind="assistant"
+            data-testid="pn-loading"
+          >
+            <span className="pn-time">{clock(Date.now())}</span>
+            <span className="pn-text">…</span>
+          </div>
         )}
       </div>
-      {(s.note ?? (s.deviceOnly && s.live.auto ? null : s.dictationError)) && (
+      {s.live.interim !== "" && (
+        <p className="pn-interim" data-testid="pn-interim">
+          <em>{s.live.interim}</em>
+        </p>
+      )}
+      {s.note && (
         <p className="pn-note" role="alert">
-          {s.note ?? s.dictationError}
+          <span>{s.note}</span>
         </p>
       )}
       <form className="pn-compose" onSubmit={submit}>
         <input
           className="pn-input"
           aria-label="Message"
-          placeholder="Type a message"
+          placeholder={CHAT_PLACEHOLDER}
           value={s.draft}
           disabled={!s.open}
           onChange={(event) => s.setDraft(event.target.value)}
         />
         <button
           type="button"
-          className="pn-icon"
+          className="pn-round pn-mic"
           aria-label={recording ? "Stop microphone" : "Start microphone"}
           aria-pressed={recording}
           disabled={!s.open}
@@ -345,7 +333,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         </button>
         <button
           type="submit"
-          className="pn-icon pn-send"
+          className="pn-round pn-send"
           aria-label="Send message"
           disabled={!s.open || s.draft.trim() === ""}
         >
@@ -365,18 +353,35 @@ export function SettingsPanel({
   s: PanelSession;
   presentation: PresentationHost;
 }) {
-  const [masking, setMasking] = useState(false);
   const settings = s.prefs.settings;
-  const chips = s.session ? localityChips(s.session, s.snapshot.actions) : null;
-  const clickThrough = hasCapability(presentation, "click-through");
+  const close = async () => {
+    if (!(await presentation.close("settings"))) window.close();
+  };
   return (
-    <div className="pn-card" data-testid="pn-settings">
+    <div className="pn-card pn-settings" data-testid="pn-settings">
       <header className="pn-head">
-        <span className="pn-title">{PANEL_LABEL.settings}</span>
+        <span className="pn-title">Settings</span>
+        <button
+          type="button"
+          className="pn-danger"
+          data-testid="pn-quit"
+          onClick={quitShell}
+        >
+          Quit
+        </button>
+        <button
+          type="button"
+          className="pn-danger"
+          data-testid="pn-close"
+          onClick={() => void close()}
+        >
+          Close
+        </button>
       </header>
       <div className="pn-body">
+        <div className="pn-label">Language &amp; Skills</div>
         <label className="pn-field">
-          <span className="pn-label">Language</span>
+          <span>Coding Language</span>
           <select
             className="pn-select"
             data-testid="pn-language-select"
@@ -403,19 +408,18 @@ export function SettingsPanel({
           </select>
         </label>
         <label className="pn-field">
-          <span className="pn-label">Active skill</span>
+          <span>Active Skill</span>
           <select
             className="pn-select"
             data-testid="pn-skill-select"
-            value={settings.skill ?? ""}
-            onChange={(event) =>
-              s.prefs.setSettings({
-                ...settings,
-                skill: LIVE_OWNER_SKILLS.find((v) => v === event.target.value),
-              })
-            }
+            value={s.skill}
+            onChange={(event) => {
+              const skill = LIVE_OWNER_SKILLS.find(
+                (value) => value === event.target.value,
+              );
+              if (skill) s.prefs.setSettings({ ...settings, skill });
+            }}
           >
-            <option value="">Auto-detect</option>
             {LIVE_OWNER_SKILLS.map((value) => (
               <option key={value} value={value}>
                 {LIVE_OWNER_SKILL_LABELS[value]}
@@ -423,112 +427,20 @@ export function SettingsPanel({
             ))}
           </select>
         </label>
-        <div className="pn-kv">
-          <span className="pn-label">Processing</span>
-          <span data-testid="pn-locality">
-            {s.deviceOnly ? "Device only" : "Remote allowed"}
-            {chips ? ` · ${chips.locality.text}` : ""}
-          </span>
-        </div>
-        <div className="pn-kv">
-          <span className="pn-label">Retention</span>
-          <span data-testid="pn-retention">{s.session?.retention ?? "—"}</span>
-        </div>
-        <div className="pn-kv">
-          <span className="pn-label">Auto mode</span>
-          <button
-            type="button"
-            className="pn-toggle"
-            aria-pressed={s.live.auto}
-            data-testid="pn-auto"
-            onClick={() => s.setAuto(!s.live.auto)}
-          >
-            {s.live.auto ? "On" : "Off"}
-          </button>
-        </div>
-        {clickThrough && (
-          <div className="pn-kv">
-            <span className="pn-label">Interaction mode</span>
-            <button
-              type="button"
-              className="pn-toggle"
-              aria-pressed={s.interaction !== false}
-              data-testid="pn-interaction"
-              onClick={() =>
-                void presentation.setInteractionMode(s.interaction === false)
-              }
-            >
-              {s.interaction === false ? "Off" : "On"}
-            </button>
-          </div>
-        )}
-        <div className="pn-kv">
-          <span className="pn-label">Capture region</span>
-          <button
-            type="button"
-            className="pn-toggle"
-            onClick={() => setMasking(true)}
-          >
-            Edit region…
-          </button>
-        </div>
-        {s.owns && s.share.status !== "sharing" && (
-          <div className="pn-kv">
-            <span className="pn-label">Screen</span>
-            <button
-              type="button"
-              className="pn-toggle"
-              onClick={() => void s.share.start()}
-            >
-              Share a window or screen…
-            </button>
-          </div>
-        )}
-        <div
-          className="pn-shortcuts"
-          aria-label="Commands and hotkeys"
-          data-testid="pn-commands"
-        >
-          <div className="pn-label">Commands</div>
-          {COMMAND_KEYS.map((each) => (
-            <button
-              key={each.command}
-              type="button"
-              className="pn-shortcut"
-              data-command={each.command}
-              title={`Run ${each.command}`}
-              onClick={() => s.run(each.command)}
-            >
-              <kbd>{each.keys}</kbd>
-              <code>{each.command}</code>
-              <span>{each.label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="pn-footer">Visible window · shows in screen shares</p>
-        <p className="pn-footer" data-testid="pn-build">
-          Build {BUILD_ID}
+        <p className="pn-footer">
+          Visible window · shows in screen shares ·{" "}
+          <span data-testid="pn-build">Build {BUILD_ID}</span>
         </p>
       </div>
-      {masking && (
-        <MaskEditor
-          variant={s.owns && s.share.stream ? "browser" : "display"}
-          stream={s.owns ? s.share.stream : null}
-          initial={
-            s.owns && s.share.stream ? s.prefs.mask : s.prefs.displayMask
-          }
-          onSave={(rect) => {
-            if (s.owns && s.share.stream) s.prefs.setMask(rect);
-            else s.prefs.setDisplayMask(rect);
-            setMasking(false);
-          }}
-          onClose={() => setMasking(false)}
-        />
-      )}
     </div>
   );
 }
 
+// ---- Toasts -----------------------------------------------------------------
+
+// Bottom-left, large white text over a dark fade, gone after about 3 s. The
+// shell may draw these itself (presentation.nativeToasts); then the page does
+// not (panels-root decides).
 export function Toasts({ s }: { s: PanelSession }) {
   if (s.toasts.length === 0) return null;
   return (
@@ -540,7 +452,8 @@ export function Toasts({ s }: { s: PanelSession }) {
     >
       {s.toasts.map((toast) => (
         <div key={toast.key} className="pn-toast">
-          {toast.text}
+          <div className="pn-toast-title">{toast.title}</div>
+          <div className="pn-toast-detail">{toast.detail}</div>
         </div>
       ))}
     </div>

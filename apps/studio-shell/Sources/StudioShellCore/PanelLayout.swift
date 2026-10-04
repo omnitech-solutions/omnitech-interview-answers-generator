@@ -19,20 +19,21 @@ public enum PanelKind: String, CaseIterable, Sendable {
     // The value of `?panel=` on the overlay route.
     public var queryName: String { rawValue }
 
+    // The video's sizes: bar ~520x35, analysis ~700x400, chat ~320x440, settings ~400x380.
     public var defaultSize: CGSize {
         switch self {
-        case .pill: CGSize(width: 520, height: 44)
-        case .analysis: CGSize(width: 560, height: 640)
-        case .chat: CGSize(width: 420, height: 300)
-        case .settings: CGSize(width: 420, height: 380)
+        case .pill: CGSize(width: 520, height: 35)
+        case .analysis: CGSize(width: 700, height: 400)
+        case .chat: CGSize(width: 320, height: 440)
+        case .settings: CGSize(width: 400, height: 380)
         }
     }
 
     public var minSize: CGSize {
         switch self {
-        case .pill: CGSize(width: 520, height: 44)
+        case .pill: CGSize(width: 520, height: 35)
         case .analysis: CGSize(width: 320, height: 200)
-        case .chat: CGSize(width: 300, height: 180)
+        case .chat: CGSize(width: 260, height: 200)
         case .settings: CGSize(width: 320, height: 240)
         }
     }
@@ -47,31 +48,32 @@ public enum PanelLayout {
     public static let topInset = 8.0
     public static let step = 40.0
 
-    // pill top-centre; analysis centre-left under the pill; chat left/bottom;
-    // settings centred. Every frame fits inside `area`.
+    // The video's layout: the bar top-centre of the display, the chat at the
+    // left under it, the analysis right of the chat, settings top-right (on
+    // demand). Every frame fits inside `area`.
     public static func defaultFrame(_ kind: PanelKind, in area: CGRect) -> CGRect {
         let pill = size(.pill, in: area)
         let pillFrame = CGRect(
             x: area.midX - pill.width / 2, y: area.maxY - topInset - pill.height,
             width: pill.width, height: pill.height)
+        let top = pillFrame.minY - gap
         let chatSize = CGSize(
-            width: min(kind == .chat ? PanelKind.chat.defaultSize.width : 420, max(PanelKind.chat.minSize.width, area.width * 0.32)),
-            height: min(PanelKind.chat.defaultSize.height, max(PanelKind.chat.minSize.height, area.height * 0.38)))
-        let chatFrame = CGRect(x: area.minX + margin, y: area.minY + margin, width: chatSize.width, height: chatSize.height)
+            width: min(PanelKind.chat.defaultSize.width, max(PanelKind.chat.minSize.width, area.width * 0.4)),
+            height: min(PanelKind.chat.defaultSize.height, max(PanelKind.chat.minSize.height, top - area.minY - margin)))
+        let chatFrame = CGRect(x: area.minX + margin, y: top - chatSize.height, width: chatSize.width, height: chatSize.height)
         switch kind {
         case .pill:
             return fit(pillFrame, in: area, min: kind.minSize)
         case .chat:
             return fit(chatFrame, in: area, min: kind.minSize)
         case .analysis:
-            let width = min(kind.defaultSize.width, max(kind.minSize.width, area.width * 0.4))
-            let top = pillFrame.minY - gap
-            let room = top - (chatFrame.maxY + gap)
-            let height = min(kind.defaultSize.height, max(kind.minSize.height, room))
-            return fit(CGRect(x: area.minX + margin, y: top - height, width: width, height: height), in: area, min: kind.minSize)
+            let left = chatFrame.maxX + gap
+            let width = min(kind.defaultSize.width, max(kind.minSize.width, area.maxX - margin - left))
+            let height = min(kind.defaultSize.height, max(kind.minSize.height, top - area.minY - margin))
+            return fit(CGRect(x: left, y: top - height, width: width, height: height), in: area, min: kind.minSize)
         case .settings:
             let s = size(kind, in: area)
-            return fit(CGRect(x: area.midX - s.width / 2, y: area.midY - s.height / 2, width: s.width, height: s.height), in: area, min: kind.minSize)
+            return fit(CGRect(x: area.maxX - margin - s.width, y: area.maxY - topInset - s.height, width: s.width, height: s.height), in: area, min: kind.minSize)
         }
     }
 

@@ -56,6 +56,25 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
         return nil
     }
 
+    // [SAFETY] Studio's own pages in this shell may use the microphone and camera;
+    // anything else is refused. Answering here (instead of letting WebKit ask) stops
+    // every panel page raising its own "allow the microphone?" prompt: macOS still
+    // asks once for the app itself.
+    func webView(
+        _ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        let port = origin.port == 0 ? "" : ":\(origin.port)"
+        if frame.isMainFrame, let url = URL(string: "\(origin.protocol)://\(origin.host)\(port)/"),
+            model.location?.isStudio(url) == true
+        {
+            decisionHandler(.grant)
+        } else {
+            decisionHandler(.deny)
+        }
+    }
+
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { model.epoch.advance() }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         model.refresh()
@@ -77,6 +96,11 @@ enum StudioWebView {
                 engineEmit: EngineBridge.pageEmitSource),
             injectionTime: .atDocumentStart, forMainFrameOnly: true)
         configuration.userContentController.addUserScript(script)
+        // The consent flag the panels read, set before any page script runs.
+        if let source = Consent.pageScript(UserDefaultsStore()) {
+            configuration.userContentController.addUserScript(
+                WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         configuration.userContentController.addScriptMessageHandler(
             handler, contentWorld: .page, name: HostBridge.handlerName)
         let view = WKWebView(frame: .zero, configuration: configuration)

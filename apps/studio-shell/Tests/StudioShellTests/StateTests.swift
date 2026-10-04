@@ -46,6 +46,6 @@ func stateTests(_ t: Harness) async {
         let keys = HotkeyBinding.all
         t.expectEqual(Set(keys.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count, keys.count)
         t.expectEqual(HotkeyBinding.optionShift, 0x0A00)
-        t.expectEqual(keys.first { $0.action == .captureAnalyze }?.label, "⌥⇧A")
+        t.expectEqual(keys.first { $0.action == .captureAnalyze }?.label, "⌘⇧S")
     }
 }

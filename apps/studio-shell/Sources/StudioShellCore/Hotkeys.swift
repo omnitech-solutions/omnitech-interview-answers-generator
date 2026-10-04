@@ -10,7 +10,7 @@ import Foundation
 public struct HotkeyBinding: Equatable, Sendable {
     public enum Action: String, Sendable {
         case captureAnalyze, solutionGenerate, toggleAuto, toggleVisibility, toggleInteraction, toggleMic, clearSession
-        case toggleMode, bringToFront, skillNext, skillPrevious
+        case toggleMode, bringToFront, skillNext, skillPrevious, showChat, openSettings
         case moveLeft, moveRight, moveUp, moveDown
         case resizeNarrower, resizeWider, resizeTaller, resizeShorter
     }
@@ -37,7 +37,19 @@ public struct HotkeyBinding: Equatable, Sendable {
     public static let optionShift: UInt32 = option | shift
     public static let controlOption: UInt32 = control | option
 
+    // The video's keys come first (a lookup by action finds them); the old
+    // Option+Shift chords stay as secondary aliases of the same actions.
     public static let all: [HotkeyBinding] = [
+        HotkeyBinding(action: .captureAnalyze, keyCode: 0x01, carbonModifiers: command | shift, label: "⌘⇧S"),
+        HotkeyBinding(action: .toggleMic, keyCode: 0x0F, carbonModifiers: option, label: "⌥R"),
+        HotkeyBinding(action: .toggleInteraction, keyCode: 0x22, carbonModifiers: command | shift, label: "⌘⇧I"),
+        HotkeyBinding(action: .toggleVisibility, keyCode: 0x09, carbonModifiers: command | shift, label: "⌘⇧V"),
+        HotkeyBinding(action: .showChat, keyCode: 0x08, carbonModifiers: command | shift, label: "⌘⇧C"),
+        HotkeyBinding(action: .clearSession, keyCode: 0x2A, carbonModifiers: command | shift, label: "⌘⇧\\"),
+        HotkeyBinding(action: .skillPrevious, keyCode: 0x7E, carbonModifiers: command, label: "⌘↑", requiresInteractive: true),
+        HotkeyBinding(action: .skillNext, keyCode: 0x7D, carbonModifiers: command, label: "⌘↓", requiresInteractive: true),
+        HotkeyBinding(action: .openSettings, keyCode: 0x2B, carbonModifiers: command, label: "⌘,"),
+        // Secondary aliases.
         HotkeyBinding(action: .captureAnalyze, keyCode: 0x00, carbonModifiers: optionShift, label: "⌥⇧A"),
         HotkeyBinding(action: .solutionGenerate, keyCode: 0x05, carbonModifiers: optionShift, label: "⌥⇧G"),
         HotkeyBinding(action: .toggleAuto, keyCode: 0x20, carbonModifiers: optionShift, label: "⌥⇧U"),
@@ -47,8 +59,6 @@ public struct HotkeyBinding: Equatable, Sendable {
         HotkeyBinding(action: .clearSession, keyCode: 0x2A, carbonModifiers: optionShift, label: "⌥⇧\\"),
         HotkeyBinding(action: .toggleMode, keyCode: 0x2E, carbonModifiers: optionShift, label: "⌥⇧M"),
         HotkeyBinding(action: .bringToFront, keyCode: 0x11, carbonModifiers: optionShift, label: "⌥⇧T"),
-        HotkeyBinding(action: .skillPrevious, keyCode: 0x7E, carbonModifiers: command, label: "⌘↑", requiresInteractive: true),
-        HotkeyBinding(action: .skillNext, keyCode: 0x7D, carbonModifiers: command, label: "⌘↓", requiresInteractive: true),
         HotkeyBinding(action: .moveLeft, keyCode: 0x7B, carbonModifiers: controlOption, label: "⌃⌥←"),
         HotkeyBinding(action: .moveRight, keyCode: 0x7C, carbonModifiers: controlOption, label: "⌃⌥→"),
         HotkeyBinding(action: .moveUp, keyCode: 0x7E, carbonModifiers: controlOption, label: "⌃⌥↑"),
@@ -72,6 +82,17 @@ public enum HotkeyEffect: Equatable, Sendable {
 public enum HotkeyRouting {
     public static let nudge = 40.0
 
+    // The toast a key shows, if any. `skill` is the current skill AFTER a skill
+    // key has moved it.
+    public static func toast(for action: HotkeyBinding.Action, skill: OwnerSkill) -> Toast? {
+        switch action {
+        case .toggleMic: ToastText.recording
+        case .skillNext, .skillPrevious: ToastText.skillChanged(skill)
+        case .captureAnalyze: ToastText.currentSkill(skill)
+        default: nil
+        }
+    }
+
     // `moveUp` is dy > 0: AppKit coordinates have the origin bottom-left. Keys
     // resize the analysis panel, the one with room to grow.
     public static func effect(for action: HotkeyBinding.Action, interactive: Bool) -> HotkeyEffect? {
@@ -85,6 +106,8 @@ public enum HotkeyRouting {
         case .toggleInteraction: return .present(.toggleInteractionMode)
         case .toggleMode: return .present(.toggleAppMode)
         case .bringToFront: return .present(.bringToFront)
+        case .showChat: return .present(.focusPanel(.chat))
+        case .openSettings: return .present(.openPanel(.settings))
         // [GUARD] Skill keys act only while interaction mode is ON.
         case .skillNext: return interactive ? .intent(.skillNext) : nil
         case .skillPrevious: return interactive ? .intent(.skillPrevious) : nil

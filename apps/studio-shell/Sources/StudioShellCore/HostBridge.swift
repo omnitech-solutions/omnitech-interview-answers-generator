@@ -131,7 +131,7 @@ public enum HostCallDecoder {
         let needs: [String: Set<String>] = [
             "open": ["panel"], "close": ["panel"], "focus": ["panel"], "setLayout": ["layout"],
             "setVisible": ["visible"], "setInteractionMode": ["on"], "setAppMode": ["mode"],
-            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"],
+            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"], "quit": [],
         ]
         guard let required = needs[op], Set(params.keys).subtracting(["op"]) == required else {
             return .failure(.invalidParameters)
@@ -147,6 +147,7 @@ public enum HostCallDecoder {
         case "setVisible": command = bool("visible").map(PresentationCommand.setPanelsVisible)
         case "setInteractionMode": command = bool("on").map(PresentationCommand.setInteractionMode)
         case "setAppMode": command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
+        case "quit": command = .quitApp
         case "setOpacity":
             guard let value = number(params["value"]), value.isFinite else { return .failure(.invalidParameters) }
             command = .setOpacity(value)
@@ -307,6 +308,8 @@ public enum HostBridgeScript {
           }
           var presentation = Object.freeze({
             capabilities: Object.freeze([\(PresentationCapability.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]),
+            nativeToasts: true,
+            quit: function () { return op("quit"); },
             open: function (panel) { return op("open", { panel: String(panel) }); },
             close: function (panel) { return op("close", { panel: String(panel) }); },
             focus: function (panel) { return op("focus", { panel: String(panel) }); },

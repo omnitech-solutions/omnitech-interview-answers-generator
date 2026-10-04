@@ -57,6 +57,8 @@ public enum PresentationCommand: Equatable, Sendable {
     case movePanels(dx: Double, dy: Double)
     case resizePanel(PanelKind, dw: Double, dh: Double)
     case bringToFront
+    // The Settings panel's Quit: ends the app.
+    case quitApp
 }
 
 public struct PresentationState: Equatable, Sendable {
@@ -89,6 +91,8 @@ public struct PresentationState: Equatable, Sendable {
             "opacity": opacity,
             // The minified form is a hands-free host: Studio defaults Auto on.
             "handsFree": appMode == .minified,
+            // The shell shows the interaction/recording/skill toasts itself.
+            "nativeToasts": true,
         ]
     }
 }
@@ -112,7 +116,8 @@ public protocol PresentationSurface: AnyObject {
     func movePanels(dx: Double, dy: Double)
     func resizePanel(_ panel: PanelKind, dw: Double, dh: Double)
     func bringToFront()
-    func toast(_ text: String)
+    func toast(_ toast: Toast)
+    func quit()
 }
 
 // [DOMAIN] The reducer: command -> new state -> persist -> render. All the
@@ -130,7 +135,8 @@ public final class PresentationController: PresentationHost {
         self.prefs = prefs
         state = PresentationState(
             appMode: prefs.appMode, layout: prefs.layout,
-            panels: Set(PanelKind.allCases.filter { prefs.isVisible($0) }),
+            // Settings is on demand: it never reopens by itself.
+            panels: Set(PanelKind.allCases.filter { $0 != .settings && prefs.isVisible($0) }),
             allHidden: false, interaction: prefs.interaction, hotkeysEnabled: true,
             opacity: prefs.opacity)
     }
@@ -139,7 +145,7 @@ public final class PresentationController: PresentationHost {
     public func perform(_ command: PresentationCommand) -> PresentationState {
         let before = state
         var next = state
-        var toast: String?
+        var toast: Toast?
         switch command {
         case .openPanel(let kind), .focusPanel(let kind):
             // Panels exist in the minified form: opening one leaves expanded mode.
@@ -185,7 +191,7 @@ public final class PresentationController: PresentationHost {
             next.hotkeysEnabled = on
         case .setOpacity(let value):
             next.opacity = PanelOpacity.clamp(value)
-        case .movePanels, .resizePanel, .bringToFront:
+        case .movePanels, .resizePanel, .bringToFront, .quitApp:
             break
         }
         if next.interaction != before.interaction { toast = next.interaction.toast }
@@ -204,6 +210,7 @@ public final class PresentationController: PresentationHost {
         case .movePanels(let dx, let dy): surface?.movePanels(dx: dx, dy: dy)
         case .resizePanel(let kind, let dw, let dh): surface?.resizePanel(kind, dw: dw, dh: dh)
         case .bringToFront: surface?.bringToFront()
+        case .quitApp: surface?.quit()
         default: break
         }
         if let toast { surface?.toast(toast) }

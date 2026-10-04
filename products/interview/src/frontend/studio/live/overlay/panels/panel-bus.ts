@@ -27,8 +27,13 @@ export type PanelMessage =
   | { type: "command"; command: "capture" | "toggle-mic" }
   // Forget this session's lines and draft in every panel (session.clear).
   | { type: "clear"; sessionId: string | null }
+  // A notice the owner wants every panel to show (a refused capture, say), so a
+  // failure is never visible only in the one document that happened to run it.
+  | { type: "note"; text: string }
   // A panel just opened and asks the owner to say its state again.
-  | { type: "hello" };
+  | { type: "hello" }
+  // The panel that started the session (auto-session) tells the others.
+  | { type: "session"; sessionId: string };
 
 const CHANNEL = "interview-studio.panels";
 

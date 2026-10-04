@@ -93,12 +93,13 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         reassert()
     }
 
-    func toast(_ text: String) {
-        let area = (panels[.pill]?.panel.screen ?? NSScreen.main)?.visibleFrame
-            ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-        let anchorY = panels[.pill]?.panel.frame.minY ?? area.maxY - 52
-        toasts.show(text, topCentre: CGPoint(x: area.midX, y: anchorY - PanelLayout.gap))
+    func toast(_ toast: Toast) {
+        // Bottom-left of the main display (the one the pill is on).
+        let screen = panels[.pill]?.panel.screen ?? NSScreen.main
+        toasts.show(toast, on: screen?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900))
     }
+
+    func quit() { NSApp.terminate(nil) }
 
     // MARK: placement
 
@@ -245,10 +246,9 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         super.init()
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        // The real traffic lights, so it looks and feels like a Mac window: red quits
-        // the app, green opens the main Studio window, yellow is hidden (a floating
-        // overlay has nothing to minimise to). The slim pill keeps none of them.
-        let showControls = kind != .pill
+        // The video's panels have no chrome: no traffic lights, no title strip. Only
+        // the compact window (kind nil) keeps its lights (red quits, green expands).
+        let showControls = kind == nil
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         if let close = panel.standardWindowButton(.closeButton) {
             close.isHidden = !showControls
@@ -280,17 +280,24 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         effect.blendingMode = .behindWindow
         effect.state = .active
         effect.wantsLayer = true
+        // The bar drags by its left grip (the page sits beside it). A panel's page
+        // fills the whole frame and a transparent 22 pt strip over its top edge
+        // drags the window (the page insets its content). The compact window keeps
+        // its visible grip strip.
         let vertical = kind == .pill
-        let strip: CGFloat = vertical ? 14 : 16
+        let compactWindow = kind == nil
+        let strip: CGFloat = vertical ? 14 : (compactWindow ? 16 : 22)
         let size = frame.size
         let handle = DragHandle(frame: vertical
             ? CGRect(x: 0, y: 0, width: strip, height: size.height)
             : CGRect(x: 0, y: size.height - strip, width: size.width, height: strip))
         handle.autoresizingMask = vertical ? [.height] : [.width, .minYMargin]
         handle.vertical = vertical
+        handle.showsGrip = vertical || compactWindow
+        let insetPage = vertical || compactWindow
         webView.frame = vertical
             ? CGRect(x: strip, y: 0, width: size.width - strip, height: size.height)
-            : CGRect(x: 0, y: 0, width: size.width, height: size.height - strip)
+            : CGRect(x: 0, y: 0, width: size.width, height: size.height - (insetPage ? strip : 0))
         webView.autoresizingMask = [.width, .height]
         // The blur is its own layer so its opacity can change without fading the
         // page's text; the page above it is transparent when hosted natively.
@@ -377,8 +384,10 @@ final class PanelWindow: NSObject, NSWindowDelegate {
 
 final class DragHandle: NSView {
     var vertical = false
+    var showsGrip = true
     override var mouseDownCanMoveWindow: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
+        guard showsGrip else { return }
         NSColor.secondaryLabelColor.withAlphaComponent(0.5).setFill()
         let grip = vertical
             ? CGRect(x: bounds.midX - 1.5, y: bounds.midY - 14, width: 3, height: 28)
@@ -387,53 +396,61 @@ final class DragHandle: NSView {
     }
 }
 
-// A small banner under the pill; click-through, fades, never takes focus.
+// The video's toast: large white text over a dark left-to-right gradient at the
+// bottom-left of the display; click-through, ~3 s, fades, never takes focus.
 @MainActor
 final class ToastPresenter {
     private let panel: NSPanel
-    private let label = NSTextField(labelWithString: "")
+    private let gradient = CAGradientLayer()
+    private let title = NSTextField(labelWithString: "")
+    private let subtitle = NSTextField(labelWithString: "")
     private var hideWork: DispatchWorkItem?
 
     init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        let effect = NSVisualEffectView()
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 10
-        effect.layer?.masksToBounds = true
-        label.font = .systemFont(ofSize: 13, weight: .medium)
-        label.textColor = .labelColor
-        effect.addSubview(label)
-        panel.contentView = effect
+        let content = NSView()
+        content.wantsLayer = true
+        gradient.colors = [NSColor.black.withAlphaComponent(0.78).cgColor, NSColor.black.withAlphaComponent(0).cgColor]
+        gradient.startPoint = CGPoint(x: 0, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        content.layer?.addSublayer(gradient)
+        title.font = .systemFont(ofSize: 30, weight: .medium)
+        subtitle.font = .systemFont(ofSize: 19, weight: .regular)
+        for label in [title, subtitle] {
+            label.textColor = .white
+            label.lineBreakMode = .byTruncatingTail
+            content.addSubview(label)
+        }
+        panel.contentView = content
     }
 
-    func show(_ text: String, topCentre: CGPoint) {
-        label.stringValue = text
-        label.sizeToFit()
-        let size = CGSize(width: label.frame.width + 28, height: label.frame.height + 16)
-        label.frame.origin = CGPoint(x: 14, y: 8)
-        panel.setFrame(CGRect(x: topCentre.x - size.width / 2, y: topCentre.y - size.height, width: size.width, height: size.height), display: true)
+    func show(_ toast: Toast, on screen: CGRect) {
+        title.stringValue = toast.title
+        subtitle.stringValue = toast.subtitle
+        let frame = ToastLayout.frame(on: screen)
+        panel.setFrame(frame, display: true)
+        gradient.frame = CGRect(origin: .zero, size: frame.size)
+        title.frame = CGRect(x: ToastLayout.padding, y: 44, width: frame.width - ToastLayout.padding * 2, height: 38)
+        subtitle.frame = CGRect(x: ToastLayout.padding, y: 16, width: frame.width - ToastLayout.padding * 2, height: 26)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         hideWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            NSAnimationContext.runAnimationGroup({ $0.duration = 0.3; self?.panel.animator().alphaValue = 0 }, completionHandler: {
+            NSAnimationContext.runAnimationGroup({ $0.duration = 0.5; self?.panel.animator().alphaValue = 0 }, completionHandler: {
                 self?.panel.orderOut(nil)
             })
         }
         hideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + ToastLayout.seconds, execute: work)
     }
 }
-
 
 // An edge or corner that resizes its window by dragging. The panel's own resize
 // zone is covered by the web view, so the handles are explicit.

@@ -34,7 +34,9 @@ export class FrameError extends Error {
       | "not-ready"
       | "too-large"
       | "encode-failed"
-      | "display-changed",
+      | "display-changed"
+      | "permission-denied"
+      | "no-focused-window",
   ) {
     super(code);
   }

@@ -228,6 +228,9 @@ export type PresentationCapability = (typeof PRESENTATION_CAPABILITIES)[number];
 
 export type PresentationHost = {
   readonly capabilities: readonly PresentationCapability[];
+  // True when the shell shows its own toasts (interaction mode, recording,
+  // skill changes); a page must not duplicate them.
+  readonly nativeToasts?: boolean;
   // Each resolves to whether it took effect; none throws for a refusal.
   open(panel: PresentationPanel): Promise<boolean>;
   close(panel: PresentationPanel): Promise<boolean>;
@@ -251,6 +254,8 @@ export type PresentationHost = {
   // Panel opacity, 0.3 to 1.
   opacity?(): number;
   setOpacity?(value: number): Promise<boolean>;
+  // Quits the app (the Settings panel's Quit button).
+  quit?(): Promise<boolean>;
 };
 
 export const PRESENTATION_APP_MODES = ["expanded", "minified"] as const;
@@ -283,6 +288,7 @@ export function negotiatePresentation(
   const inner = host as PresentationHost;
   return {
     capabilities,
+    ...(host.nativeToasts === true ? { nativeToasts: true } : {}),
     open: (panel) => inner.open(panel),
     close: (panel) => inner.close(panel),
     focus: (panel) => inner.focus(panel),
@@ -315,6 +321,9 @@ export function negotiatePresentation(
           setOpacity: (value: number) =>
             inner.setOpacity?.(value) ?? Promise.resolve(false),
         }
+      : {}),
+    ...(typeof inner.quit === "function"
+      ? { quit: () => inner.quit?.() ?? Promise.resolve(false) }
       : {}),
   };
 }

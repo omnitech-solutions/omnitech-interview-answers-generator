@@ -138,23 +138,24 @@ export function intentOf(hotkey: StudioHostHotkey | string): Intent | null {
 // Which panel's document runs a host intent when the shell opens one document
 // per panel; the rest are for every panel (they claim one run between them).
 export const INTENT_TARGET: Partial<Record<Command, PanelKind>> = {
-  "capture.analyze": "analysis",
-  "solution.generate": "analysis",
-  "transcribe.toggle": "chat",
+  // The bar is always open; the analysis and chat windows may be closed.
+  "capture.analyze": "pill",
+  "solution.generate": "pill",
+  "transcribe.toggle": "pill",
   "auto.toggle": "pill",
 };
 
-// The next or previous skill, wrapping through "auto" (no hint) at the end.
+// The skill every panel starts with (the video's bar reads DSA).
+export const DEFAULT_SKILL: LiveOwnerSkill = "dsa";
+
+// The next or previous skill of the nine, wrapping at the ends.
 export function cycleSkill(
   current: LiveOwnerSkill | undefined,
   step: 1 | -1,
-): LiveOwnerSkill | undefined {
-  const ring: (LiveOwnerSkill | undefined)[] = [
-    undefined,
-    ...LIVE_OWNER_SKILLS,
-  ];
-  const at = ring.indexOf(current);
-  return ring[(at + step + ring.length) % ring.length];
+): LiveOwnerSkill {
+  const ring = LIVE_OWNER_SKILLS;
+  const at = ring.indexOf(current ?? DEFAULT_SKILL);
+  return ring[(at + step + ring.length) % ring.length] ?? DEFAULT_SKILL;
 }
 
 // One physical press is one run, however many documents hear it (a host hotkey
