@@ -287,7 +287,7 @@ describe("sources", () => {
     ).toBeVisible();
     expect(screen.getByText("Not selected")).toBeVisible();
     const companion = screen.getByTestId("companion-row");
-    expect(companion).toHaveTextContent("Waiting for first contact");
+    expect(companion).toHaveTextContent("No contact yet");
     expect(companion).not.toHaveTextContent(/connected/i);
     expect(companion).toHaveTextContent("renewed here, by you");
     expect(companion).not.toHaveTextContent(/10 min/);

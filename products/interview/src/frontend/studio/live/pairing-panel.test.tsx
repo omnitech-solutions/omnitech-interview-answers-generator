@@ -97,7 +97,7 @@ describe("PairingPanel", () => {
     await screen.findByTestId("pairing-panel");
     expect(screen.queryByTestId("pairing-credential")).not.toBeInTheDocument();
     expect(screen.getByTestId("pairing-status")).toHaveTextContent(
-      "Waiting for first contact",
+      "No contact yet",
     );
     expect(screen.getByTestId("pairing-panel")).toHaveTextContent(
       "no longer shown",
@@ -218,7 +218,7 @@ describe("companionChip", () => {
   it("is in contact only after a recorded heartbeat, and offline when stale", () => {
     expect(companionChip({ ...base, status: "never-seen" })).toEqual({
       tone: "amber",
-      text: "Waiting for first contact",
+      text: "No contact yet",
     });
     expect(companionChip({ ...base, status: "online", ageMs: 20_000 })).toEqual(
       { tone: "green", text: "In contact · last heard less than a minute ago" },

@@ -159,7 +159,7 @@ describe("start", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show" }));
     expect(credential).toHaveTextContent("pair-credential-0001");
     expect(screen.getByTestId("pairing-status")).toHaveTextContent(
-      "Waiting for first contact",
+      "No contact yet",
     );
     // The companion is optional: one line says it is not connected, nothing waits.
     expect(screen.getByTestId("companion-chip")).toHaveTextContent(

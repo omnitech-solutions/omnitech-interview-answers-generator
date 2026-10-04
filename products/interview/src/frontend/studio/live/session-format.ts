@@ -43,7 +43,7 @@ export function companionContact(companion: CompanionModel): {
   text: string;
 } {
   if (companion.status === "never-seen")
-    return { tone: "amber", text: "Waiting for first contact" };
+    return { tone: "amber", text: "No contact yet" };
   const age = ageLabel(companion.ageMs ?? 0);
   return companion.status === "online"
     ? { tone: "green", text: `In contact · last heard ${age} ago` }
