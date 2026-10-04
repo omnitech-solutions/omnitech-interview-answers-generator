@@ -11,7 +11,7 @@ import {
   type LiveOwnerSkill,
   type PresentationHost,
 } from "@omnitech/interview-contracts";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import { BUILD_ID } from "../build-id";
 import type { ApproachItem } from "../overlay-model";
@@ -53,7 +53,14 @@ export const skillName = (skill: LiveOwnerSkill | undefined): string => {
 
 // ---- Bar --------------------------------------------------------------------
 
-export function PillPanel({ s }: { s: PanelSession }) {
+export function PillPanel({
+  s,
+  children,
+}: {
+  s: PanelSession;
+  // Extra controls the one-window view adds after the status dot.
+  children?: ReactNode;
+}) {
   const status = pillTone(s);
   const recording = s.live.mic === "listening";
   return (
@@ -96,8 +103,24 @@ export function PillPanel({ s }: { s: PanelSession }) {
         title={status.label}
         data-testid="pn-dot"
       />
+      {children}
     </div>
   );
+}
+
+// Whole seconds since `active` last turned on; 0 while it is off.
+export function useElapsed(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!active) return setSeconds(0);
+    const started = Date.now();
+    const timer = setInterval(
+      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [active]);
+  return seconds;
 }
 
 // ---- Analysis ---------------------------------------------------------------
@@ -116,6 +139,7 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
   // The one error line can be dismissed; a different message shows again.
   const [dismissed, setDismissed] = useState<string | null>(null);
   const note = s.note && s.note !== dismissed ? s.note : null;
+  const waited = useElapsed(Boolean(s.phase));
   return (
     <div className="pn-analysis" data-testid="pn-analysis">
       <div className="pn-card pn-analysis-text">
@@ -126,6 +150,7 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
               <i />
               <i />
             </span>
+            {waited >= 3 && <span className="pn-muted"> {waited}s</span>}
           </p>
         ) : !view ? (
           <p className="pn-muted pn-centered" data-testid="pn-analysis-empty">

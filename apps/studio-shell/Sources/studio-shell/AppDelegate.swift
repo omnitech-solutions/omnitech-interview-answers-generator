@@ -26,7 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pending: [ObjectIdentifier: [HostCommand]] = [:]
     private var wasSignedOut = false
 
+    // [DOMAIN] The panels poll Studio for results while another app is in front.
+    // Without this, App Nap slows their timers and a result shows up only once
+    // the person switches back. The system may still sleep when idle.
+    private var napBlocker: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        napBlocker = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep], reason: "Keeping interview panels current")
         // First run: one native consent, before any page exists. Without it nothing
         // starts (the pages see no `studio.shell.consented` flag).
         guard requireConsent() else { exit(0) }

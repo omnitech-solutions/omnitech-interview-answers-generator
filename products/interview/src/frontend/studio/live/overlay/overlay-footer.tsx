@@ -92,7 +92,10 @@ export function Footer({
   pending,
   actions,
   onFailure,
+  controls = true,
 }: {
+  // False when Pause and End live elsewhere (the one-window toolbar).
+  controls?: boolean;
   paused: boolean;
   pending: readonly string[];
   actions: SessionActions;
@@ -122,23 +125,29 @@ export function Footer({
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>
-        <button
-          type="button"
-          className="ov-button"
-          disabled={pending.includes("pause") || pending.includes("resume")}
-          onClick={() => void run(paused ? actions.resume() : actions.pause())}
-        >
-          <Icon name={paused ? "play_arrow" : "pause"} filled />
-          {paused ? "Resume" : "Pause"}
-        </button>
-        <button
-          ref={endButton}
-          type="button"
-          className="ov-button danger"
-          onClick={() => setConfirming(true)}
-        >
-          End
-        </button>
+        {controls && (
+          <button
+            type="button"
+            className="ov-button"
+            disabled={pending.includes("pause") || pending.includes("resume")}
+            onClick={() =>
+              void run(paused ? actions.resume() : actions.pause())
+            }
+          >
+            <Icon name={paused ? "play_arrow" : "pause"} filled />
+            {paused ? "Resume" : "Pause"}
+          </button>
+        )}
+        {controls && (
+          <button
+            ref={endButton}
+            type="button"
+            className="ov-button danger"
+            onClick={() => setConfirming(true)}
+          >
+            End
+          </button>
+        )}
       </div>
       {confirming && (
         <div

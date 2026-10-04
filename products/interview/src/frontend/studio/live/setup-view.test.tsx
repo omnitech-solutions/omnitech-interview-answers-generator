@@ -568,7 +568,7 @@ describe("Start hands-free", () => {
   const handsFree = () =>
     screen.getByRole("button", { name: /Start hands-free/ });
 
-  it("asks for the screen and the microphone in the starting click, parks the share and remembers the choice", async () => {
+  it("asks only for the microphone in the starting click, never opens the share picker, and remembers the choice", async () => {
     const shared = fakeStream();
     const stream = shared.stream;
     const mic = { getTracks: () => [{ stop: vi.fn() }] };
@@ -582,21 +582,21 @@ describe("Start hands-free", () => {
     await open();
     pickInterview();
     consent();
-    // A permitted-remote session, so the screen is asked for too.
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
     fireEvent.click(handsFree());
     await waitFor(() => expect(started).toHaveLength(1));
-    expect(getDisplayMedia).toHaveBeenCalledTimes(1);
+    // A browser would show its picker: that waits for the capture button.
+    expect(getDisplayMedia).not.toHaveBeenCalled();
     expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
     expect(
       window.localStorage.getItem("interview-studio.live.auto.local"),
     ).toBe("on");
-    // The card that mounts takes the parked share and the announcement.
+    // The card that mounts takes the announcement; there is no share to adopt.
     const { takeAnnouncement, takeParkedShare } = await import(
       "./overlay/share-handoff"
     );
     expect(takeAnnouncement()).toBe("Hands-free is on.");
-    expect(takeParkedShare()).not.toBeNull();
+    expect(takeParkedShare()).toBeNull();
   });
 
   it("asks for no screen in a device-only session, and says what is missing when the microphone is refused", async () => {
@@ -621,7 +621,7 @@ describe("Start hands-free", () => {
     expect(takeAnnouncement()).toMatch(/the microphone wasn’t allowed/);
   });
 
-  it("releases the share when the session does not start", async () => {
+  it("opens no share when the session does not start either", async () => {
     const shared = fakeStream();
     const stop = shared.track.stop;
     Object.defineProperty(navigator, "mediaDevices", {
@@ -641,6 +641,6 @@ describe("Start hands-free", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
     fireEvent.click(handsFree());
     await screen.findByTestId("setup-failure");
-    expect(stop).toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
   });
 });

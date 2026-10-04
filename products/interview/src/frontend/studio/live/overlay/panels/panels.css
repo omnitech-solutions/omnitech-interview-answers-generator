@@ -475,18 +475,15 @@
   min-height: 0;
   display: flex;
 }
-/* Narrow: the chat alone. */
-.pn-single-pane[data-which="analysis"] {
-  display: none;
+/* The chat keeps a steady width beside the analysis, which takes the rest. */
+.pn-single-body:has([data-which="analysis"]) > [data-which="chat"] {
+  flex: 0 0 320px;
 }
-/* Wide enough: the chat keeps its width and the analysis takes the rest. */
-@media (min-width: 640px) {
-  .pn-single-pane[data-which="analysis"] {
-    display: flex;
-  }
-  .pn-single-pane[data-which="chat"] {
-    flex: 0 0 320px;
-  }
+.pn-single-confirm {
+  flex: none;
+}
+.pn-end {
+  color: var(--ov-red);
 }
 
 .pn-single-foot {

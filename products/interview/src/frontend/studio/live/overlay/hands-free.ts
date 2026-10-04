@@ -41,13 +41,16 @@ async function askScreen(): Promise<HandsFreeOutcome["screen"]> {
 }
 
 // Call straight from the click handler, before anything is awaited. A
-// device-only session never sends a screenshot, so it asks for no screen.
+// device-only session never sends a screenshot, so it asks for no screen. A plain
+// browser would have to open its share picker, so hands-free never asks: the
+// picker waits for the capture button. A native host captures without one.
 export async function prepareHandsFree(options: {
   deviceOnly: boolean;
 }): Promise<HandsFreeOutcome> {
-  const screen = options.deviceOnly
-    ? Promise.resolve<HandsFreeOutcome["screen"]>("skipped")
-    : askScreen();
+  const screen =
+    options.deviceOnly || !nativeCaptureAvailable()
+      ? Promise.resolve<HandsFreeOutcome["screen"]>("skipped")
+      : askScreen();
   const [shared, mic] = await Promise.all([screen, askMicrophone()]);
   return { screen: shared, mic };
 }

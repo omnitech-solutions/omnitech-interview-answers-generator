@@ -8,6 +8,7 @@ import { type PresentationHost } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { Icon } from "../../../icon";
 import { overlayAccess } from "../../float-access";
+import { holdAwake } from "../../keep-awake";
 import { tenantFromLocation } from "../../session-registry";
 import { useLiveSession } from "../../use-live-session";
 import { installHostSurface, isNativeSurface } from "../host-surface";
@@ -90,6 +91,9 @@ export function PanelsRoot({
       params.get("toasts") === "1" ||
       (!params.has("toasts") && panel === "analysis"));
 
+  // A native panel is always in view of the person, so it keeps reading the
+  // session even when its window is covered by another app's.
+  useEffect(() => (native ? holdAwake() : undefined), [native]);
   useEffect(() => {
     document.title = `Interview Studio · ${PANEL_LABEL[panel]}`;
     return installHostSurface(native);

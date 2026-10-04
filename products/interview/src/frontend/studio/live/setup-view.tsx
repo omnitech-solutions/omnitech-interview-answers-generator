@@ -326,7 +326,7 @@ export function SetupView({
           className="studio-button primary"
           disabled={!canStart}
           data-testid="start-hands-free"
-          title="Asks once for your screen and microphone, then listens and captures on its own while Auto is on. Audio from a call or another tab needs the native companion."
+          title="Asks once for your microphone, then listens. The screen is only shared when you press capture. Audio from a call or another tab needs the native companion."
           ref={primary}
           onClick={() => void start(true)}
         >
