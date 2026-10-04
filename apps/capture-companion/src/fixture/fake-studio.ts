@@ -5,6 +5,7 @@
 import {
   type Acknowledgement,
   CAPABILITY_ACK_EVENT_ID,
+  type CaptureRequest,
   HEARTBEAT_ACK_EVENT_ID,
   type RefusalCode,
   type SessionControlState,
@@ -26,7 +27,7 @@ export type RecordedRequest = {
     eventId?: string;
     sequence?: number;
     capturing?: boolean;
-    content?: { reason?: string; source?: string };
+    content?: { reason?: string; source?: string; requestId?: string };
   } & Record<string, unknown>;
   // Present for a multipart screenshot: the payload part's byte length.
   payloadBytes?: number;
@@ -38,14 +39,16 @@ export type Reply =
   | "network-error"
   | "not-an-ack";
 
-const control = (state: SessionControlState) => ({
+const control = (state: SessionControlState, capture?: CaptureRequest) => ({
   state,
   credentialExpiresAt: FAKE_CREDENTIAL_EXPIRY,
+  ...(capture ? { capture } : {}),
 });
 
 export const acceptedAck = (
   request: Pick<RecordedRequest["message"], "kind" | "sourceId" | "eventId">,
   state: SessionControlState = "active",
+  capture?: CaptureRequest,
 ): Acknowledgement => ({
   version: WIRE_VERSION,
   status: "accepted",
@@ -55,17 +58,18 @@ export const acceptedAck = (
     (request.kind === "heartbeat"
       ? HEARTBEAT_ACK_EVENT_ID
       : CAPABILITY_ACK_EVENT_ID),
-  control: control(state),
+  control: control(state, capture),
 });
 
 export const refusedAck = (
   code: RefusalCode,
   state?: SessionControlState,
+  capture?: CaptureRequest,
 ): Acknowledgement => ({
   version: WIRE_VERSION,
   status: "refused",
   code,
-  ...(state ? { control: control(state) } : {}),
+  ...(state ? { control: control(state, capture) } : {}),
 });
 
 export type FakeStudio = {
@@ -75,6 +79,11 @@ export type FakeStudio = {
   state: SessionControlState;
   // While true, every request fails at the network.
   down: boolean;
+  // The pending capture request every acknowledgement hands over (as Studio
+  // does) until a snapshot names its id; that clears it.
+  capture?: CaptureRequest | undefined;
+  // Ids of requests fulfilled by a snapshot, in order.
+  readonly fulfilled: string[];
   // Decides a reply before the default; return undefined to fall through.
   script?:
     | ((request: RecordedRequest, index: number) => Reply | undefined)
@@ -84,6 +93,7 @@ export type FakeStudio = {
 export function fakeStudio(): FakeStudio {
   const studio: FakeStudio = {
     requests: [],
+    fulfilled: [],
     state: "active",
     down: false,
     fetch: async (url, init) => {
@@ -104,9 +114,20 @@ export function fakeStudio(): FakeStudio {
       };
       const index = studio.requests.push(request) - 1;
       if (studio.down) throw new Error("studio-down");
+      // A snapshot naming the pending request's id fulfils it, so its own
+      // answer no longer carries the request.
+      const requestId = request.message.content?.requestId;
+      if (
+        request.message.kind === "screen.snapshot" &&
+        requestId !== undefined &&
+        requestId === studio.capture?.requestId
+      ) {
+        studio.fulfilled.push(requestId);
+        studio.capture = undefined;
+      }
       const reply =
         studio.script?.(request, index) ??
-        acceptedAck(request.message, studio.state);
+        acceptedAck(request.message, studio.state, studio.capture);
       if (reply === "network-error") throw new Error("network");
       const respond = (json: unknown, retryAfter?: string): FetchResponse => ({
         headers: {

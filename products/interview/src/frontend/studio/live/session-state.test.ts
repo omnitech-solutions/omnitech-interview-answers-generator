@@ -61,15 +61,17 @@ describe("phase and bar", () => {
       phase: "open",
       barState: "live",
       barLabel: "Live",
-      activity: { key: "listening", text: "Listening" },
+      activity: { key: "idle", text: "Idle" },
     });
   });
 
-  it("waits for the companion while created, without claiming a connection", () => {
+  it("is ready, not waiting, while created: the browser alone can capture", () => {
     const m = model(sessionView({ status: "created" }));
-    expect(m.barState).toBe("waiting");
+    expect(m.barState).toBe("live");
+    expect(m.barLabel).toBe("Ready");
+    // The companion is still never claimed to be connected, but it is no blocker.
     expect(m.companion.status).toBe("never-seen");
-    expect(m.activity.key).toBe("companion-waiting");
+    expect(m.activity).toEqual({ key: "idle", text: "Idle" });
   });
 
   it("shows paused and source lost", () => {
@@ -130,29 +132,16 @@ describe("banners in priority order", () => {
     ]);
   });
 
-  it("includes the companion banner while the session is live", () => {
-    const m = model(
+  it("raises no banner for a companion that is quiet or was never seen: it is optional", () => {
+    const quiet = model(
       sessionView({
         lastHeartbeatAt: new Date(NOW - 600_000).toISOString(),
         credentialRevoked: true,
       }),
       [disconnected(1, "microphone", "device-lost")],
     );
-    expect(kinds(m)).toEqual([
-      "companion-offline",
-      "source-lost",
-      "credential-revoked",
-    ]);
-    expect(m.banners[0]).toMatchObject({ tone: "red", neverSeen: false });
-  });
-
-  it("says the companion has never been seen, as its own case", () => {
-    const m = model(sessionView({ lastHeartbeatAt: null }));
-    expect(m.banners[0]).toMatchObject({
-      kind: "companion-offline",
-      neverSeen: true,
-      tone: "amber",
-    });
+    expect(kinds(quiet)).toEqual(["source-lost", "credential-revoked"]);
+    expect(kinds(model(sessionView({ lastHeartbeatAt: null })))).toEqual([]);
   });
 
   it("raises no companion banner while it is in contact", () => {
@@ -210,20 +199,44 @@ describe("activity by priority", () => {
     extra: Partial<LiveSessionView> = {},
   ) => model(online(extra), [], actions).activity;
 
-  it("puts paused first, then a lost source", () => {
+  it("puts paused first, and never speaks of the companion's sources", () => {
     expect(
       model(online({ status: "paused" }), [
         disconnected(1, "application-audio", "device-lost"),
       ]).activity,
     ).toEqual({ key: "paused", text: "Paused" });
-    expect(
-      model(online(), [disconnected(1, "application-audio", "device-lost")])
-        .activity,
-    ).toEqual({ key: "source-lost", text: "App audio lost" });
-    expect(
-      model(online(), [disconnected(1, "microphone", "permission-revoked")])
-        .activity.text,
-    ).toBe("Microphone permission revoked");
+    // A lost source is the companion's business (banner, source popover), not
+    // something Studio is doing.
+    for (const lost of [
+      disconnected(1, "application-audio", "device-lost"),
+      disconnected(1, "microphone", "permission-revoked"),
+    ])
+      expect(model(online(), [lost]).activity).toEqual({
+        key: "idle",
+        text: "Idle",
+      });
+  });
+
+  it("says a refused or failed run with its reason", () => {
+    const refused = action({
+      taskId: "q",
+      dispatchStatus: "suppressed",
+      suppressionReason: "vision_device_only",
+      updatedAt: minutesAfter(1),
+    });
+    expect(model(online(), [], [refused]).activity).toEqual({
+      key: "refused",
+      text: "Refused · Device-only mode never sends a screenshot to an assistant.",
+    });
+    const failed = action({
+      taskId: "q",
+      dispatchStatus: "failed",
+      updatedAt: minutesAfter(1),
+    });
+    expect(model(online(), [], [failed]).activity).toEqual({
+      key: "refused",
+      text: "Failed",
+    });
   });
 
   it("reads coding drafts, the coding task, drafting, then ready states", () => {
@@ -238,7 +251,10 @@ describe("activity by priority", () => {
           dispatchStatus: "in_flight",
         }),
       ]),
-    ).toEqual({ key: "coding-draft", text: "Coding draft · task rev 1" });
+    ).toEqual({
+      key: "coding-draft",
+      text: "Writing and testing code · task rev 1",
+    });
     expect(
       withActions([
         codingTask({
@@ -272,7 +288,7 @@ describe("activity by priority", () => {
     ).toBe("Code draft ready");
   });
 
-  it("goes back to listening once the conversation moves past the result", () => {
+  it("goes back to idle once the conversation moves past the result", () => {
     const published = action({
       taskId: "q",
       dispatchStatus: "succeeded",
@@ -282,9 +298,7 @@ describe("activity by priority", () => {
     const later = transcript(9, "next question", {
       receivedAt: minutesAfter(2),
     });
-    expect(model(online(), [later], [published]).activity.key).toBe(
-      "listening",
-    );
+    expect(model(online(), [later], [published]).activity.key).toBe("idle");
     const earlier = transcript(9, "before", {
       receivedAt: minutesAfter(0, 30),
     });
@@ -293,12 +307,12 @@ describe("activity by priority", () => {
     );
   });
 
-  it("says when the companion has gone quiet instead of claiming to listen", () => {
+  it("says nothing about a companion that has gone quiet", () => {
     expect(
       model(
         sessionView({ lastHeartbeatAt: new Date(NOW - 900_000).toISOString() }),
       ).activity,
-    ).toEqual({ key: "companion-offline", text: "Companion offline" });
+    ).toEqual({ key: "idle", text: "Idle" });
   });
 });
 

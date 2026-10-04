@@ -6,6 +6,8 @@ import type {
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "../icon";
+import { documentTarget } from "./assistant-model";
+import { DocumentPreview, type PreviewPayload } from "./document-preview";
 import {
   type DocumentContext,
   type DocumentDetail,
@@ -22,8 +24,6 @@ import {
   relativeTime,
   revisionNote,
 } from "./documents-model";
-import { documentTarget } from "./assistant-model";
-import { DocumentPreview, type PreviewPayload } from "./document-preview";
 import { IconButton, message, Segmented, Spinner } from "./documents-ui";
 
 const MAX_LISTED_REVISIONS = 20;

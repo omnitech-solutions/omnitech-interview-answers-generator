@@ -17,25 +17,25 @@ import {
   createOpenAiModelAdapter,
 } from "@omnitech/ai-provider-openai";
 import {
-  INTERVIEW_ANSWER_PROFILE,
-  INTERVIEW_ASSISTANT_PROFILE,
-} from "@omnitech/product-interview/backend";
-import {
   type AgentExecutionPort,
   type AiProfile,
   createAiExecutionGateway,
 } from "@omnitech/ai-runtime";
-import {
-  AgentPayloadStore,
-  PostgresAgentJobRepository,
-} from "@omnitech/platform-storage";
-import { getPlatformDatabase } from "@omnitech/database";
 import {
   declareLocality,
   resolveAgentProfiles,
   resolveDefaultLanguageModel,
   withDeclaredLocality,
 } from "@omnitech/ai-runtime/config";
+import { getPlatformDatabase } from "@omnitech/database";
+import {
+  AgentPayloadStore,
+  PostgresAgentJobRepository,
+} from "@omnitech/platform-storage";
+import {
+  INTERVIEW_ANSWER_PROFILE,
+  INTERVIEW_ASSISTANT_PROFILE,
+} from "@omnitech/product-interview/backend";
 import {
   agentAssistantProfiles,
   runAgentStructured,

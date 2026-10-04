@@ -32,11 +32,7 @@ import {
   mergeObservations,
   serverClockOffset,
 } from "./session-merge";
-import type {
-  DocumentVisibility,
-  LiveSnapshot,
-  SessionStore,
-} from "./session-snapshot";
+import type { LiveSnapshot, SessionStore } from "./session-snapshot";
 
 export function createSessionStore(
   tenant: string,
@@ -55,10 +51,12 @@ export function createSessionStore(
     serverClockOffsetMs: 0,
     lastReadAt: null,
     streamError: null,
+    readFailures: 0,
     pending: [],
     commandError: null,
     endedSessionId: deps.storage.read(endedKey),
     notFoundSessionId: null,
+    switchedTo: null,
   };
   let cursors: { afterSequence: number; actionCursor?: string } = {
     afterSequence: 0,
@@ -66,12 +64,7 @@ export function createSessionStore(
   let watching = false;
   let disposed = false;
   let removeVisibility: (() => void) | null = null;
-  // Other documents showing this session (the floating window).
-  const documents = new Set<DocumentVisibility>();
-  const documentRemovers = new Map<DocumentVisibility, () => void>();
-  // Visible while the page or any watched document is: one loop, one clock.
-  const visible = () =>
-    deps.isVisible() || [...documents].some((doc) => doc.isVisible());
+  const visible = () => deps.isVisible();
   let timer: unknown = null;
   // True while the loop is waiting on a hydration, a read or a purge check, so
   // no second one starts beside it.
@@ -82,6 +75,12 @@ export function createSessionStore(
   // A terminal answer (the session is gone or not ours): no further reads
   // until the owner refreshes.
   let halted = false;
+  // The session the owner switched to: refresh follows it, not "current".
+  let pinned: string | null = null;
+  // Raised by every bindSession: a read, a purge check or a hydration that began
+  // under an earlier one belongs to the session left behind, so its result, its
+  // error and its halt are all ignored.
+  let bindEpoch = 0;
   let settleAttempts = 0;
   // Raised by every command response; a stream page that began before it
   // cannot overwrite the newer session record.
@@ -132,13 +131,15 @@ export function createSessionStore(
   }
 
   async function readPages(id: string): Promise<void> {
+    const bound = bindEpoch;
     for (;;) {
       const epoch = commandEpoch;
       const page = await client.stream(id, {
         afterSequence: cursors.afterSequence,
         ...(cursors.actionCursor ? { actionCursor: cursors.actionCursor } : {}),
       });
-      if (disposed || snapshot.session?.id !== id) return;
+      if (disposed || bound !== bindEpoch || snapshot.session?.id !== id)
+        return;
       cursors = {
         afterSequence: page.nextAfterSequence,
         actionCursor: page.nextActionCursor,
@@ -164,6 +165,7 @@ export function createSessionStore(
         serverClockOffsetMs: serverClockOffset(page.serverNow, deps.now()),
         lastReadAt: deps.now(),
         streamError: null,
+        readFailures: 0,
       });
       if (!page.hasMoreObservations && !page.hasMoreActions) {
         drained.add(id);
@@ -173,9 +175,10 @@ export function createSessionStore(
   }
   function startRead(id: string): Promise<void> {
     if (reading) return reading;
-    reading = readPages(id).finally(() => {
-      reading = null;
+    const read = readPages(id).finally(() => {
+      if (reading === read) reading = null;
     });
+    reading = read;
     return reading;
   }
 
@@ -196,15 +199,19 @@ export function createSessionStore(
   async function pump() {
     const session = snapshot.session;
     if (!session || !isOpen(session)) return;
+    const bound = bindEpoch;
     busy = true;
     try {
       await startRead(session.id);
+      if (bound !== bindEpoch) return;
       failures = 0;
     } catch (error) {
+      // [SAFETY] A failure of the session left behind says nothing about this one.
+      if (bound !== bindEpoch) return;
       const code = codeOf(error);
-      set({ streamError: code });
       if (TERMINAL_CODES.includes(code)) halted = true;
       else failures += 1;
+      set({ streamError: code, readFailures: failures });
     }
     busy = false;
     if (halted) return;
@@ -234,10 +241,14 @@ export function createSessionStore(
       !session.purged);
 
   async function settlePurge(id: string) {
+    const bound = bindEpoch;
     busy = true;
     try {
-      adopt(await client.get(id));
+      const view = await client.get(id);
+      if (bound !== bindEpoch) return;
+      adopt(view);
     } catch (error) {
+      if (bound !== bindEpoch) return;
       set({ streamError: codeOf(error) });
     }
     settleAttempts += 1;
@@ -251,13 +262,16 @@ export function createSessionStore(
   }
 
   async function drainFinished(id: string) {
+    const bound = bindEpoch;
     busy = true;
     try {
       await startRead(id);
     } catch (error) {
+      if (bound !== bindEpoch) return;
       set({ streamError: codeOf(error) });
       drained.add(id);
     }
+    if (bound !== bindEpoch) return;
     busy = false;
   }
 
@@ -288,11 +302,20 @@ export function createSessionStore(
 
   function hydrate(): Promise<void> {
     if (hydrating) return hydrating;
+    const bound = bindEpoch;
     busy = true;
     if (snapshot.hydration !== "ready") set({ hydration: "loading" });
     hydrating = (async () => {
       try {
-        let view = await client.current();
+        let view = pinned
+          ? await client.get(pinned).catch((error) => {
+              if (codeOf(error) !== "not_found") throw error;
+              pinned = null;
+              set({ switchedTo: null });
+              return client.current();
+            })
+          : await client.current();
+        if (bound !== bindEpoch) return;
         // No open session: the finished one this tab remembers, if any.
         const known = snapshot.session?.id ?? snapshot.endedSessionId;
         if (!view && known) {
@@ -303,19 +326,24 @@ export function createSessionStore(
             forget();
           }
         }
+        if (bound !== bindEpoch) return;
         if (view) adopt(view);
         else set({ session: null, observations: [], actions: [] });
         failures = 0;
-        set({ hydration: "ready", streamError: null });
+        set({ hydration: "ready", streamError: null, readFailures: 0 });
       } catch (error) {
+        if (bound !== bindEpoch) return;
         failures += 1;
         set({
           hydration: snapshot.hydration === "ready" ? "ready" : "failed",
           streamError: codeOf(error),
+          readFailures: failures,
         });
         if (watching && !disposed) schedule(ensureRunning, backoff());
       }
     })().finally(() => {
+      // A hydration of an earlier binding leaves the loop's flags to the new one.
+      if (bound !== bindEpoch) return;
       busy = false;
       hydrating = null;
       ensureRunning();
@@ -334,7 +362,31 @@ export function createSessionStore(
     set,
     adopt,
     forget,
+    bindSession(view) {
+      // [SAFETY] Another session's content is dropped whole before the new
+      // one is adopted; a read still in flight for the old id is ignored.
+      pinned = view.id;
+      bindEpoch += 1;
+      busy = false;
+      hydrating = null;
+      cursors = { afterSequence: 0 };
+      drained.clear();
+      failures = 0;
+      halted = false;
+      settleAttempts = 0;
+      reading = null;
+      clearTimer();
+      set({
+        streamError: null,
+        hydration: "ready",
+        switchedTo: isOpen(view) ? null : view.id,
+      });
+      adopt(view);
+      ensureRunning();
+    },
     clearFinished() {
+      const wasPinned = pinned !== null;
+      pinned = null;
       forget();
       cursors = { afterSequence: 0 };
       drained.clear();
@@ -347,7 +399,11 @@ export function createSessionStore(
         pairing: null,
         notFoundSessionId: null,
         streamError: null,
+        switchedTo: null,
       });
+      // The owner had switched away from "current": look for it again, so a
+      // live session is never lost behind a dismissed finished one.
+      if (wasPinned) void hydrate();
     },
     isOpen,
     markCommandAnswered: () => {
@@ -367,6 +423,9 @@ export function createSessionStore(
       }
     },
     resetLoop() {
+      pinned = null;
+      if (snapshot.switchedTo !== null) set({ switchedTo: null });
+      reading = null;
       failures = 0;
       halted = false;
       settleAttempts = 0;
@@ -374,6 +433,9 @@ export function createSessionStore(
     ...(deps.analyzeLatestCapture
       ? { analyzeLatestCapture: deps.analyzeLatestCapture }
       : {}),
+    ...(deps.analyzeCapture ? { analyzeCapture: deps.analyzeCapture } : {}),
+    ...(deps.requestCapture ? { requestCapture: deps.requestCapture } : {}),
+    ...(deps.captureStatus ? { captureStatus: deps.captureStatus } : {}),
     ...(deps.submitFollowUp ? { submitFollowUp: deps.submitFollowUp } : {}),
     async refresh() {
       failures = 0;
@@ -404,25 +466,11 @@ export function createSessionStore(
     },
     getSnapshot: () => snapshot,
     actions,
-    watchDocument(source) {
-      documents.add(source);
-      documentRemovers.set(source, source.onChange(onVisibility));
-      // A document that is visible while the page is hidden resumes the loop.
-      if (watching && !disposed) ensureRunning();
-      return () => {
-        documentRemovers.get(source)?.();
-        documentRemovers.delete(source);
-        documents.delete(source);
-      };
-    },
     dispose() {
       disposed = true;
       watching = false;
       removeVisibility?.();
       removeVisibility = null;
-      for (const remove of documentRemovers.values()) remove();
-      documentRemovers.clear();
-      documents.clear();
       clearTimer();
       listeners.clear();
     },

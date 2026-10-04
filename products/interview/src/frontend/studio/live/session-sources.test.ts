@@ -11,8 +11,8 @@ import {
 } from "./session-fixtures";
 import {
   COMPANION_OFFLINE_AFTER_MS,
-  CREDENTIAL_LIFETIME_MS,
   CREDENTIAL_EXPIRING_SOON_MS,
+  CREDENTIAL_LIFETIME_MS,
   companionModel,
   type SourceHealth,
   sourceIndex,

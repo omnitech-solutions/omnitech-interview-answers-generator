@@ -3,8 +3,8 @@ import { Icon } from "../icon";
 import { ageLabel, companionContact } from "./session-format";
 import type { CommandResult } from "./session-snapshot";
 import {
-  CREDENTIAL_LIFETIME_TEXT,
   type CompanionModel,
+  CREDENTIAL_LIFETIME_TEXT,
 } from "./session-sources";
 import { useLiveSession } from "./use-live-session";
 

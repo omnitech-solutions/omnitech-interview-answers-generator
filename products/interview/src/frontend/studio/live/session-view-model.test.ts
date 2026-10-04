@@ -122,23 +122,15 @@ describe("banner copy", () => {
     expect(lostCopy.detail).toMatch(/other side of the call/);
   });
 
-  it("never claims the companion is connected or that nothing is captured", () => {
-    const never = model();
-    const a = bannerCopy(
-      never.banners.find((b) => b.kind === "companion-offline")!,
-      never,
+  it("has no banner for the optional companion, whether never seen or gone quiet", () => {
+    expect(model().banners.map((b) => b.kind)).not.toContain(
+      "companion-offline",
     );
-    expect(a.title).toMatch(/no contact .* yet/i);
-    const quiet = model({ lastHeartbeatAt: minutesAfter(3) }, [], 10);
-    const b = bannerCopy(
-      quiet.banners.find((x) => x.kind === "companion-offline")!,
-      quiet,
-    );
-    expect(b.title).toBe("No contact from the companion for 7 min.");
-    expect(b.detail).toMatch(/keeps the session open until you end it/i);
-    expect(`${a.title}${a.detail}${b.title}${b.detail}`).not.toMatch(
-      /connected|nothing is being captured/i,
-    );
+    expect(
+      model({ lastHeartbeatAt: minutesAfter(3) }, [], 10).banners.map(
+        (b) => b.kind,
+      ),
+    ).toEqual([]);
   });
 
   it("offers renewal for a credential problem and nothing for the cap", () => {
@@ -194,10 +186,10 @@ describe("capability table", () => {
     expect(where["Coding drafts and tests"]).toBe(
       "Refused: needs a remote model",
     );
-    // No stage reads screenshots, so there is no model step to refuse.
+    // Device-only never sends a screenshot to a model.
     expect(where["Screen reading"]).toBeUndefined();
     expect(where["Screenshots"]).toBe(
-      "Stored for you; no model reads them yet",
+      "Stored for you; never sent to a model: Analyze is refused in device-only mode",
     );
     expect(where["Raw audio"]).toBe("Memory only, never saved");
   });
@@ -215,5 +207,9 @@ describe("capability table", () => {
       "Remote model, through Studio's AI gateway",
     );
     expect(where["Speech"]).toBe("On this Mac, in the companion");
+    // Remote: a capture goes to the vision model, and only on Analyze.
+    expect(where["Screenshots"]).toBe(
+      "Stored for you; sent to the selected vision-capable model only when you press Analyze",
+    );
   });
 });

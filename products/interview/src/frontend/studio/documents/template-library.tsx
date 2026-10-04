@@ -24,8 +24,8 @@ import {
 } from "./documents-model";
 import {
   IconButton,
-  message,
   Modal,
+  message,
   PageHeader,
   Segmented,
 } from "./documents-ui";

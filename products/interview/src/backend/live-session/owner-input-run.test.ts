@@ -4,19 +4,20 @@
 // restart does not apply an input twice; attachments name provenance ids only.
 import { describe, expect, it } from "vitest";
 import { createInterviewSessionPolicy } from "./interview-policy.js";
+import type { SessionStorePort } from "./processor-ports.js";
+import type { StoredAction, StoredObservation } from "./session-reads.js";
 import {
   attachmentsFor,
   capturedFor,
   createRun,
+  hintsFor,
   processInOrder,
   processOwnerInputs,
   processUtterances,
   replayObservations,
-  seedFromActions,
   type SessionRun,
+  seedFromActions,
 } from "./session-run.js";
-import type { StoredAction, StoredObservation } from "./session-reads.js";
-import type { SessionStorePort } from "./processor-ports.js";
 
 const SESSION = "00000000-0000-4000-8000-000000000001";
 const policy = createInterviewSessionPolicy();
@@ -84,6 +85,53 @@ const storeOf = (rows: StoredObservation[]): SessionStorePort =>
 async function replay(run: SessionRun, rows: StoredObservation[]) {
   await replayObservations(run, storeOf(rows), 1_000, 200);
 }
+
+describe("an owner capture with hints", () => {
+  it("attaches the owner-capture snapshot and carries the newest hints on the task", async () => {
+    const run = newRun();
+    await replay(run, [
+      observation(
+        "screen.snapshot",
+        "studio.owner-capture",
+        "r-1",
+        {
+          payloadRef: "r-1",
+          mediaType: "image/png",
+          byteLength: 10,
+          windowLabel: "Chrome",
+        },
+        "artifact",
+      ),
+      input("r-1", {
+        operation: "analyze",
+        skill: "dsa",
+        snapshots: [{ sourceId: "studio.owner-capture", eventId: "r-1" }],
+      }),
+    ]);
+    processOwnerInputs(run);
+    const task = run.tasks.tasks["task-i.r-1"] as never;
+    expect(attachmentsFor(run, task).map((a) => a.reference)).toEqual([
+      `snap/${SESSION}/studio.owner-capture/r-1`,
+    ]);
+    expect(hintsFor(run, task)).toEqual({ skill: "dsa" });
+    // A later input on the same task overrides skill and adds a language.
+    await replay(run, [
+      input("r-2", {
+        operation: "follow-up",
+        text: "again",
+        skill: "programming",
+        language: "typescript",
+        target: { taskId: "task-i.r-1", revision: 1 },
+        snapshots: [],
+      }),
+    ]);
+    processOwnerInputs(run);
+    expect(hintsFor(run, run.tasks.tasks["task-i.r-1"] as never)).toEqual({
+      skill: "programming",
+      language: "typescript",
+    });
+  });
+});
 
 describe("an analyze input", () => {
   it("opens its own task named after the request, resting on the input and the snapshot, with no transcript segment", async () => {

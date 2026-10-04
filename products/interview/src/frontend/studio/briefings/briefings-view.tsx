@@ -1,19 +1,19 @@
 import { createBriefsClient } from "@omnitech/interview-api-client";
-import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import type { Brief } from "@omnitech/interview-contracts";
+import type { PlaygroundExplanation } from "@omnitech/interview-playground-control";
 import { useEffect, useMemo, useState } from "react";
-import { conceptBriefAssistant } from "../../assistant-config";
 import { createPortal } from "react-dom";
+import { conceptBriefAssistant } from "../../assistant-config";
 import { formatRelativeTime } from "../../format-timestamp";
 import type { StudioActions } from "../config/commands";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
+import { studioFetch, studioFetchUntil } from "../studio-fetch";
 import type { StudioLists } from "../use-studio-lists";
 import { BehaviouralPack } from "./behavioural/behavioural-pack";
 import { BriefCard } from "./brief-card";
 import { ExplanationsPane } from "./explanations-pane";
 import { NewBrief } from "./new-brief";
-import { studioFetch, studioFetchUntil } from "../studio-fetch";
 
 const KIND_LABELS = {
   concept: "Concept",

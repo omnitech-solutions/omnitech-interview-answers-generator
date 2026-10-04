@@ -20,10 +20,13 @@ See [[research/index]].
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (17)
+## ADRs (20)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0019-host-the-overlay-in-a-native-shell-through-one-host-adapter]] | Host the overlay in a native shell through one host adapter | Accepted | 2026-10-04 |
+| [[adrs/ADR-0018-capture-on-demand-with-masks-and-owner-requested-companion-captures]] | Capture on demand with masks and owner-requested companion captures | Accepted | 2026-10-04 |
+| [[adrs/ADR-0017-host-the-active-session-overlay-as-one-route-and-isolate-providers]] | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | 2026-10-03 |
 | [[adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor]] | Run Active Session assistance on the worker executor with screenshots and two action slots | Accepted | 2026-10-03 |
 | [[adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping]] | Validate owned document batches and measure grouping | Proposed | 2026-10-03 |
 | [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 |

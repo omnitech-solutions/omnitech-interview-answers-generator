@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StudioPage } from "./studio-page";
 import { studioFetch, TENANT_HEADER } from "./studio-fetch";
+import { StudioPage } from "./studio-page";
 
 const created = vi.hoisted(() => ({ options: undefined as unknown }));
 vi.mock("@omnitech-assistant/sdk", () => ({

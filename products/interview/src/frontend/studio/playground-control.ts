@@ -4,9 +4,9 @@ import type {
   PlaygroundSnapshot,
   StudioView,
 } from "@omnitech/interview-playground-control";
-import type { Draft } from "./workspace/use-canonical-draft";
-import type { StudioNavigation, ViewId } from "./use-studio-route";
 import { studioFetch } from "./studio-fetch";
+import type { StudioNavigation, ViewId } from "./use-studio-route";
+import type { Draft } from "./workspace/use-canonical-draft";
 
 // The Playground control channel (`interview-answers playground …`) as the
 // studio applies it: questions and answers become Workspace drafts, views

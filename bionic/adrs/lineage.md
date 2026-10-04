@@ -25,12 +25,19 @@ graph TD
   ADR_0014["ADR-0014"]
   ADR_0015["ADR-0015"]
   ADR_0016["ADR-0016"]
+  ADR_0017["ADR-0017"]
+  ADR_0018["ADR-0018"]
+  ADR_0019["ADR-0019"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
   ADR_0013 -.-> ADR_0012
   ADR_0015 -.-> ADR_0010
   ADR_0016 -.-> ADR_0011
+  ADR_0017 -.-> ADR_0016
+  ADR_0018 -.-> ADR_0016
+  ADR_0019 -.-> ADR_0017
+  ADR_0019 -.-> ADR_0018
 ```
 
 ## Lineage table
@@ -54,19 +61,23 @@ graph TD
 | ADR-0014 | Use worker-owned agent sessions with one terminal outcome | Accepted | — | — | — |
 | ADR-0015 | Validate owned document batches and measure grouping | Proposed | — | ADR-0010 | — |
 | ADR-0016 | Run Active Session assistance on the worker executor with screenshots and two action slots | Accepted | — | ADR-0011 | — |
+| ADR-0017 | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | — | ADR-0016 | — |
+| ADR-0018 | Capture on demand with masks and owner-requested companion captures | Accepted | — | ADR-0016 | — |
+| ADR-0019 | Host the overlay in a native shell through one host adapter | Accepted | — | ADR-0017, ADR-0018 | — |
 
 ## Topic clusters
 
 ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cluster to find the current decision on a topic.
 
-- **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016
-- **agents** — ADR-0001, ADR-0007, ADR-0010, ADR-0014, ADR-0016
+- **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016, ADR-0017, ADR-0018, ADR-0019
+- **agents** — ADR-0001, ADR-0007, ADR-0010, ADR-0014, ADR-0016, ADR-0017
 - **ai** — ADR-0007, ADR-0009, ADR-0010, ADR-0014
 - **architecture** — ADR-0002, ADR-0004
 - **contracts** — ADR-0008, ADR-0011
 - **documents** — ADR-0009, ADR-0010, ADR-0015
 - **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0015
+- **overlay** — ADR-0017, ADR-0018, ADR-0019
 - **performance** — ADR-0010, ADR-0015
-- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013
+- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013, ADR-0018, ADR-0019
 - **process** — ADR-0000, ADR-0001
 - **security** — ADR-0005, ADR-0006

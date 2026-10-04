@@ -16,6 +16,7 @@ import {
   markRehearsalRunSaved,
   type RehearsalRunLink,
 } from "../live/rehearsal-run-link";
+import { studioFetch } from "../studio-fetch";
 import { CHECKS, clock, scoreHeadline, scoreTone } from "./config";
 import type { QuestionChoice } from "./material";
 import type {
@@ -23,7 +24,6 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
-import { studioFetch } from "../studio-fetch";
 
 // What to tell the owner about the live session's hints. Only what the server
 // confirmed is stated as a count; nothing is claimed before the save returns.

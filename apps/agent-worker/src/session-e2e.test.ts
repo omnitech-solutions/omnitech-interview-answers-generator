@@ -41,6 +41,9 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+// The owner-capture source id (db/live-session.ts), spelled out because the
+// worker only sees the product through its built entries.
+const OWNER_CAPTURE = "studio.owner-capture";
 const SHOT = [{ sourceId: "screen", eventId: "shot-1" }];
 const QUESTION = `Could you solve the problem on my screen in TypeScript? ${CANARY.spoken}`;
 const SOLVE_QUESTION =
@@ -121,6 +124,38 @@ describe.each(["claude", "codex"] as const)(
       expect(
         byTask(h, taskId).filter((a) => a.dispatchStatus === "succeeded"),
       ).toHaveLength(2);
+    });
+
+    it("analyses an owner capture: the owner snapshot reaches the loader and the hints become constant policy sentences", async () => {
+      const h = await make({ shape });
+      h.addSnapshot("r-9", fixturePng(), OWNER_CAPTURE);
+      const processor = h.startProcessor();
+      h.world.ownerInput("r-9", {
+        operation: "analyze",
+        skill: "dsa",
+        language: "react",
+        snapshots: [{ sourceId: OWNER_CAPTURE, eventId: "r-9" }],
+      });
+      await settle(processor);
+      const call = h.agent.seen.find((seen) => seen.images.length > 0);
+      expect(call?.images[0]?.equals(fixturePng())).toBe(true);
+      expect(call?.systemPrompt).toContain(
+        "data structures and algorithms question",
+      );
+      expect(call?.systemPrompt).toContain(
+        'set codingBrief "language" to "react"',
+      );
+      expect(call?.systemPrompt).not.toContain("DevOps question");
+      const assist = done(h, "task-i.r-9", "draft-answer");
+      expect(assist?.dispatchStatus).toBe("succeeded");
+      expect(assist?.sourceEventIds).toEqual([
+        "input/r-9",
+        `snap/${h.world.sessionId}/${OWNER_CAPTURE}/r-9`,
+      ]);
+      // The owner's language hint wins over the model's choice.
+      expect(resultOf(assist)["codingBrief"]).toMatchObject({
+        language: "react",
+      });
     });
 
     it("answers a typed follow-up on the task it targets, without a transcript segment", async () => {

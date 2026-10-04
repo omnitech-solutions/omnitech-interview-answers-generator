@@ -5,8 +5,13 @@
 // error never carries the response body or any session content
 // (rule:id-only-traces): a code is all a screen may show.
 import {
+  type LiveCaptureRequest,
+  type LiveCaptureState,
   type LiveCompanionCapability,
   type LiveCredential,
+  type LiveOwnerInputRequest,
+  type LiveOwnerLanguage,
+  type LiveOwnerSkill,
   type LiveProcessingPolicy,
   type LiveRetentionMode,
   type LiveSessionChoicesResponse,
@@ -16,9 +21,10 @@ import {
   type LiveSessionStartResponse,
   type LiveSessionView,
   type LiveStreamResponse,
-  type LiveOwnerInputRequest,
+  liveCaptureStateSchema,
   liveCompanionCapabilityResponseSchema,
   liveCredentialRenewResponseSchema,
+  liveOwnerCaptureResponseSchema,
   liveOwnerInputResponseSchema,
   liveSessionChoicesResponseSchema,
   liveSessionErrorBodySchema,
@@ -98,6 +104,31 @@ export type SessionClient = {
     sessionId: string,
     input: LiveOwnerInputRequest,
   ): Promise<void>;
+  // Capture and analyze: one multipart request carrying the frame the browser
+  // just took (already cropped to the owner's region) and its hints. This is the
+  // one function that knows the route's wire shape.
+  sendCapture(sessionId: string, input: CaptureUpload): Promise<void>;
+  // Ask the native companion to capture once; the answer is the request's state.
+  sendCaptureRequest(
+    sessionId: string,
+    request: LiveCaptureRequest,
+  ): Promise<LiveCaptureState>;
+  // Where that request stands: pending, captured, expired or refused.
+  getCaptureRequest(
+    sessionId: string,
+    requestId: string,
+  ): Promise<LiveCaptureState>;
+};
+
+// What one capture request carries. `label` is plain text and never a window or
+// tab title.
+export type CaptureUpload = {
+  requestId: string;
+  image: Blob;
+  label?: string;
+  target?: { taskId: string; revision: number };
+  skill?: LiveOwnerSkill | undefined;
+  language?: LiveOwnerLanguage | undefined;
 };
 
 async function errorFrom(response: Response): Promise<SessionApiError> {
@@ -252,6 +283,38 @@ export function createSessionClient(
       await read(
         await post(at(sessionId, "/input"), input),
         liveOwnerInputResponseSchema,
+      );
+    },
+    async sendCapture(sessionId, input) {
+      const form = new FormData();
+      form.set("requestId", input.requestId);
+      form.set("operation", "analyze");
+      if (input.target) {
+        form.set("targetTaskId", input.target.taskId);
+        form.set("targetRevision", String(input.target.revision));
+      }
+      if (input.skill) form.set("skill", input.skill);
+      if (input.language) form.set("language", input.language);
+      if (input.label) form.set("label", input.label);
+      form.set("image", input.image, "capture.jpg");
+      // No content-type header: the browser adds the multipart boundary.
+      await read(
+        await send(at(sessionId, "/capture"), { method: "POST", body: form }),
+        liveOwnerCaptureResponseSchema,
+      );
+    },
+    async sendCaptureRequest(sessionId, request) {
+      return read(
+        await post(at(sessionId, "/capture-request"), request),
+        liveCaptureStateSchema,
+      );
+    },
+    async getCaptureRequest(sessionId, requestId) {
+      return read(
+        await send(
+          at(sessionId, `/capture-request/${encodeURIComponent(requestId)}`),
+        ),
+        liveCaptureStateSchema,
       );
     },
     async deleteSession(sessionId) {

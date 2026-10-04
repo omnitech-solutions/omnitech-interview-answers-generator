@@ -1,0 +1,1 @@
+ALTER TABLE "interview"."active_sessions" ADD COLUMN "capture_request" jsonb;

@@ -21,8 +21,8 @@ import {
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
 import { runAgentWorker } from "./index.js";
-import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway.js";
 import { defaultStagingBase, sweepStagingBase } from "./session-agent-port.js";
+import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway.js";
 import { runSessionLoop, sessionWorkerId } from "./session-loop.js";
 
 type Environment = Readonly<Record<string, string | undefined>>;

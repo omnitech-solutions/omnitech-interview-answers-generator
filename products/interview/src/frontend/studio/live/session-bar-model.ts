@@ -19,9 +19,7 @@ export type BarStateKey =
   | "live"
   | "paused"
   | "permission-revoked"
-  | "source-lost"
-  | "companion-offline"
-  | "waiting";
+  | "source-lost";
 
 export type BarStateView = {
   key: BarStateKey;
@@ -33,8 +31,9 @@ export type BarStateView = {
   bordered: boolean;
 };
 
-// Priority: the owner's pause, a revoked permission, a lost source, a silent or
-// absent companion, and otherwise live. A gap alone (audio dropped, capture
+// Priority: the owner's pause, a revoked permission, a lost source, and otherwise
+// live. The capture companion is optional, so its absence is not a state: it has
+// its own line (companionLine). A gap alone (audio dropped, capture
 // back) is shown on its chip and does not change the bar's state.
 export function stateView(model: LiveViewModel): BarStateView {
   // What is shown may be out of date, so nothing below is claimed.
@@ -78,19 +77,12 @@ export function stateView(model: LiveViewModel): BarStateView {
       pulse: false,
       bordered: true,
     };
-  if (model.companion.status === "never-seen")
+  // Created, and nothing captured for yet: ready, not waiting.
+  if (model.status === "created")
     return {
-      key: "waiting",
-      label: "Waiting for companion",
+      key: "live",
+      label: "Ready",
       tone: "neutral",
-      pulse: false,
-      bordered: false,
-    };
-  if (model.companion.status === "offline")
-    return {
-      key: "companion-offline",
-      label: "Companion offline",
-      tone: "amber",
       pulse: false,
       bordered: false,
     };
@@ -153,7 +145,7 @@ function chipState(
             : `audio dropped for ${Math.max(1, Math.round(status.gapMs / 1000))} s`,
       };
     case "waiting":
-      return { tone: "neutral", state: "waiting for the companion" };
+      return { tone: "neutral", state: "no data from it yet" };
     default:
       // "receiving" was derived from earlier observations; without current
       // contact from the companion it is not claimed.
@@ -161,6 +153,30 @@ function chipState(
         ? { tone: "none", state: "receiving" }
         : { tone: "neutral", state: "no recent contact" };
   }
+}
+
+// The capture companion is an optional upgrade (system audio, the focused
+// window). When it has not made contact (or has gone quiet) there is ONE line
+// saying so, never a light per source.
+export type CompanionLine = {
+  connected: boolean;
+  text: string;
+  title: string;
+};
+export function companionLine(model: LiveViewModel): CompanionLine {
+  const connected = model.companion.status === "online";
+  return connected
+    ? {
+        connected,
+        text: "Capture companion: connected",
+        title: "The capture companion is in contact.",
+      }
+    : {
+        connected,
+        text: "Capture companion: not connected",
+        title:
+          "Optional. The browser can capture, dictate and take typed follow-ups on its own. The companion adds system audio and the focused window.",
+      };
 }
 
 // One chip per SELECTED source, in the fixed capture order.

@@ -1,16 +1,16 @@
-import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
 import type {
   AiExecutionRequest,
   AiStructuredChatRequest,
   AiUsage,
 } from "@omnitech/ai-contracts";
 import type { AiProfile } from "@omnitech/ai-runtime";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import type { getPlatformDatabase } from "@omnitech/database";
 import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
-import type { getPlatformDatabase } from "@omnitech/database";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import type { ModelInput, ModelPart } from "@omnitech-assistant/contracts";
 
 // The central agent profile each assistant agent model runs under.
 const profileOf = (runtime: Runtime) =>

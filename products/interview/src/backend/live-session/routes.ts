@@ -27,6 +27,7 @@ import type { PlatformDatabase } from "@omnitech/database";
 import {
   LIVE_SESSION_ERROR_STATUS,
   liveSessionListQuerySchema,
+  maxOwnerCaptureBytes,
   SESSION_LIST_DEFAULT_PAGE,
 } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
@@ -58,6 +59,9 @@ const MAX_JSON_BYTES = 16 * 1024;
 // A multipart ingest carries one envelope and one screenshot payload, plus
 // framing; anything larger is refused before it is parsed.
 const MULTIPART_OVERHEAD_BYTES = 8 * 1024;
+
+// Room for the capture route's text fields and multipart framing.
+const CAPTURE_FIELDS_BYTES = 16 * 1024;
 
 type Status = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503;
 
@@ -228,7 +232,11 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
 
     // [SAFETY] Size before parsing: the byte bound depends only on the
     // declared kind of body, so it discloses nothing about any session.
-    const type = (c.req.header("content-type") ?? "").toLowerCase();
+    // [GUARD] Lowercase only to recognise the media type: the multipart
+    // boundary is case-sensitive and must reach the parser as sent (a browser's
+    // boundary is mixed case).
+    const rawType = c.req.header("content-type") ?? "";
+    const type = rawType.toLowerCase();
     const multipart = type.startsWith("multipart/form-data");
     if (!multipart && !type.startsWith("application/json"))
       return c.json(errorBody("unsupported_media_type"), 415);
@@ -255,7 +263,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       try {
         const form = await new Request("http://ingest.invalid/", {
           method: "POST",
-          headers: { "content-type": type },
+          headers: { "content-type": rawType },
           body: bytes as BodyInit,
         }).formData();
         const part = form.get("envelope");
@@ -460,6 +468,84 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     );
     return c.json({ input }, 202);
   });
+
+  // Capture and analyze (multipart/form-data): the owner's own image plus
+  // fields. Every malformed, oversize or unsupported body is one
+  // invalid_input; the owner-only checks run in the middleware above.
+  app.post(`${base}/:sessionId/capture`, async (c) => {
+    // The boundary is case-sensitive: parse with the header as sent.
+    const rawType = c.req.header("content-type") ?? "";
+    if (!rawType.toLowerCase().startsWith("multipart/form-data"))
+      throw new SessionError("invalid_input");
+    let bytes: Uint8Array;
+    try {
+      bytes = await boundedBytes(
+        c.req.raw,
+        maxOwnerCaptureBytes + CAPTURE_FIELDS_BYTES,
+      );
+    } catch (error) {
+      if (error instanceof BodyTooLarge)
+        throw new SessionError("invalid_input");
+      throw error;
+    }
+    const fields: Record<string, unknown> = {};
+    let image: Uint8Array | undefined;
+    try {
+      const form = await new Request("http://capture.invalid/", {
+        method: "POST",
+        headers: { "content-type": rawType },
+        body: bytes as BodyInit,
+      }).formData();
+      for (const [name, value] of form.entries()) {
+        if (name === "image") {
+          if (!(value instanceof File) || image) throw new Error("image");
+          image = new Uint8Array(await value.arrayBuffer());
+          continue;
+        }
+        // Text fields only, each once; an empty one is an absent one.
+        if (typeof value !== "string" || name in fields)
+          throw new Error("field");
+        if (value === "") continue;
+        fields[name] =
+          name === "targetRevision" && /^[0-9]{1,7}$/.test(value)
+            ? Number(value)
+            : value;
+      }
+    } catch {
+      throw new SessionError("invalid_input");
+    }
+    if (!image) throw new SessionError("invalid_input");
+    const capture = await repository.submitOwnerCapture(
+      c.get("scope"),
+      c.req.param("sessionId"),
+      fields,
+      image,
+    );
+    return c.json(capture, 202);
+  });
+
+  // Capture now: ask the native companion to capture ONCE (focused window,
+  // masked region or display) and analyse the result. Owner-authenticated like
+  // /input; the body carries no identity. 202 with the request's state; the
+  // GET reports pending, captured, expired or refused (with a reason code).
+  app.post(`${base}/:sessionId/capture-request`, async (c) => {
+    const state = await repository.submitCaptureRequest(
+      c.get("scope"),
+      c.req.param("sessionId"),
+      await jsonBody(c.req.raw),
+    );
+    return c.json(state, 202);
+  });
+
+  app.get(`${base}/:sessionId/capture-request/:requestId`, async (c) =>
+    c.json(
+      await repository.getCaptureRequest(
+        c.get("scope"),
+        c.req.param("sessionId"),
+        c.req.param("requestId"),
+      ),
+    ),
+  );
 
   app.post(`${base}/:sessionId/credential`, async (c) => {
     const credential = await repository.renewCredential(

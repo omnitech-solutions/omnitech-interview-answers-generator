@@ -3,6 +3,7 @@ import type {
   PlaygroundValue,
 } from "@omnitech/interview-playground-control";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { guidedProse } from "../../answer-fixture";
 import {
   draftOf,
   explanationsOf,
@@ -12,7 +13,6 @@ import {
   storeApplied,
   writeControlDraft,
 } from "./playground-control";
-import { guidedProse } from "../../answer-fixture";
 
 const empty: PlaygroundValue = {
   question: "",

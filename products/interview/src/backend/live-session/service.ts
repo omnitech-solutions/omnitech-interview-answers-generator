@@ -13,13 +13,17 @@
 // fenced skeleton reads top to bottom. A coding category is only RECORDED here
 // (result.category and result.codingBrief); the coding path is a separate
 // action kind built on that result.
-import type { Task } from "./core/index.js";
-import { summarizeClaims } from "./claims.js";
+import type {
+  LiveOwnerLanguage,
+  LiveOwnerSkill,
+} from "@omnitech/interview-contracts";
 import type { AssistDraft, AssistPrompt, AssistStage } from "./assist-stage.js";
 import { type AssistValidation } from "./assist-stage.js";
+import { summarizeClaims } from "./claims.js";
+import type { Task } from "./core/index.js";
 import type { SessionStorePort } from "./processor-ports.js";
-import { capturedFor, type SessionRun } from "./session-run.js";
 import type { SessionContext } from "./session-context.js";
+import { capturedFor, type SessionRun } from "./session-run.js";
 
 export type AssistPlan =
   | {
@@ -66,6 +70,8 @@ export async function planAssist(
     deviceOnly: boolean;
     // How many screenshots travel with the call (0: none).
     imageCount?: number;
+    // The owner's closed hints for this task (hintsFor).
+    hints?: { skill?: LiveOwnerSkill; language?: LiveOwnerLanguage };
   },
 ): Promise<AssistPlan> {
   const { store, stage, deviceOnly } = input;
@@ -80,6 +86,8 @@ export async function planAssist(
     context,
     deviceOnly,
     imageCount: input.imageCount ?? 0,
+    ...(input.hints?.skill ? { skill: input.hints.skill } : {}),
+    ...(input.hints?.language ? { language: input.hints.language } : {}),
   });
   if (!prepared.ok)
     return { outcome: "prompt_too_large", byteCount: prepared.byteCount };

@@ -27,12 +27,14 @@ extension Observation {
             fields["content"] = .object(inner)
         case .screenSnapshot(let content):
             fields["kind"] = .string("screen.snapshot")
-            fields["content"] = .object([
+            var inner: [String: JSONValue] = [
                 "payloadRef": .string(content.payloadRef),
                 "mediaType": .string(content.mediaType.rawValue),
                 "byteLength": .number(Double(content.byteLength)),
                 "windowLabel": .string(content.windowLabel),
-            ])
+            ]
+            if let requestId = content.requestId { inner["requestId"] = .string(requestId) }
+            fields["content"] = .object(inner)
         case .sourceDisconnected(let source, let reason):
             fields["kind"] = .string("source.disconnected")
             fields["content"] = .object([
@@ -94,11 +96,28 @@ extension IngestMessage {
     public func encoded() -> Data { json.canonicalData() }
 }
 
+extension CaptureRequest {
+    var json: JSONValue {
+        var fields: [String: JSONValue] = [
+            "requestId": .string(requestId), "mode": .string(mode.rawValue),
+        ]
+        if let region {
+            fields["region"] = .object([
+                "x": .number(region.x), "y": .number(region.y),
+                "width": .number(region.width), "height": .number(region.height),
+            ])
+        }
+        return .object(fields)
+    }
+}
+
 extension ControlStatus {
     var json: JSONValue {
-        .object([
+        var fields: [String: JSONValue] = [
             "state": .string(state.rawValue), "credentialExpiresAt": .string(credentialExpiresAt),
-        ])
+        ]
+        if let capture { fields["capture"] = capture.json }
+        return .object(fields)
     }
 }
 

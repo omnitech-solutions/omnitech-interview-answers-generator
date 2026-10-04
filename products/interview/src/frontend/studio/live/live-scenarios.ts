@@ -2,6 +2,8 @@
 // strings and the accessible names. Each prepares the scripted service; the
 // regexes are what the guarantee suite expects (the names suite ignores them).
 // Test support only.
+
+import type { ScriptedService } from "./live-script-kit";
 import {
   action,
   disconnected,
@@ -18,7 +20,6 @@ import {
   logisticsResult,
   starResult,
 } from "./session-result-fixtures";
-import type { ScriptedService } from "./live-script-kit";
 
 export type Scenario = {
   name: string;
@@ -38,27 +39,28 @@ export const SCENARIOS: Scenario[] = [
     name: "setup, defaults",
     prepare: () => undefined,
     must: [/Device only/, /Raw audio/, /Memory only, never saved/],
-    mustNot: [/connected/i, /receiving/i],
+    // "not connected" is the honest line; a bare claim of connection is not.
+    mustNot: [/(?<!not )connected/i, /receiving/i],
   },
   {
     name: "just started: no contact recorded",
     prepare: ({ script }) => {
       script.session = sessionView({ status: "created" });
     },
-    must: [/Waiting for first contact/],
+    must: [/Waiting for first contact/, /Capture companion: not connected/],
     mustNot: [
-      /connected/i,
+      /(?<!not )connected/i,
       /receiving/i,
       /In contact/,
-      /Listening for a question/,
+      /Waiting for the capture companion/,
     ],
   },
   {
-    name: "live and listening",
+    name: "live and ready",
     prepare: ({ script }) => {
       script.session = sessionView(fresh());
     },
-    must: [/Listening for a question/, /In contact/],
+    must: [/Ready/, /In contact/],
     mustNot: [/Waiting for the capture companion/],
   },
   {
@@ -67,7 +69,7 @@ export const SCENARIOS: Scenario[] = [
       script.session = sessionView({ status: "paused", ...fresh() });
     },
     must: [/Paused/, /any result that arrives while paused is discarded/],
-    mustNot: [/Listening for a question/],
+    mustNot: [/Ready/],
   },
   {
     name: "permission revoked and a dropped gap",
@@ -87,12 +89,14 @@ export const SCENARIOS: Scenario[] = [
       script.session = sessionView({ lastHeartbeatAt: minutesAfter(-3) });
       script.observations = [transcript(1, "Words from earlier.")];
     },
-    must: [/No contact for/, /can't tell whether anything is being captured/],
+    // One line, no alarm: the companion is optional.
+    must: [/No contact for/, /Capture companion: not connected/],
     mustNot: [
       /Receiving/,
       /In contact/,
-      /connected/i,
-      /Listening for a question/,
+      /(?<!not )connected/i,
+      /Waiting for the capture companion/,
+      /can't tell whether anything is being captured/,
     ],
   },
   {

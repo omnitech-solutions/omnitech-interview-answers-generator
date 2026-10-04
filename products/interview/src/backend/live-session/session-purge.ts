@@ -355,7 +355,8 @@ export async function purgeSession(
          interview_id = NULL, candidacy_id = NULL, profile_id = NULL,
          profile_revision = NULL, workspace_draft_id = NULL, sources = NULL,
          credential_hash = NULL, credential_expires_at = NULL,
-         lease_holder_id = NULL, lease_expires_at = NULL
+         lease_holder_id = NULL, lease_expires_at = NULL,
+         capture_request = NULL
        WHERE tenant_id = $1 AND owner_user_id = $2 AND id = $3`,
         own,
       );
@@ -443,6 +444,14 @@ async function finalCheck(
     "interview.session_observations",
     `SELECT count(*) AS n FROM interview.session_observations
      WHERE tenant_id = $1 AND owner_user_id = $2 AND session_id = $3`,
+    own,
+  );
+  // The pending capture request lives on the session row and must be cleared.
+  await count(
+    "interview.active_sessions.capture_request",
+    `SELECT count(*) AS n FROM interview.active_sessions
+     WHERE tenant_id = $1 AND owner_user_id = $2 AND id = $3
+       AND capture_request IS NOT NULL`,
     own,
   );
   await count(

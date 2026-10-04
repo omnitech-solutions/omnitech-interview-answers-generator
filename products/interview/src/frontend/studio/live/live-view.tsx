@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import type { StudioActions } from "../config/commands";
 import { EndedView, SessionNotFound } from "./ended-view";
-import { FocusView } from "./focus-view";
-import { focusInTab, usePresentation } from "./focus-presentation";
 import { LiveSessionPanel } from "./live-session-view";
 import { SetupView } from "./setup-view";
 import { useLiveSession } from "./use-live-session";
@@ -23,7 +21,6 @@ export function LiveSessionView(props: LiveSessionViewProps) {
 }
 
 function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
-  const presented = usePresentation();
   const { snapshot, actions, model } = useLiveSession();
   const requested = rest[0];
 
@@ -60,12 +57,9 @@ function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
   // The address names a session the server does not know.
   if (requested && snapshot.notFoundSessionId === requested)
     return <SessionNotFound studio={studio} />;
-  if (model.phase === "open")
-    return focusInTab(presented) ? (
-      <FocusView />
-    ) : (
-      <LiveSessionPanel studio={studio} />
-    );
+  // The dashboard (or the ended summary, or setup) is the page; the card is the
+  // shell's (live/card-host.tsx), so it stays when the person changes page.
+  if (model.phase === "open") return <LiveSessionPanel studio={studio} />;
   if (model.phase === "finished") return <EndedView studio={studio} />;
   return <SetupView studio={studio} />;
 }

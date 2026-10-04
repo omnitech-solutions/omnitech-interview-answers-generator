@@ -122,7 +122,8 @@ describe("states", () => {
     expect(within(bar()).getAllByRole("status").length).toBe(2);
     expect(bar()).toHaveTextContent("Live");
     expect(bar()).toHaveTextContent("1:00");
-    expect(bar()).toHaveTextContent("Listening");
+    // Idle says nothing extra, and the companion is not a state.
+    expect(bar()).not.toHaveTextContent(/Idle|Waiting|Listening/);
   });
 
   it("says Studio cannot be reached after the stream fails, keeping Pause and End offered", async () => {
@@ -132,7 +133,10 @@ describe("states", () => {
     server.on("GET /:id/stream", () =>
       jsonResponse({ error: { code: "session_unavailable" } }, 503),
     );
-    await advance(3_000);
+    // One failed read is a blip; a run of them is an outage.
+    await advance(1_500);
+    expect(bar()).toHaveAttribute("data-state", "live");
+    await advance(7_000);
     expect(bar()).toHaveAttribute("data-state", "unreachable");
     const state = within(bar())
       .getAllByRole("status")
@@ -162,7 +166,8 @@ describe("states", () => {
     expect(bar()).toHaveAttribute("data-state", "source-lost");
     expect(bar()).toHaveTextContent("Source lost");
     expect(bar().className).toContain("bordered");
-    expect(bar()).toHaveTextContent("App audio lost");
+    // The companion's sources are not Studio's activity.
+    expect(bar()).not.toHaveTextContent("App audio lost");
   });
 
   it("names a lost microphone and a lost screen capture", async () => {
@@ -176,23 +181,39 @@ describe("states", () => {
     await openBar();
     expect(bar()).toHaveAttribute("data-state", "permission-revoked");
     expect(bar()).toHaveTextContent("Permission revoked");
-    expect(bar()).toHaveTextContent("Microphone permission revoked");
+    expect(bar()).not.toHaveTextContent("Microphone permission revoked");
   });
 
-  it("shows Companion offline once contact has gone quiet", async () => {
+  it("does not turn a quiet companion into a state: one chip says it is not connected", async () => {
     session = sessionView({ lastHeartbeatAt: minutesAfter(-5) });
     await openBar();
-    expect(bar()).toHaveAttribute("data-state", "companion-offline");
-    expect(bar()).toHaveTextContent("Companion offline");
+    expect(bar()).toHaveAttribute("data-state", "live");
+    expect(bar()).not.toHaveTextContent(/offline|Waiting/i);
+    const chip = screen.getByTestId("companion-chip");
+    expect(chip).toHaveTextContent("Capture companion: not connected");
+    expect(chip).toHaveAttribute("data-connected", "false");
   });
 
-  it("waits for the companion and never claims it is connected", async () => {
+  it("is ready, not waiting, before the companion has made contact", async () => {
     session = sessionView({ status: "created", lastHeartbeatAt: null });
     await openBar();
-    expect(bar()).toHaveAttribute("data-state", "waiting");
-    expect(bar()).toHaveTextContent("Waiting for companion");
-    expect(bar()).not.toHaveTextContent(/connected|receiving|Live/);
+    expect(bar()).toHaveAttribute("data-state", "live");
+    expect(bar()).toHaveTextContent("Ready");
+    expect(bar()).not.toHaveTextContent(/Waiting|receiving/);
+    expect(
+      bar().querySelectorAll('[data-testid="companion-chip"]'),
+    ).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+
+  it("swaps the one line for the per-source chips the moment contact happens", async () => {
+    session = sessionView({ lastHeartbeatAt: null });
+    await openBar();
+    expect(screen.getByTestId("companion-chip")).toBeVisible();
+    session = sessionView({ lastHeartbeatAt: minutesAfter(1) });
+    await advance(1_500);
+    expect(screen.queryByTestId("companion-chip")).toBeNull();
+    expect(bar().querySelector('[data-source="microphone"]')).not.toBeNull();
   });
 
   it("shows the processing locality, on this Mac only", async () => {
@@ -336,7 +357,9 @@ describe("pause and resume", () => {
     await openBar();
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await flush();
-    const busy = screen.getByRole("button", { name: "Pause" });
+    // Optimistic: it flips at once, waits for the answer, and reconciles.
+    expect(bar()).toHaveAttribute("data-state", "paused");
+    const busy = screen.getByRole("button", { name: "Resume" });
     expect(busy).toBeDisabled();
     expect(busy).toHaveAttribute("aria-busy", "true");
     release();
@@ -529,6 +552,28 @@ describe("target title", () => {
   });
 });
 
+describe("buttons are readable in dark mode", () => {
+  const read = (...parts: string[]) =>
+    readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), ...parts),
+      "utf8",
+    );
+  it("gives every main-area button the theme's text colour to start from", () => {
+    // A native button draws black text unless told otherwise: invisible on a dark
+    // surface. :where() keeps it weaker than any class that sets its own colour.
+    expect(read("..", "tokens.css")).toMatch(
+      /:where\(\.studio-main\) button\s*\{[^}]*color:\s*var\(--text\)/,
+    );
+  });
+  it("draws banner buttons with the accent pair, which both themes define", () => {
+    const rule =
+      /\.live-banner-action\s*\{[^}]*\}/.exec(read("session-view.css"))?.[0] ??
+      "";
+    expect(rule).toContain("background: var(--accent)");
+    expect(rule).toContain("color: var(--on-accent)");
+  });
+});
+
 describe("phone width", () => {
   // Resolved from this file, so it holds from the repo root or a package dir.
   const css = readFileSync(
@@ -537,13 +582,16 @@ describe("phone width", () => {
   );
   it("wraps instead of scrolling", () => {
     const rule = /\.live-session-bar\s*\{[^}]*\}/.exec(css)?.[0] ?? "";
-    expect(rule).toContain("flex-wrap: wrap");
+    // One row at normal widths; the row wraps only on narrow ones.
+    expect(rule).toContain("flex-wrap: nowrap");
+    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*flex-wrap: wrap/);
     expect(css).not.toMatch(/overflow-x/);
     expect(rule).not.toMatch(/(?<!-)width:\s*\d+px/);
   });
-  it("collapses chips to icons under 560 px", () => {
-    expect(css).toMatch(/@media \(max-width: 560px\)/);
-    expect(css).toContain(".live-chip-text");
+  it("keeps the source chips icon-only: the words are the tooltip and the screen-reader text", () => {
+    const rule =
+      /\.live-bar-chips \.live-chip-text\s*\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(rule).toContain("clip-path: inset(50%)");
   });
   it("keeps touch targets at least 40 px and the popover inside the screen", () => {
     expect(css).toMatch(/\.live-bar-button\s*\{[^}]*min-height: 40px/);

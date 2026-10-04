@@ -202,9 +202,53 @@ const ownerInputId = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9._:-]+$/);
+
+// Owner hints (shared by the typed follow-up and the capture route): a closed
+// skill and a closed coding language. Each value maps to one CONSTANT sentence
+// in the assist policy; no free text from the owner ever reaches a prompt.
+export const LIVE_OWNER_SKILLS = [
+  "programming",
+  "dsa",
+  "system-design",
+  "behavioral",
+  "data-science",
+  "sales-business",
+  "presentation",
+  "negotiation",
+  "devops",
+] as const;
+export const liveOwnerSkillSchema = z.enum(LIVE_OWNER_SKILLS);
+export type LiveOwnerSkill = z.infer<typeof liveOwnerSkillSchema>;
+export const LIVE_OWNER_SKILL_LABELS: Record<LiveOwnerSkill, string> = {
+  programming: "Programming",
+  dsa: "Data Structures & Algorithms",
+  "system-design": "System Design",
+  behavioral: "Behavioral",
+  "data-science": "Data Science",
+  "sales-business": "Sales & Business",
+  presentation: "Presentation",
+  negotiation: "Negotiation",
+  devops: "DevOps",
+};
+// What the Active Session coding path supports today (assist-stage
+// CODING_LANGUAGES); a test keeps the two lists equal.
+export const LIVE_OWNER_LANGUAGES = ["typescript", "react"] as const;
+export const liveOwnerLanguageSchema = z.enum(LIVE_OWNER_LANGUAGES);
+export type LiveOwnerLanguage = z.infer<typeof liveOwnerLanguageSchema>;
+export const LIVE_OWNER_LANGUAGE_LABELS: Record<LiveOwnerLanguage, string> = {
+  typescript: "TypeScript",
+  react: "React",
+};
+// One fragment, spread into both owner request schemas.
+export const liveOwnerHintFields = {
+  skill: liveOwnerSkillSchema.optional(),
+  language: liveOwnerLanguageSchema.optional(),
+};
+
 export const liveOwnerInputRequestSchema = z
   .strictObject({
     requestId: ownerInputId,
+    ...liveOwnerHintFields,
     operation: z.enum(["analyze", "follow-up"]),
     // When the input is about an existing task revision the owner can see.
     target: z
@@ -237,6 +281,105 @@ export const liveOwnerInputResponseSchema = z.object({
     sequence: z.number().int().nonnegative(),
   }),
 });
+
+// Capture and analyze: POST .../sessions/:id/capture, multipart/form-data with
+// a file part `image` and these text fields. The image is stored privately and
+// analysed in the same request's `owner.input`.
+export const maxOwnerCaptureBytes = 2 * 1024 * 1024;
+export const LIVE_OWNER_CAPTURE_MAX_LABEL_CHARS = 80;
+export const liveOwnerCaptureRequestSchema = z.strictObject({
+  requestId: ownerInputId,
+  operation: z.literal("analyze"),
+  targetTaskId: z
+    .string()
+    .min(1)
+    .max(160)
+    .regex(/^[A-Za-z0-9._:-]+$/)
+    .optional(),
+  targetRevision: z.number().int().min(1).max(1_000_000).optional(),
+  ...liveOwnerHintFields,
+  // Plain text: no control or format characters.
+  label: z
+    .string()
+    .min(1)
+    .max(LIVE_OWNER_CAPTURE_MAX_LABEL_CHARS)
+    .regex(/^[^\p{C}]+$/u)
+    .optional(),
+});
+export type LiveOwnerCaptureRequest = z.infer<
+  typeof liveOwnerCaptureRequestSchema
+>;
+export const liveOwnerCaptureResponseSchema = z.object({
+  input: liveOwnerInputResponseSchema.shape.input,
+  snapshot: z.object({ sourceId: z.string(), eventId: z.string() }),
+});
+export type LiveOwnerCaptureResponse = z.infer<
+  typeof liveOwnerCaptureResponseSchema
+>;
+
+// Capture now: POST .../sessions/:id/capture-request asks the native companion
+// to capture ONCE (the focused window, a region the owner masked, or the whole
+// display) and Studio analyses what comes back. One pending request per
+// session; a newer one replaces it; it expires 20 seconds after it is made.
+// The region is normalised to the chosen display (each value in [0, 1], origin
+// top-left) and is required exactly when the mode is "region".
+export const LIVE_CAPTURE_REQUEST_TTL_MS = 20_000;
+export const LIVE_CAPTURE_MODES = [
+  "focused-window",
+  "region",
+  "display",
+] as const;
+export const liveCaptureModeSchema = z.enum(LIVE_CAPTURE_MODES);
+export type LiveCaptureMode = z.infer<typeof liveCaptureModeSchema>;
+const unit = z.number().min(0).max(1);
+export const liveCaptureRegionSchema = z
+  .strictObject({
+    x: unit,
+    y: unit,
+    width: unit.gt(0),
+    height: unit.gt(0),
+  })
+  .refine((r) => r.x + r.width <= 1 && r.y + r.height <= 1);
+export type LiveCaptureRegion = z.infer<typeof liveCaptureRegionSchema>;
+export const liveCaptureRequestSchema = z
+  .strictObject({
+    requestId: ownerInputId,
+    mode: liveCaptureModeSchema,
+    region: liveCaptureRegionSchema.optional(),
+    targetTaskId: z
+      .string()
+      .min(1)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/)
+      .optional(),
+    targetRevision: z.number().int().min(1).max(1_000_000).optional(),
+    ...liveOwnerHintFields,
+  })
+  .superRefine((request, context) => {
+    if ((request.mode === "region") !== (request.region !== undefined))
+      context.addIssue({ code: "custom", path: ["region"] });
+    if (
+      (request.targetTaskId === undefined) !==
+      (request.targetRevision === undefined)
+    )
+      context.addIssue({ code: "custom", path: ["targetRevision"] });
+  });
+export type LiveCaptureRequest = z.infer<typeof liveCaptureRequestSchema>;
+export const liveCaptureStatusSchema = z.enum([
+  "pending",
+  "captured",
+  "expired",
+  "refused",
+]);
+export type LiveCaptureStatus = z.infer<typeof liveCaptureStatusSchema>;
+// `reason` is a fixed code, present when refused ("vision_device_only").
+export const liveCaptureStateSchema = z.object({
+  requestId: z.string(),
+  status: liveCaptureStatusSchema,
+  expiresAt: isoTime,
+  reason: z.string().optional(),
+});
+export type LiveCaptureState = z.infer<typeof liveCaptureStateSchema>;
 
 // ---- Stream ---------------------------------------------------------------
 

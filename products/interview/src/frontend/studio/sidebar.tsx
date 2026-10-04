@@ -1,10 +1,10 @@
 import type { ProductLink } from "@omnitech/platform-contracts";
 import { views } from "./config/views";
-import { Icon } from "./icon";
 import type { StudioTheme } from "./context";
-import type { StudioLists } from "./use-studio-lists";
+import { Icon } from "./icon";
 import { runStatus } from "./run-status";
 import { formatShortcut } from "./use-shortcuts";
+import type { StudioLists } from "./use-studio-lists";
 import type { ViewId } from "./use-studio-route";
 
 const RECENT_LIMIT = 6;

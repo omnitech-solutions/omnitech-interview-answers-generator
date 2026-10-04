@@ -6,6 +6,7 @@ await wireTests(harness)
 await limitsTests(harness)
 await policyTests(harness)
 await sessionTests(harness)
+await captureRequestTests(harness)
 await sourceScanTests(harness)
 
 for failure in harness.failures { print(failure) }

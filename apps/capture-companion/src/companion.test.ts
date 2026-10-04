@@ -1,3 +1,4 @@
+import type { CaptureRequest } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
 import { CompanionError } from "./errors.js";
 import {
@@ -757,5 +758,151 @@ describe("secrets and content stay out", () => {
     expect(companion.snapshot().notices).toEqual([
       { code: "invalid_message", source: "microphone" },
     ]);
+  });
+});
+
+describe("capture requests", () => {
+  const request = (
+    requestId = "cap-1",
+    mode: CaptureRequest["mode"] = "focused-window",
+  ): CaptureRequest => ({
+    requestId,
+    mode,
+  });
+  const snapshots = (requests: RecordedRequest[]) =>
+    requests.filter((entry) => entry.message.kind === "screen.snapshot");
+
+  it("captures once for a request handed over on an acknowledgement and tags the snapshot with its id", async () => {
+    const { companion, studio, capture } = setup({ sources: ["screen"] });
+    studio.capture = request();
+    await companion.start();
+    expect(capture.captured).toEqual([request()]);
+    const sent = snapshots(studio.requests);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.message.content).toMatchObject({
+      requestId: "cap-1",
+      windowLabel: "Editor",
+      mediaType: "image/jpeg",
+    });
+    expect(sent[0]?.payloadBytes).toBeGreaterThan(0);
+    expect(studio.fulfilled).toEqual(["cap-1"]);
+  });
+
+  it("carries the region through to the driver", async () => {
+    const { companion, studio, capture } = setup({ sources: ["screen"] });
+    const region = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
+    studio.capture = { requestId: "cap-r", mode: "region", region };
+    await companion.start();
+    expect(capture.captured).toEqual([
+      { requestId: "cap-r", mode: "region", region },
+    ]);
+  });
+
+  it("ignores a repeat of the same id, and takes a newer one", async () => {
+    const { companion, studio, capture, clock } = setup({
+      sources: ["screen"],
+    });
+    studio.capture = request();
+    // The answer to the snapshot still carries the request (a stale Studio).
+    studio.script = (message) =>
+      message.message.kind === "screen.snapshot"
+        ? acceptedAck(message.message, "active", request())
+        : undefined;
+    await companion.start();
+    await clock.advance(2000);
+    await companion.tick();
+    await clock.advance(2000);
+    await companion.tick();
+    expect(capture.captured).toHaveLength(1);
+    studio.script = undefined;
+    studio.capture = request("cap-2", "display");
+    await clock.advance(2000);
+    await companion.tick();
+    expect(capture.captured.map((entry) => entry.requestId)).toEqual([
+      "cap-1",
+      "cap-2",
+    ]);
+  });
+
+  it("is also handed a request on a refusal's control", async () => {
+    const { companion, studio, capture, clock } = setup({
+      sources: ["screen"],
+    });
+    await companion.start();
+    studio.script = (message) =>
+      message.message.kind === "heartbeat"
+        ? refusedAck("rate_limited", "active", request())
+        : undefined;
+    await clock.advance(2000);
+    await companion.tick();
+    expect(capture.captured).toEqual([request()]);
+  });
+
+  it("pulls every two seconds while the screen runs, and keeps the slower cadence otherwise", async () => {
+    const screen = setup({ sources: ["screen"] });
+    await screen.companion.start();
+    const before = screen.studio.requests.length;
+    await screen.clock.advance(2000);
+    await screen.companion.tick();
+    expect(screen.studio.requests.length).toBe(before + 1);
+
+    const audio = setup({ sources: ["microphone"] });
+    await audio.companion.start();
+    const quiet = audio.studio.requests.length;
+    await audio.clock.advance(2000);
+    await audio.companion.tick();
+    expect(audio.studio.requests.length).toBe(quiet);
+  });
+
+  it("honours a request only for a screen source selected at start", async () => {
+    const { companion, studio, capture } = setup({ sources: ["microphone"] });
+    studio.capture = request();
+    await companion.start();
+    expect(capture.captured).toEqual([]);
+    expect(snapshots(studio.requests)).toEqual([]);
+    expect(companion.snapshot().notices).toContainEqual({
+      code: "capture-request-ignored",
+      source: "screen",
+    });
+  });
+
+  it("captures nothing while Studio has paused capture", async () => {
+    const { companion, studio, capture } = setup({ sources: ["screen"] });
+    await companion.start();
+    studio.state = "paused";
+    studio.capture = request();
+    await companion.heartbeat();
+    await companion.tick();
+    expect(capture.captured).toEqual([]);
+    expect(snapshots(studio.requests)).toEqual([]);
+  });
+
+  it("reports a focused window it could not find as a visible loss and sends nothing wider", async () => {
+    const { companion, studio, capture } = setup({ sources: ["screen"] });
+    capture.nextCapture = { kind: "lost", code: "no-focused-window" };
+    studio.capture = request();
+    await companion.start();
+    expect(capture.captured).toHaveLength(1);
+    expect(snapshots(studio.requests)).toEqual([]);
+    expect(companion.snapshot().notices).toContainEqual({
+      code: "no-focused-window",
+      source: "screen",
+    });
+  });
+
+  it("sends nothing captured once the session ended while capturing", async () => {
+    const { companion, studio, capture } = setup({ sources: ["screen"] });
+    await companion.start();
+    const driver = capture.captureOnce.bind(capture);
+    capture.captureOnce = async (asked) => {
+      const result = await driver(asked);
+      studio.state = "ended";
+      await companion.heartbeat();
+      return result;
+    };
+    studio.capture = request();
+    await companion.heartbeat();
+    await companion.tick();
+    expect(snapshots(studio.requests)).toEqual([]);
   });
 });

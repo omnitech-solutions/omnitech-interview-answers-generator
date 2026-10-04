@@ -415,6 +415,12 @@ body,
   min-height: 0;
   overflow: auto;
 }
+/* A native button does not inherit its text colour: left alone it draws black
+   text, which disappears on a dark surface. Every button in the main area starts
+   from the theme's text colour; any class that sets its own colour still wins. */
+:where(.studio-main) button {
+  color: var(--text);
+}
 .studio-button {
   height: 32px;
   padding: 0 12px 0 10px;

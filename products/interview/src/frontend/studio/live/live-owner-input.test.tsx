@@ -3,8 +3,9 @@
 // server: the request names the newest snapshot by its observation ids (and a
 // follow-up the task revision last answered), carries no bytes or identity,
 // and the answer the server then publishes shows up in the Focus view.
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LiveCardHost } from "./card-host";
 import { LiveFloatHost } from "./float-host";
 import { presentation } from "./focus-presentation";
 import { LiveSessionView } from "./live-view";
@@ -16,7 +17,7 @@ import {
   snapshot,
   streamPage,
 } from "./session-fixtures";
-import { resetSessionStores, configureSessionStores } from "./session-registry";
+import { configureSessionStores, resetSessionStores } from "./session-registry";
 import { answerResult } from "./session-result-fixtures";
 import { createTestServer, type TestServer } from "./session-test-server";
 
@@ -32,16 +33,27 @@ const click = async (name: string | RegExp) => {
   await flush();
 };
 
+// Capture & analyze with nothing shared opens the source menu; the companion's
+// latest capture starts a new task from its newest frame.
+async function analyzeNew() {
+  await click(/Capture & analyze/);
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+  );
+  await flush();
+}
+
 async function openFocus() {
   render(
     <>
       <LiveSessionView rest={[]} studio={studio} />
+      <LiveCardHost />
       <LiveFloatHost />
     </>,
   );
   await flush();
   await flush();
-  await click("Focus view");
+  await click("Card view");
 }
 
 beforeEach(() => {
@@ -52,6 +64,10 @@ beforeEach(() => {
   presentation.reset();
   bodies = [];
   page = streamPage({
+    session: sessionView({
+      processingPolicy: "permitted-remote",
+      captureSources: ["microphone", "screen"],
+    }),
     // Two captures: the request must name the newest.
     observations: [snapshot(1), snapshot(2, "Problem statement")],
     nextAfterSequence: 2,
@@ -60,7 +76,14 @@ beforeEach(() => {
     ],
   });
   server = createTestServer(() => page);
-  server.on("GET /current", () => jsonResponse({ session: sessionView() }));
+  server.on("GET /current", () =>
+    jsonResponse({
+      session: sessionView({
+        processingPolicy: "permitted-remote",
+        captureSources: ["microphone", "screen"],
+      }),
+    }),
+  );
   configureSessionStores({
     fetch: server.fetch,
     isVisible: () => true,
@@ -103,7 +126,7 @@ describe("Analyze latest capture and follow-ups", () => {
       );
     });
     await openFocus();
-    await click(/Analyze latest capture/);
+    await analyzeNew();
     expect(bodies).toHaveLength(1);
     const sent = bodies[0] as Record<string, unknown>;
     expect(sent).toMatchObject({
@@ -117,7 +140,9 @@ describe("Analyze latest capture and follow-ups", () => {
     );
     await advance(1_500);
     expect(
-      screen.getByText("Read the screenshot: a sliding window."),
+      within(screen.getByTestId("overlay-card")).getByText(
+        "Read the screenshot: a sliding window.",
+      ),
     ).toBeVisible();
   });
 
@@ -144,8 +169,10 @@ describe("Analyze latest capture and follow-ups", () => {
       jsonResponse({ error: { code: "status_refused" } }, 409),
     );
     await openFocus();
-    await click(/Analyze latest capture/);
-    expect(screen.getByRole("alert")).toBeVisible();
+    await analyzeNew();
+    expect(
+      within(screen.getByTestId("overlay-card")).getByRole("alert"),
+    ).toBeVisible();
     expect(server.count("POST /:id/input")).toBe(1);
   });
 
@@ -156,11 +183,11 @@ describe("Analyze latest capture and follow-ups", () => {
       return jsonResponse({ input: { requestId: "r", sequence: 1 } }, 202);
     });
     await openFocus();
-    const analyze = screen.getByRole("button", {
-      name: /Analyze latest capture/,
-    });
-    if (!(analyze as HTMLButtonElement).disabled) fireEvent.click(analyze);
-    await flush();
+    // Nothing from the companion to use: that choice is disabled.
+    await click(/Capture & analyze/);
+    expect(
+      screen.getByRole("menuitem", { name: /companion’s latest capture/ }),
+    ).toBeDisabled();
     expect(bodies).toEqual([]);
   });
 });

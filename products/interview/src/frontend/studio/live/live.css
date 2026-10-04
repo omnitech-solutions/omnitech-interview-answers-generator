@@ -7,7 +7,7 @@
 @import "./session-view.css";
 @import "./ended.css";
 @import "./workspace-handoff.css";
-@import "./focus.css";
+@import "./overlay/overlay.css";
 
 .live-page {
   flex: 1;
@@ -119,3 +119,4 @@
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+

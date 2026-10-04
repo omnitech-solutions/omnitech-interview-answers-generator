@@ -1,10 +1,10 @@
 // One session store per tenant slug, for the life of the page. A module-level
 // registry (not React state) is what lets the session outlive every view.
 import { studioFetch } from "../studio-fetch";
-import { ownerInputDeps } from "./session-owner-input";
 import type { StoreDeps } from "./session-deps";
-import { createSessionStore } from "./session-store";
+import { ownerInputDeps } from "./session-owner-input";
 import type { SessionStore } from "./session-snapshot";
+import { createSessionStore } from "./session-store";
 
 // The page's own timers, visibility and tab storage. Read at call time so a
 // test's fake timers are honoured.

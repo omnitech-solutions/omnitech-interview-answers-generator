@@ -2,6 +2,9 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0019 | Host the overlay in a native shell through one host adapter | Accepted | 2026-10-04 | — (amends ADR-0017, ADR-0018) | — | active-session, overlay, native, macos, adapter, privacy |
+| ADR-0018 | Capture on demand with masks and owner-requested companion captures | Accepted | 2026-10-04 | — (amends ADR-0016) | — | active-session, capture, privacy, companion, overlay |
+| ADR-0017 | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | 2026-10-03 | — (amends ADR-0016) | — | active-session, overlay, pip, agents, isolation, structured-output |
 | ADR-0016 | Run Active Session assistance on the worker executor with screenshots and two action slots | Accepted | 2026-10-03 | — (amends ADR-0011) | — | active-session, agents, screenshots, concurrency, live-ui |
 | ADR-0015 | Validate owned document batches and measure grouping | Proposed | 2026-10-03 | — (amends ADR-0010) | — | interview, documents, generation, grounding, performance |
 | ADR-0014 | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 | — | — | ai, agents, runtime, reliability, streaming |

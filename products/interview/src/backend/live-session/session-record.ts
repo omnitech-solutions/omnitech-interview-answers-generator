@@ -44,6 +44,8 @@ export type SessionRecord = {
   // Observation sequence below which a holder handled every transcript
   // segment (see FencedSessionWrites.recordProcessedThrough).
   processedThrough: number;
+  // The one pending capture request as stored (capture-request.ts decodes it).
+  captureRequest: unknown;
   // The database clock when the row was read; every time decision uses it, so
   // the row-security policies, leases and these decisions share one clock.
   nowMs: number;
@@ -89,6 +91,7 @@ export function toRecord(row: Raw): SessionRecord {
     purgeOutcome: text(row["purge_outcome"]),
     shownDraftCount: Number(row["shown_draft_count"] ?? 0),
     processedThrough: Number(row["processed_through"] ?? 0),
+    captureRequest: row["capture_request"] ?? null,
     nowMs: Number(row["now_ms"] ?? Date.now()),
   };
 }

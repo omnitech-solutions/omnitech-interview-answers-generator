@@ -1,8 +1,17 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-  AgentEvent,
+import {
+  AGENT_IMAGE_MAX_BYTES,
+  type AgentEvent,
   AgentProfile,
   AgentRunRequest,
 } from "@omnitech/agent-runtime-contracts";
@@ -14,6 +23,7 @@ const readline = require("node:readline");
 const rl = readline.createInterface({ input: process.stdin });
 let threadCount = 0;
 let turnCount = 0;
+let threadParams = null;
 const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 rl.on("line", (line) => {
   const message = JSON.parse(line);
@@ -21,6 +31,7 @@ rl.on("line", (line) => {
   const { id, method, params } = message;
   if (method === "initialize") return send({ id, result: { userAgent: "fake" } });
   if (method === "thread/start" || method === "thread/resume") {
+    threadParams = params;
     const threadId = params.threadId ?? "thread-" + ++threadCount;
     return send({ id, result: { thread: { id: threadId } } });
   }
@@ -35,6 +46,12 @@ rl.on("line", (line) => {
     if (prompt === "crash") return process.exit(2);
     send({ id, result: { turn: { id: turnId } } });
     if (prompt === "hang") return;
+    if (prompt === "echo") {
+      send({ method: "item/started", params: { threadId: params.threadId, turnId, item: { type: "reasoning" } } });
+      send({ method: "item/agentMessage/delta", params: { threadId: params.threadId, turnId, delta: JSON.stringify({ input: params.input, home: process.env.CODEX_HOME ?? null, ephemeral: threadParams.ephemeral ?? false, features: threadParams.config.features ?? null }) } });
+      send({ method: "turn/completed", params: { threadId: params.threadId, turnId, turn: { id: turnId, status: "completed" } } });
+      return;
+    }
     if (prompt === "fail") {
       send({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: turnId, status: "failed", error: { message: "Quota exceeded" } } } });
       return;
@@ -177,6 +194,120 @@ describe("Codex App Server runtime", () => {
     expect(events.at(-1)).toMatchObject({
       type: "failed",
       error: { code: "cancelled", message: "Codex turn interrupted." },
+    });
+  });
+  describe("session path", () => {
+    let stage: string;
+    beforeAll(async () => {
+      stage = join(directory, "stage");
+      await mkdir(stage);
+      await writeFile(join(stage, "shot.png"), Buffer.from("PNG"));
+      await writeFile(
+        join(stage, "big.png"),
+        Buffer.alloc(AGENT_IMAGE_MAX_BYTES + 1),
+      );
+      await writeFile(join(directory, "outside.png"), Buffer.from("OUT"));
+      await symlink(join(directory, "outside.png"), join(stage, "link.png"));
+    });
+    const image = (reference: string) => ({
+      id: "a",
+      kind: "image" as const,
+      name: "shot.png",
+      reference,
+      mimeType: "image/png",
+    });
+    const echo = (extra: Partial<AgentRunRequest>): AgentRunRequest => ({
+      ...request("echo"),
+      ...extra,
+    });
+
+    it("advertises the capabilities its fixtures prove", () => {
+      expect(
+        createCodexRuntimeAdapter({ codexPathOverride: codexPath })
+          .capabilities,
+      ).toMatchObject({ imageInput: true, toolless: true });
+    });
+
+    it("sends a staged image as a localImage item, tool-less and ephemeral, with a per-attempt environment on its own server", async () => {
+      const adapter = createCodexRuntimeAdapter({
+        codexPathOverride: codexPath,
+      });
+      const events = await collect(
+        adapter.run(
+          echo({
+            profile: { ...profile, sessionPersistence: false },
+            attachments: [image(join(stage, "shot.png"))],
+            attachmentRoot: stage,
+            toolless: true,
+            environment: { CODEX_HOME: "/ephemeral" },
+          }),
+        ),
+      );
+      const done = events.at(-1);
+      expect(done?.type).toBe("completed");
+      const seen = JSON.parse(
+        (done as Extract<AgentEvent, { type: "completed" }>).result
+          .output as string,
+      );
+      expect(seen.input).toEqual([
+        { type: "text", text: "echo", text_elements: [] },
+        { type: "localImage", path: await realpath(join(stage, "shot.png")) },
+      ]);
+      expect(seen.home).toBe("/ephemeral");
+      expect(seen.ephemeral).toBe(true);
+      expect(seen.features).toMatchObject({ shell_tool: false });
+      await adapter.close?.();
+    });
+
+    it.each([
+      ["outside the root", join("..", "outside.png")],
+      ["a symlink", "link.png"],
+      ["oversize", "big.png"],
+      ["missing", "missing.png"],
+    ])(
+      "refuses an attachment that is %s, typed and before a server starts",
+      async (name, file) => {
+        const reference =
+          name === "outside the root"
+            ? join(directory, "outside.png")
+            : join(stage, file);
+        const events = await collect(
+          createCodexRuntimeAdapter({
+            codexPathOverride: join(directory, "does-not-exist"),
+          }).run(
+            echo({ attachments: [image(reference)], attachmentRoot: stage }),
+          ),
+        );
+        expect(events).toEqual([
+          {
+            type: "failed",
+            error: {
+              code: "policy-refused",
+              message: "An attachment was refused.",
+              retryable: false,
+            },
+          },
+        ]);
+      },
+    );
+
+    it("aborts a tool-less turn that starts a tool and fails typed", async () => {
+      const adapter = createCodexRuntimeAdapter({
+        codexPathOverride: codexPath,
+      });
+      const events = await collect(
+        adapter.run({ ...request("hello"), toolless: true }),
+      );
+      expect(events.at(-1)).toEqual({
+        type: "failed",
+        error: {
+          code: "policy-refused",
+          message: "A tool-less request attempted to use a tool.",
+          retryable: false,
+        },
+      });
+      expect(events.filter((e) => e.type === "completed")).toHaveLength(0);
+      await adapter.close?.();
     });
   });
 });

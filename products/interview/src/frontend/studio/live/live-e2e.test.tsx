@@ -161,8 +161,11 @@ describe("start", () => {
     expect(screen.getByTestId("pairing-status")).toHaveTextContent(
       "Waiting for first contact",
     );
-    expect(bar()).toHaveTextContent("Waiting for companion");
-    expect(bar()).not.toHaveTextContent(/receiving/i);
+    // The companion is optional: one line says it is not connected, nothing waits.
+    expect(screen.getByTestId("companion-chip")).toHaveTextContent(
+      "Capture companion: not connected",
+    );
+    expect(bar()).not.toHaveTextContent(/Waiting|receiving/i);
 
     // Handed over: dismissed, it is gone and never comes back from the server.
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
@@ -180,7 +183,7 @@ describe("a live session", () => {
   it("follows the stream: listening, an experience answer with its chips, then a coding task whose constraint changes", async () => {
     await live();
     expect(bar()).toHaveTextContent("Live");
-    expect(screen.getByText("Listening for a question")).toBeVisible();
+    expect(screen.getByText("Ready")).toBeVisible();
 
     // A question and its source-backed answer.
     service.script.observations.push(

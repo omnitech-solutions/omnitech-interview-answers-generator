@@ -34,11 +34,13 @@ import {
 } from "@omnitech/active-session-contracts";
 import type { AgentAttachment } from "@omnitech/ai-contracts";
 import { MAX_TASK_ATTACHMENTS } from "@omnitech/ai-contracts";
+import type { CodeRunner } from "@omnitech/code-runner";
 import {
   type LiveOwnerInputRequest,
+  type LiveOwnerLanguage,
+  type LiveOwnerSkill,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
-import type { CodeRunner } from "@omnitech/code-runner";
 import {
   ASSIST_ACTION_KIND,
   type AssistDraft,
@@ -57,8 +59,8 @@ import {
   emptyTranscript,
   type IdGenerator,
   markSegmentsSuperseded,
-  processUtterance,
   type ProcessingPolicy,
+  processUtterance,
   type RememberedRevision,
   restoreTasks,
   TASK_ID_PREFIX,
@@ -77,8 +79,8 @@ import {
 } from "./owner-input.js";
 import type { SessionStorePort } from "./processor-ports.js";
 import type { OwnerScope } from "./scope.js";
-import type { SessionContext } from "./session-context.js";
 import type { SessionClaim } from "./session-claim.js";
+import type { SessionContext } from "./session-context.js";
 import type { StoredAction, StoredObservation } from "./session-reads.js";
 import type { SessionTraceEvent } from "./trace.js";
 
@@ -163,7 +165,14 @@ export type SessionRun = {
   snapshots: Map<string, { mediaType: string }>;
   // Owner inputs (ADR-0016) by provenance id, with the typed text they carry,
   // and those replayed but not yet applied to the task state.
-  ownerInputs: Map<string, { text: string | null }>;
+  ownerInputs: Map<
+    string,
+    {
+      text: string | null;
+      skill?: LiveOwnerSkill;
+      language?: LiveOwnerLanguage;
+    }
+  >;
   pendingInputs: PendingOwnerInput[];
   // Two action slots (ADR-0016): short assistance (draft-answer) and coding
   // (solve-code) each own their action id, in-flight promise and child abort,
@@ -599,7 +608,11 @@ function queueOwnerInput(run: SessionRun, stored: StoredObservation): void {
     run.trace({ event: "observation.unreadable", outcome: "invalid" });
     return;
   }
-  run.ownerInputs.set(provenanceId, { text: parsed.data.text ?? null });
+  run.ownerInputs.set(provenanceId, {
+    text: parsed.data.text ?? null,
+    ...(parsed.data.skill ? { skill: parsed.data.skill } : {}),
+    ...(parsed.data.language ? { language: parsed.data.language } : {}),
+  });
   if (run.processed.has(provenanceId)) return;
   run.pendingInputs.push({
     provenanceId,
@@ -927,6 +940,25 @@ export function capturedFor(run: SessionRun, task: Task) {
     return text ? [{ speaker: "owner", text }] : [];
   });
   return [...spoken, ...typed];
+}
+
+// The owner's hints a task rests on: the newest skill and language any of its
+// owner inputs carried (closed enums; never text).
+export function hintsFor(
+  run: SessionRun,
+  task: Task,
+): { skill?: LiveOwnerSkill; language?: LiveOwnerLanguage } {
+  let skill: LiveOwnerSkill | undefined;
+  let language: LiveOwnerLanguage | undefined;
+  for (const id of provenanceOf(task)) {
+    const input = run.ownerInputs.get(id);
+    if (input?.skill) skill = input.skill;
+    if (input?.language) language = input.language;
+  }
+  return {
+    ...(skill ? { skill } : {}),
+    ...(language ? { language } : {}),
+  };
 }
 
 // What a test or an operator may read about a run: ids, revisions, counts.

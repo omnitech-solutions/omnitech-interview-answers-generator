@@ -2,7 +2,11 @@
 // as untrusted evidence in the constant system policy, only a count enters the
 // prompt, and a call with no images is exactly the earlier prompt.
 import { describe, expect, it } from "vitest";
-import { createAssistStage } from "./assist-stage.js";
+import {
+  createAssistStage,
+  LANGUAGE_POLICY,
+  SKILL_POLICY,
+} from "./assist-stage.js";
 import { buildContextSnapshot } from "./context-snapshot.js";
 
 const stage = createAssistStage();
@@ -35,6 +39,16 @@ describe("assist stage with images", () => {
     expect(withImages.system).toContain("You have no tools");
   });
 
+  it("forbids quoting figures read from a screenshot outside the coding brief", () => {
+    // The claim validator rejects a figure no source grounds, and a screenshot
+    // is no verifiable source: the model describes limits in words instead.
+    const { system } = prepared(1);
+    expect(system).toContain(
+      "Never quote a numeric figure you read from a screenshot",
+    );
+    expect(system).toContain("Only codingBrief may carry the figures");
+  });
+
   it("is byte-for-byte the earlier prompt when no image is attached", () => {
     const plain = prepared();
     expect(prepared(0)).toEqual(plain);
@@ -44,5 +58,27 @@ describe("assist stage with images", () => {
 
   it("counts the image policy toward the prompt bytes", () => {
     expect(prepared(1).byteCount).toBeGreaterThan(prepared(0).byteCount);
+  });
+});
+
+describe("assist stage owner hints", () => {
+  const hinted = (hints: { skill?: never; language?: never } | object) => {
+    const result = stage.prepare({ ...base, ...hints } as never);
+    if (!result.ok) throw new Error("prompt refused");
+    return result.prompt;
+  };
+
+  it("appends one constant sentence per enum value and nothing else", () => {
+    const plain = hinted({});
+    for (const [skill, sentence] of Object.entries(SKILL_POLICY)) {
+      const { system, prompt } = hinted({ skill });
+      expect(system).toBe(`${plain.system}\n${sentence}`);
+      expect(prompt).toBe(plain.prompt);
+    }
+    for (const [language, sentence] of Object.entries(LANGUAGE_POLICY))
+      expect(hinted({ language }).system).toBe(`${plain.system}\n${sentence}`);
+    expect(hinted({ skill: "dsa", language: "react" }).system).toBe(
+      `${plain.system}\n${SKILL_POLICY.dsa}\n${LANGUAGE_POLICY.react}`,
+    );
   });
 });

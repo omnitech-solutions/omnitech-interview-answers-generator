@@ -19,11 +19,49 @@ export const sessionControlStateSchema = z.enum([
 ]);
 export type SessionControlState = z.infer<typeof sessionControlStateSchema>;
 
+// A one-shot "capture now" request from Studio (ADR-0016 follow-up). It names
+// what to capture and nothing else: no source, identity, hint or target. The
+// companion honours it only for a screen source the user selected at start.
+export const CAPTURE_REQUEST_MODES = [
+  "focused-window",
+  "region",
+  "display",
+] as const;
+const unitInterval = z.number().min(0).max(1);
+// A rectangle normalised to the chosen display: each value in [0, 1], origin
+// at the display's top-left, and the rectangle stays inside the display.
+export const captureRegionSchema = z
+  .strictObject({
+    x: unitInterval,
+    y: unitInterval,
+    width: unitInterval.gt(0),
+    height: unitInterval.gt(0),
+  })
+  .refine(
+    (region) => region.x + region.width <= 1 && region.y + region.height <= 1,
+    { message: "region outside display" },
+  );
+export type CaptureRegion = z.infer<typeof captureRegionSchema>;
+export const captureRequestSchema = z
+  .strictObject({
+    requestId: opaqueIdSchema,
+    mode: z.enum(CAPTURE_REQUEST_MODES),
+    region: captureRegionSchema.optional(),
+  })
+  .refine((request) => (request.mode === "region") === !!request.region, {
+    path: ["region"],
+    message: "region iff mode is region",
+  });
+export type CaptureRequest = z.infer<typeof captureRequestSchema>;
+
 // Control reaches the companion only as these fields of acknowledgements and
-// refusals; the companion holds no control credential.
+// refusals; the companion holds no control credential. `capture` is the one
+// pending capture request, present only while it is live (additive: a
+// companion that does not know it ignores it).
 export const controlStatusSchema = z.strictObject({
   state: sessionControlStateSchema,
   credentialExpiresAt: isoTimestampSchema,
+  capture: captureRequestSchema.optional(),
 });
 export type ControlStatus = z.infer<typeof controlStatusSchema>;
 

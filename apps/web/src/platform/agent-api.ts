@@ -3,14 +3,14 @@ import {
   type AgentProfile,
   validateAgentProfile,
 } from "@omnitech/agent-runtime-contracts";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
+import { getPlatformDatabase } from "@omnitech/database";
 import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
-import { getPlatformDatabase } from "@omnitech/database";
 import { Hono } from "hono";
 import { z } from "zod";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 import { resolvePlatformContext } from "./context";
 import { getProductRegistry } from "./registry";
 

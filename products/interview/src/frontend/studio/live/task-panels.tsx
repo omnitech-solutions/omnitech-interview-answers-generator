@@ -24,42 +24,29 @@ export const TASK_KIND: Record<TaskKind, { label: string; icon: IconName }> = {
   unclassified: { label: "New task", icon: "pending" },
 };
 
-type Idle = { icon: IconName; title: string; detail: string };
+export type Idle = { icon: IconName; title: string; detail: string };
 const IDLE: Partial<Record<ActivityKey, Idle>> = {
-  listening: {
-    icon: "graphic_eq",
-    title: "Listening for a question",
+  idle: {
+    icon: "center_focus_strong",
+    title: "Ready",
     detail:
-      "Nothing to do yet. Studio waits for a complete question or task instead of guessing from small talk.",
+      "Share a window, tab or screen and press Capture & analyze, dictate, or type a follow-up. Studio answers when you ask.",
   },
   paused: {
     icon: "pause_circle",
     title: "Paused",
     detail:
-      "Studio is not starting any work. Resume the session to have it look for the next question.",
-  },
-  "source-lost": {
-    icon: "warning",
-    title: "A source is lost",
-    detail:
-      "Studio can't hear or see everything it was asked to. See the banner above and the Sources tab.",
-  },
-  "companion-waiting": {
-    icon: "sensors",
-    title: "Waiting for the capture companion",
-    detail:
-      "Studio has recorded no contact from the companion yet, so it can’t tell whether anything is being captured.",
-  },
-  "companion-offline": {
-    icon: "wifi_off",
-    title: "No contact from the companion",
-    detail:
-      "Studio can't tell whether anything is being captured. See the Sources tab.",
+      "Studio is not starting any work. Resume the session to have it answer again.",
   },
 };
 
+// What the session is waiting for, in words (the idle title and detail).
+export function idleCopy(key: ActivityKey): Idle | null {
+  return IDLE[key] ?? IDLE["idle"] ?? null;
+}
+
 export function IdleState({ model }: { model: LiveViewModel }) {
-  const idle = IDLE[model.activity.key] ?? IDLE["listening"];
+  const idle = idleCopy(model.activity.key);
   if (!idle) return null;
   return (
     <div

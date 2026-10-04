@@ -10,8 +10,8 @@ import {
   sessionView,
   streamPage,
 } from "./session-fixtures";
-import { codeResult, codingAnswer } from "./session-result-fixtures";
 import { resetSessionStores } from "./session-registry";
+import { codeResult, codingAnswer } from "./session-result-fixtures";
 import { createTestServer } from "./session-test-server";
 import {
   type SessionDraftLink,

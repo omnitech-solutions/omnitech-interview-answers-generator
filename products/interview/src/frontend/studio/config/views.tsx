@@ -1,19 +1,19 @@
 import type { ReactNode } from "react";
 import { Library } from "../../library";
+import { BriefingsView } from "../briefings/briefings-view";
+import { DocumentsView } from "../documents/documents-view";
+import { HomeView } from "../home/home-view";
+import type { IconName } from "../icon";
+import { LiveSessionView } from "../live/live-view";
+import { SessionDraftWorkspace } from "../live/session-draft-workspace";
+import { RehearsalView } from "../rehearsal/rehearsal-view";
+import type { PlaygroundControlState } from "../use-playground-control";
+import type { StudioLists } from "../use-studio-lists";
+import type { StudioRoute, ViewId } from "../use-studio-route";
 import {
   type WorkspaceAssistant,
   WorkspaceView,
 } from "../workspace/workspace-view";
-import { BriefingsView } from "../briefings/briefings-view";
-import { DocumentsView } from "../documents/documents-view";
-import { HomeView } from "../home/home-view";
-import { LiveSessionView } from "../live/live-view";
-import { SessionDraftWorkspace } from "../live/session-draft-workspace";
-import { RehearsalView } from "../rehearsal/rehearsal-view";
-import type { IconName } from "../icon";
-import type { PlaygroundControlState } from "../use-playground-control";
-import type { StudioLists } from "../use-studio-lists";
-import type { StudioRoute, ViewId } from "../use-studio-route";
 import type { StudioActions } from "./commands";
 
 export type ViewProps = {

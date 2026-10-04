@@ -1,6 +1,14 @@
 // What the session store needs from the page, and its cadence. Injected so
 // tests can supply a scripted fetch, a clock, visibility and storage.
-import type { LiveSessionView } from "@omnitech/interview-contracts";
+import type {
+  LiveCaptureState,
+  LiveSessionView,
+} from "@omnitech/interview-contracts";
+import type {
+  CaptureInput,
+  CompanionCaptureInput,
+  OwnerHints,
+} from "./session-capture";
 import type { SessionFetch } from "./session-client";
 
 // Cadence: a live session is read about once a second; a paused one rarely
@@ -25,8 +33,27 @@ export type StoreDeps = {
   // capture, or send a typed follow-up. The server route is optional until it
   // ships; a missing method is answered with the "unavailable" code. Failures
   // are thrown as SessionApiError. The text is never logged or stored here.
-  analyzeLatestCapture?(sessionId: string): Promise<void>;
-  submitFollowUp?(sessionId: string, text: string): Promise<void>;
+  analyzeLatestCapture?(
+    sessionId: string,
+    target?: { taskId: string; revision: number },
+    hints?: OwnerHints,
+  ): Promise<void>;
+  // Capture and analyze: the browser's own fresh frame.
+  analyzeCapture?(sessionId: string, input: CaptureInput): Promise<void>;
+  // Ask the native companion to capture once, and read how that request stands.
+  requestCapture?(
+    sessionId: string,
+    input: CompanionCaptureInput,
+  ): Promise<LiveCaptureState>;
+  captureStatus?(
+    sessionId: string,
+    requestId: string,
+  ): Promise<LiveCaptureState>;
+  submitFollowUp?(
+    sessionId: string,
+    text: string,
+    hints?: OwnerHints,
+  ): Promise<void>;
   // Only the finished session's id is ever stored; failures are the caller's.
   storage: {
     read(key: string): string | null;

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "status": "accepted",
+  "sourceId": "mic-1",
+  "eventId": "heartbeat",
+  "control": {
+    "state": "active",
+    "credentialExpiresAt": "2026-10-03T12:00:00.000Z",
+    "capture": {
+      "requestId": "cap-1",
+      "mode": "region",
+      "region": { "x": 0.1, "y": 0.2, "width": 0.5, "height": 0.4 }
+    }
+  }
+}

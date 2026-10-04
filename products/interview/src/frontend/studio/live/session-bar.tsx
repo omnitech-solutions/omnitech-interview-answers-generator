@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import { speechState } from "./companion-capability";
 import { EndConfirm } from "./end-confirm";
+import { presentation } from "./focus-presentation";
 import {
   commandMessage,
+  companionLine,
   PAUSED_TOAST,
   RESUMED_RENEWED_TOAST,
   RESUMED_TOAST,
@@ -124,9 +126,14 @@ function OpenSessionBar({
     }
   }
 
+  // Only what adds to the state phrase: not "Idle", and never the same words twice.
   const showActivity =
     model.activity.text !== "" &&
+    !["idle", "paused", "ended", "stream-unreachable"].includes(
+      model.activity.key,
+    ) &&
     model.activity.text.toLowerCase() !== state.label.toLowerCase();
+  const companion = companionLine(model);
 
   return (
     <section
@@ -154,20 +161,32 @@ function OpenSessionBar({
       </div>
 
       <ul className="live-bar-chips" aria-label="Capture sources">
-        {chips.map((chip) => (
+        {companion.connected ? (
+          chips.map((chip) => (
+            <li
+              key={chip.source}
+              className={`live-chip ${chip.tone === "none" ? "" : chip.tone}`}
+              title={chip.title}
+              data-source={chip.source}
+              data-reason={chip.reason ?? undefined}
+            >
+              <Icon name={chip.icon} />
+              <span className="live-chip-text">{chip.label}</span>
+              <span className="live-sr-only">{`, ${chip.state}`}</span>
+            </li>
+          ))
+        ) : (
           <li
-            key={chip.source}
-            className={`live-chip ${chip.tone === "none" ? "" : chip.tone}`}
-            title={chip.title}
-            data-source={chip.source}
-            data-reason={chip.reason ?? undefined}
+            className="live-chip neutral"
+            title={companion.title}
+            data-testid="companion-chip"
+            data-connected="false"
           >
-            <Icon name={chip.icon} />
-            <span className="live-chip-text">{chip.label}</span>
-            <span className="live-sr-only">{`, ${chip.state}`}</span>
+            <Icon name="devices" />
+            <span className="live-chip-text">{companion.text}</span>
           </li>
-        ))}
-        {speech && (
+        )}
+        {companion.connected && speech && (
           <li
             className={`live-chip ${speech.tone === "green" ? "" : speech.tone}`}
             title={`From the companion's last capability report. ${speech.detail}`}
@@ -198,7 +217,29 @@ function OpenSessionBar({
         )}
       </ul>
 
-      <div className="live-bar-actions">
+      <div className="live-bar-actions" role="toolbar" aria-label="Session">
+        {variant === "header" && (
+          <>
+            <button
+              type="button"
+              className="studio-button live-bar-button live-bar-icon"
+              aria-label="Card view"
+              title="Card view: a compact card over this page"
+              onClick={() => presentation.setMode("card")}
+            >
+              <Icon name="fit_screen" />
+            </button>
+            <button
+              type="button"
+              className="studio-button live-bar-button live-bar-icon"
+              aria-label="Float"
+              title="Float: pop the card out into its own window"
+              onClick={() => presentation.setMode("floating")}
+            >
+              <Icon name="open_in_new" />
+            </button>
+          </>
+        )}
         {variant === "bar" && (
           <button
             type="button"

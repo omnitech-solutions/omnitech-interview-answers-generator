@@ -1,10 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { elapsedMs } from "./session-merge";
-import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "./session-registry";
 import {
   jsonResponse,
   minutesAfter,
@@ -13,6 +7,12 @@ import {
   streamPage,
   transcript,
 } from "./session-fixtures";
+import { elapsedMs } from "./session-merge";
+import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "./session-registry";
 import { createTestServer, type TestServer } from "./session-test-server";
 
 const storage = new Map<string, string>();

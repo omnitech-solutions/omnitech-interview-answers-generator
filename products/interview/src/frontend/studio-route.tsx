@@ -11,6 +11,15 @@ const StudioPage = lazy(() =>
   })),
 );
 
+// The chromeless overlay (/live/overlay): only the live session card, a page of
+// its own with its own session store. It never loads the studio module.
+const OverlayPage = lazy(() =>
+  import("./studio/live/overlay/overlay-page.js").then(({ OverlayPage }) => ({
+    default: OverlayPage,
+  })),
+);
+const isOverlay = (pathname: string) => /\/live\/overlay\/?$/.test(pathname);
+
 // Every interview route renders the whole studio, which routes within
 // itself from the URL. It renders in the browser only.
 export function StudioRoute({ products }: ProductPageProps) {
@@ -18,7 +27,11 @@ export function StudioRoute({ products }: ProductPageProps) {
   useEffect(() => setMounted(true), []);
   return mounted ? (
     <Suspense fallback={null}>
-      <StudioPage products={products} />
+      {isOverlay(window.location.pathname) ? (
+        <OverlayPage />
+      ) : (
+        <StudioPage products={products} />
+      )}
     </Suspense>
   ) : null;
 }

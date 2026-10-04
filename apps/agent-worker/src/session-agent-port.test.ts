@@ -2,6 +2,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   rm,
   stat,
   symlink,
@@ -145,7 +146,7 @@ async function rejection(promise: Promise<unknown>) {
 }
 
 describe("session agent port", () => {
-  it("runs a tool-less attempt with an ephemeral home and returns the output", async () => {
+  it("runs a tool-less attempt and leaves the Claude sign-in environment alone", async () => {
     const { runtime, seen } = fakeRuntime(completes);
     const execution = await port(runtime).execute(task(), aiProfile);
 
@@ -155,13 +156,59 @@ describe("session agent port", () => {
       result: { a: 1 },
     });
     expect(seen[0]).toMatchObject({ toolless: true, attachments: [] });
-    const home = seen[0]?.environment?.["HOME"] ?? "";
-    expect(home.startsWith(join(base, "staging"))).toBe(true);
-    expect(seen[0]?.environment?.["CODEX_HOME"]).toBe(home);
-    expect(seen[0]?.environment?.["CLAUDE_CONFIG_DIR"]).toBe(home);
-    // The provider home is not the worker's.
-    expect(home).not.toBe(process.env["HOME"]);
+    // HOME and the Claude config dir are the worker's allowlisted ones, so the
+    // local sign-in works; isolation is tools:[] and no persisted session.
+    expect(seen[0]?.environment).toBeUndefined();
     expect(await staged()).toEqual([]);
+  });
+
+  describe("Codex per-attempt home", () => {
+    const codexProfile: AgentProfile = {
+      ...agentProfile,
+      runtime: "codex",
+    };
+    const codexPort = (runtime: AgentRuntimeAdapter, authFile: string) =>
+      port(runtime, {
+        runtimes: { codex: runtime },
+        profiles: new Map([[aiProfile.id, codexProfile]]),
+        codexAuthFile: authFile,
+      });
+
+    it("holds only a 0600 copy of the sign-in file, removed when the attempt ends", async () => {
+      const authFile = join(base, "auth.json");
+      await writeFile(authFile, '{"token":"t"}');
+      await writeFile(join(base, "config.toml"), "x");
+      let inside: { mode: number; text: string; entries: string[] } | undefined;
+      const { runtime, seen } = fakeRuntime(async function* (request) {
+        const home = request.environment?.["CODEX_HOME"] ?? "";
+        inside = {
+          mode: (await stat(join(home, "auth.json"))).mode & 0o777,
+          text: await readFile(join(home, "auth.json"), "utf8"),
+          entries: await readdir(home),
+        };
+        yield* completes(request, []);
+      });
+      await codexPort(runtime, authFile).execute(task(), aiProfile);
+
+      expect(inside).toEqual({
+        mode: 0o600,
+        text: '{"token":"t"}',
+        entries: ["auth.json"],
+      });
+      // Only CODEX_HOME is set: the worker's HOME and others are untouched.
+      expect(Object.keys(seen[0]?.environment ?? {})).toEqual(["CODEX_HOME"]);
+      expect(await staged()).toEqual([]);
+    });
+
+    it("runs without a copy when no sign-in file exists", async () => {
+      const { runtime, seen } = fakeRuntime(completes);
+      await codexPort(runtime, join(base, "absent.json")).execute(
+        task(),
+        aiProfile,
+      );
+      expect(seen[0]?.environment?.["CODEX_HOME"]).toBeTruthy();
+      expect(await staged()).toEqual([]);
+    });
   });
 
   it("refuses attachments on a runtime without image input, never text-only", async () => {

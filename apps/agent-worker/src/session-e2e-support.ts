@@ -5,7 +5,7 @@
 // provider, no network. Contents are synthetic and carry canaries so a suite
 // can prove nothing leaks into traces or errors.
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -20,7 +20,7 @@ import type {
   AiExecutionRequest,
   ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
-import { createAiExecutionGateway, type AiProfile } from "@omnitech/ai-runtime";
+import { type AiProfile, createAiExecutionGateway } from "@omnitech/ai-runtime";
 import { withDeclaredLocality } from "@omnitech/ai-runtime/config";
 import {
   createInterviewSessionPolicy,
@@ -453,9 +453,9 @@ export async function createHarness(
     stagedEntries,
     startProcessor,
     // The fixture snapshot, stored in the world and readable by the loader.
-    addSnapshot(eventId: string, bytes = fixturePng()) {
-      stored.set(`screen/${eventId}`, { bytes });
-      return world.snapshot({ eventId });
+    addSnapshot(eventId: string, bytes = fixturePng(), sourceId = "screen") {
+      stored.set(`${sourceId}/${eventId}`, { bytes });
+      return world.snapshot({ eventId, sourceId });
     },
     async close() {
       for (const processor of processors) await processor.close();

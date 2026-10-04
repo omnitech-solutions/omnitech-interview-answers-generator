@@ -1,3 +1,4 @@
+import { rehearsalScore } from "@omnitech/interview-contracts";
 import {
   act,
   fireEvent,
@@ -6,19 +7,18 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { rehearsalScore } from "@omnitech/interview-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { guidedProse } from "../../../answer-fixture";
 import type { StudioActions } from "../config/commands";
 import { StudioContext, type StudioContextValue } from "../context";
-import type { StudioLists } from "../use-studio-lists";
-import { clock, phaseAt, scoreHeadline, formatById } from "./config";
-import { codingMaterial } from "./material";
-import type { RehearsalCommand } from "../playground-control";
-import { RehearsalView } from "./rehearsal-view";
-import { guidedProse } from "../../../answer-fixture";
+import { forgetSavedRehearsalRuns } from "../live/rehearsal-run-link";
 import { jsonResponse, sessionView } from "../live/session-fixtures";
 import { getSessionStore, resetSessionStores } from "../live/session-registry";
-import { forgetSavedRehearsalRuns } from "../live/rehearsal-run-link";
+import type { RehearsalCommand } from "../playground-control";
+import type { StudioLists } from "../use-studio-lists";
+import { clock, formatById, phaseAt, scoreHeadline } from "./config";
+import { codingMaterial } from "./material";
+import { RehearsalView } from "./rehearsal-view";
 
 const draft = {
   question: "Find the pair that sums to the target.",

@@ -1,9 +1,9 @@
 import { createBriefsClient } from "@omnitech/interview-api-client";
 import type { RehearsalReveal } from "@omnitech/interview-contracts";
+import { studioFetch } from "../studio-fetch";
 import type { StudioLists } from "../use-studio-lists";
 import type { Draft } from "../workspace/use-canonical-draft";
 import { FALLBACK_CONCEPTS } from "./config";
-import { studioFetch } from "../studio-fetch";
 
 // What a rehearsal asks: a concept from the person's briefs (or a built-in
 // prompt), and a coding question from their Workspace drafts.

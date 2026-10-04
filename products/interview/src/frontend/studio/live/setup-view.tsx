@@ -61,7 +61,7 @@ const SOURCES: readonly {
     value: "screen",
     title: "Screen",
     description:
-      "Screenshots the companion sends are stored for you; no model reads them yet",
+      "Screenshots the companion sends are stored for you. With remote processing, pressing Analyze sends one to the selected vision-capable model; device-only refuses it",
     icon: "desktop_windows",
   },
 ];

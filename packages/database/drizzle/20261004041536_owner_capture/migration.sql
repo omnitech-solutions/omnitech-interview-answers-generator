@@ -1,0 +1,1 @@
+ALTER TABLE "interview"."session_observations" ADD CONSTRAINT "session_observations_owner_capture_check" CHECK (source_id <> 'studio.owner-capture' OR (kind = 'screen.snapshot' AND screenshot_artifact_id IS NOT NULL));

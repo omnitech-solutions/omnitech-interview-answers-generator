@@ -23,12 +23,12 @@ import type { ExampleTemplate } from "../../example-templates";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
 import { Resizer, useStoredSize } from "../resizer";
+import { studioFetch } from "../studio-fetch";
 import type { EditorFile } from "./assistant-change";
 import { CodePanel, type RunState, type SyntaxState } from "./code-panel";
 import { NewQuestion } from "./new-question";
 import { StagePane } from "./stage-panes";
 import { LANGUAGE_LABELS, STAGES, stageIndex } from "./stages";
-import { VersionsMenu } from "./versions-menu";
 import {
   type Draft,
   type DraftProvenance,
@@ -36,7 +36,7 @@ import {
   type SaveState,
   useCanonicalDraft,
 } from "./use-canonical-draft";
-import { studioFetch } from "../studio-fetch";
+import { VersionsMenu } from "./versions-menu";
 
 // The assistant connection and the question it is bound to.
 export interface WorkspaceAssistant {

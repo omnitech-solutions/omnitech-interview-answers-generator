@@ -1,8 +1,8 @@
 // React's window onto the session store. The store lives outside React, so a
 // view that unmounts neither stops the session nor starts a second poll.
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { getSessionStore, tenantFromLocation } from "./session-registry";
 import { isOpenSession } from "./session-deps";
+import { getSessionStore, tenantFromLocation } from "./session-registry";
 import type { LiveSnapshot, SessionActions } from "./session-snapshot";
 import { deriveLiveModel, type LiveViewModel } from "./session-state";
 
@@ -47,6 +47,7 @@ export function useLiveSession(): LiveSessionHandle {
         nowMs,
         lastReadAt: snapshot.lastReadAt,
         streamError: snapshot.streamError,
+        readFailures: snapshot.readFailures,
       }),
     [snapshot, nowMs],
   );

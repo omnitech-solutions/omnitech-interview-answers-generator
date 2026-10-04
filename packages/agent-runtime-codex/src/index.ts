@@ -1,11 +1,15 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import type {
-  AgentEvent,
-  AgentResumeRequest,
-  AgentRunRequest,
-  AgentRuntimeAdapter,
+import {
+  AgentAttachmentRefusedError,
+  type AgentEvent,
+  type AgentResumeRequest,
+  type AgentRunRequest,
+  type AgentRuntimeAdapter,
+  stagedImages,
+  TOOL_REFUSED_FAILURE,
 } from "@omnitech/agent-runtime-contracts";
+import { restoreOptional, strictSchema } from "./strict-schema.js";
 
 // Wire shape pinned against `codex app-server generate-ts` from CLI 0.160.0.
 type Message = {
@@ -135,6 +139,17 @@ class AppServerHost {
   }
 }
 
+// Thread items a tool-less turn may contain; anything else (command, MCP, file
+// change, web search, dynamic or sub-agent tool, image view/generation) is a
+// tool by this adapter's standard and fails the turn.
+const TOOLLESS_ITEMS = new Set([
+  "agentMessage",
+  "userMessage",
+  "reasoning",
+  "plan",
+  "contextCompaction",
+]);
+
 function resumed(request: AgentResumeRequest): AgentRunRequest {
   return {
     runId: request.runId,
@@ -170,6 +185,10 @@ export function createCodexRuntimeAdapter(
     let outputText = "";
     let streamed = false;
     let cancellationRequested = false;
+    // Set when a tool-less turn started a tool: the turn is interrupted and
+    // fails typed, whatever the provider reports afterwards.
+    let toolRefused = false;
+    let interruptTurn: (() => void) | undefined;
     let latestUsage:
       | { inputTokens: number; outputTokens: number; totalTokens: number }
       | undefined;
@@ -192,6 +211,23 @@ export function createCodexRuntimeAdapter(
         (p.turnId && turnId && p.turnId !== turnId)
       )
         return;
+      // [SAFETY] A tool-less request cannot rely on disabled features alone:
+      // the first non-message item aborts the turn.
+      if (
+        request.toolless &&
+        (message.method === "item/started" ||
+          message.method === "item/completed") &&
+        p.item?.type !== undefined &&
+        !TOOLLESS_ITEMS.has(p.item.type)
+      ) {
+        if (!toolRefused) {
+          toolRefused = true;
+          interruptTurn?.();
+        }
+        done = true;
+        wake?.();
+        return;
+      }
       if (message.method === "item/agentMessage/delta") {
         streamed = true;
         outputText += p.delta;
@@ -246,15 +282,31 @@ export function createCodexRuntimeAdapter(
       }
     };
     let unsubscribe: (() => void) | undefined;
+    // A request with its own environment (an ephemeral CODEX_HOME) gets its own
+    // App Server process, since the environment belongs to the process; it is
+    // closed when the attempt ends. Others share the worker-owned host.
+    const ownHost = request.environment
+      ? new AppServerHost({
+          ...options,
+          environment: {
+            ...(options.environment ?? (process.env as Record<string, string>)),
+            ...request.environment,
+          },
+        })
+      : undefined;
+    const server = ownHost ?? host;
     try {
+      // [SAFETY] Attachments resolve (typed refusal, no path in the error)
+      // before any provider process starts.
+      const images = await stagedImages(request);
       if (
         resumeId &&
         sessionOwners.has(resumeId) &&
         sessionOwners.get(resumeId) !== request.runId
       )
         throw new Error("Codex session belongs to another run.");
-      await host.ready();
-      const thread = await host.call(
+      await server.ready();
+      const thread = await server.call(
         resumeId ? "thread/resume" : "thread/start",
         {
           ...(resumeId ? { threadId: resumeId } : {}),
@@ -265,9 +317,13 @@ export function createCodexRuntimeAdapter(
           ...(request.systemPrompt
             ? { baseInstructions: request.systemPrompt }
             : {}),
+          // No rollout is persisted for a profile that does not keep sessions.
+          ...(!resumeId && !request.profile.sessionPersistence
+            ? { ephemeral: true }
+            : {}),
           config: {
             web_search: request.profile.webSearch ? "live" : "disabled",
-            ...(request.profile.tools.length === 0
+            ...(request.profile.tools.length === 0 || request.toolless
               ? {
                   features: {
                     shell_tool: false,
@@ -289,13 +345,13 @@ export function createCodexRuntimeAdapter(
         throw new Error("Codex returned a thread owned by another run.");
       sessionOwners.set(threadId, request.runId);
       push({ type: "started", sessionId: threadId });
-      unsubscribe = host.subscribe(onMessage);
+      unsubscribe = server.subscribe(onMessage);
       const run: { threadId: string; turnId?: string; cancel(): void } = {
         threadId,
         cancel: () => {
           cancellationRequested = true;
           if (run.turnId)
-            void host
+            void server
               .call("turn/interrupt", {
                 threadId: run.threadId,
                 turnId: run.turnId,
@@ -303,17 +359,26 @@ export function createCodexRuntimeAdapter(
               .catch(() => {});
         },
       };
+      interruptTurn = run.cancel;
       active.set(request.runId, run);
-      const turn = await host.call("turn/start", {
+      const turn = await server.call("turn/start", {
         threadId,
-        input: [{ type: "text", text: request.prompt, text_elements: [] }],
+        input: [
+          { type: "text", text: request.prompt, text_elements: [] },
+          // Local image items: the App Server reads the staged file itself.
+          ...images.map((image) => ({ type: "localImage", path: image.path })),
+        ],
         effort: request.profile.effort,
-        ...(request.outputSchema ? { outputSchema: request.outputSchema } : {}),
+        // The server's strict mode needs every property required: see
+        // strict-schema.ts (the answer is converted back below).
+        ...(request.outputSchema
+          ? { outputSchema: strictSchema(request.outputSchema) }
+          : {}),
       });
       turnId = turn.turn.id as string;
       if (!turnId) throw new Error("Codex did not return a turn ID.");
       run.turnId = turnId;
-      if (cancellationRequested) run.cancel();
+      if (cancellationRequested || toolRefused) run.cancel();
       while (!done || queue.length) {
         if (queue.length) {
           yield queue.shift() as AgentEvent;
@@ -323,15 +388,25 @@ export function createCodexRuntimeAdapter(
           wake = resolve;
         });
       }
+      if (toolRefused) {
+        yield { type: "failed", error: TOOL_REFUSED_FAILURE };
+        return;
+      }
       if (failure) throw failure;
       yield {
         type: "completed",
         result: {
           sessionId: threadId,
-          output: request.outputSchema ? JSON.parse(outputText) : outputText,
+          output: request.outputSchema
+            ? restoreOptional(JSON.parse(outputText), request.outputSchema)
+            : outputText,
         },
       };
     } catch (error) {
+      if (error instanceof AgentAttachmentRefusedError) {
+        yield { type: "failed", error: error.failure };
+        return;
+      }
       yield {
         type: "failed",
         error: {
@@ -343,6 +418,7 @@ export function createCodexRuntimeAdapter(
     } finally {
       unsubscribe?.();
       active.delete(request.runId);
+      ownHost?.close();
     }
   }
   return {
@@ -352,6 +428,8 @@ export function createCodexRuntimeAdapter(
       structuredOutput: true,
       attachments: true,
       tools: true,
+      imageInput: true,
+      toolless: true,
     },
     run: (request) => execute(request),
     resume: (request) => execute(resumed(request), request.sessionId),

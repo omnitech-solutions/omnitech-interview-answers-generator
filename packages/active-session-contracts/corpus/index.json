@@ -197,6 +197,12 @@
       "kind": "acknowledgement.accepted"
     },
     {
+      "file": "valid/ack-accepted-capture-request.json",
+      "outcome": "valid",
+      "family": "acknowledgement",
+      "kind": "acknowledgement.accepted"
+    },
+    {
       "file": "valid/ack-accepted-heartbeat.json",
       "outcome": "valid",
       "family": "acknowledgement",
@@ -333,6 +339,12 @@
       "outcome": "valid",
       "family": "ingest",
       "kind": "heartbeat"
+    },
+    {
+      "file": "valid/screen-snapshot-capture-request.json",
+      "outcome": "valid",
+      "family": "ingest",
+      "kind": "screen.snapshot"
     },
     {
       "file": "valid/screen-snapshot-jpeg-empty-label.json",

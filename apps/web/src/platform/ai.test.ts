@@ -1,5 +1,6 @@
 // @vitest-environment node
 import type { AiAccessContext } from "@omnitech/ai-contracts";
+import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
@@ -16,7 +17,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { getPlatformDatabase } from "@omnitech/database";
 import { createPlatformAiGateway, interviewAssistantBudget } from "./ai";
 
 // Every variable the gateway reads, cleared so the developer's own shell

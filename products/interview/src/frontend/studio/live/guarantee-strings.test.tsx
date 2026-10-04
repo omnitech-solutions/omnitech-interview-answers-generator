@@ -88,12 +88,14 @@ export const FORBIDDEN: readonly [RegExp, string][] = [
     "raw audio is never persisted",
   ],
   [/hint count.{0,20}(client|browser)/i, "the server derives hints"],
-  // No stage reads screenshots (session-run.ts): they are stored for the owner
-  // and no model interprets them.
-  [/screen reading/i, "no model reads screenshots today"],
-  [/reading the coding task/i, "no stage reads the screen"],
-  [/coding tasks on your screen/i, "no stage reads the screen"],
-  [/screenshots studio chooses/i, "Studio does not choose or interpret them"],
+  // A screenshot is read only when the owner presses Analyze (ADR-0016), and
+  // never in device-only mode: no claim of automatic reading, and the retired
+  // "no model reads them" copy must not come back.
+  [/no model reads/i, "a model reads a capture when the owner presses Analyze"],
+  [/screen reading/i, "the screen is read only on Analyze"],
+  [/reading the coding task/i, "the screen is read only on Analyze"],
+  [/coding tasks on your screen/i, "the screen is read only on Analyze"],
+  [/screenshots studio chooses/i, "Studio does not choose screenshots"],
   // Device-only governs model calls only: the transcript still goes to
   // Studio's server, is stored in Postgres and processed by the worker.
   [
@@ -195,8 +197,12 @@ describe("only true claims are shown", () => {
     service.script.session = sessionView({ status: "created" });
     await open("/t/local/p/interview/knowledge");
     const bar = screen.getByTestId("session-bar");
-    expect(bar).toHaveTextContent("Waiting for companion");
-    expect(bar).not.toHaveTextContent(/receiving|connected/i);
+    expect(bar).toHaveTextContent("Ready");
+    expect(bar).not.toHaveTextContent(/Waiting|receiving/i);
+    // One line says the companion is not connected; it never claims it is.
+    expect(screen.getByTestId("companion-chip")).toHaveTextContent(
+      "Capture companion: not connected",
+    );
     for (const [pattern] of FORBIDDEN) expect(surface()).not.toMatch(pattern);
   });
 

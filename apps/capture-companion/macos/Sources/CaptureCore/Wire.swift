@@ -153,12 +153,19 @@ public struct ScreenContent: Equatable, Sendable {
     public let mediaType: ScreenMediaType
     public let byteLength: Int
     public let windowLabel: String
+    // Set only to the id of the capture request just handed over in
+    // `control.capture`; Studio honours it against its own pending request only.
+    public let requestId: String?
 
-    public init(payloadRef: String, mediaType: ScreenMediaType, byteLength: Int, windowLabel: String) {
+    public init(
+        payloadRef: String, mediaType: ScreenMediaType, byteLength: Int, windowLabel: String,
+        requestId: String? = nil
+    ) {
         self.payloadRef = payloadRef
         self.mediaType = mediaType
         self.byteLength = byteLength
         self.windowLabel = windowLabel
+        self.requestId = requestId
     }
 }
 
@@ -254,13 +261,51 @@ public enum IngestMessage: Equatable, Sendable {
 
 // MARK: - Acknowledgements
 
+// What a capture-now request asks for (ADR-0016 follow-up). The region is
+// normalised to the chosen display: each value in [0, 1], origin top-left.
+public enum CaptureMode: String, CaseIterable, Sendable {
+    case focusedWindow = "focused-window"
+    case region
+    case display
+}
+
+public struct CaptureRegion: Equatable, Sendable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+
+    public init(x: Double, y: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+// The one pending capture-now request, carried only inside `control` on an
+// acknowledgement. It names what to capture and nothing else.
+public struct CaptureRequest: Equatable, Sendable {
+    public let requestId: String
+    public let mode: CaptureMode
+    public let region: CaptureRegion?
+
+    public init(requestId: String, mode: CaptureMode, region: CaptureRegion? = nil) {
+        self.requestId = requestId
+        self.mode = mode
+        self.region = region
+    }
+}
+
 public struct ControlStatus: Equatable, Sendable {
     public let state: ControlState
     public let credentialExpiresAt: String
+    public let capture: CaptureRequest?
 
-    public init(state: ControlState, credentialExpiresAt: String) {
+    public init(state: ControlState, credentialExpiresAt: String, capture: CaptureRequest? = nil) {
         self.state = state
         self.credentialExpiresAt = credentialExpiresAt
+        self.capture = capture
     }
 }
 
@@ -480,12 +525,16 @@ public enum WireValidator {
         let mediaType = content.enumeration("mediaType", ScreenMediaType.self)
         let byteLength = content.int("byteLength", min: 1, max: ActiveSessionLimits.maxScreenshotBytes)
         let windowLabel = content.string("windowLabel", min: 0, max: ActiveSessionLimits.maxWindowLabelChars)
+        let before = content.reader.issues.count
+        let requestId = content.optionalId("requestId")
         content.finish()
-        guard let payloadRef, let mediaType, let byteLength, let windowLabel else { return nil }
+        guard let payloadRef, let mediaType, let byteLength, let windowLabel,
+            content.reader.issues.count == before
+        else { return nil }
         return .screenSnapshot(
             ScreenContent(
                 payloadRef: payloadRef, mediaType: mediaType, byteLength: byteLength,
-                windowLabel: windowLabel))
+                windowLabel: windowLabel, requestId: requestId))
     }
 
     private static func parseDisconnect(_ content: ObjectReader) -> ObservationBody? {
@@ -550,9 +599,44 @@ public enum WireValidator {
         guard let object else { return nil }
         let state = object.enumeration("state", ControlState.self)
         let expires = object.timestamp("credentialExpiresAt")
+        let before = object.reader.issues.count
+        let capture = object.present("capture") ? parseCapture(object.object("capture")) : nil
         object.finish()
-        guard let state, let expires else { return nil }
-        return ControlStatus(state: state, credentialExpiresAt: expires)
+        guard let state, let expires, object.reader.issues.count == before else { return nil }
+        return ControlStatus(state: state, credentialExpiresAt: expires, capture: capture)
+    }
+
+    // [GUARD] Mirrors captureRequestSchema: a region exactly when the mode is
+    // region, each value in [0, 1], positive size, and inside the display.
+    private static func parseCapture(_ object: ObjectReader?) -> CaptureRequest? {
+        guard let object else { return nil }
+        let requestId = object.id("requestId")
+        let mode = object.enumeration("mode", CaptureMode.self)
+        var region: CaptureRegion?
+        if object.present("region"), let regionObject = object.object("region") {
+            let x = regionObject.number("x", min: 0, max: 1)
+            let y = regionObject.number("y", min: 0, max: 1)
+            let width = regionObject.number("width", min: 0, max: 1, exclusiveMin: true)
+            let height = regionObject.number("height", min: 0, max: 1, exclusiveMin: true)
+            regionObject.finish()
+            if let x, let y, let width, let height {
+                if x + width <= 1, y + height <= 1 {
+                    region = CaptureRegion(x: x, y: y, width: width, height: height)
+                } else {
+                    object.reader.issues.append(
+                        WireIssue(path: object.path + [.key("region")], code: .invalidValue))
+                }
+            }
+        }
+        object.finish()
+        guard let requestId, let mode else { return nil }
+        if (mode == .region) != object.present("region") {
+            object.reader.issues.append(
+                WireIssue(path: object.path + [.key("region")], code: .invalidValue))
+            return nil
+        }
+        if mode == .region, region == nil { return nil }
+        return CaptureRequest(requestId: requestId, mode: mode, region: region)
     }
 
     private static func parseAccepted(_ object: ObjectReader) -> AcceptedAck? {
@@ -729,6 +813,18 @@ final class ObjectReader {
         if value < Double(min) { fail(key, .tooSmall); return nil }
         if value > Double(max) { fail(key, .tooLarge); return nil }
         return Int(value)
+    }
+
+    // A finite number within [min, max] (above min when exclusiveMin).
+    func number(_ key: String, min: Double, max: Double, exclusiveMin: Bool = false) -> Double? {
+        used.insert(key)
+        guard case .number(let value) = fields[key], value.isFinite else {
+            fail(key, .invalidType)
+            return nil
+        }
+        if value < min || (exclusiveMin && value <= min) { fail(key, .tooSmall); return nil }
+        if value > max { fail(key, .tooLarge); return nil }
+        return value
     }
 
     func bool(_ key: String) -> Bool? {

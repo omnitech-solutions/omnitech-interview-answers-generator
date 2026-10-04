@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   commandMessage,
+  companionLine,
   fallbackTitle,
   sourceChips,
   stateView,
@@ -85,21 +86,21 @@ describe("session bar state", () => {
       bordered: true,
     });
   });
-  it("says the companion is offline only after contact went quiet", () => {
-    expect(
-      stateView(model({ lastHeartbeatAt: minutesAfter(-5) })),
-    ).toMatchObject({ key: "companion-offline", label: "Companion offline" });
+  it("does not make the optional companion a state: quiet or never seen is still live", () => {
+    for (const lastHeartbeatAt of [minutesAfter(-5), null])
+      expect(
+        stateView(model({ lastHeartbeatAt, status: "active" })),
+      ).toMatchObject({ key: "live", label: "Live" });
   });
-  it("waits for the companion when the server has recorded no contact", () => {
-    const view = stateView(model({ lastHeartbeatAt: null, status: "created" }));
-    expect(view).toMatchObject({
-      key: "waiting",
-      label: "Waiting for companion",
-      pulse: false,
+  it("says the companion is not connected in ONE line, and connected when it is", () => {
+    expect(companionLine(model({ lastHeartbeatAt: null }))).toMatchObject({
+      connected: false,
+      text: "Capture companion: not connected",
     });
     expect(
-      stateView(model({ lastHeartbeatAt: null, status: "active" })).key,
-    ).toBe("waiting");
+      companionLine(model({ lastHeartbeatAt: minutesAfter(-5) })).connected,
+    ).toBe(false);
+    expect(companionLine(model({})).connected).toBe(true);
   });
   it("lets a pause outrank a lost source", () => {
     expect(
@@ -125,8 +126,8 @@ describe("source chips", () => {
   it("never says receiving while the companion is not in contact", () => {
     const chips = sourceChips(model({ lastHeartbeatAt: null }));
     expect(chips.map((chip) => chip.title)).toEqual([
-      "Microphone · waiting for the companion",
-      "App audio · waiting for the companion",
+      "Microphone · no data from it yet",
+      "App audio · no data from it yet",
     ]);
     const quiet = sourceChips(
       model({ lastHeartbeatAt: minutesAfter(-5) }, [

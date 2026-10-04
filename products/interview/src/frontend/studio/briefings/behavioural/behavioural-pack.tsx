@@ -14,10 +14,10 @@ import { useStudio } from "../../context";
 import { Icon } from "../../icon";
 import { studioFetch, studioFetchUntil } from "../../studio-fetch";
 import { AnswersTab, type PendingAnswer } from "./answers-tab";
+import { BriefingTab } from "./briefing-tabs";
 import { PACK_TABS, type PackTab, STAGES, suggestedFor } from "./config";
 import { defaultProfile } from "./matrix-picker";
 import { QuestionsCard } from "./questions-card";
-import { BriefingTab } from "./briefing-tabs";
 import {
   contextOf,
   emptySetup,

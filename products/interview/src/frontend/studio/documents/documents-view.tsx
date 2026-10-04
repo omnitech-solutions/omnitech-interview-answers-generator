@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { StudioActions } from "../config/commands";
-import { useRefreshOnReturn } from "../work-guards";
 import { Icon } from "../icon";
+import { useRefreshOnReturn } from "../work-guards";
 import { DocumentEditor } from "./document-editor";
 import {
   type DocumentContext,

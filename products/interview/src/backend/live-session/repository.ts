@@ -14,6 +14,7 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { readCaptureRequest, submitCaptureRequest } from "./capture-request.js";
 import { getCompanionCapability } from "./companion-capability.js";
 import {
   type ProcessingPolicy,
@@ -33,9 +34,10 @@ import {
   retentionToDb,
   type WorkspaceDraftKey,
 } from "./mapping.js";
+import { storeOwnerCapture } from "./owner-capture.js";
+import { storeOwnerInput } from "./owner-input.js";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
 import { getSessionChoices } from "./session-choices.js";
-import { storeOwnerInput } from "./owner-input.js";
 import { mintSessionCredential } from "./session-credential.js";
 import {
   type CancellationSummary,
@@ -563,6 +565,23 @@ export class ActiveSessionRepository {
   // The owner's own request for assistance (ADR-0016): stored DB-side only.
   submitOwnerInput(scope: OwnerScope, sessionId: string, input: unknown) {
     return storeOwnerInput(this.database, scope, sessionId, input);
+  }
+  // The owner's browser capture, analysed on press (owner-capture.ts).
+  submitOwnerCapture(
+    scope: OwnerScope,
+    sessionId: string,
+    fields: unknown,
+    image: Uint8Array,
+  ) {
+    return storeOwnerCapture(this.database, scope, sessionId, fields, image);
+  }
+  // The owner's one-shot "capture now" for the native companion
+  // (capture-request.ts): one pending request per session.
+  submitCaptureRequest(scope: OwnerScope, sessionId: string, input: unknown) {
+    return submitCaptureRequest(this.database, scope, sessionId, input);
+  }
+  getCaptureRequest(scope: OwnerScope, sessionId: string, requestId: string) {
+    return readCaptureRequest(this.database, scope, sessionId, requestId);
   }
   listActions(
     scope: OwnerScope,

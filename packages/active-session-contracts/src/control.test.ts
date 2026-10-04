@@ -3,6 +3,7 @@ import {
   acknowledgementSchema,
   CAPABILITY_ACK_EVENT_ID,
   capabilityReportSchema,
+  captureRequestSchema,
   controlMessageSchema,
   heartbeatSchema,
   ingestMessageSchema,
@@ -218,6 +219,79 @@ describe("heartbeat and control message", () => {
     ).toBe(false);
     expect(
       controlMessageSchema.safeParse({ ...message, action: "broaden-sources" })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("capture request control", () => {
+  const region = { x: 0.1, y: 0.2, width: 0.5, height: 0.4 };
+  const withCapture = (capture: unknown) => ({
+    ...accepted,
+    control: { ...control, capture },
+  });
+
+  it("carries a pending request on any acknowledgement's control", () => {
+    for (const capture of [
+      { requestId: "cap-1", mode: "focused-window" },
+      { requestId: "cap-1", mode: "display" },
+      { requestId: "cap-1", mode: "region", region },
+    ]) {
+      expect(
+        acknowledgementSchema.safeParse(withCapture(capture)).success,
+      ).toBe(true);
+    }
+    expect(
+      acknowledgementSchema.safeParse({
+        version: 1,
+        status: "refused",
+        code: "rate_limited",
+        control: { ...control, capture: { requestId: "c", mode: "display" } },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("requires a region exactly when the mode is region", () => {
+    expect(
+      captureRequestSchema.safeParse({ requestId: "c", mode: "region" })
+        .success,
+    ).toBe(false);
+    expect(
+      captureRequestSchema.safeParse({
+        requestId: "c",
+        mode: "display",
+        region,
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { x: -0.1, y: 0, width: 0.5, height: 0.5 },
+    { x: 0, y: 0, width: 0, height: 0.5 },
+    { x: 0.6, y: 0, width: 0.5, height: 0.5 },
+    { x: 0, y: 0.7, width: 0.5, height: 0.4 },
+    { x: 0, y: 0, width: 1.2, height: 0.5 },
+    { x: "0", y: 0, width: 0.5, height: 0.5 },
+  ])("refuses a region outside the unit display: %j", (bad) => {
+    expect(
+      captureRequestSchema.safeParse({
+        requestId: "c",
+        mode: "region",
+        region: bad,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("refuses unknown capture fields and modes", () => {
+    expect(
+      captureRequestSchema.safeParse({
+        requestId: "c",
+        mode: "display",
+        window: "x",
+      }).success,
+    ).toBe(false);
+    expect(
+      captureRequestSchema.safeParse({ requestId: "c", mode: "window" })
         .success,
     ).toBe(false);
   });

@@ -7,7 +7,7 @@ import type {
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import { isRunInFlight } from "./session-runs";
-import { type CompanionModel, type SourceStatus } from "./session-sources";
+import type { CompanionModel, SourceStatus } from "./session-sources";
 import type { TaskView } from "./session-tasks";
 
 // Within this long of the duration cap, the owner is told it is coming.
@@ -17,7 +17,6 @@ export type BannerKind =
   | "stream-unreachable"
   | "paused"
   | "permission-revoked"
-  | "companion-offline"
   | "source-lost"
   | "gap"
   | "credential-expired"
@@ -34,9 +33,6 @@ export type Banner = {
   // When the problem began (server time), for "disconnected 2 min ago".
   since?: string | null;
   durationMs?: number | null;
-  // companion-offline: true when the server has never recorded contact, which
-  // is different from contact that went quiet.
-  neverSeen?: boolean;
   // cap-near: how long is left.
   remainingMs?: number;
 };
@@ -62,7 +58,7 @@ export function capModel(
   };
 }
 
-// Priority order: paused, permission revoked, companion offline, source lost,
+// Priority order: paused, permission revoked, source lost,
 // gap, credential, then the cap. Only an open session has banners.
 export function deriveBanners(
   session: LiveSessionView,
@@ -86,14 +82,6 @@ export function deriveBanners(
         source: s.source,
         since: s.since,
       });
-  // Quiet or absent contact matters while capture should be happening.
-  if (session.status !== "paused" && companion.status !== "online")
-    banners.push({
-      kind: "companion-offline",
-      tone: companion.status === "offline" ? "red" : "amber",
-      neverSeen: companion.status === "never-seen",
-      since: companion.lastContactAt,
-    });
   for (const s of sources)
     if (s.health === "disconnected" || s.health === "lost")
       banners.push({
@@ -133,49 +121,35 @@ export type ActivityKey =
   | "stream-unreachable"
   | "ended"
   | "paused"
-  | "source-lost"
   | "coding-draft"
   | "agent-working"
   | "reading-coding-task"
   | "drafting"
   | "code-ready"
   | "answer-ready"
-  | "companion-waiting"
-  | "companion-offline"
-  | "listening";
+  | "refused"
+  | "idle";
 
 export type Activity = { key: ActivityKey; text: string };
 
-const REVOKED_LABEL = "permission revoked";
-
-// By priority: paused; a lost source; a coding draft in flight; the coding
-// task being read; an answer being drafted; a result ready (until the
-// conversation moves on); no companion contact; and otherwise listening.
+// What STUDIO is doing, and nothing about the capture companion or its sources:
+// by priority, paused; a coding draft in flight; the coding task being read; an
+// answer being drafted; the newest run refused or failed (with its reason); a
+// result ready (until the conversation moves on); and otherwise idle.
 export function deriveActivity(input: {
   session: LiveSessionView;
-  sources: readonly SourceStatus[];
-  companion: CompanionModel;
   tasks: readonly TaskView[];
   // Server time of the newest transcript line, if any.
   lastUtteranceAt: string | null;
   // The stream cannot be read: nothing below can be said to be current.
   streamStale?: boolean;
 }): Activity {
-  const { session, sources, companion, tasks } = input;
+  const { session, tasks } = input;
   if (session.status === "ended" || session.status === "purging")
     return { key: "ended", text: "Ended" };
   if (input.streamStale)
     return { key: "stream-unreachable", text: "Showing the last update" };
   if (session.status === "paused") return { key: "paused", text: "Paused" };
-  const lost = sources.find((s) => s.lost);
-  if (lost)
-    return {
-      key: "source-lost",
-      text:
-        lost.health === "lost-permission"
-          ? `${lost.label} ${REVOKED_LABEL}`
-          : `${lost.label} lost`,
-    };
 
   const inFlight = tasks.flatMap((task) =>
     task.current.runs.filter(isRunInFlight).map((run) => ({ task, run })),
@@ -185,7 +159,7 @@ export function deriveActivity(input: {
   if (coding)
     return {
       key: "coding-draft",
-      text: `Coding draft · task rev ${coding.task.currentRevision}`,
+      text: `Writing and testing code · task rev ${coding.task.currentRevision}`,
     };
   if (running.some(({ run }) => run.actionKind === "agent-solve"))
     return { key: "agent-working", text: "Agent job running" };
@@ -195,7 +169,21 @@ export function deriveActivity(input: {
       ? { key: "reading-coding-task", text: "Restating the coding task" }
       : { key: "drafting", text: "Drafting an answer" };
 
-  // A ready result stands until a later line is heard.
+  // The newest settled run decides: a refusal or failure with its reason, or a
+  // result that stands until a later line is heard.
+  const newest = tasks
+    .flatMap((task) => task.current.runs)
+    .filter((run) => !isRunInFlight(run))
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  if (newest && (newest.state === "refused" || newest.state === "failed"))
+    return {
+      key: "refused",
+      text: newest.reasonLabel
+        ? `${newest.state === "refused" ? "Refused" : "Failed"} · ${newest.reasonLabel}`
+        : newest.state === "refused"
+          ? "Refused"
+          : "Failed",
+    };
   const ready = tasks
     .flatMap((task) => task.current.runs)
     .filter((run) => run.state === "published")
@@ -208,12 +196,7 @@ export function deriveActivity(input: {
     return ready.actionKind === "solve-code"
       ? { key: "code-ready", text: "Code draft ready" }
       : { key: "answer-ready", text: "Answer ready" };
-
-  if (companion.status === "never-seen")
-    return { key: "companion-waiting", text: "Waiting for the companion" };
-  if (companion.status === "offline")
-    return { key: "companion-offline", text: "Companion offline" };
-  return { key: "listening", text: "Listening" };
+  return { key: "idle", text: "Idle" };
 }
 
 // ---- Locality ----------------------------------------------------------------

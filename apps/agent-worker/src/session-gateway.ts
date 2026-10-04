@@ -25,15 +25,15 @@ import {
   withDeclaredLocality,
 } from "@omnitech/ai-runtime/config";
 import {
-  createSessionAgentPort,
-  type AttachmentSource,
-  type SessionAgentPortOptions,
-} from "./session-agent-port.js";
-import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
 } from "@omnitech/product-interview/session-worker";
+import {
+  type AttachmentSource,
+  createSessionAgentPort,
+  type SessionAgentPortOptions,
+} from "./session-agent-port.js";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -90,6 +90,16 @@ function outputTokens(env: Environment, baseUrl: string): number {
 // screenshot tasks and, for sessions that may use remote processing, the assist
 // and coding stages (tool-less; text-only unless a screenshot rides along).
 // Device-only sessions keep the direct device model.
+// A tool-less structured answer needs turns beyond the model's first reply:
+// Claude returns structured output through a synthetic tool call, and the SDK
+// rejects a malformed call (observed: every field wrapped in one property, or a
+// tool-call template leaking through) and asks again. The assistant profile's
+// single turn ends such a run with `error_max_turns` on the first glitch, and
+// three turns still lose a screenshot call that glitches repeatedly. With no
+// tools the extra turns can only be this structured-output retry; the profile's
+// own timeout still bounds the run.
+export const SESSION_AGENT_MIN_TURNS = 6;
+
 export const SESSION_VISION_PROFILE_ENV = "ACTIVE_SESSION_AGENT_PROFILE";
 const VISION_PROFILES: Readonly<Record<string, string>> = {
   claude: SESSION_AGENT_CLAUDE_PROFILE,
@@ -131,7 +141,10 @@ function createAgentPort(
   for (const entry of SESSION_AGENT_PROFILES) {
     const agent = agentProfiles.get(entry.agentProfile);
     if (!agent || !runtimes[entry.runtime]) continue;
-    mapped.set(entry.id, agent);
+    mapped.set(entry.id, {
+      ...agent,
+      maximumTurns: Math.max(agent.maximumTurns, SESSION_AGENT_MIN_TURNS),
+    });
     profiles.push({
       id: entry.id,
       label: entry.label,

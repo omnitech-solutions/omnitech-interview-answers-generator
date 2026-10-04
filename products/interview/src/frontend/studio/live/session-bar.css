@@ -1,13 +1,14 @@
 /* Session bar (live/session-bar.tsx): the persistent control above every
    Studio page while a session is open. Owned by the session bar unit.
-   Colours are Studio tokens only, so dark and light follow the theme. The bar
-   wraps instead of scrolling: no fixed widths, and below 560 px the chips
-   shrink to their icons (the label stays for screen readers and in the title). */
+   Colours are Studio tokens only, so dark and light follow the theme. At normal
+   widths it is ONE row: state, title and time on the left, source chips (icons
+   only, the label is the tooltip and screen-reader text) in the middle, and the
+   toolbar on the right. It wraps only on narrow widths; nothing scrolls sideways. */
 .live-session-bar {
   position: relative;
   flex: none;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px 12px;
   min-height: 48px;
@@ -27,10 +28,10 @@
 }
 
 .live-bar-main {
-  flex: 1 1 280px;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px 12px;
 }
@@ -49,8 +50,9 @@
 }
 .live-bar-target {
   min-width: 0;
-  max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 500;
 }
 .live-bar-elapsed {
@@ -60,6 +62,9 @@
 .live-bar-activity {
   color: var(--muted);
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .live-bar-chips {
@@ -72,21 +77,40 @@
   gap: 6px;
 }
 .live-bar-chips .live-chip {
-  height: 26px;
-  border-radius: 13px;
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 14px;
+}
+/* Icon only: the words are the tooltip and the screen-reader text. */
+.live-bar-chips .live-chip-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .live-bar-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
   margin-left: auto;
+  flex: none;
 }
 /* A touch target: at least 40 px tall. */
 .live-bar-button {
   min-height: 40px;
   min-width: 40px;
   justify-content: center;
+}
+/* Icon-only toolbar buttons: square, with the label as tooltip and aria-label. */
+.live-bar-icon {
+  width: 40px;
+  padding: 0;
 }
 .live-bar-button:disabled {
   opacity: 0.6;
@@ -184,29 +208,21 @@
   }
 }
 
-/* Phone width: chips keep only their icon; the label stays for assistive
-   technology and in the tooltip. Padding tightens. */
-@media (max-width: 560px) {
+/* Narrow widths: the row wraps, the toolbar taking its own line. */
+@media (max-width: 720px) {
   .live-session-bar {
+    flex-wrap: wrap;
     padding-left: 12px;
   }
-  .live-bar-chips .live-chip {
-    width: 30px;
-    padding: 0;
-    justify-content: center;
-  }
-  .live-bar-chips .live-chip-text {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+  .live-bar-main {
+    flex: 1 1 100%;
   }
   .live-bar-actions {
     flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
   }
-  .live-bar-actions .live-bar-button {
+  .live-bar-actions .live-bar-button:not(.live-bar-icon) {
     flex: 1 1 auto;
   }
 }

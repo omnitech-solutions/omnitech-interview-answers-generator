@@ -33,9 +33,11 @@ import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
+  OWNER_CAPTURE_SOURCE_ID,
   OWNER_INPUT_SOURCE_ID,
   SESSION_SCREENSHOT_ARTIFACT_TYPE,
 } from "../db/live-session.js";
+import { fulfilCaptureRequest, pendingCaptureOf } from "./capture-request.js";
 import { reportedWithin, storeCapability } from "./companion-capability.js";
 import {
   decideObservation,
@@ -85,10 +87,23 @@ const controlState = (status: SessionStatus): ControlStatus["state"] =>
 const controlOf = (
   row: SessionRecord,
   status: SessionStatus,
-): ControlStatus => ({
-  state: controlState(status),
-  credentialExpiresAt: (row.credentialExpiresAt ?? row.expiresAt).toISOString(),
-});
+): ControlStatus => {
+  const capture = pendingCaptureOf(row, status);
+  return {
+    state: controlState(status),
+    credentialExpiresAt: (
+      row.credentialExpiresAt ?? row.expiresAt
+    ).toISOString(),
+    ...(capture ? { capture } : {}),
+  };
+};
+
+// Stored acknowledgements never carry a capture request: a resend returns the
+// original unchanged, and a request is only ever live on a fresh answer.
+const withoutCapture = ({
+  capture: _capture,
+  ...control
+}: ControlStatus): ControlStatus => control;
 
 function parseEnvelope(
   raw: unknown,
@@ -279,7 +294,10 @@ async function ingestLocked(
   const observation = validated.value;
   // [SAFETY] The owner-input source namespace is reserved (ADR-0016): the
   // companion can never pre-claim the dedup key of an owner input.
-  if (observation.sourceId === OWNER_INPUT_SOURCE_ID)
+  if (
+    observation.sourceId === OWNER_INPUT_SOURCE_ID ||
+    observation.sourceId === OWNER_CAPTURE_SOURCE_ID
+  )
     return done(
       refusal("invalid_observation", {
         control,
@@ -357,9 +375,10 @@ async function ingestLocked(
     // Owner inputs are the owner's own requests, stored DB-side: they count
     // toward neither the capture cap nor the capture rate (they still take a
     // sequence number, hence max_sequence covers every row).
-    sql`SELECT (count(*) FILTER (WHERE kind <> 'owner.input'))::int AS total,
-               (count(*) FILTER (WHERE kind = 'screen.snapshot'))::int AS screenshots,
-               (count(*) FILTER (WHERE kind <> 'owner.input' AND received_at > now() - interval '1 minute'))::int AS recent,
+    // The owner's own browser captures are exempt too.
+    sql`SELECT (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID}))::int AS total,
+               (count(*) FILTER (WHERE kind = 'screen.snapshot' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID}))::int AS screenshots,
+               (count(*) FILTER (WHERE kind <> 'owner.input' AND source_id <> ${OWNER_CAPTURE_SOURCE_ID} AND received_at > now() - interval '1 minute'))::int AS recent,
                COALESCE(max(sequence), 0) AS max_sequence
         FROM interview.session_observations
         WHERE tenant_id = ${scope.tenantId}::uuid
@@ -385,7 +404,7 @@ async function ingestLocked(
   const decision = decideObservation(ledger, {
     observation,
     sessionStatus: status,
-    control,
+    control: withoutCapture(control),
   });
   if (decision.decision === "refused")
     return done(refusal(decision.code, { control }), cancelJobs);
@@ -458,7 +477,30 @@ async function ingestLocked(
       })}::jsonb,
       ${JSON.stringify(decision.ack)}::jsonb, ${artifactId}::uuid)`);
   await touch(tx, scope, sessionId);
-  return done(decision.ack, cancelJobs);
+
+  // [SAFETY] A capture request is fulfilled only by a snapshot naming the exact
+  // id of this session's pending, unexpired request, in this same transaction
+  // (the capture credential can never analyse on its own). Anything else leaves
+  // the snapshot a plain snapshot. A request just fulfilled is no longer live,
+  // so the fresh answer omits it; an unfulfilled one stays on the answer.
+  const fulfilled =
+    observation.kind === "screen.snapshot" &&
+    (await fulfilCaptureRequest(
+      tx,
+      scope,
+      sessionId,
+      row,
+      observation,
+      decision.seq,
+    ));
+  const answer =
+    decision.ack.status === "accepted"
+      ? {
+          ...decision.ack,
+          control: fulfilled ? withoutCapture(control) : control,
+        }
+      : decision.ack;
+  return done(answer, cancelJobs);
 }
 
 const touch = (tx: TenantDatabase, scope: OwnerScope, sessionId: string) =>
@@ -632,7 +674,7 @@ async function capabilityLocked(
 // by metadata.session_id. Identical bytes within a session share one artifact
 // (a digest dedupes stored bytes only; observations stay keyed by source and
 // event id).
-async function storeScreenshot(
+export async function storeScreenshot(
   tx: TenantDatabase,
   scope: OwnerScope,
   sessionId: string,

@@ -523,6 +523,7 @@ function companionImportViolations(
 // library, is a boundary change that needs a decision.
 const SWIFT_ALLOWED_IMPORTS = new Set([
   "Foundation",
+  "AppKit",
   "Security",
   "ScreenCaptureKit",
   "Speech",

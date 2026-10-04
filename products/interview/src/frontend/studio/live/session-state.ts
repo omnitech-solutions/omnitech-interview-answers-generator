@@ -18,8 +18,8 @@ import {
   type LocalityModel,
   localityModel,
 } from "./session-banners";
-import { elapsedMs, formatElapsed } from "./session-merge";
 import type { SessionErrorCode } from "./session-client";
+import { elapsedMs, formatElapsed } from "./session-merge";
 import type { ActivityRun } from "./session-runs";
 import {
   type CompanionModel,
@@ -34,7 +34,6 @@ import { type TranscriptRow, transcriptRows } from "./session-transcript";
 //   live         active and nothing wrong with capture
 //   paused       the owner (or a credential problem) paused it
 //   source-lost  a source is disconnected, lost or its permission was revoked
-//   waiting      created, the companion has not made contact yet
 //   ended        finished (or being deleted)
 //   unreachable  Studio's session service cannot be read, so what is shown
 //                may be out of date
@@ -42,7 +41,6 @@ export type BarState =
   | "live"
   | "paused"
   | "source-lost"
-  | "waiting"
   | "ended"
   | "unreachable";
 
@@ -99,7 +97,13 @@ export type LiveModelInput = {
   // The store's last successful read (browser clock) and its last failure.
   lastReadAt?: number | null;
   streamError?: SessionErrorCode | null;
+  // Reads that failed in a row. A single failed read is a blip, not an outage;
+  // omitted, an error counts at once.
+  readFailures?: number;
 };
+
+// Reads that must fail in a row before Studio says it cannot be reached.
+export const FAILED_READS_BEFORE_UNREACHABLE = 2;
 
 const EMPTY_STATS: LiveStats = {
   utterances: 0,
@@ -122,9 +126,12 @@ function barOf(
   if (session.status === "paused") return { state: "paused", label: "Paused" };
   if (sources.some((source) => source.lost))
     return { state: "source-lost", label: "Source lost" };
-  if (session.status === "created")
-    return { state: "waiting", label: "Waiting for the companion" };
-  return { state: "live", label: "Live" };
+  // A session no one has captured for yet is ready, not waiting: the browser
+  // alone can capture, dictate and type into it.
+  return {
+    state: "live",
+    label: session.status === "created" ? "Ready" : "Live",
+  };
 }
 
 export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
@@ -160,7 +167,9 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
 
   const lastReadAt = input.lastReadAt ?? null;
   const streamStale =
-    input.streamError != null ||
+    (input.streamError != null &&
+      (input.readFailures ?? FAILED_READS_BEFORE_UNREACHABLE) >=
+        FAILED_READS_BEFORE_UNREACHABLE) ||
     (lastReadAt !== null && input.nowMs - lastReadAt > STREAM_STALE_AFTER_MS);
   // [SAFETY] Offline is only meaningful with a fresh read: while the stream
   // cannot be read, contact age is judged at the last read, not at now.
@@ -211,8 +220,6 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
     activity: deriveActivity({
       streamStale,
       session,
-      sources,
-      companion,
       tasks,
       lastUtteranceAt: lastUtterance?.receivedAt ?? null,
     }),

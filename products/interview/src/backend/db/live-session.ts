@@ -69,6 +69,10 @@ export const observationKinds = [
 // refuses it as a sender's source id, and the CHECK below keeps the pairing
 // exact, so a companion can never pre-claim an owner input's dedup key.
 export const OWNER_INPUT_SOURCE_ID = "studio.owner-input";
+// The reserved source id of the owner's own browser captures: `screen.snapshot`
+// observations written only by the owner capture route. Ingest refuses it as a
+// sender's source id; the CHECK below keeps it to stored screen snapshots.
+export const OWNER_CAPTURE_SOURCE_ID = "studio.owner-capture";
 export const dispatchStatuses = [
   "in_flight",
   "succeeded",
@@ -129,6 +133,10 @@ export const activeSessions = interview.table.withRLS(
     // closes exactly those segments instead of evaluating them again against
     // task state they were never judged against. Only ever raised.
     processedThrough: bigint("processed_through", { mode: "number" }),
+    // The ONE pending capture request (a one-shot "capture now" for the native
+    // companion): mode, region, owner hints, status and expiry. Session
+    // content, so the purge clears it with the other session fields.
+    captureRequest: jsonb("capture_request"),
   },
   (t) => [
     unique("active_sessions_tenant_owner_id_key").on(
@@ -305,6 +313,10 @@ export const sessionObservations = interview.table.withRLS(
     check(
       "session_observations_owner_source_check",
       sql`(kind = 'owner.input') = (source_id = '${sql.raw(OWNER_INPUT_SOURCE_ID)}')`,
+    ),
+    check(
+      "session_observations_owner_capture_check",
+      sql`source_id <> '${sql.raw(OWNER_CAPTURE_SOURCE_ID)}' OR (kind = 'screen.snapshot' AND screenshot_artifact_id IS NOT NULL)`,
     ),
     check(
       "session_observations_artifact_kind_check",

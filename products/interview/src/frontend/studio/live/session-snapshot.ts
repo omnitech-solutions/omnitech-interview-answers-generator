@@ -2,12 +2,19 @@
 // the view model derived from it); none of them calls the routes directly.
 import type {
   LiveAction,
+  LiveCaptureState,
   LiveCredential,
   LiveObservation,
   LiveRetentionMode,
   LiveSessionStartRequest,
+  LiveSessionSummary,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
+import type {
+  CaptureInput,
+  CompanionCaptureInput,
+  OwnerHints,
+} from "./session-capture";
 import type { SessionErrorCode } from "./session-client";
 
 export type SessionCommand =
@@ -21,7 +28,9 @@ export type SessionCommand =
   | "shorten"
   | "delete"
   | "analyze"
-  | "follow-up";
+  | "follow-up"
+  | "capture-request"
+  | "switch";
 
 export type LiveSnapshot = {
   tenant: string;
@@ -47,15 +56,26 @@ export type LiveSnapshot = {
   lastReadAt: number | null;
   // The last stream or hydration failure while it persists; null when healthy.
   streamError: SessionErrorCode | null;
+  // How many reads in a row have failed (0 once one succeeds). "Can't reach
+  // Studio" is said only after a real run of failures, never for one blip.
+  readFailures: number;
   // Commands in flight, and the last command's failure (cleared by the next).
   pending: readonly SessionCommand[];
   commandError: SessionErrorCode | null;
   // The finished session the ended view reads, remembered across a reload for
   // this browser tab (the id only; sessionStorage).
   endedSessionId: string | null;
+  // The finished session the owner switched the store to, to read its ended
+  // summary (followed until another is chosen, one starts or it is dismissed);
+  // null otherwise.
+  switchedTo: string | null;
   // An id asked for by address (live/<id>) that the server does not know.
   notFoundSessionId: string | null;
 };
+
+export type CaptureRequestResult =
+  | { ok: true; state: LiveCaptureState }
+  | { ok: false; code: SessionErrorCode };
 
 export type CommandResult =
   | { ok: true }
@@ -79,8 +99,17 @@ export type SessionActions = {
   deleteSession(): Promise<CommandResult>;
   // Owner input: thin calls to the session deps. "unavailable" when the server
   // has no such route; "invalid_input" for an empty follow-up.
-  analyzeLatestCapture(): Promise<CommandResult>;
-  submitFollowUp(text: string): Promise<CommandResult>;
+  analyzeLatestCapture(
+    target?: { taskId: string; revision: number },
+    hints?: OwnerHints,
+  ): Promise<CommandResult>;
+  // Capture and analyze: the frame the browser just took.
+  analyzeCapture(input: CaptureInput): Promise<CommandResult>;
+  // Ask the native companion to capture once. The answer carries the request's
+  // state; poll captureStatus until it is no longer pending.
+  requestCapture(input: CompanionCaptureInput): Promise<CaptureRequestResult>;
+  captureStatus(requestId: string): Promise<CaptureRequestResult>;
+  submitFollowUp(text: string, hints?: OwnerHints): Promise<CommandResult>;
   // Forget the held credential (the owner has handed it over).
   dismissPairing(): void;
   // Leave a finished session's summary for a fresh setup. Only a finished
@@ -90,12 +119,15 @@ export type SessionActions = {
   openSession(sessionId: string): Promise<void>;
   // Read the current session again.
   refresh(): Promise<void>;
-};
-
-export type DocumentVisibility = {
-  isVisible(): boolean;
-  // Calls back when it becomes visible or hidden; returns the remover.
-  onChange(listener: () => void): () => void;
+  // The owner's recent sessions, newest first (the session switcher's list).
+  listSessions(): Promise<
+    | { ok: true; sessions: readonly LiveSessionSummary[] }
+    | { ok: false; code: SessionErrorCode }
+  >;
+  // Bind this one store to another of the owner's sessions. The previous
+  // session's observations, actions and cursors are dropped; nothing is sent
+  // to the session left behind, so a live one keeps running.
+  switchSession(sessionId: string): Promise<CommandResult>;
 };
 
 export type SessionStore = {
@@ -103,10 +135,6 @@ export type SessionStore = {
   subscribe(listener: () => void): () => void;
   getSnapshot(): LiveSnapshot;
   actions: SessionActions;
-  // Another document (the floating window) that shows the session: polling
-  // continues while it or the page is visible. Same loop, no second poll.
-  // Returns the remover.
-  watchDocument(source: DocumentVisibility): () => void;
   // Cancel timers and drop listeners; the store is not used afterwards.
   dispose(): void;
 };

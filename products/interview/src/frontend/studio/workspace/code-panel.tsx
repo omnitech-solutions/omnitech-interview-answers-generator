@@ -1,11 +1,11 @@
 import { javascript } from "@codemirror/lang-javascript";
 import { php } from "@codemirror/lang-php";
-import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import {
   defaultHighlightStyle,
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
 import { Decoration, EditorView } from "@codemirror/view";
 import type {
   Diagnostic,

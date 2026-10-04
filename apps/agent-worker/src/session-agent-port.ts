@@ -1,24 +1,33 @@
 // The worker's implementation of the gateway's existing AgentExecutionPort for
 // Active Session actions (ADR-0016 Decision 1-3). It wraps an
 // AgentRuntimeAdapter and nothing else: no coordinator, queue or conversation
-// store. Every attempt is tool-less, runs with fresh context in its own
-// ephemeral provider home, stages screenshots in a private directory that is
+// store. Every attempt is tool-less, runs with fresh context and no persisted
+// history (Codex in its own per-attempt home), stages screenshots in a private directory that is
 // removed when the attempt settles, and reports only typed error codes.
 //
-// Interim wrapper: ships DISABLED (selected by an explicit config flag in
-// session-gateway.ts) and is deliberately thin, because PB-0003's shared
-// worker executor will replace this body (ADR-0014). Keep the exported shape
-// (the port, `sweep`, `purge`) and the tests; swap the internals.
+// The runtimes are PB-0003's worker-owned adapters (Codex App Server, pooled
+// Claude queries). The worker has no reusable bounded-execution helper (its
+// loop in index.ts is bound to the agent-job repository), so admission,
+// deadline, cancel and the one terminal outcome stay here.
 import { constants } from "node:fs";
-import { lstat, mkdir, mkdtemp, open, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import {
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  rm,
+} from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
   AGENT_IMAGE_MAX_BYTES,
   type AgentEvent,
   type AgentProfile,
-  type AgentRuntimeAdapter,
   type AgentRunRequest,
+  type AgentRuntimeAdapter,
   validateAgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 import type {
@@ -125,7 +134,11 @@ const FAILURES: Readonly<
 export class SessionAgentError extends Error {
   readonly retryable: boolean;
   readonly failure: AiFailure;
-  constructor(readonly sessionCode: SessionAgentErrorCode) {
+  // A fixed-vocabulary reason (an SDK result subtype), never provider text.
+  constructor(
+    readonly sessionCode: SessionAgentErrorCode,
+    readonly reason?: string,
+  ) {
     super(FAILURES[sessionCode].message);
     this.name = "SessionAgentError";
     this.failure = { ...FAILURES[sessionCode] };
@@ -150,6 +163,11 @@ export interface SessionAgentPortOptions {
   // Gateway profile id -> the typed, versioned, bounded agent profile it runs.
   profiles: ReadonlyMap<string, AgentProfile>;
   attachmentSource?: AttachmentSource;
+  // The signed-in Codex credentials file copied (0600) into each Codex
+  // attempt's private CODEX_HOME. Defaults to $CODEX_HOME/auth.json, else
+  // ~/.codex/auth.json. Absent file: the attempt runs without it (an API key
+  // in the adapter environment still works).
+  codexAuthFile?: string;
   // Private base for per-attempt directories. Owned by this worker process:
   // `sweep` removes everything in it.
   stagingBase?: string;
@@ -326,23 +344,39 @@ function loadFailureCode(error: unknown): SessionAgentErrorCode {
   return "attachment-refused";
 }
 
-// The per-attempt provider home: provider homes and config roots point at an
-// empty private directory, so no history or credentials file is read or kept.
-function ephemeralEnvironment(home: string): Record<string, string> {
-  return {
-    HOME: home,
-    CODEX_HOME: home,
-    CLAUDE_CONFIG_DIR: home,
-    XDG_CONFIG_HOME: join(home, "config"),
-    XDG_DATA_HOME: join(home, "data"),
-    XDG_CACHE_HOME: join(home, "cache"),
-  };
+// [SAFETY] Per-attempt provider state, by runtime, without breaking the
+// person's local sign-in:
+//  - Claude: nothing is overridden. HOME and the config dir stay as the worker
+//    allowlisted them so the local sign-in works; isolation comes from the
+//    request itself (no tools, no setting sources, no persisted session).
+//  - Codex: CODEX_HOME points at a private per-attempt directory holding only
+//    a 0600 copy of the credentials file, so no config, history or other host
+//    state is read or kept; the directory is removed with the attempt.
+async function providerEnvironment(
+  runtime: AgentProfile["runtime"],
+  home: string,
+  authFile: string,
+): Promise<Record<string, string> | undefined> {
+  if (runtime !== "codex") return undefined;
+  await mkdir(home, { mode: 0o700 });
+  try {
+    await copyFile(authFile, join(home, "auth.json"), constants.COPYFILE_EXCL);
+    await chmod(join(home, "auth.json"), 0o600);
+  } catch (error) {
+    // No sign-in file is not an error here; the provider reports its own
+    // authentication failure, typed, without text.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  return { CODEX_HOME: home };
 }
 
 export function createSessionAgentPort(
   options: SessionAgentPortOptions,
 ): SessionAgentPort {
   const base = options.stagingBase ?? defaultStagingBase();
+  const codexAuthFile =
+    options.codexAuthFile ??
+    join(process.env["CODEX_HOME"] ?? join(homedir(), ".codex"), "auth.json");
   const admission = createAdmission(
     options.maxSessionAttempts ?? DEFAULT_MAX_CONCURRENT,
     options.maxLiveStreak ?? DEFAULT_MAX_LIVE_STREAK,
@@ -482,16 +516,21 @@ export function createSessionAgentPort(
       await ensurePrivateBase(base);
       directory = await mkdtemp(join(base, "attempt-"));
       owned.add(directory);
-      const home = join(directory, "home");
       const work = join(directory, "work");
       const stagingRoot = join(directory, "stage");
-      for (const path of [home, work, stagingRoot])
+      for (const path of [work, stagingRoot])
         await mkdir(path, { mode: 0o700 });
+      const environment = await providerEnvironment(
+        agent.runtime,
+        join(directory, "home"),
+        codexAuthFile,
+      );
       const attachments = await stage(request, stagingRoot);
 
       // A timeout or cancel ends the attempt even if the runtime is slow to
       // answer its own cancel: the pull below races this promise.
       let stop: SessionAgentErrorCode | undefined;
+      let stopReason: string | undefined;
       let halt: () => void = () => undefined;
       const halted = new Promise<"halted">((resolve) => {
         halt = () => resolve("halted");
@@ -516,7 +555,7 @@ export function createSessionAgentPort(
           attachments,
           attachmentRoot: stagingRoot,
           toolless: true,
-          environment: ephemeralEnvironment(home),
+          ...(environment === undefined ? {} : { environment }),
           timeoutMs: agent.timeoutMs,
           ...(request.task.system === undefined
             ? {}
@@ -550,8 +589,10 @@ export function createSessionAgentPort(
             yield { type: "completed", result: event.result.output };
             return;
           } else if (event.type === "failed") {
-            // Provider text is dropped; only the code maps across.
+            // Provider text is dropped; only the code (and the adapter's fixed
+            // result subtype, when it names one) maps across.
             stop ??= codeFor(event.error);
+            stopReason ??= reasonOf(event.error);
             break;
           } else if (event.type === "awaiting-input") {
             // A tool-less single turn never asks the owner for input.
@@ -560,7 +601,7 @@ export function createSessionAgentPort(
             break;
           }
         }
-        throw new SessionAgentError(stop ?? "provider");
+        throw new SessionAgentError(stop ?? "provider", stopReason);
       } finally {
         // Closing the runtime's iterator ends it; never awaited, since a
         // runtime that ignores cancel must not hold this attempt open.
@@ -573,7 +614,19 @@ export function createSessionAgentPort(
         error instanceof SessionAgentError
           ? error.failure
           : FAILURES["provider"];
-      yield { type: "failed", error: { ...failure } };
+      // The fixed reason rides in a closed-vocabulary suffix so execute() can
+      // report the same typed error stream() does.
+      const reason =
+        error instanceof SessionAgentError ? error.reason : undefined;
+      yield {
+        type: "failed",
+        error: {
+          ...failure,
+          ...(reason === undefined
+            ? {}
+            : { message: `${failure.message} [reason: ${reason}]` }),
+        },
+      };
     } finally {
       request.signal?.removeEventListener("abort", forward);
       active.delete(executionId);
@@ -604,9 +657,21 @@ export function createSessionAgentPort(
 
   // Maps a failed event's AiFailure back to its session code by its fixed
   // message, so execute() throws the same typed error stream() reports.
+  // The SDK result subtype the Claude adapter names in its fixed failure text.
+  function reasonOf(error: AiFailure): string | undefined {
+    return /^Claude ended with ([a-z_]{1,64})\.$/.exec(error.message)?.[1];
+  }
+
+  // The reason a failed event carries in its closed-vocabulary suffix.
+  function causeOf(error: AiFailure): string | undefined {
+    return /\[reason: ([a-z_]{1,64})\]$/.exec(error.message)?.[1];
+  }
+
+  // Maps a failed event's AiFailure back to its session code by its fixed
+  // message, so execute() throws the same typed error stream() reports.
   function sessionCodeOf(error: AiFailure): SessionAgentErrorCode {
     for (const [code, failure] of Object.entries(FAILURES))
-      if (failure.message === error.message)
+      if (error.message.startsWith(failure.message))
         return code as SessionAgentErrorCode;
     return "provider";
   }
@@ -632,7 +697,10 @@ export function createSessionAgentPort(
             ...(usage === undefined ? {} : { usage }),
           };
         if (event.type === "failed")
-          throw new SessionAgentError(sessionCodeOf(event.error));
+          throw new SessionAgentError(
+            sessionCodeOf(event.error),
+            causeOf(event.error),
+          );
       }
       throw new SessionAgentError("provider");
     },

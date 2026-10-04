@@ -97,6 +97,10 @@ export const screenSnapshotSchema = z.strictObject({
       .min(1)
       .max(ACTIVE_SESSION_LIMITS.maxScreenshotBytes),
     windowLabel: z.string().max(ACTIVE_SESSION_LIMITS.maxWindowLabelChars),
+    // Set only to the id of the capture request the companion was just handed
+    // in `control.capture`. Studio honours it only against its own pending,
+    // unexpired request of that exact id; otherwise it is ignored.
+    requestId: opaqueIdSchema.optional(),
   }),
 });
 

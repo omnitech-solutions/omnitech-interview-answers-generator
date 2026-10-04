@@ -1,14 +1,20 @@
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import {
   type Query,
   query,
   type SDKMessage,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type {
-  AgentEvent,
-  AgentResumeRequest,
-  AgentRunRequest,
-  AgentRuntimeAdapter,
+import {
+  AGENT_IMAGE_MAX_BYTES,
+  AgentAttachmentRefusedError,
+  type AgentEvent,
+  type AgentResumeRequest,
+  type AgentRunRequest,
+  type AgentRuntimeAdapter,
+  stagedImages,
+  TOOL_REFUSED_FAILURE,
 } from "@omnitech/agent-runtime-contracts";
 
 export interface ClaudeRuntimeOptions {
@@ -23,10 +29,10 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
     | ((value: IteratorResult<SDKUserMessage>) => void)
     | undefined;
   private closed = false;
-  push(text: string) {
+  push(content: SDKUserMessage["message"]["content"]) {
     const message: SDKUserMessage = {
       type: "user",
-      message: { role: "user", content: text },
+      message: { role: "user", content },
       parent_tool_use_id: null,
     };
     if (this.waiting) {
@@ -58,6 +64,69 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
   }
 }
 
+type ImageMediaType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+
+// [SAFETY] Reads a staged image without following a link swapped in after
+// validation, and never more than the byte bound.
+async function readImage(path: string): Promise<string> {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    // Never more than the bound plus one byte: a file that grew after
+    // validation is refused without being read whole.
+    const buffer = Buffer.alloc(AGENT_IMAGE_MAX_BYTES + 1);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead > AGENT_IMAGE_MAX_BYTES)
+      throw new AgentAttachmentRefusedError();
+    return buffer.subarray(0, bytesRead).toString("base64");
+  } finally {
+    await handle.close();
+  }
+}
+
+// The supported streaming-input form: one user message holding the prompt text
+// and its image content blocks.
+async function userContent(
+  request: AgentRunRequest,
+): Promise<SDKUserMessage["message"]["content"]> {
+  // Refuses (typed) anything outside request.attachmentRoot, a link, a missing
+  // or oversized file; attachments without a root are refused, not ignored.
+  const images = await stagedImages(request);
+  if (images.length === 0) return request.prompt;
+  const blocks = [];
+  for (const image of images)
+    blocks.push({
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: image.mimeType as ImageMediaType,
+        data: await readImage(image.path),
+      },
+    });
+  return [{ type: "text" as const, text: request.prompt }, ...blocks];
+}
+
+// The SDK's own synthetic tool_use that carries a json_schema answer. It is
+// not a tool the model reaches for: the tool-less guard allows this one name
+// and still fails every other.
+const STRUCTURED_OUTPUT_TOOL = "StructuredOutput";
+
+// A tool the model asked to use, as the streaming protocol announces it.
+function toolUse(message: SDKMessage): string | undefined {
+  if (message.type === "stream_event") {
+    const event = message.event;
+    return event.type === "content_block_start" &&
+      event.content_block.type === "tool_use" &&
+      event.content_block.name !== STRUCTURED_OUTPUT_TOOL
+      ? event.content_block.name
+      : undefined;
+  }
+  if (message.type !== "assistant") return undefined;
+  for (const block of message.message.content)
+    if (block.type === "tool_use" && block.name !== STRUCTURED_OUTPUT_TOOL)
+      return block.name;
+  return undefined;
+}
+
 type Turn = {
   events: AgentEvent[];
   wake: (() => void) | undefined;
@@ -76,6 +145,13 @@ type Session = {
   turn: Turn | undefined;
   closed: boolean;
   cancelRequested: boolean;
+  // A pooled query is stateful: it keeps the conversation of every turn sent
+  // to it. A tool-less request (and any request carrying attachments) is
+  // therefore never pooled: it gets its own query, is never registered for
+  // resume, and is closed when its turn ends, so no history or screenshot
+  // can reach another request.
+  isolated: boolean;
+  toolless: boolean;
 };
 function push(turn: Turn, event: AgentEvent) {
   turn.events.push(event);
@@ -103,6 +179,7 @@ function profileKey(request: AgentRunRequest) {
     request.profile.approvalPolicy,
     request.profile.sandbox,
     request.outputSchema,
+    request.toolless === true,
   ]);
 }
 function resumed(request: AgentResumeRequest): AgentRunRequest {
@@ -152,6 +229,14 @@ export function createClaudeRuntimeAdapter(
             session.sessionId = message.session_id;
             turn.sessionId = message.session_id;
           }
+          // [SAFETY] A tool-less request that reaches for a tool fails typed
+          // and stops here, whatever the tool list said.
+          if (session.toolless && toolUse(message) !== undefined) {
+            push(turn, { type: "failed", error: TOOL_REFUSED_FAILURE });
+            finish(turn);
+            close(session);
+            break;
+          }
           const delta = streamedText(message);
           if (delta) {
             turn.streamed = true;
@@ -187,13 +272,16 @@ export function createClaudeRuntimeAdapter(
                 type: "failed",
                 error: {
                   code: session.cancelRequested ? "cancelled" : "provider",
-                  message: message.errors.join("; "),
+                  // [SAFETY] Fixed text naming only the SDK's result subtype
+                  // (a closed vocabulary); the SDK's own error strings may
+                  // quote model output and never leave the adapter.
+                  message: `Claude ended with ${message.subtype}.`,
                   retryable: false,
                 },
               });
             finish(turn);
             session.lastUsed = Date.now();
-            if (session.sessionId && !session.closed)
+            if (session.sessionId && !session.closed && !session.isolated)
               sessions.set(session.sessionId, session);
           }
         }
@@ -233,6 +321,20 @@ export function createClaudeRuntimeAdapter(
     resumeId?: string,
   ): AsyncIterable<AgentEvent> {
     prune();
+    const isolated =
+      request.toolless === true || request.attachments.length > 0;
+    // [SAFETY] Attachments are resolved before any query exists: a refused one
+    // never reaches the SDK and the refusal carries no path or name.
+    let content: SDKUserMessage["message"]["content"];
+    try {
+      content = await userContent(request);
+    } catch (error) {
+      if (error instanceof AgentAttachmentRefusedError) {
+        yield { type: "failed", error: error.failure };
+        return;
+      }
+      throw error;
+    }
     let session = resumeId ? sessions.get(resumeId) : undefined;
     const key = profileKey(request);
     if (
@@ -266,6 +368,12 @@ export function createClaudeRuntimeAdapter(
       close(session);
       session = undefined;
     }
+    // [SAFETY] A pooled query is never reused for an isolated request, and an
+    // isolated request never resumes one.
+    if (isolated && session) {
+      close(session);
+      session = undefined;
+    }
     if (!session) {
       const input = new InputQueue();
       const controller = new AbortController();
@@ -278,9 +386,13 @@ export function createClaudeRuntimeAdapter(
           maxTurns: request.profile.maximumTurns,
           permissionMode:
             request.profile.approvalPolicy === "never" ? "dontAsk" : "default",
-          tools: [...request.profile.tools],
-          allowedTools: [...request.profile.tools],
+          // [SAFETY] A tool-less request exposes no tool at all.
+          tools: request.toolless ? [] : [...request.profile.tools],
+          allowedTools: request.toolless ? [] : [...request.profile.tools],
           settingSources: [],
+          ...(request.profile.sessionPersistence
+            ? {}
+            : { persistSession: false }),
           strictMcpConfig: true,
           mcpServers: {},
           plugins: [],
@@ -304,7 +416,15 @@ export function createClaudeRuntimeAdapter(
                 },
               }
             : {}),
-          ...(options.environment ? { env: { ...options.environment } } : {}),
+          ...(options.environment === undefined &&
+          request.environment === undefined
+            ? {}
+            : {
+                env: {
+                  ...(options.environment ?? process.env),
+                  ...request.environment,
+                },
+              }),
         },
       });
       session = {
@@ -316,6 +436,8 @@ export function createClaudeRuntimeAdapter(
         lastUsed: Date.now(),
         closed: false,
         cancelRequested: false,
+        isolated,
+        toolless: request.toolless === true,
         turn: undefined,
       };
       pump(session);
@@ -329,7 +451,7 @@ export function createClaudeRuntimeAdapter(
     session.cancelRequested = false;
     session.turn = turn;
     active.set(request.runId, session);
-    session.input.push(request.prompt);
+    session.input.push(content);
     try {
       while (!turn.done || turn.events.length) {
         if (turn.events.length) {
@@ -343,7 +465,11 @@ export function createClaudeRuntimeAdapter(
     } finally {
       active.delete(request.runId);
       if (session.turn === turn) session.turn = undefined;
-      if (!request.profile.sessionPersistence || request.profile.tools.length)
+      if (
+        !request.profile.sessionPersistence ||
+        request.profile.tools.length ||
+        session.isolated
+      )
         close(session);
     }
   }
@@ -354,6 +480,8 @@ export function createClaudeRuntimeAdapter(
       structuredOutput: true,
       attachments: true,
       tools: true,
+      imageInput: true,
+      toolless: true,
     },
     run: (request) => execute(request),
     resume: (request) => execute(resumed(request), request.sessionId),

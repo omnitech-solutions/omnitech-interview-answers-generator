@@ -5,6 +5,7 @@
 import {
   ACTIVE_SESSION_LIMITS,
   type Acknowledgement,
+  type CaptureRequest,
   type CaptureSource,
   type IngestMessage,
   type Observation,
@@ -42,6 +43,13 @@ import {
 // Heartbeat and capability messages are not capture sources.
 const COMPANION_SOURCE_ID = "companion";
 const DEFAULT_HEARTBEAT_MS = 5_000;
+// While the screen source runs, Studio may hand over a capture-now request on
+// any acknowledgement, so the heartbeat pulls faster to pick one up within a
+// couple of seconds. Never faster than Studio's minimum spacing.
+const SCREEN_PULL_MS = 2_000;
+// Capture request ids already taken: a repeat on a later acknowledgement is
+// ignored. Bounded so a long run holds no unbounded history.
+const HANDLED_REQUESTS = 32;
 const DEFAULT_OUTBOX_CAPACITY = 200;
 
 export type CompanionOptions = {
@@ -73,6 +81,8 @@ export type ScreenshotInput = {
   payload: Uint8Array;
   mediaType: ScreenSnapshot["content"]["mediaType"];
   windowLabel: string;
+  // Only ever the id of the capture request just handed over.
+  requestId?: string;
 };
 
 export class Companion {
@@ -88,6 +98,9 @@ export class Companion {
   private readonly heartbeatIntervalMs: number;
   private readonly maxScreenshots: number;
   private pendingCapability: IngestMessage | undefined;
+  // The capture request handed over and not yet taken, and the ids taken.
+  private wantedCapture: CaptureRequest | undefined;
+  private readonly handledRequests: string[] = [];
   private holdUntil = 0;
   private lastHeartbeatAt = Number.NEGATIVE_INFINITY;
   private pausedAt = 0;
@@ -151,6 +164,7 @@ export class Companion {
     }
     await this.flush();
     await this.heartbeat();
+    await this.fulfilCapture();
   }
 
   // ---- Observations in. ----------------------------------------------------
@@ -187,6 +201,9 @@ export class Companion {
         mediaType: input.mediaType,
         byteLength: input.payload.byteLength,
         windowLabel: input.windowLabel,
+        ...(input.requestId === undefined
+          ? {}
+          : { requestId: input.requestId }),
       },
     });
     if (this.enqueue(message, input.payload)) {
@@ -234,10 +251,11 @@ export class Companion {
   }
 
   async tick(): Promise<void> {
-    if (this.clock.now() - this.lastHeartbeatAt >= this.heartbeatIntervalMs) {
+    if (this.clock.now() - this.lastHeartbeatAt >= this.pullIntervalMs()) {
       await this.heartbeat();
     }
     await this.flush();
+    await this.fulfilCapture();
   }
 
   // One heartbeat: it keeps Studio's contact stamp fresh and, through its
@@ -338,12 +356,21 @@ export class Companion {
     return true;
   }
 
+  private pullIntervalMs(): number {
+    return this.active.has("screen")
+      ? Math.max(
+          Math.min(this.heartbeatIntervalMs, SCREEN_PULL_MS),
+          ACTIVE_SESSION_LIMITS.minHeartbeatIntervalMs,
+        )
+      : this.heartbeatIntervalMs;
+  }
+
   private waitMs(): number {
     const now = this.clock.now();
     // The next heartbeat is due one interval after the last, and not before a
     // Retry-After or backoff hold has passed.
     const heartbeatDue = Math.max(
-      this.lastHeartbeatAt + this.heartbeatIntervalMs,
+      this.lastHeartbeatAt + this.pullIntervalMs(),
       this.holdUntil,
     );
     const heartbeatIn = Math.max(1, heartbeatDue - now);
@@ -389,12 +416,17 @@ export class Companion {
     this.backoff.reset();
     const { ack } = outcome;
     if (ack.status !== "refused") {
-      this.applyControl(
-        (ack.status === "accepted" ? ack : ack.original).control.state,
-      );
+      const { control } = ack.status === "accepted" ? ack : ack.original;
+      this.applyControl(control.state);
+      // [SAFETY] A duplicate carries the ORIGINAL ack, so only a fresh
+      // acceptance can hand over a request.
+      if (ack.status === "accepted") this.takeCapture(control.capture);
       return false;
     }
-    if (ack.control) this.applyControl(ack.control.state);
+    if (ack.control) {
+      this.applyControl(ack.control.state);
+      this.takeCapture(ack.control.capture);
+    }
     return this.applyRefusal(ack, outcome.retryAfterMs, message);
   }
 
@@ -448,6 +480,45 @@ export class Companion {
     this.active.delete(source);
     this.outbox.removeSource(source);
     this.state.setSource(source, "refused");
+  }
+
+  // A capture request is taken ONCE per id: a repeat is ignored. It is only
+  // remembered here; fulfilCapture runs it outside the acknowledgement path.
+  private takeCapture(request: CaptureRequest | undefined): void {
+    if (!request || this.state.terminalPhase) return;
+    if (this.handledRequests.includes(request.requestId)) return;
+    this.handledRequests.push(request.requestId);
+    if (this.handledRequests.length > HANDLED_REQUESTS)
+      this.handledRequests.shift();
+    this.wantedCapture = request;
+  }
+
+  // Captures once for the request taken. [SAFETY] Honoured only while the
+  // screen source the user selected at start is running (not paused, lost,
+  // refused or never selected); anything else is ignored visibly. A capture
+  // that finds nothing to capture is a visible loss, never a wider capture.
+  private async fulfilCapture(): Promise<void> {
+    const request = this.wantedCapture;
+    this.wantedCapture = undefined;
+    if (!request) return;
+    if (!this.accepting("screen")) {
+      this.state.notice({ code: "capture-request-ignored", source: "screen" });
+      return;
+    }
+    const result = await this.capture.captureOnce(request);
+    // The world may have changed while capturing: pause, end or a stop means
+    // nothing captured is sent.
+    if (!this.accepting("screen")) return;
+    if (result.kind === "lost") {
+      this.state.notice({ code: result.code, source: "screen" });
+      return;
+    }
+    await this.observeScreenshot({
+      payload: result.payload,
+      mediaType: result.mediaType,
+      windowLabel: result.windowLabel,
+      requestId: request.requestId,
+    });
   }
 
   private applyControl(next: SessionControlState): void {

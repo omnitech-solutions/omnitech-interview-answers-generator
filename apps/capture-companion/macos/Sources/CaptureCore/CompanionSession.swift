@@ -23,7 +23,11 @@ public final class CompanionSession {
     private var credentialExpiresAt: Date?
     private var lastHeartbeatAt: Date?
     private var finalHeartbeatSent = false
+    private let captureInbox = CaptureRequestInbox()
     public let heartbeatIntervalSeconds: Double
+    // While the screen source runs, Studio may hand over a capture-now request
+    // on any acknowledgement, so the heartbeat pulls this often instead.
+    public static let screenPullSeconds = 2.0
 
     public init(
         selection: Set<CaptureSource>, runId: String, endpoint: Endpoint, credentials: CredentialStore,
@@ -85,7 +89,9 @@ public final class CompanionSession {
         return observation
     }
 
-    public func submitScreenshot(payload: Data, mediaType: ScreenMediaType, windowLabel: String) -> Observation? {
+    public func submitScreenshot(
+        payload: Data, mediaType: ScreenMediaType, windowLabel: String, requestId: String? = nil
+    ) -> Observation? {
         guard machine.isCapturing, machine.statuses[.screen] == .running,
             payload.count >= 1, payload.count <= ActiveSessionLimits.maxScreenshotBytes
         else { return nil }
@@ -95,9 +101,40 @@ public final class CompanionSession {
             .screenSnapshot(
                 ScreenContent(
                     payloadRef: reference, mediaType: mediaType, byteLength: payload.count,
-                    windowLabel: String(windowLabel.prefix(ActiveSessionLimits.maxWindowLabelChars)))))
+                    windowLabel: String(windowLabel.prefix(ActiveSessionLimits.maxWindowLabelChars)),
+                    requestId: requestId)))
         outbox.enqueue(observation, payload: payload, now: clock.now())
         return observation
+    }
+
+    // MARK: capture now
+
+    // True only while the screen source the person selected at start is running
+    // (not paused, lost, revoked, refused, stopped or never selected).
+    private var screenRunning: Bool { machine.isCapturing && machine.statuses[.screen] == .running }
+
+    // [SAFETY] The request handed over on an acknowledgement, if any, taken ONCE.
+    // Honoured only while the screen source is running; anything else is dropped
+    // visibly so the person can see why nothing was captured.
+    public func takeCaptureRequest() -> CaptureTake {
+        guard let request = captureInbox.take() else { return .nothing }
+        return screenRunning ? .honour(request) : .ignored
+    }
+
+    // Sends what one capture-now request produced, tagged with its id. The
+    // world may have changed while capturing: pause, end or a lost screen
+    // means nothing captured is sent.
+    @discardableResult
+    public func completeCapture(_ request: CaptureRequest, outcome: CaptureOutcome) -> CaptureCompletion {
+        guard screenRunning else { return .dropped }
+        switch outcome {
+        case .lost(let loss):
+            return .lost(loss)
+        case .image(let jpeg, let windowLabel):
+            let sent = submitScreenshot(
+                payload: jpeg, mediaType: .jpeg, windowLabel: windowLabel, requestId: request.requestId)
+            return sent == nil ? .dropped : .submitted
+        }
     }
 
     public func reportAudioOverflow(source: CaptureSource, droppedMs: Int) {
@@ -165,7 +202,7 @@ public final class CompanionSession {
         if stoppedLocally {
             if finalHeartbeatSent { return }
             finalHeartbeatSent = true
-        } else if let last = lastHeartbeatAt, now.timeIntervalSince(last) < heartbeatIntervalSeconds {
+        } else if let last = lastHeartbeatAt, now.timeIntervalSince(last) < pullIntervalSeconds {
             return
         }
         lastHeartbeatAt = now
@@ -202,8 +239,24 @@ public final class CompanionSession {
                 credentialExpiresAt = expires
             }
             pull.observe(ack, answering: observation)
+            // [SAFETY] Only a fresh answer hands over a request: a duplicate
+            // carries the ORIGINAL ack, and a finished run takes nothing.
+            if !machine.isTerminal {
+                switch ack {
+                case .accepted(let accepted): captureInbox.offer(accepted.control.capture)
+                case .refused(_, let control, _): captureInbox.offer(control?.capture)
+                case .duplicate: break
+                }
+            }
             return (ack, retryAfter)
         }
+    }
+
+    private var pullIntervalSeconds: Double {
+        guard machine.statuses[.screen] == .running else { return heartbeatIntervalSeconds }
+        return max(
+            min(heartbeatIntervalSeconds, Self.screenPullSeconds),
+            Double(ActiveSessionLimits.minHeartbeatIntervalMs) / 1000)
     }
 
     private func noteFailure(afterSeconds: Double?) {

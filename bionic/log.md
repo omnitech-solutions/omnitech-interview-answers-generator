@@ -2,6 +2,30 @@
 
 _Append-only. Newest first._
 
+## [2026-10-04] adr | ADR-0019: accepted
+
+Host the overlay in a native shell through one host adapter. Amends ADR-0017 and ADR-0018; accepted on the owner's request for a native shell that hosts the one route, with no concealment.
+
+## [2026-10-04] adr | ADR-0019: Host the overlay in a native shell through one host adapter
+
+Proposed. File `bionic/adrs/ADR-0019-host-the-overlay-in-a-native-shell-through-one-host-adapter.md`. Tags: active-session, overlay, native, macos, adapter, privacy.
+
+## [2026-10-04] adr | ADR-0018: accepted
+
+Capture on demand with masks and owner-requested companion captures. Amends ADR-0016; accepted on the owner's standing instruction after their real-browser review; includes the explicit decision not to build concealment.
+
+## [2026-10-04] adr | ADR-0018: Capture on demand with masks and owner-requested companion captures
+
+Proposed. File `bionic/adrs/ADR-0018-capture-on-demand-with-masks-and-owner-requested-companion-captures.md`. Tags: active-session, capture, privacy, companion, overlay.
+
+## [2026-10-03] adr | ADR-0017: accepted
+
+Host the Active Session overlay as one route and isolate providers without emptying their home. Amends ADR-0016 after real Claude, Codex, Docker-runner and Document PiP runs; accepted by the owner's standing instruction to decide, without a council re-run (no OPENROUTER_API_KEY).
+
+## [2026-10-03] adr | ADR-0017: Host the Active Session overlay as one route and isolate providers without emptying their home
+
+Proposed. File `bionic/adrs/ADR-0017-host-the-active-session-overlay-as-one-route-and-isolate-providers.md`. Tags: active-session, overlay, pip, agents, isolation, structured-output.
+
 ## [2026-10-03] promptbook | archived PB-0004-active-session-unified-runtime-and-screen-assistance
 
 Final run RUN-001, 13/13 prompts terminal, archived as delivered. 13 done, 0 skipped, 0 blocked. [[promptbooks/archive/PB-0004-active-session-unified-runtime-and-screen-assistance]]

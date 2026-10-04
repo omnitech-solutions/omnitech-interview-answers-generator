@@ -339,3 +339,19 @@ describe("limits", () => {
     expect(ACTIVE_SESSION_LIMITS.maxActiveSessionsPerOwner).toBe(1);
   });
 });
+
+describe("screen snapshot requestId", () => {
+  const withRequest = (requestId: unknown) => ({
+    ...snapshot,
+    content: { ...snapshot.content, requestId },
+  });
+
+  it("accepts an optional capture-request correlation id", () => {
+    expect(validateObservation(withRequest("cap-1")).ok).toBe(true);
+    expect(validateObservation(snapshot).ok).toBe(true);
+  });
+
+  it.each(["", "a b", "x".repeat(129), 7])("refuses %j", (bad) => {
+    expect(validateObservation(withRequest(bad)).ok).toBe(false);
+  });
+});

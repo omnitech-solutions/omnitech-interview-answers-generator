@@ -33,12 +33,13 @@ import type { SessionStorePort } from "./processor-ports.js";
 import { planAssist } from "./service.js";
 import {
   attachmentsFor,
+  hintsFor,
   keyOf,
   noteCodingTask,
   noteRecorded,
   type SessionCodeRunner,
-  slotFor,
   type SessionRun,
+  slotFor,
 } from "./session-run.js";
 import type { LocalityDecision } from "./trace.js";
 import {
@@ -128,7 +129,8 @@ export type Dispatch = {
     withheld?: WithheldSummary,
   ): Promise<void>;
   // A retryable failure: recorded failed, counted toward the retry bound.
-  failRetryably(outcome: string): Promise<void>;
+  // `cause` is a fixed typed code (never provider text) for the trace.
+  failRetryably(outcome: string, cause?: string): Promise<void>;
   trace(event: string, outcome: string, detail?: DispatchDetail): void;
   // Counts bytes that would have left the process (a refused oversize prompt).
   noteBytesIn(count: number): void;
@@ -254,7 +256,7 @@ export async function beginDispatch(
 
   // A retryable failure: recorded failed, so a retry is deduplicated only
   // against succeeded or in-flight work, and counted toward the retry bound.
-  const failRetryably = async (outcome: string) => {
+  const failRetryably = async (outcome: string, cause?: string) => {
     run.failures.set(key, (run.failures.get(key) ?? 0) + 1);
     const settled = await store.recordFailure({
       scope: run.scope,
@@ -263,7 +265,10 @@ export async function beginDispatch(
       actionId,
     });
     if (settled.outcome === "refused" && lost(settled.reason)) return;
-    finish("dispatch.failed", outcome, { attempt });
+    finish("dispatch.failed", outcome, {
+      attempt,
+      ...(cause === undefined ? {} : { cause }),
+    });
   };
 
   // 2. Re-check the session row immediately before dispatch, under the fenced
@@ -467,7 +472,18 @@ export async function beginDispatch(
         }
         // Unavailable (a failed standing or screenshot read, or cancelled):
         // retried against the same profile, with no fallback to another.
-        await failRetryably(signal.aborted ? "cancelled" : "unavailable");
+        const typed = error as {
+          sessionCode?: unknown;
+          reason?: unknown;
+        } | null;
+        const code =
+          typeof typed?.sessionCode === "string"
+            ? typed.sessionCode
+            : "untyped";
+        await failRetryably(
+          signal.aborted ? "cancelled" : "unavailable",
+          typeof typed?.reason === "string" ? `${code}:${typed.reason}` : code,
+        );
         return { ok: false };
       }
     },
@@ -526,6 +542,7 @@ export async function dispatchTask(
   // The screenshots this revision rests on, if any (ADR-0016): the dispatch
   // begins with them so it is bound to the vision profile or refused.
   const attachments = attachmentsFor(run, task);
+  const hints = hintsFor(run, task);
   const d = await beginDispatch(run, task, deps, stage, { attachments });
   if (d === null) return;
 
@@ -537,6 +554,7 @@ export async function dispatchTask(
     stage,
     deviceOnly: d.deviceOnly,
     imageCount: attachments.length,
+    hints,
   });
   if (d.stopped()) return;
   if (plan.outcome === "context_unavailable") {
@@ -572,12 +590,24 @@ export async function dispatchTask(
     return;
   }
 
+  // The owner's language hint wins over the model's choice for the coding
+  // brief (both are within the coding path's supported set).
+  const draft =
+    hints.language && checked.draft.codingBrief
+      ? {
+          ...checked.draft,
+          codingBrief: {
+            ...checked.draft.codingBrief,
+            language: hints.language,
+          },
+        }
+      : checked.draft;
   const published = await d.publish(
-    plan.resultFor(checked.draft, {
+    plan.resultFor(draft, {
       profileId: d.profileId,
       processingPolicy: d.processingPolicy,
     }),
-    { detail: plan.detailFor(checked.draft) },
+    { detail: plan.detailFor(draft) },
   );
-  if (published) noteCodingTask(run, task, checked.draft);
+  if (published) noteCodingTask(run, task, draft);
 }

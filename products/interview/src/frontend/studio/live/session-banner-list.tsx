@@ -10,7 +10,6 @@ const BANNER_ICON: Record<BannerKind, IconName> = {
   "stream-unreachable": "wifi_off",
   paused: "pause_circle",
   "permission-revoked": "lock",
-  "companion-offline": "wifi_off",
   "source-lost": "error",
   gap: "warning",
   "credential-expired": "lock",

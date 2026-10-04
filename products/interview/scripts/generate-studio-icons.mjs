@@ -27,6 +27,12 @@ const icons = [
   "sensors", "psychology", "school", "stop_circle", "graphic_eq",
   "screenshot_monitor", "cloud_off", "wifi_off", "delete", "open_in_new",
   "memory", "devices", "desktop_windows",
+  // Overlay card
+  "cloud", "open_in_full", "close_fullscreen", "center_focus_strong", "rule",
+  "hearing", "keyboard", "picture_in_picture_alt", "unfold_more",
+  "keyboard_arrow_left", "keyboard_arrow_right", "drag_indicator",
+  // Capture controls
+  "settings", "crop", "screen_share", "stop_screen_share", "mic_off", "info",
 ];
 // Studio names whose source file was renamed upstream. The assistant sparkle
 // (auto_awesome) is not here: icon.tsx renders the assistant package's own.

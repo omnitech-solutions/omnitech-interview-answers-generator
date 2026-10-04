@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  documentFieldsSchema,
   type DocumentField,
+  documentFieldsSchema,
   validateDocumentValues,
 } from "./documents.js";
 

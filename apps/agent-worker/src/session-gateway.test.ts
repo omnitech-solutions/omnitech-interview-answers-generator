@@ -9,6 +9,7 @@ import {
   createSessionGateway,
   SESSION_AGENT_CLAUDE_PROFILE,
   SESSION_AGENT_CODEX_PROFILE,
+  SESSION_AGENT_MIN_TURNS,
 } from "./session-gateway.js";
 
 const REMOTE = {
@@ -90,6 +91,46 @@ describe("session agent port selection (ships disabled)", () => {
         ACTIVE_SESSION_AGENT_PROFILE: "claude",
       })?.visionProfileId,
     ).toBeUndefined();
+  });
+
+  it("gives a structured session answer enough turns for the structured-output step", async () => {
+    let turns = 0;
+    const recording = {
+      ...runtime("claude-code"),
+      capabilities: {
+        ...runtime("claude-code").capabilities,
+        toolless: true,
+      },
+      run: async function* (request: { profile: { maximumTurns: number } }) {
+        turns = request.profile.maximumTurns;
+        yield {
+          type: "completed" as const,
+          result: { sessionId: "s", output: {} },
+        };
+      },
+    };
+    const enabled = createSessionGateway(
+      { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" },
+      { runtimes: { ...runtimes, "claude-code": recording } },
+    );
+    await enabled?.gateway.execute({
+      context: {
+        tenantId: "t",
+        userId: "u",
+        productId: "p",
+        permissions: ["interview.read"],
+      },
+      profileId: SESSION_AGENT_CLAUDE_PROFILE,
+      processingPolicy: "permitted-remote",
+      task: {
+        type: "structured-generation",
+        prompt: "x",
+        schema: { type: "object" },
+      },
+    });
+    // The assistant profile allows one turn, which ends a tool-less structured
+    // run with error_max_turns whenever the model writes text first.
+    expect(turns).toBeGreaterThanOrEqual(SESSION_AGENT_MIN_TURNS);
   });
 
   it("refuses an agent profile for a device-only request", async () => {

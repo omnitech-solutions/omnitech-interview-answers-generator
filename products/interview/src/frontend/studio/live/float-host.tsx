@@ -1,27 +1,31 @@
-// The floating window: Focus in a Document Picture-in-Picture window, mounted
-// by a portal under the persistent Studio live view. Selection and pinning
-// live in focus-presentation, above the portal. Without the API (or when the
-// browser refuses) the presentation falls back to Focus in the tab.
+// The floating window: a Document Picture-in-Picture window that loads the
+// chromeless overlay route (overlay/overlay-page.tsx) in an iframe filling it.
+// The route is its own page: its own session store, polling and auth (same
+// origin, same cookies), so it keeps running while this page is in the
+// background and Chrome throttles it. Without the API (or when the browser
+// refuses) the presentation falls back to the card in the tab.
 //
-// [SAFETY] The float closes, and its content unmounts, the moment the session
-// or the right to see it is gone (floatAccessLost), when the page unloads
-// (pagehide), and when this host unmounts. Closing it only changes layout:
-// nothing here pauses, ends or purges.
-import { useEffect, useReducer, useState } from "react";
-import { createPortal } from "react-dom";
+// [SAFETY] The float closes the moment the session or the right to see it is
+// gone (floatAccessLost here, and the overlay page's own access rules, which
+// it reports to this host by message), when this page unloads (pagehide), when
+// the person closes the window, and when this host unmounts. Closing it only
+// changes layout: nothing here pauses, ends or purges.
+import { useEffect, useReducer } from "react";
+import { parseRoute } from "../use-studio-route";
 import { floatAccessLost } from "./float-access";
-import { FocusView } from "./focus-view";
 import { presentation, usePresentation } from "./focus-presentation";
-import { copyStyles, documentVisibility, pipApi } from "./pip-document";
-import { getSessionStore, tenantFromLocation } from "./session-registry";
+import { listenForIntents } from "./overlay/overlay-intents";
+import { OVERLAY_MESSAGE, overlayUrl } from "./overlay/overlay-url";
+import { navigateStudio } from "./overlay/studio-links";
+import { pipApi } from "./pip-document";
+import { tenantFromLocation } from "./session-registry";
 import { useLiveSession } from "./use-live-session";
 
 const FLOAT_SIZE = { width: 420, height: 640 };
 
 export function LiveFloatHost() {
   const { snapshot } = useLiveSession();
-  const { mode, float } = usePresentation();
-  const [container, setContainer] = useState<HTMLElement | null>(null);
+  const { mode } = usePresentation();
   // A tenant switch changes the address, not this component's inputs.
   const [, recheck] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
@@ -37,6 +41,14 @@ export function LiveFloatHost() {
   // page; it closes when the shell goes away.
   useEffect(() => () => presentation.reset(), []);
 
+  // Navigation intents from the overlay page (the PiP or a standalone window):
+  // places only, never session control.
+  useEffect(
+    () =>
+      listenForIntents(() => parseRoute(window.location).base, navigateStudio),
+    [],
+  );
+
   useEffect(() => {
     if (mode !== "floating") return;
     const api = pipApi();
@@ -46,8 +58,21 @@ export function LiveFloatHost() {
     }
     let cancelled = false;
     let pip: Window | null = null;
-    let unwatch = () => {};
     const closeLayout = () => presentation.closeFloat();
+    // The overlay page asks to close (Back to Studio) or reports it lost
+    // access. It runs in an iframe of the PiP document, so its `parent` is the
+    // PiP window and the message lands there, not on this window; only
+    // messages from its own iframe are heard.
+    let frame: HTMLIFrameElement | null = null;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame?.contentWindow) return;
+      const data = event.data as { kind?: string; event?: string } | null;
+      if (
+        data?.kind === OVERLAY_MESSAGE &&
+        (data.event === "close" || data.event === "lost")
+      )
+        closeLayout();
+    };
     presentation.setFloat("opening");
     api.requestWindow(FLOAT_SIZE).then(
       (opened) => {
@@ -56,16 +81,22 @@ export function LiveFloatHost() {
           return;
         }
         pip = opened;
-        copyStyles(document, opened.document);
-        const root = opened.document.createElement("div");
-        root.className = "live-float-root";
-        opened.document.body.append(root);
-        unwatch = getSessionStore(tenantFromLocation()).watchDocument(
-          documentVisibility(opened.document),
-        );
+        const doc = opened.document;
+        doc.body.style.margin = "0";
+        doc.body.style.height = "100vh";
+        doc.body.style.overflow = "hidden";
+        frame = doc.createElement("iframe");
+        frame.title = "Live session overlay";
+        frame.src = overlayUrl("pip");
+        // Display capture: the overlay page shares a window, tab or screen from the
+        // PiP's own document, so the iframe must be allowed to ask for it.
+        frame.setAttribute("allow", "clipboard-write; display-capture");
+        frame.style.cssText =
+          "border:0;width:100%;height:100%;display:block;color-scheme:dark";
+        doc.body.append(frame);
         // The person closed the window: layout only.
         opened.addEventListener("pagehide", closeLayout);
-        setContainer(root);
+        opened.addEventListener("message", onMessage);
         presentation.setFloat("pip");
       },
       () => {
@@ -76,16 +107,15 @@ export function LiveFloatHost() {
     return () => {
       cancelled = true;
       window.removeEventListener("pagehide", closeLayout);
-      unwatch();
-      setContainer(null);
+      frame?.remove();
       if (pip) {
         pip.removeEventListener("pagehide", closeLayout);
+        pip.removeEventListener("message", onMessage);
         pip.close();
       }
       presentation.setFloat("closed");
     };
   }, [mode]);
 
-  if (mode !== "floating" || float !== "pip" || !container || lost) return null;
-  return createPortal(<FocusView variant="float" />, container);
+  return null;
 }

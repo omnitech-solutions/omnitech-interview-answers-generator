@@ -5,8 +5,9 @@
 //                  policies; the row says "On this Mac, in the companion" only
 //                  when the companion's last report says on-device recognition
 //                  is available, and otherwise the true state
-//   Screenshots    stored by ingest for the owner; no stage reads them
-//                  today (session-run.ts), so there is no model step to place
+//   Screenshots    stored for the owner. Only when the owner presses Analyze
+//                  is a capture sent, to the selected vision-capable model
+//                  (ADR-0016); device-only refuses it and never sends one
 //   Answer drafts  device-only: the on-device model (text-only); remote: the
 //                  gateway (ADR-0012/device-only-enforced-twice)
 //   Coding drafts  device-only: refused, coding inference needs a remote model
@@ -19,6 +20,11 @@ export type CapabilityRow = { label: string; where: string; refused: boolean };
 
 const REFUSED = "Refused: needs a remote model";
 const GATEWAY = "Remote model, through Studio's AI gateway";
+
+const SCREENSHOTS_REMOTE =
+  "Stored for you; sent to the selected vision-capable model only when you press Analyze";
+const SCREENSHOTS_DEVICE_ONLY =
+  "Stored for you; never sent to a model: Analyze is refused in device-only mode";
 
 const UNKNOWN_SPEECH = "Not known: no capability report read";
 
@@ -36,7 +42,7 @@ export function capabilityRows(
     },
     {
       label: "Screenshots",
-      where: "Stored for you; no model reads them yet",
+      where: deviceOnly ? SCREENSHOTS_DEVICE_ONLY : SCREENSHOTS_REMOTE,
       refused: false,
     },
     {

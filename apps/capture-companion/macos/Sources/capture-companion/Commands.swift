@@ -72,6 +72,20 @@ func statusCommand(paths: CompanionPaths) -> Int32 {
     return 0
 }
 
+// MARK: windows
+
+// Local diagnostic: why a named or focused window did or did not match. Rows
+// carry the owning application's name, layer, flags and the title LENGTH only.
+func windowsCommand() async -> Int32 {
+    print(Status.screenAccess(granted: WindowDiagnostics.screenAccessGranted()))
+    guard let windows = await WindowDiagnostics.listing() else {
+        print(Status.windowsUnavailable)
+        return 1
+    }
+    for window in windows { print(Status.windowLine(window)) }
+    return 0
+}
+
 // MARK: run
 
 // Lives on the main actor with the session. Capture callbacks arrive on OS
@@ -208,14 +222,16 @@ func runCommand(arguments: [String], paths: CompanionPaths) async -> Int32 {
             }
         }
     }
-    return await runLoop(session: session, box: box, transcribers: transcribers)
+    return await runLoop(session: session, box: box, transcribers: transcribers, sources: sources)
 }
 
 @MainActor
 private func runLoop(
-    session: CompanionSession, box: RunBox, transcribers: [CaptureSource: OnDeviceTranscriber]
+    session: CompanionSession, box: RunBox, transcribers: [CaptureSource: OnDeviceTranscriber],
+    sources: SystemCaptureSources
 ) async -> Int32 {
     let permissions = SystemPermissionProbe()
+    let flight = CaptureFlight()
     var lastPrinted: CompanionState?
     var transcribing = false
     var counter = 0
@@ -235,6 +251,10 @@ private func runLoop(
         }
         for (source, ring) in box.rings { transcribers[source]?.feed(ring.drain()) }
 
+        // Capture now: a request handed over on the last acknowledgement is
+        // taken once, captured once, and answered with one tagged screenshot.
+        serveCaptureRequest(session: session, sources: sources, flight: flight)
+
         if counter % 4 == 0 {
             await watchPermissions(session: session, probe: permissions)
             await session.tick()
@@ -250,6 +270,32 @@ private func runLoop(
         }
         counter += 1
         try? await Task.sleep(for: .milliseconds(250))
+    }
+}
+
+// One capture at a time; a request that arrives meanwhile waits for the next pass.
+@MainActor
+private final class CaptureFlight {
+    var busy = false
+}
+
+@MainActor
+private func serveCaptureRequest(session: CompanionSession, sources: SystemCaptureSources, flight: CaptureFlight) {
+    guard !flight.busy else { return }
+    switch session.takeCaptureRequest() {
+    case .nothing: return
+    case .ignored: print(Status.captureIgnored)
+    case .honour(let request):
+        flight.busy = true
+        Task { @MainActor in
+            let outcome = await sources.captureOnce(request)
+            switch session.completeCapture(request, outcome: outcome) {
+            case .submitted: print(Status.captureDone(request.mode))
+            case .lost(let loss): print(Status.captureLoss(loss))
+            case .dropped: break
+            }
+            flight.busy = false
+        }
     }
 }
 

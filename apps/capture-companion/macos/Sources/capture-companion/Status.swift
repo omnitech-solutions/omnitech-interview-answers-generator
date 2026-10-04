@@ -1,3 +1,4 @@
+import CaptureAdapters
 import CaptureCore
 
 // [SAFETY] Everything the executable prints is built here from static strings,
@@ -5,7 +6,7 @@ import CaptureCore
 // window title, an address or a credential, and a source scan test fails if a
 // print call anywhere else does not go through `Status`.
 enum Status {
-    static let usage = "usage: capture-companion pair | run [--microphone] [--app-audio] [--screen] [--locale <id>] [--window-title <text>] | stop | status"
+    static let usage = "usage: capture-companion pair | run [--microphone] [--app-audio] [--screen] [--locale <id>] [--window-title <text>] | stop | status | windows"
     static let promptAddress = "Studio address (https://...): "
     static let promptSlug = "Workspace slug: "
     static let promptCredential = "Session credential (input hidden): "
@@ -23,6 +24,22 @@ enum Status {
     static let markerAbsent = "stopped-locally marker: absent"
     static let stopHint = "listening controls: type s then Enter, press Ctrl-C, or run `capture-companion stop` to stop locally"
     static let speechUnavailable = "speech-unavailable: on-device recognition is not ready, so no audio source was started"
+
+    static func screenAccess(granted: Bool) -> String {
+        granted
+            ? "screen-recording: granted"
+            : "screen-recording: not granted (System Settings > Privacy & Security > Screen Recording)"
+    }
+    static let windowsUnavailable = "windows: unavailable (ScreenCaptureKit could not list windows)"
+    static let captureIgnored = "capture-request-ignored: the screen source is not running"
+    static func captureLoss(_ loss: CaptureLoss) -> String { "capture-lost: \(loss.rawValue)" }
+    static func captureDone(_ mode: CaptureMode) -> String { "capture-sent: \(mode.rawValue)" }
+    // One diagnostic row: the owning application's NAME, its layer, flags and
+    // the title LENGTH. No function here accepts a window title.
+    static func windowLine(_ window: WindowSummary) -> String {
+        "window: app=\(window.applicationName) layer=\(window.layer) on-screen=\(window.isOnScreen) "
+            + "frontmost=\(window.isFrontmostApplication) title-length=\(window.titleLength)"
+    }
 
     static let blank = ""
     static let pairedAlready = "paired"

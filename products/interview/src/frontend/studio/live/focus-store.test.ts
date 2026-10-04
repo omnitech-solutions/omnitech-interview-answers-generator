@@ -81,8 +81,16 @@ describe("owner input actions", () => {
     expect(await store.actions.submitFollowUp("  and the cost?  ")).toEqual({
       ok: true,
     });
-    expect(analyzeLatestCapture).toHaveBeenCalledWith(SESSION_ID);
-    expect(submitFollowUp).toHaveBeenCalledWith(SESSION_ID, "and the cost?");
+    expect(analyzeLatestCapture).toHaveBeenCalledWith(
+      SESSION_ID,
+      undefined,
+      undefined,
+    );
+    expect(submitFollowUp).toHaveBeenCalledWith(
+      SESSION_ID,
+      "and the cost?",
+      undefined,
+    );
   });
 
   it("refuse an empty follow-up and return a thrown code", async () => {
@@ -100,71 +108,5 @@ describe("owner input actions", () => {
       ok: false,
       code: "status_refused",
     });
-  });
-});
-
-describe("watched documents", () => {
-  const reads = (server: ReturnType<typeof boot>["server"]) =>
-    server.count("GET /:id/stream");
-
-  function floatDocument() {
-    let seen = true;
-    const listeners = new Set<() => void>();
-    return {
-      source: {
-        isVisible: () => seen,
-        onChange(listener: () => void) {
-          listeners.add(listener);
-          return () => listeners.delete(listener);
-        },
-      },
-      show(value: boolean) {
-        seen = value;
-        for (const listener of [...listeners]) listener();
-      },
-    };
-  }
-  const setPageVisible = (value: boolean) => {
-    visible = value;
-    for (const listener of [...visibilityListeners]) listener();
-  };
-
-  it("keep the one loop polling while the float is visible and the page is hidden", async () => {
-    const { server, store } = boot();
-    await advance(1_000);
-    const float = floatDocument();
-    const remove = store.watchDocument(float.source);
-    setPageVisible(false);
-    const before = reads(server);
-    await advance(3_000);
-    expect(reads(server)).toBeGreaterThan(before);
-    // One loop: about one read a second, not two.
-    expect(reads(server) - before).toBeLessThanOrEqual(4);
-
-    float.show(false);
-    await advance(1_500);
-    const paused = reads(server);
-    await advance(5_000);
-    expect(reads(server)).toBe(paused);
-
-    float.show(true);
-    await advance(2_000);
-    expect(reads(server)).toBeGreaterThan(paused);
-    remove();
-  });
-
-  it("stop at once when the float goes away while the page is hidden", async () => {
-    const { server, store } = boot();
-    await flush();
-    const float = floatDocument();
-    const remove = store.watchDocument(float.source);
-    setPageVisible(false);
-    await advance(1_500);
-    remove();
-    setPageVisible(false);
-    await advance(1_500);
-    const held = reads(server);
-    await advance(5_000);
-    expect(reads(server)).toBe(held);
   });
 });

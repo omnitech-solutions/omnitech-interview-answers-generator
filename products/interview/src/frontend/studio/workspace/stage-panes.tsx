@@ -4,8 +4,8 @@ import type {
   TestResult,
 } from "@omnitech/interview-contracts";
 import { MarkdownContent } from "../../markdown-content";
-import { PracticeTimer } from "../practice-timer";
 import { Icon, type IconName } from "../icon";
+import { PracticeTimer } from "../practice-timer";
 import { type CoverageState, edgeCoverage } from "./coverage";
 import { InlineText } from "./inline-text";
 import { STAGES, stageIndex } from "./stages";

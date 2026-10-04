@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LIVE_SESSION_ERROR_CODES,
   LIVE_SESSION_ERROR_STATUS,
+  liveCaptureRequestSchema,
   liveCompanionCapabilityResponseSchema,
   liveOwnerInputRequestSchema,
   liveSessionControlRequestSchema,
@@ -267,5 +268,45 @@ describe("owner input request", () => {
       },
     ])
       expect(ok(body).success).toBe(false);
+  });
+});
+
+describe("live capture request", () => {
+  const region = { x: 0.1, y: 0.1, width: 0.5, height: 0.5 };
+  const parse = (body: unknown) => liveCaptureRequestSchema.safeParse(body);
+
+  it("accepts each mode with its region rule, targets and hints", () => {
+    expect(parse({ requestId: "r1", mode: "focused-window" }).success).toBe(
+      true,
+    );
+    expect(parse({ requestId: "r1", mode: "display" }).success).toBe(true);
+    expect(parse({ requestId: "r1", mode: "region", region }).success).toBe(
+      true,
+    );
+    expect(
+      parse({
+        requestId: "r1",
+        mode: "display",
+        targetTaskId: "t1",
+        targetRevision: 2,
+        skill: "dsa",
+        language: "typescript",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses a bad region rule, region bounds, half a target and unknown fields", () => {
+    for (const body of [
+      { requestId: "r1", mode: "region" },
+      { requestId: "r1", mode: "display", region },
+      { requestId: "r1", mode: "region", region: { ...region, x: 0.8 } },
+      { requestId: "r1", mode: "region", region: { ...region, width: 0 } },
+      { requestId: "r1", mode: "region", region: { ...region, y: -1 } },
+      { requestId: "r1", mode: "display", targetTaskId: "t1" },
+      { requestId: "r1", mode: "display", skill: "cooking" },
+      { requestId: "bad id", mode: "display" },
+      { requestId: "r1", mode: "display", windowTitle: "x" },
+    ])
+      expect(parse(body).success).toBe(false);
   });
 });

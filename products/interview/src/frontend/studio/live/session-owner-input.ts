@@ -5,11 +5,18 @@
 // no identity and no path. The text is passed through to the route only: it is
 // never logged, stored or echoed here.
 import type { LiveOwnerInputRequest } from "@omnitech/interview-contracts";
+import type { CompanionCaptureInput, OwnerHints } from "./session-capture";
 import { createSessionClient, SessionApiError } from "./session-client";
 import type { StoreDeps } from "./session-deps";
 import type { LiveSnapshot } from "./session-snapshot";
 
 const SCREEN_SNAPSHOT = "screen.snapshot";
+
+// Only the hints that are set: an unset one is simply absent from the request.
+const hintFields = (hints?: OwnerHints): OwnerHints => ({
+  ...(hints?.skill ? { skill: hints.skill } : {}),
+  ...(hints?.language ? { language: hints.language } : {}),
+});
 
 // A fresh request id per click: it is the dedup key, so a retried send of the
 // same click would reuse one, but each click is its own request.
@@ -46,30 +53,67 @@ export function ownerInputDeps(
   tenant: string,
   fetcher: StoreDeps["fetch"],
   snapshot: () => LiveSnapshot,
-): Pick<StoreDeps, "analyzeLatestCapture" | "submitFollowUp"> {
+): Pick<
+  StoreDeps,
+  | "analyzeLatestCapture"
+  | "analyzeCapture"
+  | "requestCapture"
+  | "captureStatus"
+  | "submitFollowUp"
+> {
   const client = createSessionClient(tenant, fetcher);
   const send = (sessionId: string, input: LiveOwnerInputRequest) =>
     client.sendOwnerInput(sessionId, input);
   return {
-    async analyzeLatestCapture(sessionId) {
+    async analyzeLatestCapture(sessionId, target, hints) {
       const held = snapshot();
       const latest = latestSnapshotIds(held);
       // Nothing was captured yet: there is nothing to analyse.
       if (latest === null) throw new SessionApiError("invalid_input", 0);
-      // Analyze always starts its own task; only a typed follow-up revises one.
+      // Without a target Analyze starts its own task; with one (the owner's
+      // "Attach to T<n>") the capture revises that task revision.
       await send(sessionId, {
         requestId: requestId(),
         operation: "analyze",
+        ...(target ? { target } : {}),
+        ...hintFields(hints),
         snapshots: [latest],
       });
     },
-    async submitFollowUp(sessionId, text) {
+    async analyzeCapture(sessionId, input) {
+      await client.sendCapture(sessionId, {
+        requestId: requestId(),
+        image: input.image,
+        ...(input.label ? { label: input.label } : {}),
+        ...(input.target ? { target: input.target } : {}),
+        ...hintFields(input),
+      });
+    },
+    async requestCapture(sessionId, input: CompanionCaptureInput) {
+      return client.sendCaptureRequest(sessionId, {
+        requestId: requestId(),
+        mode: input.mode,
+        ...(input.region ? { region: input.region } : {}),
+        ...(input.target
+          ? {
+              targetTaskId: input.target.taskId,
+              targetRevision: input.target.revision,
+            }
+          : {}),
+        ...hintFields(input),
+      });
+    },
+    captureStatus(sessionId, id) {
+      return client.getCaptureRequest(sessionId, id);
+    },
+    async submitFollowUp(sessionId, text, hints) {
       const target = latestTarget(snapshot());
       await send(sessionId, {
         requestId: requestId(),
         operation: "follow-up",
         text,
         ...(target ? { target } : {}),
+        ...hintFields(hints),
         snapshots: [],
       });
     },

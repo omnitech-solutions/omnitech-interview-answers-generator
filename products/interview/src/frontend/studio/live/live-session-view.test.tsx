@@ -30,40 +30,43 @@ afterEach(() => {
 });
 
 describe("idle states", () => {
-  it("says it is listening only when it is", () => {
+  it("says it is ready, and how to ask, when nothing is happening", () => {
     show({});
-    expect(screen.getByText("Listening for a question")).toBeVisible();
+    expect(screen.getByText("Ready")).toBeVisible();
     expect(
-      screen.getByText(/Studio waits for a complete question or task/),
+      screen.getByText(/press Capture & analyze, dictate, or type a follow-up/),
     ).toBeVisible();
   });
   it("says paused when paused", () => {
     show({ session: { status: "paused" } });
     const idle = screen.getByTestId("live-idle");
     expect(idle).toHaveAttribute("data-activity", "paused");
-    expect(idle).not.toHaveTextContent(/Listening for a question/);
+    expect(idle).not.toHaveTextContent(/Ready/);
   });
-  it("says a source is lost, not listening", () => {
+  it("is the same ready state whether or not a companion source is lost", () => {
     show({
       session: { captureSources: ["microphone", "application-audio"] },
       observations: [disconnected(1, "application-audio", "device-lost")],
     });
-    expect(screen.getByTestId("live-idle")).toHaveTextContent(
-      "A source is lost",
-    );
+    const idle = screen.getByTestId("live-idle");
+    expect(idle).toHaveAttribute("data-activity", "idle");
+    expect(idle).not.toHaveTextContent(/lost/i);
   });
-  it("never says listening before the companion has been heard from", () => {
-    show({ session: { lastHeartbeatAt: null } });
-    expect(screen.getByTestId("live-idle")).toHaveTextContent(
-      "Waiting for the capture companion",
-    );
-    expect(screen.queryByText("Listening for a question")).toBeNull();
-  });
-  it("says no contact when the companion went quiet", () => {
-    show({ session: { lastHeartbeatAt: minutesAfter(0, 10) }, nowMinutes: 9 });
-    expect(screen.getByTestId("live-idle")).toHaveTextContent(
-      "No contact from the companion",
-    );
+  it("never waits for the companion: no contact yet, or gone quiet, is just ready", () => {
+    for (const build of [
+      () => show({ session: { lastHeartbeatAt: null } }),
+      () =>
+        show({
+          session: { lastHeartbeatAt: minutesAfter(0, 10) },
+          nowMinutes: 9,
+        }),
+    ]) {
+      cleanup();
+      build();
+      const idle = screen.getByTestId("live-idle");
+      expect(idle).toHaveTextContent("Ready");
+      expect(idle).not.toHaveTextContent(/companion|waiting|no contact/i);
+    }
   });
 });
 
@@ -147,13 +150,12 @@ describe("banners", () => {
     );
   });
 
-  it("shows companion-offline without claiming it is connected", () => {
+  it("raises no banner about a companion that is quiet or never seen", () => {
     show({ session: { lastHeartbeatAt: minutesAfter(0, 10) }, nowMinutes: 9 });
-    const banner = screen
-      .getByText(/No contact from the companion for 8 min/)
-      .closest("[role]");
-    expect(banner).toHaveAttribute("role", "alert");
-    expect(banner).toHaveTextContent("keeps the session open until you end it");
+    expect(screen.queryByText(/No contact from the companion/)).toBeNull();
+    cleanup();
+    show({ session: { lastHeartbeatAt: null } });
+    expect(screen.queryByText(/contact from the companion/i)).toBeNull();
   });
 
   it("renews from an expired-credential banner", async () => {

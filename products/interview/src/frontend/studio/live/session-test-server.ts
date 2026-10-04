@@ -42,17 +42,26 @@ export function createTestServer(
       const method = (init.method ?? "GET").toUpperCase();
       const path = url.pathname.replace(PREFIX, "") || "/";
       // Session ids are normalised to ":id" in the call record and handlers.
-      const normal = path.replace(
-        /^\/(?!(?:current|choices|companion-capability)(?:\/|$))[^/]+/,
-        "/:id",
-      );
+      const normal = path
+        .replace(
+          /^\/(?!(?:current|choices|companion-capability)(?:\/|$))[^/]+/,
+          "/:id",
+        )
+        // A capture request's id is normalised too.
+        .replace(/(\/capture-request)\/[^/]+$/, "$1/:rid");
       calls.push(`${method} ${normal}`);
       if (path.endsWith("/stream")) streamQueries.push(url.searchParams);
       const exact = handlers.get(`${method} ${path}`);
       const generic = handlers.get(`${method} ${normal}`);
       const handler = exact ?? generic;
       if (handler) {
-        const body = init.body ? JSON.parse(String(init.body)) : undefined;
+        // A capture is multipart: its FormData is passed through as is.
+        const body =
+          init.body instanceof FormData
+            ? init.body
+            : init.body
+              ? JSON.parse(String(init.body))
+              : undefined;
         return handler({ url, body });
       }
       if (path.endsWith("/stream")) return jsonResponse(stream());

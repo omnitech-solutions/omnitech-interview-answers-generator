@@ -1,10 +1,10 @@
 "use client";
 
+import type { DocumentField } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import { useLeaveGuard } from "../work-guards";
 import { documentTarget } from "./assistant-model";
-import type { DocumentField } from "@omnitech/interview-contracts";
 import type { PreviewPayload } from "./document-preview";
 import { type WritingBatch, WritingView } from "./document-writing";
 import {
@@ -18,7 +18,7 @@ import {
   type TemplateListItem,
 } from "./documents-client";
 import { KIND_ICON, KIND_LABEL } from "./documents-model";
-import { message, Modal, Spinner } from "./documents-ui";
+import { Modal, message, Spinner } from "./documents-ui";
 
 // "New application" is a choice in the list, made real when generating.
 const NEW_APPLICATION = "__new";

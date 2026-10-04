@@ -8,8 +8,8 @@ import type { AssistantConfig } from "@omnitech-assistant/react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
-import { installScriptedService } from "./live-script-kit";
 import { LIVE, SCENARIOS } from "./live-scenarios";
+import { installScriptedService } from "./live-script-kit";
 import { minutesAfter } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
 

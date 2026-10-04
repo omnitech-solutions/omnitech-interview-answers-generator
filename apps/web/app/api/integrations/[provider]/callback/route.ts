@@ -1,3 +1,4 @@
+import { getPlatformDatabase } from "@omnitech/database";
 import {
   exchangeAuthorizationCode,
   getProviderConfiguration,
@@ -8,7 +9,6 @@ import {
   ConnectedAccountVault,
   PlatformRepository,
 } from "@omnitech/platform-storage";
-import { getPlatformDatabase } from "@omnitech/database";
 import { NextResponse } from "next/server";
 
 import { resolvePlatformContext } from "@/src/platform/context";

@@ -27,6 +27,7 @@ public final class SystemCaptureSources: SourceControl, Sendable {
     private let microphone: MicrophoneCapture?
     private let applicationAudio: ScreenKitSource?
     private let screen: ScreenKitSource?
+    private let screenSelected: Bool
 
     public init(selection: Set<CaptureSource>, windowTitleContains: String?, events: CaptureEvents) {
         microphone = selection.contains(.microphone)
@@ -39,6 +40,7 @@ public final class SystemCaptureSources: SourceControl, Sendable {
                 kind: .applicationAudio, onAudio: { events.onAudio(.applicationAudio, $0) },
                 onScreenshot: { _, _ in }, onLost: { events.onLost(.applicationAudio, $0) })
             : nil
+        screenSelected = selection.contains(.screen)
         screen = selection.contains(.screen)
             ? ScreenKitSource(
                 kind: .screen(windowTitleContains: windowTitleContains), onAudio: { _ in },
@@ -58,6 +60,13 @@ public final class SystemCaptureSources: SourceControl, Sendable {
             guard let screen else { return }
             Task { _ = await screen.start() }
         }
+    }
+
+    // [SAFETY] One capture for a capture-now request. Only a screen source the
+    // person selected at start can capture; otherwise nothing is captured.
+    public func captureOnce(_ request: CaptureRequest) async -> CaptureOutcome {
+        guard screenSelected else { return .lost(.captureFailed) }
+        return await ScreenKitOneShot.capture(request)
     }
 
     // The microphone stops synchronously; ScreenCaptureKit streams are asked

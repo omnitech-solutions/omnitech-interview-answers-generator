@@ -17,10 +17,7 @@ import {
 } from "react";
 import { assistantFeatures, questionAssistant } from "../assistant-config";
 import { createOnDeviceProfile } from "../on-device";
-import { useStudioTheme } from "./use-studio-theme";
-import type { WorkspaceAssistant } from "./workspace/workspace-view";
 import { CommandPalette, type PaletteItem } from "./command-palette";
-import { DockResizer, useDockWidth } from "./dock-resizer";
 import { available, type StudioActions } from "./config/commands";
 import { viewById } from "./config/views";
 import {
@@ -29,21 +26,26 @@ import {
   type StudioFocus,
   type StudioViewBinding,
 } from "./context";
+import { DockResizer, useDockWidth } from "./dock-resizer";
 import { Icon } from "./icon";
-import { SessionBar } from "./live/session-bar";
+import { LiveCardHost } from "./live/card-host";
 import { LiveFloatHost } from "./live/float-host";
+import { presentation } from "./live/focus-presentation";
+import { SessionBar } from "./live/session-bar";
 import { useSessionStoreWatch } from "./live/use-live-session";
 import { Sidebar } from "./sidebar";
 import { studioFetch } from "./studio-fetch";
-import { useShortcuts } from "./use-shortcuts";
 import { usePlaygroundControl } from "./use-playground-control";
+import { useShortcuts } from "./use-shortcuts";
 import { useStudioLists } from "./use-studio-lists";
 import {
   SESSION_WORKSPACE_PREFIX,
   type StudioNavigation,
   useStudioRoute,
 } from "./use-studio-route";
+import { useStudioTheme } from "./use-studio-theme";
 import { ViewBoundary } from "./view-boundary";
+import type { WorkspaceAssistant } from "./workspace/workspace-view";
 
 // [GUARD] With no view lending a draft, the shell never loaded one, so it
 // asks the server which revision the assistant would read instead of
@@ -453,7 +455,15 @@ function StudioFrame({
       <main className="studio-main">
         {/* The Live view carries its own header for the session. */}
         {route.view !== "live" && (
-          <SessionBar variant="bar" onOpen={() => actions.go("live")} />
+          <SessionBar
+            variant="bar"
+            onOpen={() => {
+              // Open reopens the card if it was closed, then shows the page.
+              if (presentation.get().mode === "full")
+                presentation.setMode("card");
+              actions.go("live");
+            }}
+          />
         )}
         <header className="studio-header">
           <span className="studio-header-title">{view.label}</span>
@@ -475,6 +485,8 @@ function StudioFrame({
           )}
         </header>
         <div className="studio-view">{renderView(actions)}</div>
+        {/* Not during a rehearsal's focus mode, which owns the whole screen. */}
+        {!focused && <LiveCardHost />}
       </main>
       {host.open && <DockResizer stored={dock.stored} />}
       {/* Beside the store watch, so the floating window persists across pages. */}

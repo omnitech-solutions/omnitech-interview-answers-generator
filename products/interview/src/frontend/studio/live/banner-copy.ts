@@ -76,16 +76,6 @@ export function bannerCopy(banner: Banner, model: CopyModel): BannerCopy {
         `Studio was told the permission for ${name} was revoked${ago(banner.since, now)}.`,
         "Grant it again in System Settings on this Mac. The loss is recorded in the transcript.",
       );
-    case "companion-offline":
-      return banner.neverSeen
-        ? open(
-            "No contact from the companion yet.",
-            "Studio has recorded no contact, so it can't tell whether anything is being captured. The session stays open until you end it.",
-          )
-        : open(
-            `No contact from the companion for ${ageLabel(model.companion.ageMs ?? 0)}.`,
-            "Studio can't tell whether anything is being captured. It keeps the session open until you end it.",
-          );
     case "source-lost": {
       const reason = model.sources.find((s) => s.source === source)?.reason;
       const phrase = (reason && LOST_PHRASE[reason]) || "was lost";

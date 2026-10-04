@@ -10,7 +10,7 @@ export {
   type DeviceCapability,
   probeCapability,
 } from "./capability.js";
-export type { CaptureDriver } from "./capture-driver.js";
+export type { CaptureDriver, CaptureOnceResult } from "./capture-driver.js";
 export { type Clock, isoAt, systemClock } from "./clock.js";
 export {
   Companion,

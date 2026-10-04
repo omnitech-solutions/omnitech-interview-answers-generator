@@ -1,8 +1,8 @@
 import {
   createAuthorizationUrl,
   getProviderConfiguration,
-  signIntegrationState,
   type IntegrationProvider,
+  signIntegrationState,
 } from "@omnitech/platform-integrations";
 import { NextResponse } from "next/server";
 
