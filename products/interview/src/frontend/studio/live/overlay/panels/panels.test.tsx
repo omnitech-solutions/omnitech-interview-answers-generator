@@ -181,10 +181,11 @@ describe("analysis", () => {
   it("shows the problem analysis in a text column and the code in a separate card", async () => {
     serve(live(), codingActions());
     await show("analysis");
+    // The task's own name, with its type as a pill.
     expect(screen.getByTestId("pn-problem")).toHaveTextContent(
-      "Implement a rate limiter for a Node service Problem Analysis",
+      /^Implement a rate limiter for a Node service$/,
     );
-    expect(screen.getByText("Problem Type:")).toBeVisible();
+    expect(screen.queryByText("Problem Type:")).toBeNull();
     expect(screen.getByTestId("pn-type")).toHaveTextContent(
       "Programming challenge",
     );
@@ -221,10 +222,21 @@ describe("analysis", () => {
       selected: undefined,
       phase: "analyzing",
       note: null,
+      model: { activity: { key: "idle", text: "" } },
     } as unknown as PanelSession;
     render(<AnalysisPanel s={session} />);
     expect(screen.getByTestId("pn-analyzing")).toHaveTextContent("Analyzing");
     expect(screen.queryByTestId("pn-answer")).toBeNull();
+  });
+  it("says Solutioning once a coding problem is being worked on", () => {
+    const session = {
+      selected: undefined,
+      phase: "analyzing",
+      note: null,
+      model: { activity: { key: "coding-draft", text: "" } },
+    } as unknown as PanelSession;
+    render(<AnalysisPanel s={session} />);
+    expect(screen.getByTestId("pn-analyzing")).toHaveTextContent("Solutioning");
   });
 });
 
@@ -233,7 +245,9 @@ describe("chat", () => {
     await show("chat");
     expect(screen.getByText("Live Transcription & Chat")).toBeVisible();
     expect(
-      screen.getByPlaceholderText("Type a message or transcription…"),
+      screen.getByPlaceholderText(
+        /Type a message or transcription…|Add context for this problem/,
+      ),
     ).toBeVisible();
     expect(screen.queryByTestId("pn-rec")).toBeNull();
     fireEvent.change(screen.getByLabelText("Message"), {
@@ -264,7 +278,11 @@ describe("chat", () => {
   });
   it("shows a red dot, the recording line, the interim words and a loading reply", () => {
     const session = {
-      model: { transcript: [], tasks: [] },
+      model: {
+        transcript: [],
+        tasks: [],
+        activity: { key: "idle", text: "" },
+      },
       entries: [],
       system: [{ key: "r", text: RECORDING_LINE, at: 5 }],
       clearedAt: 0,

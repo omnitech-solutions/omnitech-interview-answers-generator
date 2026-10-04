@@ -7,6 +7,7 @@ import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD_ID } from "./build-id";
+import { type FooterButtonId, footerButtons } from "./panels/toolbar-config";
 
 export const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
@@ -93,15 +94,15 @@ export function Footer({
   actions,
   onFailure,
   controls = true,
-  endLabel = "End",
+  sessionWording = false,
   ended = false,
   onStart,
   starting = false,
 }: {
   // False when Pause and End live elsewhere.
   controls?: boolean;
-  // The one-window view spells it out: "End session".
-  endLabel?: string;
+  // The one-window view spells out what each button acts on: "End session".
+  sessionWording?: boolean;
   // A finished session offers a new one instead of Pause and End.
   ended?: boolean;
   onStart?(): void;
@@ -122,6 +123,13 @@ export function Footer({
     if (!result.ok) onFailure(result.code);
     return result.ok;
   };
+  // What each button does; which ones show is decided by footerButtons().
+  const press: Record<FooterButtonId, () => void> = {
+    pause: () => void run(actions.pause()),
+    resume: () => void run(actions.resume()),
+    end: () => setConfirming(true),
+    start: () => onStart?.(),
+  };
   return (
     <div className="ov-footer">
       <div className="ov-footer-row">
@@ -135,47 +143,32 @@ export function Footer({
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>
-        {controls && ended && onStart && (
-          <button
-            type="button"
-            className="ov-button go"
-            title="Start a new session"
-            disabled={starting}
-            onClick={onStart}
-          >
-            <Icon name="play_circle" filled />
-            {starting ? "Starting…" : "Start a new session"}
-          </button>
-        )}
-        {controls && !ended && (
-          <button
-            type="button"
-            className={paused ? "ov-button go" : "ov-button"}
-            title={
-              paused
-                ? "Carry on listening and analysing"
-                : "Take a break: stop listening and analysing until you resume. The session stays open"
-            }
-            disabled={pending.includes("pause") || pending.includes("resume")}
-            onClick={() =>
-              void run(paused ? actions.resume() : actions.pause())
-            }
-          >
-            <Icon name={paused ? "play_arrow" : "pause"} filled />
-            {paused ? "Resume" : "Pause"}
-          </button>
-        )}
-        {controls && !ended && (
-          <button
-            ref={endButton}
-            type="button"
-            className="ov-button danger"
-            title="Finish this session for good. You can start a new one afterwards"
-            onClick={() => setConfirming(true)}
-          >
-            {endLabel}
-          </button>
-        )}
+        {controls &&
+          footerButtons({
+            paused,
+            ended,
+            starting,
+            busy: pending.includes("pause") || pending.includes("resume"),
+            wording: sessionWording ? "session" : "short",
+            canStart: onStart !== undefined,
+          }).map((button) => (
+            <button
+              key={button.id}
+              ref={button.id === "end" ? endButton : undefined}
+              type="button"
+              className={
+                button.tone === "default"
+                  ? "ov-button"
+                  : `ov-button ${button.tone}`
+              }
+              title={button.title}
+              disabled={button.disabled}
+              onClick={() => press[button.id]()}
+            >
+              {button.icon && <Icon name={button.icon} filled />}
+              {button.label}
+            </button>
+          ))}
       </div>
       {confirming && (
         <div

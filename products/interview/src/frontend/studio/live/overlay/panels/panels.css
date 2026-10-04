@@ -644,3 +644,115 @@
 .pn-pill .pn-mode option {
   color: #111;
 }
+
+/* The capture control: one split button, [capture | mode menu]. */
+.pn-split {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pn-split:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.pn-split-main,
+.pn-split-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.pn-split-main:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pn-split-menu {
+  position: relative;
+  border-left: 1px solid rgba(255, 255, 255, 0.32);
+  font-size: 12px;
+}
+.pn-split-menu:hover,
+.pn-split-main:hover:not(:disabled) {
+  background: var(--ov-chip);
+}
+.pn-split-menu select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.pn-split[data-stop="true"] {
+  background: rgba(214, 62, 52, 0.9);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+.pn-split[data-stop="true"] kbd {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* The task's name, with its type as a pill. */
+.pn-problem-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pn-problem-head .pn-problem {
+  margin: 0;
+}
+.pn-type-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--ov-chip);
+  white-space: nowrap;
+}
+
+/* The speech line keeps its space, so the chat does not jump as words arrive. */
+.pn-interim {
+  min-height: 1.9em;
+}
+.pn-interim[data-empty="true"] {
+  visibility: hidden;
+}
+
+/* What the app is doing right now, in the bottom bar. */
+.pn-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 12px 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Latest": shown when the transcript is scrolled away from its newest line. */
+.pn-jump {
+  position: sticky;
+  bottom: 6px;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(46, 52, 70, 0.95);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pn-jump:hover {
+  background: rgba(70, 80, 110, 0.98);
+}

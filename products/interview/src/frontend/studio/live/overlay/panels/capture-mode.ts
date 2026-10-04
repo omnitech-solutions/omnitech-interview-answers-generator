@@ -2,19 +2,23 @@
 // (while the analysis is showing and a browser is in front); "manual" only when
 // the person presses capture. Kept per tenant in this browser; auto until chosen.
 import { useCallback, useState } from "react";
+import {
+  type CaptureMode,
+  DEFAULT_CAPTURE_MODE,
+  isCaptureMode,
+} from "./toolbar-config";
 
-export type CaptureMode = "auto" | "manual";
+export type { CaptureMode };
 
 const key = (tenant: string) =>
   `interview-studio.panels.capture-mode.${tenant}`;
 
 export function loadCaptureMode(tenant: string): CaptureMode {
   try {
-    return window.localStorage.getItem(key(tenant)) === "manual"
-      ? "manual"
-      : "auto";
+    const stored = window.localStorage.getItem(key(tenant));
+    return isCaptureMode(stored) ? stored : DEFAULT_CAPTURE_MODE;
   } catch {
-    return "auto";
+    return DEFAULT_CAPTURE_MODE;
   }
 }
 

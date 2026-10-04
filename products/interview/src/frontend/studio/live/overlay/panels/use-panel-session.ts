@@ -24,6 +24,7 @@ import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
 import { AUTO_CAPTURE_LABEL } from "../overlay-card";
+import { phaseLabel } from "./toolbar-config";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
 import { useCompanionCapture } from "../use-companion-capture";
@@ -80,6 +81,9 @@ const OFF: PanelState = {
   sharing: false,
   phase: null,
 };
+
+// How long the app must stay idle before the transcript says it finished.
+const FINISH_AFTER_MS = 1_500;
 
 export function usePanelSession(
   panel: PanelKind,
@@ -606,6 +610,33 @@ export function usePanelSession(
   }, [localPhase]);
   const phase = stopped ? null : (localPhase ?? live.phase);
   phaseRef.current = phase;
+
+  // The transcript keeps a line for each stage the app goes through, and one when
+  // it finishes: "Analyzing…", "Solutioning…", "Finished · 42s".
+  const loggedPhase = useRef<{ label: string; at: number } | null>(null);
+  const stoppedRef = useRef(false);
+  stoppedRef.current = stopped;
+  const activityKey = model.activity.key;
+  useEffect(() => {
+    const label = phaseLabel(phase, activityKey);
+    const was = loggedPhase.current;
+    if (label) {
+      if (label !== was?.label) {
+        addSystem(`${label}…`);
+        loggedPhase.current = { label, at: was?.at ?? Date.now() };
+      }
+      return;
+    }
+    if (!was) return;
+    // The app can blink idle between stages (capture, then analysis); it has only
+    // finished if it stays idle for a moment.
+    const done = setTimeout(() => {
+      if (!stoppedRef.current)
+        addSystem(`Finished · ${Math.round((Date.now() - was.at) / 1000)}s`);
+      loggedPhase.current = null;
+    }, FINISH_AFTER_MS);
+    return () => clearTimeout(done);
+  }, [phase, activityKey, addSystem]);
 
   return {
     snapshot,

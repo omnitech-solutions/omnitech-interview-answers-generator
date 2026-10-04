@@ -16,6 +16,7 @@ import { Icon } from "../../../icon";
 import { BUILD_ID } from "../build-id";
 import type { ApproachItem } from "../overlay-model";
 import { CodeCard, TextCard } from "./code-card";
+import { useFollowLatest } from "./follow-latest";
 import { DEFAULT_SKILL } from "./commands";
 import {
   languageOptions,
@@ -24,6 +25,12 @@ import {
 } from "./languages";
 import { analysisView, clock, type PanelRow, panelRows } from "./panel-model";
 import { quitShell } from "./shell-bridge";
+import {
+  CAPTURE_MODES,
+  type CaptureMode,
+  captureControl,
+  phaseLabel,
+} from "./toolbar-config";
 import type { usePanelSession } from "./use-panel-session";
 
 export type PanelSession = ReturnType<typeof usePanelSession>;
@@ -32,6 +39,9 @@ type Tone = "green" | "red" | "neutral";
 // The hotkey the bar shows for the capture (the shell registers it).
 export const CAPTURE_HINT = "⌘⇧S";
 export const CHAT_PLACEHOLDER = "Type a message or transcription…";
+// Once there is a problem on screen, typed text is context for it.
+export const CONTEXT_PLACEHOLDER =
+  "Add context for this problem, or ask a follow-up…";
 
 // green: interaction on. red: interaction off, or recording.
 export function pillTone(s: PanelSession): { tone: Tone; label: string } {
@@ -61,14 +71,15 @@ export function PillPanel({
   s: PanelSession;
   // The one window offers Auto or Manual beside the capture button.
   captureMode?: {
-    value: "auto" | "manual";
-    onChange(mode: "auto" | "manual"): void;
+    value: CaptureMode;
+    onChange(mode: CaptureMode): void;
   };
   // Extra controls the one-window view adds after the status dot.
   children?: ReactNode;
 }) {
   const status = pillTone(s);
   const recording = s.live.mic === "listening";
+  const control = captureControl(Boolean(s.phase));
   return (
     <div
       className="pn-pill"
@@ -76,48 +87,61 @@ export function PillPanel({
       aria-label="Session controls"
       data-testid="pn-pill"
     >
-      <button
-        type="button"
-        className="pn-bar-button"
-        data-stop={s.phase ? "true" : undefined}
-        aria-label={s.phase ? "Stop analysis" : "Capture screenshot"}
-        title={
-          s.phase
-            ? "Stop the analysis. Press again to capture the screen as a new task"
-            : "Capture and analyze the screen"
-        }
-        disabled={!s.open}
-        onClick={() => s.press("capture")}
-      >
-        <span className="pn-icon-dot">
-          <Icon name="screenshot_monitor" />
-          <span
-            className="pn-dot"
-            data-tone={status.tone}
-            role="status"
-            aria-label={status.label}
-            title={status.label}
-            data-testid="pn-dot"
-          />
-        </span>
-        <kbd>{CAPTURE_HINT}</kbd>
-      </button>
-      {captureMode && (
-        <select
-          className="pn-mode"
-          aria-label="Capture mode"
-          title="Auto analyses a new screen by itself. Manual only analyses when you press capture"
-          value={captureMode.value}
-          onChange={(event) =>
-            captureMode.onChange(
-              event.target.value === "manual" ? "manual" : "auto",
-            )
-          }
+      <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
+        <button
+          type="button"
+          className="pn-split-main"
+          aria-label={control.label}
+          title={control.title}
+          disabled={!s.open}
+          onClick={() => s.press("capture")}
         >
-          <option value="auto">Auto</option>
-          <option value="manual">Manual</option>
-        </select>
-      )}
+          <span className="pn-icon-dot">
+            <Icon name="screenshot_monitor" />
+            <span
+              className="pn-dot"
+              data-tone={status.tone}
+              role="status"
+              aria-label={status.label}
+              title={status.label}
+              data-testid="pn-dot"
+            />
+          </span>
+          <kbd>{CAPTURE_HINT}</kbd>
+        </button>
+        {captureMode && (
+          <label
+            className="pn-split-menu"
+            title={
+              CAPTURE_MODES.find((mode) => mode.id === captureMode.value)?.title
+            }
+          >
+            <span>
+              {
+                CAPTURE_MODES.find((mode) => mode.id === captureMode.value)
+                  ?.label
+              }
+            </span>
+            <Icon name="expand_more" />
+            <select
+              aria-label="Capture mode"
+              value={captureMode.value}
+              onChange={(event) =>
+                captureMode.onChange(
+                  CAPTURE_MODES.find((mode) => mode.id === event.target.value)
+                    ?.id ?? captureMode.value,
+                )
+              }
+            >
+              {CAPTURE_MODES.map((mode) => (
+                <option key={mode.id} value={mode.id}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
       <button
         type="button"
         className="pn-bar-button"
@@ -186,7 +210,7 @@ export function AnalysisPanel({
               role="status"
               data-testid="pn-analyzing"
             >
-              Analyzing
+              {phaseLabel(s.phase, s.model.activity.key)}
               <span className="pn-ellipsis" aria-hidden="true">
                 <i />
                 <i />
@@ -199,13 +223,14 @@ export function AnalysisPanel({
             </p>
           ) : (
             <div className="pn-scroll" data-testid="pn-answer">
-              <h2 className="pn-problem" data-testid="pn-problem">
-                {view.title}
-              </h2>
-              <p>
-                <strong>Problem Type:</strong>{" "}
-                <span data-testid="pn-type">{view.problemType}</span>
-              </p>
+              <div className="pn-problem-head">
+                <h2 className="pn-problem" data-testid="pn-problem">
+                  {view.title}
+                </h2>
+                <span className="pn-type-pill" data-testid="pn-type">
+                  {view.problemType}
+                </span>
+              </div>
               {view.constraints.length > 0 && (
                 <div className="pn-constraints">
                   <strong>Constraints:</strong>
@@ -341,6 +366,9 @@ export function ChatPanel({ s }: { s: PanelSession }) {
   // answer, so the transcript always says that something is happening.
   const loading = Boolean(s.phase);
   const waited = useElapsed(loading);
+  // The log follows the newest line until the person scrolls up; then a button
+  // counts what they have missed and takes them back.
+  const log = useFollowLatest(rows.length, `${loading}-${s.phase}`);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const text = s.draft.trim();
@@ -362,7 +390,13 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           />
         )}
       </header>
-      <div className="pn-log" role="log" aria-label="Transcript and chat">
+      <div
+        className="pn-log"
+        role="log"
+        aria-label="Transcript and chat"
+        ref={log.ref}
+        onScroll={log.onScroll}
+      >
         {rows.map((row) => (
           <Row key={row.key} row={row} />
         ))}
@@ -374,17 +408,32 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           >
             <span className="pn-time">{clock(Date.now())}</span>
             <span className="pn-text">
-              {s.phase === "capturing" ? "Capturing the screen…" : "Analyzing…"}
+              {phaseLabel(s.phase, s.model.activity.key)}…
               {waited >= 3 && ` ${waited}s`}
             </span>
           </div>
         )}
+        {!log.following && (
+          <button
+            type="button"
+            className="pn-jump"
+            aria-label="Jump to the latest"
+            title="Jump to the latest"
+            onClick={log.jump}
+          >
+            <Icon name="expand_more" />
+            {log.unseen > 0 ? `${log.unseen} new` : "Latest"}
+          </button>
+        )}
       </div>
-      {s.live.interim !== "" && (
-        <p className="pn-interim" data-testid="pn-interim">
-          <em>{s.live.interim}</em>
-        </p>
-      )}
+      <p
+        className="pn-interim"
+        data-testid="pn-interim"
+        aria-live="polite"
+        data-empty={s.live.interim === "" ? "true" : undefined}
+      >
+        <em>{s.live.interim}</em>
+      </p>
       {s.note && (
         <p className="pn-note" role="alert">
           <span>{s.note}</span>
@@ -394,7 +443,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         <input
           className="pn-input"
           aria-label="Message"
-          placeholder={CHAT_PLACEHOLDER}
+          placeholder={s.selected ? CONTEXT_PLACEHOLDER : CHAT_PLACEHOLDER}
           value={s.draft}
           disabled={!s.open}
           onChange={(event) => s.setDraft(event.target.value)}

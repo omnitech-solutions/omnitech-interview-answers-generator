@@ -90,9 +90,25 @@ const STEP_HEADING: Record<string, string> = {
   Optimal: "Optimal Solution",
 };
 
-export function analysisView(task: TaskView): AnalysisView {
+const NAME_MAX = 60;
+
+// What to call the task: its short title if the model gave one, else the start of
+// the model's restatement (first sentence, trimmed), else "Analysis".
+export function taskName(task: TaskView): string {
   const heading = taskHeading(task);
-  const named = heading.restated === null && (task.title?.trim() ?? "") !== "";
+  const text = heading.restated ?? heading.title;
+  const generic = TASK_KIND[task.kind].label;
+  if (heading.restated === null && (task.title?.trim() ?? "") === "")
+    return "Analysis";
+  if (heading.restated === null && heading.title === generic) return "Analysis";
+  const sentence =
+    text.split(/(?<=[.!?])\s/)[0]?.replace(/[.!?:\s]+$/, "") ?? "";
+  return sentence.length <= NAME_MAX
+    ? sentence
+    : `${sentence.slice(0, NAME_MAX - 1).trimEnd()}…`;
+}
+
+export function analysisView(task: TaskView): AnalysisView {
   const sections = taskSections(task);
   const lines = (name: SectionName) =>
     sections.find((section) => section.name === name)?.lines ?? [];
@@ -107,9 +123,7 @@ export function analysisView(task: TaskView): AnalysisView {
     approach(task)?.items.find((item) => item.kind === "code")?.text ?? null;
   const code = solution(task);
   return {
-    title: named
-      ? `${heading.title.replace(/[.!?:\s]+$/, "")} Problem Analysis`
-      : "Problem Analysis",
+    title: taskName(task),
     problemType: TASK_KIND[task.kind].label,
     constraints: task.constraints
       .filter((each) => each.status === "current")
