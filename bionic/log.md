@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] journal | decision: Use one Codex App Server runtime despite unmet ADR latency gate
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T20:43-06:00. Refs: [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]]
+
+## [2026-10-03] journal | implementation: Implement worker-owned agent sessions and resumable document batches
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T20:25-06:00. Refs: [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] [[adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping]]
+
 ## [2026-10-04] arch | Regenerated architecture view after PB-0003 implementation
 
 Regenerated 8 bionic/arch files after PB-0003 implementation; spine hash sha256:f5ee00b2da0fe95e1b08dd2e856ae90fba70dc56ea4cd7f8c90bbbeb840d143a. Data-model concern remains stubbed because the Node extractor requires Prisma, TypeORM, Sequelize, or Mongoose input; api-surface, module-graph, and decision-index are populated. Recorded at 2026-10-04T01:27:20Z.
