@@ -28,11 +28,13 @@ public struct StudioLocation: Equatable, Sendable {
 
     // /t/:tenant/p/interview/live/overlay?host=native[&panel=<name>][&handsfree=1][&session=<id>]
     // `panel` selects a panel variant of the route (?panel=pill|analysis|chat|settings).
-    public func overlayURL(sessionId: String? = nil, panel: PanelKind? = nil, handsFree: Bool = false) -> URL {
+    public func overlayURL(sessionId: String? = nil, panel: PanelKind? = nil, single: Bool = false, handsFree: Bool = false) -> URL {
         var components = URLComponents(url: origin, resolvingAgainstBaseURL: false) ?? URLComponents()
         components.path = "\(productBase)/live/overlay"
         var query = [URLQueryItem(name: "host", value: "native")]
         if let panel { query.append(URLQueryItem(name: "panel", value: panel.queryName)) }
+        // The minimized window: the bar, analysis and chat in one frame.
+        if single, panel == nil { query.append(URLQueryItem(name: "panel", value: "single")) }
         // The minified shell is a hands-free host: Studio defaults Auto on.
         if handsFree { query.append(URLQueryItem(name: "handsfree", value: "1")) }
         if let sessionId, Self.isSessionId(sessionId) { query.append(URLQueryItem(name: "session", value: sessionId)) }

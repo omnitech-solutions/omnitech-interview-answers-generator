@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let location = model.location else { return nil }
         switch target {
         case .main: return location.studioURL
-        case .compact: return location.overlayURL(sessionId: sessionId, handsFree: true)
+        case .compact: return location.overlayURL(sessionId: sessionId, single: true, handsFree: true)
         case .panel(let kind): return location.overlayURL(sessionId: sessionId, panel: kind, handsFree: true)
         }
     }

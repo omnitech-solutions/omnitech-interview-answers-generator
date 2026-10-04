@@ -19,13 +19,15 @@ import { installHostSurface, isNativeSurface } from "./host-surface";
 import { OverlayCard } from "./overlay-card";
 import { sendIntent } from "./overlay-intents";
 import { tellHost } from "./overlay-url";
-import { parsePanel } from "./panels/panel-kinds";
+import { isSinglePanel, parsePanel } from "./panels/panel-kinds";
 import { PanelsRoot } from "./panels/panels-root";
 
 // `?panel=pill|analysis|chat|settings` shows one focused panel of the same
 // session; without it (or with an unknown value) this is the compact card.
 export function OverlayPage() {
   const panel = parsePanel(window.location.search);
+  if (isSinglePanel(window.location.search))
+    return <PanelsRoot panel="pill" single />;
   return panel ? <PanelsRoot panel={panel} /> : <CardOverlayPage />;
 }
 

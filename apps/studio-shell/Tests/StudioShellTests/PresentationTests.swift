@@ -235,15 +235,16 @@ func presentationTests(_ t: Harness) async {
         t.expect(Consent.isGranted(store), "persisted for the next launch")
     }
 
-    await t.test("Settings Quit ends the app and Close hides it; first run is the video's panels") {
+    await t.test("Settings Quit ends the app and Close hides it; first run is the one window") {
         let store = MemoryStore()
         let controller = PresentationController(prefs: ShellPrefs(store: store))
         let surface = RecordingSurface()
         controller.surface = surface
         t.expectEqual(controller.state.appMode, .minified)
-        t.expectEqual(controller.state.layout, .panels)
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat], "no compact window by default")
-        t.expect(!controller.state.compactShown)
+        t.expectEqual(controller.state.layout, .compact)
+        t.expect(controller.state.shownPanels.isEmpty && controller.state.compactShown, "one window by default")
+        controller.perform(.resetLayout)
+        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat], "the video's panels on request")
         controller.perform(.openPanel(.settings))
         t.expect(controller.state.shownPanels.contains(.settings))
         controller.perform(.closePanel(.settings))
@@ -268,8 +269,10 @@ func presentationTests(_ t: Harness) async {
         controller.surface = surface
         var pushed = 0
         controller.onChange = { _ in pushed += 1 }
-        t.expectEqual(controller.state.appMode, .minified, "first run is the video's panels")
-        t.expect(!controller.state.mainWindowShown && controller.state.shownPanels == [.pill, .analysis, .chat])
+        t.expectEqual(controller.state.appMode, .minified, "first run is minified")
+        t.expect(!controller.state.mainWindowShown && controller.state.compactShown)
+        controller.perform(.resetLayout)
+        t.expect(controller.state.shownPanels == [.pill, .analysis, .chat])
 
         controller.perform(.toggleAppMode)
         t.expectEqual(controller.state.appMode, .expanded)
@@ -327,7 +330,7 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(controller.state.wire["handsFree"] as? Bool, false)
 
         controller.perform(.resetLayout)
-        t.expectEqual(surface.resets, 1)
+        t.expectEqual(surface.resets, 2)
         t.expectEqual(controller.state.panels, [.pill, .analysis, .chat])
         controller.perform(.movePanels(dx: 40, dy: 0))
         t.expectEqual(surface.moves.count, 1)

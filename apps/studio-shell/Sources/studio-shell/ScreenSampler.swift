@@ -21,6 +21,9 @@ final class ShellScreenSampler: ScreenWatchSampler {
     func sample(_ request: ScreenWatchRequest) async -> ScreenWatchSample {
         guard CGPreflightScreenCaptureAccess() else { return .permissionDenied }
         let focus = capture.sample()
+        let frontId = focus.focusedPid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+        // [SAFETY] Only a browser in front is looked at.
+        guard BrowserFocus.allows(bundleId: frontId) else { return .noWindow }
         guard let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         else { return .noWindow }
         let filter: SCContentFilter

@@ -21,3 +21,7 @@ export function parsePanel(search: string): PanelKind | null {
   const value = new URLSearchParams(search).get("panel");
   return PANELS.find((panel) => panel === value) ?? null;
 }
+
+// The minimized single window: not one of the four panels, one frame holding them.
+export const isSinglePanel = (search: string): boolean =>
+  new URLSearchParams(search).get("panel") === "single";

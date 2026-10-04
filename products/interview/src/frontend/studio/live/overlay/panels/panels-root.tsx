@@ -22,6 +22,7 @@ import {
   SettingsPanel,
   Toasts,
 } from "./panel-views";
+import { SinglePanel } from "./single-panel";
 import { createPipPresentation } from "./pip-adapter";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
@@ -42,7 +43,14 @@ function View({
   return <SettingsPanel s={s} presentation={presentation} />;
 }
 
-export function PanelsRoot({ panel }: { panel: PanelKind }) {
+export function PanelsRoot({
+  panel,
+  single = false,
+}: {
+  panel: PanelKind;
+  // The minimized window: the bar, analysis and chat in one frame.
+  single?: boolean;
+}) {
   const params = new URLSearchParams(window.location.search);
   const embedded = params.get("host") === "pip";
   const stack = useMemo(
@@ -167,6 +175,8 @@ export function PanelsRoot({ panel }: { panel: PanelKind }) {
           </nav>
           {active && <View panel={active} s={s} presentation={presentation} />}
         </>
+      ) : single ? (
+        <SinglePanel s={s} />
       ) : (
         <View panel={panel} s={s} presentation={presentation} />
       )}

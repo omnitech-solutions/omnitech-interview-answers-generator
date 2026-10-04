@@ -126,9 +126,9 @@ public struct ShellPrefs {
     }
 
     public var layout: LayoutMode {
-        // The video's panels by default; the compact window stays reachable from the menu.
-        get { store.string(forKey: "layout3").flatMap(LayoutMode.init(rawValue:)) ?? .panels }
-        nonmutating set { store.set(newValue.rawValue, forKey: "layout3") }
+        // One movable, resizable window by default; the video's four panels are one menu step away.
+        get { store.string(forKey: "layout4").flatMap(LayoutMode.init(rawValue:)) ?? .compact }
+        nonmutating set { store.set(newValue.rawValue, forKey: "layout4") }
     }
 
     public func isVisible(_ kind: PanelKind) -> Bool {

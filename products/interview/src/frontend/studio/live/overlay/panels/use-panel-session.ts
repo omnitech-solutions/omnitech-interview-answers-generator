@@ -211,9 +211,12 @@ export function usePanelSession(
         setNote(
           error instanceof FrameError && error.code === "display-changed"
             ? "Your display changed, so the capture area was cleared. Choose the area again."
-            : error instanceof FrameError && error.code === "permission-denied"
-              ? "Screen Recording is off for this app. Turn on Interview Studio in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen it."
-              : "Couldn’t capture. Check the share and try again.",
+            : error instanceof FrameError && error.code === "no-focused-window"
+              ? "Capture only runs while Chrome or Safari is in front. Switch to your browser and press ⌘⇧S."
+              : error instanceof FrameError &&
+                  error.code === "permission-denied"
+                ? "Screen Recording is off for this app. Turn on Interview Studio in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen it."
+                : "Couldn’t capture. Check the share and try again.",
         );
       return false;
     } finally {
@@ -594,6 +597,7 @@ export function usePanelSession(
     draft,
     setDraft,
     note,
+    notify: setNote,
     toasts,
     selected,
     phase,

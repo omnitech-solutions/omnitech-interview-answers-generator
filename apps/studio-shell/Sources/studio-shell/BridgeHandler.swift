@@ -104,6 +104,9 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
                 let reply: Any? = await self.gate.run {
                     // Screen Recording is asked for once per launch; afterwards a
                     // missing grant is a plain typed refusal.
+                    // [SAFETY] Only a browser in front is captured.
+                    let frontId = sample.focusedPid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+                    guard BrowserFocus.allows(bundleId: frontId) else { return HostReply.failure(BrowserFocus.refusal) }
                     let granted = CGPreflightScreenCaptureAccess()
                     guard granted else {
                         if self.gate.shouldPromptForAccess(granted: false) { _ = CGRequestScreenCaptureAccess() }

@@ -461,3 +461,51 @@
   backdrop-filter: none;
 }
 
+
+/* ---- The minimized single window: bar + chat, the analysis revealed by width ---- */
+.pn-single-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+}
+.pn-single-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+/* Narrow: the chat alone. */
+.pn-single-pane[data-which="analysis"] {
+  display: none;
+}
+/* Wide enough: the chat keeps its width and the analysis takes the rest. */
+@media (min-width: 640px) {
+  .pn-single-pane[data-which="analysis"] {
+    display: flex;
+  }
+  .pn-single-pane[data-which="chat"] {
+    flex: 0 0 320px;
+  }
+}
+
+.pn-single-foot {
+  flex: none;
+  border-radius: 10px;
+  background: var(--ov-bg);
+}
+.pn-single-foot .ov-footer {
+  padding: 6px 10px 8px;
+}
+.pn-single-foot .ov-visible,
+.pn-single-foot .ov-build {
+  color: var(--ov-muted);
+  font-size: 11px;
+}
+.pn-single-foot .ov-button {
+  color: var(--ov-text);
+}
+/* One note, not two: the chat shows it; the analysis pane beside it stays quiet. */
+.pn-single-pane[data-which="analysis"] .pn-note {
+  display: none;
+}
