@@ -133,7 +133,14 @@ const Lines = ({ lines }: { lines: readonly string[] }) => (
   </>
 );
 
-export function AnalysisPanel({ s }: { s: PanelSession }) {
+export function AnalysisPanel({
+  s,
+  part = "all",
+}: {
+  s: PanelSession;
+  // The one window shows the text and the code as separate panes.
+  part?: "all" | "text" | "code";
+}) {
   const task = s.selected;
   const view = task ? analysisView(task) : null;
   // The one error line can be dismissed; a different message shows again.
@@ -142,85 +149,99 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
   const waited = useElapsed(Boolean(s.phase));
   return (
     <div className="pn-analysis" data-testid="pn-analysis">
-      <div className="pn-card pn-analysis-text">
-        {s.phase ? (
-          <p className="pn-analyzing" role="status" data-testid="pn-analyzing">
-            Analyzing
-            <span className="pn-ellipsis" aria-hidden="true">
-              <i />
-              <i />
-            </span>
-            {waited >= 3 && <span className="pn-muted"> {waited}s</span>}
-          </p>
-        ) : !view ? (
-          <p className="pn-muted pn-centered" data-testid="pn-analysis-empty">
-            Press {CAPTURE_HINT} to analyze the screen
-          </p>
-        ) : (
-          <div className="pn-scroll" data-testid="pn-answer">
-            <h2 className="pn-problem" data-testid="pn-problem">
-              {view.title}
-            </h2>
-            <p>
-              <strong>Problem Type:</strong>{" "}
-              <span data-testid="pn-type">{view.problemType}</span>
+      {part !== "code" && (
+        <div className="pn-card pn-analysis-text">
+          {s.phase ? (
+            <p
+              className="pn-analyzing"
+              role="status"
+              data-testid="pn-analyzing"
+            >
+              Analyzing
+              <span className="pn-ellipsis" aria-hidden="true">
+                <i />
+                <i />
+              </span>
+              {waited >= 3 && <span className="pn-muted"> {waited}s</span>}
             </p>
-            {view.constraints.length > 0 && (
-              <div className="pn-constraints">
-                <strong>Constraints:</strong>
-                <div className="pn-chips" aria-label="Constraints">
-                  {view.constraints.map((text) => (
-                    <span key={text} className="pn-chip">
-                      {text}
-                    </span>
-                  ))}
+          ) : !view ? (
+            <p className="pn-muted pn-centered" data-testid="pn-analysis-empty">
+              Press {CAPTURE_HINT} to analyze the screen
+            </p>
+          ) : (
+            <div className="pn-scroll" data-testid="pn-answer">
+              <h2 className="pn-problem" data-testid="pn-problem">
+                {view.title}
+              </h2>
+              <p>
+                <strong>Problem Type:</strong>{" "}
+                <span data-testid="pn-type">{view.problemType}</span>
+              </p>
+              {view.constraints.length > 0 && (
+                <div className="pn-constraints">
+                  <strong>Constraints:</strong>
+                  <div className="pn-chips" aria-label="Constraints">
+                    {view.constraints.map((text) => (
+                      <span key={text} className="pn-chip">
+                        {text}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {(view.input.length > 0 || view.output.length > 0) && (
-              <div>
-                <strong>Input/Output:</strong>
-                {view.input.length > 0 && (
-                  <p>
-                    <b>Input:</b> {view.input.join(" ")}
-                  </p>
-                )}
-                {view.output.length > 0 && (
-                  <p>
-                    <b>Output:</b> {view.output.join(" ")}
-                  </p>
-                )}
-              </div>
-            )}
-            {view.steps.map((step) => (
-              <div key={step.heading}>
-                <strong>{step.heading}</strong>
-                <Lines lines={step.lines} />
-              </div>
-            ))}
-            {view.complexity.length > 0 && (
-              <div>
-                <strong>Complexity</strong>
-                <Lines lines={view.complexity} />
-              </div>
-            )}
+              )}
+              {(view.input.length > 0 || view.output.length > 0) && (
+                <div>
+                  <strong>Input/Output:</strong>
+                  {view.input.length > 0 && (
+                    <p>
+                      <b>Input:</b> {view.input.join(" ")}
+                    </p>
+                  )}
+                  {view.output.length > 0 && (
+                    <p>
+                      <b>Output:</b> {view.output.join(" ")}
+                    </p>
+                  )}
+                </div>
+              )}
+              {view.steps.map((step) => (
+                <div key={step.heading}>
+                  <strong>{step.heading}</strong>
+                  <Lines lines={step.lines} />
+                </div>
+              ))}
+              {view.complexity.length > 0 && (
+                <div>
+                  <strong>Complexity</strong>
+                  <Lines lines={view.complexity} />
+                </div>
+              )}
+            </div>
+          )}
+          {note && (
+            <p className="pn-note" role="alert">
+              <span>{note}</span>
+              <button
+                type="button"
+                className="pn-note-close"
+                aria-label="Dismiss message"
+                onClick={() => setDismissed(note)}
+              >
+                <Icon name="close" />
+              </button>
+            </p>
+          )}
+        </div>
+      )}
+      {part === "code" &&
+        !(!s.phase && view && (view.example || view.code)) && (
+          <div className="pn-card">
+            <p className="pn-muted pn-centered">
+              {s.phase ? "Code appears here when it is ready" : "No code yet"}
+            </p>
           </div>
         )}
-        {note && (
-          <p className="pn-note" role="alert">
-            <span>{note}</span>
-            <button
-              type="button"
-              className="pn-note-close"
-              aria-label="Dismiss message"
-              onClick={() => setDismissed(note)}
-            >
-              <Icon name="close" />
-            </button>
-          </p>
-        )}
-      </div>
-      {!s.phase && view && (view.example || view.code) && (
+      {part !== "text" && !s.phase && view && (view.example || view.code) && (
         <div className="pn-codecol">
           {view.example && <TextCard text={view.example} />}
           {view.code && (
@@ -287,10 +308,10 @@ function Row({ row }: { row: PanelRow }) {
 export function ChatPanel({ s }: { s: PanelSession }) {
   const rows = panelRows(s.model, s.entries, s.system, s.clearedAt);
   const recording = s.live.mic === "listening";
-  const lastSaid = [...rows].reverse().find((row) => row.kind !== "system");
-  // A reply is on its way: the last thing said has no answer yet.
-  const loading =
-    s.phase === "analyzing" && (!lastSaid || lastSaid.kind !== "assistant");
+  // Shown whenever a capture or analysis is running, even right after an earlier
+  // answer, so the transcript always says that something is happening.
+  const loading = Boolean(s.phase);
+  const waited = useElapsed(loading);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const text = s.draft.trim();
@@ -323,7 +344,10 @@ export function ChatPanel({ s }: { s: PanelSession }) {
             data-testid="pn-loading"
           >
             <span className="pn-time">{clock(Date.now())}</span>
-            <span className="pn-text">…</span>
+            <span className="pn-text">
+              {s.phase === "capturing" ? "Capturing the screen…" : "Analyzing…"}
+              {waited >= 3 && ` ${waited}s`}
+            </span>
           </div>
         )}
       </div>

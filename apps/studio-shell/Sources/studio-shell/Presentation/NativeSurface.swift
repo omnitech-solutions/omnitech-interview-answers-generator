@@ -129,6 +129,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
 
     func view(for kind: PanelKind) -> WKWebView? { panels[kind]?.webView }
     var compactView: WKWebView? { compact?.webView }
+    func setCompactWidth(_ width: Double) { compact?.setWidth(CGFloat(width)) }
     var mainWindowView: WKWebView? { mainView }
     var panelViews: [WKWebView] { PanelKind.allCases.compactMap { panels[$0]?.webView } }
     var mainWindow: NSWindow? { main }
@@ -178,22 +179,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     // The strip's buttons: close quits the app; expand opens the main Studio window.
     private func wireControls(_ window: PanelWindow) {
         window.onClose = { NSApp.terminate(nil) }
-        // Green maximizes to the full Studio view; the edge handle reveals the
-        // analysis to the right of the chat and folds it away again.
+        // Green maximizes to the full Studio view. The analysis is revealed by the
+        // toolbar (a wider window), never by a handle of its own.
         window.onExpand = { [weak self] in self?.requestMode(.expanded) }
-        window.onReveal = { [weak window] in
-            guard let window else { return }
-            var frame = window.panel.frame
-            let wide = frame.width >= 640
-            let width: CGFloat = wide ? 340 : 800
-            window.revealButton?.title = wide ? "›" : "‹"
-            frame.size.width = width
-            // Growing to the right never pushes the window off the display.
-            if let visible = (window.panel.screen ?? NSScreen.main)?.visibleFrame, frame.maxX > visible.maxX {
-                frame.origin.x = max(visible.minX, visible.maxX - frame.width)
-            }
-            window.panel.setFrame(frame, display: true, animate: true)
-        }
     }
 
     private func showMain() {
@@ -244,8 +232,6 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     /// What the strip's buttons ask for: quit the app, or open the main window.
     var onClose: (() -> Void)?
     var onExpand: (() -> Void)?
-    var onReveal: (() -> Void)?
-    private(set) var revealButton: NSButton?
 
     init(kind: PanelKind?, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.kind = kind
@@ -336,21 +322,6 @@ final class PanelWindow: NSObject, NSWindowDelegate {
             bar.autoresizingMask = kind == .pill ? [.width, .height] : [.width, .minYMargin]
             container.addSubview(bar)
         }
-        if compactWindow {
-            // The `|>|` handle on the right edge: reveals the analysis, to the right.
-            let reveal = NSButton(title: "›", target: self, action: #selector(revealTapped))
-            reveal.isBordered = false
-            reveal.font = .systemFont(ofSize: 22, weight: .semibold)
-            reveal.contentTintColor = .white
-            reveal.toolTip = "Show or hide the analysis"
-            reveal.frame = CGRect(x: size.width - 22, y: size.height / 2 - 28, width: 22, height: 56)
-            reveal.autoresizingMask = [.minXMargin, .minYMargin, .maxYMargin]
-            reveal.wantsLayer = true
-            reveal.layer?.backgroundColor = NSColor(white: 0.2, alpha: 0.55).cgColor
-            reveal.layer?.cornerRadius = 8
-            container.addSubview(reveal)
-            revealButton = reveal
-        }
         // [DOMAIN] Real controls, because a chromeless window has no title bar to
         // close it by: close (quits the app), expand (the main Studio window), and
         // resize handles on every edge and corner (a borderless-looking window gets
@@ -396,7 +367,22 @@ final class PanelWindow: NSObject, NSWindowDelegate {
 
     @objc private func closeTapped() { onClose?() }
     @objc private func zoomTapped() { onExpand?() }
-    @objc private func revealTapped() { onReveal?() }
+
+    // Take this width, widening or narrowing evenly about the window's centre so
+    // the toolbar at its top does not move. Kept inside the display.
+    func setWidth(_ requested: CGFloat) {
+        var frame = panel.frame
+        let visible = (panel.screen ?? NSScreen.main)?.visibleFrame
+        let width = min(max(requested, panel.minSize.width), visible.map { $0.width - 16 } ?? requested)
+        guard abs(width - frame.width) > 0.5 else { return }
+        let centre = frame.midX
+        frame.size.width = width
+        frame.origin.x = centre - width / 2
+        if let visible {
+            frame.origin.x = min(max(frame.origin.x, visible.minX + 8), visible.maxX - width - 8)
+        }
+        panel.setFrame(frame, display: true, animate: true)
+    }
 
     func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }
     // The video's panels are a flat tint over a sharp page: the blur layer stays off.

@@ -86,6 +86,12 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
     ) { model.refresh() }
 }
 
+// A floating panel is rarely the key window. Without this, the first click on a
+// control inside it is spent making the window key and does nothing.
+final class PanelWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 enum StudioWebView {
     static func make(handler: BridgeHandler, delegate: StudioWebViewDelegate) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -103,7 +109,7 @@ enum StudioWebView {
         }
         configuration.userContentController.addScriptMessageHandler(
             handler, contentWorld: .page, name: HostBridge.handlerName)
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = PanelWebView(frame: .zero, configuration: configuration)
         handler.model.register(view)
         view.navigationDelegate = delegate
         view.uiDelegate = delegate

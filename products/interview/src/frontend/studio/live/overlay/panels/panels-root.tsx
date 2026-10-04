@@ -23,7 +23,7 @@ import {
   SettingsPanel,
   Toasts,
 } from "./panel-views";
-import { SinglePanel } from "./single-panel";
+import { SinglePanel, usePanes } from "./single-panel";
 import { createPipPresentation } from "./pip-adapter";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
@@ -70,7 +70,10 @@ export function PanelsRoot({
     [stack],
   );
   const { snapshot, actions } = useLiveSession();
-  const s = usePanelSession(panel, presentation);
+  const panes = usePanes(presentation, single);
+  const s = usePanelSession(panel, presentation, {
+    watchScreen: single && panes.shown.analysis,
+  });
   const access = overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
   const opened = useRef(false);
@@ -180,7 +183,7 @@ export function PanelsRoot({
           {active && <View panel={active} s={s} presentation={presentation} />}
         </>
       ) : single ? (
-        <SinglePanel s={s} />
+        <SinglePanel s={s} panes={panes} />
       ) : (
         <View panel={panel} s={s} presentation={presentation} />
       )}

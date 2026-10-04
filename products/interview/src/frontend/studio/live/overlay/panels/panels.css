@@ -506,3 +506,61 @@
 .pn-single-pane[data-which="analysis"] .pn-note {
   display: none;
 }
+.pn-start {
+  color: var(--ov-green);
+}
+.pn-single-confirm {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ov-bg);
+}
+
+
+/* Toolbar buttons read as buttons: a visible border always, brighter when on,
+   dashed and dim when they cannot act right now. */
+.pn-pill .pn-bar-button {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+}
+.pn-pill .pn-bar-button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.pn-pill .pn-bar-button[aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.75);
+  background: var(--ov-chip);
+}
+.pn-pill .pn-bar-button:disabled {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* In the one window the analysis pane may be narrow: its code card then sits
+   under the text instead of off the edge of the window. */
+.pn-single-pane[data-which="analysis"] {
+  container-type: inline-size;
+}
+@container (max-width: 760px) {
+  .pn-analysis {
+    flex-direction: column;
+  }
+  .pn-analysis-text {
+    flex: 1.4;
+    min-height: 0;
+  }
+  .pn-codecol {
+    flex: 1;
+    min-height: 0;
+  }
+}
+.pn-single-pane[data-which="code"] {
+  container-type: inline-size;
+}
+.pn-single-body > [data-which="chat"] {
+  flex: 0 0 320px;
+}
+.pn-single-body > [data-which="analysis"] {
+  flex: 1 1 480px;
+}
+.pn-single-body > [data-which="code"] {
+  flex: 0 1 420px;
+}

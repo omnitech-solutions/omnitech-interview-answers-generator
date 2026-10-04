@@ -53,6 +53,8 @@ public enum PresentationCommand: Equatable, Sendable {
     case setHotkeysEnabled(Bool)
     // Panel translucency: 1 opaque, down to PanelOpacity.minimum.
     case setOpacity(Double)
+    // The one window: this width (points), widening or narrowing about its centre.
+    case setWindowWidth(Double)
     // Placement chrome: keys and pages use the same entries.
     case movePanels(dx: Double, dy: Double)
     case resizePanel(PanelKind, dw: Double, dh: Double)
@@ -118,6 +120,13 @@ public protocol PresentationSurface: AnyObject {
     func bringToFront()
     func toast(_ toast: Toast)
     func quit()
+    // The one-window view: take this width, widening or narrowing evenly about the
+    // window's centre so the toolbar at its top stays where it is.
+    func setCompactWidth(_ width: Double)
+}
+
+extension PresentationSurface {
+    public func setCompactWidth(_ width: Double) {}
 }
 
 // [DOMAIN] The reducer: command -> new state -> persist -> render. All the
@@ -191,6 +200,8 @@ public final class PresentationController: PresentationHost {
             next.hotkeysEnabled = on
         case .setOpacity(let value):
             next.opacity = PanelOpacity.clamp(value)
+        case .setWindowWidth(let width):
+            if state.layout == .compact { surface?.setCompactWidth(width) }
         case .movePanels, .resizePanel, .bringToFront, .quitApp:
             break
         }

@@ -99,7 +99,7 @@ public enum HostCallDecoder {
         case "captureScreen": allowed = ["mode", "region", "displayId"]
         case "pinOnTop": allowed = ["pinned"]
         case "openExternal": allowed = ["url"]
-        case "presentation": allowed = ["op", "panel", "layout", "visible", "on", "mode", "enabled", "value"]
+        case "presentation": allowed = ["op", "panel", "layout", "visible", "on", "mode", "enabled", "value", "width"]
         case "screenWatchStart": allowed = ["mode", "region", "displayId", "intervalMs"]
         case "screenWatchStop": allowed = []
         default: return .failure(.unknownMethod)
@@ -131,7 +131,7 @@ public enum HostCallDecoder {
         let needs: [String: Set<String>] = [
             "open": ["panel"], "close": ["panel"], "focus": ["panel"], "setLayout": ["layout"],
             "setVisible": ["visible"], "setInteractionMode": ["on"], "setAppMode": ["mode"],
-            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"], "quit": [],
+            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"], "setWindowWidth": ["width"], "quit": [],
         ]
         guard let required = needs[op], Set(params.keys).subtracting(["op"]) == required else {
             return .failure(.invalidParameters)
@@ -151,6 +151,11 @@ public enum HostCallDecoder {
         case "setOpacity":
             guard let value = number(params["value"]), value.isFinite else { return .failure(.invalidParameters) }
             command = .setOpacity(value)
+        case "setWindowWidth":
+            guard let width = number(params["width"]), width.isFinite, width >= 200, width <= 4000 else {
+                return .failure(.invalidParameters)
+            }
+            command = .setWindowWidth(width)
         default: command = bool("enabled").map(PresentationCommand.setHotkeysEnabled)
         }
         guard let command else { return .failure(.invalidParameters) }
@@ -328,7 +333,8 @@ public enum HostBridgeScript {
             setAppMode: function (mode) { return op("setAppMode", { mode: String(mode) }); },
             setHotkeysEnabled: function (enabled) { return op("setHotkeysEnabled", { enabled: !!enabled }); },
             opacity: function () { return shown.opacity; },
-            setOpacity: function (value) { return op("setOpacity", { value: Number(value) }); }
+            setOpacity: function (value) { return op("setOpacity", { value: Number(value) }); },
+            setWindowWidth: function (width) { return op("setWindowWidth", { width: Number(width) }); }
           });
           function call(method, params) {
             return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });

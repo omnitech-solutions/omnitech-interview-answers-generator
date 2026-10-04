@@ -254,6 +254,9 @@ export type PresentationHost = {
   // Panel opacity, 0.3 to 1.
   opacity?(): number;
   setOpacity?(value: number): Promise<boolean>;
+  // The one-window view: asks for this width (CSS px). The window widens or
+  // narrows evenly about its centre, so the toolbar at the top stays put.
+  setWindowWidth?(width: number): Promise<boolean>;
   // Quits the app (the Settings panel's Quit button).
   quit?(): Promise<boolean>;
 };
@@ -320,6 +323,12 @@ export function negotiatePresentation(
       ? {
           setOpacity: (value: number) =>
             inner.setOpacity?.(value) ?? Promise.resolve(false),
+        }
+      : {}),
+    ...(typeof inner.setWindowWidth === "function"
+      ? {
+          setWindowWidth: (width: number) =>
+            inner.setWindowWidth?.(width) ?? Promise.resolve(false),
         }
       : {}),
     ...(typeof inner.quit === "function"

@@ -15,7 +15,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nativeCaptureAvailable, onHostHotkey } from "../../host-adapter";
 import { isOpenSession } from "../../session-deps";
-import { latestTarget } from "../../session-owner-input";
 import { useLiveSession } from "../../use-live-session";
 import { loadAutoPreferred, saveAutoPreferred } from "../auto-prefs";
 import { loadMask, loadSettings } from "../capture-prefs";
@@ -24,6 +23,7 @@ import { claimCaptureTrigger } from "../capture-trigger";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
+import { AUTO_CAPTURE_LABEL } from "../overlay-card";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
 import { useCompanionCapture } from "../use-companion-capture";
@@ -84,6 +84,9 @@ const OFF: PanelState = {
 export function usePanelSession(
   panel: PanelKind,
   presentation: PresentationHost,
+  // True while the analysis is on screen: Auto then watches the screen on an
+  // interval and analyzes it when it changes. Off, captures wait for the hotkey.
+  options: { watchScreen?: boolean } = {},
 ) {
   const { snapshot, actions, model } = useLiveSession();
   const tenant = snapshot.tenant;
@@ -195,19 +198,23 @@ export function usePanelSession(
     try {
       const frame = await share.grab(latest.current.mask);
       if (!here()) return false;
-      const target = latestTarget(snapshotRef.current);
+      // Every capture is a new analysis that replaces the one on show. It is
+      // never attached to the previous task: a heard question and a screen of
+      // another problem would otherwise be merged into one answer.
       const result = await actions.analyzeCapture({
         image: frame.blob,
         label: label ?? frame.label,
-        ...(target
-          ? { target: { taskId: target.taskId, revision: target.revision } }
-          : {}),
         ...latest.current.hints,
       });
       if (!result.ok && here()) setNote(failureNote(result.code));
       return result.ok;
     } catch (error) {
-      if (here())
+      // An automatic capture with no browser in front just waits for one.
+      const quiet =
+        label !== undefined &&
+        error instanceof FrameError &&
+        error.code === "no-focused-window";
+      if (here() && !quiet)
         setNote(
           error instanceof FrameError && error.code === "display-changed"
             ? "Your display changed, so the capture area was cleared. Choose the area again."
@@ -238,14 +245,17 @@ export function usePanelSession(
     open: owns && open,
     paused,
     deviceOnly,
-    // Captures happen on the capture hotkey only: no interval watching.
-    wantsScreen: false,
+    // Interval watching only while the analysis is showing and the session may
+    // send the screen; otherwise captures happen on the capture hotkey only.
+    wantsScreen:
+      options.watchScreen === true &&
+      (session?.captureSources.includes("screen") ?? false),
     sharing: share.status === "sharing",
     watchable: share.kind !== "This Mac" && share.kind !== null,
     sample: share.sample,
     mask: prefs.mask,
     busy: grabbing || snapshot.pending.includes("analyze"),
-    capture: async () => false,
+    capture: () => grabAndAnalyze(AUTO_CAPTURE_LABEL),
     submitHeard: actions.submitHeard,
     resume: actions.resume,
     onManualFinal: (phrase) => {
