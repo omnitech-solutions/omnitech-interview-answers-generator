@@ -34,6 +34,11 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0013/owner-or-cap-ends | rule:owner-or-cap-ends | Only the owner's session control, an owner delete or the duration cap ends a session. | ADR-0013 | Accepted | decided | run-bound |
 | ADR-0013/owner-starts-and-resumes | rule:owner-starts-and-resumes | Only the owner's session control starts or resumes a session. | ADR-0013 | Accepted | decided | run-bound |
 | ADR-0013/pause-only-credential-stop | rule:pause-only-credential-stop | An expired, revoked or missing credential, a heartbeat reporting `capturing: false`, or silence past the heartbeat limit after prior contact pauses an active session and never ends it. | ADR-0013 | Accepted | decided | run-bound |
+| ADR-0016/one-store-many-presentations | rule:one-store-many-presentations | Full, Focus, and floating views present one session store; the floating view is read-only, never controls the session, and closes on access loss. | ADR-0016 | Accepted | decided | run-bound |
+| ADR-0016/owner-input-not-capture | rule:owner-input-not-capture | Owner input is a DB-only observation kind the capture wire cannot send, with its own source namespace, outside capture caps. | ADR-0016 | Accepted | decided | run-bound |
+| ADR-0016/screenshot-attachments-fail-closed | rule:screenshot-attachments-fail-closed | A screenshot reaches a provider only as an owner-scoped, frozen, size- and dimension-bounded attachment on a runtime whose image input a test proves; otherwise the action is refused, never answered text-only. | ADR-0016 | Accepted | decided | run-bound |
+| ADR-0016/two-action-slots-fenced | rule:two-action-slots-fenced | Short assistance and coding hold separate slots, each with its own action, abort signal, and handle; a superseded revision is cancelled and its result is never published. | ADR-0016 | Accepted | decided | run-bound |
+| ADR-0016/worker-local-tool-less-inference | rule:worker-local-tool-less-inference | Session actions reach agents only through the gateway's existing AgentExecutionPort, tool-less and structured; a runtime that cannot prove tool-less operation is refused, and Next.js never launches an agent. | ADR-0016 | Accepted | decided | run-bound |
 
 ## active-session-locality — no-applicable-invariant
 
@@ -92,6 +97,17 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0012/strict-rehearsal-no-assistance | rule:strict-rehearsal-no-assistance | Live assistance is disabled in a strict rehearsal. | ADR-0012 | Accepted | decided | run-bound |
 | ADR-0012/tombstone-keeps-hint-count | rule:tombstone-keeps-hint-count | The tombstone keeps owner, rehearsal run id, strict flag and a content-free count of shown drafts. | ADR-0012 | Accepted | decided | run-bound |
 
+## agent-runtime — no-applicable-invariant
+
+| handle | citation | rule | source ADR | source_status | disposition | basis |
+|--------|----------|------|------------|---------------|-------------|-------|
+| ADR-0014/claude-supported-lifecycle | rule:claude-supported-lifecycle | Claude uses only the installed TypeScript Agent SDK's supported session lifecycle; isolated structured jobs remain one-shot, and persistent sessions require measured benefit and safe closure. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0014/codex-transport-parity | rule:codex-transport-parity | Codex App Server may replace the SDK only through worker-owned private stdio, with a pinned protocol, parity checks, and a measured same-workload benefit. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0014/fenced-terminal-publish | rule:fenced-terminal-publish | Each closing event, matching job status, and applicable result reference commit atomically under a claim fence or row lock; a lost claim publishes nothing further. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0014/one-terminal-outcome | rule:one-terminal-outcome | Each logical execution publishes exactly one terminal outcome; each claimed attempt publishes at most one closing outcome, including an awaiting-input suspension. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0014/provider-history-isolation | rule:provider-history-isolation | Provider history and model-readable files are isolated per owner; a session cannot read another tenant's history or shared credentials. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0014/worker-owned-isolated-sessions | rule:worker-owned-isolated-sessions | The worker bounds provider processes, and each persistent session is bound to one tenant, actor, job, and runtime profile; only the current lease claim may resume it. | ADR-0014 | Accepted | decided | run-bound |
+
 ## agent-worker — no-applicable-invariant
 
 | handle | citation | rule | source ADR | source_status | disposition | basis |
@@ -109,6 +125,11 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0010/generation-limits-are-configured | rule:generation-limits-are-configured | The call cap, fields per call, tries, field length, worker concurrency and lease are deployment settings with defaults and bounds; a value out of bounds stops startup and names the setting. | ADR-0010 | Accepted | decided | not-run-bound |
 | ADR-0010/generation-stops-with-its-reader | rule:generation-stops-with-its-reader | Generation progress reaches the page as a stream, a document is saved only when complete, and generation stops with its reader. | ADR-0010 | Accepted | decided | not-run-bound |
 | ADR-0010/parallel-document-generation | rule:parallel-document-generation | A document is written in at most the configured number of structured calls, one call when the template fits within one call's field budget, each over contiguous model-filled fields in template order, through AiExecutionGateway against a template revision and an immutable candidate-profile revision. | ADR-0010 | Accepted | decided | not-run-bound |
+| ADR-0015/complete-revision-publish | rule:complete-revision-publish | Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated generation identity cannot publish a second revision. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/exact-owned-batches | rule:exact-owned-batches | Each model batch owns a disjoint, contiguous set of template fields and must return exactly those keys with string values before its result can enter progress or a document. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/immutable-generation-identity | rule:immutable-generation-identity | A generation binds its owner, selected target, template and profile revisions, source selection, requested fields, and base document revision before model work begins. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/measured-document-grouping | rule:measured-document-grouping | Grouping is selected from same-input, same-machine trials of one, three, and five model groups that record visible-field time, total time, calls, tokens, cost, and failures. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/source-facts-own-authority | rule:source-facts-own-authority | Direct-source candidate, candidacy, and interview values remain authoritative; missing facts stay blank, while generated prose is a draft and never updates source preferences or profile facts. | ADR-0015 | Proposed | decided | run-bound |
 
 ## Exempt ADRs (0)
 
@@ -118,7 +139,7 @@ _None._
 
 _Freshness is the deterministic input digests below; no wall-clock timestamp enters this file._
 
-- `adr_frontmatter_sha256`: `34e5bec6f3d72bfa73be44182b1f2c8146c6c530dc6f7a939aec3360e13578af`
+- `adr_frontmatter_sha256`: `491163e798d5ba17f3ff50fe68a151d553d9bb126ab1cc2bd3e753621b5a794c`
 - `governs_from`: `None`
 - `invariants_sha256`: `57179ec45e978a0ccce122a1a659de4748a13c0b5afdc3c9eaf2bf8d06696201`
 - `observations_sha256`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`

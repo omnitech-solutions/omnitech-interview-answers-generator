@@ -11,10 +11,12 @@ _Last updated: 2026-10-03_
 
 ## Recent runs (last 20)
 
+- `PB-0004/RUN-001` — completed — started 2026-10-03 — 13/13 prompts done
 - `PB-0003/RUN-001` — in_progress — started 2026-10-03 — current prompt 1
 - `PB-0002/RUN-001` — completed — started 2026-10-03 — 29/29 prompts done
 - `PB-0001/RUN-001` — in_progress — started 2026-10-03 — current prompt 14
 
-## Archived (1)
+## Archived (2)
 
+- [[promptbooks/archive/PB-0004-active-session-unified-runtime-and-screen-assistance]] — completed 2026-10-03
 - [[promptbooks/archive/PB-0002-active-session-capability-for-interview-studio]] — completed 2026-10-03

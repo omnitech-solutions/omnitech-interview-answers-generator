@@ -20,10 +20,11 @@ See [[research/index]].
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (16)
+## ADRs (17)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor]] | Run Active Session assistance on the worker executor with screenshots and two action slots | Accepted | 2026-10-03 |
 | [[adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping]] | Validate owned document batches and measure grouping | Proposed | 2026-10-03 |
 | [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 |
 | [[adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent]] | Pause rather than end an Active Session on credential expiry or companion stop | Accepted | 2026-10-03 |
@@ -49,7 +50,7 @@ _No briefs yet._
 
 See [[journal/index]].
 
-## Promptbooks (2 active, 1 archived)
+## Promptbooks (2 active, 2 archived)
 
 See [[promptbooks/index]].
 
@@ -61,6 +62,6 @@ See [[promptbooks/index]].
 
 No observation records yet. See [[observations/index]]. Records enter `observed` through `propose-observation` or the `transition-decision` observation terminal — both human-invoked, and no scan writes one — and a human ratifies via `transition-observation`; evidence is `path:line-range`, never a code excerpt.
 
-## Code (regenerated: never)
+## Code (662 pages, regenerated: 2026-10-03)
 
-_No pages yet. Run `extract-code-docs` to populate. See [[code/index]] once present._
+See [[code/index]]. Extracted from source by `extract-code-docs`; 32 newer sources await the next extraction.

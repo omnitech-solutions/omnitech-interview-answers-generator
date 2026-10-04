@@ -2,6 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0016 | Run Active Session assistance on the worker executor with screenshots and two action slots | Accepted | 2026-10-03 | — (amends ADR-0011) | — | active-session, agents, screenshots, concurrency, live-ui |
 | ADR-0015 | Validate owned document batches and measure grouping | Proposed | 2026-10-03 | — (amends ADR-0010) | — | interview, documents, generation, grounding, performance |
 | ADR-0014 | Use worker-owned agent sessions with one terminal outcome | Accepted | 2026-10-03 | — | — | ai, agents, runtime, reliability, streaming |
 | ADR-0013 | Pause rather than end an Active Session on credential expiry or companion stop | Accepted | 2026-10-03 | — (amends ADR-0011, ADR-0012) | — | active-session, privacy, credential, interview |

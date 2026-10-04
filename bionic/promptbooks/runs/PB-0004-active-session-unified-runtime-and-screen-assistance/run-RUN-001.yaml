@@ -1,0 +1,158 @@
+format_version: '1'
+run_id: RUN-001
+book_id: PB-0004
+book_content_hash: sha256:05bd517eb8b07dbd871fd6fd6a413a4dea2cf757692bdedda887a171c5730cd7
+started_at: '2026-10-03T23:49:55Z'
+completed_at: "2026-10-04T01:10:18Z"
+status: "completed"
+current_prompt: null
+base_commit: fe69dcf6bc7b9068bdd3ec9bb1ac5b6717366368
+prompts:
+- n: 1
+  title: 'Plan: spawn planning team, propose ADR'
+  state: "done"
+  started: "2026-10-03T23:53:30Z"
+  completed: "2026-10-03T23:53:30Z"
+  result: "ADR-0016 proposed from the user's design; one Haiku code-surface mapper; ADR-0014 executor boundary adopted as dependency"
+  artifacts: ["bionic/adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor.md", "bionic/inbox/active-session-unified-runtime-design.md"]
+- n: 2
+  title: 'Plan: convene LLM council to review the ADR'
+  state: "done"
+  started: "2026-10-03T23:53:30Z"
+  completed: "2026-10-03T23:56:52Z"
+  result: "Claude-only 3-seat panel (arch/security/testability), all APPROVE-WITH-CHANGES; OpenRouter council not run (no OPENROUTER_API_KEY)"
+  artifacts: []
+- n: 3
+  title: 'Plan: address council findings, return to Prompt 2'
+  state: "done"
+  started: "2026-10-03T23:56:52Z"
+  completed: "2026-10-03T23:56:52Z"
+  result: "All MUST-FIXes folded into ADR-0016 body in one revision; no re-run (text-only changes)"
+  artifacts: []
+- n: 4
+  title: 'Plan: accept the ADR'
+  state: "done"
+  started: "2026-10-03T23:56:52Z"
+  completed: "2026-10-03T23:56:52Z"
+  result: "ADR-0016 Accepted"
+  artifacts: ["bionic/adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor.md"]
+- n: 5
+  title: 'Develop: derive an implementation plan from the ADR'
+  state: "done"
+  started: "2026-10-03T23:56:52Z"
+  completed: "2026-10-03T23:57:16Z"
+  result: "Plan recorded in Notes: groups A (slots), B1 (packages+worker port, disabled), C (UI) parallel; B2 (owner input, loader, e2e) after"
+  artifacts: []
+- n: 6
+  title: 'Develop: spawn implementation team'
+  state: "done"
+  started: "2026-10-03T23:57:16Z"
+  completed: "2026-10-04T00:35:22Z"
+  result: "Groups A (slots), B1 (attachments/capabilities/disabled worker port), C (Focus/float UI), B2 (owner input, loader, e2e) implemented and committed (cc320b7, 529b455)"
+  artifacts: []
+- n: 7
+  title: 'Develop: run quality gates; loop until clean'
+  state: "done"
+  started: "2026-10-04T00:35:22Z"
+  completed: "2026-10-04T00:35:33Z"
+  result: "pnpm verify exit=0 (lint, format, typecheck, test:coverage 288 files 3098 passed 1 skipped incl Docker-backed suites, build)"
+  artifacts: []
+- n: 8
+  title: 'Develop: internal review'
+  state: "done"
+  started: "2026-10-04T00:35:33Z"
+  completed: "2026-10-04T00:39:09Z"
+  result: "Internal review = independent correctness reviewer (blind): 1 MUST-FIX (admission hang on pre-aborted signal) + 4 SHOULD; all queued for prompt 11"
+  artifacts: []
+- n: 9
+  title: 'Review: external team review (multi-dimension + dedicated security review)'
+  state: "done"
+  started: "2026-10-04T00:39:09Z"
+  completed: "2026-10-04T00:39:09Z"
+  result: "External: consistency/clarity (0 MUST-FIX, 4 SHOULD) and security S1-S5 (0 MUST-FIX, 2 SHOULD-FIX + Codex residual); all queued for prompt 11"
+  artifacts: []
+- n: 10
+  title: 'Review: tests, docs, and dev-practice conformance audit'
+  state: "done"
+  started: "2026-10-04T00:39:09Z"
+  completed: "2026-10-04T01:06:18Z"
+  result: "Test/docs/conformance audit: test-coverage reviewer 0 MUST-FIX (7 SHOULD); conformance PASS (see Notes); docs checks run in prompt 12"
+  artifacts: []
+- n: 11
+  title: 'Review: implement feedback; loop until clean'
+  state: "done"
+  started: "2026-10-04T01:06:18Z"
+  completed: "2026-10-04T01:06:18Z"
+  result: "1 review-fix loop: all MUST-FIX/security fixed, 3 DB-path tests added, blind re-review ZERO-MUST-FIX, verify run 3 exit=0 (3129 passed)"
+  artifacts: []
+- n: 12
+  title: 'Prep: changelog, docs, journal, PR notes'
+  state: "done"
+  started: "2026-10-04T01:06:18Z"
+  completed: "2026-10-04T01:10:05Z"
+  result: "CHANGELOG updated; audit-docs clean after 3 fixes + code-docs/lineage/doctrine regenerated; journal entry written; PR draft stored. prose-review skill not run (advisory); own pass applied"
+  artifacts: ["CHANGELOG.md", "bionic/journal/2026-10.md"]
+- n: 13
+  title: 'Summary: completion report AND archive the book'
+  state: "done"
+  started: "2026-10-04T01:10:05Z"
+  completed: "2026-10-04T01:10:18Z"
+  result: "summary written; archiving next"
+  artifacts: []
+notes: |
+  Implementation plan (ADR-0016). Rapid-dev: sonnet developers, no commits by agents, orchestrator integrates and runs `pnpm verify`.
+  Group A (backend slots, products/interview/src/backend/live-session): per-slot {action id, inflight, child AbortController} replacing run.inflight/openActionId/shared abort in session-run.ts, processor.ts, session-dispatch.ts; idle()/quiesce()/processRun gates read both slots; supersession cancels the slot whose {taskId,revision} fell behind; fenced publication unchanged. Tests via processor-fixture FakeGateway.
+  Group B1 (packages + worker): AiTask.attachments (packages/ai-contracts); image-input + toolless capability flags in agent-runtime-contracts, proven by adapter fixture tests (claude + codex forward images, tool-started => typed failure); worker implementation of the existing AgentExecutionPort in apps/agent-worker (tool-less profile, per-attempt ephemeral provider home, staging dir 0700 O_NOFOLLOW removed on settle + startup sweep, typed error codes, policy/standing re-check after capacity wait, live-before-background admission bound) wrapping AgentRuntimeAdapter; ships DISABLED behind config (default noAgents) until PB-0003 executor merges.
+  Group C (frontend, products/interview/src/frontend/studio/live): Focus presentation composed from existing result components; floating Document PiP host (mocked documentPictureInPicture in tests) with in-tab fallback, React portal, read-only component set, unmount on 401/404/membership loss/tenant switch/purge/end/pagehide; extend existing store visibility handling so polling continues while either document is visible; Analyze latest capture + typed follow-up controls call a store action (backend endpoint is B2).
+  Group B2 (after A and B1): owner-input observation kind (DB CHECK + drizzle migration, DB-only, own source namespace, outside capture caps, negative ingest test that the wire rejects it), owner-input API route + store action wiring, task-revision provenance (speech + snapshot ids + owner input), screenshot loader (observation ids only, owner-session join, media re-detect, digest check, header dimension cap), DispatchPrompt attachments, e2e: transcript + screenshot through real createAiExecutionGateway + AgentExecutionPort with a fake AgentRuntimeAdapter -> assist -> code -> fenced publish; unsupported-vision and device-only refusal; spoken correction supersedes coding; restart replay no duplicate publish.
+  Risks: processor.ts reads inflight/openActionId in catch/finally (shared handlers must settle only their own slot); DB-only kind must not enter the wire zod union; PB-0003 may rewrite the executor (keep wrapper thin, test-only).
+  Quality gates: `pnpm verify` (lint, format, typecheck, test:coverage, build); real-provider rehearsals are separate *.integration.test.ts and are NOT run here (no provider credentials/time) => reported unobserved.
+  Scope checkpoint (ADR-0002): diff vs master is ~22.4k added lines = ~14.5k generated migration snapshot + ~3.9k tests + ~4.1k production; user pre-authorized the full ADR-0016 scope.
+  Review security deferrals: [S3/S5 fixed in prompt 11]. Accepted residual [S1/S2]: Codex cannot disable its tools; adapter aborts on first tool-started with read-only sandbox, allowlisted env and empty ephemeral provider home; a hostile screenshot could still try a command (a read-only sandbox can read absolute host paths, exfiltration needs network). Recommendation: prefer the Claude profile (tools: []) for vision sessions. Unobserved: real-provider behaviour.
+  Outcome narrowing: each developer dispatch narrowed the Outcome to its group and passed Evidence and Constraint whole.
+  Council deviation: ADR-0016 reviewed by a Claude-only three-seat panel, not the OpenRouter multi-model council (no OPENROUTER_API_KEY).
+  Quality gates (command + result): `pnpm verify` exit=0 run 1 (after groups A/B1/C/B2: 288 files, 3098 passed, 1 skipped) and run 3 (after review fixes: 292 files, 3129 passed, 1 skipped, Docker-backed suites included). Run 2 failed (exit=1: processor-latency and hardening/latency compound-question p95 ~2.45s vs 2.0s budget) while a reviewer ran vitest concurrently in the same tree; not reproducible in isolation (p95 <=212ms, 3 configurations) and run 3 on a quiet tree passed (exit=0) => attributed to load, not a code regression.
+  Review loops: 1 (review -> fix -> re-review ZERO-MUST-FIX by a blind re-reviewer). Fix passes also added DB-path tests (owner-input cap, screenshot SQL join, owner-input purge): `vitest --project backend` owner-input, screenshot-loader-db, screenshot-loader => 3 files 26 passed.
+  Review conformance: PASS. Tier-1: every gate above has a command + result token; internal review done (independent correctness reviewer); schema change has migration packages/database/drizzle/20261004001145_owner_input_observation. Tier-2: no skip/only/todo added (reviewer-verified); no assertion weakened (stale-output assertion tightened); no secrets committed (reviewer-checked). Commits made without --no-verify (lefthook format+lint ran on each).
+  Review deferrals (SHOULD): JPEG header-parser segment edge cases (APPn/DQT before SOF, SOF2, overrun) - low risk, header parser fails closed; memory-session-world behavioural drift test vs DB fence (regex pin only) - DB-backed suites cover the fence; main.ts flag-on wiring test (loops.test.ts asserts only the sweep loop name) - e2e covers createSessionSweeper; deleted-session retry is unbounded until run end - harmless, bounded by run lifetime; coverage of Studio-shell float persistence across pages tested only at component level.
+  Unobserved (needs credentials / user approval to spend): real Claude and Codex runs with image input, per-provider first-validated-answer latency, transcript-plus-screenshot rehearsal per provider, real-browser Document Picture-in-Picture. Other Docker-backed processor suites (processor-locality/tighten/slots) were exercised by the full `pnpm verify` run 3.
+pr_draft: |
+  ## Summary
+  - Active Session can answer from a captured screenshot or a typed follow-up (new owner input), and runs short answers and code in two independent slots so a spoken correction is answered without waiting for obsolete coding.
+  - A worker-side `AgentExecutionPort` serves Claude and Codex tool-less and structured, with screenshots staged privately; it ships disabled (`ACTIVE_SESSION_AGENT_PORT=on` to enable).
+  - Focus and floating (Document Picture-in-Picture) views present the same session store; the float is read-only and closes on access loss.
+
+  ADR: [[adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor]] (amends ADR-0011). Run: PB-0004 RUN-001.
+
+  ## Test plan
+  - [x] `pnpm verify` exit 0 (292 files, 3129 passed, 1 skipped; Docker-backed suites included)
+  - [x] End-to-end: real processor + real gateway + real session port with fake Claude- and Codex-shaped adapters (screenshot to answer to code to fenced publish; refusals; device-only; correction supersedes; restart replay; purge; no content in logs)
+  - [x] jsdom e2e: Analyze latest capture appears in the Focus view; mocked Document PiP transitions and access-loss unmount
+  - [x] DB: owner-input route, observation-kind CHECK pairing, screenshot SQL join, purge
+  - [ ] Real Claude and Codex runs with image input; per-provider first-validated-answer latency (needs credentials)
+  - [ ] Real-browser Document Picture-in-Picture
+
+  ## Risk notes
+  - Adds a migration (`owner.input` observation kind, reserved source id); apply before enabling.
+  - Agent-backed assistance is disabled by default. Enabling it keeps provider calls remote: device-only sessions never reach an agent, and a tighten to device-only aborts in-flight remote runs.
+  - Codex cannot disable its tools: the adapter aborts on the first tool event under a read-only sandbox and an empty provider home. Prefer the Claude profile for vision sessions.
+  - PB-0003 is rewriting the shared executor; `session-agent-port.ts` is a thin interim wrapper keeping `{port, sweep, purge}` so it can be swapped. Expect conflicts in agent-runtime-contracts/adapters and `apps/agent-worker/src/index.ts`.
+  - Diff is large (about 4.1k production lines, 3.9k tests, 14.5k generated migration snapshot).
+  - ADR-0016 was reviewed by a Claude-only panel, not the OpenRouter multi-model council.
+
+  ## Breaking changes
+  None. New optional AiTask.attachments and agent capability flags (absent means false).
+summary: |
+  ## Summary
+
+  Active Session can now answer from a captured screenshot or a typed follow-up and runs short answers and code in two independent slots, shown in a Focus view and a floating Picture-in-Picture view of the same session. Agent-backed assistance for Claude and Codex is built and tested end to end with fake adapters but ships disabled until PB-0003's shared executor lands and a real-provider rehearsal is run.
+
+  Links: [[adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor]], CHANGELOG `## [Unreleased]` entry (Active Session screenshot/Focus), journal [[journal/2026-10]] (PB-0004 Active Session unified runtime delivered), run [[promptbooks/runs/PB-0004-active-session-unified-runtime-and-screen-assistance/run-RUN-001]].
+
+  Stats: 13 prompts; 1 council round (Claude-only three-seat panel, not the OpenRouter council); 3 `pnpm verify` runs (1 transient load failure, final exit 0, 3129 passed); 1 review-fix loop; about 85 non-docs files changed (about 4.1k production lines, 3.9k test lines, 14.5k generated migration snapshot); tests 2972 to 3129 (+157).
+
+  Outstanding deferred work: real Claude and Codex runs with image input and per-provider first-validated-answer latency (needs credentials); real-browser Document Picture-in-Picture; rebind `session-agent-port.ts` to PB-0003's executor after it merges; review deferrals (JPEG header edge cases, memory-world drift test, main.ts wiring test, unbounded deleted-session retry); set OPENROUTER_API_KEY and re-run prompt 2 if the multi-model council is wanted; stale locked worktrees under `omnitech-interview-answers-generator/.claude/worktrees/agent-*` in the primary checkout; ADR-0016 note: Codex cannot disable tools (accepted residual).
+
+  Retrospective cadence: PB-0002 archived this day and PB-0004 now; if several books have archived since the last "Retrospective:" journal entry, run a retrospective as the natural follow-on (suggestion only).
+
+  PR draft: see the `pr_draft` field above (ready to paste).

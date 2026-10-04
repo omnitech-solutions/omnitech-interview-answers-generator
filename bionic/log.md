@@ -2,6 +2,50 @@
 
 _Append-only. Newest first._
 
+## [2026-10-03] promptbook | archived PB-0004-active-session-unified-runtime-and-screen-assistance
+
+Final run RUN-001, 13/13 prompts terminal, archived as delivered. 13 done, 0 skipped, 0 blocked. [[promptbooks/archive/PB-0004-active-session-unified-runtime-and-screen-assistance]]
+
+## [2026-10-03] journal | decision: PB-0004 Active Session unified runtime delivered; ADR-0016 accepted
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-03T19:15-06:00. Refs: [[adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor]] [[promptbooks/runs/PB-0004-active-session-unified-runtime-and-screen-assistance/run-RUN-001]]
+
+## [2026-10-03] audit | 0 broken / 3 drift fixed / 4 warnings
+
+**Fixed (drift + safe-broken)**
+- index: regenerated the `## ADRs` rollup with `generate-index-rollup.py` (CHK-MI-2; ADR-0016 row added, 17 rows).
+- index: `## Code` section now records 662 pages instead of "no pages yet" (CHK-MI-2).
+- arch: regenerated the spine with `derive-arch.py` (CHK-ARCH-1; module-graph, decision-index, overview, index, `_meta/manifest.json`, `_meta/coverage.json`); the re-run dry-run is clean. data-model stays stubbed because the repository uses Drizzle.
+
+**Pending (recommend-only drift, no broken)**
+- code: `extract-code-docs.py --dry-run` reports 32 missing and 6 edited pages from new Active Session sources (CHK-CODE-4). Fix: `uv run --no-config extract-code-docs.py --config bionic/manifest.yml`.
+- lineage: `adrs/lineage.md` lacks ADR-0014, ADR-0015 and ADR-0016 (CHK-DRIFT-1). Fix: `generate-lineage.py`.
+- doctrine: `adrs/doctrine/index.md` and `_meta.json` drift (CHK-DRIFT-1). Fix: `compile-doctrine.py`.
+
+**Warnings**
+- CHK-INBOX-3: 1 item pending in `inbox/` (`active-session-unified-runtime-design.md`).
+- CHK-JR-5: `journal/2026-10.md` has the 13:00 and 12:00 entries below the 11:54 entry.
+- CHK-INV-DANGEROUS survey debt: 2 observed pins (INV-0002, INV-0004).
+- CHK-DOCTRINE-1: 0 pairings pending; 7 ratified invariants seed no doctrine pairing.
+- CHK-ADR-4: none. CHK-ADR-SPEC: rule not adopted (`adr.spec_rule_from` absent).
+- Not applicable outside the plugin checkout: catalog, routing table, opencode agents, README footer, writing rules, runtime compatibility.
+
+## [2026-10-03] adr | ADR-0016: accepted
+
+Run Active Session assistance on the worker executor with screenshots and two action slots. Accepted after a Claude-only three-seat panel (architecture, security, testability; all APPROVE-WITH-CHANGES, MUST-FIXes folded into the body before acceptance); OpenRouter multi-model council not run (no key).
+
+## [2026-10-03] adr | ADR-0016: Run Active Session assistance on the worker executor with screenshots and two action slots
+
+Proposed. File `bionic/adrs/ADR-0016-run-active-session-assistance-on-the-worker-executor.md`. Tags: active-session, agents, screenshots, concurrency, live-ui.
+
+## [2026-10-03] promptbook | started PB-0004-active-session-unified-runtime-and-screen-assistance/RUN-001
+
+book PB-0004, run RUN-001, total_prompts 13, current_prompt 1.
+
+## [2026-10-03] promptbook | authored PB-0004-active-session-unified-runtime-and-screen-assistance (cycle)
+
+id PB-0004, total_prompts: 13, modules (1×ADR, 1×dev, 1×review). cycle: assembled from modular templates. Input design: `bionic/inbox/active-session-unified-runtime-design.md`.
+
 ## [2026-10-03] journal | decision: Use one Codex App Server runtime despite unmet ADR latency gate
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-03T20:43-06:00. Refs: [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]]

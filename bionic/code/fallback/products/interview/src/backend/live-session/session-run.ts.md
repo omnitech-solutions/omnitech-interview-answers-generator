@@ -13,5 +13,22 @@ revision, action kind) is the safety net if it ever were not.
 
 The core decides ordering, supersession, task identity and revisions; this
 module only feeds it and never inspects utterance text. Screenshots are
-stored by ingest but not interpreted here: image interpretation is refused in
-device-only and belongs to loop 2.
+stored by ingest and never interpreted here: a screen snapshot is only
+remembered by id, and an owner's Analyze request (an `owner.input`
+observation, ADR-0016) names the exact snapshots a task revision rests on.
+That provenance travels with the revision (basedOn: spoken segment ids,
+`snap/...` snapshot ids and `input/...` owner-input ids), so replay,
+supersession, publication checks and the purge all see it; image
+interpretation is refused in device-only.
+
+Contents, in file order:
+types      PendingOwnerInput, SessionRun, ActionSlot
+slots      slotFor, allSlots, occupySlot, releaseSlot
+run        createRun, keyOf, requestOf
+restart    seedFromActions (what stored actions remember)
+replay     replayObservations, noteSnapshot, queueOwnerInput
+evidence   attachmentsFor, capturedFor
+apply      processInOrder (utterances and owner inputs in observation
+order), processOwnerInputs, processUtterances
+progress   noteRecorded, handledThrough, nextPending, nextPendingCoding
+cancel     cancelSupersededSlots
