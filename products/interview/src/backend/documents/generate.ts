@@ -207,11 +207,6 @@ export async function generateDocumentValues(
   const signal = input.signal
     ? AbortSignal.any([input.signal, stop.signal])
     : stop.signal;
-  const allowedModelKeys = new Set(
-    input.fields
-      .filter((field) => field.source === "candidate-profile")
-      .map((field) => field.key),
-  );
   const written: Record<string, string> = {};
   let usage: AiUsage | null = null;
 
@@ -222,6 +217,7 @@ export async function generateDocumentValues(
       properties: Object.fromEntries(
         batch.fields.map((field) => [field.key, { type: "string" }]),
       ),
+      required: batch.fields.map((field) => field.key),
     } as const;
     // A failed call is tried up to the configured attempts; a malformed answer is not, because
     // asking again for the same thing is how bad output is paid for twice.
@@ -273,13 +269,17 @@ export async function generateDocumentValues(
     const parsed = documentValuesSchema.safeParse(execution.result);
     if (signal.aborted) throw new Error("Document generation cancelled");
     if (!parsed.success) throw new Error("Invalid structured document output");
-    // A provider may return a requested template key even when it has no
-    // evidence for it. Ignore that; reject keys outside the template.
-    if (Object.keys(parsed.data).some((key) => !allowedModelKeys.has(key)))
+    // The batch owns exactly these model fields. An absent value must be an
+    // explicit empty string, and another field may not be written here.
+    const batchKeys = new Set(batch.fields.map((field) => field.key));
+    if (
+      Object.keys(parsed.data).length !== batchKeys.size ||
+      Object.keys(parsed.data).some((key) => !batchKeys.has(key))
+    )
       throw new Error("Invalid structured document field");
     const values: Record<string, string> = {};
     for (const field of batch.fields)
-      values[field.key] = plainText(parsed.data[field.key] ?? "");
+      values[field.key] = plainText(parsed.data[field.key] as string);
     Object.assign(written, values);
     usage = addUsage(usage, execution.usage);
     hooks.onBatch?.({ id: batch.id, title: batch.title, values });

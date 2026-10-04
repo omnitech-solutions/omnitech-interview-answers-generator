@@ -16,6 +16,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
   documentExports,
+  documentGenerationRequests,
   documentRevisions,
   documents,
   documentTemplateRevisions,
@@ -52,6 +53,18 @@ export class DocumentSaveCancelled extends Error {
     super("Document save cancelled");
   }
 }
+
+export class DocumentRetryConflict extends Error {
+  constructor() {
+    super("Document retry key conflicts with another request");
+  }
+}
+
+export type DocumentRequestIdentity = {
+  key: string;
+  bindingHash: string;
+  sourceDigest: string;
+};
 
 function isSelectionConflict(error: unknown): boolean {
   const cause =
@@ -114,6 +127,7 @@ export type RevisionContent = {
   values: Record<string, string>;
   provenance: Record<string, unknown>;
   aiUsage?: unknown;
+  requestIdentity?: DocumentRequestIdentity;
 };
 
 export type CreateDocumentInput = RevisionContent & {
@@ -188,6 +202,92 @@ export class InterviewDocumentRepository {
     return withTenant({ ...scope, productId: INTERVIEW_PRODUCT_ID }, work, {
       database: this.database,
     });
+  }
+
+  async getGenerationRequest(
+    scope: DocumentScope,
+    key: string,
+    bindingHash: string,
+  ): Promise<{ documentId: string; revision: number } | null | undefined> {
+    return this.inScope(scope, async (db) => {
+      const [row] = await db
+        .select()
+        .from(documentGenerationRequests)
+        .where(
+          and(
+            eq(documentGenerationRequests.tenantId, scope.tenantId),
+            eq(documentGenerationRequests.ownerUserId, scope.actorId),
+            eq(documentGenerationRequests.retryKey, key),
+          ),
+        )
+        .limit(1);
+      if (!row) return undefined;
+      if (row.bindingHash !== bindingHash) throw new DocumentRetryConflict();
+      return row.documentId && row.revision
+        ? { documentId: row.documentId, revision: row.revision }
+        : null;
+    });
+  }
+
+  async reserveGeneration(
+    scope: DocumentScope,
+    identity: DocumentRequestIdentity,
+  ): Promise<void> {
+    await this.inScope(scope, async (db) => {
+      await db
+        .insert(documentGenerationRequests)
+        .values({
+          tenantId: scope.tenantId,
+          ownerUserId: scope.actorId,
+          retryKey: identity.key,
+          bindingHash: identity.bindingHash,
+          sourceDigest: identity.sourceDigest,
+        })
+        .onConflictDoNothing();
+      const [row] = await db
+        .select()
+        .from(documentGenerationRequests)
+        .where(
+          and(
+            eq(documentGenerationRequests.tenantId, scope.tenantId),
+            eq(documentGenerationRequests.ownerUserId, scope.actorId),
+            eq(documentGenerationRequests.retryKey, identity.key),
+          ),
+        )
+        .limit(1);
+      if (
+        !row ||
+        row.bindingHash !== identity.bindingHash ||
+        row.sourceDigest !== identity.sourceDigest ||
+        row.documentId
+      )
+        throw new DocumentRetryConflict();
+    });
+  }
+
+  private async commitGenerationRequest(
+    db: TenantDatabase,
+    scope: DocumentScope,
+    identity: DocumentRequestIdentity | undefined,
+    documentId: string,
+    revision: number,
+  ): Promise<void> {
+    if (!identity) return;
+    const [committed] = await db
+      .update(documentGenerationRequests)
+      .set({ documentId, revision })
+      .where(
+        and(
+          eq(documentGenerationRequests.tenantId, scope.tenantId),
+          eq(documentGenerationRequests.ownerUserId, scope.actorId),
+          eq(documentGenerationRequests.retryKey, identity.key),
+          eq(documentGenerationRequests.bindingHash, identity.bindingHash),
+          eq(documentGenerationRequests.sourceDigest, identity.sourceDigest),
+          isNull(documentGenerationRequests.documentId),
+        ),
+      )
+      .returning({ key: documentGenerationRequests.retryKey });
+    if (!committed) throw new DocumentRetryConflict();
   }
 
   async listTemplates(scope: DocumentScope): Promise<
@@ -736,6 +836,13 @@ export class InterviewDocumentRepository {
           .returning();
         if (!revision)
           throw new Error("Document revision insert did not return a row");
+        await this.commitGenerationRequest(
+          db,
+          scope,
+          input.requestIdentity,
+          documentId,
+          1,
+        );
         ensureActive();
         return { document, revision };
       });
@@ -796,6 +903,13 @@ export class InterviewDocumentRepository {
       .returning();
     if (!revision)
       throw new Error("Document revision insert did not return a row");
+    await this.commitGenerationRequest(
+      db,
+      scope,
+      input.requestIdentity,
+      input.documentId,
+      input.baseRevision + 1,
+    );
     return revision;
   }
 
@@ -833,6 +947,7 @@ export class InterviewDocumentRepository {
         provenance: {
           ...(source.provenance as Record<string, unknown>),
           restoredFromRevision: input.sourceRevision,
+          claimState: "unverified",
         },
         aiUsage: null,
       });

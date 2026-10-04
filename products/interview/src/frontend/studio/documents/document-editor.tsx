@@ -47,7 +47,15 @@ const payloadOf = (value: PreviewPayload): PreviewPayload =>
     : { kind: "html", html: value.html };
 
 type Menu = "revs" | "regen" | "export" | null;
-type Working = "save" | "all" | "fix" | "field" | "export" | null;
+type Working =
+  | "save"
+  | "all"
+  | "fix"
+  | "field"
+  | "export"
+  | "confirm"
+  | "refresh"
+  | null;
 type Filter = "all" | "attention";
 type RevisionEntry = { note: string; createdAt: string };
 
@@ -101,6 +109,10 @@ export function DocumentEditor({
     !older &&
     JSON.stringify(values) !== JSON.stringify(detail.revision.values);
   const validation = draftValidation ?? detail?.revision.validation ?? [];
+  const claimState =
+    detail?.revision.provenance.claimState === "confirmed"
+      ? "confirmed"
+      : "unverified";
 
   useEffect(() => {
     onDirtyChange(dirty);
@@ -357,12 +369,13 @@ export function DocumentEditor({
   const attention = detail.fields.filter((field) =>
     issueFor(validation, field.key),
   );
-  const fixable = attention.filter(
-    (field) => field.source === "candidate-profile",
+  const modelOwnedKeys = new Set(
+    detail.revision.provenance.modelOwnedKeys ?? [],
   );
+  const fixable = attention.filter((field) => modelOwnedKeys.has(field.key));
   const generating = working === "all" || working === "fix";
   const busy = working !== null;
-  const canRegenerate = !older && !!targetId;
+  const canRegenerate = !older && !!targetId && modelOwnedKeys.size > 0;
   const exportFormats: Array<{
     format: DocumentFormat;
     label: string;
@@ -435,6 +448,45 @@ export function DocumentEditor({
           <Icon name={saveState.icon} size={16} />
           {saveState.text}
         </span>
+        <span className="dx-save" aria-label="Candidate review status">
+          {claimState === "confirmed" && !dirty
+            ? "Candidate confirmed"
+            : "Draft — review model prose"}
+        </span>
+        {!older && !dirty && claimState !== "confirmed" && (
+          <button
+            type="button"
+            className="dx-button"
+            disabled={busy}
+            onClick={() =>
+              void mutate(
+                "confirm",
+                `${base}/confirm`,
+                { baseRevision: current },
+                `Confirmed as rev ${current + 1}`,
+              )
+            }
+          >
+            Confirm reviewed
+          </button>
+        )}
+        {!older && !dirty && (
+          <button
+            type="button"
+            className="dx-button"
+            disabled={busy}
+            onClick={() =>
+              void mutate(
+                "refresh",
+                `${base}/refresh-sources`,
+                { baseRevision: current },
+                `Refreshed source facts as rev ${current + 1}`,
+              )
+            }
+          >
+            Refresh source facts
+          </button>
+        )}
         <button
           type="button"
           className="dx-button"
@@ -596,6 +648,12 @@ export function DocumentEditor({
 
         {menu === "export" && (
           <div className="dx-menu dx-menu-export" role="menu">
+            {(claimState !== "confirmed" || validation.length > 0) && (
+              <div className="dx-warn">
+                <Icon name="warning" size={16} />
+                <span>This export will carry a visible DRAFT label.</span>
+              </div>
+            )}
             {validation.length > 0 && (
               <div className="dx-warn">
                 <Icon name="warning" size={16} />
@@ -880,7 +938,7 @@ export function DocumentEditor({
                                   <Spinner />
                                 ) : (
                                   !locked &&
-                                  field.source === "candidate-profile" &&
+                                  modelOwnedKeys.has(field.key) &&
                                   canRegenerate && (
                                     <IconButton
                                       icon="auto_awesome"

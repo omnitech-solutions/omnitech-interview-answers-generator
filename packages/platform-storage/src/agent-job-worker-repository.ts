@@ -47,10 +47,12 @@ export class PostgresAgentJobWorkerRepository
                next_event_sequence = next_event_sequence + 1
            WHERE status = 'cancelling'
              AND (claimed_by IS NULL OR lease_expires_at < now())
-           RETURNING id, tenant_id, next_event_sequence - 1 AS sequence
+           RETURNING id, tenant_id, execution_id, claimed_by,
+             next_event_sequence - 1 AS sequence
          )
-         INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event)
-         SELECT tenant_id, id, sequence,
+         INSERT INTO ai.agent_job_events
+           (tenant_id, job_id, sequence, execution_id, attempt_id, event)
+         SELECT tenant_id, id, sequence, execution_id, claimed_by,
            jsonb_build_object('type', 'failed', 'error',
              jsonb_build_object('code', 'cancelled',
                'message', 'Agent job cancelled.', 'retryable', false))
@@ -91,6 +93,7 @@ export class PostgresAgentJobWorkerRepository
         `UPDATE ai.agent_jobs
          SET lease_expires_at = now() + ($3 * interval '1 millisecond')
          WHERE id = $1 AND claimed_by = $2
+           AND lease_expires_at > now()
            AND status IN ('claimed', 'starting', 'running', 'cancelling')`,
         [jobId, workerId, leaseMs],
       ),
@@ -122,7 +125,7 @@ export class PostgresAgentJobWorkerRepository
       client.query(
         `UPDATE ai.agent_jobs SET status = $3, updated_at = now()
          WHERE id = $1 AND status = ANY($2::text[])
-           AND ($4::text IS NULL OR claimed_by = $4)`,
+           AND ($4::text IS NULL OR (claimed_by = $4 AND lease_expires_at > now()))`,
         [jobId, expected, next, claimant ?? null],
       ),
     );
@@ -138,7 +141,7 @@ export class PostgresAgentJobWorkerRepository
       client.query(
         `UPDATE ai.agent_jobs
          SET result_reference = $2, updated_at = now()
-         WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)`,
+         WHERE id = $1 AND ($3::text IS NULL OR (claimed_by = $3 AND lease_expires_at > now() AND status IN ('claimed', 'starting', 'running')))`,
         [jobId, reference, claimant ?? null],
       ),
     );
@@ -153,7 +156,7 @@ export class PostgresAgentJobWorkerRepository
       client.query(
         `UPDATE ai.agent_jobs
          SET session_id = $2, updated_at = now()
-         WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)`,
+         WHERE id = $1 AND ($3::text IS NULL OR (claimed_by = $3 AND lease_expires_at > now() AND status IN ('claimed', 'starting', 'running')))`,
         [jobId, sessionId, claimant ?? null],
       ),
     );
@@ -170,20 +173,24 @@ export class PostgresAgentJobWorkerRepository
       const inserted = await client.query<{
         sequence: number;
         created_at: Date;
+        execution_id: string;
+        claimed_by: string | null;
       }>(
         `WITH job AS (
            UPDATE ai.agent_jobs SET
              next_event_sequence = next_event_sequence + 1,
              updated_at = now()
-           WHERE id = $1 AND ($3::text IS NULL OR claimed_by = $3)
-           RETURNING tenant_id, next_event_sequence - 1 AS sequence
+           WHERE id = $1 AND ($3::text IS NULL OR (claimed_by = $3 AND lease_expires_at > now() AND status IN ('claimed', 'starting', 'running')))
+           RETURNING tenant_id, execution_id, claimed_by,
+             next_event_sequence - 1 AS sequence
          ), appended AS (
-           INSERT INTO ai.agent_job_events (tenant_id, job_id, sequence, event)
-           SELECT tenant_id, $1, sequence, $2 FROM job
+           INSERT INTO ai.agent_job_events
+             (tenant_id, job_id, sequence, execution_id, attempt_id, event)
+           SELECT tenant_id, $1, sequence, execution_id, claimed_by, $2 FROM job
          )
          -- The worker may append events but never read them back, so the
          -- result comes from the job row; created_at defaults to now().
-         SELECT sequence, now() AS created_at FROM job`,
+         SELECT sequence, execution_id, claimed_by, now() AS created_at FROM job`,
         [jobId, event, claimant ?? null],
       );
       const row = inserted.rows[0];
@@ -191,9 +198,59 @@ export class PostgresAgentJobWorkerRepository
       return {
         jobId,
         sequence: row.sequence,
+        executionId: row.execution_id,
+        attemptId: row.claimed_by,
         event,
         createdAt: row.created_at,
       };
+    });
+  }
+
+  async finalize(
+    jobId: string,
+    expected: readonly AgentJobStatus[],
+    next: AgentJobStatus,
+    event: Extract<
+      AgentEvent,
+      { type: "completed" | "failed" | "awaiting-input" }
+    >,
+    claimant: string,
+    resultReference?: string,
+  ): Promise<boolean> {
+    return this.asWorker(async (client) => {
+      const updated = await client.query<{
+        tenant_id: string;
+        sequence: number;
+        execution_id: string;
+        claimed_by: string;
+      }>(
+        `UPDATE ai.agent_jobs SET
+           status = $3,
+           result_reference = COALESCE($5, result_reference),
+           next_event_sequence = next_event_sequence + 1,
+           updated_at = now()
+         WHERE id = $1 AND status = ANY($2::text[])
+           AND claimed_by = $4 AND lease_expires_at > now()
+         RETURNING tenant_id, execution_id, claimed_by,
+           next_event_sequence - 1 AS sequence`,
+        [jobId, expected, next, claimant, resultReference ?? null],
+      );
+      const row = updated.rows[0];
+      if (!row) return false;
+      await client.query(
+        `INSERT INTO ai.agent_job_events
+           (tenant_id, job_id, sequence, execution_id, attempt_id, event)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          row.tenant_id,
+          jobId,
+          row.sequence,
+          row.execution_id,
+          row.claimed_by,
+          event,
+        ],
+      );
+      return true;
     });
   }
 }

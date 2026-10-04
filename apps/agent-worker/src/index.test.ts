@@ -85,6 +85,11 @@ function repositoryFor(
         createdAt: new Date(),
       };
     },
+    async finalize(_id, _expected, next, event) {
+      transitions.push(next);
+      events.push(event);
+      return true;
+    },
   };
 }
 
@@ -476,6 +481,9 @@ describe("agent worker concurrency", () => {
       async appendEvent(_id, event) {
         return { jobId: _id, sequence: 1, event, createdAt: new Date() };
       },
+      async finalize() {
+        return true;
+      },
     };
     const runtime = {
       runtime: "claude-code" as const,
@@ -526,7 +534,11 @@ describe("agent worker concurrency", () => {
       run.controller.signal,
     );
     expect(run.peak()).toBe(1);
-    expect(run.claimedBy).toEqual(["worker", "worker", "worker"]);
+    expect(run.claimedBy).toHaveLength(3);
+    expect(run.claimedBy.every((value) => value.startsWith("worker:"))).toBe(
+      true,
+    );
+    expect(new Set(run.claimedBy).size).toBe(3);
   });
 
   it("runs several jobs side by side, each loop under its own worker id", async () => {
@@ -543,9 +555,11 @@ describe("agent worker concurrency", () => {
       run.controller.signal,
     );
     expect(run.peak()).toBe(3);
-    expect(new Set(run.claimedBy)).toEqual(
-      new Set(["worker:1", "worker:2", "worker:3"]),
+    expect(run.claimedBy).toHaveLength(6);
+    expect(run.claimedBy.every((value) => /^worker:[123]:/.test(value))).toBe(
+      true,
     );
+    expect(new Set(run.claimedBy).size).toBe(6);
   });
 
   it("keeps the lease of a job that outlasts it, so no other loop takes it over", async () => {
@@ -695,9 +709,9 @@ describe("agent worker lease and cancellation", () => {
       quietRuntime(cancelled),
     );
     await done;
-    expect(transitions.every(([, claimant]) => claimant === "worker")).toBe(
-      true,
-    );
+    expect(
+      transitions.every(([, claimant]) => claimant?.startsWith("worker:")),
+    ).toBe(true);
   });
 
   it("ends a job whose completion raced a cancel as cancelled", async () => {
@@ -705,13 +719,16 @@ describe("agent worker lease and cancellation", () => {
     const transitions: string[] = [];
     const repository = {
       ...repositoryFor(job(), () => controller.abort()),
-      async transition(
+      async finalize(
         _id: string,
         _expected: readonly string[],
         next: string,
+        event: AgentEvent,
       ) {
         transitions.push(next);
-        return next !== "succeeded";
+        if (next === "succeeded") return false;
+        this.events.push(event);
+        return true;
       },
     } as AgentJobWorkerRepository & { events: AgentEvent[] };
     await runAgentWorker(
@@ -739,7 +756,12 @@ describe("agent worker lease and cancellation", () => {
       },
       controller.signal,
     );
-    expect(transitions.slice(-2)).toEqual(["succeeded", "cancelled"]);
+    expect(transitions).toEqual(["succeeded", "cancelled"]);
+    expect(
+      repository.events.filter(
+        (event) => event.type === "failed" || event.type === "completed",
+      ),
+    ).toHaveLength(1);
     expect(repository.events.at(-1)).toMatchObject({
       type: "failed",
       error: { code: "cancelled" },

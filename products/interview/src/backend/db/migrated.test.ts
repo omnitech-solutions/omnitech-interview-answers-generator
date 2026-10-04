@@ -25,6 +25,6 @@ it("declares Interview Studio's and the domain's tables exactly as the migration
     ...tablesOf(documents),
     ...tablesOf(liveSession),
   ];
-  expect(tables).toHaveLength(30);
+  expect(tables).toHaveLength(31);
   expect(await schemaDrift(pg.owner, tables)).toEqual([]);
 });

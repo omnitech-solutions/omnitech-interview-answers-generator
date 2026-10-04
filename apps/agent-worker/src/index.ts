@@ -55,9 +55,12 @@ async function runLoop(
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   const leaseMs = options.leaseMs ?? 30_000;
   while (!signal.aborted) {
+    // A fresh claimant per attempt fences an old stream even if this loop
+    // later reclaims the same job.
+    const me = `${options.workerId}:${crypto.randomUUID()}`;
     let job: Awaited<ReturnType<AgentJobWorkerRepository["claim"]>>;
     try {
-      job = await options.repository.claim(options.workerId, leaseMs);
+      job = await options.repository.claim(me, leaseMs);
     } catch {
       // A transient claim failure belongs to this loop, not its siblings.
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
@@ -72,28 +75,38 @@ async function runLoop(
     try {
       validateAgentProfile(job.profile);
     } catch {
-      await options.repository.appendEvent(job.id, {
-        type: "failed",
-        error: {
-          code: "configuration",
-          message: "The agent profile is outside its allowed bounds.",
-          retryable: false,
+      await options.repository.finalize(
+        job.id,
+        ["claimed"],
+        "failed",
+        {
+          type: "failed",
+          error: {
+            code: "configuration",
+            message: "The agent profile is outside its allowed bounds.",
+            retryable: false,
+          },
         },
-      });
-      await options.repository.transition(job.id, ["claimed"], "failed");
+        me,
+      );
       continue;
     }
     const runtime = options.runtimes[job.profile.runtime];
     if (!runtime) {
-      await options.repository.appendEvent(job.id, {
-        type: "failed",
-        error: {
-          code: "configuration",
-          message: "The agent runtime is not configured.",
-          retryable: false,
+      await options.repository.finalize(
+        job.id,
+        ["claimed"],
+        "failed",
+        {
+          type: "failed",
+          error: {
+            code: "configuration",
+            message: "The agent runtime is not configured.",
+            retryable: false,
+          },
         },
-      });
-      await options.repository.transition(job.id, ["claimed"], "failed");
+        me,
+      );
       continue;
     }
     const workspace = await mkdtemp(join(tmpdir(), "omnitech-agent-"));
@@ -119,7 +132,7 @@ async function runLoop(
           renewing = true;
           try {
             const renewed = await options.repository
-              .renewLease(job.id, options.workerId, leaseMs)
+              .renewLease(job.id, me, leaseMs)
               .catch(() => undefined);
             if (renewed) {
               lastRenewed = Date.now();
@@ -146,7 +159,6 @@ async function runLoop(
         })(),
       Math.max(250, Math.floor(leaseMs / 3)),
     );
-    const me = options.workerId;
     let ended = false;
     try {
       await options.repository.transition(job.id, ["claimed"], "starting", me);
@@ -182,8 +194,10 @@ async function runLoop(
         const current = await options.repository.get(job.tenantId, job.id);
         if (current?.status === "cancelling") {
           await runtime.cancel(job.id);
-          await options.repository.appendEvent(
+          await options.repository.finalize(
             job.id,
+            ["cancelling"],
+            "cancelled",
             {
               type: "failed",
               error: {
@@ -194,49 +208,41 @@ async function runLoop(
             },
             me,
           );
-          await options.repository.transition(
-            job.id,
-            ["cancelling"],
-            "cancelled",
-            me,
-          );
           ended = true;
           break;
         }
-        await options.repository.appendEvent(job.id, event, me);
         if (event.type === "started") {
+          await options.repository.appendEvent(job.id, event, me);
           await options.repository.setSessionId(job.id, event.sessionId, me);
         } else if (event.type === "awaiting-input") {
-          await options.repository.transition(
+          await options.repository.finalize(
             job.id,
             ["running"],
             "awaiting-input",
+            event,
             me,
           );
           ended = true;
           break;
         } else if (event.type === "completed") {
-          if (options.storeResult) {
-            const resultReference = await options.storeResult(
-              job.tenantId,
-              event.result,
-            );
-            await options.repository.setResultReference(
-              job.id,
-              resultReference,
-              me,
-            );
-          }
-          // A cancel that raced the completion still ends terminal.
-          const finished = await options.repository.transition(
+          const resultReference = options.storeResult
+            ? await options.storeResult(job.tenantId, event.result)
+            : undefined;
+          // The event, status and result pointer commit together. A cancel
+          // winning the row lock cannot leave a completed event behind.
+          const finished = await options.repository.finalize(
             job.id,
             ["running"],
             "succeeded",
+            event,
             me,
+            resultReference,
           );
           if (!finished && !leaseLost) {
-            await options.repository.appendEvent(
+            await options.repository.finalize(
               job.id,
+              ["cancelling"],
+              "cancelled",
               {
                 type: "failed",
                 error: {
@@ -247,30 +253,44 @@ async function runLoop(
               },
               me,
             );
-            await options.repository.transition(
-              job.id,
-              ["cancelling"],
-              "cancelled",
-              me,
-            );
           }
           ended = true;
           break;
         } else if (event.type === "failed") {
-          await options.repository.transition(
+          const finished = await options.repository.finalize(
             job.id,
-            ["running", "cancelling"],
+            ["running"],
             event.error.code === "cancelled" ? "cancelled" : "failed",
+            event,
             me,
           );
+          if (!finished)
+            await options.repository.finalize(
+              job.id,
+              ["cancelling"],
+              "cancelled",
+              {
+                type: "failed",
+                error: {
+                  code: "cancelled",
+                  message: "Agent job cancelled.",
+                  retryable: false,
+                },
+              },
+              me,
+            );
           ended = true;
           break;
+        } else {
+          await options.repository.appendEvent(job.id, event, me);
         }
       }
       // A cancel noticed by the heartbeat ends here, under this worker's lease.
       if (stopping && !leaseLost && !ended) {
-        await options.repository.appendEvent(
+        await options.repository.finalize(
           job.id,
+          ["cancelling"],
+          "cancelled",
           {
             type: "failed",
             error: {
@@ -281,17 +301,13 @@ async function runLoop(
           },
           me,
         );
-        await options.repository.transition(
-          job.id,
-          ["cancelling"],
-          "cancelled",
-          me,
-        );
         ended = true;
       }
       if (!ended && !leaseLost) {
-        await options.repository.appendEvent(
+        const failed = await options.repository.finalize(
           job.id,
+          ["running"],
+          "failed",
           {
             type: "failed",
             error: {
@@ -302,15 +318,31 @@ async function runLoop(
           },
           me,
         );
-        await options.repository.transition(job.id, ["running"], "failed", me);
+        if (!failed)
+          await options.repository.finalize(
+            job.id,
+            ["cancelling"],
+            "cancelled",
+            {
+              type: "failed",
+              error: {
+                code: "cancelled",
+                message: "Agent job cancelled.",
+                retryable: false,
+              },
+            },
+            me,
+          );
       }
     } catch {
       if (leaseLost) continue;
       // A fenced write that throws means the job is no longer this worker's;
       // recording the failure must never reject the loop.
       try {
-        await options.repository.appendEvent(
+        await options.repository.finalize(
           job.id,
+          ["claimed", "starting", "running"],
+          "failed",
           {
             type: "failed",
             error: {
@@ -320,12 +352,6 @@ async function runLoop(
               retryable: false,
             },
           },
-          me,
-        );
-        await options.repository.transition(
-          job.id,
-          ["claimed", "starting", "running", "cancelling"],
-          "failed",
           me,
         );
       } catch {

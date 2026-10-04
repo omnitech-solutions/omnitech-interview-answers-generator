@@ -150,6 +150,9 @@ export type Provenance = {
   kind?: string;
   fieldKeys?: string[];
   restoredFromRevision?: number;
+  sourceDigest?: string | null;
+  modelOwnedKeys?: string[];
+  claimState?: "unverified" | "confirmed";
 };
 
 // A revision's one-line story, for the revisions menu.
@@ -160,6 +163,8 @@ export function revisionNote(
   if (provenance.restoredFromRevision)
     return `Restored rev ${provenance.restoredFromRevision}`;
   if (provenance.kind === "edited") return "Edited";
+  if (provenance.kind === "candidate-confirmed") return "Candidate confirmed";
+  if (provenance.kind === "source-refreshed") return "Source facts refreshed";
   if (provenance.kind === "regenerated") {
     const keys = provenance.fieldKeys ?? [];
     const only = keys.length === 1 ? keys[0] : undefined;

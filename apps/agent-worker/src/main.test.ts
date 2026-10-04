@@ -182,7 +182,9 @@ describe("configured agent worker", () => {
       status: "succeeded",
       sessionId: "thread-1",
       // One of the worker's loops, each under its own id.
-      claimedBy: expect.stringMatching(/^worker-codex:[0-9a-f-]{36}:\d+$/),
+      claimedBy: expect.stringMatching(
+        /^worker-codex:[0-9a-f-]{36}:\d+:[0-9a-f-]{36}$/,
+      ),
     });
     expect(await eventTypes(job.id)).toEqual([
       "started",

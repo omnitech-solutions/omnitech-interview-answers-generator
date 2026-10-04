@@ -271,3 +271,40 @@ export const documentExports = interview.table.withRLS(
     privatePolicy("document_exports_private_scope"),
   ],
 );
+
+// A client retry key binds one explicit request to one captured source
+// snapshot. Only the final document reference is added after publication.
+export const documentGenerationRequests = interview.table.withRLS(
+  "document_generation_requests",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    ownerUserId: uuid("owner_user_id").notNull(),
+    retryKey: text("retry_key").notNull(),
+    bindingHash: text("binding_hash").notNull(),
+    sourceDigest: text("source_digest").notNull(),
+    documentId: uuid("document_id"),
+    revision: integer("revision"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({
+      name: "document_generation_requests_pkey",
+      columns: [t.tenantId, t.ownerUserId, t.retryKey],
+    }),
+    foreignKey({
+      name: "document_generation_requests_revision_fkey",
+      columns: [t.tenantId, t.ownerUserId, t.documentId, t.revision],
+      foreignColumns: [
+        documentRevisions.tenantId,
+        documentRevisions.ownerUserId,
+        documentRevisions.documentId,
+        documentRevisions.revision,
+      ],
+    }),
+    check(
+      "document_generation_requests_result_pair",
+      sql`(${t.documentId} IS NULL) = (${t.revision} IS NULL)`,
+    ),
+    privatePolicy("document_generation_requests_private_scope"),
+  ],
+);

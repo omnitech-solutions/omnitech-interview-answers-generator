@@ -50,7 +50,7 @@ const input = {
 describe("document generation", () => {
   it("makes one gateway call and keeps server-owned and missing profile values authoritative", async () => {
     const execute = vi.fn().mockResolvedValue({
-      result: { phone: "fabricated", summary: "too long to fit" },
+      result: { summary: "too long to fit" },
       usage: { totalTokens: 12 },
     });
     const generated = await generateDocumentValues(
@@ -81,6 +81,19 @@ describe("document generation", () => {
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects an omitted model field or a value for a server-owned field", async () => {
+    for (const result of [{}, { summary: "valid", phone: "fabricated" }]) {
+      const execute = vi.fn().mockResolvedValue({ result });
+      await expect(
+        generateDocumentValues(
+          { execute } as Pick<AiExecutionGateway, "execute">,
+          input,
+        ),
+      ).rejects.toThrow("Invalid structured document field");
+      expect(execute).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("uses matrix facts as written and never accepts contact details the matrix lacks", async () => {
     const profileField = (key: string) => ({
       key,
@@ -91,9 +104,6 @@ describe("document generation", () => {
     });
     const execute = vi.fn().mockResolvedValue({
       result: {
-        full_name: "Mallory",
-        city: "Invented City",
-        portfolio_url: "https://invented.example",
         summary: "Led the ledger migration.",
       },
     });

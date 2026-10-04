@@ -130,7 +130,10 @@ export function createCodexRuntimeAdapter(
           finalText = event.item.text;
         }
         const normalized = toEvent(event);
-        if (normalized) yield normalized;
+        if (normalized) {
+          yield normalized;
+          if (normalized.type === "failed") return;
+        }
       }
       if (!resolvedSessionId) {
         throw new Error("Codex did not return a session identifier.");

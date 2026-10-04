@@ -87,6 +87,8 @@ export const agentJobEvents = ai.table.withRLS(
     tenantId: uuid("tenant_id").notNull(),
     jobId: uuid("job_id").notNull(),
     sequence: integer().notNull(),
+    executionId: uuid("execution_id").notNull(),
+    attemptId: text("attempt_id"),
     event: jsonb().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .default(sql`now()`)
@@ -182,6 +184,7 @@ export const agentJobs = ai.table.withRLS(
       .references(() => users.id, { name: "agent_jobs_user_id_fkey" }),
     productId: text("product_id").notNull(),
     status: text().notNull(),
+    executionId: uuid("execution_id").defaultRandom().notNull(),
     profileSnapshot: jsonb("profile_snapshot").notNull(),
     promptReference: text("prompt_reference").notNull(),
     resultReference: text("result_reference"),

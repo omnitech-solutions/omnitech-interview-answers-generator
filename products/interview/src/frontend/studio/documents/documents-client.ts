@@ -50,6 +50,9 @@ export type DocumentDetail = {
       kind?: string;
       fieldKeys?: string[];
       restoredFromRevision?: number;
+      sourceDigest?: string | null;
+      modelOwnedKeys?: string[];
+      claimState?: "unverified" | "confirmed";
     };
     createdAt: string;
   };

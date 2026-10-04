@@ -14,6 +14,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import {
   documentRevisions,
   documentExports,
+  documentGenerationRequests,
   documents,
   documentTemplateRevisions,
   documentTemplates,
@@ -190,13 +191,14 @@ it("keeps private templates hidden from another member while exposing read-only 
   );
 });
 
-it("forces row security on all five document tables and detects a disabled FORCE flag", async () => {
+it("forces row security on all six document tables and detects a disabled FORCE flag", async () => {
   const names = [
     "document_templates",
     "document_template_revisions",
     "documents",
     "document_revisions",
     "document_exports",
+    "document_generation_requests",
   ];
   const flags = async () =>
     (
@@ -211,23 +213,26 @@ it("forces row security on all five document tables and detects a disabled FORCE
     true,
     true,
     true,
+    true,
   ]);
   await pg.owner.query(
-    "ALTER TABLE interview.document_exports NO FORCE ROW LEVEL SECURITY",
+    "ALTER TABLE interview.document_generation_requests NO FORCE ROW LEVEL SECURITY",
   );
   try {
     expect(
-      (await flags()).find((row) => row.relname === "document_exports")
-        ?.relforcerowsecurity,
+      (await flags()).find(
+        (row) => row.relname === "document_generation_requests",
+      )?.relforcerowsecurity,
     ).toBe(false);
   } finally {
     await pg.owner.query(
-      "ALTER TABLE interview.document_exports FORCE ROW LEVEL SECURITY",
+      "ALTER TABLE interview.document_generation_requests FORCE ROW LEVEL SECURITY",
     );
   }
   expect(
-    (await flags()).find((row) => row.relname === "document_exports")
-      ?.relforcerowsecurity,
+    (await flags()).find(
+      (row) => row.relname === "document_generation_requests",
+    )?.relforcerowsecurity,
   ).toBe(true);
 });
 
@@ -255,6 +260,18 @@ it("binds a document to its actor's candidacy and profile revision", async () =>
   );
   const saved = await insert(ids.aliceCandidacy);
   expect(saved).toHaveLength(1);
+  await as(ids.alice, (db) =>
+    db.insert(documentGenerationRequests).values({
+      tenantId: ids.tenant,
+      ownerUserId: ids.alice,
+      retryKey: "alice-private-request",
+      bindingHash: "a".repeat(64),
+      sourceDigest: "b".repeat(64),
+    }),
+  );
+  expect(
+    await as(ids.carol, (db) => db.select().from(documentGenerationRequests)),
+  ).toEqual([]);
   const hidden = await as(ids.carol, (db) => db.select().from(documents));
   expect(hidden).toEqual([]);
   await as(ids.alice, (db) =>

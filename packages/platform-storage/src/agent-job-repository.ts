@@ -120,10 +120,12 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     const result = await this.run(tenantId, actorId, (client) =>
       client.query<{
         sequence: number;
+        execution_id: string;
+        attempt_id: string | null;
         event: AgentEvent;
         created_at: Date;
       }>(
-        `SELECT sequence, event, created_at
+        `SELECT sequence, execution_id, attempt_id, event, created_at
          FROM ai.agent_job_events
          WHERE tenant_id = $1 AND job_id = $2 AND sequence > $3
          ORDER BY sequence`,
@@ -133,6 +135,8 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
     return result.rows.map((row) => ({
       jobId,
       sequence: row.sequence,
+      executionId: row.execution_id,
+      attemptId: row.attempt_id,
       event: row.event,
       createdAt: row.created_at,
     }));
@@ -183,7 +187,12 @@ export class PostgresAgentJobRepository implements AgentJobRepository {
       const result = await client.query(
         `UPDATE ai.agent_jobs SET
            status = 'queued', prompt_reference = $3,
-           result_reference = NULL, updated_at = now()
+           result_reference = NULL,
+           execution_id = CASE WHEN status = 'awaiting-input'
+             THEN execution_id ELSE gen_random_uuid() END,
+           session_id = CASE WHEN status = 'awaiting-input'
+             THEN session_id ELSE NULL END,
+           updated_at = now()
          WHERE tenant_id = $1 AND id = $2
            AND status IN ('awaiting-input', 'failed', 'cancelled')
            AND session_id IS NOT NULL

@@ -116,6 +116,69 @@ it("lets the worker claim and run a tenant's job before it knows the tenant", as
   ).toBeUndefined();
 });
 
+it("commits one closing event with the status and result under the current claim", async () => {
+  const repository = new PostgresAgentJobRepository(member);
+  const worker = new PostgresAgentJobWorkerRepository(member);
+  const created = await repository.create({
+    tenantId,
+    userId,
+    productId: "omnitech.interview",
+    profile,
+    promptReference: "agent-payload:atomic-close",
+  });
+  const claimed = await worker.claim("atomic-claim", 30_000);
+  expect(claimed?.id).toBe(created.id);
+  expect(
+    await worker.transition(created.id, ["claimed"], "running", "atomic-claim"),
+  ).toBe(true);
+  const event = {
+    type: "completed" as const,
+    result: { sessionId: "session-atomic", output: "done" },
+  };
+  expect(
+    await worker.finalize(
+      created.id,
+      ["running"],
+      "succeeded",
+      event,
+      "wrong-claim",
+      "result:atomic",
+    ),
+  ).toBe(false);
+  expect(await repository.eventsAfter(tenantId, userId, created.id, 0)).toEqual(
+    [],
+  );
+  expect(
+    await worker.finalize(
+      created.id,
+      ["running"],
+      "succeeded",
+      event,
+      "atomic-claim",
+      "result:atomic",
+    ),
+  ).toBe(true);
+  expect(
+    await worker.finalize(
+      created.id,
+      ["running"],
+      "succeeded",
+      event,
+      "atomic-claim",
+      "result:again",
+    ),
+  ).toBe(false);
+  expect(await worker.get(tenantId, created.id)).toMatchObject({
+    status: "succeeded",
+    resultReference: "result:atomic",
+  });
+  expect(
+    (await repository.eventsAfter(tenantId, userId, created.id, 0)).map(
+      ({ event: stored }) => stored.type,
+    ),
+  ).toEqual(["completed"]);
+});
+
 it("cancels a job only inside its own tenant", async () => {
   const repository = new PostgresAgentJobRepository(member);
   const created = await repository.create({
@@ -242,6 +305,19 @@ it("lets another worker reclaim a running job whose lease has expired", async ()
     claimedBy: "worker-2",
   });
   expect(reclaimed?.leaseExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+  expect(await worker.renewLease(created.id, "worker-1", 30_000)).toBe(false);
+  expect(
+    await worker.finalize(
+      created.id,
+      ["claimed"],
+      "failed",
+      {
+        type: "failed",
+        error: { code: "provider", message: "stale", retryable: false },
+      },
+      "worker-1",
+    ),
+  ).toBe(false);
   // A live lease is not handed to a third worker.
   expect(await worker.claim("worker-3", 30_000)).toBeUndefined();
 });
@@ -257,7 +333,7 @@ it("keeps a running job away from other workers while its lease is renewed, and 
     profile,
     promptReference: "agent-payload:heartbeat",
   });
-  await worker.claim("worker-1", 1);
+  await worker.claim("worker-1", 30_000);
   await worker.transition(created.id, ["claimed"], "running");
   await new Promise((resolve) => setTimeout(resolve, 20));
   // Another worker cannot extend a lease it does not hold.
@@ -373,8 +449,13 @@ it("cancels and resumes a job only within its tenant and from a resumable state"
   expect(await repository.get(tenantId, userId, created.id)).toMatchObject({
     status: "queued",
     promptReference: "agent-payload:next",
-    sessionId: "session-9",
   });
+  expect(
+    (await repository.get(tenantId, userId, created.id))?.sessionId,
+  ).toBeUndefined();
+  expect(
+    (await repository.get(tenantId, userId, created.id))?.executionId,
+  ).not.toBe(created.executionId);
   // A transition from a state the job is not in changes nothing.
   expect(await worker.transition(created.id, ["running"], "failed")).toBe(
     false,

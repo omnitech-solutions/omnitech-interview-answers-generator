@@ -247,6 +247,16 @@ describe("Codex agent runtime against the Codex CLI protocol", () => {
         retryable: false,
       },
     });
+    expect(
+      turn.filter(
+        (event) => event.type === "failed" || event.type === "completed",
+      ),
+    ).toHaveLength(1);
+    expect(
+      stream.filter(
+        (event) => event.type === "failed" || event.type === "completed",
+      ),
+    ).toHaveLength(1);
   });
 
   it("fails a turn that never names its thread", async () => {

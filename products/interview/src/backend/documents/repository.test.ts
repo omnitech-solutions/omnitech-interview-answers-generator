@@ -340,6 +340,7 @@ it("saves immutable snapshots, rejects stale edits, restores, and records select
   expect(restored.provenance).toEqual({
     full_name: "generated",
     restoredFromRevision: 1,
+    claimState: "unverified",
   });
   const exportedArtifact = await artifacts.create({
     ...scope(),

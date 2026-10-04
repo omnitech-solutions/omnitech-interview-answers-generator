@@ -79,6 +79,7 @@ let templateCatalog: TemplateListItem[];
 let editorFields: typeof fields;
 let documentCandidacyId: string | null;
 let documentInterviewId: string | null;
+let claimState: "unverified" | "confirmed";
 
 function listed(item: Template, latestRevision = 1): TemplateListItem {
   return {
@@ -98,6 +99,7 @@ function mockApi() {
   revisionValues = { 1: { full_name: "Ada", company_name: "Northwind" } };
   exports = [];
   validationIssues = [];
+  claimState = "unverified";
   saveConflict = false;
   templateCatalog = [listed(template)];
   editorFields = fields;
@@ -260,12 +262,32 @@ function mockApi() {
         return Response.json({ revision: currentRevision }, { status: 201 });
       }
       if (path.endsWith(`/${DOCUMENT_ID}/regenerate`) && method === "POST") {
+        claimState = "unverified";
         validationIssues = [];
         currentRevision++;
         revisionValues[currentRevision] = {
           ...revisionValues[currentRevision - 1]!,
           full_name: "Ada Regenerated",
         };
+        return Response.json({ revision: currentRevision }, { status: 201 });
+      }
+      if (path.endsWith(`/${DOCUMENT_ID}/confirm`) && method === "POST") {
+        currentRevision++;
+        revisionValues[currentRevision] = {
+          ...revisionValues[currentRevision - 1]!,
+        };
+        claimState = "confirmed";
+        return Response.json({ revision: currentRevision }, { status: 201 });
+      }
+      if (
+        path.endsWith(`/${DOCUMENT_ID}/refresh-sources`) &&
+        method === "POST"
+      ) {
+        currentRevision++;
+        revisionValues[currentRevision] = {
+          ...revisionValues[currentRevision - 1]!,
+        };
+        claimState = "unverified";
         return Response.json({ revision: currentRevision }, { status: 201 });
       }
       if (path.endsWith(`/${DOCUMENT_ID}/exports`) && method === "POST") {
@@ -304,7 +326,11 @@ function mockApi() {
             revision,
             values: revisionValues[revision],
             validation: validationIssues,
-            provenance: { kind: revision === 1 ? "generated" : "edited" },
+            provenance: {
+              kind: revision === 1 ? "generated" : "edited",
+              modelOwnedKeys: ["full_name"],
+              claimState,
+            },
             createdAt: "2026-10-02",
           },
           template,
@@ -1001,6 +1027,33 @@ describe("Document editor", () => {
     });
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
     expect(await screen.findByText("Exported rev 2 as DOCX")).toBeVisible();
+  });
+
+  it("shows draft review state and confirms only the current saved revision", async () => {
+    renderAt([DOCUMENT_ID]);
+    await screen.findByRole("textbox", { name: "Full name" });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Candidate review status"),
+      ).toHaveTextContent("Draft — review model prose"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm reviewed" }));
+    await waitFor(() => expect(posted(`/${DOCUMENT_ID}/confirm`)).toBeTruthy());
+    expect(posted(`/${DOCUMENT_ID}/confirm`)?.body).toEqual({
+      baseRevision: 1,
+    });
+    expect(await screen.findByText("Candidate confirmed")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Refresh source facts" }),
+    );
+    await waitFor(() =>
+      expect(posted(`/${DOCUMENT_ID}/refresh-sources`)).toBeTruthy(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Candidate review status"),
+      ).toHaveTextContent("Draft — review model prose"),
+    );
   });
 
   it("warns that missing fields export blank and still offers Markdown", async () => {

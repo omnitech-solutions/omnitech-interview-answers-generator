@@ -10,6 +10,7 @@ export interface AgentJob {
   userId: string;
   productId: string;
   status: AgentJobStatus;
+  executionId?: string;
   profile: AgentProfile;
   promptReference: string;
   resultReference?: string;
@@ -26,6 +27,8 @@ export interface AgentJob {
 export interface PersistedAgentEvent {
   jobId: string;
   sequence: number;
+  executionId?: string;
+  attemptId?: string | null;
   event: AgentEvent;
   createdAt: Date;
 }
@@ -139,6 +142,19 @@ export interface AgentJobWorkerRepository {
     event: AgentEvent,
     claimant?: string,
   ): Promise<PersistedAgentEvent>;
+  // The closing event, status and optional result pointer are one fenced
+  // transaction. False means the claim or expected status was lost.
+  finalize(
+    jobId: string,
+    expected: readonly AgentJobStatus[],
+    next: AgentJobStatus,
+    event: Extract<
+      AgentEvent,
+      { type: "completed" | "failed" | "awaiting-input" }
+    >,
+    claimant: string,
+    resultReference?: string,
+  ): Promise<boolean>;
 }
 
 export class AgentJobService {

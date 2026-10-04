@@ -110,19 +110,28 @@ function replacePart(
 export async function renderDocxTemplate(
   source: Buffer,
   values: Record<string, string>,
-  options: { missing?: "marker" | "blank" | "tagged" } = {},
+  options: {
+    missing?: "marker" | "blank" | "tagged";
+    draftLabel?: string;
+  } = {},
 ): Promise<Buffer> {
   const { zip, parts } = await loadDocxTemplate(source);
   collectDocxFields(parts);
   for (const [name, xml] of parts) {
+    const filled = replacePart(
+      xml,
+      values,
+      options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD,
+      options.missing === "tagged",
+    );
     zip.file(
       name,
-      replacePart(
-        xml,
-        values,
-        options.missing === "blank" ? "" : MISSING_DOCUMENT_FIELD,
-        options.missing === "tagged",
-      ),
+      name === "word/document.xml" && options.draftLabel
+        ? filled.replace(
+            /<w:body>/,
+            `<w:body><w:p><w:r><w:t>${escapeXml(options.draftLabel)}</w:t></w:r></w:p>`,
+          )
+        : filled,
     );
   }
   const output = await zip.generateAsync({

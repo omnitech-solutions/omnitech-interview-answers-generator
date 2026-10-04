@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { type PlatformDatabase, withTenant } from "@omnitech/database";
@@ -26,6 +27,12 @@ import { renderDocxTemplate } from "./render-docx.js";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards.js";
 import { renderDocxAsMarkdown } from "./render-docx-markdown.js";
 import {
+  documentSourceDigest,
+  revisionClaimState,
+  revisionModelOwnedKeys,
+  revisionSourceDigest,
+} from "./source-digest.js";
+import {
   renderMarkdownPreview,
   renderMarkdownTemplate,
 } from "./render-markdown.js";
@@ -33,6 +40,7 @@ import {
   DocumentAlreadyExists,
   DocumentNotFound,
   DocumentRevisionConflict,
+  DocumentRetryConflict,
   DocumentSaveCancelled,
   InterviewDocumentRepository,
 } from "./repository.js";
@@ -52,6 +60,13 @@ const uuid = z.uuid();
 const positive = z.coerce.number().int().positive();
 const MAX_JSON = 128 * 1024;
 const MAX_UPLOAD = 5 * 1024 * 1024;
+const retryKeySchema = z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/);
+const retryKeyOf = (request: Request) => {
+  const value = request.headers.get("idempotency-key");
+  return value === null ? null : retryKeySchema.parse(value);
+};
+const bindingHash = (parts: unknown[]) =>
+  createHash("sha256").update(JSON.stringify(parts)).digest("hex");
 const candidacyKeys = new Set([
   "company_name",
   "role_title",
@@ -64,6 +79,7 @@ class InvalidField extends Error {}
 class TargetUnavailable extends Error {}
 class GenerationFailed extends Error {}
 class RequestCancelled extends Error {}
+class DocumentSourceChanged extends Error {}
 
 export function resolveDocumentsScope(
   context: PlatformContext | null,
@@ -354,6 +370,10 @@ export function createDocumentsApi(options: {
       return c.json({ error: { code: "not-found" } }, 404);
     if (error instanceof DocumentRevisionConflict)
       return c.json({ error: { code: "revision-conflict" } }, 409);
+    if (error instanceof DocumentRetryConflict)
+      return c.json({ error: { code: "retry-key-conflict" } }, 409);
+    if (error instanceof DocumentSourceChanged)
+      return c.json({ error: { code: "source-refresh-required" } }, 409);
     if (error instanceof RequestTooLarge)
       return c.json({ error: { code: "body-too-large" } }, 413);
     if (error instanceof TargetUnavailable)
@@ -730,12 +750,43 @@ export function createDocumentsApi(options: {
   app.post(prefix, async (c) => {
     const scope = c.get("documentScope");
     const input = documentCreateSchema.parse(await jsonBody(c.req.raw));
+    const retryKey = retryKeyOf(c.req.raw);
+    const requestBinding = bindingHash([
+      "create",
+      scope.tenantId,
+      scope.actorId,
+      input,
+    ]);
     const template = await repo.getTemplateRevision(
       scopeKey(scope),
       input.templateId,
       input.templateRevision,
     );
     if (!template) throw new DocumentNotFound();
+    await authorizedTarget(scope, input.aiTargetId);
+    if (retryKey) {
+      const prior = await repo.getGenerationRequest(
+        scopeKey(scope),
+        retryKey,
+        requestBinding,
+      );
+      if (prior) {
+        const saved = await repo.getDocument(
+          scopeKey(scope),
+          prior.documentId,
+          prior.revision,
+        );
+        if (!saved) throw new DocumentNotFound();
+        return c.json(
+          {
+            document: saved.document,
+            revision: saved.revision,
+            replayed: true,
+          },
+          200,
+        );
+      }
+    }
     const candidate = await resolveDocumentContext(options.database, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,
@@ -746,10 +797,18 @@ export function createDocumentsApi(options: {
     });
     candidate.candidacyValues["target_role"] =
       candidate.candidacyValues["role_title"] ?? "";
+    const sourceDigest = documentSourceDigest(
+      candidate.candidacyValues,
+      candidate.interviewValues,
+    );
     const existing = await repo.findMatchingDocument(scopeKey(scope), input);
     if (existing)
       return c.json({ existingDocumentId: existing.id, offer: "open-it" }, 409);
-    await authorizedTarget(scope, input.aiTargetId);
+    const requestIdentity = retryKey
+      ? { key: retryKey, bindingHash: requestBinding, sourceDigest }
+      : undefined;
+    if (requestIdentity)
+      await repo.reserveGeneration(scopeKey(scope), requestIdentity);
     const release = writing.claim(
       JSON.stringify([
         scope.tenantId,
@@ -796,8 +855,22 @@ export function createDocumentsApi(options: {
           ...input,
           signal,
           values: generated.values,
-          provenance: { kind: "generated", targetId: input.aiTargetId },
+          provenance: {
+            kind: "generated",
+            targetId: input.aiTargetId,
+            sourceDigest,
+            modelOwnedKeys: template.fields
+              .filter(
+                (field) =>
+                  field.source === "candidate-profile" &&
+                  !Object.hasOwn(candidate.profileValues, field.key) &&
+                  !candidate.missingProfileKeys.includes(field.key),
+              )
+              .map((field) => field.key),
+            claimState: "unverified",
+          },
           aiUsage: generated.usage,
+          ...(requestIdentity ? { requestIdentity } : {}),
         })
         .catch(async (error: unknown) => {
           if (error instanceof DocumentAlreadyExists) {
@@ -900,7 +973,12 @@ export function createDocumentsApi(options: {
         documentId: id,
         baseRevision: input.baseRevision,
         values: input.values,
-        provenance: { kind: "edited" },
+        provenance: {
+          kind: "edited",
+          sourceDigest: revisionSourceDigest(current.revision.provenance),
+          modelOwnedKeys: revisionModelOwnedKeys(current.revision.provenance),
+          claimState: "unverified",
+        },
       }),
       201,
     );
@@ -921,20 +999,55 @@ export function createDocumentsApi(options: {
       ])
       .parse(await jsonBody(c.req.raw));
     const current = await load(scope, id);
+    const retryKey = retryKeyOf(c.req.raw);
+    const requestBinding = bindingHash([
+      "regenerate",
+      scope.tenantId,
+      scope.actorId,
+      id,
+      input,
+    ]);
+    if (retryKey) {
+      const prior = await repo.getGenerationRequest(
+        scopeKey(scope),
+        retryKey,
+        requestBinding,
+      );
+      if (prior) {
+        const saved = await repo.getDocument(
+          scopeKey(scope),
+          prior.documentId,
+          prior.revision,
+        );
+        if (!saved || saved.document.id !== id) throw new DocumentNotFound();
+        return c.json({ ...saved.revision, replayed: true }, 200);
+      }
+    }
     if (input.baseRevision !== current.document.currentRevision)
       throw new DocumentRevisionConflict();
+    await authorizedTarget(scope, input.aiTargetId);
+    const candidate = await resolveDocumentContext(options.database, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      profileId: current.document.profileId,
+      profileRevision: current.document.profileRevision,
+      candidacyId: current.document.candidacyId,
+      interviewId: current.document.interviewId,
+    });
+    const modelOwned = (item: DocumentField) =>
+      item.source === "candidate-profile" &&
+      !Object.hasOwn(candidate.profileValues, item.key) &&
+      !candidate.missingProfileKeys.includes(item.key);
     const fields =
       "fieldKey" in input
         ? current.fields.filter(
-            (item) =>
-              item.key === input.fieldKey &&
-              item.source === "candidate-profile",
+            (item) => item.key === input.fieldKey && modelOwned(item),
           )
         : input.mode === "all"
-          ? current.fields.filter((item) => item.source === "candidate-profile")
+          ? current.fields.filter(modelOwned)
           : current.fields.filter(
               (item) =>
-                item.source === "candidate-profile" &&
+                modelOwned(item) &&
                 Array.isArray(current.revision.validation) &&
                 current.revision.validation.some(
                   (issue) =>
@@ -945,15 +1058,19 @@ export function createDocumentsApi(options: {
                 ),
             );
     if (!fields.length) throw new InvalidField();
-    await authorizedTarget(scope, input.aiTargetId);
-    const candidate = await resolveDocumentContext(options.database, {
-      tenantId: scope.tenantId,
-      actorId: scope.actorId,
-      profileId: current.document.profileId,
-      profileRevision: current.document.profileRevision,
-      candidacyId: current.document.candidacyId,
-      interviewId: current.document.interviewId,
-    });
+    candidate.candidacyValues["target_role"] =
+      candidate.candidacyValues["role_title"] ?? "";
+    const sourceDigest = documentSourceDigest(
+      candidate.candidacyValues,
+      candidate.interviewValues,
+    );
+    if (sourceDigest !== revisionSourceDigest(current.revision.provenance))
+      throw new DocumentSourceChanged();
+    const requestIdentity = retryKey
+      ? { key: retryKey, bindingHash: requestBinding, sourceDigest }
+      : undefined;
+    if (requestIdentity)
+      await repo.reserveGeneration(scopeKey(scope), requestIdentity);
     // A second window regenerating the same revision is told, not charged.
     const release = writing.claim(
       JSON.stringify(["regenerate", scope.tenantId, id, input.baseRevision]),
@@ -995,8 +1112,91 @@ export function createDocumentsApi(options: {
           kind: "regenerated",
           fieldKeys: fields.map((field) => field.key),
           targetId: input.aiTargetId,
+          sourceDigest,
+          modelOwnedKeys: current.fields
+            .filter(modelOwned)
+            .map((field) => field.key),
+          claimState: "unverified",
         },
         aiUsage: generated.usage,
+        ...(requestIdentity ? { requestIdentity } : {}),
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/:id/refresh-sources`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = z
+      .strictObject({ baseRevision: z.number().int().positive() })
+      .parse(await jsonBody(c.req.raw));
+    const current = await load(scope, id);
+    if (input.baseRevision !== current.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    const candidate = await resolveDocumentContext(options.database, {
+      tenantId: scope.tenantId,
+      actorId: scope.actorId,
+      profileId: current.document.profileId,
+      profileRevision: current.document.profileRevision,
+      candidacyId: current.document.candidacyId,
+      interviewId: current.document.interviewId,
+    });
+    candidate.candidacyValues["target_role"] =
+      candidate.candidacyValues["role_title"] ?? "";
+    const values = {
+      ...(current.revision.values as Record<string, string>),
+    };
+    for (const field of current.fields) {
+      if (field.source === "candidacy")
+        values[field.key] = candidate.candidacyValues[field.key] ?? "";
+      if (field.source === "interview")
+        values[field.key] = candidate.interviewValues[field.key] ?? "";
+    }
+    return c.json(
+      await repo.appendRevision(scopeKey(scope), {
+        documentId: id,
+        baseRevision: input.baseRevision,
+        values,
+        provenance: {
+          kind: "source-refreshed",
+          sourceDigest: documentSourceDigest(
+            candidate.candidacyValues,
+            candidate.interviewValues,
+          ),
+          modelOwnedKeys: current.fields
+            .filter(
+              (field) =>
+                field.source === "candidate-profile" &&
+                !Object.hasOwn(candidate.profileValues, field.key) &&
+                !candidate.missingProfileKeys.includes(field.key),
+            )
+            .map((field) => field.key),
+          claimState: "unverified",
+        },
+      }),
+      201,
+    );
+  });
+  app.post(`${prefix}/:id/confirm`, async (c) => {
+    const scope = c.get("documentScope");
+    const id = uuid.parse(c.req.param("id"));
+    const input = z
+      .strictObject({ baseRevision: z.number().int().positive() })
+      .parse(await jsonBody(c.req.raw));
+    const current = await load(scope, id);
+    if (input.baseRevision !== current.document.currentRevision)
+      throw new DocumentRevisionConflict();
+    return c.json(
+      await repo.appendRevision(scopeKey(scope), {
+        documentId: id,
+        baseRevision: input.baseRevision,
+        values: current.revision.values as Record<string, string>,
+        provenance: {
+          kind: "candidate-confirmed",
+          sourceDigest: revisionSourceDigest(current.revision.provenance),
+          modelOwnedKeys: revisionModelOwnedKeys(current.revision.provenance),
+          claimState: "confirmed",
+        },
       }),
       201,
     );
@@ -1036,6 +1236,7 @@ export function createDocumentsApi(options: {
       ...(await previewOf(item.template.format, bytes, values)),
       revision: item.revision.revision,
       validation: item.revision.validation,
+      claimState: revisionClaimState(item.revision.provenance),
     });
   });
   app.post(`${prefix}/:id/preview`, async (c) => {
@@ -1079,15 +1280,24 @@ export function createDocumentsApi(options: {
     if (!template) throw new DocumentNotFound();
     const bytes = await source(scope, template);
     const values = item.revision.values as Record<string, string>;
+    const draft =
+      revisionClaimState(item.revision.provenance) !== "confirmed" ||
+      (Array.isArray(item.revision.validation) &&
+        item.revision.validation.length > 0);
+    const draftLabel = "DRAFT — Unverified candidate content";
     const rendered =
       input.format === "docx"
-        ? await renderDocxTemplate(bytes, values, { missing: "blank" })
+        ? await renderDocxTemplate(bytes, values, {
+            missing: "blank",
+            ...(draft ? { draftLabel } : {}),
+          })
         : Buffer.from(
-            item.template.format === "docx"
-              ? await renderDocxAsMarkdown(bytes, values)
-              : renderMarkdownTemplate(bytes.toString("utf8"), values, {
-                  missing: "blank",
-                }),
+            (draft ? `# ${draftLabel}\n\n` : "") +
+              (item.template.format === "docx"
+                ? await renderDocxAsMarkdown(bytes, values)
+                : renderMarkdownTemplate(bytes.toString("utf8"), values, {
+                    missing: "blank",
+                  })),
             "utf8",
           );
     const exported = await repo.recordExport(scopeKey(scope), {
@@ -1096,9 +1306,12 @@ export function createDocumentsApi(options: {
       format: input.format,
       bytes: rendered,
       title: item.document.title,
-      metadata: { revision: input.revision, format: input.format },
+      metadata: { revision: input.revision, format: input.format, draft },
     });
-    return c.json({ ...exported, warnings: item.revision.validation }, 201);
+    return c.json(
+      { ...exported, draft, warnings: item.revision.validation },
+      201,
+    );
   });
   app.get(`${prefix}/:id/exports`, async (c) => {
     const scope = c.get("documentScope");

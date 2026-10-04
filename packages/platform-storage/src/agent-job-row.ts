@@ -11,6 +11,7 @@ export type JobRow = {
   user_id: string;
   product_id: string;
   status: AgentJobStatus;
+  execution_id: string;
   profile_snapshot: AgentProfile;
   prompt_reference: string;
   result_reference: string | null;
@@ -29,6 +30,7 @@ export function mapJob(row: JobRow): AgentJob {
     userId: row.user_id,
     productId: row.product_id,
     status: row.status,
+    executionId: row.execution_id,
     profile: row.profile_snapshot,
     promptReference: row.prompt_reference,
     private: row.private,

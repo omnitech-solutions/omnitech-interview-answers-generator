@@ -118,10 +118,19 @@ export function createClaudeRuntimeAdapter(
               },
             };
           }
+          return;
         } else if (sessionId && message.type === "system") {
           yield { type: "started", sessionId };
         }
       }
+      yield {
+        type: "failed",
+        error: {
+          code: controller.signal.aborted ? "cancelled" : "provider",
+          message: "Claude ended without a result.",
+          retryable: false,
+        },
+      };
     } catch (error) {
       yield {
         type: "failed",

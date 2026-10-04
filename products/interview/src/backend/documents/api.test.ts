@@ -495,6 +495,7 @@ describe("Documents private API", () => {
     );
     expect(incompleteDownload.status).toBe(200);
     const incompleteText = await incompleteDownload.text();
+    expect(incompleteText).toContain("DRAFT — Unverified candidate content");
     expect(incompleteText).not.toContain("[[MISSING_DATA]]");
     expect(incompleteText).not.toContain("{emailAddress}");
     const incompleteDocx = await mine.request(
@@ -514,6 +515,9 @@ describe("Documents private API", () => {
     expect(
       await incompleteZip.file("word/document.xml")?.async("string"),
     ).not.toContain("[[MISSING_DATA]]");
+    expect(
+      await incompleteZip.file("word/document.xml")?.async("string"),
+    ).toContain("DRAFT — Unverified candidate content");
     const callsBeforeRegeneration = output.length;
     const regenerated = await mine.request(
       `${url}/${item.document.id}/regenerate`,
@@ -584,7 +588,7 @@ describe("Documents private API", () => {
     form.set("kind", "custom");
     form.set("format", "md");
     form.set("instructions", "Use profile evidence");
-    form.set("file", new File(["{name} {phone}\n"], "two-fields.md"));
+    form.set("file", new File(["{summary} {phone}\n"], "two-fields.md"));
     const uploaded = await mine.request(`${url}/templates`, {
       method: "POST",
       headers,
@@ -613,13 +617,18 @@ describe("Documents private API", () => {
       `${url}/${documentId}/revisions`,
       post({
         baseRevision: 1,
-        values: { name: "Manual", phone: "Private manual value" },
+        values: { summary: "Manual", phone: "Private manual value" },
       }),
     );
     expect(edited.status, await edited.clone().text()).toBe(201);
+    const directField = await mine.request(
+      `${url}/${documentId}/regenerate`,
+      post({ baseRevision: 2, fieldKey: "phone", aiTargetId: "test-model" }),
+    );
+    expect(directField.status).toBe(400);
     const regenerated = await mine.request(
       `${url}/${documentId}/regenerate`,
-      post({ baseRevision: 2, fieldKey: "name", aiTargetId: "test-model" }),
+      post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
     );
     expect(regenerated.status, await regenerated.clone().text()).toBe(201);
     const current = await mine.request(`${url}/${documentId}`, { headers });
@@ -632,15 +641,190 @@ describe("Documents private API", () => {
     };
     expect(latest.revision).toMatchObject({
       revision: 3,
-      values: { name: "Ada", phone: "Private manual value" },
-      provenance: { kind: "regenerated", fieldKeys: ["name"] },
+      values: { summary: "Evidence", phone: "Private manual value" },
+      provenance: { kind: "regenerated", fieldKeys: ["summary"] },
     });
     const previous = await mine.request(`${url}/${documentId}?revision=2`, {
       headers,
     });
     expect(((await previous.json()) as typeof latest).revision.values).toEqual({
-      name: "Manual",
+      summary: "Manual",
       phone: "Private manual value",
+    });
+  });
+
+  it("replays a keyed generation and labels exports until the candidate confirms that revision", async () => {
+    const mine = app(ownerId);
+    const form = new FormData();
+    form.set("name", "Retry and review");
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "");
+    form.set("file", new File(["# {summary}\n"], "retry.md"));
+    const uploaded = await mine.request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const templateId = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const body = {
+      title: "Keyed document",
+      templateId,
+      templateRevision: 1,
+      profileId: "profile",
+      profileRevision: 1,
+      candidacyId: null,
+      interviewId: null,
+      aiTargetId: "test-model",
+    };
+    const request = () => post(body, { "idempotency-key": "retry-review-1" });
+    const callsBefore = output.length;
+    const created = await mine.request(url, request());
+    expect(created.status, await created.clone().text()).toBe(201);
+    const first = (await created.json()) as {
+      document: { id: string };
+      revision: { provenance: { sourceDigest: string; claimState: string } };
+    };
+    expect(first.revision.provenance.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.revision.provenance.claimState).toBe("unverified");
+    const replay = await mine.request(url, request());
+    expect(replay.status).toBe(200);
+    expect((await replay.json()).replayed).toBe(true);
+    expect(output.length).toBe(callsBefore + 1);
+    expect(
+      (
+        await mine.request(
+          url,
+          post(
+            { ...body, title: "Different title" },
+            {
+              "idempotency-key": "retry-review-1",
+            },
+          ),
+        )
+      ).status,
+    ).toBe(409);
+
+    const draftExport = await mine.request(
+      `${url}/${first.document.id}/exports`,
+      post({ revision: 1, format: "md" }),
+    );
+    const draftRow = (await draftExport.json()) as {
+      id: string;
+      draft: boolean;
+    };
+    expect(draftRow.draft).toBe(true);
+    const draftId = draftRow.id;
+    expect(
+      await (
+        await mine.request(
+          `${url}/${first.document.id}/exports/${draftId}/download`,
+          { headers },
+        )
+      ).text(),
+    ).toContain("DRAFT — Unverified candidate content");
+
+    const confirmed = await mine.request(
+      `${url}/${first.document.id}/confirm`,
+      post({ baseRevision: 1 }),
+    );
+    expect(confirmed.status).toBe(201);
+    expect((await confirmed.json()).provenance.claimState).toBe("confirmed");
+    const finalExport = await mine.request(
+      `${url}/${first.document.id}/exports`,
+      post({ revision: 2, format: "md" }),
+    );
+    const finalRow = (await finalExport.json()) as {
+      id: string;
+      draft: boolean;
+    };
+    expect(finalRow.draft).toBe(false);
+    expect(
+      await (
+        await mine.request(
+          `${url}/${first.document.id}/exports/${finalRow.id}/download`,
+          { headers },
+        )
+      ).text(),
+    ).not.toContain("DRAFT");
+    const refreshed = await mine.request(
+      `${url}/${first.document.id}/refresh-sources`,
+      post({ baseRevision: 2 }),
+    );
+    expect(refreshed.status).toBe(201);
+    expect((await refreshed.json()).provenance.claimState).toBe("unverified");
+  });
+
+  it("refuses targeted regeneration after approved source facts change until refresh", async () => {
+    const mine = app(ownerId);
+    const candidacy = await mine.request(
+      `${url}/candidacies`,
+      post({
+        companyName: "Source Check",
+        title: "Engineer",
+        jobDescription: "Original role",
+      }),
+    );
+    expect(candidacy.status).toBe(201);
+    const candidacyId = ((await candidacy.json()) as { candidacyId: string })
+      .candidacyId;
+    const form = new FormData();
+    form.set("name", "Source check");
+    form.set("kind", "custom");
+    form.set("format", "md");
+    form.set("instructions", "");
+    form.set("file", new File(["{job_description}\n{summary}\n"], "source.md"));
+    const uploaded = await mine.request(`${url}/templates`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    const templateId = ((await uploaded.json()) as { template: { id: string } })
+      .template.id;
+    const created = await mine.request(
+      url,
+      post({
+        title: "Source-bound document",
+        templateId,
+        templateRevision: 1,
+        profileId: "profile",
+        profileRevision: 1,
+        candidacyId,
+        interviewId: null,
+        aiTargetId: "test-model",
+      }),
+    );
+    expect(created.status, await created.clone().text()).toBe(201);
+    const documentId = ((await created.json()) as { document: { id: string } })
+      .document.id;
+    const changed = await mine.request(
+      `${url}/candidacies/${candidacyId}/job-description`,
+      { ...post({ jobDescription: "Updated role" }), method: "PATCH" },
+    );
+    expect(changed.status).toBe(200);
+    const stale = await mine.request(
+      `${url}/${documentId}/regenerate`,
+      post({ baseRevision: 1, fieldKey: "summary", aiTargetId: "test-model" }),
+    );
+    expect(stale.status).toBe(409);
+    expect((await stale.json()).error.code).toBe("source-refresh-required");
+    const refreshed = await mine.request(
+      `${url}/${documentId}/refresh-sources`,
+      post({ baseRevision: 1 }),
+    );
+    expect(refreshed.status).toBe(201);
+    expect(await refreshed.json()).toMatchObject({
+      values: { job_description: "Updated role" },
+      provenance: { modelOwnedKeys: ["summary"] },
+    });
+    const regenerated = await mine.request(
+      `${url}/${documentId}/regenerate`,
+      post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
+    );
+    expect(regenerated.status, await regenerated.clone().text()).toBe(201);
+    expect((await regenerated.json()).values).toMatchObject({
+      job_description: "Updated role",
     });
   });
 
