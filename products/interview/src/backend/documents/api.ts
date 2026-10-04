@@ -763,7 +763,6 @@ export function createDocumentsApi(options: {
       input.templateRevision,
     );
     if (!template) throw new DocumentNotFound();
-    await authorizedTarget(scope, input.aiTargetId);
     if (retryKey) {
       const prior = await repo.getGenerationRequest(
         scopeKey(scope),
@@ -787,6 +786,7 @@ export function createDocumentsApi(options: {
         );
       }
     }
+    await authorizedTarget(scope, input.aiTargetId);
     const candidate = await resolveDocumentContext(options.database, {
       tenantId: scope.tenantId,
       actorId: scope.actorId,

@@ -688,7 +688,13 @@ describe("Documents private API", () => {
     };
     expect(first.revision.provenance.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(first.revision.provenance.claimState).toBe("unverified");
-    const replay = await mine.request(url, request());
+    const targets = vi.spyOn(ai, "listAvailableTargets").mockResolvedValue([]);
+    let replay: Response;
+    try {
+      replay = await mine.request(url, request());
+    } finally {
+      targets.mockRestore();
+    }
     expect(replay.status).toBe(200);
     expect((await replay.json()).replayed).toBe(true);
     expect(output.length).toBe(callsBefore + 1);

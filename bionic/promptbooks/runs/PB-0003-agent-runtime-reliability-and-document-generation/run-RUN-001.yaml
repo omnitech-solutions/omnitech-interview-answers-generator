@@ -161,7 +161,7 @@ prompts:
   result: ''
   artifacts: []
 notes: |
-  Operator-directed direct implementation on master: commit 293017f adds fenced agent terminal publication, execution and attempt identities, exact document batch ownership, keyed document retries, source refresh, candidate confirmation, and draft exports. pnpm verify passed with 2,982 tests and 29 build tasks on 2026-10-03 local time.
-  The run pointer remains at prompt 7. ADR-0015 is Proposed and its revised council review has not run. The operator requested solo work, so no independent implementation review ran in this turn. Live Codex/Claude provider isolation, protocol parity, and same-workload one/three/five grouping benchmarks remain unobserved; defaults were retained. No push, merge, PR, or provider spend occurred.
+  Operator-directed direct implementation on master: commit 293017f adds fenced agent terminal publication, execution and attempt identities, exact document batch ownership, keyed document retries, source refresh, candidate confirmation, and draft exports. The final pnpm verify passed with 2,983 tests and 29 build tasks on 2026-10-03 local time.
+  The run pointer remains at prompt 7. ADR-0015 is Proposed and its revised council review has not run. The operator requested solo work, so no independent implementation review ran in this turn. The proposed Codex App Server transport, persistent Claude client pool, and resumable document coordinator were not built: ADR-0014 requires isolation, protocol parity and measured benefit before transport migration, and ADR-0015 retains Interview's existing bounded document generation path. Live Codex/Claude provider isolation and same-workload one/three/five grouping benchmarks remain unobserved; defaults were retained. No push, merge, PR, or provider spend occurred.
 pr_draft: ''
 summary: ''
