@@ -1,6 +1,6 @@
 # Decision index
 
-_Accepted, non-archived decisions (10), projected from `adrs/index.md`. ADR references are footnotes, never inline._
+_Accepted, non-archived decisions (11), projected from `adrs/index.md`. ADR references are footnotes, never inline._
 
 | # | decision | date | ref |
 |---|---|---|---|
@@ -14,6 +14,7 @@ _Accepted, non-archived decisions (10), projected from `adrs/index.md`. ADR refe
 | 8 | Host the Active Session processor in the agent worker behind a versioned wire contract | 2026-10-03 | [^d8] |
 | 9 | Keep Active Session data private to the actor and enforce locality before dispatch | 2026-10-03 | [^d9] |
 | 10 | Pause rather than end an Active Session on credential expiry or companion stop | 2026-10-03 | [^d10] |
+| 11 | Use worker-owned agent sessions with one terminal outcome | 2026-10-03 | [^d11] |
 
 [^d1]: ADR-0000
 [^d2]: ADR-0001
@@ -25,3 +26,4 @@ _Accepted, non-archived decisions (10), projected from `adrs/index.md`. ADR refe
 [^d8]: ADR-0011
 [^d9]: ADR-0012
 [^d10]: ADR-0013
+[^d11]: ADR-0014

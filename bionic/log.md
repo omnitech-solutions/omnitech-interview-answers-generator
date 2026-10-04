@@ -2,6 +2,16 @@
 
 _Append-only. Newest first._
 
+## [2026-10-04] arch | Regenerated architecture view after PB-0003 implementation
+
+Regenerated 8 bionic/arch files after PB-0003 implementation; spine hash sha256:f5ee00b2da0fe95e1b08dd2e856ae90fba70dc56ea4cd7f8c90bbbeb840d143a. Data-model concern remains stubbed because the Node extractor requires Prisma, TypeORM, Sequelize, or Mongoose input; api-surface, module-graph, and decision-index are populated. Recorded at 2026-10-04T01:27:20Z.
+Recorded at 2026-10-04T01:27+00:00.
+
+## [2026-10-04] extract | Regenerated code docs after PB-0003 implementation
+
+Regenerated bionic/code from committed PB-0003 source: 664 pages, 2 added, 0 changed, 0 removed. Recorded at 2026-10-04T01:26:58Z.
+Recorded at 2026-10-04T01:26+00:00.
+
 ## [2026-10-04] journal | implementation: PB-0003 runtime and document safety implementation
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-04T01:25+00:00. Refs: [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] [[adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping]] rule:one-terminal-outcome rule:exact-owned-batches

@@ -702,6 +702,13 @@
       "source_path": "packages/agent-runtime-claude/src/index.ts"
     },
     {
+      "doc_path": "fallback/packages/agent-runtime-claude/src/terminal.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "62918c816577b58dd79ae63ef319f3e52e5b85fbbc3f56caeb7e9c0b1043d59d",
+      "source_path": "packages/agent-runtime-claude/src/terminal.test.ts"
+    },
+    {
       "doc_path": "fallback/packages/agent-runtime-codex/src/index.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -2030,6 +2037,13 @@
       "owner": "typescript",
       "sha256": "1a3a96a29196083729293db67de704eedb4d4a811b787d135f4994bbdc341902",
       "source_path": "products/interview/src/backend/documents/repository.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/backend/documents/source-digest.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "c1c8268acf84c39bf89ca787dd8741ce30960eabaeae5e1c2f2ce5ec01f44911",
+      "source_path": "products/interview/src/backend/documents/source-digest.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/backend/documents/template-intake.ts.md",

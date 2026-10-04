@@ -125,6 +125,7 @@
         "packages/agent-job-service/src/index.ts",
         "packages/agent-runtime-claude/src/index.test.ts",
         "packages/agent-runtime-claude/src/index.ts",
+        "packages/agent-runtime-claude/src/terminal.test.ts",
         "packages/agent-runtime-codex/src/index.test.ts",
         "packages/agent-runtime-codex/src/index.ts",
         "packages/agent-runtime-codex/src/runtime.test.ts",
@@ -320,6 +321,7 @@
         "products/interview/src/backend/documents/renderers.test.ts",
         "products/interview/src/backend/documents/repository.test.ts",
         "products/interview/src/backend/documents/repository.ts",
+        "products/interview/src/backend/documents/source-digest.ts",
         "products/interview/src/backend/documents/template-intake.ts",
         "products/interview/src/backend/index.ts",
         "products/interview/src/backend/interview-backend.test.ts",
@@ -697,6 +699,8 @@
         "products/presentation/src/theme-import.ts",
         "scripts/assistant-sync.mjs",
         "scripts/dev-build-graph.test.ts",
+        "scripts/dev-env.mjs",
+        "scripts/dev-env.test.ts",
         "scripts/dev-stop.mjs",
         "scripts/dev.mjs",
         "scripts/local-model.mjs",
@@ -706,7 +710,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 73,
-      "n_sources": 690,
+      "n_sources": 694,
       "verdict": "populated"
     },
     {
@@ -824,6 +828,7 @@
         "packages/agent-job-service/src/index.ts",
         "packages/agent-runtime-claude/src/index.test.ts",
         "packages/agent-runtime-claude/src/index.ts",
+        "packages/agent-runtime-claude/src/terminal.test.ts",
         "packages/agent-runtime-codex/src/index.test.ts",
         "packages/agent-runtime-codex/src/index.ts",
         "packages/agent-runtime-codex/src/runtime.test.ts",
@@ -1019,6 +1024,7 @@
         "products/interview/src/backend/documents/renderers.test.ts",
         "products/interview/src/backend/documents/repository.test.ts",
         "products/interview/src/backend/documents/repository.ts",
+        "products/interview/src/backend/documents/source-digest.ts",
         "products/interview/src/backend/documents/template-intake.ts",
         "products/interview/src/backend/index.ts",
         "products/interview/src/backend/interview-backend.test.ts",
@@ -1396,6 +1402,8 @@
         "products/presentation/src/theme-import.ts",
         "scripts/assistant-sync.mjs",
         "scripts/dev-build-graph.test.ts",
+        "scripts/dev-env.mjs",
+        "scripts/dev-env.test.ts",
         "scripts/dev-stop.mjs",
         "scripts/dev.mjs",
         "scripts/local-model.mjs",
@@ -1405,8 +1413,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 651,
-      "n_sources": 691,
+      "n_entities": 653,
+      "n_sources": 695,
       "verdict": "populated"
     },
     {
@@ -1427,10 +1435,12 @@
         "bionic/adrs/ADR-0011-host-the-active-session-processor-in-the-agent-worker.md",
         "bionic/adrs/ADR-0012-keep-active-session-data-private-to-the-actor-and.md",
         "bionic/adrs/ADR-0013-pause-rather-than-end-an-active-session-on-credent.md",
+        "bionic/adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal.md",
+        "bionic/adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping.md",
         "bionic/adrs/index.md"
       ],
-      "n_entities": 10,
-      "n_sources": 15,
+      "n_entities": 11,
+      "n_sources": 17,
       "verdict": "populated"
     }
   ]
