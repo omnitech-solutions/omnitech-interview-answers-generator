@@ -200,6 +200,42 @@ describe("analysis", () => {
     expect(screen.getByTestId("pn-language")).toHaveTextContent("TYPESCRIPT");
     expect(code.querySelector(".cm-editor")).not.toBeNull();
   });
+  it("asks for what the model says is missing, and lets the person say it looks complete", async () => {
+    serve(live(), [
+      {
+        ...answerAction(codingAnswer(["No sorting allowed"])),
+        missingContext: [
+          { kind: "examples" },
+          {
+            kind: "statement-cut-off",
+            note: "the bottom of the page is hidden",
+          },
+        ],
+      },
+      action({ actionKind: "solve-code", result: codeResult() }),
+    ]);
+    await show("analysis");
+    const strip = screen.getByTestId("pn-missing");
+    expect(strip).toHaveTextContent("Examples");
+    expect(strip).toHaveTextContent(
+      "The rest of the problem (it looks cut off): the bottom of the page is hidden",
+    );
+    expect(
+      within(strip).getByRole("button", { name: "Add another screenshot" }),
+    ).toBeVisible();
+    expect(
+      within(strip).getByRole("button", { name: "Add context" }),
+    ).toBeVisible();
+    fireEvent.click(
+      within(strip).getByRole("button", { name: "Looks complete" }),
+    );
+    expect(screen.queryByTestId("pn-missing")).toBeNull();
+  });
+  it("shows no strip when nothing is reported missing", async () => {
+    serve(live(), codingActions());
+    await show("analysis");
+    expect(screen.queryByTestId("pn-missing")).toBeNull();
+  });
   it("has none of the old chrome: tabs, slots, revisions, run, activity, workspace", async () => {
     serve(live(), codingActions());
     await show("analysis");

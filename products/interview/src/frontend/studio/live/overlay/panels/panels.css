@@ -768,3 +768,36 @@
   outline: 2px solid rgba(255, 255, 255, 0.6);
   outline-offset: -2px;
 }
+
+/* A task's current stage, in its own row: replaced by the answer when it lands. */
+.pn-stage {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+.pn-row .pn-stage:not(:first-child) {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/* "The AI may be missing": what the model could not see, and how to supply it. */
+.pn-missing {
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  background: var(--ov-chip);
+}
+.pn-missing ul {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+}
+.pn-missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pn-missing-actions .pn-bar-button {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 3px 9px;
+}

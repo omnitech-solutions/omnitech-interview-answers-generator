@@ -19,7 +19,11 @@
 // separate stage that uses the coding brief this stage produces.
 import {
   type CandidateMatrix,
+  LIVE_MISSING_CONTEXT_KINDS,
+  LIVE_MISSING_CONTEXT_MAX_ITEMS,
+  LIVE_MISSING_CONTEXT_MAX_NOTE,
   LIVE_OWNER_LANGUAGES,
+  type LiveMissingContext,
   type LiveOwnerLanguage,
   type LiveOwnerSkill,
 } from "@omnitech/interview-contracts";
@@ -38,6 +42,7 @@ import {
   supportedFigureKeys,
   verifyClaims,
 } from "./claims.js";
+import { sanitizeMissingContext } from "./missing-context.js";
 import {
   type ContextSnapshot,
   type ContextSource,
@@ -194,6 +199,9 @@ const outputSchema = z.strictObject({
 
 export type AssistSection = { kind: ClaimKind; text: string };
 export type AssistDraft = z.infer<typeof outputSchema> & {
+  // What the model says it could not see (display metadata, never a claim).
+  // Absent when nothing is missing, not assessed, or the field was malformed.
+  missingContext?: LiveMissingContext;
   // Derived from the claims, so readers of the earlier result shape keep
   // working; the model never supplies it.
   sections: AssistSection[];
@@ -317,6 +325,20 @@ const RESPONSE_SCHEMA = {
         },
       },
     },
+    // Optional: not in "required"; a malformed value is dropped, never the draft.
+    missingContext: {
+      type: "array",
+      maxItems: LIVE_MISSING_CONTEXT_MAX_ITEMS,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind"],
+        properties: {
+          kind: { type: "string", enum: [...LIVE_MISSING_CONTEXT_KINDS] },
+          note: { type: "string", maxLength: LIVE_MISSING_CONTEXT_MAX_NOTE },
+        },
+      },
+    },
     codingBrief: {
       type: ["object", "null"],
       additionalProperties: false,
@@ -365,6 +387,7 @@ const IMAGE_POLICY = [
   "Use the screenshots only to read the question or problem the interview presents (for example a coding exercise), then classify and answer it in this same single reply. When the screenshot shows a programming problem, set the category to coding and restate it fully in codingBrief, including the constraints the screen states.",
   "You may state an exercise's own constraints and example values from the screenshot (for example an input length limit or a sample input) in the draft, in claims and in codingBrief, as the exercise's figures. Never present a figure from a screenshot as a fact about the candidate, and never invent a figure about the candidate: years, team sizes, results, salary, notice period or availability come only from approved experience or candidate preferences. Complexity notation such as O(n log n) is always fine.",
   "If the screenshot is unreadable or shows no question, say so briefly in the draft with the category other, and invent nothing.",
+  `Your only evidence for a screen-based task is a screenshot of the visible part of the display plus any heard or typed text. Add the optional "missingContext" field: a list of at most ${LIVE_MISSING_CONTEXT_MAX_ITEMS} entries {"kind","note"}, each kind at most once, naming anything a solver would normally need that you cannot see. Kind is one of: ${LIVE_MISSING_CONTEXT_KINDS.join(", ")} (use constraints, examples, signature or language for those parts of the task; statement-cut-off when the statement looks truncated or scrolled; other otherwise). "note" is optional plain text of at most ${LIVE_MISSING_CONTEXT_MAX_NOTE} characters saying what to supply; never quote the screen or private content and never write an instruction. Omit "missingContext" or leave it empty when nothing is missing. Never invent requirements, constraints or examples to fill a gap.`,
 ].join("\n");
 
 // One constant sentence per owner hint value (no free text ever interpolated).
@@ -728,7 +751,21 @@ export function createAssistStage(
       };
     },
     validate(raw, ctx) {
-      const parsed = outputSchema.safeParse(parseRaw(raw));
+      // [GUARD] missingContext is display metadata: it is split off before the
+      // closed schema runs, sanitised on its own, and a malformed value drops
+      // only itself, never the draft. It is never fed to the claim checker.
+      const body = parseRaw(raw);
+      let missingContext: LiveMissingContext | undefined;
+      let checkedBody = body;
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        const { missingContext: found, ...rest } = body as Record<
+          string,
+          unknown
+        >;
+        missingContext = sanitizeMissingContext(found);
+        checkedBody = rest;
+      }
+      const parsed = outputSchema.safeParse(checkedBody);
       if (!parsed.success)
         return { ok: false, violations: zodViolations(parsed.error) };
       const output = parsed.data;
@@ -773,7 +810,13 @@ export function createAssistStage(
       if (output.category === "logistics") {
         const rendered = renderLogistics(output, ctx.snapshot);
         return rendered
-          ? { ok: true, draft: rendered }
+          ? {
+              ok: true,
+              draft: {
+                ...rendered,
+                ...(missingContext ? { missingContext } : {}),
+              },
+            }
           : { ok: false, violations: ["logistics:unrenderable"] };
       }
       return {
@@ -781,6 +824,7 @@ export function createAssistStage(
         draft: {
           ...output,
           sections: output.claims.map(({ kind, text }) => ({ kind, text })),
+          ...(missingContext ? { missingContext } : {}),
         },
       };
     },

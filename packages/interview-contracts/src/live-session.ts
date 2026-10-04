@@ -505,6 +505,43 @@ export const liveGeneratedBySchema = z.object({
 });
 export type LiveGeneratedBy = z.infer<typeof liveGeneratedBySchema>;
 
+// What the model believes a screen-based draft could not see (for example the
+// constraints were cut off), so the app can ask the person for it. Display
+// metadata only: a closed kind plus an optional short plain-text note, never a
+// quote of the screen or of private content, and nothing branches on it.
+export const LIVE_MISSING_CONTEXT_KINDS = [
+  "constraints",
+  "examples",
+  "signature",
+  "language",
+  "statement-cut-off",
+  "other",
+] as const;
+export const LIVE_MISSING_CONTEXT_MAX_ITEMS = 4;
+export const LIVE_MISSING_CONTEXT_MAX_NOTE = 120;
+// Plain text: no control or format characters (bidi, zero width, line breaks).
+export const MISSING_CONTEXT_NOTE_FORBIDDEN =
+  /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u061c\u115f\u1160\u180e\u3164\uffa0]/u;
+export const liveMissingContextItemSchema = z.strictObject({
+  kind: z.enum(LIVE_MISSING_CONTEXT_KINDS),
+  note: z
+    .string()
+    .min(1)
+    .max(LIVE_MISSING_CONTEXT_MAX_NOTE)
+    .refine((note) => !MISSING_CONTEXT_NOTE_FORBIDDEN.test(note))
+    .optional(),
+});
+export const liveMissingContextSchema = z
+  .array(liveMissingContextItemSchema)
+  .max(LIVE_MISSING_CONTEXT_MAX_ITEMS)
+  .refine(
+    (items) => new Set(items.map((item) => item.kind)).size === items.length,
+  );
+export type LiveMissingContextItem = z.infer<
+  typeof liveMissingContextItemSchema
+>;
+export type LiveMissingContext = readonly LiveMissingContextItem[];
+
 export const liveActionSchema = z.object({
   id: z.uuid(),
   taskId: z.string(),
@@ -524,6 +561,9 @@ export const liveActionSchema = z.object({
   result: z.unknown(),
   // Absent on actions recorded before this field, or by a non-agent executor.
   generatedBy: liveGeneratedBySchema.optional(),
+  // Context the draft says it could not see; lifted from result.missingContext.
+  // Absent or empty means nothing missing or not assessed.
+  missingContext: liveMissingContextSchema.optional(),
   shown: z.boolean(),
   suppressionReason: z.string().nullable(),
   createdAt: isoTime,

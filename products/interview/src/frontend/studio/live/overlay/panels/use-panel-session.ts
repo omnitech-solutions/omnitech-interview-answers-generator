@@ -24,6 +24,7 @@ import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
 import { AUTO_CAPTURE_LABEL } from "../overlay-card";
+import { missingContextFor } from "./panel-model";
 import { phaseLabel } from "./toolbar-config";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
@@ -81,9 +82,6 @@ const OFF: PanelState = {
   sharing: false,
   phase: null,
 };
-
-// How long the app must stay idle before the transcript says it finished.
-const FINISH_AFTER_MS = 1_500;
 
 export function usePanelSession(
   panel: PanelKind,
@@ -176,7 +174,12 @@ export function usePanelSession(
   const sessionNow = useRef(sessionId);
   sessionNow.current = sessionId;
 
-  async function grabAndAnalyze(label?: string): Promise<boolean> {
+  // `attach`: the screen is more of the problem already on show (a second
+  // screenshot after scrolling), not a new problem.
+  async function grabAndAnalyze(
+    label?: string,
+    attach = false,
+  ): Promise<boolean> {
     const origin = sessionNow.current;
     const here = () => sessionNow.current === origin;
     // Show a refusal here AND in every other panel (the analysis panel is where
@@ -203,12 +206,21 @@ export function usePanelSession(
     try {
       const frame = await share.grab(latest.current.mask);
       if (!here()) return false;
-      // Every capture is a new analysis that replaces the one on show. It is
-      // never attached to the previous task: a heard question and a screen of
-      // another problem would otherwise be merged into one answer.
+      // A capture is a new analysis that replaces the one on show, and is never
+      // attached to the previous task by accident (a heard question and a screen
+      // of another problem would be merged). Attaching is only ever asked for.
+      const onShow = attach ? selectedRef.current : undefined;
       const result = await actions.analyzeCapture({
         image: frame.blob,
-        label: label ?? frame.label,
+        label: label ?? (attach ? "Added screen" : frame.label),
+        ...(onShow
+          ? {
+              target: {
+                taskId: onShow.taskId,
+                revision: onShow.currentRevision,
+              },
+            }
+          : {}),
         ...latest.current.hints,
       });
       if (!result.ok && here()) setNote(failureNote(result.code));
@@ -355,12 +367,14 @@ export function usePanelSession(
     addSystem("Analysis stopped.");
   }
   const press = useCallback(
-    (command: "capture" | "toggle-mic") => {
+    (command: "capture" | "attach" | "toggle-mic") => {
       if (!owns) {
         bus.post({ type: "command", command });
         return;
       }
       if (command === "toggle-mic") auto.toggleListening();
+      // Adding a screen to the problem on show never stops the work in flight.
+      else if (command === "attach") void grabAndAnalyze(undefined, true);
       // While work is running the capture control is "Stop"; pressed again it
       // captures the screen as a new task.
       else if (phaseRef.current) void stopAnalysis();
@@ -611,6 +625,23 @@ export function usePanelSession(
     if (taskCount >= 0) setPinned(null);
   }, [taskCount]);
   selectedRef.current = selected;
+
+  // What the model says it could not see for the task on show, until the person
+  // says the problem looks complete (per task revision).
+  const [dismissedMissing, setDismissedMissing] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const missingKey = selected
+    ? `${selected.taskId}:${selected.currentRevision}`
+    : null;
+  const missingAll = missingContextFor(snapshot.actions, selected);
+  const missing =
+    missingAll && missingKey && !dismissedMissing.has(missingKey)
+      ? missingAll
+      : null;
+  const dismissMissing = useCallback(() => {
+    if (missingKey) setDismissedMissing((now) => new Set(now).add(missingKey));
+  }, [missingKey]);
   // Capturing or analyzing, whichever document is doing it: shown before the
   // work finishes, from typed state (never from status text).
   // A stop hides the phase until the work has really wound down.
@@ -619,33 +650,6 @@ export function usePanelSession(
   }, [localPhase]);
   const phase = stopped ? null : (localPhase ?? live.phase);
   phaseRef.current = phase;
-
-  // The transcript keeps a line for each stage the app goes through, and one when
-  // it finishes: "Analyzing…", "Solutioning…", "Finished · 42s".
-  const loggedPhase = useRef<{ label: string; at: number } | null>(null);
-  const stoppedRef = useRef(false);
-  stoppedRef.current = stopped;
-  const activityKey = model.activity.key;
-  useEffect(() => {
-    const label = phaseLabel(phase, activityKey);
-    const was = loggedPhase.current;
-    if (label) {
-      if (label !== was?.label) {
-        addSystem(`${label}…`);
-        loggedPhase.current = { label, at: was?.at ?? Date.now() };
-      }
-      return;
-    }
-    if (!was) return;
-    // The app can blink idle between stages (capture, then analysis); it has only
-    // finished if it stays idle for a moment.
-    const done = setTimeout(() => {
-      if (!stoppedRef.current)
-        addSystem(`Finished · ${Math.round((Date.now() - was.at) / 1000)}s`);
-      loggedPhase.current = null;
-    }, FINISH_AFTER_MS);
-    return () => clearTimeout(done);
-  }, [phase, activityKey, addSystem]);
 
   return {
     snapshot,
@@ -672,6 +676,8 @@ export function usePanelSession(
     toasts,
     selected,
     select: setPinned,
+    missing,
+    dismissMissing,
     phase,
     press,
     setAuto,

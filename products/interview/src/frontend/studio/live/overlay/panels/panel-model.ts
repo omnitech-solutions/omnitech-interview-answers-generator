@@ -1,6 +1,10 @@
 // What the analysis and chat panels say, derived from the session's own
 // published results and transcript. Pure; text from the session is inert.
 import type { LiveViewModel } from "../../session-state";
+import type {
+  LiveAction,
+  LiveMissingContext,
+} from "@omnitech/interview-contracts";
 import type { TaskView } from "../../session-tasks";
 import { TASK_KIND } from "../../task-panels";
 import {
@@ -10,6 +14,7 @@ import {
   solution,
 } from "../overlay-model";
 import { taskHeading } from "../overlay-task";
+import { phaseLabel } from "./toolbar-config";
 
 // ---- Analysis ---------------------------------------------------------------
 
@@ -167,7 +172,35 @@ export type PanelRow = {
   items?: readonly ApproachItem[];
   // The task an assistant answer belongs to: choosing the row shows that task.
   taskId?: string;
+  // What the task is doing right now. The row shows it in place of the answer
+  // until the answer exists, then beside it until the work is done.
+  stage?: TaskStage;
 };
+
+// A stage's label has no ellipsis; the row adds it and a timer.
+export type TaskStage = { label: string; since: number };
+
+// The stage a task is in, from its runs in flight: reading or drafting the
+// answer, or (coding problem detected) solutioning.
+export function taskStage(task: TaskView): TaskStage | null {
+  const running = task.current.runs.filter((run) => run.state === "running");
+  const coding = running.find(
+    (run) =>
+      run.actionKind === "solve-code" || run.actionKind === "agent-solve",
+  );
+  const drafting = running.find((run) => run.actionKind === "draft-answer");
+  const run = coding ?? drafting;
+  if (!run) return null;
+  const key = coding
+    ? "coding-draft"
+    : task.kind === "programming-challenge"
+      ? "reading-coding-task"
+      : "drafting";
+  return {
+    label: phaseLabel("analyzing", key) ?? "Analyzing",
+    since: Date.parse(run.createdAt) || Date.now(),
+  };
+}
 export const PANEL_ROWS = 60;
 
 // Heard speech (the server's transcript), what was typed or dictated here, and
@@ -203,19 +236,24 @@ export function panelRows(
       text: entry.text,
       at: entry.at,
     }));
+  // One thread per task: the row is replaced in place as the task moves from
+  // drafting to solutioning to its answer, and across its revisions.
   const assistant: PanelRow[] = model.tasks.flatMap((task) => {
     const shown = approach(task);
     const first = shown?.items.find((item) => item.kind === "line");
-    if (!shown || !first) return [];
+    const stage = taskStage(task);
+    if (!(shown && first) && !stage) return [];
     const last = task.revisions[task.revisions.length - 1];
     return [
       {
-        key: `a-${task.taskId}-${task.currentRevision}`,
+        key: `a-${task.taskId}`,
         taskId: task.taskId,
         kind: "assistant" as const,
         label: "Assistant",
-        text: shown.items.map((item) => item.text).join("\n"),
-        items: shown.items,
+        text:
+          shown && first ? shown.items.map((item) => item.text).join("\n") : "",
+        ...(shown && first ? { items: shown.items } : {}),
+        ...(stage ? { stage } : {}),
         at: Date.parse(last?.firstSeenAt ?? "") || 0,
       },
     ];
@@ -240,3 +278,23 @@ export const clock = (at: number): string =>
         hour: "2-digit",
         minute: "2-digit",
       });
+
+// What the model said it could not see for the task on show: from its newest
+// succeeded answer draft for the task's current revision, or none.
+export function missingContextFor(
+  actions: readonly LiveAction[],
+  task: TaskView | undefined,
+): LiveMissingContext | null {
+  if (!task) return null;
+  const draft = actions
+    .filter(
+      (action) =>
+        action.taskId === task.taskId &&
+        action.taskRevision === task.currentRevision &&
+        action.actionKind === "draft-answer" &&
+        action.dispatchStatus === "succeeded" &&
+        (action.missingContext?.length ?? 0) > 0,
+    )
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  return draft?.missingContext ?? null;
+}

@@ -134,6 +134,8 @@ export async function planAssist(
       star: draft.star,
       logistics: draft.logistics,
       codingBrief: draft.codingBrief,
+      // Display metadata: what the model could not see (never a claim).
+      ...(draft.missingContext ? { missingContext: draft.missingContext } : {}),
       // The experience revision every matrix-backed claim was verified
       // against, and the context revisions the answer rests on.
       pinned,

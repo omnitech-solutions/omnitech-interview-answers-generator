@@ -24,7 +24,7 @@ export type PanelMessage =
       at: number;
     }
   // A request to the owner, which alone holds the microphone and the screen.
-  | { type: "command"; command: "capture" | "toggle-mic" }
+  | { type: "command"; command: "capture" | "attach" | "toggle-mic" }
   // Forget this session's lines and draft in every panel (session.clear).
   | { type: "clear"; sessionId: string | null }
   // A notice the owner wants every panel to show (a refused capture, say), so a

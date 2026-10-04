@@ -4,11 +4,15 @@
 // finds nothing. A session that is not the actor's reads as "not found", the
 // same as one that does not exist.
 import type { PlatformDatabase } from "@omnitech/database";
-import { liveGeneratedBySchema } from "@omnitech/interview-contracts";
+import {
+  type LiveMissingContext,
+  liveGeneratedBySchema,
+} from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
 import { assertUuid, SessionError } from "./errors.js";
+import { sanitizeMissingContext } from "./missing-context.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import type { SessionJobs } from "./session-jobs.js";
 import { readSession, type SessionView, toView } from "./session-record.js";
@@ -125,6 +129,8 @@ export type StoredAction = {
   result: unknown;
   // Display metadata lifted from result.generatedBy when it is well formed.
   generatedBy?: { runtime: string; model: string };
+  // Display metadata lifted from result.missingContext, sanitised.
+  missingContext?: LiveMissingContext;
   shown: boolean;
   suppressionReason: string | null;
   createdAt: string;
@@ -144,6 +150,12 @@ function generatedByOf(
   return parsed.success ? parsed.data : undefined;
 }
 
+function missingContextOf(result: unknown): LiveMissingContext | undefined {
+  return sanitizeMissingContext(
+    (result as { missingContext?: unknown } | null)?.missingContext,
+  );
+}
+
 export function toStoredAction(row: Record<string, unknown>): StoredAction {
   // A withheld draft's summary rides on its suppression reason (withheld.ts):
   // the browser reads it as result.withheld, content-free.
@@ -154,6 +166,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     ? { withheld: stored.withheld }
     : (row["result"] ?? null);
   const generatedBy = generatedByOf(result);
+  const missingContext = missingContextOf(result);
   return {
     id: String(row["id"]),
     taskId: String(row["task_id"]),
@@ -166,6 +179,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     jobCreated: Boolean(row["job_created"]),
     result,
     ...(generatedBy === undefined ? {} : { generatedBy }),
+    ...(missingContext === undefined ? {} : { missingContext }),
     shown: Boolean(row["shown"]),
     suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),

@@ -16,6 +16,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { Icon } from "../../../icon";
@@ -29,11 +30,19 @@ import {
   NOT_SUPPORTED_YET,
   supportedLanguage,
 } from "./languages";
-import { analysisView, clock, type PanelRow, panelRows } from "./panel-model";
+import {
+  analysisView,
+  clock,
+  type PanelRow,
+  panelRows,
+  type TaskStage,
+} from "./panel-model";
 import { quitShell } from "./shell-bridge";
 import {
+  ATTACH_ACTION,
   CAPTURE_MODES,
   type CaptureMode,
+  MISSING_CONTEXT_LABEL,
   captureControl,
   phaseLabel,
 } from "./toolbar-config";
@@ -43,6 +52,8 @@ export type PanelSession = ReturnType<typeof usePanelSession>;
 type Tone = "green" | "red" | "neutral";
 
 // The hotkey the bar shows for the capture (the shell registers it).
+// The analysis asks the chat box to take focus (same document).
+export const FOCUS_INPUT_EVENT = "pn-focus-input";
 export const CAPTURE_HINT = "⌘⇧S";
 export const CHAT_PLACEHOLDER = "Type a message or transcription…";
 // Once there is a problem on screen, typed text is context for it.
@@ -132,18 +143,31 @@ export function PillPanel({
             <select
               aria-label="Capture mode"
               value={captureMode.value}
-              onChange={(event) =>
+              onChange={(event) => {
+                // The attach entry is an action: do it, and the menu keeps showing
+                // the mode that is still chosen.
+                if (event.target.value === ATTACH_ACTION.id) {
+                  s.press("attach");
+                  return;
+                }
                 captureMode.onChange(
                   CAPTURE_MODES.find((mode) => mode.id === event.target.value)
                     ?.id ?? captureMode.value,
-                )
-              }
+                );
+              }}
             >
               {CAPTURE_MODES.map((mode) => (
                 <option key={mode.id} value={mode.id}>
                   {mode.label}
                 </option>
               ))}
+              <option
+                value={ATTACH_ACTION.id}
+                title={ATTACH_ACTION.title}
+                disabled={!s.selected || !s.open}
+              >
+                {ATTACH_ACTION.label}
+              </option>
             </select>
           </label>
         )}
@@ -237,6 +261,48 @@ export function AnalysisPanel({
                   {view.problemType}
                 </span>
               </div>
+              {s.missing && (
+                <div
+                  className="pn-missing"
+                  role="note"
+                  data-testid="pn-missing"
+                >
+                  <strong>The AI may be missing:</strong>
+                  <ul>
+                    {s.missing.map((item) => (
+                      <li key={item.kind}>
+                        {MISSING_CONTEXT_LABEL[item.kind] ?? item.kind}
+                        {item.note ? `: ${item.note}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="pn-missing-actions">
+                    <button
+                      type="button"
+                      className="pn-bar-button"
+                      onClick={() => s.press("attach")}
+                    >
+                      Add another screenshot
+                    </button>
+                    <button
+                      type="button"
+                      className="pn-bar-button"
+                      onClick={() =>
+                        window.dispatchEvent(new Event(FOCUS_INPUT_EVENT))
+                      }
+                    >
+                      Add context
+                    </button>
+                    <button
+                      type="button"
+                      className="pn-bar-button"
+                      onClick={s.dismissMissing}
+                    >
+                      Looks complete
+                    </button>
+                  </div>
+                </div>
+              )}
               {view.constraints.length > 0 && (
                 <div className="pn-constraints">
                   <strong>Constraints:</strong>
@@ -352,6 +418,22 @@ function AnswerText({ items }: { items: readonly ApproachItem[] }) {
   );
 }
 
+// A task's current stage, with the time it has taken. It sits in the task's own
+// row, so the row reads "Solutioning… 12s" and then the answer takes its place.
+function Stage({ stage, label }: { stage: TaskStage; label?: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.round((now - stage.since) / 1000));
+  return (
+    <span className="pn-stage" role="status" data-testid="pn-stage">
+      {label ?? stage.label}…{seconds >= 3 ? ` ${seconds}s` : ""}
+    </span>
+  );
+}
+
 function Row({
   row,
   selected,
@@ -389,9 +471,10 @@ function Row({
       <span className="pn-time">{clock(row.at)}</span>
       {row.kind === "assistant" && row.items ? (
         <AnswerText items={row.items} />
-      ) : (
+      ) : row.stage ? null : (
         <span className="pn-text">{row.text}</span>
       )}
+      {row.stage && <Stage stage={row.stage} />}
     </div>
   );
 }
@@ -399,13 +482,24 @@ function Row({
 export function ChatPanel({ s }: { s: PanelSession }) {
   const rows = panelRows(s.model, s.entries, s.system, s.clearedAt);
   const recording = s.live.mic === "listening";
-  // Shown whenever a capture or analysis is running, even right after an earlier
-  // answer, so the transcript always says that something is happening.
-  const loading = Boolean(s.phase);
+  // A task's own row shows its stage. This pending row covers the moment before
+  // a task exists (capturing the screen, a new utterance being read).
+  const staged = rows.some((row) => row.stage !== undefined);
+  const loading = Boolean(s.phase) && !staged;
   const waited = useElapsed(loading);
   // The log follows the newest line until the person scrolls up; then a button
   // counts what they have missed and takes them back.
-  const log = useFollowLatest(rows.length, `${loading}-${s.phase}`);
+  const last = rows[rows.length - 1];
+  const log = useFollowLatest(
+    rows.length,
+    `${loading}-${last?.stage?.label}-${last?.items?.length ?? 0}`,
+  );
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focus = () => inputRef.current?.focus();
+    window.addEventListener(FOCUS_INPUT_EVENT, focus);
+    return () => window.removeEventListener(FOCUS_INPUT_EVENT, focus);
+  }, []);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const text = s.draft.trim();
@@ -491,6 +585,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         <input
           className="pn-input"
           aria-label="Message"
+          ref={inputRef}
           placeholder={s.selected ? CONTEXT_PLACEHOLDER : CHAT_PLACEHOLDER}
           value={s.draft}
           disabled={!s.open}

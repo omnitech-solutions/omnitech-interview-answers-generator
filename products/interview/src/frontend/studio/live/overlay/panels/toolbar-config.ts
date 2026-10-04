@@ -18,6 +18,14 @@ export const CAPTURE_MODES = [
   },
 ] as const;
 export type CaptureMode = (typeof CAPTURE_MODES)[number]["id"];
+// An action in the same menu: capture the screen as more of the problem on show
+// (scroll, then add the next part). It is not a mode and is never remembered.
+export const ATTACH_ACTION = {
+  id: "attach",
+  label: "Add screen to this problem",
+  title: "Capture this screen as more of the current problem, not a new one",
+} as const;
+
 export const DEFAULT_CAPTURE_MODE: CaptureMode = "auto";
 export const isCaptureMode = (value: unknown): value is CaptureMode =>
   CAPTURE_MODES.some((mode) => mode.id === value);
@@ -174,3 +182,16 @@ export function phaseLabel(
   if (phase === "capturing") return CAPTURING;
   return PHASE_LABELS[activityKey] ?? ANALYZING;
 }
+
+// ---- Missing context ------------------------------------------------------------
+
+// What the model says it could not see, in words for the person. The kinds are
+// the contract's closed set.
+export const MISSING_CONTEXT_LABEL: Record<string, string> = {
+  constraints: "Constraints",
+  examples: "Examples",
+  signature: "Function signature",
+  language: "Target language",
+  "statement-cut-off": "The rest of the problem (it looks cut off)",
+  other: "Something else",
+};
