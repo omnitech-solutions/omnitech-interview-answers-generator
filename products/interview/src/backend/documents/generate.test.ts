@@ -1,4 +1,4 @@
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import type { AiExecutionGateway, AiUsage } from "@omnitech/ai-contracts";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -327,6 +327,91 @@ describe("parallel section generation", () => {
       ]),
     );
 
+  it("reuses only exact validated batches after a failed attempt", async () => {
+    const fields = sectioned([
+      ["Experience", 24],
+      ["Projects", 24],
+      ["Skills", 24],
+    ]);
+    const completedBatches: Record<
+      string,
+      {
+        fieldsHash: string;
+        values: Record<string, string>;
+        usage?: AiUsage | null;
+      }
+    > = {};
+    let calls = 0;
+    const execute = vi.fn(async (request: { task: never }) => {
+      calls++;
+      if (calls === 2) throw new Error("provider unavailable");
+      return { result: answer(request.task), usage: { totalTokens: 10 } };
+    });
+    await expect(
+      generateDocumentValues(
+        { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+        {
+          ...base,
+          fields,
+          generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
+        },
+        {
+          onBatch: async (update) => {
+            completedBatches[update.id] = {
+              fieldsHash: update.fieldsHash,
+              values: update.values,
+              usage: update.usage ?? null,
+            };
+          },
+        },
+      ),
+    ).rejects.toThrow("provider unavailable");
+    const saved = Object.keys(completedBatches).length;
+    expect(saved).toBeGreaterThan(0);
+    const retryExecute = vi.fn(async (request: { task: never }) => ({
+      result: answer(request.task),
+      usage: { totalTokens: 10 },
+    }));
+    const result = await generateDocumentValues(
+      { execute: retryExecute } as unknown as Pick<
+        AiExecutionGateway,
+        "execute"
+      >,
+      {
+        ...base,
+        fields,
+        generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
+        completedBatches,
+      },
+    );
+    expect(retryExecute).toHaveBeenCalledTimes(3 - saved);
+    expect(result.usage?.totalTokens).toBe(30);
+    expect(Object.keys(result.values)).toEqual(
+      fields.map((field) => field.key),
+    );
+    const wrong = {
+      ...completedBatches,
+      [Object.keys(completedBatches)[0] as string]: {
+        fieldsHash: "wrong",
+        values: Object.values(completedBatches)[0]?.values ?? {},
+      },
+    };
+    await expect(
+      generateDocumentValues(
+        { execute: retryExecute } as unknown as Pick<
+          AiExecutionGateway,
+          "execute"
+        >,
+        {
+          ...base,
+          fields,
+          generation: { maxCalls: 3, fieldsPerCall: 24, attempts: 1 },
+          completedBatches: wrong,
+        },
+      ),
+    ).rejects.toThrow("Stored document batch does not match plan");
+  });
+
   it("writes sections side by side, never more than four at once, and merges them in template order", async () => {
     let running = 0;
     let peak = 0;
@@ -347,7 +432,9 @@ describe("parallel section generation", () => {
       { ...base, fields },
       {
         onPlan: (value) => plan.push(value),
-        onBatch: (update) => done.push(update.title),
+        onBatch: (update) => {
+          done.push(update.title);
+        },
       },
     );
     expect(execute).toHaveBeenCalledTimes(4);
@@ -444,5 +531,56 @@ describe("parallel section generation", () => {
     // The queued sections never started.
     // Four calls, one of them tried twice; nothing beyond that started.
     expect(execute.mock.calls.length).toBeLessThanOrEqual(5);
+  });
+
+  it("waits for an in-flight checkpoint before a failed attempt can be retried", async () => {
+    let checkpointStarted!: () => void;
+    let releaseCheckpoint!: () => void;
+    const started = new Promise<void>((resolve) => {
+      checkpointStarted = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      releaseCheckpoint = resolve;
+    });
+    const events: string[] = [];
+    const execute = vi.fn(async (request: { task: never }) => {
+      const section = JSON.parse((request.task as { prompt: string }).prompt)
+        .section as string;
+      if (section === "One") {
+        await started;
+        throw new Error("first batch failed");
+      }
+      return { result: answer(request.task) };
+    });
+    const generation = generateDocumentValues(
+      { execute } as unknown as Pick<AiExecutionGateway, "execute">,
+      {
+        ...base,
+        fields: sectioned([
+          ["One", 24],
+          ["Two", 24],
+        ]),
+      },
+      {
+        onBatch: async ({ id }) => {
+          events.push(`checkpoint started ${id}`);
+          checkpointStarted();
+          await held;
+          events.push(`checkpoint committed ${id}`);
+        },
+      },
+    ).catch((error: Error) => {
+      events.push(`failed ${error.message}`);
+    });
+    await started;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events).toEqual(["checkpoint started batch-2"]);
+    releaseCheckpoint();
+    await generation;
+    expect(events).toEqual([
+      "checkpoint started batch-2",
+      "checkpoint committed batch-2",
+      "failed first batch failed",
+    ]);
   });
 });

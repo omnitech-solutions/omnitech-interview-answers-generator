@@ -19,19 +19,13 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { ZodError, z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards.js";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates.js";
 import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config.js";
 import { DocumentContextNotFound, resolveDocumentContext } from "./context.js";
 import { generateDocumentValues } from "./generate.js";
 import { renderDocxTemplate } from "./render-docx.js";
-import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards.js";
 import { renderDocxAsMarkdown } from "./render-docx-markdown.js";
-import {
-  documentSourceDigest,
-  revisionClaimState,
-  revisionModelOwnedKeys,
-  revisionSourceDigest,
-} from "./source-digest.js";
 import {
   renderMarkdownPreview,
   renderMarkdownTemplate,
@@ -39,11 +33,17 @@ import {
 import {
   DocumentAlreadyExists,
   DocumentNotFound,
-  DocumentRevisionConflict,
   DocumentRetryConflict,
+  DocumentRevisionConflict,
   DocumentSaveCancelled,
   InterviewDocumentRepository,
 } from "./repository.js";
+import {
+  documentSourceDigest,
+  revisionClaimState,
+  revisionModelOwnedKeys,
+  revisionSourceDigest,
+} from "./source-digest.js";
 import {
   InvalidDocumentTemplateError,
   inspectTemplate,
@@ -809,6 +809,9 @@ export function createDocumentsApi(options: {
       : undefined;
     if (requestIdentity)
       await repo.reserveGeneration(scopeKey(scope), requestIdentity);
+    const completedBatches = requestIdentity
+      ? await repo.getGenerationBatches(scopeKey(scope), requestIdentity)
+      : undefined;
     const release = writing.claim(
       JSON.stringify([
         scope.tenantId,
@@ -842,9 +845,21 @@ export function createDocumentsApi(options: {
           profileValues: candidate.profileValues,
           missingProfileKeys: candidate.missingProfileKeys,
           generation: config.generation,
+          ...(completedBatches ? { completedBatches } : {}),
           signal,
         },
-        hooks,
+        {
+          ...(hooks?.onPlan ? { onPlan: hooks.onPlan } : {}),
+          onBatch: async (update) => {
+            if (requestIdentity && !update.replayed)
+              await repo.saveGenerationBatch(
+                scopeKey(scope),
+                requestIdentity,
+                update,
+              );
+            await hooks?.onBatch?.(update);
+          },
+        },
       ).catch(() => {
         throw signal.aborted ? new RequestCancelled() : new GenerationFailed();
       });

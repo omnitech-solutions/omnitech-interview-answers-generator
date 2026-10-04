@@ -12,9 +12,10 @@ import {
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import {
-  documentRevisions,
   documentExports,
+  documentGenerationBatches,
   documentGenerationRequests,
+  documentRevisions,
   documents,
   documentTemplateRevisions,
   documentTemplates,
@@ -269,8 +270,21 @@ it("binds a document to its actor's candidacy and profile revision", async () =>
       sourceDigest: "b".repeat(64),
     }),
   );
+  await as(ids.alice, (db) =>
+    db.insert(documentGenerationBatches).values({
+      tenantId: ids.tenant,
+      ownerUserId: ids.alice,
+      retryKey: "alice-private-request",
+      batchId: "batch-1",
+      fieldsHash: "c".repeat(64),
+      values: { summary: "Private evidence" },
+    }),
+  );
   expect(
     await as(ids.carol, (db) => db.select().from(documentGenerationRequests)),
+  ).toEqual([]);
+  expect(
+    await as(ids.carol, (db) => db.select().from(documentGenerationBatches)),
   ).toEqual([]);
   const hidden = await as(ids.carol, (db) => db.select().from(documents));
   expect(hidden).toEqual([]);

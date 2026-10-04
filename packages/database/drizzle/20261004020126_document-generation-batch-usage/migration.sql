@@ -1,0 +1,1 @@
+ALTER TABLE "interview"."document_generation_batches" ADD COLUMN "usage" jsonb;

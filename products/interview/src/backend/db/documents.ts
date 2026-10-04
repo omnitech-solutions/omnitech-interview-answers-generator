@@ -1,6 +1,9 @@
 // Candidate documents live in Interview. The UUID scope matches the core
 // candidacy and platform-artifact tables; legacy profile keys are text and are
 // verified in the same tenant transaction before a document is inserted.
+
+import type { AiUsage } from "@omnitech/ai-contracts";
+import { artifacts, tenants } from "@omnitech/platform-storage/schema";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -16,7 +19,6 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { artifacts, tenants } from "@omnitech/platform-storage/schema";
 import { candidacies, interviews } from "./schema.js";
 import { interview } from "./studio.js";
 
@@ -306,5 +308,37 @@ export const documentGenerationRequests = interview.table.withRLS(
       sql`(${t.documentId} IS NULL) = (${t.revision} IS NULL)`,
     ),
     privatePolicy("document_generation_requests_private_scope"),
+  ],
+);
+
+// A retry reuses only validated model-owned values for its exact reserved
+// request and batch field set. No source text is duplicated here.
+export const documentGenerationBatches = interview.table.withRLS(
+  "document_generation_batches",
+  {
+    tenantId: uuid("tenant_id").notNull(),
+    ownerUserId: uuid("owner_user_id").notNull(),
+    retryKey: text("retry_key").notNull(),
+    batchId: text("batch_id").notNull(),
+    fieldsHash: text("fields_hash").notNull(),
+    values: jsonb("values").$type<Record<string, string>>().notNull(),
+    usage: jsonb("usage").$type<AiUsage>(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({
+      name: "document_generation_batches_pkey",
+      columns: [t.tenantId, t.ownerUserId, t.retryKey, t.batchId],
+    }),
+    foreignKey({
+      name: "document_generation_batches_request_fkey",
+      columns: [t.tenantId, t.ownerUserId, t.retryKey],
+      foreignColumns: [
+        documentGenerationRequests.tenantId,
+        documentGenerationRequests.ownerUserId,
+        documentGenerationRequests.retryKey,
+      ],
+    }),
+    privatePolicy("document_generation_batches_private_scope"),
   ],
 );

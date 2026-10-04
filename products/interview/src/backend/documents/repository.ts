@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { AiUsage } from "@omnitech/ai-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { withTenant } from "@omnitech/database";
 import {
-  documentFieldsSchema,
-  documentTemplateCreateSchema,
-  documentValuesSchema,
   type DocumentField,
   type DocumentFieldError,
   type DocumentFormat,
   type DocumentTemplateKind,
+  documentFieldsSchema,
+  documentTemplateCreateSchema,
+  documentValuesSchema,
   validateDocumentValues,
 } from "@omnitech/interview-contracts";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
@@ -16,6 +17,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
   documentExports,
+  documentGenerationBatches,
   documentGenerationRequests,
   documentRevisions,
   documents,
@@ -260,6 +262,117 @@ export class InterviewDocumentRepository {
         row.bindingHash !== identity.bindingHash ||
         row.sourceDigest !== identity.sourceDigest ||
         row.documentId
+      )
+        throw new DocumentRetryConflict();
+    });
+  }
+
+  async getGenerationBatches(
+    scope: DocumentScope,
+    identity: DocumentRequestIdentity,
+  ): Promise<
+    Record<
+      string,
+      {
+        fieldsHash: string;
+        values: Record<string, string>;
+        usage?: AiUsage | null;
+      }
+    >
+  > {
+    return this.inScope(scope, async (db) => {
+      const [request] = await db
+        .select()
+        .from(documentGenerationRequests)
+        .where(
+          and(
+            eq(documentGenerationRequests.tenantId, scope.tenantId),
+            eq(documentGenerationRequests.ownerUserId, scope.actorId),
+            eq(documentGenerationRequests.retryKey, identity.key),
+            eq(documentGenerationRequests.bindingHash, identity.bindingHash),
+            eq(documentGenerationRequests.sourceDigest, identity.sourceDigest),
+            isNull(documentGenerationRequests.documentId),
+          ),
+        )
+        .limit(1);
+      if (!request) throw new DocumentRetryConflict();
+      const rows = await db
+        .select()
+        .from(documentGenerationBatches)
+        .where(
+          and(
+            eq(documentGenerationBatches.tenantId, scope.tenantId),
+            eq(documentGenerationBatches.ownerUserId, scope.actorId),
+            eq(documentGenerationBatches.retryKey, identity.key),
+          ),
+        );
+      return Object.fromEntries(
+        rows.map((row) => [
+          row.batchId,
+          { fieldsHash: row.fieldsHash, values: row.values, usage: row.usage },
+        ]),
+      );
+    });
+  }
+
+  async saveGenerationBatch(
+    scope: DocumentScope,
+    identity: DocumentRequestIdentity,
+    batch: {
+      id: string;
+      fieldsHash: string;
+      values: Record<string, string>;
+      usage?: AiUsage | null;
+    },
+  ): Promise<void> {
+    await this.inScope(scope, async (db) => {
+      const [request] = await db
+        .select()
+        .from(documentGenerationRequests)
+        .where(
+          and(
+            eq(documentGenerationRequests.tenantId, scope.tenantId),
+            eq(documentGenerationRequests.ownerUserId, scope.actorId),
+            eq(documentGenerationRequests.retryKey, identity.key),
+            eq(documentGenerationRequests.bindingHash, identity.bindingHash),
+            eq(documentGenerationRequests.sourceDigest, identity.sourceDigest),
+            isNull(documentGenerationRequests.documentId),
+          ),
+        )
+        .limit(1);
+      if (!request) throw new DocumentRetryConflict();
+      await db
+        .insert(documentGenerationBatches)
+        .values({
+          tenantId: scope.tenantId,
+          ownerUserId: scope.actorId,
+          retryKey: identity.key,
+          batchId: batch.id,
+          fieldsHash: batch.fieldsHash,
+          values: batch.values,
+          usage: batch.usage,
+        })
+        .onConflictDoNothing();
+      const [stored] = await db
+        .select()
+        .from(documentGenerationBatches)
+        .where(
+          and(
+            eq(documentGenerationBatches.tenantId, scope.tenantId),
+            eq(documentGenerationBatches.ownerUserId, scope.actorId),
+            eq(documentGenerationBatches.retryKey, identity.key),
+            eq(documentGenerationBatches.batchId, batch.id),
+          ),
+        )
+        .limit(1);
+      if (
+        !stored ||
+        stored.fieldsHash !== batch.fieldsHash ||
+        Object.keys(stored.values).length !==
+          Object.keys(batch.values).length ||
+        Object.entries(batch.values).some(
+          ([key, value]) => stored.values[key] !== value,
+        )
       )
         throw new DocumentRetryConflict();
     });

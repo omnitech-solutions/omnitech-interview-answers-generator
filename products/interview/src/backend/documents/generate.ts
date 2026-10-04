@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AiExecutionGateway, AiUsage } from "@omnitech/ai-contracts";
 import {
   type DocumentField,
@@ -26,6 +27,16 @@ export type DocumentGenerationInput = {
   missingProfileKeys: readonly string[];
   // How the work is split and retried; defaults suit a long template.
   generation?: GenerationSettings;
+  completedBatches?: Readonly<
+    Record<
+      string,
+      {
+        fieldsHash: string;
+        values: Record<string, string>;
+        usage?: AiUsage | null;
+      }
+    >
+  >;
   signal?: AbortSignal;
 };
 
@@ -63,6 +74,22 @@ export type GenerationBatch = {
   title: string;
   fields: DocumentField[];
 };
+
+export function batchFingerprint(batch: GenerationBatch): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        batch.fields.map(({ key, label, source, maxLength, section }) => [
+          key,
+          label,
+          source,
+          maxLength,
+          section ?? null,
+        ]),
+      ),
+    )
+    .digest("hex");
+}
 
 export type GenerationPlan = {
   batches: Array<{ id: string; title: string; count: number }>;
@@ -163,7 +190,10 @@ export async function generateDocumentValues(
       id: string;
       title: string;
       values: Record<string, string>;
-    }): void;
+      fieldsHash: string;
+      replayed: boolean;
+      usage?: AiUsage | null;
+    }): void | Promise<void>;
   } = {},
 ): Promise<DocumentGenerationResult> {
   const keys = input.fields.map((field) => field.key);
@@ -211,6 +241,31 @@ export async function generateDocumentValues(
   let usage: AiUsage | null = null;
 
   async function writeBatch(batch: GenerationBatch) {
+    const fieldsHash = batchFingerprint(batch);
+    const prior = input.completedBatches?.[batch.id];
+    if (prior) {
+      if (prior.fieldsHash !== fieldsHash)
+        throw new Error("Stored document batch does not match plan");
+      const batchKeys = new Set(batch.fields.map((field) => field.key));
+      if (
+        Object.keys(prior.values).length !== batchKeys.size ||
+        Object.entries(prior.values).some(
+          ([key, value]) => !batchKeys.has(key) || typeof value !== "string",
+        )
+      )
+        throw new Error("Stored document batch has invalid fields");
+      Object.assign(written, prior.values);
+      usage = addUsage(usage, prior.usage ?? undefined);
+      await hooks.onBatch?.({
+        id: batch.id,
+        title: batch.title,
+        values: prior.values,
+        fieldsHash,
+        replayed: true,
+        usage: prior.usage ?? null,
+      });
+      return;
+    }
     const schema = {
       type: "object",
       additionalProperties: false,
@@ -282,26 +337,38 @@ export async function generateDocumentValues(
       values[field.key] = plainText(parsed.data[field.key] as string);
     Object.assign(written, values);
     usage = addUsage(usage, execution.usage);
-    hooks.onBatch?.({ id: batch.id, title: batch.title, values });
+    await hooks.onBatch?.({
+      id: batch.id,
+      title: batch.title,
+      values,
+      fieldsHash,
+      replayed: false,
+      usage: execution.usage ?? null,
+    });
   }
 
-  try {
-    let next = 0;
-    await Promise.all(
-      Array.from(
-        { length: Math.min(settings.maxCalls, batches.length) },
-        async () => {
-          while (next < batches.length && !signal.aborted) {
-            const batch = batches[next++];
-            if (batch) await writeBatch(batch);
-          }
-        },
-      ),
-    );
-  } catch (error) {
-    stop.abort();
-    throw error;
-  }
+  let next = 0;
+  let firstFailure: unknown;
+  const workers = Array.from(
+    { length: Math.min(settings.maxCalls, batches.length) },
+    async () => {
+      try {
+        while (next < batches.length && !signal.aborted) {
+          const batch = batches[next++];
+          if (batch) await writeBatch(batch);
+        }
+      } catch (error) {
+        if (firstFailure === undefined) firstFailure = error;
+        stop.abort();
+        throw error;
+      }
+    },
+  );
+  // Do not release the request's in-flight claim while a sibling is still
+  // committing its checkpoint; a retry must see every committed batch.
+  const settled = await Promise.allSettled(workers);
+  const failed = settled.find((result) => result.status === "rejected");
+  if (failed?.status === "rejected") throw firstFailure;
   if (input.signal?.aborted) throw new Error("Document generation cancelled");
 
   const values: Record<string, string> = {};

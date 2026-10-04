@@ -13,6 +13,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { documentTemplates } from "../db/documents.js";
 import {
   DocumentNotFound,
+  DocumentRetryConflict,
   DocumentRevisionConflict,
   InterviewDocumentRepository,
 } from "./repository.js";
@@ -91,6 +92,45 @@ const fields = [
     maxLength: 80,
   },
 ];
+
+it("keeps validated batch checkpoints bound to owner and source snapshot", async () => {
+  const identity = {
+    key: "repository-resume-1",
+    bindingHash: "a".repeat(64),
+    sourceDigest: "b".repeat(64),
+  };
+  await repository.reserveGeneration(scope(), identity);
+  expect(await repository.getGenerationBatches(scope(), identity)).toEqual({});
+  await repository.saveGenerationBatch(scope(), identity, {
+    id: "batch-1",
+    fieldsHash: "c".repeat(64),
+    values: { summary: "Evidence" },
+    usage: { totalTokens: 12, costUsd: 0.002 },
+  });
+  expect(await repository.getGenerationBatches(scope(), identity)).toEqual({
+    "batch-1": {
+      fieldsHash: "c".repeat(64),
+      values: { summary: "Evidence" },
+      usage: { totalTokens: 12, costUsd: 0.002 },
+    },
+  });
+  await expect(
+    repository.getGenerationBatches(bobScope(), identity),
+  ).rejects.toBeInstanceOf(DocumentRetryConflict);
+  await expect(
+    repository.getGenerationBatches(scope(), {
+      ...identity,
+      sourceDigest: "changed",
+    }),
+  ).rejects.toBeInstanceOf(DocumentRetryConflict);
+  await expect(
+    repository.saveGenerationBatch(scope(), identity, {
+      id: "batch-1",
+      fieldsHash: "c".repeat(64),
+      values: { summary: "Different" },
+    }),
+  ).rejects.toBeInstanceOf(DocumentRetryConflict);
+});
 
 it("versions a template, duplicates it, and keeps it private", async () => {
   const source = await artifacts.create({
