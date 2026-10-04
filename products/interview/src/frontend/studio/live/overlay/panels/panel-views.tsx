@@ -11,7 +11,13 @@ import {
   type LiveOwnerSkill,
   type PresentationHost,
 } from "@omnitech/interview-contracts";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import { Icon } from "../../../icon";
 import { BUILD_ID } from "../build-id";
 import type { ApproachItem } from "../overlay-model";
@@ -346,9 +352,40 @@ function AnswerText({ items }: { items: readonly ApproachItem[] }) {
   );
 }
 
-function Row({ row }: { row: PanelRow }) {
+function Row({
+  row,
+  selected,
+  onSelect,
+}: {
+  row: PanelRow;
+  selected: boolean;
+  onSelect(taskId: string): void;
+}) {
+  const taskId = row.taskId;
+  // An answer can be chosen to bring its task into the analysis and code panes.
+  const choose =
+    taskId === undefined
+      ? {}
+      : {
+          role: "button" as const,
+          tabIndex: 0,
+          "aria-pressed": selected,
+          title: "Show this answer",
+          onClick: () => onSelect(taskId),
+          onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onSelect(taskId);
+            }
+          },
+        };
   return (
-    <div className="pn-row" data-kind={row.kind}>
+    <div
+      className="pn-row"
+      data-kind={row.kind}
+      data-selected={selected ? "true" : undefined}
+      {...choose}
+    >
       <span className="pn-time">{clock(row.at)}</span>
       {row.kind === "assistant" && row.items ? (
         <AnswerText items={row.items} />
@@ -396,9 +433,20 @@ export function ChatPanel({ s }: { s: PanelSession }) {
         aria-label="Transcript and chat"
         ref={log.ref}
         onScroll={log.onScroll}
+        onWheel={log.onPersonScroll}
+        onTouchMove={log.onPersonScroll}
+        onPointerDown={log.onPersonScroll}
+        onKeyDown={log.onPersonScroll}
       >
         {rows.map((row) => (
-          <Row key={row.key} row={row} />
+          <Row
+            key={row.key}
+            row={row}
+            selected={
+              row.taskId !== undefined && row.taskId === s.selected?.taskId
+            }
+            onSelect={s.select}
+          />
         ))}
         {loading && (
           <div

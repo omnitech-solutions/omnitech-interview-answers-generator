@@ -600,7 +600,16 @@ export function usePanelSession(
   );
 
   const tasks = model.tasks;
-  const selected = tasks[tasks.length - 1];
+  // The task on show: the newest, unless the person chose another from the
+  // transcript. Choosing only changes what is shown; the other task keeps running
+  // unless they stop it. A new task takes over the view.
+  const [pinned, setPinned] = useState<string | null>(null);
+  const newest = tasks[tasks.length - 1];
+  const selected = tasks.find((task) => task.taskId === pinned) ?? newest;
+  const taskCount = tasks.length;
+  useEffect(() => {
+    if (taskCount >= 0) setPinned(null);
+  }, [taskCount]);
   selectedRef.current = selected;
   // Capturing or analyzing, whichever document is doing it: shown before the
   // work finishes, from typed state (never from status text).
@@ -662,6 +671,7 @@ export function usePanelSession(
     notify: setNote,
     toasts,
     selected,
+    select: setPinned,
     phase,
     press,
     setAuto,

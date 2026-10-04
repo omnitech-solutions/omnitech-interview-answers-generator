@@ -94,7 +94,23 @@ const NAME_MAX = 60;
 
 // What to call the task: its short title if the model gave one, else the start of
 // the model's restatement (first sentence, trimmed), else "Analysis".
+// A problem name the answer itself gives: in quotes ('This is LeetCode 2, "Add Two
+// Numbers": ...') or after a LeetCode number ('LeetCode 37, Sudoku Solver: ...').
+// Short and not a sentence, or it is not a name.
+const QUOTED_NAME = /["“]([^"”]{3,60})["”]/;
+const NUMBERED_NAME =
+  /\bLeetCode\s*#?\d+\s*[,:\-–—]\s*([^:.\n"“]{3,60}?)\s*[:.]/i;
+export function problemNameIn(text: string): string | null {
+  const name = (QUOTED_NAME.exec(text) ??
+    NUMBERED_NAME.exec(text))?.[1]?.trim();
+  return name && !/[.!?]$/.test(name) ? name : null;
+}
+
 export function taskName(task: TaskView): string {
+  const firstLine =
+    approach(task)?.items.find((item) => item.kind === "line")?.text ?? "";
+  const named = problemNameIn(firstLine);
+  if (named) return named;
   const heading = taskHeading(task);
   const text = heading.restated ?? heading.title;
   const generic = TASK_KIND[task.kind].label;
@@ -149,6 +165,8 @@ export type PanelRow = {
   at: number;
   // The assistant's formatted answer: its lines and fenced code blocks.
   items?: readonly ApproachItem[];
+  // The task an assistant answer belongs to: choosing the row shows that task.
+  taskId?: string;
 };
 export const PANEL_ROWS = 60;
 
@@ -193,6 +211,7 @@ export function panelRows(
     return [
       {
         key: `a-${task.taskId}-${task.currentRevision}`,
+        taskId: task.taskId,
         kind: "assistant" as const,
         label: "Assistant",
         text: shown.items.map((item) => item.text).join("\n"),

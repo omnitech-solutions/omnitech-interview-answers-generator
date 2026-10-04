@@ -756,3 +756,15 @@
 .pn-jump:hover {
   background: rgba(70, 80, 110, 0.98);
 }
+
+/* An answer in the transcript can be chosen; the chosen one is outlined. */
+.pn-row[role="button"] {
+  cursor: pointer;
+}
+.pn-row[role="button"]:hover {
+  filter: brightness(1.12);
+}
+.pn-row[data-selected="true"] {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: -2px;
+}

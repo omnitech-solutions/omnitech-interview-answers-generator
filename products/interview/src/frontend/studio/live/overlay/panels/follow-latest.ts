@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 // Within this many px of the end still counts as "at the end".
 export const AT_END_PX = 48;
+// A scroll within this long of a wheel, touch or key press is the person's.
+const PERSON_SCROLL_MS = 400;
 
 export const isAtEnd = (box: {
   scrollHeight: number;
@@ -23,6 +25,18 @@ export function useFollowLatest(lines: number, activity: unknown) {
     if (box) box.scrollTop = box.scrollHeight;
   }, []);
 
+  // Only the person's own scrolling can stop the following: the window growing or
+  // a line changing height moves the scroll position too, and must not.
+  const byPerson = useRef(false);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touch = useCallback(() => {
+    byPerson.current = true;
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      byPerson.current = false;
+    }, PERSON_SCROLL_MS);
+  }, []);
+
   // New lines (or a stage starting): follow them, or count them.
   useEffect(() => {
     if (following) toEnd();
@@ -33,10 +47,15 @@ export function useFollowLatest(lines: number, activity: unknown) {
   const onScroll = useCallback(() => {
     const box = ref.current;
     if (!box) return;
+    if (!byPerson.current) {
+      // Not the person: stay with the newest line if that is where we were.
+      if (following) toEnd();
+      return;
+    }
     const end = isAtEnd(box);
     setFollowing(end);
     if (end) setUnseen(0);
-  }, []);
+  }, [following, toEnd]);
 
   const jump = useCallback(() => {
     setFollowing(true);
@@ -44,5 +63,5 @@ export function useFollowLatest(lines: number, activity: unknown) {
     toEnd();
   }, [toEnd]);
 
-  return { ref, following, unseen, onScroll, jump };
+  return { ref, following, unseen, onScroll, onPersonScroll: touch, jump };
 }
