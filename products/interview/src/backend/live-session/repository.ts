@@ -4,6 +4,7 @@
 // withTenant({tenantId, actorId, productId}) for the session OWNER, so forced
 // row security binds it (rule:owner-checked-read-paths). Ingest, the worker's
 // claim, the fenced writes and the purge are sibling modules.
+import { randomUUID } from "node:crypto";
 import {
   ACTIVE_SESSION_LIMITS,
   type CaptureSource,
@@ -35,7 +36,12 @@ import {
   type WorkspaceDraftKey,
 } from "./mapping.js";
 import { storeOwnerCapture } from "./owner-capture.js";
-import { storeOwnerInput } from "./owner-input.js";
+import {
+  insertOwnerInput,
+  nextOwnerSequence,
+  OWNER_STOP_BODY,
+  storeOwnerInput,
+} from "./owner-input.js";
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
 import { getSessionChoices } from "./session-choices.js";
 import { mintSessionCredential } from "./session-credential.js";
@@ -386,6 +392,44 @@ export class ActiveSessionRepository {
     // Status is committed; only now are the session's jobs cancelled.
     await this.afterStatusChange(scope, sessionId, outcome.cancel);
     if (outcome.refusal) throw new SessionError(outcome.refusal);
+    return toView(outcome.session);
+  }
+
+  // Owner-initiated stop (ADR-0016 follow-on): abandon the work in flight and
+  // pending NOW while the session stays active. The stop is one durable
+  // `owner.input` observation the holder applies in observation order (it
+  // settles the then-current task revisions and aborts their dispatches), and
+  // the session's jobs are cancelled once it is committed. An unreadable or
+  // non-active session refuses like the other commands (status_refused).
+  async stopWork(scope: OwnerScope, sessionId: string): Promise<SessionView> {
+    assertUuid(sessionId);
+    const outcome = await inOwnerScope(this.database, scope, async (tx) => {
+      let row = await lockSession(tx, scope, sessionId);
+      if (!row || row.purgedAt !== null) throw new SessionError("not_found");
+      const reconciled = await reconcileLocked(tx, row, { contact: true });
+      if (reconciled.applied !== null)
+        row = (await lockSession(tx, scope, sessionId)) as SessionRecord;
+      if (row.status !== "active")
+        return {
+          refused: true,
+          session: row,
+          cancel: reconciled.applied !== null,
+        };
+      const sequence = await nextOwnerSequence(tx, scope, sessionId);
+      await insertOwnerInput(
+        tx,
+        scope,
+        sessionId,
+        row,
+        `stop-${randomUUID()}`,
+        sequence,
+        OWNER_STOP_BODY,
+      );
+      return { refused: false, session: row, cancel: true };
+    });
+    // Status is committed; only now are the session's jobs cancelled.
+    await this.afterStatusChange(scope, sessionId, outcome.cancel);
+    if (outcome.refused) throw new SessionError("status_refused");
     return toView(outcome.session);
   }
 

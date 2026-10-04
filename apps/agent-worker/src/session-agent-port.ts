@@ -668,6 +668,7 @@ export function createSessionAgentPort(
     async execute(request, profile): Promise<AiExecution> {
       const executionId = crypto.randomUUID();
       let usage: AiUsage | undefined;
+      const agent = options.profiles.get(profile.id);
       for await (const event of attempt(request, profile, executionId)) {
         if (event.type === "usage") usage = event.usage;
         if (event.type === "completed")
@@ -677,6 +678,12 @@ export function createSessionAgentPort(
             targetId: profile.targetId,
             result: event.result,
             ...(usage === undefined ? {} : { usage }),
+            // Display metadata from the profile this attempt ran under.
+            ...(agent === undefined
+              ? {}
+              : {
+                  generatedBy: { runtime: agent.runtime, model: agent.model },
+                }),
           };
         if (event.type === "failed") throw event.error;
       }

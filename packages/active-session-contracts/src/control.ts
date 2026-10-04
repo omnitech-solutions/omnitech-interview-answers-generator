@@ -178,7 +178,7 @@ export type Heartbeat = z.infer<typeof heartbeatSchema>;
 export const controlMessageSchema = z.strictObject({
   version: wireVersionSchema,
   kind: z.literal("session.control"),
-  action: z.enum(["pause", "resume", "end"]),
+  action: z.enum(["pause", "resume", "end", "stop-work"]),
 });
 export type ControlMessage = z.infer<typeof controlMessageSchema>;
 

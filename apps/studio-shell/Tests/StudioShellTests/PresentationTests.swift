@@ -17,8 +17,8 @@ private final class RecordingSurface: PresentationSurface {
     var quits = 0
     var moves: [(Double, Double)] = []
     var resets = 0
-    var widths: [Double] = []
-    func setCompactWidth(_ width: Double) { widths.append(width) }
+    var sizes: [[Double?]] = []
+    func setCompactSize(width: Double, height: Double?) { sizes.append([width, height]) }
     func render(_ state: PresentationState) { rendered.append(state) }
     func focus(_ panel: PanelKind) { focused.append(panel) }
     func resetFrames() { resets += 1 }
@@ -38,13 +38,15 @@ func presentationTests(_ t: Harness) async {
         let surface = RecordingSurface()
         controller.surface = surface
         t.expectEqual(controller.state.layout, .compact)
-        controller.perform(.setWindowWidth(1260))
-        controller.perform(.setWindowWidth(340))
-        t.expectEqual(surface.widths, [1260, 340])
+        controller.perform(.setWindowSize(width: 1260, height: nil))
+        controller.perform(.setWindowSize(width: 540, height: 120))
+        t.expectEqual(surface.sizes.count, 2)
+        t.expectEqual(surface.sizes[0][0], 1260)
+        t.expectEqual(surface.sizes[1][1], 120)
         t.expectEqual(controller.state.layout, .compact, "no switch to separate panels")
         controller.perform(.resetLayout)
-        controller.perform(.setWindowWidth(900))
-        t.expectEqual(surface.widths, [1260, 340], "ignored outside the one window")
+        controller.perform(.setWindowSize(width: 900, height: nil))
+        t.expectEqual(surface.sizes.count, 2, "ignored outside the one window")
     }
     // MARK: layout maths
     await t.test("default layout is the video's: bar top-centre, chat left, analysis right of it, settings top-right") {
@@ -373,9 +375,11 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(decode(["op": "setInteractionMode", "on": true]), .success(.presentation(.setInteractionMode(true))))
         t.expectEqual(decode(["op": "setAppMode", "mode": "minified"]), .success(.presentation(.setAppMode(.minified))))
         t.expectEqual(decode(["op": "setOpacity", "value": 0.5]), .success(.presentation(.setOpacity(0.5))))
-        t.expectEqual(decode(["op": "setWindowWidth", "width": 1260.0]), .success(.presentation(.setWindowWidth(1260))))
-        t.expectEqual(decode(["op": "setWindowWidth", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
-        t.expectEqual(decode(["op": "setWindowWidth", "width": 1260.0, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
+        t.expectEqual(decode(["op": "setWindowSize", "width": 1260.0]), .success(.presentation(.setWindowSize(width: 1260, height: nil))))
+        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 120.0]), .success(.presentation(.setWindowSize(width: 540, height: 120))))
+        t.expectEqual(decode(["op": "setWindowSize", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
+        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 5.0]), .failure(.invalidParameters), "too short is refused")
+        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
         t.expectEqual(decode(["op": "setHotkeysEnabled", "enabled": false]), .success(.presentation(.setHotkeysEnabled(false))))
         t.expectEqual(decode(["op": "open", "panel": "../x"]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "open"]), .failure(.invalidParameters))

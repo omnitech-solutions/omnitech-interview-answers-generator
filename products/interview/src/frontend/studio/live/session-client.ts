@@ -84,7 +84,7 @@ export type SessionClient = {
   stream(sessionId: string, cursor?: StreamCursor): Promise<LiveStreamResponse>;
   control(
     sessionId: string,
-    action: "pause" | "resume" | "end",
+    action: "pause" | "resume" | "end" | "stop-work",
   ): Promise<LiveSessionView>;
   // Replaces the previous credential; the plaintext is in the response only.
   renewCredential(sessionId: string): Promise<LiveCredential>;

@@ -78,6 +78,7 @@ import type { FenceHolder } from "./fenced-writes.js";
 import type { InterviewSessionPolicy } from "./interview-policy.js";
 import {
   isSnapshotProvenanceId,
+  OWNER_STOP_OPERATION,
   ownerInputProvenanceId,
   snapshotProvenanceId,
 } from "./owner-input.js";
@@ -93,6 +94,9 @@ import type { SessionTraceEvent } from "./trace.js";
 export type PendingOwnerInput = {
   provenanceId: string;
   input: LiveOwnerInputRequest;
+  // True for the owner's "stop work" marker (control command `stop-work`): it
+  // carries no request, only a place in the observation order.
+  stop?: true;
   // The observation sequence it was stored at: its place among the spoken
   // utterances, so a replay applies it where the live run did.
   sequence: number;
@@ -527,6 +531,8 @@ export async function replayObservations(
   page: number,
 ): Promise<number> {
   let replayed = 0;
+  // A run that has seen nothing yet is rebuilding from the stored stream.
+  const initialReplay = run.cursor === 0;
   for (;;) {
     const batch: StoredObservation[] = await store.observationsAfter(
       run.scope,
@@ -543,7 +549,7 @@ export async function replayObservations(
         continue;
       }
       if (stored.kind === "owner.input") {
-        queueOwnerInput(run, stored);
+        queueOwnerInput(run, stored, initialReplay);
         continue;
       }
       if (stored.kind !== "transcript.final") continue;
@@ -601,9 +607,35 @@ function noteSnapshot(run: SessionRun, stored: StoredObservation): void {
 // Queues a replayed owner input. One already part of a remembered task
 // revision (its provenance id is in the restored, processed set) was applied by
 // a previous holder and is never applied again.
-function queueOwnerInput(run: SessionRun, stored: StoredObservation): void {
+function queueOwnerInput(
+  run: SessionRun,
+  stored: StoredObservation,
+  initialReplay: boolean,
+): void {
   const provenanceId = ownerInputProvenanceId(stored.eventId);
   const body = (stored.content as { body?: unknown }).body;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    (body as { operation?: unknown }).operation === OWNER_STOP_OPERATION
+  ) {
+    // [SAFETY] A stop met while a run replays its session from the start is
+    // history: what it abandoned is remembered as settled actions, and applying
+    // it again would abandon work that came after it. Only a stop that arrives
+    // while this run is live is applied.
+    if (initialReplay || run.processed.has(provenanceId)) {
+      run.processed.add(provenanceId);
+      return;
+    }
+    run.pendingInputs.push({
+      provenanceId,
+      input: undefined as unknown as LiveOwnerInputRequest,
+      stop: true,
+      sequence: stored.sequence,
+      deferrals: 0,
+    });
+    return;
+  }
   const parsed = liveOwnerInputRequestSchema.safeParse({
     ...(typeof body === "object" && body !== null ? body : {}),
     requestId: stored.eventId,
@@ -707,6 +739,90 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
   for (const id of provenance) run.processed.add(id);
 }
 
+// The owner's stop (control command `stop-work`): every dispatch in flight is
+// abandoned and aborted, and every task revision that exists now and has no
+// answer is settled, so no later tick dispatches it again. A revision or task
+// created after the stop is not touched and dispatches normally. The
+// abandonment is durable: each pending revision gets an action row settled as
+// suppressed `owner_stopped` (a final reason that a rebuilt run reads back as
+// settled). Store calls are best effort: the in-memory settlement holds anyway,
+// and nothing here carries content.
+export const OWNER_STOPPED_REASON = "owner_stopped";
+
+async function applyStop(
+  run: SessionRun,
+  pending: PendingOwnerInput,
+  policy: InterviewSessionPolicy,
+  store: SessionStorePort | undefined,
+): Promise<void> {
+  const sessionId = run.claim.sessionId;
+  // [STATE] Abandon what is in the air first, so a late failure of the aborted
+  // dispatch finds its action already settled and cannot reopen it.
+  for (const slot of allSlots(run)) {
+    if (slot.inflight === null) continue;
+    const actionId = slot.actionId;
+    if (store && actionId !== null)
+      await store
+        .abandonAction({
+          scope: run.scope,
+          sessionId,
+          holder: run.holder,
+          actionId,
+          reason: OWNER_STOPPED_REASON,
+        })
+        .catch(() => undefined);
+    if (slot.taskId !== null) {
+      const kind =
+        slot === run.slots.coding
+          ? CODING_ACTION_KIND
+          : policy.assist.actionKind;
+      run.settled.add(keyOf(run, slot.taskId, slot.revision, kind));
+    }
+    slot.abort?.abort();
+  }
+  // [STATE] Settle every current revision still owed an answer (the coding
+  // solution only where its prose draft named the revision a coding challenge).
+  for (const task of Object.values(run.tasks.tasks)) {
+    const current = task.revisions.find(
+      (entry) => entry.revision === task.revision,
+    );
+    if (!current || current.sourceSuperseded) continue;
+    const kinds = [policy.assist.actionKind];
+    if (run.coding.get(codingKey(task.taskId, task.revision)))
+      kinds.push(CODING_ACTION_KIND);
+    for (const kind of kinds) {
+      const key = keyOf(run, task.taskId, task.revision, kind);
+      if (run.settled.has(key)) continue;
+      run.settled.add(key);
+      if (!store) continue;
+      const recorded = await store
+        .recordAction({
+          scope: run.scope,
+          sessionId,
+          holder: run.holder,
+          tasks: run.tasks,
+          taskId: task.taskId,
+          revision: task.revision,
+          actionKind: kind,
+        })
+        .catch(() => null);
+      if (recorded?.outcome !== "dispatched") continue;
+      noteRecorded(run, task.taskId, task.revision);
+      await store
+        .abandonAction({
+          scope: run.scope,
+          sessionId,
+          holder: run.holder,
+          actionId: recorded.actionId,
+          reason: OWNER_STOPPED_REASON,
+        })
+        .catch(() => undefined);
+    }
+  }
+  run.processed.add(pending.provenanceId);
+  run.trace({ event: "session.work_stopped", outcome: "stopped" });
+}
+
 // Applies queued owner inputs to the task state, in arrival order, after the
 // spoken utterances. Returns how many inputs were applied.
 export function processOwnerInputs(run: SessionRun): number {
@@ -716,6 +832,11 @@ export function processOwnerInputs(run: SessionRun): number {
     (segment) => !run.processed.has(segment.eventId),
   );
   for (const pending of run.pendingInputs) {
+    // A stop needs the store and is applied by processInOrder only.
+    if (pending.stop) {
+      waiting.push(pending);
+      continue;
+    }
     const { input } = pending;
     // A target that is not a task yet may be one of the utterances still
     // settling: wait one pass for it, then treat the input as a new question.
@@ -746,6 +867,7 @@ export async function processInOrder(
   policy: InterviewSessionPolicy,
   nowMs: number,
   settleMs: number,
+  store?: SessionStorePort,
 ): Promise<{ utterances: number; inputs: number }> {
   let utterances = 0;
   let inputs = 0;
@@ -765,7 +887,8 @@ export async function processInOrder(
         segment.seq < pending.sequence && !run.processed.has(segment.eventId),
     );
     if (earlierOpen) break;
-    applyOwnerInput(run, pending);
+    if (pending.stop) await applyStop(run, pending, policy, store);
+    else applyOwnerInput(run, pending);
     run.pendingInputs = run.pendingInputs.filter((entry) => entry !== pending);
     inputs += 1;
   }

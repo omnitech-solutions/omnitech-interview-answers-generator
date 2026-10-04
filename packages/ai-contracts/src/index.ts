@@ -105,12 +105,21 @@ export interface AiResumeRequest {
   signal?: AbortSignal;
 }
 
+// Which runtime and model produced a result. Display metadata read from the
+// executor's own profile, never from user input or model output. Never branch
+// on it (ADR-0007) and never log it with content.
+export interface AiGeneratedBy {
+  runtime: string;
+  model: string;
+}
+
 export interface AiExecution<T = unknown> {
   executionId: string;
   family: AiExecutionFamily;
   targetId: string;
   result: T;
   usage?: AiUsage;
+  generatedBy?: AiGeneratedBy;
 }
 
 export type AiEvent<T = unknown> =

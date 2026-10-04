@@ -330,6 +330,7 @@ export function createSessionProcessor(
       policy,
       now,
       settings.settleMs,
+      store,
     );
 
     await persistHandled(run);
@@ -341,7 +342,10 @@ export function createSessionProcessor(
     // publication still refuses a stale result.
     cancelSupersededSlots(run);
     let started = false;
-    if (view.liveAssistance) {
+    // A stop that is stored but not yet applied (an earlier utterance is still
+    // settling) holds dispatch, so abandoned work is not started in the gap.
+    const stopHeld = run.pendingInputs.some((entry) => entry.stop === true);
+    if (view.liveAssistance && !stopHeld) {
       const prose =
         run.slots.assist.inflight === null
           ? nextPending(run, policy.assist.actionKind, settings.maxAttempts)

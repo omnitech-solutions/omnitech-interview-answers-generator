@@ -81,6 +81,24 @@ describe("session commands", () => {
     );
   });
 
+  it("stops the running work with one control call and leaves the session active", async () => {
+    const server = controlledServer();
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await flush();
+    let sent: unknown = null;
+    server.on("POST /:id/control", ({ body }) => {
+      sent = body;
+      return jsonResponse({ session: sessionView() });
+    });
+    await expect(store.actions.stopWork()).resolves.toEqual({ ok: true });
+    expect(sent).toMatchObject({ action: "stop-work" });
+    expect(store.getSnapshot().session?.status).toBe("active");
+    expect(server.calls.filter((c) => c === "POST /:id/control")).toHaveLength(
+      1,
+    );
+  });
+
   it("ends the session, reads the last page once, remembers the id and stops", async () => {
     const server = controlledServer();
     const store = boot(server);

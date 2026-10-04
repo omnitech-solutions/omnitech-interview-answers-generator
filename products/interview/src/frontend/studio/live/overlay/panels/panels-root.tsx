@@ -23,6 +23,7 @@ import {
   SettingsPanel,
   Toasts,
 } from "./panel-views";
+import { useCaptureMode } from "./capture-mode";
 import { SinglePanel, usePanes } from "./single-panel";
 import { createPipPresentation } from "./pip-adapter";
 import { selectPresentation } from "./presentation-host";
@@ -70,9 +71,10 @@ export function PanelsRoot({
     [stack],
   );
   const { snapshot, actions } = useLiveSession();
-  const panes = usePanes(presentation, single);
+  const panes = usePanes();
+  const [captureMode, setCaptureMode] = useCaptureMode(tenantFromLocation());
   const s = usePanelSession(panel, presentation, {
-    watchScreen: single && panes.shown.analysis,
+    watchScreen: single && panes.shown.analysis && captureMode === "auto",
   });
   const access = overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
@@ -163,7 +165,12 @@ export function PanelsRoot({
     );
 
   return (
-    <div className="pn-root" data-panel={panel} data-testid="pn-root">
+    <div
+      className="pn-root"
+      data-panel={panel}
+      data-single={single ? "" : undefined}
+      data-testid="pn-root"
+    >
       {stack ? (
         <>
           <PillPanel s={s} />
@@ -183,7 +190,12 @@ export function PanelsRoot({
           {active && <View panel={active} s={s} presentation={presentation} />}
         </>
       ) : single ? (
-        <SinglePanel s={s} panes={panes} />
+        <SinglePanel
+          s={s}
+          panes={panes}
+          presentation={presentation}
+          captureMode={{ value: captureMode, onChange: setCaptureMode }}
+        />
       ) : (
         <View panel={panel} s={s} presentation={presentation} />
       )}

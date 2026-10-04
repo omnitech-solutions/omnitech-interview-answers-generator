@@ -162,7 +162,7 @@ export type LiveSessionStartResponse = z.infer<
 export const liveSessionControlRequestSchema = z.strictObject({
   version: z.literal(1),
   kind: z.literal("session.control"),
-  action: z.enum(["pause", "resume", "end"]),
+  action: z.enum(["pause", "resume", "end", "stop-work"]),
 });
 export type LiveSessionControlRequest = z.infer<
   typeof liveSessionControlRequestSchema
@@ -496,6 +496,15 @@ export const liveWithheldResultSchema = z.object({
 });
 export type LiveWithheldResult = z.infer<typeof liveWithheldResultSchema>;
 
+// Which runtime and model generated an action's result (for example "claude"
+// and "claude-sonnet-5-5"). Display metadata copied from the executor's own
+// profile: never user input, never content, and never a reason to branch.
+export const liveGeneratedBySchema = z.object({
+  runtime: z.string().min(1).max(64),
+  model: z.string().min(1).max(128),
+});
+export type LiveGeneratedBy = z.infer<typeof liveGeneratedBySchema>;
+
 export const liveActionSchema = z.object({
   id: z.uuid(),
   taskId: z.string(),
@@ -513,6 +522,8 @@ export const liveActionSchema = z.object({
   // withheld carries only { withheld } (liveWithheldResultSchema), no content.
   // Render only as inert text.
   result: z.unknown(),
+  // Absent on actions recorded before this field, or by a non-agent executor.
+  generatedBy: liveGeneratedBySchema.optional(),
   shown: z.boolean(),
   suppressionReason: z.string().nullable(),
   createdAt: isoTime,

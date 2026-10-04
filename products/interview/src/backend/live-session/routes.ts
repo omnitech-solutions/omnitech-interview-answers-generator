@@ -455,11 +455,16 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
   app.post(`${base}/:sessionId/control`, async (c) => {
     const parsed = controlMessageSchema.safeParse(await jsonBody(c.req.raw));
     if (!parsed.success) throw new SessionError("invalid_input");
-    const session = await repository.controlSession(
-      c.get("scope"),
-      c.req.param("sessionId"),
-      parsed.data.action,
-    );
+    // Stop work keeps the session active: it abandons what is in flight and
+    // pending now, and never changes the status.
+    const session =
+      parsed.data.action === "stop-work"
+        ? await repository.stopWork(c.get("scope"), c.req.param("sessionId"))
+        : await repository.controlSession(
+            c.get("scope"),
+            c.req.param("sessionId"),
+            parsed.data.action,
+          );
     return c.json({ session });
   });
 

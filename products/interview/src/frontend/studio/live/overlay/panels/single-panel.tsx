@@ -4,11 +4,15 @@
 // around it. The toolbar carries what the card's footer did (Pause or Resume, End
 // with its confirmation, a start button once the session ended); the footer keeps
 // the honest "Visible window" note and the build id.
-import type { PresentationHost } from "@omnitech/interview-contracts";
-import { useEffect, useRef, useState } from "react";
+import type {
+  LiveAction,
+  PresentationHost,
+} from "@omnitech/interview-contracts";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "../../../icon";
 import { failureNote, Footer } from "../overlay-footer";
 import { AUTO_SESSION } from "./auto-session";
+import type { CaptureMode } from "./capture-mode";
 import { openPanelBus } from "./panel-bus";
 import {
   AnalysisPanel,
@@ -19,7 +23,8 @@ import {
 
 // What each pane needs, and what the toolbar alone needs (CSS px).
 export const PANE_WIDTH = { chat: 320, analysis: 480, code: 420 } as const;
-export const BARE_WIDTH = 340;
+// The toolbar alone, until its real width is measured.
+export const BARE_WIDTH = 540;
 const GAP = 8;
 const PAD = 16;
 
@@ -39,26 +44,38 @@ export function windowWidthFor(shown: {
   );
 }
 
+const RUNTIME_LABEL: Record<string, string> = {
+  "claude-code": "Claude",
+  codex: "Codex",
+};
+
+// "Claude · claude-sonnet-5-5": what produced the latest answer, or null before
+// the first one. Display only; nothing depends on it.
+export function generatedByLabel(
+  actions: readonly LiveAction[],
+): string | null {
+  const latest = actions
+    .filter(
+      (action) => action.generatedBy && action.dispatchStatus === "succeeded",
+    )
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  const by = latest?.generatedBy;
+  return by ? `${RUNTIME_LABEL[by.runtime] ?? by.runtime} · ${by.model}` : null;
+}
+
 export type Panes = {
   shown: { chat: boolean; analysis: boolean; code: boolean };
   toggle(pane: "chat" | "analysis" | "code"): void;
 };
 
 // Which panes of the one window are showing. The code opens with the analysis:
-// expanded by default. While `active`, the shell widens or narrows the window
-// about its centre to fit what is shown.
-export function usePanes(
-  presentation: PresentationHost,
-  active: boolean,
-): Panes {
+// expanded by default.
+export function usePanes(): Panes {
   const [shown, setShown] = useState({
     chat: true,
     analysis: true,
     code: true,
   });
-  useEffect(() => {
-    if (active) void presentation.setWindowWidth?.(windowWidthFor(shown));
-  }, [active, shown, presentation]);
   return {
     shown,
     toggle: (pane) => setShown((now) => ({ ...now, [pane]: !now[pane] })),
@@ -68,11 +85,14 @@ export function usePanes(
 export function SinglePanel({
   s,
   panes: { shown, toggle },
+  presentation,
+  captureMode,
 }: {
   s: PanelSession;
   panes: Panes;
+  presentation: PresentationHost;
+  captureMode: { value: CaptureMode; onChange(mode: CaptureMode): void };
 }) {
-  const [confirming, setConfirming] = useState(false);
   // The session ended (End, or the server's time limit): the window starts the
   // next one itself. It is the same server-side session Studio shows, so the
   // browser view and every other window follow it.
@@ -93,9 +113,42 @@ export function SinglePanel({
     startedHere.current = false;
     openPanelBus().post({ type: "session", sessionId });
   }, [sessionId]);
-  const busy =
-    s.snapshot.pending.includes("pause") ||
-    s.snapshot.pending.includes("resume");
+  const model = generatedByLabel(s.snapshot.actions);
+  // The shell widens or narrows the window about its centre to fit what shows,
+  // never narrower than the toolbar. With no pane showing, the window is only as
+  // tall as the toolbar and footer, so the footer sits right under the toolbar.
+  useLayoutEffect(() => {
+    const root = document.querySelector<HTMLElement>(".pn-root");
+    const bare = !shown.chat && !shown.analysis && !shown.code;
+    const fit = () => {
+      const pill = root?.querySelector<HTMLElement>(".pn-pill");
+      const toolbar = (pill?.offsetWidth ?? BARE_WIDTH - PAD) + PAD;
+      const width = Math.max(windowWidthFor(shown), toolbar);
+      let height: number | undefined;
+      if (bare && root) {
+        const rows = [...root.children].filter(
+          (row): row is HTMLElement =>
+            row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
+        );
+        height =
+          rows.reduce((sum, row) => sum + row.offsetHeight, 0) +
+          GAP * Math.max(rows.length - 1, 0) +
+          PAD;
+      }
+      void presentation.setWindowSize?.({
+        width,
+        ...(height === undefined ? {} : { height }),
+      });
+    };
+    fit();
+    // With nothing showing the window is only as tall as its rows, so it follows
+    // the footer as its confirmation opens and closes.
+    const foot = root?.querySelector<HTMLElement>(".pn-single-foot");
+    if (!bare || !foot || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(fit);
+    watch.observe(foot);
+    return () => watch.disconnect();
+  }, [shown, ended, model, presentation]);
   const paneButton = (
     pane: keyof typeof shown,
     icon: "forum" | "article" | "code",
@@ -114,104 +167,45 @@ export function SinglePanel({
   );
   return (
     <>
-      <PillPanel s={s}>
+      <PillPanel s={s} captureMode={captureMode}>
+        {model && (
+          <span
+            className="pn-model"
+            title={`Generated by ${model}`}
+            data-testid="pn-model"
+          >
+            {model}
+          </span>
+        )}
         {paneButton("chat", "forum", "chat")}
         {paneButton("analysis", "article", "analysis")}
         {paneButton("code", "code", "code")}
-        {ended ? (
-          <button
-            type="button"
-            className="pn-bar-button"
-            aria-label="Start a new session"
-            title="Start a new session"
-            disabled={starting}
-            onClick={() => void startNext()}
-          >
-            <Icon name="play_circle" filled />
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="pn-bar-button"
-              aria-label={s.paused ? "Resume session" : "Pause session"}
-              title={s.paused ? "Resume" : "Pause"}
-              disabled={busy}
-              onClick={() =>
-                void (s.paused ? s.actions.resume() : s.actions.pause())
-              }
-            >
-              <Icon name={s.paused ? "play_arrow" : "pause"} filled />
-            </button>
-            <button
-              type="button"
-              className="pn-bar-button"
-              aria-label="End session"
-              title="End the session"
-              onClick={() => setConfirming(true)}
-            >
-              <Icon name="stop_circle" />
-            </button>
-          </>
-        )}
       </PillPanel>
-      {ended && (
-        <div className="ov-confirm pn-single-confirm" role="status">
-          <span>
-            This session has ended. Press <Icon name="play_circle" /> in the bar
-            to start a new one.
-          </span>
+      {(shown.chat || shown.analysis || shown.code) && (
+        <div className="pn-single-body">
+          {shown.chat && (
+            <div className="pn-single-pane" data-which="chat">
+              <ChatPanel s={s} />
+            </div>
+          )}
+          {shown.analysis && (
+            <div className="pn-single-pane" data-which="analysis">
+              <AnalysisPanel s={s} part="text" />
+            </div>
+          )}
+          {shown.code && (
+            <div className="pn-single-pane" data-which="code">
+              <AnalysisPanel s={s} part="code" />
+            </div>
+          )}
         </div>
       )}
-      {confirming && (
-        <div
-          className="ov-confirm pn-single-confirm"
-          role="alertdialog"
-          aria-label="End this session?"
-        >
-          <span>
-            End this session? Capture stops and running work is cancelled.
-          </span>
-          <button
-            type="button"
-            className="ov-button"
-            onClick={() => setConfirming(false)}
-          >
-            Keep going
-          </button>
-          <button
-            type="button"
-            className="ov-button danger"
-            onClick={async () => {
-              const result = await s.actions.end();
-              if (!result.ok) s.notify(failureNote(result.code));
-              setConfirming(false);
-            }}
-          >
-            End now
-          </button>
-        </div>
-      )}
-      <div className="pn-single-body">
-        {shown.chat && (
-          <div className="pn-single-pane" data-which="chat">
-            <ChatPanel s={s} />
-          </div>
-        )}
-        {shown.analysis && (
-          <div className="pn-single-pane" data-which="analysis">
-            <AnalysisPanel s={s} part="text" />
-          </div>
-        )}
-        {shown.code && (
-          <div className="pn-single-pane" data-which="code">
-            <AnalysisPanel s={s} part="code" />
-          </div>
-        )}
-      </div>
       <div className="pn-single-foot">
         <Footer
-          controls={false}
+          endLabel="End session"
+          ended={ended}
+          onStart={() => void startNext()}
+          starting={starting}
           paused={s.paused}
           pending={s.snapshot.pending}
           actions={s.actions}

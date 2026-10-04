@@ -52,6 +52,7 @@ export function createFakeGateway(
   behaviour: {
     result?: (request: AiExecutionRequest) => unknown;
     fail?: (request: AiExecutionRequest) => unknown | undefined;
+    generatedBy?: { runtime: string; model: string };
   } = {},
 ): FakeGateway {
   const requests: AiExecutionRequest[] = [];
@@ -106,6 +107,9 @@ export function createFakeGateway(
           )
             ? CANNED_LOGISTICS_DRAFT
             : CANNED_DRAFT)) as T,
+        ...(behaviour.generatedBy
+          ? { generatedBy: behaviour.generatedBy }
+          : {}),
       };
     },
     streamStructured: unsupported,

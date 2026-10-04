@@ -659,6 +659,28 @@ describe("session history list", () => {
   });
 });
 
+describe("stop-work control", () => {
+  it("keeps the owner's session active, and refuses it once paused", async () => {
+    const owner = await begin("stop-work-route");
+    const control = (action: string) =>
+      post(`/${owner.id}/control`, {
+        version: 1,
+        kind: "session.control",
+        action,
+      });
+    const stopped = await control("stop-work");
+    expect(stopped.status).toBe(200);
+    expect(
+      ((await stopped.json()) as { session: { status: string } }).session
+        .status,
+    ).toBe("active");
+    expect((await control("pause")).status).toBe(200);
+    const refused = await control("stop-work");
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: { code: "status_refused" } });
+  });
+});
+
 describe("after a session ends", () => {
   it("answers current as not found, and the session by id as ended, then purging", async () => {
     const owner = await begin("ending");

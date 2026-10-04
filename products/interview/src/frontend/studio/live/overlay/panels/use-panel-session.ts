@@ -182,6 +182,7 @@ export function usePanelSession(
       if (text) bus.post({ type: "note", text });
     };
     setNote(null);
+    setStopped(false);
     if (latest.current.deviceOnly) {
       setNote(DEVICE_ONLY_ANALYZE);
       return false;
@@ -337,6 +338,18 @@ export function usePanelSession(
   }, [report, live.auto, live.mic, live.interim, live.sharing, live.phase]);
 
   useEffect(() => {}, [owns, open, bus]);
+  // Stop what is running now: the server cancels the in-flight work and does not
+  // try it again, and the session stays open (the mic keeps listening). The panels
+  // stop saying "Analyzing" at once, without waiting for the server.
+  const [stopped, setStopped] = useState(false);
+  const phaseRef = useRef<"capturing" | "analyzing" | null>(null);
+  async function stopAnalysis(): Promise<void> {
+    setStopped(true);
+    setNote(null);
+    const result = await actions.stopWork();
+    if (!result.ok) return setNote(failureNote(result.code));
+    addSystem("Analysis stopped.");
+  }
   const press = useCallback(
     (command: "capture" | "toggle-mic") => {
       if (!owns) {
@@ -344,9 +357,12 @@ export function usePanelSession(
         return;
       }
       if (command === "toggle-mic") auto.toggleListening();
+      // While work is running the capture control is "Stop"; pressed again it
+      // captures the screen as a new task.
+      else if (phaseRef.current) void stopAnalysis();
       else void grabAndAnalyze();
     },
-    // grabAndAnalyze reads refs; auto.toggleListening is stable.
+    // grabAndAnalyze and stopAnalysis read refs; auto.toggleListening is stable.
     [owns, bus, auto.toggleListening],
   );
   const pressRef = useRef(press);
@@ -584,7 +600,12 @@ export function usePanelSession(
   selectedRef.current = selected;
   // Capturing or analyzing, whichever document is doing it: shown before the
   // work finishes, from typed state (never from status text).
-  const phase = localPhase ?? live.phase;
+  // A stop hides the phase until the work has really wound down.
+  useEffect(() => {
+    if (!localPhase) setStopped(false);
+  }, [localPhase]);
+  const phase = stopped ? null : (localPhase ?? live.phase);
+  phaseRef.current = phase;
 
   return {
     snapshot,

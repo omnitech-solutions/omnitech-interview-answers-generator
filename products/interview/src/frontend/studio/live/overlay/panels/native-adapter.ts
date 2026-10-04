@@ -82,12 +82,10 @@ export function nativePresentation(): PresentationHost | null {
             attempt(() => host.setOpacity?.(value) ?? Promise.resolve(false)),
         }
       : {}),
-    ...(host.setWindowWidth
+    ...(host.setWindowSize
       ? {
-          setWindowWidth: (width: number) =>
-            attempt(
-              () => host.setWindowWidth?.(width) ?? Promise.resolve(false),
-            ),
+          setWindowSize: (size: { width: number; height?: number }) =>
+            attempt(() => host.setWindowSize?.(size) ?? Promise.resolve(false)),
         }
       : {}),
   };

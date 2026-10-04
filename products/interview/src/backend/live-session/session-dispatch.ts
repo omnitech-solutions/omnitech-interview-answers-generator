@@ -20,6 +20,7 @@
 // unavailable device is a retryable outcome that tries the same profile again.
 import {
   type AgentAttachment,
+  type AiGeneratedBy,
   type AiExecutionGateway,
   type AiExecutionRequest,
   AiPolicyRefusedError,
@@ -177,6 +178,7 @@ export async function beginDispatch(
   let profileId: string | undefined;
   let bytesIn = 0;
   let bytesOut = 0;
+  let generatedBy: AiGeneratedBy | undefined;
 
   const finish = (event: string, outcome: string, detail?: DispatchDetail) =>
     run.trace({
@@ -419,6 +421,8 @@ export async function beginDispatch(
           typeof result === "string" ? result : (JSON.stringify(result) ?? ""),
         );
         if (stopped()) return { ok: false };
+        // Display metadata only: remembered for the publish, never branched on.
+        generatedBy = execution.generatedBy;
         return { ok: true, result };
       } catch (error) {
         if (stopped()) return { ok: false };
@@ -496,7 +500,9 @@ export async function beginDispatch(
           holder: run.holder,
           actionId,
           tasks: run.tasks,
-          result,
+          // The executor that generated the answer, from its own profile.
+          result:
+            generatedBy === undefined ? result : { ...result, generatedBy },
           show: options.show ?? true,
           ...(options.effect ? { effect: options.effect } : {}),
         });

@@ -239,6 +239,10 @@ export function createSessionActions(context: CommandContext): SessionActions {
         });
         restartIfLive(bound);
       }),
+    stopWork: () =>
+      run("stop-work", async (bound) => {
+        applied(bound, await client.control(sessionIdOf(bound), "stop-work"));
+      }),
     end: () =>
       run("end", async (bound) => {
         const id = sessionIdOf(bound);

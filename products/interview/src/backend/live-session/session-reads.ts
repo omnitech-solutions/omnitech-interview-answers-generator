@@ -4,6 +4,7 @@
 // finds nothing. A session that is not the actor's reads as "not found", the
 // same as one that does not exist.
 import type { PlatformDatabase } from "@omnitech/database";
+import { liveGeneratedBySchema } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
@@ -122,6 +123,8 @@ export type StoredAction = {
   // a row written before the column existed.
   sourceEventIds?: readonly string[] | null;
   result: unknown;
+  // Display metadata lifted from result.generatedBy when it is well formed.
+  generatedBy?: { runtime: string; model: string };
   shown: boolean;
   suppressionReason: string | null;
   createdAt: string;
@@ -133,12 +136,24 @@ export const ACTION_COLUMNS = sql`id, task_id, task_revision, action_kind,
   dispatch_status, attempt, fence_at_dispatch, job_id, job_created, result,
   shown, suppression_reason, created_at, updated_at`;
 
+function generatedByOf(
+  result: unknown,
+): { runtime: string; model: string } | undefined {
+  const found = (result as { generatedBy?: unknown } | null)?.generatedBy;
+  const parsed = liveGeneratedBySchema.safeParse(found);
+  return parsed.success ? parsed.data : undefined;
+}
+
 export function toStoredAction(row: Record<string, unknown>): StoredAction {
   // A withheld draft's summary rides on its suppression reason (withheld.ts):
   // the browser reads it as result.withheld, content-free.
   const stored = row["suppression_reason"]
     ? decodeWithheldReason(String(row["suppression_reason"]))
     : null;
+  const result = stored?.withheld
+    ? { withheld: stored.withheld }
+    : (row["result"] ?? null);
+  const generatedBy = generatedByOf(result);
   return {
     id: String(row["id"]),
     taskId: String(row["task_id"]),
@@ -149,9 +164,8 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     fenceAtDispatch: Number(row["fence_at_dispatch"]),
     jobId: row["job_id"] ? String(row["job_id"]) : null,
     jobCreated: Boolean(row["job_created"]),
-    result: stored?.withheld
-      ? { withheld: stored.withheld }
-      : (row["result"] ?? null),
+    result,
+    ...(generatedBy === undefined ? {} : { generatedBy }),
     shown: Boolean(row["shown"]),
     suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),

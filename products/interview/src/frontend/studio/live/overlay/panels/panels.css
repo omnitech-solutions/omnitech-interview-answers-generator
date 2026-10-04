@@ -564,3 +564,83 @@
 .pn-single-body > [data-which="code"] {
   flex: 0 1 420px;
 }
+
+/* The one window's toolbar is as wide as its items, never clipped. */
+.pn-root[data-single] .pn-pill {
+  width: max-content;
+  max-width: none;
+  flex-shrink: 0;
+  align-self: center;
+}
+.pn-model {
+  font-size: 11px;
+  color: var(--ov-muted);
+  white-space: nowrap;
+}
+
+/* While analysing the capture button is red: press it to stop. Resume and Start
+   are green. */
+.pn-pill .pn-bar-button[data-stop="true"] {
+  background: rgba(214, 62, 52, 0.9);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+}
+.pn-pill .pn-bar-button[data-stop="true"] kbd {
+  color: rgba(255, 255, 255, 0.85);
+}
+.pn-single-foot .ov-button.go {
+  background: rgba(46, 160, 90, 0.9);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+.pn-single-foot .ov-button.danger {
+  background: rgba(214, 62, 52, 0.9);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+.pn-single-foot .ov-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+/* The status dot sits on the capture icon. */
+.pn-icon-dot {
+  position: relative;
+  display: inline-flex;
+}
+.pn-icon-dot .pn-dot {
+  position: absolute;
+  right: -5px;
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px rgba(30, 30, 34, 0.95);
+}
+
+/* The Auto / Manual menu beside the capture button. */
+.pn-pill .pn-mode {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ov-text);
+  background-color: transparent;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 6px;
+  padding: 3px 22px 3px 8px;
+  cursor: pointer;
+}
+.pn-pill .pn-mode:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.pn-pill .pn-mode option {
+  color: #111;
+}

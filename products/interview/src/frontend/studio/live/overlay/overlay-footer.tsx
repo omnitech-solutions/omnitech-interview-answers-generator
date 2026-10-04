@@ -93,9 +93,19 @@ export function Footer({
   actions,
   onFailure,
   controls = true,
+  endLabel = "End",
+  ended = false,
+  onStart,
+  starting = false,
 }: {
-  // False when Pause and End live elsewhere (the one-window toolbar).
+  // False when Pause and End live elsewhere.
   controls?: boolean;
+  // The one-window view spells it out: "End session".
+  endLabel?: string;
+  // A finished session offers a new one instead of Pause and End.
+  ended?: boolean;
+  onStart?(): void;
+  starting?: boolean;
   paused: boolean;
   pending: readonly string[];
   actions: SessionActions;
@@ -125,10 +135,27 @@ export function Footer({
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>
-        {controls && (
+        {controls && ended && onStart && (
           <button
             type="button"
-            className="ov-button"
+            className="ov-button go"
+            title="Start a new session"
+            disabled={starting}
+            onClick={onStart}
+          >
+            <Icon name="play_circle" filled />
+            {starting ? "Starting…" : "Start a new session"}
+          </button>
+        )}
+        {controls && !ended && (
+          <button
+            type="button"
+            className={paused ? "ov-button go" : "ov-button"}
+            title={
+              paused
+                ? "Carry on listening and analysing"
+                : "Take a break: stop listening and analysing until you resume. The session stays open"
+            }
             disabled={pending.includes("pause") || pending.includes("resume")}
             onClick={() =>
               void run(paused ? actions.resume() : actions.pause())
@@ -138,14 +165,15 @@ export function Footer({
             {paused ? "Resume" : "Pause"}
           </button>
         )}
-        {controls && (
+        {controls && !ended && (
           <button
             ref={endButton}
             type="button"
             className="ov-button danger"
+            title="Finish this session for good. You can start a new one afterwards"
             onClick={() => setConfirming(true)}
           >
-            End
+            {endLabel}
           </button>
         )}
       </div>

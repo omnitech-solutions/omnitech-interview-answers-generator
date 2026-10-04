@@ -37,6 +37,14 @@ export type OwnerInputBody = Omit<LiveOwnerInputRequest, "requestId">;
 // replay and the pending list small.
 export const OWNER_INPUT_MAX_PER_SESSION = 500;
 
+// The owner's "stop work" (control command `stop-work`): a stored, content-free
+// marker in the observation stream, never accepted from the input route (its
+// schema has no such operation). The holder applies it in observation order.
+export const OWNER_STOP_OPERATION = "stop";
+export const OWNER_STOP_BODY = {
+  operation: OWNER_STOP_OPERATION,
+} as unknown as OwnerInputBody;
+
 export type OwnerInputAck = { requestId: string; sequence: number };
 
 // Provenance ids: what a task revision rests on besides spoken segments. The

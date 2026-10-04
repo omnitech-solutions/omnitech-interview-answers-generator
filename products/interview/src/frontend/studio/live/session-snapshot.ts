@@ -22,6 +22,7 @@ export type SessionCommand =
   | "pause"
   | "resume"
   | "end"
+  | "stop-work"
   | "renew"
   | "revoke"
   | "tighten"
@@ -91,6 +92,9 @@ export type SessionActions = {
   // Idempotent on the server; the final stream page is read before polling
   // stops, so the ended view has the last transcript and results.
   end(): Promise<CommandResult>;
+  // Cancels what is running now without pausing: the session stays open, and the
+  // abandoned work is not tried again. A later capture starts fresh.
+  stopWork(): Promise<CommandResult>;
   renewCredential(): Promise<CommandResult>;
   revokeCredential(): Promise<CommandResult>;
   // Tighten only: after start the policy can move to device-only, never back.

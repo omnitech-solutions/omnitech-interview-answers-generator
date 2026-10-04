@@ -129,7 +129,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
 
     func view(for kind: PanelKind) -> WKWebView? { panels[kind]?.webView }
     var compactView: WKWebView? { compact?.webView }
-    func setCompactWidth(_ width: Double) { compact?.setWidth(CGFloat(width)) }
+    func setCompactSize(width: Double, height: Double?) { compact?.setSize(width: CGFloat(width), height: height.map { CGFloat($0) }) }
     var mainWindowView: WKWebView? { mainView }
     var panelViews: [WKWebView] { PanelKind.allCases.compactMap { panels[$0]?.webView } }
     var mainWindow: NSWindow? { main }
@@ -368,18 +368,36 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     @objc private func closeTapped() { onClose?() }
     @objc private func zoomTapped() { onExpand?() }
 
-    // Take this width, widening or narrowing evenly about the window's centre so
-    // the toolbar at its top does not move. Kept inside the display.
-    func setWidth(_ requested: CGFloat) {
+    // The height the window had before it was fitted to its content.
+    private var tallHeight: CGFloat?
+
+    // Take this size. Width changes are even about the window's centre so the
+    // toolbar at the top does not move; a height fits the window to its content
+    // from the top edge (remembering the old height), and none restores it. The
+    // result stays inside the display.
+    func setSize(width requested: CGFloat, height requestedHeight: CGFloat?) {
         var frame = panel.frame
         let visible = (panel.screen ?? NSScreen.main)?.visibleFrame
         let width = min(max(requested, panel.minSize.width), visible.map { $0.width - 16 } ?? requested)
-        guard abs(width - frame.width) > 0.5 else { return }
+        // Page points plus the native strip over the top of the page.
+        let wantHeight: CGFloat
+        if let requestedHeight {
+            if frame.height > requestedHeight + 40 { tallHeight = frame.height }
+            wantHeight = requestedHeight + 16
+        } else {
+            wantHeight = tallHeight ?? frame.height
+            tallHeight = nil
+        }
+        let height = min(max(wantHeight, 60), visible.map { $0.height - 16 } ?? wantHeight)
+        guard abs(width - frame.width) > 0.5 || abs(height - frame.height) > 0.5 else { return }
         let centre = frame.midX
-        frame.size.width = width
+        let top = frame.maxY
+        frame.size = CGSize(width: width, height: height)
         frame.origin.x = centre - width / 2
+        frame.origin.y = top - height
         if let visible {
             frame.origin.x = min(max(frame.origin.x, visible.minX + 8), visible.maxX - width - 8)
+            frame.origin.y = min(max(frame.origin.y, visible.minY + 8), visible.maxY - height)
         }
         panel.setFrame(frame, display: true, animate: true)
     }

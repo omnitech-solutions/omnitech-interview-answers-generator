@@ -129,6 +129,30 @@ describe("recruiter-screen replay through the real processor", () => {
     expect(promoted.rows[0].n).toBe(0);
   }, 60_000);
 
+  it("records the executor's runtime and model on the published action", async () => {
+    const generatedBy = { runtime: "claude-code", model: "claude-sonnet-5-5" };
+    const started = await startSessionFor(fx, repo, fx.tenantA, "replay-by");
+    const gateway = createFakeGateway({ generatedBy });
+    const processor = buildProcessor(fx, {
+      workerId: "worker-replay-by",
+      gateway,
+    });
+    cleanups.push(async () => {
+      await processor.close();
+      await repo.controlSession(started.scope, started.sessionId, "end");
+    });
+    for (const segment of RECRUITER_SCREEN[0]?.segments ?? [])
+      await started.ingestor.ingest(segment);
+    await settle(processor);
+    const stored = await actions(started);
+    const published = stored.filter((a) => a.result !== null);
+    expect(published.length).toBeGreaterThan(0);
+    for (const action of published) {
+      expect(action.generatedBy).toEqual(generatedBy);
+      expect(action.result).toMatchObject({ generatedBy });
+    }
+  }, 60_000);
+
   it("puts captured text only in the labelled data block of each request", async () => {
     const w = await world("replay-block");
     for (const segment of RECRUITER_SCREEN[0]?.segments ?? [])

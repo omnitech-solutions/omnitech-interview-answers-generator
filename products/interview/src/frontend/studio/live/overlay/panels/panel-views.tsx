@@ -56,8 +56,14 @@ export const skillName = (skill: LiveOwnerSkill | undefined): string => {
 export function PillPanel({
   s,
   children,
+  captureMode,
 }: {
   s: PanelSession;
+  // The one window offers Auto or Manual beside the capture button.
+  captureMode?: {
+    value: "auto" | "manual";
+    onChange(mode: "auto" | "manual"): void;
+  };
   // Extra controls the one-window view adds after the status dot.
   children?: ReactNode;
 }) {
@@ -73,14 +79,45 @@ export function PillPanel({
       <button
         type="button"
         className="pn-bar-button"
-        aria-label="Capture screenshot"
-        title="Capture and analyze the screen"
+        data-stop={s.phase ? "true" : undefined}
+        aria-label={s.phase ? "Stop analysis" : "Capture screenshot"}
+        title={
+          s.phase
+            ? "Stop the analysis. Press again to capture the screen as a new task"
+            : "Capture and analyze the screen"
+        }
         disabled={!s.open}
         onClick={() => s.press("capture")}
       >
-        <Icon name="screenshot_monitor" />
+        <span className="pn-icon-dot">
+          <Icon name="screenshot_monitor" />
+          <span
+            className="pn-dot"
+            data-tone={status.tone}
+            role="status"
+            aria-label={status.label}
+            title={status.label}
+            data-testid="pn-dot"
+          />
+        </span>
         <kbd>{CAPTURE_HINT}</kbd>
       </button>
+      {captureMode && (
+        <select
+          className="pn-mode"
+          aria-label="Capture mode"
+          title="Auto analyses a new screen by itself. Manual only analyses when you press capture"
+          value={captureMode.value}
+          onChange={(event) =>
+            captureMode.onChange(
+              event.target.value === "manual" ? "manual" : "auto",
+            )
+          }
+        >
+          <option value="auto">Auto</option>
+          <option value="manual">Manual</option>
+        </select>
+      )}
       <button
         type="button"
         className="pn-bar-button"
@@ -95,14 +132,6 @@ export function PillPanel({
       <span className="pn-skill" data-testid="pn-skill">
         {skillName(s.skill)}
       </span>
-      <span
-        className="pn-dot"
-        data-tone={status.tone}
-        role="status"
-        aria-label={status.label}
-        title={status.label}
-        data-testid="pn-dot"
-      />
       {children}
     </div>
   );

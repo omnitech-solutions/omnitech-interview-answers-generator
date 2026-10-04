@@ -162,6 +162,16 @@ describe("session agent port", () => {
     expect(await staged()).toEqual([]);
   });
 
+  it("reports the profile's runtime and model as display metadata", async () => {
+    const { runtime } = fakeRuntime(completes);
+    const execution = await port(runtime).execute(task(), aiProfile);
+
+    expect(execution.generatedBy).toEqual({
+      runtime: agentProfile.runtime,
+      model: agentProfile.model,
+    });
+  });
+
   describe("Codex per-attempt home", () => {
     const codexProfile: AgentProfile = {
       ...agentProfile,
