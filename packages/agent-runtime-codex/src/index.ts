@@ -1,163 +1,350 @@
-import { Codex, type ThreadEvent, type ThreadOptions } from "@openai/codex-sdk";
+import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { createInterface } from "node:readline";
 import type {
   AgentEvent,
+  AgentResumeRequest,
   AgentRunRequest,
   AgentRuntimeAdapter,
-  AgentResumeRequest,
 } from "@omnitech/agent-runtime-contracts";
 
+// Wire shape pinned against `codex app-server generate-ts` from CLI 0.160.0.
+type Message = {
+  id?: number;
+  method?: string;
+  params?: any;
+  result?: any;
+  error?: { message?: string };
+};
 export interface CodexRuntimeOptions {
   apiKey?: string;
   baseUrl?: string;
   codexPathOverride?: string;
   environment?: Readonly<Record<string, string>>;
+  spawnServer?: () => ChildProcessWithoutNullStreams;
 }
 
-function inputFor(request: AgentRunRequest): string {
-  return [request.systemPrompt, request.prompt].filter(Boolean).join("\n\n");
+class AppServerHost {
+  private child: ChildProcessWithoutNullStreams | undefined;
+  private nextId = 1;
+  private pending = new Map<
+    number,
+    { resolve(value: any): void; reject(error: Error): void }
+  >();
+  private listeners = new Set<(message: Message) => void>();
+  private starting: Promise<void> | undefined;
+  constructor(private readonly options: CodexRuntimeOptions) {}
+
+  private fail(error: Error) {
+    for (const waiter of this.pending.values()) waiter.reject(error);
+    this.pending.clear();
+    for (const listener of this.listeners)
+      listener({ method: "host/error", params: { message: error.message } });
+    this.child = undefined;
+    this.starting = undefined;
+  }
+  private async start() {
+    const child =
+      this.options.spawnServer?.() ??
+      spawn(this.options.codexPathOverride ?? "codex", ["app-server"], {
+        stdio: "pipe",
+        env: {
+          ...(this.options.environment
+            ? { ...this.options.environment }
+            : process.env),
+          ...(this.options.apiKey
+            ? { OPENAI_API_KEY: this.options.apiKey }
+            : {}),
+          ...(this.options.baseUrl
+            ? { OPENAI_BASE_URL: this.options.baseUrl }
+            : {}),
+        },
+      });
+    this.child = child;
+    child.on("error", (error) => this.fail(error));
+    child.on("exit", (code) =>
+      this.fail(new Error(`Codex App Server exited (${code ?? "signal"}).`)),
+    );
+    createInterface({ input: child.stdout }).on("line", (line) => {
+      let message: Message;
+      try {
+        message = JSON.parse(line) as Message;
+      } catch {
+        this.fail(new Error("Invalid Codex App Server message."));
+        return;
+      }
+      if (message.id !== undefined && !message.method) {
+        const waiter = this.pending.get(message.id);
+        if (!waiter) return;
+        this.pending.delete(message.id);
+        if (message.error)
+          waiter.reject(
+            new Error(message.error.message ?? "Codex request failed."),
+          );
+        else waiter.resolve(message.result);
+      } else if (message.method && message.id !== undefined) {
+        // The worker has no interactive approval channel: deny, never hang.
+        child.stdin.write(
+          `${JSON.stringify({ id: message.id, error: { code: -32601, message: "Interactive requests unavailable." } })}\n`,
+        );
+        for (const listener of this.listeners)
+          listener({
+            method: "host/error",
+            params: { message: "Unsupported Codex interaction." },
+          });
+      } else for (const listener of this.listeners) listener(message);
+    });
+    await this.call("initialize", {
+      clientInfo: {
+        name: "omnitech-agent-worker",
+        title: "Omnitech Agent Worker",
+        version: "0.1.0",
+      },
+      capabilities: { experimentalApi: false, requestAttestation: false },
+    });
+    child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`);
+  }
+  ready() {
+    return (this.starting ??= this.start());
+  }
+  call(method: string, params: unknown): Promise<any> {
+    const child = this.child;
+    if (!child?.stdin.writable)
+      return Promise.reject(new Error("Codex App Server unavailable."));
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      child.stdin.write(
+        `${JSON.stringify({ id, method, params })}\n`,
+        (error) => {
+          if (error) {
+            this.pending.delete(id);
+            reject(error);
+          }
+        },
+      );
+    });
+  }
+  subscribe(listener: (message: Message) => void) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  close() {
+    this.child?.kill();
+    this.child = undefined;
+    this.fail(new Error("Codex App Server closed."));
+  }
 }
 
-function toEvent(event: ThreadEvent): AgentEvent | undefined {
-  if (event.type === "thread.started") {
-    return { type: "started", sessionId: event.thread_id };
-  }
-  if (event.type === "item.started") {
-    if (event.item.type === "command_execution") {
-      return { type: "tool-started", tool: "command" };
-    }
-    if (event.item.type === "mcp_tool_call") {
-      return {
-        type: "tool-started",
-        tool: `${event.item.server}/${event.item.tool}`,
-      };
-    }
-  }
-  if (event.type === "item.completed") {
-    if (event.item.type === "agent_message") {
-      return { type: "text-delta", text: event.item.text };
-    }
-    if (event.item.type === "command_execution") {
-      return {
-        type: "tool-finished",
-        tool: "command",
-        success: event.item.status === "completed",
-      };
-    }
-    if (event.item.type === "mcp_tool_call") {
-      return {
-        type: "tool-finished",
-        tool: `${event.item.server}/${event.item.tool}`,
-        success: event.item.status === "completed",
-      };
-    }
-  }
-  if (event.type === "turn.completed") {
-    return {
-      type: "usage",
-      usage: {
-        inputTokens: event.usage.input_tokens,
-        outputTokens: event.usage.output_tokens,
-        totalTokens: event.usage.input_tokens + event.usage.output_tokens,
-      },
-    };
-  }
-  if (event.type === "turn.failed" || event.type === "error") {
-    return {
-      type: "failed",
-      error: {
-        code: "provider",
-        message: event.type === "error" ? event.message : event.error.message,
-        retryable: false,
-      },
-    };
-  }
-  return undefined;
+function resumed(request: AgentResumeRequest): AgentRunRequest {
+  return {
+    runId: request.runId,
+    profile: request.profile,
+    prompt: request.prompt,
+    workingDirectory: request.workingDirectory,
+    additionalDirectories: [],
+    attachments: [],
+    timeoutMs: request.profile.timeoutMs,
+    ...(request.outputSchema ? { outputSchema: request.outputSchema } : {}),
+  };
 }
 
 export function createCodexRuntimeAdapter(
   options: CodexRuntimeOptions = {},
 ): AgentRuntimeAdapter {
-  const controllers = new Map<string, AbortController>();
-  const codex = new Codex({
-    ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
-    ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }),
-    ...(options.codexPathOverride === undefined
-      ? {}
-      : { codexPathOverride: options.codexPathOverride }),
-    ...(options.environment === undefined
-      ? {}
-      : { env: { ...options.environment } }),
-  });
-
-  const execute = async function* (
+  const host = new AppServerHost(options);
+  const active = new Map<
+    string,
+    { threadId: string; turnId?: string; cancel(): void }
+  >();
+  const sessionOwners = new Map<string, string>();
+  async function* execute(
     request: AgentRunRequest,
-    sessionId?: string,
+    resumeId?: string,
   ): AsyncIterable<AgentEvent> {
-    const controller = new AbortController();
-    controllers.set(request.runId, controller);
-    let resolvedSessionId = sessionId;
-    let finalText = "";
+    let wake: (() => void) | undefined;
+    const queue: AgentEvent[] = [];
+    let done = false;
+    let failure: Error | undefined;
+    let threadId = resumeId;
+    let turnId: string | undefined;
+    let outputText = "";
+    let streamed = false;
+    let cancellationRequested = false;
+    let latestUsage:
+      | { inputTokens: number; outputTokens: number; totalTokens: number }
+      | undefined;
+    const push = (event: AgentEvent) => {
+      queue.push(event);
+      wake?.();
+      wake = undefined;
+    };
+    const onMessage = (message: Message) => {
+      if (message.method === "host/error") {
+        failure = new Error(message.params.message);
+        done = true;
+        wake?.();
+        return;
+      }
+      const p = message.params;
+      if (
+        !p ||
+        p.threadId !== threadId ||
+        (p.turnId && turnId && p.turnId !== turnId)
+      )
+        return;
+      if (message.method === "item/agentMessage/delta") {
+        streamed = true;
+        outputText += p.delta;
+        push({ type: "text-delta", text: p.delta });
+      } else if (
+        message.method === "item/started" &&
+        p.item?.type === "commandExecution"
+      )
+        push({ type: "tool-started", tool: "command" });
+      else if (
+        message.method === "item/started" &&
+        p.item?.type === "mcpToolCall"
+      )
+        push({ type: "tool-started", tool: `${p.item.server}/${p.item.tool}` });
+      else if (message.method === "item/completed") {
+        if (p.item?.type === "commandExecution")
+          push({
+            type: "tool-finished",
+            tool: "command",
+            success: p.item.status === "completed",
+          });
+        if (p.item?.type === "mcpToolCall")
+          push({
+            type: "tool-finished",
+            tool: `${p.item.server}/${p.item.tool}`,
+            success: p.item.status === "completed",
+          });
+        if (p.item?.type === "agentMessage") {
+          if (!streamed) push({ type: "text-delta", text: p.item.text });
+          outputText = p.item.text;
+        }
+      } else if (message.method === "thread/tokenUsage/updated") {
+        const usage = p.tokenUsage?.last;
+        if (usage)
+          latestUsage = {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+          };
+      } else if (message.method === "turn/completed") {
+        if (latestUsage) push({ type: "usage", usage: latestUsage });
+        if (p.turn.status !== "completed")
+          failure = new Error(
+            p.turn.error?.message ?? `Codex turn ${p.turn.status}.`,
+          );
+        done = true;
+        wake?.();
+      } else if (message.method === "error") {
+        failure = new Error(p.error?.message ?? "Codex turn failed.");
+        done = true;
+        wake?.();
+      }
+    };
+    let unsubscribe: (() => void) | undefined;
     try {
-      const threadOptions: ThreadOptions = {
-        model: request.profile.model,
-        sandboxMode: request.profile.sandbox,
-        workingDirectory: request.workingDirectory,
-        modelReasoningEffort: request.profile.effort,
-        networkAccessEnabled: request.profile.webSearch,
-        webSearchMode: request.profile.webSearch ? "live" : "disabled",
-        approvalPolicy: request.profile.approvalPolicy,
-        additionalDirectories: Array.from(request.additionalDirectories),
-        // The worker runs each job in a fresh, isolated temporary directory,
-        // never a repository, so Codex's trusted-repository check cannot pass.
-        skipGitRepoCheck: true,
+      if (
+        resumeId &&
+        sessionOwners.has(resumeId) &&
+        sessionOwners.get(resumeId) !== request.runId
+      )
+        throw new Error("Codex session belongs to another run.");
+      await host.ready();
+      const thread = await host.call(
+        resumeId ? "thread/resume" : "thread/start",
+        {
+          ...(resumeId ? { threadId: resumeId } : {}),
+          model: request.profile.model,
+          cwd: request.workingDirectory,
+          sandbox: request.profile.sandbox,
+          approvalPolicy: request.profile.approvalPolicy,
+          ...(request.systemPrompt
+            ? { baseInstructions: request.systemPrompt }
+            : {}),
+          config: {
+            web_search: request.profile.webSearch ? "live" : "disabled",
+            ...(request.profile.tools.length === 0
+              ? {
+                  features: {
+                    shell_tool: false,
+                    code_mode_host: false,
+                    browser_use: false,
+                    computer_use: false,
+                  },
+                }
+              : {}),
+          },
+        },
+      );
+      threadId = thread.thread.id as string;
+      if (!threadId) throw new Error("Codex did not return a thread ID.");
+      if (
+        sessionOwners.has(threadId) &&
+        sessionOwners.get(threadId) !== request.runId
+      )
+        throw new Error("Codex returned a thread owned by another run.");
+      sessionOwners.set(threadId, request.runId);
+      push({ type: "started", sessionId: threadId });
+      unsubscribe = host.subscribe(onMessage);
+      const run: { threadId: string; turnId?: string; cancel(): void } = {
+        threadId,
+        cancel: () => {
+          cancellationRequested = true;
+          if (run.turnId)
+            void host
+              .call("turn/interrupt", {
+                threadId: run.threadId,
+                turnId: run.turnId,
+              })
+              .catch(() => {});
+        },
       };
-      const thread = sessionId
-        ? codex.resumeThread(sessionId, threadOptions)
-        : codex.startThread(threadOptions);
-      const streamed = await thread.runStreamed(inputFor(request), {
-        signal: controller.signal,
-        ...(request.outputSchema === undefined
-          ? {}
-          : { outputSchema: request.outputSchema }),
+      active.set(request.runId, run);
+      const turn = await host.call("turn/start", {
+        threadId,
+        input: [{ type: "text", text: request.prompt, text_elements: [] }],
+        effort: request.profile.effort,
+        ...(request.outputSchema ? { outputSchema: request.outputSchema } : {}),
       });
-      for await (const event of streamed.events) {
-        if (event.type === "thread.started")
-          resolvedSessionId = event.thread_id;
-        if (
-          event.type === "item.completed" &&
-          event.item.type === "agent_message"
-        ) {
-          finalText = event.item.text;
+      turnId = turn.turn.id as string;
+      if (!turnId) throw new Error("Codex did not return a turn ID.");
+      run.turnId = turnId;
+      if (cancellationRequested) run.cancel();
+      while (!done || queue.length) {
+        if (queue.length) {
+          yield queue.shift() as AgentEvent;
+          continue;
         }
-        const normalized = toEvent(event);
-        if (normalized) {
-          yield normalized;
-          if (normalized.type === "failed") return;
-        }
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
       }
-      if (!resolvedSessionId) {
-        throw new Error("Codex did not return a session identifier.");
-      }
-      let output: unknown = finalText;
-      if (request.outputSchema) output = JSON.parse(finalText);
+      if (failure) throw failure;
       yield {
         type: "completed",
-        result: { sessionId: resolvedSessionId, output },
+        result: {
+          sessionId: threadId,
+          output: request.outputSchema ? JSON.parse(outputText) : outputText,
+        },
       };
     } catch (error) {
       yield {
         type: "failed",
         error: {
-          code: controller.signal.aborted ? "cancelled" : "provider",
+          code: cancellationRequested ? "cancelled" : "provider",
           message: error instanceof Error ? error.message : "Codex failed.",
           retryable: false,
         },
       };
     } finally {
-      controllers.delete(request.runId);
+      unsubscribe?.();
+      active.delete(request.runId);
     }
-  };
-
+  }
   return {
     runtime: "codex",
     capabilities: {
@@ -167,24 +354,12 @@ export function createCodexRuntimeAdapter(
       tools: true,
     },
     run: (request) => execute(request),
-    resume: (request: AgentResumeRequest) =>
-      execute(
-        {
-          runId: request.runId,
-          profile: request.profile,
-          prompt: request.prompt,
-          workingDirectory: request.workingDirectory,
-          additionalDirectories: [],
-          attachments: [],
-          timeoutMs: request.profile.timeoutMs,
-          ...(request.outputSchema === undefined
-            ? {}
-            : { outputSchema: request.outputSchema }),
-        },
-        request.sessionId,
-      ),
+    resume: (request) => execute(resumed(request), request.sessionId),
     async cancel(runId) {
-      controllers.get(runId)?.abort();
+      active.get(runId)?.cancel();
+    },
+    async close() {
+      host.close();
     },
   };
 }

@@ -355,6 +355,10 @@ and invariants live in `bionic/` (see `bionic/AGENTS.md` and `USER_GUIDE.md`).
 - `apps/terminal-gateway`: WebSocket observer for normalized agent-job events.
 - `apps/agent-worker`: isolated Codex and Claude Code job executor.
 
+The worker uses one long-lived Codex App Server transport for Codex jobs.
+Document grouping is configured with `DOCUMENTS_FIELDS_PER_CALL` and
+`DOCUMENTS_MAX_PARALLEL_CALLS` in the root `.env` for `pnpm dev`.
+
 ### Reusable packages
 
 - `@omnitech/ai-provider-openai`: the OpenAI-compatible model adapter

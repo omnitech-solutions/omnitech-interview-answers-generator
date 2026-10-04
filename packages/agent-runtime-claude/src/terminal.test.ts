@@ -2,17 +2,20 @@ import { expect, it, vi } from "vitest";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: () =>
-    (async function* () {
-      yield {
-        type: "result",
-        subtype: "success",
-        session_id: "s1",
-        result: "done",
-        usage: { input_tokens: 1, output_tokens: 1 },
-        total_cost_usd: 0,
-      };
-      throw new Error("iterator cleanup failed");
-    })(),
+    Object.assign(
+      (async function* () {
+        yield {
+          type: "result",
+          subtype: "success",
+          session_id: "s1",
+          result: "done",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          total_cost_usd: 0,
+        };
+        throw new Error("iterator cleanup failed");
+      })(),
+      { close: () => {} },
+    ),
 }));
 
 const { createClaudeRuntimeAdapter } = await import("./index.js");

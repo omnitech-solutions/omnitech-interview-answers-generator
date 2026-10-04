@@ -89,6 +89,7 @@ export interface AgentRuntimeAdapter {
   run(request: AgentRunRequest): AsyncIterable<AgentEvent>;
   resume(request: AgentResumeRequest): AsyncIterable<AgentEvent>;
   cancel(runId: string): Promise<void>;
+  close?(): Promise<void>;
 }
 
 export function validateAgentProfile(profile: AgentProfile): void {

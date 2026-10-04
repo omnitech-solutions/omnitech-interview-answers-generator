@@ -28,16 +28,27 @@ import { runConfiguredAgentWorker } from "./main.js";
 
 const secret = "worker-payload-secret-0123456789abcdef";
 
-// The Codex CLI the SDK spawns; the only stand-in in the Codex path. It
-// answers every turn by echoing its prompt.
+// A worker-owned App Server stand-in. It answers each turn by echoing its prompt.
 const fakeCodex = `#!${process.execPath}
-let input = "";
-process.stdin.on("data", (chunk) => (input += chunk));
-process.stdin.on("end", () => {
-  const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");
-  emit({ type: "thread.started", thread_id: "thread-1" });
-  emit({ type: "item.completed", item: { id: "a1", type: "agent_message", text: "Echo: " + input } });
-  emit({ type: "turn.completed", usage: { input_tokens: 3, cached_input_tokens: 0, output_tokens: 2 } });
+const rl = require("node:readline").createInterface({ input: process.stdin });
+const emit = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
+rl.on("line", (line) => {
+  const { id, method, params } = JSON.parse(line);
+  if (method === "initialize") emit({ id, result: {} });
+  if (method === "thread/start") emit({ id, result: { thread: { id: "thread-1" } } });
+  if (method === "turn/start") {
+    emit({ id, result: { turn: { id: "turn-1" } } });
+    emit({ method: "item/agentMessage/delta", params: {
+      threadId: params.threadId, turnId: "turn-1", delta: "Echo: " + params.input[0].text,
+    } });
+    emit({ method: "thread/tokenUsage/updated", params: {
+      threadId: params.threadId, turnId: "turn-1",
+      tokenUsage: { last: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } },
+    } });
+    emit({ method: "turn/completed", params: {
+      threadId: params.threadId, turn: { id: "turn-1", status: "completed" },
+    } });
+  }
 });
 `;
 

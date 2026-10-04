@@ -2,31 +2,34 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: () =>
-    (async function* () {
-      yield { type: "system", session_id: "s1" };
-      for (const text of ["Hel", "lo"])
+    Object.assign(
+      (async function* () {
+        yield { type: "system", session_id: "s1" };
+        for (const text of ["Hel", "lo"])
+          yield {
+            type: "stream_event",
+            session_id: "s1",
+            event: {
+              type: "content_block_delta",
+              delta: { type: "text_delta", text },
+            },
+          };
         yield {
-          type: "stream_event",
+          type: "assistant",
           session_id: "s1",
-          event: {
-            type: "content_block_delta",
-            delta: { type: "text_delta", text },
-          },
+          message: { content: [{ type: "text", text: "Hello" }] },
         };
-      yield {
-        type: "assistant",
-        session_id: "s1",
-        message: { content: [{ type: "text", text: "Hello" }] },
-      };
-      yield {
-        type: "result",
-        subtype: "success",
-        session_id: "s1",
-        result: "Hello",
-        usage: { input_tokens: 3, output_tokens: 2 },
-        total_cost_usd: 0,
-      };
-    })(),
+        yield {
+          type: "result",
+          subtype: "success",
+          session_id: "s1",
+          result: "Hello",
+          usage: { input_tokens: 3, output_tokens: 2 },
+          total_cost_usd: 0,
+        };
+      })(),
+      { close: () => {} },
+    ),
 }));
 
 const { createClaudeRuntimeAdapter } = await import("./index.js");

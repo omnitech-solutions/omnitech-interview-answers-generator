@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
 import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
 import type { AgentRuntimeAdapter } from "@omnitech/agent-runtime-contracts";
+import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 import { DockerCodeRunner } from "@omnitech/code-runner";
 import {
   createPlatformDatabase,
@@ -11,7 +12,6 @@ import {
 } from "@omnitech/database";
 import { AgentPayloadStore } from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
-import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 import {
   type AgentEscalationPort,
   createSessionWorker,
@@ -292,7 +292,13 @@ export async function runConfiguredAgentWorker(
     agentJobLoop(env, database, payloadSecret, runtimes),
     sessionLoop(env, database, log),
   ].filter((loop): loop is WorkerLoop => loop !== null);
-  await runWorkerLoops(loops, signal, database, log);
+  try {
+    await runWorkerLoops(loops, signal, database, log);
+  } finally {
+    await Promise.all(
+      Object.values(runtimes).map((runtime) => runtime.close?.()),
+    );
+  }
 }
 
 // Run as the service (`pnpm --filter @omnitech/agent-worker dev`, `start`).

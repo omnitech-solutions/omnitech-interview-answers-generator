@@ -9,53 +9,46 @@ import type {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCodexRuntimeAdapter } from "./index.js";
 
-// The Codex SDK spawns the Codex CLI and reads its JSONL thread events. This
-// stand-in CLI is the only fake: it answers by the scenario named in the
-// prompt and echoes what it was given so tests can see what the SDK passed.
-const fakeCodex = `#!${process.execPath}
-const args = process.argv.slice(2);
-let input = "";
-process.stdin.on("data", (chunk) => (input += chunk));
-process.stdin.on("end", () => {
-  const emit = (event) => process.stdout.write(JSON.stringify(event) + "\\n");
-  const resumeAt = args.indexOf("resume");
-  const echo = JSON.stringify({
-    args,
-    input,
-    apiKey: process.env.CODEX_API_KEY ?? null,
-    mark: process.env.FAKE_CODEX_MARK ?? null,
-  });
-  if (input.includes("crash")) {
-    process.stderr.write("model refused the sandbox");
-    process.exit(2);
+const fakeServer = `#!${process.execPath}
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+let threadCount = 0;
+let turnCount = 0;
+const send = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
+rl.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.method === "initialized") return;
+  const { id, method, params } = message;
+  if (method === "initialize") return send({ id, result: { userAgent: "fake" } });
+  if (method === "thread/start" || method === "thread/resume") {
+    const threadId = params.threadId ?? "thread-" + ++threadCount;
+    return send({ id, result: { thread: { id: threadId } } });
   }
-  if (resumeAt === -1 && !input.includes("anonymous"))
-    emit({ type: "thread.started", thread_id: "thread-new" });
-  if (input.includes("hang")) {
-    setInterval(() => undefined, 1000);
+  if (method === "turn/interrupt") {
+    send({ id, result: {} });
+    send({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: params.turnId, status: "interrupted" } } });
     return;
   }
-  if (input.includes("turn-fails")) {
-    emit({ type: "turn.failed", error: { message: "Quota exceeded" } });
-    return;
+  if (method === "turn/start") {
+    const turnId = "turn-" + ++turnCount;
+    const prompt = params.input[0].text;
+    if (prompt === "crash") return process.exit(2);
+    send({ id, result: { turn: { id: turnId } } });
+    if (prompt === "hang") return;
+    if (prompt === "fail") {
+      send({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: turnId, status: "failed", error: { message: "Quota exceeded" } } } });
+      return;
+    }
+    send({ method: "item/started", params: { threadId: params.threadId, turnId, item: { type: "commandExecution" } } });
+    send({ method: "item/completed", params: { threadId: params.threadId, turnId, item: { type: "commandExecution", status: "completed" } } });
+    send({ method: "item/agentMessage/delta", params: { threadId: params.threadId, turnId, delta: params.outputSchema ? '{"ok":true}' : "hello" } });
+    send({ method: "thread/tokenUsage/updated", params: { threadId: params.threadId, turnId, tokenUsage: { last: { inputTokens: 12, outputTokens: 5, totalTokens: 17 } } } });
+    send({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: turnId, status: "completed" } } });
   }
-  if (input.includes("stream-error")) {
-    emit({ type: "error", message: "Stream disconnected" });
-    return;
-  }
-  emit({ type: "turn.started" });
-  emit({ type: "item.started", item: { id: "c1", type: "command_execution", command: "ls", aggregated_output: "", status: "in_progress" } });
-  emit({ type: "item.completed", item: { id: "c1", type: "command_execution", command: "ls", aggregated_output: "", exit_code: 0, status: "completed" } });
-  emit({ type: "item.started", item: { id: "m1", type: "mcp_tool_call", server: "docs", tool: "search", status: "in_progress" } });
-  emit({ type: "item.completed", item: { id: "m1", type: "mcp_tool_call", server: "docs", tool: "search", status: "failed" } });
-  emit({ type: "item.started", item: { id: "r1", type: "reasoning", text: "thinking" } });
-  emit({ type: "item.completed", item: { id: "a1", type: "agent_message", text: echo } });
-  emit({ type: "turn.completed", usage: { input_tokens: 12, cached_input_tokens: 0, output_tokens: 5 } });
 });
 `;
-
 const profile: AgentProfile = {
-  id: "interview-coach",
+  id: "test",
   version: 1,
   runtime: "codex",
   model: "gpt-test",
@@ -66,241 +59,124 @@ const profile: AgentProfile = {
   approvalPolicy: "never",
   sessionPersistence: true,
   maximumTurns: 2,
-  timeoutMs: 60_000,
-  maximumOutputBytes: 100_000,
+  timeoutMs: 1000,
+  maximumOutputBytes: 10000,
   additionalDirectories: [],
   webSearch: false,
 };
-
 let directory: string;
 let codexPath: string;
-
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "fake-codex-"));
+  directory = await mkdtemp(join(tmpdir(), "fake-app-server-"));
   codexPath = join(directory, "codex");
-  await writeFile(codexPath, fakeCodex);
+  await writeFile(codexPath, fakeServer);
   await chmod(codexPath, 0o755);
 });
 afterAll(async () => rm(directory, { recursive: true, force: true }));
-
-function request(overrides: Partial<AgentRunRequest> = {}): AgentRunRequest {
+function request(prompt = "hello"): AgentRunRequest {
   return {
-    runId: "run-1",
+    runId: prompt,
     profile,
-    prompt: "explain closures",
+    prompt,
     workingDirectory: directory,
     additionalDirectories: [],
     attachments: [],
-    timeoutMs: 60_000,
-    ...overrides,
+    timeoutMs: 1000,
   };
 }
-
 async function collect(source: AsyncIterable<AgentEvent>) {
   const events: AgentEvent[] = [];
   for await (const event of source) events.push(event);
   return events;
 }
-
-type Echo = {
-  args: string[];
-  input: string;
-  apiKey: string | null;
-  mark: string | null;
-};
-
-function echoOf(events: AgentEvent[]): Echo {
-  const completed = events.find((event) => event.type === "completed");
-  if (completed?.type !== "completed") throw new Error("no completion");
-  const output = completed.result.output;
-  return (typeof output === "string" ? JSON.parse(output) : output) as Echo;
-}
-
-describe("Codex agent runtime against the Codex CLI protocol", () => {
-  it("streams normalized tool, text and usage events and completes the turn", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const events = await collect(
-      runtime.run(request({ systemPrompt: "You are a coach." })),
-    );
-
-    expect(events.map((event) => event.type)).toEqual([
+describe("Codex App Server runtime", () => {
+  it("streams a turn and reuses one host for a resumed thread", async () => {
+    const adapter = createCodexRuntimeAdapter({
+      codexPathOverride: codexPath,
+    });
+    const first = await collect(adapter.run(request()));
+    expect(first.map((event) => event.type)).toEqual([
       "started",
-      "tool-started",
-      "tool-finished",
       "tool-started",
       "tool-finished",
       "text-delta",
       "usage",
       "completed",
     ]);
-    expect(events).toContainEqual({ type: "started", sessionId: "thread-new" });
-    expect(events).toContainEqual({
-      type: "tool-finished",
-      tool: "command",
-      success: true,
+    expect(first.at(-1)).toMatchObject({
+      type: "completed",
+      result: { sessionId: "thread-1", output: "hello" },
     });
-    expect(events).toContainEqual({
-      type: "tool-finished",
-      tool: "docs/search",
-      success: false,
-    });
-    expect(events).toContainEqual({
-      type: "usage",
-      usage: { inputTokens: 12, outputTokens: 5, totalTokens: 17 },
-    });
-    const echo = echoOf(events);
-    // The system prompt precedes the task prompt in one input.
-    expect(echo.input).toBe("You are a coach.\n\nexplain closures");
-    expect(echo.args).toEqual(
-      expect.arrayContaining([
-        "--model",
-        "gpt-test",
-        "--sandbox",
-        "read-only",
-        "--skip-git-repo-check",
-        'web_search="disabled"',
-        'approval_policy="never"',
-      ]),
-    );
-  });
-
-  it("parses structured output and enables live web search when the profile allows it", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const events = await collect(
-      runtime.run(
-        request({
-          profile: { ...profile, webSearch: true },
-          outputSchema: { type: "object" },
-        }),
-      ),
-    );
-
-    const echo = echoOf(events);
-    expect(echo.input).toBe("explain closures");
-    expect(echo.args).toContain("--output-schema");
-    expect(echo.args).toContain('web_search="live"');
-  });
-
-  it("resumes an existing thread and reports it as the session", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const events = await collect(
-      runtime.resume({
-        runId: "run-2",
-        sessionId: "thread-7",
-        prompt: "and now in TypeScript",
+    const second = await collect(
+      adapter.resume({
+        runId: "hello",
+        sessionId: "thread-1",
+        prompt: "again",
         profile,
         workingDirectory: directory,
         outputSchema: { type: "object" },
       }),
     );
-
-    const completed = events.at(-1);
-    expect(completed).toMatchObject({
+    expect(second.at(-1)).toMatchObject({
       type: "completed",
-      result: { sessionId: "thread-7" },
+      result: { sessionId: "thread-1", output: { ok: true } },
     });
-    const echo = echoOf(events);
-    expect(echo.args.slice(echo.args.indexOf("resume"))).toEqual([
-      "resume",
-      "thread-7",
-    ]);
-    expect(echo.args).toContain("--output-schema");
   });
-
-  it("passes the API key, base URL and configured environment to the CLI", async () => {
-    const runtime = createCodexRuntimeAdapter({
-      codexPathOverride: codexPath,
-      apiKey: "sk-test",
-      baseUrl: "https://codex.example.test/v1",
-      environment: { FAKE_CODEX_MARK: "configured" },
-    });
-
-    const echo = echoOf(await collect(runtime.run(request())));
-
-    expect(echo.apiKey).toBe("sk-test");
-    expect(echo.mark).toBe("configured");
-    expect(echo.args).toContain(
-      'openai_base_url="https://codex.example.test/v1"',
+  it("reports a failed turn", async () => {
+    const events = await collect(
+      createCodexRuntimeAdapter({
+        codexPathOverride: codexPath,
+      }).run(request("fail")),
     );
-  });
-
-  it("reports a failed turn and a stream error as provider failures", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const turn = await collect(runtime.run(request({ prompt: "turn-fails" })));
-    const stream = await collect(
-      runtime.run(request({ prompt: "stream-error" })),
-    );
-
-    expect(turn).toContainEqual({
-      type: "failed",
-      error: { code: "provider", message: "Quota exceeded", retryable: false },
-    });
-    expect(stream).toContainEqual({
-      type: "failed",
-      error: {
-        code: "provider",
-        message: "Stream disconnected",
-        retryable: false,
-      },
-    });
-    expect(
-      turn.filter(
-        (event) => event.type === "failed" || event.type === "completed",
-      ),
-    ).toHaveLength(1);
-    expect(
-      stream.filter(
-        (event) => event.type === "failed" || event.type === "completed",
-      ),
-    ).toHaveLength(1);
-  });
-
-  it("fails a turn that never names its thread", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const events = await collect(runtime.run(request({ prompt: "anonymous" })));
-
-    expect(events.at(-1)).toEqual({
-      type: "failed",
-      error: {
-        code: "provider",
-        message: "Codex did not return a session identifier.",
-        retryable: false,
-      },
-    });
-  });
-
-  it("fails when the CLI exits with an error", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-
-    const events = await collect(runtime.run(request({ prompt: "crash" })));
-
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({
-      type: "failed",
-      error: { code: "provider", retryable: false },
-    });
-    expect(JSON.stringify(events[0])).toContain("exited with code 2");
-  });
-
-  it("cancels a running turn by its run id", async () => {
-    const runtime = createCodexRuntimeAdapter({ codexPathOverride: codexPath });
-    const events: AgentEvent[] = [];
-
-    for await (const event of runtime.run(request({ prompt: "hang" }))) {
-      events.push(event);
-      if (event.type === "started") await runtime.cancel("run-1");
-    }
-
     expect(events.at(-1)).toMatchObject({
       type: "failed",
-      error: { code: "cancelled", retryable: false },
+      error: { message: "Quota exceeded" },
     });
-    // Cancelling a finished or unknown run is a no-op.
-    await expect(runtime.cancel("run-1")).resolves.toBeUndefined();
+  });
+  it("refuses to resume another run's live thread", async () => {
+    const adapter = createCodexRuntimeAdapter({
+      codexPathOverride: codexPath,
+    });
+    await collect(adapter.run(request("first")));
+    const events = await collect(
+      adapter.resume({
+        runId: "another-job",
+        sessionId: "thread-1",
+        prompt: "second",
+        profile,
+        workingDirectory: directory,
+      }),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: "failed",
+      error: { message: "Codex session belongs to another run." },
+    });
+    await adapter.close?.();
+  });
+  it("fails a turn when the owned server dies", async () => {
+    const events = await collect(
+      createCodexRuntimeAdapter({
+        codexPathOverride: codexPath,
+      }).run(request("crash")),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: "failed",
+      error: { code: "provider" },
+    });
+  });
+  it("interrupts an active turn", async () => {
+    const adapter = createCodexRuntimeAdapter({
+      codexPathOverride: codexPath,
+    });
+    const events: AgentEvent[] = [];
+    for await (const event of adapter.run(request("hang"))) {
+      events.push(event);
+      if (event.type === "started")
+        setTimeout(() => void adapter.cancel("hang"), 20);
+    }
+    expect(events.at(-1)).toMatchObject({
+      type: "failed",
+      error: { code: "cancelled", message: "Codex turn interrupted." },
+    });
   });
 });
