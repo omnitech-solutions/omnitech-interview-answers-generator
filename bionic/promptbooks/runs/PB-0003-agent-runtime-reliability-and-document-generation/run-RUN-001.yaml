@@ -5,7 +5,7 @@ book_content_hash: sha256:127b071b96eba5747128421926780f0e9c2fc4f20980526ded5053
 started_at: '2026-10-03T22:48:09Z'
 completed_at: null
 status: in_progress
-current_prompt: 6
+current_prompt: 7
 base_commit: fe8ed2071462a2d09b4881f982a18728bcd407ea
 prompts:
 - n: 1
@@ -46,15 +46,15 @@ prompts:
   artifacts: ["bionic/adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping.md", "ADR #2: ADR-0015", "rule:exact-owned-batches", "rule:source-facts-own-authority", "rule:immutable-generation-identity", "rule:complete-revision-publish", "rule:measured-document-grouping"]
 - n: 6
   title: 'Plan #2: convene LLM council to review the ADR'
-  state: "running"
+  state: "done"
   started: "2026-10-03T23:24:15Z"
-  completed: null
-  result: ''
+  completed: "2026-10-03T23:38:08Z"
+  result: "Council round 1: completeness, correctness, clarity REQUEST_CHANGES; consistency APPROVE_WITH_NITS; security APPROVE. SRDE resolved 0/5. Deep architecture reviewer REQUEST_CHANGES: targeted merge, durable replay identity, unverified prose readiness/export, and predeclared benchmark rule; model-field contiguity wording nit."
   artifacts: []
 - n: 7
   title: 'Plan #2: address council findings, re-convene the council'
-  state: pending
-  started: null
+  state: "running"
+  started: "2026-10-03T23:38:08Z"
   completed: null
   result: ''
   artifacts: []
@@ -160,6 +160,8 @@ prompts:
   completed: null
   result: ''
   artifacts: []
-notes: ''
+notes: |
+  Operator-directed direct implementation on master: commit 293017f adds fenced agent terminal publication, execution and attempt identities, exact document batch ownership, keyed document retries, source refresh, candidate confirmation, and draft exports. pnpm verify passed with 2,982 tests and 29 build tasks on 2026-10-03 local time.
+  The run pointer remains at prompt 7. ADR-0015 is Proposed and its revised council review has not run. The operator requested solo work, so no independent implementation review ran in this turn. Live Codex/Claude provider isolation, protocol parity, and same-workload one/three/five grouping benchmarks remain unobserved; defaults were retained. No push, merge, PR, or provider spend occurred.
 pr_draft: ''
 summary: ''

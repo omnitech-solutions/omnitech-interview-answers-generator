@@ -724,7 +724,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated generation identity cannot publish a second revision.",
+    "rule": "Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated request key cannot publish a second revision.",
     "source_adr": "ADR-0015",
     "source_status": "Proposed"
   },
@@ -733,7 +733,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "Each model batch owns a disjoint, contiguous set of template fields and must return exactly those keys with string values before its result can enter progress or a document.",
+    "rule": "Each model batch owns a disjoint, contiguous set of model-filled template fields and must return exactly those keys with string values before its result enters progress or a document.",
     "source_adr": "ADR-0015",
     "source_status": "Proposed"
   },
@@ -742,7 +742,7 @@
     "disposition": "decided",
     "provenance": "authored",
     "review_state": "accepted-with-adr",
-    "rule": "A generation binds its owner, selected target, template and profile revisions, source selection, requested fields, and base document revision before model work begins.",
+    "rule": "A keyed generation reserves its owner, selected inputs, and captured source digest before model work; legacy unkeyed requests retain existing selection and revision guards.",
     "source_adr": "ADR-0015",
     "source_status": "Proposed"
   },
@@ -761,6 +761,15 @@
     "provenance": "authored",
     "review_state": "accepted-with-adr",
     "rule": "Direct-source candidate, candidacy, and interview values remain authoritative; missing facts stay blank, while generated prose is a draft and never updates source preferences or profile facts.",
+    "source_adr": "ADR-0015",
+    "source_status": "Proposed"
+  },
+  "ADR-0015/unverified-claims-remain-drafts": {
+    "authority": "prescriptive",
+    "disposition": "decided",
+    "provenance": "authored",
+    "review_state": "accepted-with-adr",
+    "rule": "Model-owned prose remains visibly unverified until candidate confirmation creates an immutable confirmed revision; edits, regeneration, and restore reset confirmation.",
     "source_adr": "ADR-0015",
     "source_status": "Proposed"
   },
@@ -860,6 +869,7 @@
     "tombstone-keeps-hint-count": "ADR-0012/tombstone-keeps-hint-count",
     "transcripts-in-observations": "ADR-0012/transcripts-in-observations",
     "unlisted-stage-refused": "ADR-0012/unlisted-stage-refused",
+    "unverified-claims-remain-drafts": "ADR-0015/unverified-claims-remain-drafts",
     "versioned-wire-contract": "ADR-0011/versioned-wire-contract",
     "worker-hosted-processor": "ADR-0011/worker-hosted-processor",
     "worker-owned-isolated-sessions": "ADR-0014/worker-owned-isolated-sessions"

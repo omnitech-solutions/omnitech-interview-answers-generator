@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-04] journal | implementation: PB-0003 runtime and document safety implementation
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-04T01:25+00:00. Refs: [[promptbooks/PB-0003-agent-runtime-reliability-and-document-generation]] [[adrs/ADR-0014-use-worker-owned-agent-sessions-with-one-terminal]] [[adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping]] rule:one-terminal-outcome rule:exact-owned-batches
+
 ## [2026-10-03] adr | ADR-0015: Validate owned document batches and measure grouping
 
 Proposed. File `bionic/adrs/ADR-0015-validate-owned-document-batches-and-measure-grouping.md`. Tags: interview, documents, generation, grounding, performance.
