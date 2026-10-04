@@ -56,7 +56,7 @@ public enum ScreenKitOneShot {
         configuration.showsCursor = false
         configuration.ignoreShadowsSingleWindow = true
 
-        guard var image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        guard var image = await ShareableContent.screenshot(filter: filter, configuration: configuration)
         else { return .lost(.captureFailed) }
 
         if request.mode == .region {

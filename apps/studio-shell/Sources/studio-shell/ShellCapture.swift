@@ -118,7 +118,7 @@ final class ShellCapture {
         configuration.showsCursor = false
         configuration.ignoreShadowsSingleWindow = true
         configuration.queueDepth = 1
-        guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        guard let image = await ShareableContent.screenshot(filter: filter, configuration: configuration)
         else { return lost(.captureFailed) }
 
         guard let jpeg = autoreleasepool(invoking: { Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) }) else {

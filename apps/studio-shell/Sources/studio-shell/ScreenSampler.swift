@@ -52,7 +52,7 @@ final class ShellScreenSampler: ScreenWatchSampler {
         configuration.height = 128
         configuration.showsCursor = false
         configuration.queueDepth = 1
-        guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        guard let image = await ShareableContent.screenshot(filter: filter, configuration: configuration)
         else { return .noWindow }
         return Self.grid(image).map(ScreenWatchSample.grid) ?? .noWindow
     }

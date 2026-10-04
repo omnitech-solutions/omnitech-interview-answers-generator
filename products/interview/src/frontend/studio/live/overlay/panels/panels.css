@@ -55,7 +55,7 @@
   background: transparent;
 }
 :root[data-panel-host="native"] .pn-root {
-  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.6));
+  --ov-a: 0.5;
   padding: 0;
 }
 
@@ -63,8 +63,6 @@
 .pn-pill,
 .pn-codecard {
   background: var(--ov-bg);
-  -webkit-backdrop-filter: blur(18px) saturate(1.4);
-  backdrop-filter: blur(18px) saturate(1.4);
   border-radius: 10px;
 }
 .pn-card {

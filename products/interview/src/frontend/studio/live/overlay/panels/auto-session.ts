@@ -67,8 +67,22 @@ export function useAutoSession(input: {
       try {
         const result = await actions.start(AUTO_SESSION);
         if (!alive) return;
-        if (result.ok) startedHere.current = true;
-        else setFailed(true);
+        if (result.ok) {
+          startedHere.current = true;
+          return;
+        }
+        // Another panel document may have started it first: open that one.
+        const listed = await actions.listSessions();
+        const running = listed.ok
+          ? listed.sessions.find(
+              (s) => s.status === "active" || s.status === "paused",
+            )
+          : undefined;
+        if (running) {
+          await actions.switchSession(running.id);
+          return;
+        }
+        if (alive) setFailed(true);
       } finally {
         inFlight.current = false;
       }

@@ -357,7 +357,8 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     @objc private func zoomTapped() { onExpand?() }
 
     func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }
-    func setOpacity(_ value: Double) { effect?.alphaValue = CGFloat(value) }
+    // The video's panels are a flat tint over a sharp page: the blur layer stays off.
+    func setOpacity(_ value: Double) { effect?.alphaValue = 0 }
 
     // [SAFETY] Over any app, Space and full-screen window (PanelWindowTraits).
     func show(pinned: Bool) {

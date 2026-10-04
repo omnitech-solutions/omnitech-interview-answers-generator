@@ -39,4 +39,25 @@ public enum ShareableContent {
         }
         return box.content
     }
+
+    private final class ImageBox: @unchecked Sendable {
+        let image: CGImage
+        init(_ image: CGImage) { self.image = image }
+    }
+
+    /// One screenshot, or nil. Same rule as `current`: the async
+    /// `SCScreenshotManager.captureImage` bridge crashed in swift_retain when the
+    /// reply carried an error and no image, so ask for permission first and take
+    /// the reply through the completion handler.
+    public static func screenshot(
+        filter: SCContentFilter, configuration: SCStreamConfiguration
+    ) async -> CGImage? {
+        guard permitted else { return nil }
+        let box: ImageBox? = await withCheckedContinuation { continuation in
+            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, _ in
+                continuation.resume(returning: image.map(ImageBox.init))
+            }
+        }
+        return box?.image
+    }
 }
