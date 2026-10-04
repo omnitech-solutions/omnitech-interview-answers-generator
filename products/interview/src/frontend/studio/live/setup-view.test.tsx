@@ -106,6 +106,7 @@ const consent = () =>
   fireEvent.click(screen.getByLabelText(/Everyone in this interview/));
 
 beforeEach(() => {
+  window.localStorage.clear();
   resetSessionStores();
   started = [];
   go.mockReset();
@@ -127,17 +128,27 @@ describe("Setup defaults", () => {
     expect(
       screen.getByLabelText(/Everyone in this interview/),
     ).not.toBeChecked();
-    expect(screen.getByRole("radio", { name: "Device only" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Allow remote" })).toBeChecked();
+    // Start hands-free is the first, default action; plain Start is secondary.
+    const buttons = screen.getAllByRole("button", { name: /^Start / });
+    expect(buttons[0]).toHaveTextContent("Start hands-free");
+    expect(screen.getByTestId("start-choice-effect")).toHaveTextContent(
+      "Allow remote: everything works",
+    );
     expect(screen.getByRole("radio", { name: "Delete at end" })).toBeChecked();
     expect(screen.getByTestId("live-setup")).toHaveTextContent(
       "Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
     );
     expect(screen.getByRole("switch", { name: "Microphone" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "App audio" })).toBeChecked();
-    expect(screen.getByRole("switch", { name: "Screen" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Screen" })).toBeChecked();
     expect(
       screen.getByRole("switch", { name: "Live assistance" }),
     ).toBeChecked();
+    // Focus moves to it once Start is possible, so Enter starts hands-free.
+    pickRehearsal();
+    consent();
+    expect(buttons[0]).toHaveFocus();
   });
 
   it("makes no claim that the companion is connected before start", async () => {
@@ -182,8 +193,25 @@ describe("Consent and start", () => {
     expect(start()).toBeEnabled();
     fireEvent.click(screen.getByRole("switch", { name: "Microphone" }));
     fireEvent.click(screen.getByRole("switch", { name: "App audio" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Screen" }));
     expect(start()).toBeDisabled();
     expect(screen.getByText("Choose at least one source.")).toBeVisible();
+  });
+
+  it("remembers the last processing choice per tenant and prefers it to the default", async () => {
+    await open();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hands-free: device only" }),
+    );
+    expect(screen.getByTestId("start-choice-effect")).toHaveTextContent(
+      "Device only: no screenshot analysis, no code generation",
+    );
+    cleanup();
+    await open();
+    expect(screen.getByRole("radio", { name: "Device only" })).toBeChecked();
+    expect(
+      screen.getByRole("button", { name: "Hands-free: device only" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("sends exactly the strict start body for an interview and pins the latest matrix", async () => {
@@ -193,8 +221,8 @@ describe("Consent and start", () => {
     fireEvent.click(start());
     await waitFor(() => expect(started).toHaveLength(1));
     expect(started[0]).toEqual({
-      processingPolicy: "device-only",
-      captureSources: ["microphone", "application-audio"],
+      processingPolicy: "permitted-remote",
+      captureSources: ["microphone", "application-audio", "screen"],
       liveAssistance: true,
       retention: "delete-at-end",
       candidacyId: CANDIDACY,
@@ -208,8 +236,8 @@ describe("Consent and start", () => {
     pickInterview();
     consent();
     fireEvent.click(screen.getByRole("switch", { name: "Microphone" }));
-    fireEvent.click(screen.getByRole("switch", { name: "Screen" }));
     fireEvent.click(screen.getByRole("switch", { name: "Live assistance" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
     fireEvent.click(screen.getByRole("radio", { name: "30 days" }));
     fireEvent.click(start());
@@ -324,6 +352,7 @@ describe("Where processing runs", () => {
   it("states the device-only refusal and the remote scope truthfully", async () => {
     await open();
     const setup = screen.getByTestId("live-setup");
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
     expect(setup).toHaveTextContent("never sent elsewhere");
     expect(setup).not.toHaveTextContent("the session won’t start");
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
@@ -343,6 +372,7 @@ describe("Where processing runs", () => {
     });
     pickRehearsal();
     consent();
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Not available on this Mac");
     expect(start()).toBeDisabled();
@@ -359,19 +389,19 @@ describe("Where processing runs", () => {
 
   it("segmented controls move and select with the arrow keys", async () => {
     await open();
-    const device = screen.getByRole("radio", { name: "Device only" });
-    expect(device).toHaveAttribute("tabindex", "0");
-    expect(screen.getByRole("radio", { name: "Allow remote" })).toHaveAttribute(
+    const remote = screen.getByRole("radio", { name: "Allow remote" });
+    expect(remote).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("radio", { name: "Device only" })).toHaveAttribute(
       "tabindex",
       "-1",
     );
-    device.focus();
-    fireEvent.keyDown(device, { key: "ArrowRight" });
-    const remote = screen.getByRole("radio", { name: "Allow remote" });
-    expect(remote).toBeChecked();
-    expect(remote).toHaveFocus();
+    remote.focus();
     fireEvent.keyDown(remote, { key: "ArrowRight" });
-    expect(screen.getByRole("radio", { name: "Device only" })).toBeChecked();
+    const device = screen.getByRole("radio", { name: "Device only" });
+    expect(device).toBeChecked();
+    expect(device).toHaveFocus();
+    fireEvent.keyDown(device, { key: "ArrowRight" });
+    expect(screen.getByRole("radio", { name: "Allow remote" })).toBeChecked();
     const delete_ = screen.getByRole("radio", { name: "Delete at end" });
     fireEvent.keyDown(delete_, { key: "End" });
     expect(screen.getByRole("radio", { name: "Until I delete" })).toBeChecked();
@@ -583,6 +613,7 @@ describe("Start hands-free", () => {
     await open();
     pickInterview();
     consent();
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
     fireEvent.click(handsFree());
     await waitFor(() => expect(started).toHaveLength(1));
     expect(getDisplayMedia).not.toHaveBeenCalled();

@@ -88,7 +88,7 @@ describe("LiveCodeCanvas", () => {
             reasons: [],
           },
         })}
-        size="maximized"
+        density="maximized"
       />,
     );
     const results = screen.getByLabelText("Results");
@@ -111,7 +111,9 @@ describe("LiveCodeCanvas", () => {
 
   it("copies the open tab and copies all", async () => {
     const onCopy = vi.fn();
-    render(<LiveCodeCanvas result={make()} onCopy={onCopy} />);
+    render(
+      <LiveCodeCanvas result={make()} onCopy={onCopy} density="maximized" />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     expect(onCopy).toHaveBeenLastCalledWith("export const a = 1;");
     fireEvent.click(screen.getByRole("button", { name: "Copy all" }));
@@ -124,7 +126,9 @@ describe("LiveCodeCanvas", () => {
 
   it("runs the edited solution, usage and tests in order and shows the results", async () => {
     const runner = vi.fn().mockResolvedValue(passed);
-    render(<LiveCodeCanvas result={make()} runner={runner} />);
+    render(
+      <LiveCodeCanvas result={make()} runner={runner} density="maximized" />,
+    );
     fireEvent.change(editor(/Edit solution/), {
       target: { value: "export const a = 3;" },
     });
@@ -148,6 +152,7 @@ describe("LiveCodeCanvas", () => {
       <LiveCodeCanvas
         result={make()}
         runner={vi.fn().mockResolvedValue(passed)}
+        density="maximized"
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
@@ -236,25 +241,52 @@ describe("LiveCodeCanvas", () => {
   });
 
   it("toggles soft wrap", () => {
-    render(<LiveCodeCanvas result={make()} />);
+    render(<LiveCodeCanvas result={make()} density="maximized" />);
     const wrap = screen.getByRole("button", { name: "Wrap" });
     fireEvent.click(wrap);
     expect(wrap).toHaveAttribute("aria-pressed", "true");
   });
 
   it("collapses results and opens them by default only when maximized", () => {
-    const view = render(<LiveCodeCanvas result={make()} size="compact" />);
+    const view = render(<LiveCodeCanvas result={make()} density="compact" />);
     const head = () => screen.getByRole("button", { name: /Results/ });
     expect(head()).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(head());
     expect(head()).toHaveAttribute("aria-expanded", "true");
     view.unmount();
-    render(<LiveCodeCanvas result={make()} size="maximized" />);
+    render(<LiveCodeCanvas result={make()} density="maximized" />);
     expect(head()).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Code canvas")).toHaveAttribute(
-      "data-size",
+      "data-density",
       "maximized",
     );
+  });
+
+  it("compact density keeps the code open with pills, icon buttons and a one-line results chip", () => {
+    render(<LiveCodeCanvas result={make()} />);
+    const canvas = screen.getByLabelText("Code canvas");
+    expect(canvas).toHaveAttribute("data-density", "compact");
+    // The code is there at once, not behind a header.
+    expect(editor(/Edit solution\.ts/)).toHaveValue("export const a = 1;");
+    // Run and Copy are icon-only; Wrap and Copy all are maximized-only.
+    expect(screen.getByRole("button", { name: "Run" })).toHaveTextContent("");
+    expect(screen.getByRole("button", { name: "Copy" })).toHaveTextContent("");
+    expect(screen.queryByRole("button", { name: "Wrap" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy all" })).toBeNull();
+    // Results are one chip, collapsed.
+    const chip = screen.getByRole("button", { name: /^Results:/ });
+    expect(chip).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("maximized density shows the labelled controls over the same editor", () => {
+    render(<LiveCodeCanvas result={make()} density="maximized" />);
+    expect(screen.getByRole("button", { name: "Run" })).toHaveTextContent(
+      "Run",
+    );
+    expect(screen.getByRole("button", { name: "Wrap" })).toBeVisible();
+    expect(editor(/Edit solution\.ts/)).toHaveValue("export const a = 1;");
   });
 
   it("cannot run a language the runner does not know", () => {

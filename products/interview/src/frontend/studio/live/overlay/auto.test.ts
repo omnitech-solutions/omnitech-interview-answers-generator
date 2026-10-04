@@ -170,10 +170,30 @@ describe("the one status line", () => {
   const text = (over: Partial<AutoLineInput>) =>
     autoLine({ ...base, ...over })?.text;
   it("says what Auto is doing", () => {
-    expect(text({})).toBe("Auto · listening · watching screen");
+    expect(text({})).toBe("Auto · listening · capturing every 8 s");
     expect(text({ heardAgoMs: 4_200 })).toBe(
-      "Auto · listening · heard 4 s ago · watching screen",
+      "Auto · listening · heard 4 s ago · capturing every 8 s",
     );
+  });
+  it("says the interval, the last analysis and the count", () => {
+    expect(
+      text({
+        intervalSec: 8,
+        lastAnalyzedAgoMs: 12_000,
+        autoCount: 3,
+        autoMax: 120,
+      }),
+    ).toBe(
+      "Auto · listening · capturing every 8 s · last analyzed 12 s ago · 3 of 120 analyses",
+    );
+  });
+  it("says Grant Screen Recording when the host cannot capture", () => {
+    expect(text({ screenProblem: "permission-denied" })).toBe(
+      "Auto · Grant Screen Recording to the app",
+    );
+  });
+  it("needs no browser share when the host captures", () => {
+    expect(text({ sharing: true })).not.toMatch(/Share/);
   });
   it("names the single action when something is lost", () => {
     expect(text({ sharing: false })).toMatch(/needs one click to share again/);
@@ -183,9 +203,13 @@ describe("the one status line", () => {
     expect(text({ paused: true, resumeFailed: true })).toMatch(/Press Resume/);
   });
   it("says device-only never watches the screen, and nothing once ended", () => {
-    expect(text({ deviceOnly: true, sharing: false })).toMatch(
-      /screen not analysed \(device-only\)/,
+    // The limits are said once, in the device-only card, not on this line.
+    expect(text({ deviceOnly: true, sharing: false })).not.toMatch(
+      /device-only|screen/,
     );
+    expect(
+      text({ deviceOnly: true, micError: "x", micUnsupported: true }),
+    ).not.toMatch(/can’t listen|x/);
     expect(autoLine({ ...base, open: false })).toBeNull();
   });
 });

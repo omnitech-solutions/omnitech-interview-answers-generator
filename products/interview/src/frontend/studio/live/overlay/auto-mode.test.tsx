@@ -324,14 +324,10 @@ describe("screen changed → one analyze", () => {
     await shareSource();
   }
 
-  it("captures once when the screen changes and stays stable, labelled as automatic", async () => {
+  it("analyses the first frame at the first interval, labelled as automatic", async () => {
     await watching();
-    expect(line()).toHaveTextContent(/watching screen/);
-    // First picture: stable after 3 s of 2 s samples.
-    await advance(2_000);
-    expect(captures).toHaveLength(0);
-    await advance(2_000);
-    // Held still for only 2 s so far.
+    expect(line()).toHaveTextContent(/capturing every 8 s/);
+    await advance(7_000);
     expect(captures).toHaveLength(0);
     await advance(2_000);
     expect(captures).toHaveLength(1);
@@ -339,33 +335,44 @@ describe("screen changed → one analyze", () => {
     expect(
       within(screen.getByTestId("chat-log")).getByText(AUTO_CAPTURE_LABEL),
     ).toBeVisible();
-    // The same picture, even with a speck of noise, is skipped.
+    await advance(2_000);
+    expect(line()).toHaveTextContent(/last analyzed \d+ s ago/);
+  });
+
+  it("drops unchanged frames on the device: nothing is uploaded", async () => {
+    await watching();
+    await advance(9_000);
+    expect(captures).toHaveLength(1);
+    // The same picture, even with a speck of noise, is never uploaded again.
     paintScreen("rising-noisy");
-    await advance(30_000);
+    await advance(40_000);
     expect(captures).toHaveLength(1);
   });
 
-  it("waits at least 15 s between automatic analyses", async () => {
+  it("analyses a changed frame once, at least 15 s after the last", async () => {
     await watching();
-    await advance(6_000);
+    await advance(9_000);
     expect(captures).toHaveLength(1);
     paintScreen("falling");
-    // Changed and stable well inside the gap: held until it ends.
+    // Changed at the 16 s tick, 8 s after the last analysis: held by the gap.
     await advance(8_000);
     expect(captures).toHaveLength(1);
-    await advance(AUTO_MIN_GAP_MS + 2_000);
+    await advance(AUTO_MIN_GAP_MS);
+    expect(captures).toHaveLength(2);
+    await advance(30_000);
     expect(captures).toHaveLength(2);
   });
 
-  it("does not capture while the screen keeps changing", async () => {
+  it("never exceeds one analysis per gap while the screen keeps changing", async () => {
     await watching();
-    await advance(6_000);
-    expect(captures).toHaveLength(1);
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 8; i += 1) {
       paintScreen(i % 2 === 0 ? "falling" : "rising");
-      await advance(2_000);
+      await advance(8_000);
     }
-    expect(captures).toHaveLength(1);
+    expect(captures.length).toBeGreaterThan(1);
+    expect(captures.length).toBeLessThanOrEqual(
+      Math.floor(64_000 / AUTO_MIN_GAP_MS) + 1,
+    );
   });
 
   it("takes none while a previous capture is still in flight", async () => {
@@ -377,10 +384,10 @@ describe("screen changed → one analyze", () => {
         release = resolve;
       });
     });
-    await advance(6_000);
+    await advance(9_000);
     expect(captures).toHaveLength(1);
     paintScreen("falling");
-    await advance(AUTO_MIN_GAP_MS + 6_000);
+    await advance(AUTO_MIN_GAP_MS + 8_000);
     expect(captures).toHaveLength(1);
     release(
       jsonResponse(
@@ -391,14 +398,15 @@ describe("screen changed → one analyze", () => {
         202,
       ),
     );
-    await advance(6_000);
+    await advance(9_000);
     expect(captures).toHaveLength(2);
   });
 
   it("never watches a device-only session, and says why", async () => {
     autoOn();
     await openCard(remote({ processingPolicy: "device-only" }));
-    expect(line()).toHaveTextContent(/screen not analysed \(device-only\)/);
+    expect(line()).not.toHaveTextContent(/screen not analysed/);
+    expect(screen.getByTestId("device-only-card")).toBeInTheDocument();
     await advance(30_000);
     expect(captures).toHaveLength(0);
   });
@@ -409,7 +417,7 @@ describe("screen changed → one analyze", () => {
     page.session = { ...view, status: "paused" };
     view = { ...view, status: "paused" };
     await advance(2_000);
-    await act(() => vi.advanceTimersByTimeAsync(6_000));
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(captures).toHaveLength(0);
     expect(line()).toHaveTextContent(/paused by you/);
   });

@@ -61,6 +61,16 @@ async function contextOf(
   }
 }
 
+// The restatement and constraints of every coding brief this task has had, in
+// any revision (a typed follow-up is a later revision of the same task).
+function exerciseFor(run: SessionRun, task: Task): string[] {
+  const texts: string[] = [];
+  for (const candidate of run.coding.values())
+    if (candidate.taskId === task.taskId)
+      texts.push(candidate.brief.restatement, ...candidate.brief.constraints);
+  return texts;
+}
+
 export async function planAssist(
   run: SessionRun,
   task: Task,
@@ -79,6 +89,9 @@ export async function planAssist(
   if (!context) return { outcome: "context_unavailable" };
 
   const captured = capturedFor(run, task);
+  // An open coding task carries its exercise (the brief read from the screen)
+  // as provenance for the figures of its follow-ups.
+  const exercise = exerciseFor(run, task);
   const prepared = stage.prepare({
     taskId: task.taskId,
     revision: task.revision,
@@ -107,6 +120,7 @@ export async function planAssist(
       stage.validate(raw, {
         snapshot,
         captured: captured.map((line) => line.text),
+        ...(exercise.length > 0 ? { exercise } : {}),
       }),
     resultFor: (draft, meta) => ({
       version: 1,

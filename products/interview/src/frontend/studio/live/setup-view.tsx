@@ -9,6 +9,7 @@ import {
   reportAge,
   speechState,
 } from "./companion-capability";
+import { loadHandsFreeChoice, saveHandsFreeChoice } from "./hands-free-choice";
 import { saveAutoPreferred } from "./overlay/auto-prefs";
 import {
   handsFreeSummary,
@@ -94,14 +95,24 @@ export function SetupView({
   const advisories = capabilityAdvisories(report);
   const advisoryAge = report ? reportAge(report, Date.now()) : null;
   const { state: choices, reload } = useSetupChoices();
-  const [form, setForm] = useState<SetupForm>(initialForm);
+  const [form, setForm] = useState<SetupForm>(() => ({
+    ...initialForm(),
+    policy: loadHandsFreeChoice(tenantFromLocation()) ?? initialForm().policy,
+  }));
   const [failure, setFailure] = useState<SessionErrorCode | null>(null);
   const matrixTouched = useRef(false);
   // One id per Setup screen, so a retried start names the same rehearsal run.
   const runId = useRef<string | null>(null);
   const pending = snapshot.pending.includes("start");
-  const patch = (next: Partial<SetupForm>) =>
+  // The primary action takes focus once, the moment Start becomes possible, so
+  // Enter starts hands-free.
+  const primary = useRef<HTMLButtonElement>(null);
+  const focused = useRef(false);
+  const patch = (next: Partial<SetupForm>) => {
+    // The last processing choice is remembered per tenant.
+    if (next.policy) saveHandsFreeChoice(tenantFromLocation(), next.policy);
     setForm((current) => ({ ...current, ...next }));
+  };
 
   // The matrix defaults to the latest revision until the owner chooses; a
   // choice that vanished from a reload falls back to the default.
@@ -134,6 +145,12 @@ export function SetupView({
       : !form.consent
         ? "Confirm that everyone has agreed."
         : null;
+
+  useEffect(() => {
+    if (!canStart || focused.current) return;
+    focused.current = true;
+    primary.current?.focus();
+  }, [canStart]);
 
   async function start(handsFree = false) {
     if (!request || !canStart) return;
@@ -308,23 +325,47 @@ export function SetupView({
           type="button"
           className="studio-button primary"
           disabled={!canStart}
-          onClick={() => void start(false)}
-        >
-          <Icon name="sensors" />
-          {pending ? "Starting…" : "Start session"}
-        </button>
-        <button
-          type="button"
-          className="studio-button"
-          disabled={!canStart}
           data-testid="start-hands-free"
           title="Asks once for your screen and microphone, then listens and captures on its own while Auto is on. Audio from a call or another tab needs the native companion."
+          ref={primary}
           onClick={() => void start(true)}
         >
           <Icon name="visibility" />
           Start hands-free
         </button>
+        <button
+          type="button"
+          className="studio-button"
+          disabled={!canStart}
+          onClick={() => void start(false)}
+        >
+          <Icon name="sensors" />
+          {pending ? "Starting…" : "Start session"}
+        </button>
         {missing && !pending && <span className="setup-muted">{missing}</span>}
+      </div>
+      <div className="setup-start-choice" data-testid="start-choice">
+        {(
+          [
+            ["permitted-remote", "Hands-free: allow remote"],
+            ["device-only", "Hands-free: device only"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className="studio-button"
+            aria-pressed={form.policy === value}
+            onClick={() => patch({ policy: value })}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="setup-muted" data-testid="start-choice-effect">
+          {form.policy === "device-only"
+            ? "Device only: no screenshot analysis, no code generation, dictation only if your browser or Mac has on-device speech."
+            : "Allow remote: everything works; content goes to the configured models."}
+        </span>
       </div>
     </div>
   );

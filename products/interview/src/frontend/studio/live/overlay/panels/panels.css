@@ -3,7 +3,10 @@
    document needs nothing else. With a native host the page is transparent and
    only the rounded card paints; a plain window gets a solid backdrop. */
 .pn-root {
-  --ov-bg: rgba(26, 26, 30, 0.82);
+  /* The card tint. --ov-a follows the shell's opacity setting in a native host
+     (see panels-root.tsx); a plain window keeps the denser default. */
+  --ov-a: 0.82;
+  --ov-bg: rgba(20, 20, 24, var(--ov-a));
   --ov-text: rgba(255, 255, 255, 0.93);
   --ov-muted: rgba(255, 255, 255, 0.66);
   --ov-faint: rgba(255, 255, 255, 0.46);
@@ -152,7 +155,11 @@
 }
 .pn-problem {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pn-label {
   font-size: 11px;
@@ -179,6 +186,7 @@
 }
 .pn-section p {
   margin: 2px 0;
+  font-size: 14px;
 }
 .pn-select,
 .pn-input {
@@ -239,8 +247,25 @@
   color: var(--ov-muted);
 }
 .pn-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 6px;
+  font-size: 12px;
   color: var(--ov-amber);
+}
+.pn-note span {
+  flex: 1;
+  min-width: 0;
+}
+.pn-restated {
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+.pn-restated p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--ov-text);
 }
 .pn-compose {
   display: flex;
@@ -299,9 +324,18 @@
   }
 }
 
-/* A native panel window is transparent: only the rounded cards paint. The shell
-   draws a drag strip over the top edge (the pill's left edge), so the content
-   is inset from it. */
+/* A native panel window is transparent: only the rounded cards paint, and they
+   are tinted lightly (default alpha 0.45) so the desktop shows through. The
+   shell draws a drag strip over the top edge (the pill's left edge), so the
+   content is inset from it. */
+:root[data-panel-host="native"] .pn-root {
+  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.55));
+}
+:root[data-panel-host="native"] .pn-card,
+:root[data-panel-host="native"] .pn-pill {
+  /* Light text on a light desktop stays readable. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
 :root[data-panel-host="native"],
 :root[data-panel-host="native"] body {
   background: transparent;

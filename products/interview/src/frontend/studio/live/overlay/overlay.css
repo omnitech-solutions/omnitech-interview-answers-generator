@@ -6,7 +6,8 @@
 .ov-card,
 .ov-root,
 .ov-sheet {
-  --ov-bg: rgba(26, 26, 30, 0.88);
+  --ov-a: 0.88;
+  --ov-bg: rgba(26, 26, 30, var(--ov-a));
   --ov-text: rgba(255, 255, 255, 0.93);
   --ov-muted: rgba(255, 255, 255, 0.66);
   --ov-faint: rgba(255, 255, 255, 0.46);
@@ -42,6 +43,16 @@
 }
 .ov-root > .ov-card {
   flex: 1;
+}
+/* In a native window the root must not paint: the shell's blur and the desktop
+   show through the card. */
+:root[data-panel-host="native"] .ov-root,
+:root[data-panel-host="native"],
+:root[data-panel-host="native"] body {
+  background: transparent;
+}
+:root[data-panel-host="native"] .ov-root {
+  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.55));
 }
 .ov-empty,
 .ov-unavailable {
@@ -574,9 +585,27 @@
   font-weight: 500;
 }
 .ov-task-title {
-  font-size: 16px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  color: var(--ov-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ov-restated {
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+.ov-restated summary {
+  cursor: pointer;
+}
+.ov-restated p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ov-text);
 }
 .ov-chip-row {
   display: flex;
@@ -595,10 +624,13 @@
   color: var(--ov-muted);
 }
 .ov-constraint {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
+  max-width: 100%;
+  font-size: 11px;
+}
+.ov-constraint > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ov-constraint .studio-icon {
   color: var(--ov-amber);
@@ -610,7 +642,7 @@
   gap: 6px;
 }
 .ov-slot {
-  padding: 7px 9px;
+  padding: 4px 8px;
   border-radius: 9px;
   border: 0.5px solid var(--ov-line);
   display: flex;
@@ -657,7 +689,8 @@
   color: var(--ov-faint);
 }
 .ov-slot-text {
-  font-size: 12px;
+  font-size: 11.5px;
+  color: var(--ov-muted);
 }
 .ov-slot.bad .ov-slot-text {
   color: var(--ov-red);
@@ -730,12 +763,9 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 10px;
-  border: 0;
+  padding: 5px 10px;
   background: var(--ov-chip);
-  cursor: pointer;
-  text-align: left;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .ov-solution-title {
   flex: 1;
@@ -1609,4 +1639,89 @@
 .ov-auto-text {
   flex: 1;
   min-width: 0;
+}
+
+/* The hands-free band at the top of the Studio live view: the card's own bar,
+   Auto line, capture strip and follow-up box, in the page flow instead of
+   floating over it. */
+.ov-card[data-variant="band"] {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-height: none;
+  z-index: 1;
+  border-radius: 12px;
+  overflow: visible;
+  margin: 0 0 12px;
+}
+.ov-band-head {
+  cursor: default;
+}
+.ov-band-head .ov-title {
+  flex: none;
+}
+.ov-band-lights {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--ov-muted);
+  font-size: 12px;
+}
+.ov-band-lights > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ov-band-lights [data-state="listening"],
+.ov-band-lights [data-state="on"] {
+  color: var(--ov-green);
+}
+.ov-band-lights [data-state="denied"] {
+  color: var(--ov-red);
+}
+.ov-band-note {
+  margin: 0;
+  padding: 0 12px 10px;
+}
+
+/* ---- A native shell window: translucent surfaces --------------------------
+   The page marks its document data-panel-host="native" and sets --ov-alpha from
+   the shell's opacity (host-surface.ts). Every surface is then rgba over a
+   blur, never a solid colour. Contrast is kept by a text shadow (light text on
+   a light desktop) and by chips and the code canvas staying denser than the
+   card. A plain tab keeps its solid look. */
+:root[data-panel-host="native"],
+:root[data-panel-host="native"] body,
+:root[data-panel-host="native"] #root,
+:root[data-panel-host="native"] .ov-root,
+:root[data-panel-host="native"] .pn-root {
+  background: transparent;
+}
+:root[data-panel-host="native"] :is(.ov-card, .ov-menu, .pn-card, .pn-pill, .pn-toast) {
+  background: var(--ov-bg);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+}
+:root[data-panel-host="native"] .ov-sheet {
+  background: rgba(0, 0, 0, max(0.35, calc(var(--ov-alpha, 0.75) * 0.6)));
+  backdrop-filter: blur(10px);
+}
+:root[data-panel-host="native"] .lc-canvas {
+  /* Semi-opaque: the desktop shows faintly, code stays readable. */
+  --lc-surface: rgba(18, 19, 24, max(0.45, calc(var(--ov-alpha, 0.75) * 0.65)));
+  background: var(--lc-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+:root[data-panel-host="native"] .ov-root :is(.ov-card, .lc-canvas) :is(p, span, h1, h2, h3, li, label, button, summary, small),
+:root[data-panel-host="native"] .pn-root :is(p, span, h1, h2, h3, li, label, button, summary, small) {
+  /* Worst case: a white desktop behind light text. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+/* Secondary text is lifted on a translucent card so it keeps contrast. */
+:root[data-panel-host="native"] :is(.ov-root, .pn-root) {
+  --ov-muted: rgba(255, 255, 255, 0.84);
+  --ov-faint: rgba(255, 255, 255, 0.72);
 }

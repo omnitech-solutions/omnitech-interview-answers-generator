@@ -179,7 +179,7 @@ export function CodingPanel({
         <LiveCodeCanvas
           result={code}
           revision={codeRevision?.revision ?? null}
-          size="maximized"
+          density="maximized"
         />
       )}
       {codeRevision && (

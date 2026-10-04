@@ -18,11 +18,14 @@ export const CAPABILITY_LOADING: CompanionCapabilityState = {
 
 export function useCompanionCapability(
   refreshMs?: number,
+  // false reads nothing (a host that is mounted before any session is open).
+  enabled = true,
 ): CompanionCapabilityState {
   const client = useMemo(() => createSessionClient(tenantFromLocation()), []);
   const [state, setState] =
     useState<CompanionCapabilityState>(CAPABILITY_LOADING);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     const read = () =>
       client.companionCapability().then(
@@ -42,6 +45,6 @@ export function useCompanionCapability(
       alive = false;
       if (timer) clearInterval(timer);
     };
-  }, [client, refreshMs]);
+  }, [client, refreshMs, enabled]);
   return state;
 }

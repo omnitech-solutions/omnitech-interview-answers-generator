@@ -35,6 +35,7 @@ import {
 } from "../session-result-fixtures";
 import { createTestServer, type TestServer } from "../session-test-server";
 import { clampPosition, readPosition, resetPosition } from "./card-position";
+import { HandsFreeProvider } from "./hands-free-context";
 import { OverlayPage } from "./overlay-page";
 
 const studio = {} as never;
@@ -160,11 +161,11 @@ afterEach(() => {
 
 async function openCard() {
   render(
-    <>
+    <HandsFreeProvider>
       <LiveSessionView rest={[]} studio={studio} />
       <LiveCardHost />
       <LiveFloatHost />
-    </>,
+    </HandsFreeProvider>,
   );
   await flush();
   await flush();
@@ -709,10 +710,18 @@ describe("header and chips", () => {
     const open = (name: RegExp) =>
       screen.getByRole("button", { name }).getAttribute("aria-expanded");
     expect(open(/Activity/)).toBe("false");
-    expect(open(/Solution/)).toBe("false");
+    // Code is never collapsed: compact shows it in the compact density.
+    const solution = () => within(screen.getByTestId("solution"));
+    expect(solution().getByLabelText("Code canvas")).toHaveAttribute(
+      "data-density",
+      "compact",
+    );
     await click("Maximize");
     expect(open(/Activity/)).toBe("true");
-    expect(open(/Solution/)).toBe("true");
+    expect(solution().getByLabelText("Code canvas")).toHaveAttribute(
+      "data-density",
+      "maximized",
+    );
     // The solution is an editor canvas with a Run button.
     const canvas = within(screen.getByTestId("solution")).getByLabelText(
       "Code canvas",
@@ -747,10 +756,10 @@ describe("header and chips", () => {
 describe("the card across Studio pages", () => {
   it("stays mounted when the page under it is not the Live view", async () => {
     const view = render(
-      <>
+      <HandsFreeProvider>
         <LiveSessionView rest={[]} studio={studio} />
         <LiveCardHost />
-      </>,
+      </HandsFreeProvider>,
     );
     await flush();
     await flush();
@@ -758,7 +767,11 @@ describe("the card across Studio pages", () => {
     expect(card()).toBeVisible();
     // The Live page goes away (the person opens the Workspace): the card,
     // which the shell hosts, does not.
-    view.rerender(<LiveCardHost />);
+    view.rerender(
+      <HandsFreeProvider>
+        <LiveCardHost />
+      </HandsFreeProvider>,
+    );
     await flush();
     expect(card()).toBeVisible();
     expect(presentation.get().mode).toBe("card");

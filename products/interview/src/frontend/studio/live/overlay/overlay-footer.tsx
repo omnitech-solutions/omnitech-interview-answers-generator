@@ -1,9 +1,11 @@
 // Follow-up input and the footer: the honest "Visible window" note, Pause or
 // Resume, and End (with its own confirmation). Each calls a store action.
+
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
+import { BUILD_ID } from "./build-id";
 
 export const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
@@ -11,7 +13,11 @@ export const UNAVAILABLE_NOTE =
 export const failureNote = (code: SessionErrorCode): string =>
   code === "unavailable"
     ? UNAVAILABLE_NOTE
-    : `That didn’t work (${code}). The session is unchanged.`;
+    : code === "invalid_input"
+      ? "The server refused that capture (invalid_input): the image was too large or unreadable. The session is unchanged; the next capture tries again."
+      : code === "status_refused"
+        ? "The session is not taking captures now (status_refused). Resume it or start a new one."
+        : `That didn’t work (${code}). The session is unchanged.`;
 
 export function FollowUp({
   label,
@@ -95,6 +101,9 @@ export function Footer({
         >
           <Icon name="visibility" />
           Visible window · shows in screen shares
+        </span>
+        <span className="ov-build" data-testid="ov-build" title="Build">
+          {BUILD_ID}
         </span>
         <button
           type="button"

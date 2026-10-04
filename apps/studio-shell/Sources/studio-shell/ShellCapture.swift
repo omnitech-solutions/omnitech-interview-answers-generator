@@ -3,6 +3,7 @@ import CaptureCore
 import CoreGraphics
 import Foundation
 import ImageIO
+import CaptureAdapters
 import ScreenCaptureKit
 import StudioShellCore
 import UniformTypeIdentifiers
@@ -68,7 +69,7 @@ final class ShellCapture {
             !DisplayBinding.allows(requested: requested, sampled: id, current: UInt32(CGMainDisplayID()))
         { return lost(.captureFailed) }
         guard CGPreflightScreenCaptureAccess(),
-            let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         else { return lost(.captureFailed) }
 
         let filter: SCContentFilter
@@ -91,28 +92,36 @@ final class ShellCapture {
                 request.mode == .display || DisplayBinding.allows(
                     requested: requested, sampled: id, current: UInt32(CGMainDisplayID()))
             else { return lost(.captureFailed) }
-            filter = SCContentFilter(display: display, excludingWindows: [])
+            let own = content.windows.filter { $0.owningApplication?.processID == ownPid }
+            filter = SCContentFilter(display: display, excludingWindows: own)
             label = "display"
         }
 
+        // [SAFETY] A region is cropped by the capture itself (sourceRect), so pixels
+        // outside it are never even rendered; the frame is capped to a small
+        // long edge so repeated captures stay light.
         let scale = CGFloat(filter.pointPixelScale)
         let configuration = SCStreamConfiguration()
-        configuration.width = max(1, Int((filter.contentRect.width * scale).rounded()))
-        configuration.height = max(1, Int((filter.contentRect.height * scale).rounded()))
+        var pointSize = filter.contentRect.size
+        if request.mode == .region {
+            guard let region = request.region else { return lost(.captureFailed) }
+            let whole = filter.contentRect.size
+            let rect = CGRect(
+                x: region.x * whole.width, y: region.y * whole.height,
+                width: region.width * whole.width, height: region.height * whole.height)
+            configuration.sourceRect = rect
+            pointSize = rect.size
+        }
+        let fitted = FrameSize.fit(width: Int((pointSize.width * scale).rounded()), height: Int((pointSize.height * scale).rounded()))
+        configuration.width = fitted.width
+        configuration.height = fitted.height
         configuration.showsCursor = false
         configuration.ignoreShadowsSingleWindow = true
-        guard var image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        configuration.queueDepth = 1
+        guard let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         else { return lost(.captureFailed) }
 
-        // [SAFETY] Crop first; only the region is encoded and returned.
-        if request.mode == .region {
-            guard let region = request.region,
-                let rect = CaptureGeometry.cropRect(region, imageWidth: image.width, imageHeight: image.height),
-                let cropped = image.cropping(to: CGRect(x: rect.x, y: rect.y, width: rect.width, height: rect.height))
-            else { return lost(.captureFailed) }
-            image = cropped
-        }
-        guard let jpeg = Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) else {
+        guard let jpeg = autoreleasepool(invoking: { Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) }) else {
             return lost(.captureFailed)
         }
         return Result(outcome: .image(jpeg: jpeg, windowLabel: label), displayId: id)
@@ -122,7 +131,7 @@ final class ShellCapture {
     private static func jpeg(_ image: CGImage, maxBytes: Int) -> Data? {
         var current = image
         for _ in 0..<3 {
-            for quality in [0.8, 0.6, 0.4] {
+            for quality in [0.7, 0.5, 0.35] {
                 if let data = encode(current, quality: quality), data.count <= maxBytes { return data }
             }
             let width = max(1, current.width / 2), height = max(1, current.height / 2)

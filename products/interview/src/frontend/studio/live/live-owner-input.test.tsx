@@ -10,6 +10,7 @@ import { LiveFloatHost } from "./float-host";
 import { presentation } from "./focus-presentation";
 import { LiveSessionView } from "./live-view";
 import { answerAction } from "./live-view-kit";
+import { HandsFreeProvider } from "./overlay/hands-free-context";
 import {
   jsonResponse,
   minutesAfter,
@@ -45,11 +46,11 @@ async function analyzeNew() {
 
 async function openFocus() {
   render(
-    <>
+    <HandsFreeProvider>
       <LiveSessionView rest={[]} studio={studio} />
       <LiveCardHost />
       <LiveFloatHost />
-    </>,
+    </HandsFreeProvider>,
   );
   await flush();
   await flush();

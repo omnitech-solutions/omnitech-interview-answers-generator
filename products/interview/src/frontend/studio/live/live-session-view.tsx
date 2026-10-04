@@ -10,6 +10,8 @@ import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { ActivityTab } from "./activity-tab";
 import type { BannerAction } from "./banner-copy";
+import { copyText } from "./copy-text";
+import { HandsFreeBand } from "./overlay/hands-free-controls";
 import { PairingPanel } from "./pairing-panel";
 import { SessionBanners } from "./session-banner-list";
 import { SessionBar } from "./session-bar";
@@ -33,32 +35,7 @@ export type LiveSessionPanelProps = {
 const TOAST_MS = 3_000;
 const CAPABILITY_REFRESH_MS = 15_000;
 
-// Copy with the async clipboard, falling back to a hidden selection for a page
-// that may not use it. True when the text was copied.
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through to the selection route.
-  }
-  try {
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.setAttribute("readonly", "");
-    area.style.position = "fixed";
-    area.style.opacity = "0";
-    document.body.appendChild(area);
-    area.select();
-    const copied = document.execCommand("copy");
-    area.remove();
-    return copied;
-  } catch {
-    return false;
-  }
-}
+export { copyText };
 
 // A session that is open (created, active or paused): the live header, the
 // banners, the task panels and the Transcript, Activity and Sources tabs.
@@ -71,6 +48,9 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
   return (
     <div className="live-page" data-testid="live-panel">
       <SessionBar variant="header" onOpen={() => undefined} />
+      {/* The same hands-free controls as the card: this page listens, watches
+          and captures itself, so nothing needs a second window. */}
+      {snapshot.session && <HandsFreeBand />}
       {snapshot.session && (
         <LiveSessionBody
           session={snapshot.session}

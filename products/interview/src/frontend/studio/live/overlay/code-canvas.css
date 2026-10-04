@@ -186,7 +186,7 @@
   overflow: auto;
   padding: 0 6px 8px;
 }
-.lc-canvas[data-size="maximized"] .lc-results-body {
+.lc-canvas[data-density="maximized"] .lc-results-body {
   max-height: 320px;
 }
 
@@ -205,4 +205,40 @@
 }
 .lc-results-head::before {
   inset: -4px 0;
+}
+
+/* Compact density: the same canvas, less chrome. Tabs are small pills, Run and
+   Copy are icon buttons and the results are a one-line chip that expands. */
+.lc-canvas[data-density="compact"] {
+  border-radius: 8px;
+}
+.lc-canvas[data-density="compact"] .lc-bar {
+  padding: 3px 4px;
+  gap: 3px;
+}
+.lc-canvas[data-density="compact"] .lc-tab {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 99px;
+  font-size: 11.5px;
+}
+.lc-canvas[data-density="compact"] .lc-button {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+}
+.lc-canvas[data-density="compact"] .lc-editor,
+.lc-canvas[data-density="compact"] .lc-editor .cm-editor {
+  font-size: 12px;
+}
+.lc-canvas[data-density="compact"] .lc-results-head {
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+.lc-canvas[data-density="compact"] .lc-results-body {
+  max-height: 160px;
+}
+.lc-canvas[data-density="maximized"] .lc-editor,
+.lc-canvas[data-density="maximized"] .lc-editor .cm-editor {
+  font-size: 13px;
 }

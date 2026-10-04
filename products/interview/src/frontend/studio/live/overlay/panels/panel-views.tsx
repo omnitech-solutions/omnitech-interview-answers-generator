@@ -4,6 +4,7 @@
 //
 // [SAFETY] The settings footer says plainly that this is a visible window that
 // shows in screen shares. Nothing here hides a window or conceals capture.
+import { BUILD_ID } from "../build-id";
 import {
   LIVE_OWNER_SKILL_LABELS,
   LIVE_OWNER_SKILLS,
@@ -15,9 +16,12 @@ import { type FormEvent, useState } from "react";
 import { Icon } from "../../../icon";
 import { TASK_KIND } from "../../task-panels";
 import { LiveCodeCanvas } from "../code-canvas";
+import { DeviceOnlyCard } from "../device-only-notice";
 import { MaskEditor } from "../mask-editor";
 import { localityChips, solution } from "../overlay-model";
 import { shortcutKeys } from "../overlay-shortcuts";
+import { taskHeading } from "../overlay-task";
+import { openStartPage } from "../studio-links";
 import { COMMAND_KEYS } from "./commands";
 import {
   languageOptions,
@@ -161,6 +165,9 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
   const constraints =
     task?.constraints.filter((c) => c.status === "current") ?? [];
   const sections = task ? taskSections(task) : [];
+  const heading = task ? taskHeading(task) : null;
+  // The one error line can be dismissed; a different message shows again.
+  const [dismissed, setDismissed] = useState<string | null>(null);
   return (
     <div className="pn-card" data-testid="pn-analysis">
       <header className="pn-head">
@@ -179,9 +186,17 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
           </span>
         )}
       </header>
-      {s.note && (
+      {s.note && s.note !== dismissed && (
         <p className="pn-note" role="alert">
-          {s.note}
+          <span>{s.note}</span>
+          <button
+            type="button"
+            className="pn-icon"
+            aria-label="Dismiss message"
+            onClick={() => setDismissed(s.note)}
+          >
+            <Icon name="close" />
+          </button>
         </p>
       )}
       {!task ? (
@@ -191,8 +206,14 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
       ) : (
         <div className="pn-body">
           <h2 className="pn-problem" data-testid="pn-problem">
-            {task.title ?? kind?.label}
+            {heading?.title}
           </h2>
+          {heading?.restated && (
+            <details className="pn-restated">
+              <summary>Restated task</summary>
+              <p>{heading.restated}</p>
+            </details>
+          )}
           <div className="pn-kv">
             <span className="pn-label">Problem type</span>
             <span data-testid="pn-type">{kind?.label}</span>
@@ -230,7 +251,7 @@ export function AnalysisPanel({ s }: { s: PanelSession }) {
               <LiveCodeCanvas
                 result={code.result}
                 revision={code.revision}
-                size="maximized"
+                density="maximized"
               />
             </section>
           )}
@@ -265,6 +286,17 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           data-testid="pn-rec"
         />
       </header>
+      <DeviceOnlyCard
+        tenant={s.tenant}
+        input={{
+          deviceOnly: s.deviceOnly,
+          autoOn: s.live.auto,
+          engine: s.engineAvailable,
+          dictationError: s.dictationError,
+          dictationSupported: s.dictationSupported,
+        }}
+        onStartRemote={() => openStartPage("overlay")}
+      />
       <div className="pn-log" role="log" aria-label="Transcript and chat">
         {s.cleared && rows.length === 0 && (
           <p className="pn-system">Session memory cleared</p>
@@ -287,7 +319,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           </p>
         )}
       </div>
-      {(s.note ?? s.dictationError) && (
+      {(s.note ?? (s.deviceOnly && s.live.auto ? null : s.dictationError)) && (
         <p className="pn-note" role="alert">
           {s.note ?? s.dictationError}
         </p>
@@ -474,6 +506,9 @@ export function SettingsPanel({
           ))}
         </div>
         <p className="pn-footer">Visible window · shows in screen shares</p>
+        <p className="pn-footer" data-testid="pn-build">
+          Build {BUILD_ID}
+        </p>
       </div>
       {masking && (
         <MaskEditor

@@ -35,3 +35,7 @@ export function takeAnnouncement(): string | null {
   announcement = null;
   return text;
 }
+
+// True while a share from "Start hands-free" waits for a document to adopt it:
+// the document that parked it asks for ownership at once.
+export const hasParkedShare = (): boolean => parked !== null;

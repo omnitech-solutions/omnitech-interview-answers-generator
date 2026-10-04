@@ -67,6 +67,9 @@ public enum HostCall: Equatable, Sendable {
     case openExternal(URL)
     // The typed presentation commands (window.studioHost.presentation).
     case presentation(PresentationCommand)
+    // window.studioHost.screenWatch: Studio decides, the shell only watches.
+    case screenWatchStart(ScreenWatchRequest)
+    case screenWatchStop
 }
 
 public enum HostCallError: Error, Equatable, Sendable {
@@ -97,10 +100,16 @@ public enum HostCallDecoder {
         case "pinOnTop": allowed = ["pinned"]
         case "openExternal": allowed = ["url"]
         case "presentation": allowed = ["op", "panel", "layout", "visible", "on", "mode", "enabled", "value"]
+        case "screenWatchStart": allowed = ["mode", "region", "displayId", "intervalMs"]
+        case "screenWatchStop": allowed = []
         default: return .failure(.unknownMethod)
         }
         guard Set(params.keys).isSubset(of: allowed) else { return .failure(.invalidParameters) }
         switch method {
+        case "screenWatchStart":
+            return ScreenWatchDecoder.decodeStart(params).map { .success(.screenWatchStart($0)) }
+                ?? .failure(.invalidParameters)
+        case "screenWatchStop": return .success(.screenWatchStop)
         case "captureScreen": return decodeCapture(params, requestId: requestId)
         case "pinOnTop":
             guard let pinned = params["pinned"] as? Bool else { return .failure(.invalidParameters) }
@@ -231,6 +240,9 @@ public enum HostReply {
     }
 
     public static func failure(_ reason: String) -> [String: Any] { ["ok": false, "reason": reason] }
+    public static func screenWatchStarted(_ failure: ScreenWatchFailure?) -> [String: Any] {
+        failure.map { Self.failure($0.rawValue) } ?? ["ok": true]
+    }
     public static func pinned(_ pinned: Bool) -> Bool { pinned }
 }
 
@@ -257,6 +269,35 @@ public enum HostBridgeScript {
           var listeners = [];
           var modeListeners = [];
           var engineListeners = [];
+          var watchListeners = [];
+          var watchStatusListeners = [];
+          // Synchronous status() reads the last state the shell pushed.
+          var watching = { watching: false };
+          function remover(list, listener) {
+            if (typeof listener !== "function") return function () {};
+            list.push(listener);
+            return function () {
+              var at = list.indexOf(listener);
+              if (at >= 0) list.splice(at, 1);
+            };
+          }
+          var screenWatch = Object.freeze({
+            start: function (request) {
+              var r = request || {};
+              var params = { mode: String(r.mode) };
+              if (r.region !== undefined) params.region = r.region;
+              if (r.displayId !== undefined) params.displayId = r.displayId;
+              if (r.intervalMs !== undefined) params.intervalMs = Number(r.intervalMs);
+              return call("screenWatchStart", params).then(
+                function (reply) { return reply; },
+                function () { return { ok: false, reason: "invalid" }; });
+            },
+            stop: function () { return call("screenWatchStop").then(function () {}); },
+            status: function () { return { watching: watching.watching, reason: watching.reason }; },
+            onChange: function (listener) { return remover(watchListeners, listener); },
+            // Beyond the contract: why a watch ended (permission loss, a moved display).
+            onStatus: function (listener) { return remover(watchStatusListeners, listener); }
+          });
           // Synchronous reads come from the last state the shell pushed.
           var shown = { mode: "expanded", panels: [], interactive: true, opacity: 1, handsFree: false };
           function op(name, params) {
@@ -297,6 +338,7 @@ public enum HostBridgeScript {
             pinOnTop: function (pinned) { return call("pinOnTop", { pinned: !!pinned }); },
             openExternal: function (url) { return call("openExternal", { url: String(url) }); },
             \(engineMember)presentation: presentation,
+            screenWatch: screenWatch,
             onHotkey: function (listener) {
               if (typeof listener !== "function") return function () {};
               listeners.push(listener);
@@ -311,6 +353,22 @@ public enum HostBridgeScript {
             configurable: false
           });
           \(engineDefinition)
+          Object.defineProperty(window, "__studioHostScreenWatchChange", {
+            value: function (event) {
+              var e = { at: Number(event.at), bits: Number(event.bits) };
+              watchListeners.slice().forEach(function (listener) { try { listener(e); } catch (x) {} });
+            },
+            configurable: false
+          });
+          Object.defineProperty(window, "__studioHostScreenWatchStatus", {
+            value: function (state) {
+              watching = { watching: !!state.watching };
+              if (typeof state.reason === "string") watching.reason = state.reason;
+              var copy = { watching: watching.watching, reason: watching.reason };
+              watchStatusListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
+            },
+            configurable: false
+          });
           Object.defineProperty(window, "__studioHostPresentation", {
             value: function (state) {
               var before = shown.interactive;
@@ -328,6 +386,17 @@ public enum HostBridgeScript {
     // The call the shell evaluates in the page for a hotkey.
     public static func emit(_ command: HostCommand) -> String {
         "window.__studioHostEmit && window.__studioHostEmit(\"\(command.wireName)\");"
+    }
+
+    // One settled change in the watched screen: only a time and a bit count.
+    public static func emitScreenWatchChange(at: Int, bits: Int) -> String {
+        "window.__studioHostScreenWatchChange && window.__studioHostScreenWatchChange({at:\(at),bits:\(bits)});"
+    }
+
+    public static func emitScreenWatchStatus(_ status: ScreenWatchStatus) -> String {
+        let json = (try? JSONSerialization.data(withJSONObject: status.wire, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return "window.__studioHostScreenWatchStatus && window.__studioHostScreenWatchStatus(\(json));"
     }
 
     // Pushes the presentation state to a page: it reads it synchronously and

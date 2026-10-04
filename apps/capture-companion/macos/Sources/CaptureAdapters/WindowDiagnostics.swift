@@ -23,7 +23,7 @@ public enum WindowDiagnostics {
     // Every window ScreenCaptureKit can see, or nil when it cannot be asked
     // (usually because Screen Recording access is not granted).
     public static func listing() async -> [WindowSummary]? {
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+        guard let content = try? await ShareableContent.current(excludingDesktopWindows: true, onScreenWindowsOnly: false)
         else { return nil }
         let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
         return content.windows.map { window in

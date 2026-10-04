@@ -28,7 +28,11 @@ rm -rf "$bundle"
 mkdir -p "$bundle/Contents/MacOS"
 cp "$binary" "$bundle/Contents/MacOS/studio-shell"
 
-cat >"$bundle/Contents/Info.plist" <<'PLIST'
+# The build id shown in the About panel: short commit, "+" when uncommitted.
+BUILD_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+[ -n "$(git status --porcelain 2>/dev/null)" ] && BUILD_SHA="${BUILD_SHA}+"
+
+cat >"$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -38,7 +42,7 @@ cat >"$bundle/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>Interview Studio</string>
   <key>CFBundleExecutable</key><string>studio-shell</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleVersion</key><string>${BUILD_SHA}</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>CFBundleURLTypes</key>

@@ -6,15 +6,29 @@
 //
 // [SAFETY] The decisions live in pure modules (auto-change, auto-gate,
 // auto-restart, auto-line); this hook only runs the timers and calls out.
+
+import type { ScreenWatchHost } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { nativeCaptureAvailable, screenWatchHost } from "../host-adapter";
 import { holdAwake } from "../keep-awake";
 import type { CommandResult } from "../session-snapshot";
-import { createChangeDetector, SAMPLE_MS } from "./auto-change";
-import { type AutoBlock, gateAutoCapture } from "./auto-gate";
+import {
+  AUTO_MAX_PER_SESSION,
+  type AutoBlock,
+  gateAutoCapture,
+} from "./auto-gate";
 import type { FrameHash } from "./auto-hash";
+import { clampIntervalSeconds, shouldAnalyze } from "./auto-interval";
 import { type AutoLine, autoLine } from "./auto-line";
 import { isOwnerPaused } from "./auto-owner-pause";
-import { loadAutoPreferred, saveAutoPreferred } from "./auto-prefs";
+import {
+  loadAutoHeartbeat,
+  loadAutoInterval,
+  loadAutoPreferred,
+  saveAutoHeartbeat,
+  saveAutoInterval,
+  saveAutoPreferred,
+} from "./auto-prefs";
 import { useDictation } from "./dictation";
 import type { Rect } from "./mask-geometry";
 
@@ -25,6 +39,8 @@ export const LISTEN_CHECK_MS = 5_000;
 export const RESUME_FIRST_MS = 1_500;
 export const RESUME_RETRY_MS = 8_000;
 export const RESUME_MAX_TRIES = 3;
+// How a host watch that found no focused window is started again.
+export const WATCH_RETRY_MS = 5_000;
 const HEARD_RETRY_MS = 1_000;
 // Finals closer together than this are one question.
 export const COALESCE_MS = 800;
@@ -39,7 +55,9 @@ export type AutoModeInput = {
   wantsScreen: boolean;
   sharing: boolean;
   watchable: boolean;
-  sample(mask: Rect): FrameHash | null;
+  // A hash of the current frame inside the mask (a browser share's video, or a
+  // fresh host capture). Null: no frame yet. May throw a FrameProblem.
+  sample(mask: Rect): FrameHash | null | Promise<FrameHash | null>;
   mask: Rect;
   // A capture or analysis is in flight (a press, an auto capture, a request).
   busy: boolean;
@@ -52,6 +70,9 @@ export type AutoModeInput = {
   // Another listener (the native engine) posts the transcripts, so this one
   // stays off: only one may.
   engineListening?: boolean;
+  // The host's screen watch; defaults to the one `window.studioHost` offers.
+  // null forces the browser sampler.
+  screenWatch?: ScreenWatchHost | null | undefined;
   now?: () => number;
 };
 
@@ -75,9 +96,9 @@ export function useAutoMode(input: AutoModeInput) {
   );
   // Auto listens and watches: the page keeps reading the session while hidden.
   useEffect(() => {
-    if (!on) return;
+    if (!on || !input.open) return;
     return holdAwake();
-  }, [on]);
+  }, [on, input.open]);
   const latest = useRef(input);
   latest.current = input;
   const onRef = useRef(on);
@@ -133,7 +154,9 @@ export function useAutoMode(input: AutoModeInput) {
     bindingKey: input.sessionId,
     persistent: on,
     onFinal: (phrase) => {
-      if (onRef.current) sendHeard(phrase);
+      // [SAFETY] Auto on (live, or as the owner stored it) submits what was
+      // heard; only with Auto off does it become a typed draft.
+      if (onRef.current || loadAutoPreferred(input.tenant)) sendHeard(phrase);
       else latest.current.onManualFinal(phrase);
     },
   });
@@ -185,74 +208,185 @@ export function useAutoMode(input: AutoModeInput) {
   }, []);
 
   // ---- Watching the screen -----------------------------------------------
-  const detector = useMemo(() => createChangeDetector(), []);
   const [block, setBlock] = useState<AutoBlock | null>(null);
   const [autoCount, setAutoCount] = useState(0);
   const counted = useRef({ count: 0, lastAt: null as number | null });
   const inFlight = useRef(false);
+  // The last ANALYSED frame: new frames are compared with it on this device.
+  const analyzed = useRef<{ hash: FrameHash | null; at: number | null }>({
+    hash: null,
+    at: null,
+  });
+  const [lastAnalyzedAt, setLastAnalyzedAt] = useState<number | null>(null);
+  const [screenProblem, setScreenProblem] = useState<
+    "permission-denied" | "display-changed" | null
+  >(null);
+  const [intervalSec, setIntervalState] = useState(() =>
+    loadAutoInterval(input.tenant),
+  );
+  const [heartbeat, setHeartbeatState] = useState(() =>
+    loadAutoHeartbeat(input.tenant),
+  );
+  useEffect(() => {
+    setIntervalState(loadAutoInterval(input.tenant));
+    setHeartbeatState(loadAutoHeartbeat(input.tenant));
+  }, [input.tenant]);
+  const setIntervalSec = useCallback(
+    (seconds: number) => {
+      const next = clampIntervalSeconds(seconds);
+      saveAutoInterval(input.tenant, next);
+      setIntervalState(next);
+    },
+    [input.tenant],
+  );
+  const setHeartbeat = useCallback(
+    (next: boolean) => {
+      saveAutoHeartbeat(input.tenant, next);
+      setHeartbeatState(next);
+    },
+    [input.tenant],
+  );
+  const heartbeatRef = useRef(heartbeat);
+  heartbeatRef.current = heartbeat;
   // Another session starts the count and the picture over.
   useEffect(() => {
     counted.current = { count: 0, lastAt: null };
+    analyzed.current = { hash: null, at: null };
+    setLastAnalyzedAt(null);
     setAutoCount(0);
     setBlock(null);
-    detector.reset();
-  }, [input.sessionId, detector]);
-  const watching =
-    on &&
-    input.open &&
-    !input.paused &&
-    !input.deviceOnly &&
-    input.sharing &&
-    input.watchable;
-  useEffect(() => {
-    if (!on) return;
-    if (input.deviceOnly) {
-      setBlock("device-only");
+    setScreenProblem(null);
+  }, [input.sessionId]);
+
+  // ---- Watching the screen: an interval --------------------------------------
+  // Every `intervalSec` a frame is sampled and hashed on this device. It is
+  // analysed (a fresh capture, through the card's own route) only when it
+  // differs from the last analysed frame, is the first, or the optional
+  // heartbeat elapsed; an identical frame is dropped here. The rate limit, the
+  // cap, pause, device-only and one-in-flight apply as before.
+  const host = useMemo(
+    () =>
+      input.screenWatch === undefined ? screenWatchHost() : input.screenWatch,
+    [input.screenWatch],
+  );
+  const native = nativeCaptureAvailable();
+  const sourceReady = input.sharing || native;
+  const interval =
+    on && input.open && !input.paused && !input.deviceOnly && input.wantsScreen;
+  const captureTick = useCallback(async () => {
+    const now = latest.current;
+    if (!now.open || now.paused || now.deviceOnly) return;
+    if (!(now.sharing || nativeCaptureAvailable())) {
+      setBlock("no-source");
       return;
     }
-    if (!watching) return;
-    const tick = async () => {
-      const now = latest.current;
-      const hash = now.sample(now.mask);
-      if (!hash) return;
-      if (detector.observe(hash, clock()) !== "ready") {
-        setBlock(null);
-        return;
-      }
-      const gate = gateAutoCapture({
+    // Nothing is sampled while a capture or analysis is in flight.
+    if (inFlight.current || now.busy) {
+      setBlock("busy");
+      return;
+    }
+    let hash: FrameHash | null;
+    try {
+      hash = await now.sample(now.mask);
+      setScreenProblem(null);
+    } catch (error) {
+      const reason = (error as { code?: string } | null)?.code;
+      setScreenProblem(
+        reason === "permission-denied" || reason === "display-changed"
+          ? reason
+          : null,
+      );
+      return;
+    }
+    if (!hash) return;
+    if (
+      !shouldAnalyze({
+        hash,
         nowMs: clock(),
-        open: now.open,
-        paused: now.paused,
-        deviceOnly: now.deviceOnly,
-        sharing: now.sharing,
-        inFlight: inFlight.current || now.busy,
-        autoCount: counted.current.count,
-        lastAutoAtMs: counted.current.lastAt,
-      });
-      if (!gate.ok) {
-        setBlock(gate.reason);
+        lastHash: analyzed.current.hash,
+        lastAnalyzedAtMs: analyzed.current.at,
+        heartbeat: heartbeatRef.current,
+      })
+    ) {
+      setBlock(null);
+      return;
+    }
+    const gate = gateAutoCapture({
+      nowMs: clock(),
+      open: now.open,
+      paused: now.paused,
+      deviceOnly: now.deviceOnly,
+      sharing: true,
+      inFlight: inFlight.current || now.busy,
+      autoCount: counted.current.count,
+      lastAutoAtMs: counted.current.lastAt,
+    });
+    if (!gate.ok) {
+      // The frame stays unanalysed, so it is tried again on a later tick.
+      setBlock(gate.reason);
+      return;
+    }
+    setBlock(null);
+    inFlight.current = true;
+    counted.current = { count: counted.current.count + 1, lastAt: clock() };
+    setAutoCount(counted.current.count);
+    const sent = await now.capture().catch(() => false);
+    inFlight.current = false;
+    if (sent) {
+      analyzed.current = { hash, at: clock() };
+      setLastAnalyzedAt(clock());
+    } else {
+      // Not charged; the same picture is tried again next tick.
+      counted.current = {
+        count: counted.current.count - 1,
+        lastAt: counted.current.lastAt,
+      };
+      setAutoCount(counted.current.count);
+    }
+  }, [clock]);
+  const tickRef = useRef(captureTick);
+  tickRef.current = captureTick;
+  useEffect(() => {
+    if (!on) return;
+    if (input.deviceOnly) setBlock("device-only");
+  }, [on, input.deviceOnly]);
+  useEffect(() => {
+    if (!interval) return;
+    const timer = setInterval(
+      () => void tickRef.current(),
+      intervalSec * 1_000,
+    );
+    return () => clearInterval(timer);
+  }, [interval, intervalSec]);
+
+  // ---- The host's own change events -----------------------------------------
+  // They only TRIGGER a tick sooner; the interval stays the primary path and
+  // the same hash comparison and gate decide.
+  useEffect(() => {
+    if (!host || !interval) return;
+    let cancelled = false;
+    let removeListener: (() => void) | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const begin = async () => {
+      const result = await host
+        .start({ mode: "focused-window" })
+        .catch(() => ({ ok: false as const, reason: "invalid" as const }));
+      if (cancelled) return;
+      if (!result.ok) {
+        if (result.reason === "no-focused-window")
+          retry = setTimeout(() => void begin(), WATCH_RETRY_MS);
         return;
       }
-      setBlock(null);
-      inFlight.current = true;
-      counted.current = { count: counted.current.count + 1, lastAt: clock() };
-      detector.markCaptured();
-      setAutoCount(counted.current.count);
-      const sent = await now.capture().catch(() => false);
-      inFlight.current = false;
-      if (!sent) {
-        // Not charged, and the same picture is tried again after the gap.
-        counted.current = {
-          count: counted.current.count - 1,
-          lastAt: counted.current.lastAt,
-        };
-        setAutoCount(counted.current.count);
-        detector.reset();
-      }
+      removeListener = host.onChange(() => void tickRef.current());
     };
-    const timer = setInterval(() => void tick(), SAMPLE_MS);
-    return () => clearInterval(timer);
-  }, [on, watching, input.deviceOnly, detector, clock]);
+    void begin();
+    return () => {
+      cancelled = true;
+      if (retry !== null) clearTimeout(retry);
+      removeListener?.();
+      void Promise.resolve(host.stop()).catch(() => undefined);
+    };
+  }, [host, interval]);
 
   // ---- Resuming ----------------------------------------------------------
   const [resumeFailed, setResumeFailed] = useState(false);
@@ -297,19 +431,24 @@ export function useAutoMode(input: AutoModeInput) {
         resumeFailed,
         micDenied: dictation.denied,
         micUnsupported: !dictation.supported,
+        engine: input.engineListening === true,
         micError:
-          dictation.error && dictation.state === "idle" && input.deviceOnly
-            ? dictation.error
-            : heardError === null
-              ? null
-              : "a phrase could not be sent. It will be tried again with the next one.",
+          heardError === null
+            ? null
+            : "a phrase could not be sent. It will be tried again with the next one.",
         listening: dictation.state === "listening",
         heardAgoMs:
           dictation.heardAt === null ? null : clock() - dictation.heardAt,
         wantsScreen: input.wantsScreen,
         deviceOnly: input.deviceOnly,
-        sharing: input.sharing,
+        sharing: sourceReady,
         watchable: input.watchable,
+        intervalSec,
+        lastAnalyzedAgoMs:
+          lastAnalyzedAt === null ? null : clock() - lastAnalyzedAt,
+        screenProblem,
+        autoCount,
+        autoMax: AUTO_MAX_PER_SESSION,
         block,
       })
     : null;
@@ -319,6 +458,10 @@ export function useAutoMode(input: AutoModeInput) {
     setOn,
     line,
     autoCount,
+    intervalSec,
+    setIntervalSec,
+    heartbeat,
+    setHeartbeat,
     dictation,
     toggleListening,
     // The mic light's real state.

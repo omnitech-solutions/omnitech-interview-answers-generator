@@ -47,7 +47,7 @@ public final class ScreenKitSource: NSObject, SCStreamOutput, SCStreamDelegate, 
             return false
         }
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            let content = try await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
             guard let display = content.displays.first else {
                 onLost(.deviceLost)
                 return false

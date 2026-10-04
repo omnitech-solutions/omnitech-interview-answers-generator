@@ -70,8 +70,8 @@ describe("start request", () => {
       choices.profiles,
     );
     expect(request).toEqual({
-      processingPolicy: "device-only",
-      captureSources: ["microphone", "application-audio"],
+      processingPolicy: "permitted-remote",
+      captureSources: ["microphone", "application-audio", "screen"],
       liveAssistance: true,
       retention: "delete-at-end",
       candidacyId: CANDIDACY,
@@ -86,8 +86,8 @@ describe("start request", () => {
       choices.profiles,
     );
     expect(request).toEqual({
-      processingPolicy: "device-only",
-      captureSources: ["microphone", "application-audio"],
+      processingPolicy: "permitted-remote",
+      captureSources: ["microphone", "application-audio", "screen"],
       liveAssistance: false,
       retention: "delete-at-end",
       rehearsal: { runId: "run-1", strict: true },

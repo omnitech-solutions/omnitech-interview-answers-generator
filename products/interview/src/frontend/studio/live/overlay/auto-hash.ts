@@ -77,3 +77,33 @@ export function sampleVideo(
     );
   return dHash(gray);
 }
+
+// The hash of an encoded frame the host returned (already cropped to the
+// owner's region by the host). Null when the image cannot be decoded here.
+export async function hashImage(
+  image: Blob,
+  deps: SampleDeps = browserDeps,
+): Promise<FrameHash | null> {
+  if (typeof createImageBitmap !== "function") return null;
+  const bitmap = await createImageBitmap(image);
+  try {
+    const canvas = deps.createCanvas();
+    canvas.width = HASH_COLUMNS;
+    canvas.height = HASH_ROWS;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0, HASH_COLUMNS, HASH_ROWS);
+    const { data } = context.getImageData(0, 0, HASH_COLUMNS, HASH_ROWS);
+    const gray: number[] = [];
+    for (let at = 0; at < data.length; at += 4)
+      gray.push(
+        ((data[at] ?? 0) * 299 +
+          (data[at + 1] ?? 0) * 587 +
+          (data[at + 2] ?? 0) * 114) /
+          1000,
+      );
+    return dHash(gray);
+  } finally {
+    bitmap.close?.();
+  }
+}

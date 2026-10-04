@@ -10,17 +10,28 @@ import type { PanelKind } from "./panel-kinds";
 export const OWNER_LOCK = "interview-studio.panel-owner";
 export const NON_PILL_DELAY_MS = 1_500;
 
+// A document that is not a panel asks too: the Studio live view (the main
+// session view, asks at once) and a standalone card (the floating or overlay
+// window, waits like the other panels). `enabled` false (no open session)
+// asks for nothing and owns nothing.
+export type OwnerKind = PanelKind | "studio" | "card";
+
 export function useOwnsSession(
-  panel: PanelKind,
+  panel: OwnerKind,
   tenant: string,
-  delayMs = panel === "pill" ? 0 : NON_PILL_DELAY_MS,
+  delayMs = panel === "pill" || panel === "studio" ? 0 : NON_PILL_DELAY_MS,
+  enabled = true,
 ): boolean {
   const locks =
     typeof navigator === "undefined"
       ? undefined
       : (navigator as { locks?: LockManager }).locks;
-  const [owner, setOwner] = useState(locks === undefined);
+  const [owner, setOwner] = useState(locks === undefined && enabled);
   useEffect(() => {
+    if (!enabled) {
+      setOwner(false);
+      return;
+    }
     if (!locks) {
       setOwner(true);
       return;
@@ -46,6 +57,6 @@ export function useOwnsSession(
       release?.();
       setOwner(false);
     };
-  }, [locks, tenant, delayMs]);
+  }, [locks, tenant, delayMs, enabled]);
   return owner;
 }

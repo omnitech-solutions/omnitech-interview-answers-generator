@@ -28,7 +28,10 @@ import {
 import { FILE_NAMES } from "../../workspace/stages";
 import type { CodeResult } from "../session-results";
 
-export type CanvasSize = "compact" | "maximized";
+// One component, two densities: compact is the card (12px, pills, icon
+// buttons, results as a one-line chip); maximized is the roomy view. Same
+// editor theme, language support, highlighting and line numbers in both.
+export type CanvasDensity = "compact" | "maximized";
 export type CanvasRunRequest = {
   language: Language;
   code: string;
@@ -103,14 +106,14 @@ type Origin = "worker" | "yours";
 export function LiveCodeCanvas({
   result,
   revision = null,
-  size = "compact",
+  density = "compact",
   onCopy,
   runner = runAllRequest,
 }: {
   result: CodeResult;
   // The task revision this result answers, for the "available" bar.
   revision?: number | null;
-  size?: CanvasSize;
+  density?: CanvasDensity;
   onCopy?(text: string): void | Promise<void>;
   runner?: CanvasRunner;
 }) {
@@ -123,7 +126,7 @@ export function LiveCodeCanvas({
   const [stale, setStale] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const [resultsOpen, setResultsOpen] = useState(size === "maximized");
+  const [resultsOpen, setResultsOpen] = useState(density === "maximized");
   const [panel, setPanel] = useState<"tests" | "output">("tests");
   const [copied, setCopied] = useState<string | null>(null);
   const runId = useRef(0);
@@ -267,12 +270,14 @@ export function LiveCodeCanvas({
     run.kind === "done"
       ? (run.result.tests ?? []).filter((test) => test.status === "failed")
       : [];
-  const height = size === "maximized" ? "440px" : "300px";
+  const compact = density === "compact";
+  const height = compact ? "240px" : "440px";
+  const resultsSummary = summary(run);
 
   return (
     <section
       className="lc-canvas"
-      data-size={size}
+      data-density={density}
       data-edited={editing}
       aria-label="Code canvas"
     >
@@ -314,34 +319,45 @@ export function LiveCodeCanvas({
         </div>
         <span className="lc-spacer" />
         {editing && <span className="lc-edited">Edited</span>}
+        {!compact && (
+          <button
+            type="button"
+            className="lc-button"
+            aria-pressed={wrap}
+            onClick={() => setWrap(!wrap)}
+          >
+            Wrap
+          </button>
+        )}
         <button
           type="button"
           className="lc-button"
-          aria-pressed={wrap}
-          onClick={() => setWrap(!wrap)}
-        >
-          Wrap
-        </button>
-        <button
-          type="button"
-          className="lc-button"
+          aria-label={copied === file ? "Copied" : "Copy"}
+          title="Copy this file"
           onClick={() => copy(file, sources[file])}
         >
           <Icon name={copied === file ? "check" : "content_copy"} size={14} />
-          {copied === file ? "Copied" : "Copy"}
+          {!compact && (copied === file ? "Copied" : "Copy")}
         </button>
-        <button type="button" className="lc-button" onClick={copyAll}>
-          <Icon name={copied === "all" ? "check" : "content_copy"} size={14} />
-          {copied === "all" ? "Copied all" : "Copy all"}
-        </button>
+        {!compact && (
+          <button type="button" className="lc-button" onClick={copyAll}>
+            <Icon
+              name={copied === "all" ? "check" : "content_copy"}
+              size={14}
+            />
+            {copied === "all" ? "Copied all" : "Copy all"}
+          </button>
+        )}
         <button
           type="button"
           className="lc-button lc-run"
+          aria-label={running ? "Running…" : "Run"}
+          title="Run solution, usage and tests"
           disabled={!language || running}
           onClick={() => void execute()}
         >
           <Icon name="play_arrow" size={15} />
-          {running ? "Running…" : "Run"}
+          {!compact && (running ? "Running…" : "Run")}
         </button>
       </div>
       <div className="lc-editor" data-testid="canvas-editor">
@@ -361,23 +377,24 @@ export function LiveCodeCanvas({
           type="button"
           className="lc-results-head"
           aria-expanded={resultsOpen}
+          aria-label={compact ? `Results: ${resultsSummary}` : undefined}
           onClick={() => setResultsOpen(!resultsOpen)}
         >
           <Icon name={resultsOpen ? "expand_more" : "expand_less"} size={16} />
-          <span className="lc-results-title">Results</span>
+          {!compact && <span className="lc-results-title">Results</span>}
           <span className="lc-results-summary" aria-live="polite">
             {run.kind === "running" && <span className="ws-spinner" />}
-            {summary(run)}
+            {resultsSummary}
           </span>
-          {origin === "worker" && run.kind === "done" && !stale && (
+          {!compact && origin === "worker" && run.kind === "done" && !stale && (
             <span className="lc-origin">
               {states.fullyVerified ? "Fully verified" : "Session run"}
             </span>
           )}
-          {origin === "yours" && !stale && (
+          {!compact && origin === "yours" && !stale && (
             <span className="lc-origin">Your run</span>
           )}
-          {stale && run.kind !== "idle" && (
+          {!compact && stale && run.kind !== "idle" && (
             <span className="lc-origin amber">Edited since this run</span>
           )}
         </button>

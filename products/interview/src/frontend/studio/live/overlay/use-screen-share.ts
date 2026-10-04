@@ -3,9 +3,9 @@
 // away. The preview is the stream itself, shown locally and never uploaded.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { nativeCaptureAvailable } from "../host-adapter";
+import { captureThroughHost, nativeCaptureAvailable } from "../host-adapter";
 import { holdAwake } from "../keep-awake";
-import { type FrameHash, sampleVideo } from "./auto-hash";
+import { type FrameHash, hashImage, sampleVideo } from "./auto-hash";
 import {
   type Frame,
   grabFrame,
@@ -28,7 +28,9 @@ export const SHARE_MESSAGES = {
   ended: "Sharing stopped. Share a window, tab or screen to capture again.",
 } as const;
 
-export function useScreenShare() {
+// `ready` false holds the adoption of a parked share until a session is open
+// (a host that mounts before the session starts).
+export function useScreenShare(ready = true) {
   const [status, setStatus] = useState<ShareStatus>("idle");
   const [kind, setKind] = useState<SourceKind | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -68,10 +70,11 @@ export function useScreenShare() {
   // A share asked for by "Start hands-free", in the click that started the
   // session, is taken over once the card is here.
   useEffect(() => {
+    if (!ready) return;
     const parked = takeParkedShare();
     if (parked && !handle.current) adopt(parked);
     else parked?.stop();
-  }, [adopt]);
+  }, [adopt, ready]);
 
   // Straight from a click handler: the browser requires the user gesture.
   const start = useCallback(async () => {
@@ -107,16 +110,23 @@ export function useScreenShare() {
       : grabFrame(current, mask);
   }, []);
 
-  // A hash of the shared frame inside the region, for Auto. Browser shares
-  // only: the host adapter captures one image per request, never a stream.
-  const sample = useCallback((mask: Rect): FrameHash | null => {
+  // A hash of the current frame inside the region, for Auto's interval: the
+  // browser share's video, or (native host) one fresh host capture, hashed here
+  // and dropped. A refused host capture throws its reason as `code`.
+  const sample = useCallback(async (mask: Rect): Promise<FrameHash | null> => {
     const current = handle.current;
-    if (!current || isNativeShare(current)) return null;
-    try {
-      return sampleVideo(current.video, mask);
-    } catch {
-      return null;
+    if (current && !isNativeShare(current)) {
+      try {
+        return sampleVideo(current.video, mask);
+      } catch {
+        return null;
+      }
     }
+    if (!nativeCaptureAvailable()) return null;
+    const frame = await captureThroughHost(mask);
+    if (!frame.ok)
+      throw Object.assign(new Error(frame.reason), { code: frame.reason });
+    return hashImage(frame.blob);
   }, []);
 
   useEffect(

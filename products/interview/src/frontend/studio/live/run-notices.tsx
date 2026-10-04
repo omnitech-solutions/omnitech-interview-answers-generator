@@ -5,7 +5,7 @@
 import type { LiveProcessingPolicy } from "@omnitech/interview-contracts";
 import { Icon, type IconName } from "../icon";
 import { plural } from "./session-format";
-import type { ActivityRun } from "./session-runs";
+import { type ActivityRun, flaggedBecause } from "./session-runs";
 import type { TaskView } from "./session-tasks";
 
 export type RunNotice = {
@@ -46,8 +46,8 @@ export function runNotice(
           title: "Draft withheld",
           text:
             run.rejectedClaimCount !== null && run.rejectedClaimCount > 0
-              ? `${plural(run.rejectedClaimCount, "claim")} could not be checked against your approved experience, so no draft was shown.`
-              : "The draft could not be checked against your approved experience, so no draft was shown.",
+              ? `${plural(run.rejectedClaimCount, "claim")} could not be checked against your approved experience, so no draft was shown.${flaggedBecause(run.withheldCodes)}`
+              : `The draft could not be checked against your approved experience, so no draft was shown.${flaggedBecause(run.withheldCodes)}`,
         };
       return {
         key,

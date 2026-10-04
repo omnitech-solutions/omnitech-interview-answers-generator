@@ -38,6 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model: model, capture: ShellCapture(), engine: engine,
             setPinned: { [weak self] pinned in self?.surface.setPinned(pinned) },
             perform: { [weak self] command in self?.present(command) ?? PresentationState.initial })
+        handler.onWatchChange = { [weak self] at, bits in
+            guard let self else { return }
+            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchChange(at: at, bits: bits), completionHandler: nil) }
+        }
+        handler.onWatchStatus = { [weak self] status in
+            guard let self else { return }
+            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchStatus(status), completionHandler: nil) }
+        }
         webDelegate = StudioWebViewDelegate(model: model)
         webDelegate.onPageFinished = { [weak self] view in self?.pageFinished(view) }
         surface = NativeSurface(
@@ -84,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // Revoking the pairing needs the signed-in web view, so the
                     // engine shuts down before the disconnect erases it.
                     Task { @MainActor in
+                        self.handler.stopWatching()
                         await self.engine.shutdown(revoke: true)
                         self.model.disconnect()
                         self.present(.setPanelsVisible(false))
@@ -102,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let signedOut = self.model.connection == .signInRequired
             if self.wasSignedOut, !signedOut, self.model.connection.isConnected { self.reloadIdleViews() }
             // A web-view sign-out ends any run: the engine cannot act without it.
-            if signedOut, !self.wasSignedOut { Task { @MainActor in await self.engine.stop() } }
+            if signedOut, !self.wasSignedOut { self.handler.stopWatching(); Task { @MainActor in await self.engine.stop() } }
             self.wasSignedOut = signedOut
         }
         installMainMenu()
@@ -162,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func pageFinished(_ view: WKWebView) {
         view.evaluateJavaScript(HostBridgeScript.emitPresentation(controller.state), completionHandler: nil)
+        view.evaluateJavaScript(HostBridgeScript.emitScreenWatchStatus(handler.watchStatus), completionHandler: nil)
         for command in pending.removeValue(forKey: ObjectIdentifier(view)) ?? [] {
             view.evaluateJavaScript(HostBridgeScript.emit(command), completionHandler: nil)
         }
@@ -202,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let changed = model.location != location
         model.paired(location)
         // A rebind loads the new Studio; the old pages and their requests are gone.
-        if changed { surface.reloadAll() }
+        if changed { handler.stopWatching(); surface.reloadAll() }
         present(.setAppMode(controller.state.appMode))
         model.refresh()
     }
@@ -268,6 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        handler.stopWatching()
         // Quit stops sources quietly; the pairing stays (only Disconnect revokes).
         Task { @MainActor in
             await self.engine.shutdown(revoke: false)

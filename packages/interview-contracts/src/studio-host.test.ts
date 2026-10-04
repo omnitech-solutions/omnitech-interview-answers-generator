@@ -46,6 +46,36 @@ describe("negotiateStudioHost", () => {
   });
 });
 
+describe("screen-watch capability", () => {
+  const watch = {
+    start: async () => ({ ok: true }),
+    stop: async () => undefined,
+    status: () => ({ watching: false }),
+    onChange: () => () => undefined,
+  };
+  it("is available only with a complete screenWatch object", () => {
+    const names = ["capture-screen", "screen-watch"];
+    expect(
+      negotiateStudioHost(
+        bridge({ capabilities: names, screenWatch: watch }),
+      )?.capabilities.has("screen-watch"),
+    ).toBe(true);
+    for (const bad of [undefined, {}, { ...watch, onChange: undefined }])
+      expect(
+        negotiateStudioHost(
+          bridge({ capabilities: names, screenWatch: bad }),
+        )?.capabilities.has("screen-watch"),
+      ).toBe(false);
+  });
+  it("is not assumed from the object alone", () => {
+    expect(
+      negotiateStudioHost(bridge({ screenWatch: watch }))?.capabilities.has(
+        "screen-watch",
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("isStudioHostDisplayId", () => {
   it("accepts a short opaque id and refuses anything else", () => {
     expect(isStudioHostDisplayId("69733250.2")).toBe(true);

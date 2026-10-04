@@ -31,6 +31,7 @@ import { Icon } from "./icon";
 import { LiveCardHost } from "./live/card-host";
 import { LiveFloatHost } from "./live/float-host";
 import { presentation } from "./live/focus-presentation";
+import { HandsFreeProvider } from "./live/overlay/hands-free-context";
 import { SessionBar } from "./live/session-bar";
 import { useSessionStoreWatch } from "./live/use-live-session";
 import { Sidebar } from "./sidebar";
@@ -484,9 +485,13 @@ function StudioFrame({
             </button>
           )}
         </header>
-        <div className="studio-view">{renderView(actions)}</div>
-        {/* Not during a rehearsal's focus mode, which owns the whole screen. */}
-        {!focused && <LiveCardHost />}
+        {/* One hands-free controller for this document: the live view's band
+            and the card share its microphone, screen and Auto. */}
+        <HandsFreeProvider>
+          <div className="studio-view">{renderView(actions)}</div>
+          {/* Not during a rehearsal's focus mode, which owns the whole screen. */}
+          {!focused && <LiveCardHost />}
+        </HandsFreeProvider>
       </main>
       {host.open && <DockResizer stored={dock.stored} />}
       {/* Beside the store watch, so the floating window persists across pages. */}

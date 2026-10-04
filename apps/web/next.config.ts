@@ -1,6 +1,24 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 
+// A visible build id (short commit, "+" when the tree has uncommitted changes),
+// so anyone using a host can say which build they are running.
+function buildId(): string {
+  try {
+    const run = (cmd: string) =>
+      execSync(cmd, { stdio: ["ignore", "pipe", "ignore"] })
+        .toString()
+        .trim();
+    const sha = run("git rev-parse --short HEAD");
+    const dirty = run("git status --porcelain").length > 0 ? "+" : "";
+    return `${sha}${dirty}`;
+  } catch {
+    return "dev";
+  }
+}
+
 const config: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   distDir: process.env["NEXT_DIST_DIR"] ?? ".next",
   // The dev badge would sit over Interview Studio's sidebar footer.
   devIndicators: false,

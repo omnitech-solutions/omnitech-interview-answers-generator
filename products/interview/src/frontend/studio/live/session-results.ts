@@ -297,6 +297,23 @@ export function parseWithheldResult(
     : null;
 }
 
+// The violation codes of a withheld draft (closed server codes, never content).
+// Anything that is not a short snake_case code is dropped.
+export function parseWithheldCodes(raw: unknown): string[] {
+  if (typeof raw !== "object" || raw === null) return [];
+  const withheld = (raw as Record<string, unknown>)["withheld"];
+  if (typeof withheld !== "object" || withheld === null) return [];
+  const codes = (withheld as Record<string, unknown>)["codes"];
+  return Array.isArray(codes)
+    ? codes
+        .filter(
+          (code): code is string =>
+            typeof code === "string" && /^[a-z_]{1,48}$/.test(code),
+        )
+        .slice(0, 12)
+    : [];
+}
+
 // ---- Stage meta (the profile a stage ran with) -------------------------------
 
 // Every published draft and solution records the AI profile it used and the

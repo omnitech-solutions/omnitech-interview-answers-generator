@@ -277,8 +277,8 @@ export function ProcessingSection({
       {speechWarning && value === "permitted-remote" && (
         <p className="setup-muted" data-testid="speech-warning">
           The companion’s last report says speech recognition can’t run on this
-          Mac. Allowing remote processing doesn’t change that: speech stays on
-          this Mac, so the companion will report it and stop.
+          Mac. Allowing remote processing doesn’t change that: the companion
+          recognises speech on this Mac, so it will report it and stop.
         </p>
       )}
       <p className="setup-muted">

@@ -10,6 +10,7 @@ import { Icon } from "../../../icon";
 import { overlayAccess } from "../../float-access";
 import { tenantFromLocation } from "../../session-registry";
 import { useLiveSession } from "../../use-live-session";
+import { installHostSurface, isNativeSurface } from "../host-surface";
 import { tellHost } from "../overlay-url";
 import { PANEL_LABEL, type PanelKind } from "./panel-kinds";
 import {
@@ -65,15 +66,9 @@ export function PanelsRoot({ panel }: { panel: PanelKind }) {
 
   useEffect(() => {
     document.title = `Interview Studio · ${PANEL_LABEL[panel]}`;
-    const native =
-      params.get("host") === "native" || presentation.capabilities.length > 0;
-    document.documentElement.setAttribute(
-      "data-panel-host",
-      native ? "native" : "window",
+    return installHostSurface(
+      isNativeSurface(params, presentation.capabilities.length),
     );
-    return () => {
-      document.documentElement.removeAttribute("data-panel-host");
-    };
   }, [panel, presentation, params]);
   useEffect(() => {
     if (!requested || opened.current || snapshot.hydration !== "ready") return;

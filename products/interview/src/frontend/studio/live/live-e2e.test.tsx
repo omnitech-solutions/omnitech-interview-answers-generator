@@ -139,8 +139,8 @@ describe("start", () => {
 
     expect(service.script.started).toEqual([
       {
-        processingPolicy: "device-only",
-        captureSources: ["microphone", "application-audio"],
+        processingPolicy: "permitted-remote",
+        captureSources: ["microphone", "application-audio", "screen"],
         liveAssistance: true,
         retention: "delete-at-end",
         candidacyId: CANDIDACY_ID,

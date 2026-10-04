@@ -1,3 +1,5 @@
+import { AUTO_INTERVAL_DEFAULT_S, clampIntervalSeconds } from "./auto-interval";
+
 // Whether the owner wants Auto (hands-free), remembered per tenant in this
 // browser. Auto is ON by default where the host is hands-free (the native
 // shell, the Picture-in-Picture window, an installed app window) and once the
@@ -44,6 +46,47 @@ export function loadAutoPreferred(tenant: string): boolean {
 export function saveAutoPreferred(tenant: string, on: boolean): void {
   try {
     window.localStorage.setItem(key(tenant), on ? "on" : "off");
+  } catch {
+    // Kept for this page only.
+  }
+}
+
+// The capture interval (seconds, 3 to 30) and the heartbeat option, per tenant.
+const intervalKey = (tenant: string) =>
+  `interview-studio.live.auto-interval.${tenant}`;
+const heartbeatKey = (tenant: string) =>
+  `interview-studio.live.auto-heartbeat.${tenant}`;
+
+export function loadAutoInterval(tenant: string): number {
+  try {
+    const raw = window.localStorage.getItem(intervalKey(tenant));
+    return raw === null
+      ? AUTO_INTERVAL_DEFAULT_S
+      : clampIntervalSeconds(Number(raw));
+  } catch {
+    return AUTO_INTERVAL_DEFAULT_S;
+  }
+}
+export function saveAutoInterval(tenant: string, seconds: number): void {
+  try {
+    window.localStorage.setItem(
+      intervalKey(tenant),
+      String(clampIntervalSeconds(seconds)),
+    );
+  } catch {
+    // Kept for this page only.
+  }
+}
+export function loadAutoHeartbeat(tenant: string): boolean {
+  try {
+    return window.localStorage.getItem(heartbeatKey(tenant)) === "on";
+  } catch {
+    return false;
+  }
+}
+export function saveAutoHeartbeat(tenant: string, on: boolean): void {
+  try {
+    window.localStorage.setItem(heartbeatKey(tenant), on ? "on" : "off");
   } catch {
     // Kept for this page only.
   }

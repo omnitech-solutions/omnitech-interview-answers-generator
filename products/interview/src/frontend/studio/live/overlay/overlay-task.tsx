@@ -20,6 +20,28 @@ function Spinner() {
   return <span className="ov-spinner" role="presentation" />;
 }
 
+// "hundred", "thousand" and hyphenated compounds ("twenty-one"); a lone "Two"
+// in a problem name ("Two Sum") is not a spelled-out number.
+const SPELLED_NUMBER =
+  /\b(?:hundred|thousand)\b|\b[a-z]+ty-(?:one|two|three|four|five|six|seven|eight|nine)\b|\b(?:one|two|three|four|five|six|seven|eight|nine)-(?:hundred|thousand)\b/i;
+const TITLE_MAX = 64;
+
+// A short title for the head. The model's restatement can be a whole sentence
+// (and may spell its numbers out); it is then kept as a collapsed "Restated
+// task" detail and the title is the kind of problem. Nothing is rewritten.
+export function taskHeading(task: TaskView): {
+  title: string;
+  restated: string | null;
+} {
+  const label = TASK_KIND[task.kind].label;
+  const text = task.title?.trim() ?? "";
+  if (text === "") return { title: label, restated: null };
+  const short = text.length <= TITLE_MAX && !SPELLED_NUMBER.test(text);
+  return short
+    ? { title: text, restated: null }
+    : { title: label, restated: text };
+}
+
 export function TaskHead({
   task,
   number,
@@ -31,17 +53,45 @@ export function TaskHead({
 }) {
   const kind = TASK_KIND[task.kind];
   const current = task.constraints.filter((c) => c.status === "current");
+  const heading = taskHeading(task);
   return (
     <div className="ov-task-head" data-testid="task-head">
       <div className="ov-task-line">
         <span className="ov-tag ov-mono" data-testid="task-tag">
           T{number} · rev {task.currentRevision}
         </span>
-        <span className="ov-muted">{kind.label}</span>
+        <span className="ov-task-title" data-testid="task-title">
+          {heading.title}
+        </span>
+        <span className="ov-muted ov-nowrap">{kind.label}</span>
       </div>
-      <div className="ov-task-title">{task.title ?? kind.label}</div>
-      {chips.length > 0 && (
-        <div className="ov-chip-row" aria-label="Based on">
+      {heading.restated && (
+        <details className="ov-restated">
+          <summary>Restated task</summary>
+          <p>{heading.restated}</p>
+        </details>
+      )}
+      {(current.length > 0 || chips.length > 0) && (
+        <div className="ov-chip-row" aria-label="Constraints and sources">
+          {current.map((constraint) => (
+            <span
+              key={constraint.text}
+              className="ov-pill ov-constraint"
+              title={
+                constraint.sinceRevision !== task.currentRevision
+                  ? `${constraint.text} (from rev ${constraint.sinceRevision})`
+                  : constraint.text
+              }
+            >
+              <Icon name="rule" />
+              <span>{constraint.text}</span>
+              {constraint.sinceRevision !== task.currentRevision && (
+                <span className="ov-mono ov-faint ov-nowrap">
+                  from rev {constraint.sinceRevision}
+                </span>
+              )}
+            </span>
+          ))}
           {chips.map((chip) => (
             <span key={chip.label} className="ov-pill">
               <Icon name={chip.icon} />
@@ -50,17 +100,6 @@ export function TaskHead({
           ))}
         </div>
       )}
-      {current.map((constraint) => (
-        <div key={constraint.text} className="ov-constraint">
-          <Icon name="rule" />
-          <span>{constraint.text}</span>
-          {constraint.sinceRevision !== task.currentRevision && (
-            <span className="ov-mono ov-faint ov-nowrap">
-              from rev {constraint.sinceRevision}
-            </span>
-          )}
-        </div>
-      ))}
     </div>
   );
 }
@@ -144,63 +183,50 @@ export function SolutionBlock({
   onOpenWorkspace,
   defaultOpen = false,
 }: {
+  // True in the maximized card: the canvas is larger. Code is never hidden.
   defaultOpen?: boolean;
   solution: SolutionView;
   onCopy(text: string): void;
   workspace: SessionDraftLink | null;
   onOpenWorkspace(link: SessionDraftLink): void;
 }) {
-  // The person's own choice wins over the size's default.
-  const [chosen, setChosen] = useState<boolean | null>(null);
-  const open = chosen ?? defaultOpen;
-  const setOpen = setChosen;
   return (
     <div className="ov-solution" data-testid="solution">
-      <button
-        type="button"
-        className="ov-solution-head"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
+      <div className="ov-solution-head">
         <Icon name="code" />
         <span className="ov-solution-title">
           Solution · {solution.language}
         </span>
         <span className="ov-muted">{solution.status}</span>
-        <Icon name={open ? "expand_less" : "expand_more"} />
-      </button>
-      {open && (
-        <>
-          <LiveCodeCanvas
-            result={solution.result}
-            revision={solution.revision}
-            size={defaultOpen ? "maximized" : "compact"}
-            onCopy={onCopy}
-          />
-          <ul className="ov-badges" aria-label="Verification">
-            {solution.badges.map((badge) => (
-              <li key={badge.label} data-ok={badge.ok}>
-                <Icon
-                  name={badge.ok ? "check_circle" : "radio_button_unchecked"}
-                  filled={badge.ok}
-                />
-                {badge.label}
-              </li>
-            ))}
-          </ul>
-          <div className="ov-solution-actions">
-            <button
-              type="button"
-              className="ov-button"
-              disabled={!workspace}
-              onClick={() => workspace && onOpenWorkspace(workspace)}
-            >
-              <Icon name="terminal" />
-              Open in Workspace
-            </button>
-          </div>
-        </>
-      )}
+      </div>
+      <LiveCodeCanvas
+        result={solution.result}
+        revision={solution.revision}
+        density={defaultOpen ? "maximized" : "compact"}
+        onCopy={onCopy}
+      />
+      <ul className="ov-badges" aria-label="Verification">
+        {solution.badges.map((badge) => (
+          <li key={badge.label} data-ok={badge.ok}>
+            <Icon
+              name={badge.ok ? "check_circle" : "radio_button_unchecked"}
+              filled={badge.ok}
+            />
+            {badge.label}
+          </li>
+        ))}
+      </ul>
+      <div className="ov-solution-actions">
+        <button
+          type="button"
+          className="ov-button"
+          disabled={!workspace}
+          onClick={() => workspace && onOpenWorkspace(workspace)}
+        >
+          <Icon name="terminal" />
+          Open in Workspace
+        </button>
+      </div>
     </div>
   );
 }

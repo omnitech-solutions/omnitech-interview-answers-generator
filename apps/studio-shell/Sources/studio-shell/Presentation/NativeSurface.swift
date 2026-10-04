@@ -267,7 +267,37 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         container.addSubview(effect)
         container.addSubview(webView)
         container.addSubview(handle)
+        container.layer?.backgroundColor = CGColor.clear
+        container.layer?.isOpaque = false
+        effect.layer?.backgroundColor = nil
+        webView.wantsLayer = true
+        webView.layer?.backgroundColor = CGColor.clear
+        webView.layer?.isOpaque = false
         panel.contentView = container
+        panel.contentView?.layer?.backgroundColor = CGColor.clear
+        audit()
+    }
+
+    // [SAFETY] Reads the live hierarchy back into Core's snapshot and logs (no
+    // content, only a layer description) anything that would make it opaque.
+    private func audit() {
+        func alpha(_ color: CGColor?) -> Double { color.map { Double($0.alpha) } ?? 0 }
+        var others: [Double] = []
+        if let content = panel.contentView {
+            others.append(alpha(content.layer?.backgroundColor))
+            for view in content.subviews where view !== effect && view !== webView {
+                others.append(alpha(view.layer?.backgroundColor))
+            }
+            others.append(alpha(webView.layer?.backgroundColor))
+            if content.layer?.isOpaque == true || webView.layer?.isOpaque == true { others.append(1) }
+        }
+        let snapshot = PanelChromeSnapshot(
+            windowIsOpaque: panel.isOpaque, windowBackgroundAlpha: Double(panel.backgroundColor.alphaComponent),
+            windowHasShadow: panel.hasShadow, webViewDrawsBackground: (webView.value(forKey: "drawsBackground") as? Bool) ?? true,
+            webViewUnderPageAlpha: Double(webView.underPageBackgroundColor?.alphaComponent ?? 0),
+            otherBackgroundAlphas: others, hasVisualEffect: effect != nil)
+        let problems = PanelChrome.violations(snapshot)
+        if !problems.isEmpty { NSLog("studio-shell: panel is not see-through: %@", problems.joined(separator: "; ")) }
     }
 
     func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }

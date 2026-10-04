@@ -9,6 +9,7 @@ import type {
 import {
   parseCodeResult,
   parseResultMeta,
+  parseWithheldCodes,
   parseWithheldResult,
 } from "./session-results";
 
@@ -50,6 +51,8 @@ export type ActivityRun = {
   // A withheld draft: how many claims could not be checked (content-free).
   // null when the server did not record a count.
   rejectedClaimCount: number | null;
+  // The closed violation codes of a withheld draft (never content).
+  withheldCodes: string[];
   // The profile and policy the stage ran under, from its published result.
   profile: string | null;
   // The run belongs to the task's current revision.
@@ -155,6 +158,37 @@ const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
   },
 };
 
+// What a bounded violation code means, in plain words. Closed table: a code
+// the server adds later simply has no sentence, and nothing else is shown.
+const FLAG_WORDS: Record<string, string> = {
+  ungrounded_figure: "a number in the draft isn't in your experience",
+  spoken_figure:
+    "a number from the conversation isn't in your experience and was not repeated",
+  ungrounded_logistics_figure:
+    "a pay, notice or availability figure isn't in your preferences",
+  preference_only_topic:
+    "pay, notice or availability wasn't backed by your preferences",
+  personal_claim_unsourced:
+    "a statement about you or an employer isn't in your experience",
+  generated_reason: "a reason for leaving was written for you",
+  disparages_employer: "the draft criticised an employer",
+  confusable_text: "the draft contained look-alike characters",
+  unsupported_reference: "a claim went beyond the experience it cited",
+  quote_mismatch: "a cited quote doesn't match your experience",
+  unsupported_element: "a story element went beyond the experience it cited",
+};
+const MAX_FLAG_WORDS = 3;
+
+export function flaggedBecause(codes: readonly string[]): string {
+  const words = codes.flatMap((code) => {
+    const sentence = FLAG_WORDS[code];
+    return sentence ? [`${sentence} (${code})`] : [];
+  });
+  return words.length > 0
+    ? ` Flagged: ${words.slice(0, MAX_FLAG_WORDS).join("; ")}.`
+    : "";
+}
+
 // A withheld solution failed its structural checks (language, tests,
 // constraint coverage); there is no approved experience involved.
 const CODE_INVALID_OUTPUT_LABEL =
@@ -224,11 +258,17 @@ export function activityRun(
       action.suppressionReason === "invalid_output" &&
       action.actionKind === "solve-code"
         ? CODE_INVALID_OUTPUT_LABEL
-        : (SUPPRESSION[action.suppressionReason ?? ""]?.label ?? null),
+        : action.suppressionReason === "invalid_output"
+          ? `${SUPPRESSION["invalid_output"]?.label ?? ""}${flaggedBecause(parseWithheldCodes(action.result))}`
+          : (SUPPRESSION[action.suppressionReason ?? ""]?.label ?? null),
     rejectedClaimCount:
       action.suppressionReason === "invalid_output"
         ? (parseWithheldResult(action.result)?.rejectedClaimCount ?? null)
         : null,
+    withheldCodes:
+      action.suppressionReason === "invalid_output"
+        ? parseWithheldCodes(action.result)
+        : [],
     profile: profileLine(action.result),
     current: action.taskRevision >= context.currentRevision,
     attempt: action.attempt,

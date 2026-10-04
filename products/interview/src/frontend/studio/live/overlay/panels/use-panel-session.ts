@@ -22,6 +22,7 @@ import { loadMask, loadSettings } from "../capture-prefs";
 import { FrameError } from "../capture-source";
 import { claimCaptureTrigger } from "../capture-trigger";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
+import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
@@ -161,8 +162,7 @@ export function usePanelSession(
           : {}),
         ...latest.current.hints,
       });
-      if (!result.ok && here())
-        setNote(`That didn’t work (${result.code}). The session is unchanged.`);
+      if (!result.ok && here()) setNote(failureNote(result.code));
       return result.ok;
     } catch (error) {
       if (here())
@@ -216,6 +216,9 @@ export function usePanelSession(
     submitHeard: actions.submitHeard,
     resume: actions.resume,
     onManualFinal: (phrase) => {
+      // [SAFETY] With Auto on, heard speech is submitted on its own and the
+      // follow-up box stays for typed text only.
+      if (loadAutoPreferred(tenant)) return;
       // Dictated words go to the message box, not the log: they are sent (and
       // shown) once, when the person sends them, never twice.
       setDraft((text) =>
@@ -397,10 +400,7 @@ export function usePanelSession(
             latest.current.hints,
           );
           if (result.ok) toast("Generating the solution…");
-          else
-            setNote(
-              `That didn’t work (${result.code}). The session is unchanged.`,
-            );
+          else setNote(failureNote(result.code));
           return;
         }
         case "skill.next":
@@ -505,8 +505,7 @@ export function usePanelSession(
           text: text.trim(),
           at,
         });
-      } else
-        setNote(`That didn’t work (${result.code}). The session is unchanged.`);
+      } else setNote(failureNote(result.code));
       return result;
     },
     [actions, addLine, bus],
@@ -549,6 +548,8 @@ export function usePanelSession(
     engine,
     engineLine: engineLine(engine),
     dictationError: owns ? auto.dictation.error : null,
+    dictationSupported: auto.dictation.supported,
+    engineAvailable: engineListening,
     autoLine: owns ? auto.line : null,
   };
 }

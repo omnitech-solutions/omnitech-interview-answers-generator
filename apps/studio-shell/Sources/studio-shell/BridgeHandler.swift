@@ -20,7 +20,9 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
     private let engine: HandsFreeEngine
     private let perform: (PresentationCommand) -> PresentationState
     // One capture at a time; a second request while one runs is a visible loss.
-    private var capturing = false
+    private let gate = CaptureGate()
+    private let watcher: ScreenWatcher
+    private let watchSampler: ShellScreenSampler
 
     init(
         model: ShellModel, capture: ShellCapture, engine: HandsFreeEngine, setPinned: @escaping (Bool) -> Void,
@@ -30,8 +32,23 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         self.perform = perform
         self.model = model
         self.capture = capture
+        watchSampler = ShellScreenSampler(capture: capture)
+        watcher = ScreenWatcher(sampler: watchSampler)
         self.setPinned = setPinned
     }
+
+    // Wired by the app: where watch events and status go (every hosted page).
+    var onWatchChange: (Int, Int) -> Void {
+        get { watcher.onChange }
+        set { watcher.onChange = newValue }
+    }
+    var onWatchStatus: (ScreenWatchStatus) -> Void {
+        get { watcher.onStatus }
+        set { watcher.onStatus = newValue }
+    }
+    var watchStatus: ScreenWatchStatus { watcher.status }
+    // Disconnect, sign-out, quit: the watch ends with them.
+    func stopWatching() { watcher.stop() }
 
     func userContentController(
         _ controller: WKUserContentController, didReceive message: WKScriptMessage,
@@ -64,6 +81,16 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         case .success(.presentation(let command)):
             let state = perform(command)
             replyHandler(HostReply.tookEffect(command, state), nil)
+        case .success(.screenWatchStart(let request)):
+            let ticket = model.epoch.ticket()
+            Task { @MainActor in
+                let failure = await self.watcher.start(request)
+                replyHandler(HostReply.screenWatchStarted(failure), nil)
+                _ = ticket
+            }
+        case .success(.screenWatchStop):
+            watcher.stop()
+            replyHandler(nil, nil)
         case .success(.openExternal(let url)):
             NSWorkspace.shared.open(url)
             replyHandler(nil, nil)
@@ -72,28 +99,24 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
             let sample = capture.sample()
             let ticket = model.epoch.ticket()
             let senderView = message.webView
-            guard !capturing else { return replyHandler(HostReply.failure("capture-failed"), nil) }
-            capturing = true
             Task { @MainActor in
-                defer { self.capturing = false }
-                // The person pressed Analyze: asking for Screen Recording now is
-                // the one place macOS may prompt.
-                guard CGPreflightScreenCaptureAccess() else {
-                    _ = CGRequestScreenCaptureAccess()
-                    return replyHandler(HostReply.failure("permission-denied"), nil)
-                }
-                let result = await self.capture.capture(request, displayId: displayId, sample: sample)
-                // [SAFETY] A navigation, sign-out or rebind since receipt, or a
-                // page no longer at Studio's origin, drops the frame: only an
-                // error goes back, never pixels.
-                guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
-                    return replyHandler(nil, "stale")
-                }
-                replyHandler(
-                    HostReply.capture(
-                        result.outcome, screenAccessGranted: CGPreflightScreenCaptureAccess(),
-                        displayId: result.displayId),
-                    nil)
+                // One capture in flight; a repeat while one runs is a visible loss.
+                let reply: Any? = await self.gate.run {
+                    // Screen Recording is asked for once per launch; afterwards a
+                    // missing grant is a plain typed refusal.
+                    let granted = CGPreflightScreenCaptureAccess()
+                    guard granted else {
+                        if self.gate.shouldPromptForAccess(granted: false) { _ = CGRequestScreenCaptureAccess() }
+                        return HostReply.failure("permission-denied")
+                    }
+                    let result = await self.capture.capture(request, displayId: displayId, sample: sample)
+                    // [SAFETY] A navigation, sign-out or rebind since receipt, or a
+                    // page no longer at Studio's origin, drops the frame.
+                    guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else { return nil }
+                    return HostReply.capture(result.outcome, screenAccessGranted: true, displayId: result.displayId)
+                } ?? HostReply.failure("capture-failed")
+                if reply == nil { return replyHandler(nil, "stale") }
+                replyHandler(reply, nil)
             }
         }
     }

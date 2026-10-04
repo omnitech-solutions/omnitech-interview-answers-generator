@@ -63,10 +63,13 @@ const start = () => screen.getByRole("button", { name: /Start session/ });
 const readyToStart = () => {
   fireEvent.click(screen.getByLabelText(/Rehearsal/));
   fireEvent.click(screen.getByRole("checkbox", { name: /agreed to it/ }));
+  // Allow remote is the default; these tests are about the device-only advisory.
+  fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
 };
 const capability = () => screen.getByTestId("setup-capability");
 
 beforeEach(() => {
+  window.localStorage.clear();
   resetSessionStores();
   window.history.replaceState({}, "", "/t/local/p/interview/live");
 });

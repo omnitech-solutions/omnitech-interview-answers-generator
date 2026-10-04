@@ -15,6 +15,7 @@ import { parseRoute } from "../../use-studio-route";
 import { overlayAccess } from "../float-access";
 import { tenantFromLocation } from "../session-registry";
 import { useLiveSession } from "../use-live-session";
+import { installHostSurface, isNativeSurface } from "./host-surface";
 import { OverlayCard } from "./overlay-card";
 import { sendIntent } from "./overlay-intents";
 import { tellHost } from "./overlay-url";
@@ -39,6 +40,7 @@ function CardOverlayPage() {
 
   useEffect(() => {
     document.title = "Interview Studio · Live overlay";
+    return installHostSurface(isNativeSurface(params));
   }, []);
   // Open the requested session once the store has its first answer.
   useEffect(() => {

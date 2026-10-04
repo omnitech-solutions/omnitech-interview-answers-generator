@@ -3,7 +3,9 @@
 // is the only place the frontend does. Without it (a browser, an installed web
 // app) every function here reports "no host" and the page behaves as before.
 import {
+  isScreenWatchHost,
   negotiateStudioHost,
+  type ScreenWatchHost,
   type StudioHostCaptureRequest,
   type StudioHostHotkey,
   type StudioHostInfo,
@@ -21,6 +23,15 @@ declare global {
 export function studioHostInfo(): StudioHostInfo | null {
   if (typeof window === "undefined") return null;
   return negotiateStudioHost(window.studioHost);
+}
+
+// The host's screen watch, when it offers one: Auto uses it instead of the
+// browser's frame sampler.
+export function screenWatchHost(): ScreenWatchHost | null {
+  const info = studioHostInfo();
+  if (!info?.capabilities.has("screen-watch")) return null;
+  const watch = info.host.screenWatch;
+  return isScreenWatchHost(watch) ? watch : null;
 }
 
 export function nativeCaptureAvailable(): boolean {
@@ -64,6 +75,41 @@ export const hostDisplayId = (): string | null => knownDisplayId;
 export const forgetHostDisplay = (): void => {
   knownDisplayId = null;
 };
+
+// A capture the server accepts is at most 2 MiB (maxOwnerCaptureBytes). A
+// retina window can encode larger, so an oversize image is re-encoded smaller
+// here, before it is sent; nothing else about it changes.
+export const HOST_FRAME_MAX_BYTES = 1_800_000;
+export async function fitFrame(
+  blob: Blob,
+  maxBytes: number = HOST_FRAME_MAX_BYTES,
+): Promise<Blob> {
+  if (blob.size <= maxBytes || typeof createImageBitmap !== "function")
+    return blob;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    let scale = Math.sqrt(maxBytes / blob.size) * 0.9;
+    let best = blob;
+    for (let attempt = 0; attempt < 4 && best.size > maxBytes; attempt += 1) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas
+        .getContext("2d")
+        ?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const next = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.8),
+      );
+      if (!next) break;
+      best = next;
+      scale *= 0.8;
+    }
+    bitmap.close?.();
+    return best;
+  } catch {
+    return blob;
+  }
+}
 
 export type HostFrame =
   | { ok: true; blob: Blob; masked: boolean }
@@ -112,7 +158,7 @@ export async function captureThroughHost(
     const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
     return {
       ok: true,
-      blob: new Blob([bytes], { type: result.mediaType }),
+      blob: await fitFrame(new Blob([bytes], { type: result.mediaType })),
       masked: !isFull(mask),
     };
   } catch {

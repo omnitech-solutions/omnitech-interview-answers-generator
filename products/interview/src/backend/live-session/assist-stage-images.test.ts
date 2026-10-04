@@ -39,14 +39,11 @@ describe("assist stage with images", () => {
     expect(withImages.system).toContain("You have no tools");
   });
 
-  it("forbids quoting figures read from a screenshot outside the coding brief", () => {
-    // The claim validator rejects a figure no source grounds, and a screenshot
-    // is no verifiable source: the model describes limits in words instead.
+  it("allows the exercise's own figures with provenance but never candidate figures", () => {
     const { system } = prepared(1);
-    expect(system).toContain(
-      "Never quote a numeric figure you read from a screenshot",
-    );
-    expect(system).toContain("Only codingBrief may carry the figures");
+    expect(system).toContain("exercise's own constraints and example values");
+    expect(system).toContain("never invent a figure about the candidate");
+    expect(system).not.toContain("Never quote a numeric figure");
   });
 
   it("is byte-for-byte the earlier prompt when no image is attached", () => {

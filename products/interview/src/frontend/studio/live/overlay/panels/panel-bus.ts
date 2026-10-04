@@ -38,25 +38,55 @@ export type PanelBus = {
 };
 
 // A page without BroadcastChannel has no other panel to talk to.
+//
+// The channel is opened on demand and closed when the last listener leaves, but
+// the bus object outlives that (React runs effect cleanups and re-runs them,
+// notably under StrictMode), so a post after the close must reopen it and never
+// throw: a throw inside an effect takes the whole panel down.
 export function openPanelBus(): PanelBus {
   if (typeof BroadcastChannel === "undefined")
     return { post: () => undefined, listen: () => () => undefined };
-  const channel = new BroadcastChannel(CHANNEL);
   const listeners = new Set<(message: PanelMessage) => void>();
-  channel.onmessage = (event: MessageEvent) => {
-    const data = event.data as PanelMessage | null;
-    if (!data || typeof data.type !== "string") return;
-    for (const listener of listeners) listener(data);
+  let channel: BroadcastChannel | null = null;
+  const ensure = (): BroadcastChannel => {
+    if (channel) return channel;
+    const opened = new BroadcastChannel(CHANNEL);
+    opened.onmessage = (event: MessageEvent) => {
+      const data = event.data as PanelMessage | null;
+      if (!data || typeof data.type !== "string") return;
+      for (const listener of listeners) listener(data);
+    };
+    channel = opened;
+    return opened;
+  };
+  const release = () => {
+    channel?.close();
+    channel = null;
   };
   return {
-    post: (message) => channel.postMessage(message),
+    post: (message) => {
+      try {
+        ensure().postMessage(message);
+      } catch {
+        // A channel closed under us: reopen once, then give up quietly.
+        release();
+        try {
+          ensure().postMessage(message);
+        } catch {
+          release();
+        }
+      }
+    },
     listen: (listener) => {
       listeners.add(listener);
+      try {
+        ensure();
+      } catch {
+        // No channel: this document just hears nothing.
+      }
       return () => {
         listeners.delete(listener);
-        if (listeners.size === 0) {
-          channel.close();
-        }
+        if (listeners.size === 0) release();
       };
     },
   };

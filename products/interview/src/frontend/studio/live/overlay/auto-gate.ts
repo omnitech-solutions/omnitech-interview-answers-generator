@@ -2,7 +2,7 @@
 // names its reason so the card can say it, and says whether waiting can ever
 // clear it ("too-soon" and "busy" do; the others need the owner or the session).
 export const AUTO_MIN_GAP_MS = 15_000;
-export const AUTO_MAX_PER_SESSION = 30;
+export const AUTO_MAX_PER_SESSION = 120;
 
 export type AutoBlock =
   | "not-open"

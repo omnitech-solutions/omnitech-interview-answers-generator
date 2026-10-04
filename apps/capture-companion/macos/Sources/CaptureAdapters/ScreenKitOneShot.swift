@@ -27,7 +27,7 @@ public enum ScreenKitOneShot {
         guard CGPreflightScreenCaptureAccess() else { return .lost(.permissionDenied) }
         let content: SCShareableContent
         do {
-            content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            content = try await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         } catch {
             return .lost(.captureFailed)
         }

@@ -20,6 +20,7 @@ export const STUDIO_HOST_CAPABILITIES = [
   "pin-on-top",
   "hotkeys",
   "open-external",
+  "screen-watch",
 ] as const;
 export type StudioHostCapability = (typeof STUDIO_HOST_CAPABILITIES)[number];
 
@@ -99,7 +100,65 @@ export type StudioHost = {
   readonly presentation?: PresentationHost;
   // The hands-free engine, when the shell embeds one (below).
   readonly engine?: EngineHost;
+  // Watches the screen for change, when the shell can (below). The page uses it
+  // instead of the browser's frame sampler.
+  readonly screenWatch?: ScreenWatchHost;
 };
+
+// ---- Screen watch -----------------------------------------------------------
+// The shell samples the focused window (or the owner's region) on its own timer
+// and reports only that the picture changed and settled, as a content-free
+// event: a time and a difference in bits. It sends no pixels; a capture is
+// still one `captureScreen` request the page makes. Studio's gate (rate limit,
+// cap, one in flight, pause, device-only) decides whether a change is captured.
+export type ScreenWatchRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type ScreenWatchOptions = {
+  mode: "focused-window" | "region";
+  // Exactly when the mode is "region", normalised to the display.
+  region?: ScreenWatchRegion | undefined;
+  displayId?: number | undefined;
+  intervalMs?: number | undefined;
+};
+
+export const SCREEN_WATCH_FAILURES = [
+  "permission-denied",
+  "no-focused-window",
+  "display-changed",
+  "invalid",
+] as const;
+export type ScreenWatchFailure = (typeof SCREEN_WATCH_FAILURES)[number];
+
+export type ScreenWatchResult =
+  | { ok: true }
+  | { ok: false; reason: ScreenWatchFailure };
+
+export type ScreenWatchEvent = { at: number; bits: number };
+
+export type ScreenWatchHost = {
+  start(options: ScreenWatchOptions): Promise<ScreenWatchResult>;
+  stop(): Promise<void>;
+  status(): { watching: boolean; reason?: string | undefined };
+  // Returns the remover.
+  onChange(listener: (event: ScreenWatchEvent) => void): () => void;
+};
+
+// [GUARD] A watch object with every method, or null.
+export function isScreenWatchHost(value: unknown): value is ScreenWatchHost {
+  if (typeof value !== "object" || value === null) return false;
+  const host = value as Partial<ScreenWatchHost>;
+  return (
+    typeof host.start === "function" &&
+    typeof host.stop === "function" &&
+    typeof host.status === "function" &&
+    typeof host.onChange === "function"
+  );
+}
 
 // What a page may rely on after negotiation.
 export type StudioHostInfo = {
@@ -122,11 +181,18 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
     "pin-on-top": "pinOnTop",
     hotkeys: "onHotkey",
     "open-external": "openExternal",
+    "screen-watch": "screenWatch",
   };
   const capabilities = new Set<StudioHostCapability>();
   for (const name of host.capabilities as unknown[]) {
     const known = STUDIO_HOST_CAPABILITIES.find((each) => each === name);
-    if (known && typeof host[method[known]] === "function")
+    if (!known) continue;
+    const member = host[method[known]];
+    if (
+      known === "screen-watch"
+        ? isScreenWatchHost(member)
+        : typeof member === "function"
+    )
       capabilities.add(known);
   }
   return { host: host as StudioHost, capabilities };

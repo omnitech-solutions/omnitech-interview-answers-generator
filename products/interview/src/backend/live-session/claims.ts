@@ -172,22 +172,94 @@ const STANDARD_TOKEN_CONTEXT =
   /(?:^|[^\p{L}])(?:http|https|rfc|iso|tls|ssl|es|ipv|status|code|port|error|version|v)\s*[-/:]?\s*$/iu;
 export const MAX_GENERAL_INTEGER = 10;
 
+// [DOMAIN] Technical provenance (real failure: a coding follow-up such as "what
+// is the time complexity?" was withheld for O(n^2) and "up to 1000"). Figures
+// are classified by where they come from, not only by size:
+//   (a) algorithmic or mathematical notation is never a candidate fact:
+//       O(...), n squared written n^2 or with a superscript, 2^n, 10^5, log2;
+//   (b) a figure in the task's own source material (the exercise's restatement
+//       and constraints read from the screenshot, the interviewer's question)
+//       is allowed with that provenance;
+//   (c) in a technical answer, a plain number in a sentence that says nothing
+//       about the candidate (no first person, no employer, team, years) is an
+//       ordinary technical number ("up to 1000", "10k elements").
+// A sentence that says something about the candidate keeps the strict rules,
+// as do percentages, multipliers, money and every notice or pay sentence
+// (those are decided before this runs).
+export type TechnicalScope = {
+  // Figure keys (figuresOf) of the exercise and the interviewer's question.
+  provenance: ReadonlySet<string>;
+  // Normalised employer names of the approved experience.
+  companies: readonly string[];
+};
+const SUPERSCRIPT_RUN = /[\p{L}\d)\]]?[⁰-₟²³¹]+/gu;
+const POWER_NOTATION =
+  /(?<![\p{L}\d])\d+(?:[.,]\d+)?\s*(?:\^|\*\*)\s*[\w{}()+-]+|(?<![\p{L}\d])[a-z]\s*(?:\^|\*\*)\s*[\w{}()+-]+|\blog\s*_?\d+\b/giu;
+const CANDIDATE_SCOPE_WORDING =
+  /\b(?:employer|company|companies|team|teams|manager|colleagues?|worked|previous(?:ly)?|years?|months?|used to|revenue|salary|clients?)\b|\b(?:19|20)\d{2}\b/i;
+const PLAIN_TECHNICAL_NUMBER = /^\d+(?:[.,]\d+)*[kKmMbB]?$/;
+
+// Text with algorithmic and mathematical notation removed, before the figure
+// patterns run (NFKC would otherwise turn a superscript 2 into a bare 2).
+export function withoutNotation(text: string): string {
+  return canonicalText(text.replace(SUPERSCRIPT_RUN, " "))
+    .replace(COMPLEXITY_NOTATION, " ")
+    .replace(POWER_NOTATION, " ");
+}
+
+// The figures of exercise-like text, as provenance keys.
+// A percentage is never provenance: it reads as a result about someone.
+export const provenanceFigures = (texts: readonly string[]): Set<string> =>
+  new Set(
+    texts
+      .flatMap((text) => [...figuresOf(withoutNotation(text))])
+      .filter((key) => !key.includes("%")),
+  );
+
 // Keys of the figures in text that the general-knowledge allowance does NOT
-// cover.
-export function nonGeneralFigures(text: string): string[] {
-  const clean = canonicalText(text).replace(COMPLEXITY_NOTATION, " ");
+// cover. With a technical scope, figures of the task's own material and plain
+// numbers of a sentence that says nothing about the candidate are covered too.
+export function nonGeneralFigures(
+  text: string,
+  scope?: TechnicalScope,
+): string[] {
+  const clean = withoutNotation(text);
+  const lower = clean.toLowerCase().replace(/\s+/g, " ");
+  const companyNamed =
+    scope?.companies.some((company) => company && lower.includes(company)) ??
+    false;
+  const personal = FIRST_PERSON.test(clean);
+  const candidateFact =
+    CANDIDATE_SCOPE_WORDING.test(clean) ||
+    (personal && EMPLOYER_OR_TIME_WORDING.test(clean)) ||
+    companyNamed;
+  const fromProvenance = (key: string) =>
+    scope !== undefined && !candidateFact && scope.provenance.has(key);
+  const plainTechnical = scope !== undefined && !candidateFact && !personal;
   const found: string[] = [];
   for (const { raw, index } of figureMatches(clean)) {
     if (/^\d+x?$/i.test(raw) && Number.parseInt(raw, 10) <= MAX_GENERAL_INTEGER)
       continue;
     if (STANDARD_TOKEN_CONTEXT.test(clean.slice(0, index))) continue;
-    found.push(figureKey(raw));
+    const key = figureKey(raw);
+    if (fromProvenance(key)) continue;
+    if (plainTechnical && PLAIN_TECHNICAL_NUMBER.test(raw)) continue;
+    found.push(key);
   }
   // Spelled quantities meet the same allowance as digits: an integer up to ten
   // that is not scaled (hundred, k, dozen) is ordinary; everything else is not.
   for (const quantity of spokenOf(clean))
-    if (quantity.scaled || quantity.value > MAX_GENERAL_INTEGER)
+    if (quantity.scaled || quantity.value > MAX_GENERAL_INTEGER) {
+      if (fromProvenance(quantity.key)) continue;
+      if (
+        plainTechnical &&
+        quantity.kind !== "duration" &&
+        quantity.kind !== "date" &&
+        quantity.kind !== "money"
+      )
+        continue;
       found.push(quantity.key);
+    }
   return found;
 }
 
@@ -278,6 +350,13 @@ export type VerifyContext = {
   // The non-missing STAR elements: their text is shown to the candidate, so it
   // is verified against the claims it cites (never against claim text alone).
   star?: readonly StarElementText[] | undefined;
+  // A technical answer (coding or concept task): figures of the task's own
+  // material (the exercise brief, the interviewer's question) and plain
+  // numbers in sentences that say nothing about the candidate are not gated
+  // by approved experience. Candidate-fact claims keep the strict rules.
+  technical?: boolean | undefined;
+  // Exercise text the task carries as provenance (restatement, constraints).
+  exercise?: readonly string[] | undefined;
 };
 export type StarElementText = {
   element: string;
@@ -482,6 +561,7 @@ type DraftCheck = {
   preferenceQuotes: readonly string[];
   capturedFigures: ReadonlySet<string>;
   sourceFigures: ReadonlySet<string>;
+  technicalScope: TechnicalScope | undefined;
 };
 
 // [DOMAIN] Reason-for-leaving lexicon (leaving-role drafts). A draft sentence
@@ -561,7 +641,7 @@ function checkDraft(draft: string, check: DraftCheck): void {
         hasUnapprovedLogisticsFigure(sentence, check.preferenceQuotes)
       )
         flag("draft", "preference_only_topic");
-      const loose = nonGeneralFigures(sentence).filter(
+      const loose = nonGeneralFigures(sentence, check.technicalScope).filter(
         (key) => !check.groundedFigures.has(key),
       );
       if (loose.length)
@@ -616,6 +696,20 @@ export function verifyClaims(
     )
     .map((s) => normalizeText(s.text));
   const logistics = category === "logistics";
+  // [SAFETY] Technical provenance never applies to logistics or a leaving
+  // role: those are about the candidate whatever the model says.
+  const technicalScope: TechnicalScope | undefined =
+    context.technical && !logistics && category !== "leaving-role"
+      ? {
+          // The interviewer's words are provenance only on a coding task
+          // (one that carries an exercise); on a bare concept question a
+          // figure they said stays "spoken" and is never echoed as fact.
+          provenance: provenanceFigures(
+            context.exercise?.length ? [...context.exercise, ...captured] : [],
+          ),
+          companies,
+        }
+      : undefined;
   const leavingRole = category === "leaving-role";
   // Figures that a preference-backed claim legitimately carries, for the
   // logistics draft check.
@@ -760,7 +854,7 @@ export function verifyClaims(
       flag(at, "ungrounded_logistics_figure");
       continue;
     }
-    const loose = nonGeneralFigures(claim.text);
+    const loose = nonGeneralFigures(claim.text, technicalScope);
     if (loose.length)
       // [SAFETY] Hazard 7b: a figure the interviewer said aloud and the
       // sources lack must not be echoed as fact; any other figure outside the
@@ -811,6 +905,7 @@ export function verifyClaims(
       preferenceQuotes,
       capturedFigures,
       sourceFigures,
+      technicalScope,
     });
 
   return violations.length

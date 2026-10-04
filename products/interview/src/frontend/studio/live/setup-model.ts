@@ -46,12 +46,13 @@ export function initialForm(): SetupForm {
     target: null,
     strict: false,
     consent: false,
-    sources: ["microphone", "application-audio"],
+    sources: ["microphone", "application-audio", "screen"],
     assistance: true,
     matrix: "none",
-    // Device only is the default: loosening later is impossible, tightening is
-    // possible, so the safer start is the one the owner has to leave.
-    policy: "device-only",
+    // Allow remote is the default so hands-free works (screenshots, code,
+    // answers). The owner can switch to Device only before start; a remembered
+    // choice overrides this. After start it can only be tightened (ADR-0012).
+    policy: "permitted-remote",
     retention: "delete-at-end",
   };
 }

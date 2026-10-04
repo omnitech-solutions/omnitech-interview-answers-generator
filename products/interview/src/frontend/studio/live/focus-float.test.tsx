@@ -22,6 +22,7 @@ import {
   installVideoSize,
 } from "./overlay/capture-fixtures";
 import { resetPosition } from "./overlay/card-position";
+import { HandsFreeProvider } from "./overlay/hands-free-context";
 import {
   action,
   jsonResponse,
@@ -92,11 +93,11 @@ const overlayFrame = (pip: ReturnType<typeof fakePip>) =>
 
 async function openLive() {
   render(
-    <>
+    <HandsFreeProvider>
       <LiveSessionView rest={[]} studio={studio} />
       <LiveCardHost />
       <LiveFloatHost />
-    </>,
+    </HandsFreeProvider>,
   );
   await flush();
   await flush();
@@ -220,9 +221,8 @@ describe("the card", () => {
     expect(
       solution.getByText("Tests passed, not fully verified"),
     ).toBeVisible();
-    // Collapsed until opened.
-    expect(solution.queryByText("Fully verified")).toBeNull();
-    fireEvent.click(solution.getByRole("button", { name: /Solution/ }));
+    // The code is open as soon as it exists.
+    expect(solution.getByLabelText(/Edit solution/)).toBeVisible();
     expect(solution.getByText("Tests passed · 5/5")).toBeVisible();
     expect(solution.getByText("Fully verified")).toBeVisible();
     expect(solution.getByRole("button", { name: "Copy" })).toBeEnabled();
@@ -634,22 +634,28 @@ describe("float closes when access is lost", () => {
 
   it("persists across pages and closes only when the shell unmounts", async () => {
     const pip = fakePip();
-    const view = render(<LiveSessionView rest={[]} studio={studio} />);
-    const host = render(
-      <>
+    const view = render(
+      <HandsFreeProvider>
+        <LiveSessionView rest={[]} studio={studio} />
         <LiveCardHost />
         <LiveFloatHost />
-      </>,
+      </HandsFreeProvider>,
     );
     await flush();
     await flush();
     await click("Float");
     expect(overlayFrame(pip)).not.toBeNull();
-    view.unmount();
+    view.rerender(
+      <HandsFreeProvider>
+        {null}
+        <LiveCardHost />
+        <LiveFloatHost />
+      </HandsFreeProvider>,
+    );
     await flush();
     expect(overlayFrame(pip)).not.toBeNull();
     expect(pip.win.close).not.toHaveBeenCalled();
-    host.unmount();
+    view.unmount();
     await flush();
     closed(pip);
     expect(getSessionStore("local").getSnapshot().session).not.toBeNull();

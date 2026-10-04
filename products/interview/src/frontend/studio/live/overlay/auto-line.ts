@@ -25,6 +25,16 @@ export type AutoLineInput = {
   // A native host share cannot be watched for change.
   watchable: boolean;
   block: AutoBlock | null;
+  // The native engine listens, so the browser's missing speech is not a problem.
+  engine?: boolean;
+  // Seconds between captures, and when the last analysis was made.
+  intervalSec?: number;
+  lastAnalyzedAgoMs?: number | null;
+  // The host refused to capture; the one thing to fix.
+  screenProblem?: "permission-denied" | "display-changed" | null;
+  // Automatic analyses made this session, and the limit.
+  autoCount?: number;
+  autoMax?: number;
 };
 
 export type AutoLine = {
@@ -33,6 +43,11 @@ export type AutoLine = {
   // that clears by itself.
   tone: "ok" | "problem" | "wait";
 };
+
+const SCREEN_PROBLEM = {
+  "permission-denied": "Grant Screen Recording to the app",
+  "display-changed": "the display changed. Choose the capture area again",
+} as const;
 
 const seconds = (ms: number): string =>
   `${Math.max(0, Math.round(ms / 1000))} s`;
@@ -56,13 +71,19 @@ export function autoLine(input: AutoLineInput): AutoLine | null {
       tone: "problem",
       text: "Auto · microphone not allowed. Allow it in the browser’s site settings, then turn Auto off and on.",
     };
-  if (input.micUnsupported)
+  // A device-only session says what it cannot do once, in its own card.
+  if (input.micUnsupported && !input.engine && !input.deviceOnly)
     return {
       tone: "problem",
       text: "Auto · this browser can’t listen. Use Chrome or Edge, or the native companion for audio.",
     };
-  if (input.micError)
+  if (input.micError && !input.deviceOnly)
     return { tone: "problem", text: `Auto · ${input.micError}` };
+  if (input.screenProblem && !input.deviceOnly)
+    return {
+      tone: "problem",
+      text: `Auto · ${SCREEN_PROBLEM[input.screenProblem]}`,
+    };
   if (input.wantsScreen && !input.deviceOnly && !input.sharing)
     return {
       tone: "problem",
@@ -73,13 +94,18 @@ export function autoLine(input: AutoLineInput): AutoLine | null {
       ? "listening"
       : `listening · heard ${seconds(input.heardAgoMs)} ago`
     : "starting to listen";
-  const eye = input.deviceOnly
-    ? "screen not analysed (device-only)"
-    : !input.wantsScreen
+  const eye =
+    input.deviceOnly || !input.wantsScreen
       ? null
-      : !input.watchable
-        ? "capture the screen by hand"
-        : "watching screen";
+      : `capturing every ${input.intervalSec ?? 8} s${
+          input.lastAnalyzedAgoMs == null
+            ? ""
+            : ` · last analyzed ${seconds(input.lastAnalyzedAgoMs)} ago`
+        }${
+          input.autoCount && input.autoMax
+            ? ` · ${input.autoCount} of ${input.autoMax} analyses`
+            : ""
+        }`;
   const tail =
     input.block === "cap" || input.block === "no-source"
       ? ` · ${AUTO_BLOCK_TEXT[input.block]}`
