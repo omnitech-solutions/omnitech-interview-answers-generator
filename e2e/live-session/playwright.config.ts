@@ -33,14 +33,20 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   outputDir: results,
-  reporter: [["list"], ["html", { open: "never", outputFolder: report }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never", outputFolder: report }],
+    // E2E_LIVE=1: a timestamped START/END line per test (src/reporters).
+    ...(process.env["E2E_LIVE"] === "1"
+      ? ([["./src/reporters/live-reporter.ts"]] as const)
+      : []),
+  ],
   globalSetup: "./src/stack/global-setup.ts",
   use: {
     headless: !headed,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
-    permissions: ["microphone"],
   },
   projects: [
     {
@@ -48,6 +54,9 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         ...(channel ? { channel } : {}),
+        // The fake device makes the grant safe; WebKit gets none (its
+        // microphone is replaced in the page, src/fixtures/webkit-mic-guard.ts).
+        permissions: ["microphone"],
         launchOptions: chromiumLaunch,
       },
     },

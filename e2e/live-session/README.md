@@ -52,7 +52,7 @@ One global setup (`src/stack/stack.ts`, one process) starts, in order:
 | The agent runtime handed to the worker (`claude-code` shape) | **scripted** (`src/stack/control.ts`) |
 | Direct device model (`AI_BASE_URL`, declared on-device) | **scripted** (`/v1/chat/completions` of the control server) |
 | Screen share | real `getDisplayMedia`, accepted by Chromium launch flags |
-| Microphone | Chromium's fake device |
+| Microphone | Chromium's fake device; **WebKit never reaches the real one**: every WebKit context gets `src/fixtures/webkit-mic-guard.ts`, which replaces `getUserMedia`, `enumerateDevices` and the speech recognisers in the page (macOS shows its 'Allow microphone' dialog even headless otherwise), and a test fails if a page loaded without it |
 | Native `window.studioHost` bridge | **recording shim** (`src/fixtures/host-shim.ts`) |
 
 The seam for the scripted model is the `runtimes` map of
@@ -204,3 +204,9 @@ snapshot, network call and console line. `.playwright-report/` has the HTML repo
   Headless-only: a real browser has the binder. Specs that need a device-only
   session start it over the API (`startSessionViaApi({processingPolicy})`), or
   install `browser-spies` before the page loads, instead of pressing Start.
+
+## Live output
+
+`E2E_LIVE=1 pnpm test:browser ...` adds a wall-clock `START`/`END` line per test
+(project, `file:line`, title; `src/reporters/live-reporter.ts`), so a screen
+recording can be matched to the test that was running.

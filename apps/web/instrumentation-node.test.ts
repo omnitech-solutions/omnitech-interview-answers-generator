@@ -17,6 +17,7 @@ vi.mock("./src/platform/products", () => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
+  verifyMigrations.mockImplementation(async () => undefined);
   vi.resetModules();
 });
 
@@ -37,12 +38,15 @@ describe("instrumentation-node", () => {
   it("refuses to serve on a definite migration mismatch", async () => {
     const { MigrationMismatchError } = await import("@omnitech/database");
     verifyMigrations.mockRejectedValueOnce(
-      new MigrationMismatchError("1 pending"),
+      new (MigrationMismatchError as unknown as new (message: string) => Error)(
+        "1 pending",
+      ),
     );
     await expect(import("./instrumentation-node")).rejects.toThrow("1 pending");
   });
 
   it("serves when the database cannot be reached", async () => {
+    runWorker.mockResolvedValueOnce(undefined);
     verifyMigrations.mockRejectedValueOnce(new Error("ECONNREFUSED"));
     await expect(import("./instrumentation-node")).resolves.toBeDefined();
   });

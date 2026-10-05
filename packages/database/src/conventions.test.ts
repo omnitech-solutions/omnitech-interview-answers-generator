@@ -138,7 +138,11 @@ it("exposes exactly the convention helpers from the package entrypoint", () => {
           "createPlatformDatabase",
           "enterTenant",
           "getPlatformDatabase",
+          "MigrationMismatchError",
+          "currentMigrationStatus",
+          "migrationStatus",
           "verifyDatabaseRole",
+          "verifyMigrations",
           "withTenant",
         ].includes(key),
     )

@@ -22,7 +22,6 @@ export {
   currentMigrationStatus,
   MigrationMismatchError,
   type MigrationStatus,
-  migrationRefusal,
   migrationStatus,
   verifyMigrations,
 } from "./migration-check";

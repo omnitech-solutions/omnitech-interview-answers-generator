@@ -40,6 +40,13 @@ const rows: Array<[file: string, maxCount: number, reason: string]> = [
     ),
   ],
   [
+    "packages/database/src/migration-check.ts",
+    1,
+    rawByDesign(
+      "the drizzle.__drizzle_migrations history read; the table is the migrator's, not a schema this package declares",
+    ),
+  ],
+  [
     "packages/database/src/with-tenant.ts",
     2,
     rawByDesign("set_config for tenant, actor and product settings"),

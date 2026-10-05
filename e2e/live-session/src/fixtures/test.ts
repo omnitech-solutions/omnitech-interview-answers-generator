@@ -22,11 +22,16 @@ import {
   type HostShim,
   installHostShim,
 } from "./host-shim";
+import {
+  assertMicrophoneGuarded,
+  guardWebkitBrowser,
+} from "./webkit-mic-guard";
 
 type Fixtures = {
   stack: StackConfig;
   control: Control;
   cleanSlate: void;
+  micGuard: void;
   live: LivePage;
   // Opens the native panel in a fresh context with the host shim.
   native: {
@@ -45,6 +50,25 @@ async function endOpenSessions(): Promise<void> {
 }
 
 export const test = base.extend<Fixtures>({
+  // WebKit never reaches the real microphone (macOS would show its 'Allow
+  // microphone' dialog even headless): every context any spec opens gets the
+  // replacement from webkit-mic-guard.ts.
+  browser: [
+    async ({ browser, browserName }, use) => {
+      if (browserName === "webkit") guardWebkitBrowser(browser);
+      await use(browser);
+    },
+    { scope: "worker" },
+  ],
+  // ...and the test fails if a page loaded without it.
+  micGuard: [
+    async ({ browser, browserName }, use) => {
+      void browser;
+      await use();
+      if (browserName === "webkit") assertMicrophoneGuarded();
+    },
+    { auto: true },
+  ],
   storageState: async ({}, use) => use(stackConfig().storageStatePath),
   baseURL: async ({}, use) => use(stackConfig().webUrl),
   stack: async ({}, use) => use(stackConfig()),

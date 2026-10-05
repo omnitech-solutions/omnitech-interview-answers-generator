@@ -58,7 +58,10 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/ai-provider-openai": { entrypoints: 1, names: 4 },
   "@omnitech/ai-runtime": { entrypoints: 2, names: 13 },
   "@omnitech/code-runner": { entrypoints: 1, names: 3 },
-  "@omnitech/database": { entrypoints: 3, names: 26 },
+  // +5 (T40): the boot-time pending-migration check, next to verifyDatabaseRole
+  // (verifyMigrations, MigrationMismatchError, migrationStatus,
+  // currentMigrationStatus, MigrationStatus).
+  "@omnitech/database": { entrypoints: 3, names: 31 },
   "@omnitech/interview-api-client": { entrypoints: 1, names: 32 },
   "@omnitech/interview-answers-cli": { entrypoints: 1, names: 28 },
   // +2 (T24): liveCaptureDisplaySchema and LiveCaptureDisplay, the stored display label of a screenshot.
