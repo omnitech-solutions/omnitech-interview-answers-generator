@@ -5,12 +5,11 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  type Handler,
   installFakeApi,
   Raw,
-  type Handler,
   routeScreen,
   sampleDocument,
 } from "./fake-api.js";

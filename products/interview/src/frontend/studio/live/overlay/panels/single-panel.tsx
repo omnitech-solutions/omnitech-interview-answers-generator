@@ -39,6 +39,8 @@ export type Panes = {
   shown: PaneState;
   toggle(pane: PaneId): void;
   show(pane: PaneId): void;
+  // Every pane at once: the window controls' collapse (none) and expand (all).
+  setAll(shown: boolean): void;
 };
 
 // Which panes of the one window are showing. All of them to begin with: the code
@@ -49,6 +51,10 @@ export function usePanes(): Panes {
     shown,
     toggle: (pane) => setShown((now) => ({ ...now, [pane]: !now[pane] })),
     show: (pane) => setShown((now) => ({ ...now, [pane]: true })),
+    setAll: (all) =>
+      setShown(
+        Object.fromEntries(PANES.map((pane) => [pane.id, all])) as PaneState,
+      ),
   };
 }
 

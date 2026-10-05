@@ -97,6 +97,10 @@ describe("DockerCodeRunner", () => {
           "none",
           "--memory",
           "128m",
+          "--memory-swap",
+          "128m",
+          "--user",
+          "65534:65534",
           "--cpus",
           "0.5",
           "--pids-limit",
@@ -169,7 +173,7 @@ describe("DockerCodeRunner", () => {
     expect(fsMocks.writeFile).toHaveBeenCalledWith(
       "/tmp/interview-answer-run-test/solution_spec.rb",
       "solution\n\nRSpec.describe { it { expect(true).to be(true) } }",
-      { mode: 0o600 },
+      { mode: 0o644 },
     );
 
     child.emit("close", 0);
@@ -194,7 +198,7 @@ describe("DockerCodeRunner", () => {
     expect(fsMocks.writeFile).toHaveBeenCalledWith(
       "/tmp/interview-answer-run-test/SolutionTest.php",
       "<?php\nfunction solution(): int { return 1; }\n\nit('works', fn () => expect(solution())->toBe(1));",
-      { mode: 0o600 },
+      { mode: 0o644 },
     );
 
     child.emit("close", 0);
@@ -285,7 +289,7 @@ describe("DockerCodeRunner", () => {
     expect(fsMocks.writeFile).toHaveBeenCalledWith(
       "/tmp/interview-answer-run-test/solution.php",
       "<?php\nfunction solution(array $timestamps, int $window: int",
-      { mode: 0o600 },
+      { mode: 0o644 },
     );
 
     child.emit("close", 1);
@@ -703,7 +707,7 @@ describe("DockerCodeRunner per-test results", () => {
     );
     expect(fsMocks.chmod).toHaveBeenCalledWith(
       "/tmp/interview-answer-run-test/out",
-      0o777,
+      0o703,
     );
     // Test runs get longer than the plain 5s budget.
     vi.advanceTimersByTime(6_000);

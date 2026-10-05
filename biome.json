@@ -24,7 +24,88 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false
+      "preset": "none",
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUndeclaredDependencies": "error",
+        "noPrivateImports": "error"
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["next", "next/*"],
+                "message": "Domain code never imports Next.js (AGENTS.md rule 3, INV-0008): only apps/web may."
+              }
+            ]
+          }
+        }
+      }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["apps/web/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["products/*/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["next", "next/*"],
+                    "message": "Domain code never imports Next.js (AGENTS.md rule 3, INV-0008): only apps/web may."
+                  },
+                  {
+                    "group": [
+                      "@omnitech/interview-web",
+                      "@omnitech/interview-web/*",
+                      "**/apps/web",
+                      "**/apps/web/**"
+                    ],
+                    "message": "A product never imports apps/web (AGENTS.md rule 3, INV-0007): the shell composes products, never the reverse."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/benchmark-document-groups.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredDependencies": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "products/interview/src/backend/assistant/workspace-fixture.ts"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredDependencies": "off"
+          }
+        }
+      }
+    }
+  ]
 }

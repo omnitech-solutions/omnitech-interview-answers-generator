@@ -1,5 +1,11 @@
 // @vitest-environment node
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -82,5 +88,17 @@ describe("the on-device model's files", () => {
     expect((await get(["onnx"])).status).toBe(404);
     expect((await get(["missing.bin"])).status).toBe(404);
     expect((await get(["..", "..", "etc", "hosts"])).status).toBe(404);
+  });
+
+  it("never follows a symlink inside the model out of it", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "outside-model-"));
+    try {
+      writeFileSync(join(outside, "secret.json"), '{"secret":true}');
+      symlinkSync(join(outside, "secret.json"), join(root, "leak.json"));
+      vi.stubEnv("ON_DEVICE_MODEL_DIR", root);
+      expect((await get(["leak.json"])).status).toBe(404);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

@@ -63,6 +63,22 @@ export interface InstructionBundle {
 // folder (ADR-0016). The gateway refuses a longer list before any dispatch.
 export const MAX_TASK_ATTACHMENTS = 4;
 
+// A model id is interpolated into provider URLs and request bodies, so only a
+// plain catalog name passes: up to four slash-separated segments of letters,
+// digits, dot, underscore and dash, each starting alphanumeric. No scheme, no
+// leading slash, no "..", no query or fragment characters.
+export const IMAGE_MODEL_ID_PATTERN =
+  /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*){0,3}$/;
+export const IMAGE_MODEL_ID_MAX_LENGTH = 100;
+
+export function isSafeImageModelId(value: string): boolean {
+  return (
+    value.length <= IMAGE_MODEL_ID_MAX_LENGTH &&
+    IMAGE_MODEL_ID_PATTERN.test(value) &&
+    !value.includes("..")
+  );
+}
+
 export interface AiTask {
   type: AiTaskType;
   prompt: string;

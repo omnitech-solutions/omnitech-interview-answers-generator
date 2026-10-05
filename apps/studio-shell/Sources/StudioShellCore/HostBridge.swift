@@ -18,8 +18,7 @@ public enum HostCapability: String, CaseIterable, Sendable {
     case pinOnTop = "pin-on-top"
     case hotkeys
     case openExternal = "open-external"
-    // The hands-free engine (StudioShellEngine): window.studioHost.engine.
-    case engine
+    case screenWatch = "screen-watch"
 }
 
 // [DOMAIN] An intent the shell sends to the pages. The page decides what it

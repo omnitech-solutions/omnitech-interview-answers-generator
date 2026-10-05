@@ -78,9 +78,19 @@ describe("screen-watch capability", () => {
 });
 
 describe("isStudioHostDisplayId", () => {
-  it("accepts a short opaque id and refuses anything else", () => {
-    expect(isStudioHostDisplayId("69733250.2")).toBe(true);
-    for (const bad of ["", "a b", "x".repeat(65), 5, undefined, "a/b"])
+  it("accepts an unsigned 32-bit integer and refuses anything else", () => {
+    for (const good of [0, 1, 69_733_378, 0xffff_ffff])
+      expect(isStudioHostDisplayId(good)).toBe(true);
+    for (const bad of [
+      "69733250",
+      -1,
+      1.5,
+      0x1_0000_0000,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      null,
+      undefined,
+    ])
       expect(isStudioHostDisplayId(bad)).toBe(false);
   });
 });

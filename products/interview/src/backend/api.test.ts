@@ -641,9 +641,8 @@ describe("web API", () => {
     expect(invalidGuide.status).toBe(400);
     expect(await responseJson(invalidGuide)).toMatchObject({
       error: {
-        message: expect.stringContaining(
-          'Playground answer "guide" is invalid at guide.understand',
-        ),
+        message: "The Playground update is invalid.",
+        issues: ["guide.understand"],
       },
     });
 
@@ -655,7 +654,7 @@ describe("web API", () => {
     expect(await responseJson(invalid)).toMatchObject({
       error: {
         code: "invalid_playground_update",
-        message: 'Unknown Playground field "pannel".',
+        message: "The Playground update is invalid.",
       },
     });
 
@@ -847,8 +846,128 @@ describe("web API", () => {
     );
     expect(failed.status).toBe(400);
     expect(await responseJson(failed)).toMatchObject({
-      error: { code: "compile_failed", message: "Unexpected token" },
+      error: {
+        code: "compile_failed",
+        message: "The preview code could not be compiled.",
+      },
     });
+  });
+
+  it("refuses oversize and malformed bodies on the code-execution routes with fixed text", async () => {
+    const app = createApi();
+    const huge = "x".repeat(600_000);
+    for (const [path, body] of [
+      ["run", { language: "typescript", code: "1", stdin: huge }],
+      ["run-all", { language: "typescript", code: huge, testCode: huge }],
+      ["syntax-check", { language: "typescript", code: huge }],
+      ["react-preview", { code: huge }],
+    ] as const) {
+      const response = await app.request(
+        `http://localhost/api/v1/${path}`,
+        jsonRequest("POST", body),
+      );
+      expect(response.status).toBe(413);
+      expect(JSON.stringify(await responseJson(response))).not.toContain(
+        "xxxx",
+      );
+    }
+    expect(mocks.runCode).not.toHaveBeenCalled();
+    expect(mocks.runAllCode).not.toHaveBeenCalled();
+    expect(mocks.checkSyntax).not.toHaveBeenCalled();
+    expect(mocks.build).not.toHaveBeenCalled();
+
+    // Within the body bound but over a field cap.
+    const capped = await app.request(
+      "http://localhost/api/v1/run",
+      jsonRequest("POST", {
+        language: "typescript",
+        code: "1",
+        stdin: "y".repeat(70_000),
+      }),
+    );
+    expect(capped.status).toBe(413);
+
+    const malformed = await app.request("http://localhost/api/v1/run", {
+      method: "POST",
+      body: '{"code": "private-snippet',
+    });
+    expect(malformed.status).toBe(400);
+    expect(JSON.stringify(await responseJson(malformed))).not.toContain(
+      "private-snippet",
+    );
+  });
+
+  it("counts the body as it streams, ignoring content-length", async () => {
+    const app = createApi();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"code":"'));
+        controller.enqueue(new TextEncoder().encode("z".repeat(1_100_000)));
+        controller.enqueue(new TextEncoder().encode('"}'));
+        controller.close();
+      },
+    });
+    const response = await app.request(
+      "http://localhost/api/v1/react-preview",
+      {
+        method: "POST",
+        body: stream,
+        duplex: "half",
+        headers: { "content-length": "10" },
+      } as RequestInit,
+    );
+    expect(response.status).toBe(413);
+    expect(mocks.build).not.toHaveBeenCalled();
+  });
+
+  it("keeps request text out of logs and responses when a handler fails", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const app = createApi();
+    mocks.generateInterviewAnswer.mockRejectedValueOnce(
+      new Error("quoted: SECRET-QUESTION-TEXT"),
+    );
+    const generation = await app.request(
+      "http://localhost/api/v1/generate",
+      jsonRequest("POST", {
+        question: "SECRET-QUESTION-TEXT",
+        language: "react",
+      }),
+    );
+    mocks.libraryList.mockRejectedValueOnce(
+      new Error("db row SECRET-QUESTION-TEXT"),
+    );
+    const unhandled = await app.request(
+      "http://localhost/api/v1/library/items?drafts=true",
+    );
+    const slugConflict = await (async () => {
+      const { LibrarySlugConflictError } = await import(
+        "@omnitech/interview-storage"
+      );
+      mocks.librarySaveDraft.mockRejectedValueOnce(
+        new LibrarySlugConflictError("SECRET-QUESTION-TEXT"),
+      );
+      return app.request(
+        "http://localhost/api/v1/library/items",
+        jsonRequest("POST", libraryInput),
+      );
+    })();
+    const playground = await app.request(
+      "http://localhost/api/v1/playground-control",
+      jsonRequest("PATCH", { "SECRET-QUESTION-TEXT": true }),
+    );
+
+    expect(unhandled.status).toBe(500);
+    expect(slugConflict.status).toBe(409);
+    for (const response of [generation, unhandled, slugConflict, playground]) {
+      expect(JSON.stringify(await responseJson(response))).not.toContain(
+        "SECRET-QUESTION-TEXT",
+      );
+    }
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(
+      "SECRET-QUESTION-TEXT",
+    );
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
   });
 
   it("searches the Library with composed filters and exposes facets", async () => {

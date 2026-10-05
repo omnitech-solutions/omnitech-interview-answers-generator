@@ -24,11 +24,16 @@ import {
   LibrarySlugConflictError,
   LibraryStateError,
 } from "@omnitech/interview-storage";
-import { build } from "esbuild";
+import { readBoundedJson } from "@omnitech/platform-contracts";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace.js";
 import { LibraryIndexUnavailableError } from "./library-service.js";
+import {
+  bundleReactPreview,
+  PreviewCompileError,
+  PreviewImportRefusedError,
+} from "./react-preview.js";
 import {
   answerRepository,
   codeRunner,
@@ -47,9 +52,17 @@ type ApiEnvironment = {
   };
 };
 
+// Request bounds. The JSON bound covers every route; the code-execution routes
+// (/run, /run-all, /syntax-check, /react-preview) hand the body to a container
+// or the bundler, so they take a tighter body and per-field caps.
+const JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const EXECUTION_BODY_LIMIT_BYTES = 1024 * 1024;
+const MAX_CODE_CHARS = 200_000;
+const MAX_STDIN_CHARS = 64_000;
+
 function apiError(
   context: Context<ApiEnvironment>,
-  status: 400 | 401 | 404 | 409 | 500 | 502 | 503,
+  status: 400 | 401 | 404 | 409 | 413 | 500 | 502 | 503,
   code: string,
   message: string,
   issues?: string[],
@@ -67,6 +80,63 @@ function apiError(
   );
 }
 
+// The body is read as a stream against its limit; every refusal is fixed text
+// that quotes nothing from the request.
+async function readBody(context: Context<ApiEnvironment>, limit: number) {
+  const body = await readBoundedJson(context.req.raw, limit);
+  if (body.ok) return body;
+  return {
+    ok: false as const,
+    response:
+      body.reason === "too-large"
+        ? apiError(
+            context,
+            413,
+            "payload_too_large",
+            "The request is too large.",
+          )
+        : apiError(
+            context,
+            400,
+            "invalid_request",
+            "The request body must be valid JSON.",
+          ),
+  };
+}
+
+// [GUARD] The execution routes cap what reaches the runner or the bundler.
+function exceedsExecutionBounds(input: {
+  code: string;
+  usageCode?: string;
+  testCode?: string;
+  stdin?: string;
+}): boolean {
+  return (
+    input.code.length > MAX_CODE_CHARS ||
+    (input.usageCode?.length ?? 0) > MAX_CODE_CHARS ||
+    (input.testCode?.length ?? 0) > MAX_CODE_CHARS ||
+    (input.stdin?.length ?? 0) > MAX_STDIN_CHARS
+  );
+}
+
+function executionTooLarge(context: Context<ApiEnvironment>) {
+  return apiError(
+    context,
+    413,
+    "payload_too_large",
+    "The code or input is too large to run.",
+  );
+}
+
+// A guide that fails validation is named by its schema path only; the path is
+// the schema's, never request text.
+class PlaygroundGuideInvalidError extends Error {
+  constructor(readonly path: string) {
+    super("The Playground answer guide is invalid.");
+    this.name = "PlaygroundGuideInvalidError";
+  }
+}
+
 // [GUARD] A pushed answer becomes a Workspace answer: its guide must be valid,
 // and its Markdown is the guide's rendering, never the pushed text.
 function withRenderedPlaygroundAnswer(patch: PlaygroundPatch): PlaygroundPatch {
@@ -74,8 +144,8 @@ function withRenderedPlaygroundAnswer(patch: PlaygroundPatch): PlaygroundPatch {
   const guide = answerGuideSchema.safeParse(patch.answer.guide);
   if (!guide.success) {
     const issue = guide.error.issues[0];
-    throw new TypeError(
-      `Playground answer "guide" is invalid at ${["guide", ...(issue?.path ?? [])].join(".")}: ${issue?.message}`,
+    throw new PlaygroundGuideInvalidError(
+      ["guide", ...(issue?.path ?? [])].join("."),
     );
   }
   return {
@@ -112,13 +182,28 @@ function libraryMutationError(
   error: unknown,
 ) {
   if (error instanceof LibrarySlugConflictError) {
-    return apiError(context, 409, "slug_conflict", error.message);
+    return apiError(
+      context,
+      409,
+      "slug_conflict",
+      "A Library item with that slug already exists.",
+    );
   }
   if (error instanceof LibraryStateError) {
-    return apiError(context, 409, "invalid_library_state", error.message);
+    return apiError(
+      context,
+      409,
+      "invalid_library_state",
+      "The Library item cannot be changed in its current state.",
+    );
   }
   if (error instanceof LibraryIndexUnavailableError) {
-    return apiError(context, 503, "library_index_unavailable", error.message);
+    return apiError(
+      context,
+      503,
+      "library_index_unavailable",
+      "The Library search index could not be loaded or rebuilt.",
+    );
   }
   throw error;
 }
@@ -146,6 +231,23 @@ async function authenticate(context: Context<ApiEnvironment>, next: Next) {
     );
   }
   await next();
+}
+
+// [SAFETY] Failures are logged as metadata only: the route and the error's
+// class and code, never its message, which can quote the request or a reply.
+function logFailure(
+  context: Context<ApiEnvironment>,
+  route: string,
+  error: unknown,
+) {
+  console.error(
+    JSON.stringify({
+      route,
+      requestId: context.get("requestId"),
+      error: error instanceof Error ? error.name : "non-error",
+      ...(error instanceof WorkspaceError ? { code: error.code } : {}),
+    }),
+  );
 }
 
 // Generation failures say what happened, for a technical reader: which
@@ -197,7 +299,9 @@ export function createApi(options: InterviewApiOptions) {
   );
 
   app.post("/api/fake/v1/chat/completions", async (context) => {
-    const body = (await context.req.json()) as {
+    const read = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!read.ok) return read.response;
+    const body = read.value as {
       messages?: Array<{ content?: unknown }>;
       model?: string;
     };
@@ -398,7 +502,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/library/items", async (context) => {
-    const parsed = libraryItemInputSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = libraryItemInputSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -416,7 +522,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.put("/api/v1/library/items/:id", async (context) => {
-    const parsed = libraryItemInputSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = libraryItemInputSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -490,7 +598,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/route", async (context) => {
-    const parsed = routeRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = routeRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -506,7 +616,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/generate", async (context) => {
-    const parsed = generateRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = generateRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -523,16 +635,15 @@ console.log(solve([1, 2, 3]));`,
         await generateInterviewAnswer(parsed.data, ready.generate, ready.scope),
       );
     } catch (error) {
-      console.error("Answer generation failed", {
-        requestId: context.get("requestId"),
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logFailure(context, "generate", error);
       return generationFailure(context, error, "an answer");
     }
   });
 
   app.post("/api/v1/explain", async (context) => {
-    const parsed = explanationRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = explanationRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -549,10 +660,7 @@ console.log(solve([1, 2, 3]));`,
         await generateExplanation(parsed.data, ready.generate, ready.scope),
       );
     } catch (error) {
-      console.error("Explanation generation failed", {
-        requestId: context.get("requestId"),
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logFailure(context, "explain", error);
       return generationFailure(context, error, "an explanation");
     }
   });
@@ -574,9 +682,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/explanations", async (context) => {
-    const parsed = saveExplanationRequestSchema.safeParse(
-      await context.req.json(),
-    );
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = saveExplanationRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -631,38 +739,42 @@ console.log(solve([1, 2, 3]));`,
   );
 
   app.patch("/api/v1/playground-control", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
     try {
       return context.json(
         playgroundControlStore.set(
-          withRenderedPlaygroundAnswer(
-            parsePlaygroundPatch(await context.req.json()),
-          ),
+          withRenderedPlaygroundAnswer(parsePlaygroundPatch(body.value)),
         ),
       );
     } catch (error) {
+      // The parser's messages quote the pushed fields, so they stay out of the
+      // response; a bad guide is named by its schema path.
       return apiError(
         context,
         400,
         "invalid_playground_update",
-        /* c8 ignore next -- parser errors are always Error instances here. */
-        error instanceof Error ? error.message : "The update is invalid.",
+        "The Playground update is invalid.",
+        error instanceof PlaygroundGuideInvalidError ? [error.path] : undefined,
       );
     }
   });
 
   app.post("/api/v1/playground-control/explanations", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
     try {
       return context.json(
         playgroundControlStore.appendExplanation(
-          parsePlaygroundExplanation(await context.req.json()),
+          parsePlaygroundExplanation(body.value),
         ),
       );
-    } catch (error) {
+    } catch {
       return apiError(
         context,
         400,
         "invalid_explanation_append",
-        error instanceof Error ? error.message : "The append is invalid.",
+        "The Playground explanation is invalid.",
       );
     }
   });
@@ -679,7 +791,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/answers", async (context) => {
-    const parsed = saveAnswerRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = saveAnswerRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -700,7 +814,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/run", async (context) => {
-    const parsed = runRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, EXECUTION_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = runRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -710,6 +826,7 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.map((issue) => issue.message),
       );
     }
+    if (exceedsExecutionBounds(parsed.data)) return executionTooLarge(context);
     try {
       return context.json(await codeRunner.run(parsed.data));
     } catch {
@@ -723,7 +840,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/syntax-check", async (context) => {
-    const parsed = syntaxCheckRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, EXECUTION_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = syntaxCheckRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -733,6 +852,7 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.map((issue) => issue.message),
       );
     }
+    if (exceedsExecutionBounds(parsed.data)) return executionTooLarge(context);
     try {
       return context.json(await codeRunner.checkSyntax(parsed.data));
     } catch {
@@ -746,7 +866,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/run-all", async (context) => {
-    const parsed = runAllRequestSchema.safeParse(await context.req.json());
+    const body = await readBody(context, EXECUTION_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = runAllRequestSchema.safeParse(body.value);
     if (!parsed.success) {
       return apiError(
         context,
@@ -756,6 +878,7 @@ console.log(solve([1, 2, 3]));`,
         parsed.error.issues.map((issue) => issue.message),
       );
     }
+    if (exceedsExecutionBounds(parsed.data)) return executionTooLarge(context);
     try {
       return context.json(await codeRunner.runAll(parsed.data));
     } catch {
@@ -769,7 +892,9 @@ console.log(solve([1, 2, 3]));`,
   });
 
   app.post("/api/v1/react-preview", async (context) => {
-    const body = (await context.req.json()) as {
+    const read = await readBody(context, EXECUTION_BODY_LIMIT_BYTES);
+    if (!read.ok) return read.response;
+    const body = (read.value ?? {}) as {
       code?: unknown;
       componentName?: unknown;
     };
@@ -781,6 +906,9 @@ console.log(solve([1, 2, 3]));`,
         "React preview requires non-empty code.",
       );
     }
+    if (exceedsExecutionBounds({ code: body.code })) {
+      return executionTooLarge(context);
+    }
     const componentName =
       typeof body.componentName === "string" &&
       /^[A-Z][A-Za-z0-9_]*$/.test(body.componentName)
@@ -788,36 +916,28 @@ console.log(solve([1, 2, 3]));`,
         : "App";
 
     try {
-      const result = await build({
-        bundle: true,
-        format: "iife",
-        jsx: "automatic",
-        platform: "browser",
-        write: false,
-        stdin: {
-          contents: `
-            import React from 'react';
-            import { createRoot } from 'react-dom/client';
-            ${body.code}
-            const Candidate = typeof ${componentName} !== 'undefined' ? ${componentName} : null;
-            if (!Candidate) {
-              throw new Error('Export or declare a preview component.');
-            }
-            createRoot(document.getElementById('root')).render(React.createElement(Candidate));
-          `,
-          loader: "tsx",
-          resolveDir: process.cwd(),
-        },
+      return context.json({
+        javascript: await bundleReactPreview(body.code, componentName),
       });
-      return context.json({ javascript: result.outputFiles[0]?.text ?? "" });
     } catch (error) {
+      logFailure(context, "react-preview", error);
       return apiError(
         context,
         400,
         "compile_failed",
-        error instanceof Error ? error.message : "React compilation failed.",
+        error instanceof PreviewImportRefusedError ||
+          error instanceof PreviewCompileError
+          ? error.message
+          : "The preview code could not be compiled.",
       );
     }
+  });
+
+  // [SAFETY] A failure no route handled is answered with fixed text; Hono's
+  // default would log the error's message, which can quote the request.
+  app.onError((error, context) => {
+    logFailure(context, "unhandled", error);
+    return apiError(context, 500, "internal_error", "The request failed.");
   });
 
   app.notFound((context) =>

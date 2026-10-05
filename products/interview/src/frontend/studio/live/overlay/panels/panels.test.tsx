@@ -177,16 +177,15 @@ function nativeHost(extra: Record<string, unknown> = {}, studioHost = {}) {
 }
 
 describe("toolbar", () => {
-  it("shows the labelled capture button with its hotkey, the mic with its hotkey, the answer style and a dot", async () => {
+  it("shows the named capture button with its hotkey in the title, the mic likewise, the answer style and a dot", async () => {
     await show("single");
     const capture = screen.getByRole("button", { name: "Analyze screen" });
-    expect(capture).toHaveTextContent("Analyze screen");
-    expect(capture).toHaveTextContent("⌘⇧S");
+    expect(capture).toHaveAttribute("title", expect.stringContaining("⌘⇧S"));
     expect(
       within(screen.getByTestId("pn-pill")).getByRole("button", {
         name: "Start microphone",
       }),
-    ).toHaveTextContent("⌥R");
+    ).toHaveAttribute("title", expect.stringContaining("⌥R"));
     expect(screen.getByTestId("pn-skill")).toHaveTextContent(
       "Data Structures & Algorithms",
     );

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import React from "react";
 
 import { resolvePlatformContext } from "@/src/platform/context";
 import { getProductRegistry } from "@/src/platform/registry";

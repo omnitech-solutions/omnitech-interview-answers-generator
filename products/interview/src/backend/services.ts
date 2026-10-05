@@ -155,18 +155,20 @@ Never invent candidate experience. For personal examples, use only evidence in
 the supplied experience matrix and name the company, system, technology, and
 metric when available. If evidence is absent, say what is missing.`;
 
-const experienceMatrixPath =
-  process.env["INTERVIEW_EXPERIENCE_MATRIX_PATH"] ??
-  "/Users/desoleary/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json";
+// The candidate's experience matrix comes only from this configured file;
+// unset, no file is read and the prompt says the evidence is unavailable.
+async function readExperienceMatrix(): Promise<string> {
+  const path = process.env["INTERVIEW_EXPERIENCE_MATRIX_PATH"];
+  if (!path) return "";
+  return readFile(path, "utf8").catch(() => "");
+}
 
 export async function generateExplanation(
   input: ExplanationRequest,
   generate: StructuredGenerate,
   scope: WorkspaceScope,
 ) {
-  const experienceMatrix = await readFile(experienceMatrixPath, "utf8").catch(
-    () => "",
-  );
+  const experienceMatrix = await readExperienceMatrix();
   const explanation = await generateChecked(
     generate,
     {

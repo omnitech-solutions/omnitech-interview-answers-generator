@@ -4,9 +4,11 @@
 // app) every function here reports "no host" and the page behaves as before.
 import {
   isScreenWatchHost,
+  isStudioHostDisplayId,
   negotiateStudioHost,
   type ScreenWatchHost,
   type StudioHostCaptureRequest,
+  type StudioHostDisplayId,
   type StudioHostHotkey,
   type StudioHostInfo,
 } from "@omnitech/interview-contracts";
@@ -57,13 +59,13 @@ export function shareMenuCopy(): { label: string; sub: string } {
 // windows out). A partial mask asks for that region of the main display.
 export function captureRequestFor(
   mask: Rect,
-  displayId: string | null = null,
+  displayId: StudioHostDisplayId | null = null,
 ): StudioHostCaptureRequest {
   if (isFull(mask)) return { mode: "display" };
   return {
     mode: "region",
     region: { x: mask.x, y: mask.y, width: mask.w, height: mask.h },
-    ...(displayId ? { displayId } : {}),
+    ...(displayId !== null ? { displayId } : {}),
   };
 }
 
@@ -71,7 +73,7 @@ export function captureRequestFor(
 // it is sent back with each region request; the host refuses a region when the
 // main display has changed, and the caller then drops the stored area. Kept in
 // memory only.
-let knownDisplayId: string | null = null;
+let knownDisplayId: StudioHostDisplayId | null = null;
 export const forgetHostDisplay = (): void => {
   knownDisplayId = null;
 };
@@ -140,11 +142,16 @@ export async function captureThroughHost(
   }
   // A region the host would not apply to the display it now captures: the area
   // no longer means what the person drew.
-  if (!result.ok && request.displayId && result.reason === "capture-failed") {
+  if (
+    !result.ok &&
+    request.displayId !== undefined &&
+    result.reason === "capture-failed"
+  ) {
     knownDisplayId = null;
     return { ok: false, reason: "display-changed" };
   }
-  if (result.ok && result.displayId) knownDisplayId = result.displayId;
+  if (result.ok && isStudioHostDisplayId(result.displayId))
+    knownDisplayId = result.displayId;
   if (!result.ok)
     return {
       ok: false,

@@ -42,8 +42,11 @@ afterEach(async () => {
 });
 
 // A browser terminal: everything the gateway writes, and how it closed.
-function connect(path: string) {
-  const socket = new WebSocket(`ws://127.0.0.1:${gateway!.port}${path}`);
+function connect(path: string, origin?: string) {
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${gateway!.port}${path}`,
+    origin === undefined ? {} : { origin },
+  );
   const received: string[] = [];
   socket.on("message", (data) => received.push(data.toString()));
   const closed = new Promise<{ code: number; reason: string }>((resolve) =>
@@ -140,7 +143,7 @@ describe("agent job event gateway", () => {
     );
     terminal.socket.close();
 
-    expect(output).toContain("[observer] Event service returned 503");
+    expect(output).toContain("[observer] Event service unavailable (503).");
     expect(output).toContain("[usage] Updated");
     expect(output).toContain("[failed] Job failed");
     expect(requests[0]?.authorization).toBeUndefined();
@@ -195,14 +198,70 @@ describe("agent job event gateway", () => {
     // A job's events are tenant-owned: observing one needs its tenant too.
     const untenanted = connect(`/terminal?session=${jobId}`);
     const badTenant = connect(`/terminal?session=${jobId}&tenant=everyone`);
+    // Right length and alphabet, wrong shape: path or query tricks stay out.
+    const dashes = connect(
+      `/terminal?session=${"-".repeat(36)}&tenant=${tenantId}`,
+    );
+    const injected = connect(
+      `/terminal?session=${jobId}&tenant=${tenantId.slice(0, 30)}%26x%3D1ab`,
+    );
 
-    for (const terminal of [missing, malformed, untenanted, badTenant]) {
+    for (const terminal of [
+      missing,
+      malformed,
+      untenanted,
+      badTenant,
+      dashes,
+      injected,
+    ]) {
       expect(await terminal.closed).toEqual({
         code: 1008,
         reason: "A valid agent job and tenant id are required.",
       });
     }
     expect(requests).toEqual([]);
+  });
+
+  it("keeps a failing event service's message and URL away from the terminal", async () => {
+    const down = createServer(() => undefined);
+    gateway = await startTerminalGateway({
+      port: 0,
+      platformUrl: "http://127.0.0.1:1/secret-path",
+    });
+    down.close();
+    const terminal = connect(`/terminal?session=${jobId}&tenant=${tenantId}`);
+    const output = await terminal.until((text) => text.includes("[observer]"));
+    terminal.socket.close();
+    expect(output).toContain("[observer] Unable to read events.");
+    expect(output).not.toContain("ECONNREFUSED");
+    expect(output).not.toContain("secret-path");
+  });
+
+  it("refuses a browser origin that is neither the platform, configured, nor loopback", async () => {
+    gateway = await startTerminalGateway({
+      port: 0,
+      platformUrl,
+      allowedOrigins: ["https://studio.example.test"],
+    });
+    const path = `/terminal?session=${jobId}&tenant=${tenantId}`;
+    const foreign = connect(path, "https://evil.example");
+    const foreignError = new Promise<string>((resolve) =>
+      foreign.socket.on("error", (error) => resolve(error.message)),
+    );
+    expect(await foreignError).toContain("403");
+    expect(foreign.received).toEqual([]);
+
+    for (const origin of [
+      "https://studio.example.test",
+      "http://localhost:3000",
+      "http://127.0.0.1:3100",
+      new URL(platformUrl).origin,
+    ]) {
+      const admitted = connect(path, origin);
+      await admitted.until((text) => text.includes("Observing"));
+      admitted.socket.close();
+    }
+    expect(requests.length).toBeGreaterThan(0);
   });
 
   it("answers a plain HTTP request with its identity", async () => {

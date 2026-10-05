@@ -1,3 +1,4 @@
+import { agentPayloadSecret } from "@omnitech/agent-job-service";
 import type {
   AiEvent,
   AiExecution,
@@ -11,6 +12,7 @@ import {
   createFalImageProvider,
   createOpenAiImageProvider,
   createTogetherImageProvider,
+  fillWorkflowPrompt,
 } from "@omnitech/ai-provider-images";
 import {
   createOpenAiCatalogAdapter,
@@ -46,9 +48,7 @@ import { createLocalModelAdapter } from "./local-model";
 function createAgentPort(): AgentExecutionPort {
   const database = getPlatformDatabase();
   const repository = new PostgresAgentJobRepository(database);
-  const secret =
-    process.env["AGENT_PAYLOAD_SECRET"] ??
-    process.env["CONNECTED_ACCOUNT_SECRET"];
+  const secret = agentPayloadSecret(process.env);
 
   async function create(
     request: AiExecutionRequest,
@@ -355,12 +355,7 @@ export function createPlatformAiGateway() {
             } catch {
               throw new Error("COMFYUI_WORKFLOW_JSON must be valid JSON.");
             }
-            const prepared = JSON.parse(
-              JSON.stringify(workflow).replaceAll(
-                "{{prompt}}",
-                request.task.prompt,
-              ),
-            ) as Record<string, unknown>;
+            const prepared = fillWorkflowPrompt(workflow, request.task.prompt);
             const queued = await fetch(`${baseUrl}/prompt`, {
               method: "POST",
               headers: { "content-type": "application/json" },
@@ -577,10 +572,7 @@ export function createPlatformAiGateway() {
         ]
       : []),
     // Claude Code and Codex through their CLI logins, run by the agent worker.
-    ...((process.env["AGENT_PAYLOAD_SECRET"] ??
-    process.env["CONNECTED_ACCOUNT_SECRET"])
-      ? agentAssistantProfiles()
-      : []),
+    ...(agentPayloadSecret(process.env) ? agentAssistantProfiles() : []),
     {
       id: INTERVIEW_ANSWER_PROFILE,
       label: "Interview answers",

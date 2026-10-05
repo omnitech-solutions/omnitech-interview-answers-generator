@@ -7,8 +7,10 @@
 Run from the repository root:
 
 ```bash
-git grep -n -E "from ['\"]next(/|['\"])" -- 'products/*/src/backend/**'
+git grep -n -E "from ['\"]next(/|['\"])" -- 'products/*/src/**'
 ```
+
+**Scope:** all of `products/*/src` (backend, frontend, manifest and shared code): only `apps/web` may import Next.js. biome.json also enforces this edge through `noRestrictedImports`.
 
 **Pass:** No output (exit 1 from `git grep`).
 

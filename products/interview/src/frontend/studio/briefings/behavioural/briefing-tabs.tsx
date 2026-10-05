@@ -5,6 +5,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import { useState } from "react";
 import { Icon } from "../../icon";
+import { copyText } from "../../live/shared/copy-text";
 
 type Tab = "overview" | "stories" | "ask" | "watch";
 
@@ -441,9 +442,9 @@ function AskThem({
                   aria-label={`Copy: ${item.question}`}
                   title={copied === item.question ? "Copied" : "Copy"}
                   onClick={() => {
-                    void navigator.clipboard
-                      ?.writeText(item.question)
-                      .then(() => setCopied(item.question));
+                    void copyText(item.question).then((written) => {
+                      if (written) setCopied(item.question);
+                    });
                   }}
                 >
                   <Icon

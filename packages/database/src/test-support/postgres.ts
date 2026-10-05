@@ -10,6 +10,31 @@ const docker = promisify(execFile);
 // The image compose.yaml runs, so tests see the same PostgreSQL as `pnpm dev`.
 const image = "postgres:17-alpine";
 
+// Checked once per test file: a missing or stopped Docker would otherwise show
+// as a raw `execFile docker ENOENT` that names neither the cause nor the way
+// around it.
+let dockerReady: Promise<void> | undefined;
+function requireDocker(): Promise<void> {
+  dockerReady ??= docker("docker", [
+    "version",
+    "--format",
+    "{{.Server.Version}}",
+  ]).then(
+    () => undefined,
+    (error: NodeJS.ErrnoException & { stderr?: string }) => {
+      const cause =
+        error.code === "ENOENT"
+          ? "the docker command is not installed or not on PATH"
+          : `the Docker daemon did not answer (${(error.stderr ?? error.message).trim().split("\n")[0]})`;
+      throw new Error(
+        `These tests need Docker: they start a disposable PostgreSQL container (${image}), and ${cause}. Start Docker and rerun, or run the suites that do not need it with \`pnpm test:no-docker\`.`,
+        { cause: error },
+      );
+    },
+  );
+  return dockerReady;
+}
+
 export interface DisposablePostgres {
   ownerUrl: string;
   memberUrl: string;
@@ -22,6 +47,7 @@ export interface DisposablePostgres {
 // bypasses row-level security even under FORCE); fixture_member is NOSUPERUSER
 // NOBYPASSRLS, like the application role.
 export async function startDisposablePostgres(): Promise<DisposablePostgres> {
+  await requireDocker();
   const { stdout } = await docker("docker", [
     "run",
     "--detach",

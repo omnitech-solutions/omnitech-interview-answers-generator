@@ -7,7 +7,7 @@
 Run from the repository root:
 
 ```bash
-git grep -n -E "from ['\"](@omnitech/web|[./]*apps/web)" -- 'products/*/src/**'
+git grep -n -E "from ['\"](@omnitech/(web|interview-web)|[./]*apps/web)" -- 'products/*/src/**'
 ```
 
 **Pass:** No output (exit 1 from `git grep`).

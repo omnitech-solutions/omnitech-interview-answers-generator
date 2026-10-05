@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createBriefingClient, InterviewApiError } from "./index.js";
+import { createBriefingClient } from "./index.js";
 
 describe("createBriefingClient", () => {
   it("reads profiles and artifacts, then edits, proposes, applies, and saves explicitly", async () => {

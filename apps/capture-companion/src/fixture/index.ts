@@ -7,7 +7,6 @@ import type { Clock } from "../clock.js";
 import { Companion } from "../companion.js";
 import type { FetchLike } from "../wire-client.js";
 import {
-  fixtureJpeg,
   type RecordingCapture,
   readyDevice,
   recordingCapture,

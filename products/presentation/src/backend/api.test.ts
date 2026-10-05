@@ -16,7 +16,7 @@ import type { PlatformContext } from "@omnitech/platform-contracts";
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import PptxGenJS from "pptxgenjs";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPresentationApi } from "./api.js";
 
 // fixture_member is NOSUPERUSER NOBYPASSRLS, so tenant policies bind it exactly
@@ -659,7 +659,7 @@ describe("themes", () => {
     });
     expect(refused).toEqual({
       status: 400,
-      body: { error: "The PowerPoint file has no theme XML." },
+      body: { error: "The PowerPoint file could not be read as a theme." },
     });
     const garbage = await call("north", "POST", "/themes/import", {
       name: "Nope",
@@ -844,7 +844,7 @@ describe("AI generation", () => {
           prompt: "x",
           profileId: "p",
         }),
-      ).toEqual({ status: 502, body: { error: "model overloaded" } });
+      ).toEqual({ status: 502, body: { error: "Generation failed." } });
       aiFailure = "boom" as never;
       expect(
         (
@@ -888,7 +888,7 @@ describe("AI generation", () => {
         (await call("north", "POST", path, { prompt: "x", profileId: "p" }))
           .body,
       ).toEqual({
-        error: "slide failed",
+        error: "Slide generation failed.",
       });
       aiFailure = 1 as never;
       expect(
@@ -943,6 +943,26 @@ describe("AI generation", () => {
       profileId: "images",
     });
     expect(aiCalls[1]!.task).toMatchObject({ image: {} });
+  });
+
+  it("refuses an image model id that could steer a provider URL", async () => {
+    aiCalls.length = 0;
+    for (const modelId of [
+      "../admin",
+      "/etc/passwd",
+      "https://evil.example/x",
+      "fal-ai/../../x",
+      "a?b=c",
+      "m".repeat(101),
+    ]) {
+      const refused = await call("north", "POST", "/images/generate", {
+        prompt: "x",
+        profileId: "images",
+        modelId,
+      });
+      expect(refused.status).toBe(400);
+    }
+    expect(aiCalls).toHaveLength(0);
   });
 
   it("refuses generated images pointing at loopback unless the provider is ComfyUI", async () => {
@@ -1359,6 +1379,69 @@ describe("cross-tenant references", () => {
           })
         ).status,
       ).toBe(204);
+    }
+  });
+});
+
+describe("request bounds and content-free failures", () => {
+  it("refuses an oversize body by streamed size, ignoring content-length", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"title":"'));
+        controller.enqueue(new TextEncoder().encode("a".repeat(2_200_000)));
+        controller.enqueue(new TextEncoder().encode('"}'));
+        controller.close();
+      },
+    });
+    const response = await app.request(
+      "/presentation/v1/documents?tenant=north",
+      {
+        method: "POST",
+        body: stream,
+        duplex: "half",
+        headers: { "content-length": "10", "content-type": "application/json" },
+      } as RequestInit,
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: "The request is too large.",
+    });
+  });
+
+  it("answers failures with fixed text and logs no request content", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    aiFailure = new Error("provider echoed SECRET-PROMPT-TEXT");
+    try {
+      const generation = await call("north", "POST", "/generate/outline", {
+        prompt: "SECRET-PROMPT-TEXT",
+        profileId: "p",
+      });
+      expect(generation).toEqual({
+        status: 502,
+        body: { error: "Generation failed." },
+      });
+      const exported = await call(
+        "north",
+        "POST",
+        "/documents/not-a-uuid/exports",
+        {
+          format: "pptx",
+          idempotencyKey: "SECRET-PROMPT-TEXT",
+        },
+      );
+      expect(JSON.stringify(exported.body)).not.toContain("SECRET-PROMPT-TEXT");
+      const badImage = await call("north", "POST", "/images/generate", {
+        prompt: "x",
+        profileId: "i",
+      });
+      expect(JSON.stringify(badImage.body)).not.toContain("SECRET-PROMPT-TEXT");
+      expect(JSON.stringify(logged.mock.calls)).not.toContain(
+        "SECRET-PROMPT-TEXT",
+      );
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      aiFailure = undefined;
+      logged.mockRestore();
     }
   });
 });

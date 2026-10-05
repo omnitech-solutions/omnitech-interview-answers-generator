@@ -12,6 +12,8 @@ import type {
   PresentationTheme,
   Slide,
 } from "../domain/index.js";
+import { copyText } from "./copy-text.js";
+import { safeStorage } from "./safe-storage.js";
 import type { SlideBlock, SlideBlockType } from "./slide-blocks.js";
 import {
   parseSlideBlocks,
@@ -20,12 +22,18 @@ import {
   serializeSlideBlocks,
 } from "./slide-blocks.js";
 
+// Shared with the platform shell, which writes the member's saved choice.
+const AI_PROFILE_KEY = "platform.aiProfileId";
+const CREATE_SETTINGS_KEY = "presentation.create-settings";
+const localStore = safeStorage("local");
+const sessionStore = safeStorage("session");
+
 function api(tenantSlug: string, path: string) {
   return `/api/presentation/v1${path}?tenant=${encodeURIComponent(tenantSlug)}`;
 }
 
 function persistSelectedAiProfile(profileId: string) {
-  window.localStorage.setItem("platform.aiProfileId", profileId);
+  localStore.set(AI_PROFILE_KEY, profileId);
   window.dispatchEvent(
     new CustomEvent("platform-ai-profile-change", {
       detail: { profileId },
@@ -305,7 +313,7 @@ export function PresentationLibrary({
                 target.family === "direct-model" && target.kind === "language",
             ),
           );
-          const persisted = window.localStorage.getItem("platform.aiProfileId");
+          const persisted = localStore.get(AI_PROFILE_KEY);
           setTargetId(
             (current) => current || persisted || available[0]?.id || "",
           );
@@ -324,8 +332,8 @@ export function PresentationLibrary({
       return item.title.toLowerCase().includes(search.toLowerCase());
     });
   function openCreate() {
-    sessionStorage.setItem(
-      "presentation.create-settings",
+    sessionStore.set(
+      CREATE_SETTINGS_KEY,
       JSON.stringify({
         prompt: prompt.trim(),
         slideCount,
@@ -563,7 +571,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
   const [targets, setTargets] = useState<AiTargetSummary[]>([]);
   const [targetId, setTargetId] = useState("");
   useEffect(() => {
-    const raw = sessionStorage.getItem("presentation.create-settings");
+    const raw = sessionStore.get(CREATE_SETTINGS_KEY);
     if (raw) {
       try {
         const saved = JSON.parse(raw) as {
@@ -584,7 +592,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
       } catch {
         // Ignore stale settings and let the create form use its defaults.
       }
-      sessionStorage.removeItem("presentation.create-settings");
+      sessionStore.remove(CREATE_SETTINGS_KEY);
     }
   }, []);
   useEffect(
@@ -597,7 +605,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
               target.family === "direct-model" && target.kind === "language",
           );
           setTargets(languageTargets);
-          const persisted = window.localStorage.getItem("platform.aiProfileId");
+          const persisted = localStore.get(AI_PROFILE_KEY);
           setTargetId(
             (current) => current || persisted || languageTargets[0]?.id || "",
           );
@@ -1116,9 +1124,7 @@ export function PresentationEditor({
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             prompt: slidePrompt,
-            profileId:
-              window.localStorage.getItem("platform.aiProfileId") ||
-              "document-fast",
+            profileId: localStore.get(AI_PROFILE_KEY) || "document-fast",
             position: document.slides.length,
           }),
         },
@@ -1252,8 +1258,11 @@ export function PresentationEditor({
       setShareId(result.id);
       const url = `${window.location.origin}/share/presentation/${result.token}`;
       setShareUrl(url);
-      await navigator.clipboard?.writeText(url);
-      setStatus("Share link ready.");
+      setStatus(
+        (await copyText(url))
+          ? "Share link ready and copied."
+          : "Share link ready.",
+      );
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "Share failed.");
     }

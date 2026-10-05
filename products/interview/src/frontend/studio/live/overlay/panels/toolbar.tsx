@@ -13,6 +13,7 @@ import { SKILLS } from "../../shared/skills";
 import { DEFAULT_SKILL } from "./commands";
 import type { PanelSession } from "./panel-views";
 import { Popover } from "./popover";
+import { hasCapability } from "./presentation-host";
 import type { Panes } from "./single-panel";
 import {
   CAPTURE_MODES,
@@ -21,6 +22,8 @@ import {
   captureMenuItems,
   nativeChord,
   PANES,
+  WINDOW_CONTROLS,
+  type WindowControlAction,
 } from "./toolbar-config";
 
 type Tone = "green" | "red" | "neutral";
@@ -43,6 +46,57 @@ type WindowControls = {
   // A menu is open: the window keeps room below the bar for it.
   onMenuOpen(open: boolean): void;
 };
+
+// The window's own controls. Red hides it, which is only offered where the
+// shell can bring it back (a native window); elsewhere it stays disabled so the
+// window can never be made invisible without a way back.
+export function WindowDots({
+  panes,
+  presentation,
+  dimmed,
+}: {
+  panes: Panes;
+  presentation: PresentationHost;
+  dimmed: boolean;
+}) {
+  const recoverable = hasCapability(presentation, "always-on-top");
+  const run: Record<WindowControlAction, () => void> = {
+    hide: () => void presentation.setVisible(false),
+    collapse: () => panes.setAll(false),
+    expand: () => panes.setAll(true),
+  };
+  return (
+    <div
+      className="pn-dots"
+      role="group"
+      aria-label="Window controls"
+      data-dimmed={dimmed ? "true" : undefined}
+    >
+      {WINDOW_CONTROLS.map((control) => {
+        const unavailable = control.action === "hide" && !recoverable;
+        return (
+          <button
+            key={control.id}
+            type="button"
+            className="pn-window-dot"
+            data-colour={control.colour}
+            data-testid={`pn-dot-${control.id}`}
+            aria-label={control.label}
+            title={
+              unavailable
+                ? "Only the Mac app can hide its window and bring it back"
+                : control.title
+            }
+            disabled={unavailable}
+            onClick={run[control.action]}
+          >
+            <span aria-hidden="true">{control.glyph}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Toolbar({
   s,
@@ -68,12 +122,17 @@ export function Toolbar({
       aria-label="Session controls"
       data-testid="pn-pill"
     >
+      <WindowDots
+        panes={controls.panes}
+        presentation={controls.presentation}
+        dimmed={clickThrough}
+      />
       <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
         <button
           type="button"
           className="pn-split-main"
           aria-label={control.label}
-          title={control.title}
+          title={`${control.title} · ${nativeChord("analyze")}`}
           disabled={!s.open}
           onClick={() => s.press("capture")}
         >
@@ -91,8 +150,6 @@ export function Toolbar({
               data-testid="pn-dot"
             />
           </span>
-          <span className="pn-split-label">{control.label}</span>
-          <kbd>{nativeChord("analyze")}</kbd>
         </button>
         <Popover
           open={menu === "mode"}
@@ -148,8 +205,9 @@ export function Toolbar({
       </div>
       <button
         type="button"
-        className="pn-bar-button pn-mic-button"
+        className="pn-bar-button pn-icon-button pn-mic-button"
         aria-label={recording ? "Stop microphone" : "Start microphone"}
+        title={`${recording ? "Stop microphone" : "Start microphone"} · ${nativeChord("listening")}`}
         aria-pressed={recording}
         data-mic={s.live.mic}
         disabled={!s.open}
@@ -168,7 +226,6 @@ export function Toolbar({
             <i />
           </span>
         )}
-        <kbd>{nativeChord("listening")}</kbd>
       </button>
       <Popover
         open={menu === "skill"}
@@ -229,13 +286,13 @@ export function Toolbar({
         <button
           key={pane.id}
           type="button"
-          className="pn-bar-button"
+          className="pn-bar-button pn-icon-button"
+          aria-label={pane.label}
           aria-pressed={controls.panes.shown[pane.id]}
           title={pane.title}
           onClick={() => controls.panes.toggle(pane.id)}
         >
           <Icon name={pane.icon} />
-          {pane.label}
         </button>
       ))}
       {s.interaction !== null && (

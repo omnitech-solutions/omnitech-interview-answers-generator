@@ -4,7 +4,6 @@ import type {
   LibraryContentType,
   LibraryFacets,
   LibraryItem,
-  LibraryItemInput,
   LibrarySearchHit,
   LibrarySearchResponse,
 } from "@omnitech/interview-contracts";

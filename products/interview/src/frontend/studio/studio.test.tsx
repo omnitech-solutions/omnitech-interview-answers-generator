@@ -447,11 +447,14 @@ describe("Studio shell", () => {
   it("keeps one theme for the shell, its views and the assistant", async () => {
     await renderStudio();
     expect(host.config.theme).toBe("light");
+    const asked = vi.fn();
+    window.addEventListener("platform-theme-change", asked);
     fireEvent.click(screen.getByRole("button", { name: "Use dark theme" }));
-    expect(document.documentElement.dataset["theme"]).toBe("dark");
-    expect(window.localStorage.getItem("interview-playground.theme")).toBe(
-      "dark",
-    );
+    window.removeEventListener("platform-theme-change", asked);
+    // The platform shell applies and saves it; the studio only asks.
+    expect(
+      (asked.mock.calls[0]?.[0] as CustomEvent<{ theme: string }>).detail,
+    ).toEqual({ theme: "dark" });
     expect(host.config.theme).toBe("dark");
     act(() => host.config.host!.onThemeChange!("light"));
     expect(host.config.theme).toBe("light");

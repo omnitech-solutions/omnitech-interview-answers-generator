@@ -210,6 +210,53 @@ describe("agent worker lifecycle", () => {
     });
   });
 
+  it("fails a job that outlives its profile timeout and cancels the runtime, even when the runtime ignores the cancel", async () => {
+    const controller = new AbortController();
+    const repository = repositoryFor(
+      job({ profile: { ...profile, timeoutMs: 40 } }),
+      () => controller.abort(),
+    );
+    const cancelled: string[] = [];
+    await runAgentWorker(
+      {
+        workerId: "worker",
+        repository,
+        runtimes: {
+          "claude-code": {
+            runtime: "claude-code",
+            capabilities: {
+              resume: false,
+              structuredOutput: true,
+              attachments: false,
+              tools: false,
+            },
+            // Never yields and never ends, whatever cancel does.
+            async *run(): AsyncIterable<AgentEvent> {
+              await new Promise<void>(() => undefined);
+            },
+            async *resume(): AsyncIterable<AgentEvent> {},
+            async cancel(id: string) {
+              cancelled.push(id);
+            },
+          },
+        },
+        loadPrompt: async () => "write",
+        pollIntervalMs: 5,
+      },
+      controller.signal,
+    );
+    expect(cancelled).toHaveLength(1);
+    expect(repository.transitions.at(-1)).toBe("failed");
+    expect(repository.events.at(-1)).toEqual({
+      type: "failed",
+      error: {
+        code: "timeout",
+        message: "The agent job exceeded its time limit.",
+        retryable: true,
+      },
+    });
+  });
+
   it("resumes a checkpoint and stores the completed result", async () => {
     const controller = new AbortController();
     const repository = repositoryFor(

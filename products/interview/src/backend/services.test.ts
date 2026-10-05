@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { guideSaying } from "../answer-fixture.js";
 
 // The host's model: one structured reply per call.
@@ -123,6 +126,52 @@ describe("generateInterviewAnswer", () => {
       "Additional context:\nTechnical interview",
     );
     expect(request.system).toContain(conceptExplanationSystemPrompt);
+  });
+
+  describe("candidate experience matrix", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("reads no file and says the evidence is unavailable when no path is configured", async () => {
+      vi.stubEnv("INTERVIEW_EXPERIENCE_MATRIX_PATH", "");
+      generate.mockResolvedValueOnce({
+        title: "Queues",
+        markdown: commentedExample,
+      });
+      await generateExplanation({ topic: "Queues" }, generate, scope);
+      expect(generate.mock.calls[0]![0].prompt).toContain(
+        "Candidate experience matrix is unavailable.",
+      );
+    });
+
+    it("includes the configured file as evidence", async () => {
+      const path = join(mkdtempSync(join(tmpdir(), "matrix-")), "matrix.json");
+      writeFileSync(path, '{"evidence":"configured-matrix-marker"}');
+      vi.stubEnv("INTERVIEW_EXPERIENCE_MATRIX_PATH", path);
+      generate.mockResolvedValueOnce({
+        title: "Queues",
+        markdown: commentedExample,
+      });
+      await generateExplanation({ topic: "Queues" }, generate, scope);
+      expect(generate.mock.calls[0]![0].prompt).toContain(
+        "Candidate experience matrix (authoritative evidence):",
+      );
+      expect(generate.mock.calls[0]![0].prompt).toContain(
+        "configured-matrix-marker",
+      );
+    });
+
+    it("treats an unreadable configured path as unavailable evidence", async () => {
+      vi.stubEnv(
+        "INTERVIEW_EXPERIENCE_MATRIX_PATH",
+        "/nonexistent/matrix.json",
+      );
+      generate.mockResolvedValueOnce({
+        title: "Queues",
+        markdown: commentedExample,
+      });
+      await generateExplanation({ topic: "Queues" }, generate, scope);
+      expect(generate.mock.calls[0]![0].prompt).toContain("is unavailable.");
+    });
   });
 
   it("omits optional explanation inputs", async () => {

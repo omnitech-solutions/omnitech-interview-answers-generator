@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   type AgentJob,
-  AgentJobService,
   type AgentJobRepository,
+  AgentJobService,
+  agentPayloadSecret,
 } from "./index.js";
 
 function makeRepository(): AgentJobRepository & {
@@ -139,5 +140,32 @@ describe("agent job service", () => {
     await expect(service.events("tenant-2", "user-1", "job-1")).rejects.toThrow(
       "Agent job was not found.",
     );
+  });
+});
+
+describe("agentPayloadSecret", () => {
+  it("prefers the dedicated payload secret", () => {
+    expect(
+      agentPayloadSecret({
+        AGENT_PAYLOAD_SECRET: "payload",
+        CONNECTED_ACCOUNT_SECRET: "account",
+      }),
+    ).toBe("payload");
+  });
+
+  it("falls back to the connected-account secret for local development", () => {
+    expect(agentPayloadSecret({ CONNECTED_ACCOUNT_SECRET: "account" })).toBe(
+      "account",
+    );
+    expect(
+      agentPayloadSecret({
+        AGENT_PAYLOAD_SECRET: "",
+        CONNECTED_ACCOUNT_SECRET: "account",
+      }),
+    ).toBe("account");
+  });
+
+  it("is undefined when neither secret is set", () => {
+    expect(agentPayloadSecret({})).toBeUndefined();
   });
 });

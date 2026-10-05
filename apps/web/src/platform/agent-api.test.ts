@@ -116,3 +116,65 @@ describe("POST /platform/v1/agent-jobs/:id/resume", () => {
     expect((await jobRow(jobId))?.status).toBe("queued");
   });
 });
+
+describe("request bounds and content-free failures", () => {
+  it("refuses an oversize resume body by streamed size, ignoring content-length", async () => {
+    const jobId = await endedSessionJob(false);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"prompt":"'));
+        controller.enqueue(new TextEncoder().encode("p".repeat(2_200_000)));
+        controller.enqueue(new TextEncoder().encode('"}'));
+        controller.close();
+      },
+    });
+    const response = await createAgentApi().request(
+      `/platform/v1/agent-jobs/${jobId}/resume?tenant=acme`,
+      {
+        method: "POST",
+        body: stream,
+        duplex: "half",
+        headers: { "content-length": "10" },
+      } as RequestInit,
+    );
+    expect(response.status).toBe(413);
+    expect((await jobRow(jobId))?.status).toBe("cancelled");
+  });
+
+  it("answers a failed resume with fixed text and logs no prompt", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const jobId = await endedSessionJob(true);
+    const response = await createAgentApi().request(
+      `/platform/v1/agent-jobs/${jobId}/resume?tenant=acme`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prompt: "SECRET-PROMPT-TEXT" }),
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Unable to resume job." });
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(
+      "SECRET-PROMPT-TEXT",
+    );
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it("answers a failed job creation with fixed text", async () => {
+    const response = await createAgentApi().request(
+      "/platform/v1/agent-jobs?tenant=acme",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          productId: "omnitech.interview",
+          profileId: "coding-fast",
+          prompt: "SECRET-PROMPT-TEXT",
+        }),
+      },
+    );
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(await response.text()).not.toContain("SECRET-PROMPT-TEXT");
+  });
+});

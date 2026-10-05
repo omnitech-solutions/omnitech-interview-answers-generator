@@ -9,6 +9,7 @@ import {
 import { useRef, useState } from "react";
 import { formatRelativeTime } from "../../../format-timestamp";
 import { Icon } from "../../icon";
+import { Dialog } from "../../shared/dialog";
 import { DEFAULT_PROFILE_ID } from "./config";
 
 export type ProfileRef = { id: string; revision: number };
@@ -234,124 +235,122 @@ function ImportMatrixDialog({
   }
 
   return (
-    <div className="bp-scrim" onClick={onClose}>
-      <div
-        className="bp-dialog"
-        role="dialog"
-        aria-label="Import an experience matrix"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="bp-dialog-head">
-          <span className="bp-grow">Import an experience matrix</span>
-          <button
-            type="button"
-            className="studio-icon-button"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        <div className="bp-dialog-body">
-          <button
-            type="button"
-            className="bp-drop"
-            onClick={() => fileInput.current?.click()}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const file = event.dataTransfer.files[0];
-              if (file) void read(file);
-            }}
-          >
-            <Icon name="upload_file" size={26} />
-            <span>Drop a matrix .json file, or click to choose</span>
-            {fileName && <span className="bp-mono">{fileName}</span>}
-          </button>
-          <input
-            ref={fileInput}
-            hidden
-            type="file"
-            accept="application/json,.json"
-            aria-label="Matrix JSON file"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void read(file);
-            }}
-          />
-          <div className="bp-or">or paste JSON</div>
-          <textarea
-            className="bp-mono"
-            rows={4}
-            aria-label="Matrix JSON"
-            placeholder='{ "candidate": { … }, "roles": [ … ] }'
-            value={source}
-            onChange={(event) => {
-              setFileName("");
-              setSource(event.target.value);
-            }}
-          />
-          {parsed && "error" in parsed && (
-            <p className="bp-error" role="alert">
-              <Icon name="error" />
-              {parsed.error}
-            </p>
-          )}
-          {matrix && (
-            <div className="bp-preview">
-              <strong>Preview</strong>
-              <div className="bp-stats">
-                <div>
-                  <span>Roles</span>
-                  <b>{matrix.roles.length}</b>
-                </div>
-                <div>
-                  <span>Stories</span>
-                  <b>{matrix.story_selector?.length ?? 0}</b>
-                </div>
-                <div>
-                  <span>Repositories</span>
-                  <b>{matrix.repositories_of_note?.length ?? 0}</b>
-                </div>
-              </div>
-              {undated > 0 && (
-                <p className="bp-note">
-                  <Icon name="warning" />
-                  {undated} role{undated === 1 ? " has" : "s have"} no dates.
-                  They’ll still be used.
-                </p>
-              )}
-              <label className="bp-check">
-                <input
-                  type="checkbox"
-                  checked={asDefault}
-                  onChange={(event) => setAsDefault(event.target.checked)}
-                />
-                Make this my default matrix
-              </label>
-            </div>
-          )}
-          {failure && (
-            <p className="bp-error" role="alert">
-              <Icon name="error" />
-              {failure}
-            </p>
-          )}
-        </div>
-        <div className="bp-dialog-foot">
-          <button type="button" className="studio-button" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="studio-button primary"
-            disabled={!matrix || busy}
-            onClick={() => void save()}
-          >
-            {busy ? "Importing…" : "Import matrix"}
-          </button>
-        </div>
+    <Dialog
+      title="Import an experience matrix"
+      onClose={onClose}
+      scrimClassName="bp-scrim"
+      className="bp-dialog"
+    >
+      <div className="bp-dialog-head">
+        <span className="bp-grow">Import an experience matrix</span>
+        <button
+          type="button"
+          className="studio-icon-button"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <Icon name="close" />
+        </button>
       </div>
-    </div>
+      <div className="bp-dialog-body">
+        <button
+          type="button"
+          className="bp-drop"
+          onClick={() => fileInput.current?.click()}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            if (file) void read(file);
+          }}
+        >
+          <Icon name="upload_file" size={26} />
+          <span>Drop a matrix .json file, or click to choose</span>
+          {fileName && <span className="bp-mono">{fileName}</span>}
+        </button>
+        <input
+          ref={fileInput}
+          hidden
+          type="file"
+          accept="application/json,.json"
+          aria-label="Matrix JSON file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void read(file);
+          }}
+        />
+        <div className="bp-or">or paste JSON</div>
+        <textarea
+          className="bp-mono"
+          rows={4}
+          aria-label="Matrix JSON"
+          placeholder='{ "candidate": { … }, "roles": [ … ] }'
+          value={source}
+          onChange={(event) => {
+            setFileName("");
+            setSource(event.target.value);
+          }}
+        />
+        {parsed && "error" in parsed && (
+          <p className="bp-error" role="alert">
+            <Icon name="error" />
+            {parsed.error}
+          </p>
+        )}
+        {matrix && (
+          <div className="bp-preview">
+            <strong>Preview</strong>
+            <div className="bp-stats">
+              <div>
+                <span>Roles</span>
+                <b>{matrix.roles.length}</b>
+              </div>
+              <div>
+                <span>Stories</span>
+                <b>{matrix.story_selector?.length ?? 0}</b>
+              </div>
+              <div>
+                <span>Repositories</span>
+                <b>{matrix.repositories_of_note?.length ?? 0}</b>
+              </div>
+            </div>
+            {undated > 0 && (
+              <p className="bp-note">
+                <Icon name="warning" />
+                {undated} role{undated === 1 ? " has" : "s have"} no dates.
+                They’ll still be used.
+              </p>
+            )}
+            <label className="bp-check">
+              <input
+                type="checkbox"
+                checked={asDefault}
+                onChange={(event) => setAsDefault(event.target.checked)}
+              />
+              Make this my default matrix
+            </label>
+          </div>
+        )}
+        {failure && (
+          <p className="bp-error" role="alert">
+            <Icon name="error" />
+            {failure}
+          </p>
+        )}
+      </div>
+      <div className="bp-dialog-foot">
+        <button type="button" className="studio-button" onClick={onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="studio-button primary"
+          disabled={!matrix || busy}
+          onClick={() => void save()}
+        >
+          {busy ? "Importing…" : "Import matrix"}
+        </button>
+      </div>
+    </Dialog>
   );
 }

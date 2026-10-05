@@ -85,6 +85,8 @@ const VALUE_FLAGS = new Set([
   "--cap-drop",
   "--network",
   "--memory",
+  "--memory-swap",
+  "--user",
   "--cpus",
   "--pids-limit",
   "--tmpfs",
@@ -166,6 +168,12 @@ function expectSandboxed(
   expect(values(parsed, "--network")).toEqual(["none"]);
   // Bounded resources, exactly as documented.
   expect(values(parsed, "--memory")).toEqual([bounds.memory]);
+  // Swap equals memory, so the memory bound cannot be exceeded by swapping.
+  expect(values(parsed, "--memory-swap")).toEqual([bounds.memory]);
+  // A numeric, non-root uid:gid, whatever user the image defaults to.
+  const user = values(parsed, "--user") as string[];
+  expect(user).toHaveLength(1);
+  expect(user[0]).toMatch(/^[1-9][0-9]*:[1-9][0-9]*$/);
   expect(values(parsed, "--cpus")).toEqual([bounds.cpus]);
   expect(values(parsed, "--pids-limit")).toEqual([bounds.pidsLimit]);
   // Read-only root and a no-exec, no-setuid tmpfs the only scratch space.
@@ -197,7 +205,6 @@ function expectSandboxed(
     "--ipc",
     "--uts",
     "--userns",
-    "--user",
     "--env-file",
     "--volumes-from",
     "--mount",
@@ -356,6 +363,10 @@ describe("the assertions are not vacuous", () => {
     "none",
     "--memory",
     "128m",
+    "--memory-swap",
+    "128m",
+    "--user",
+    "65534:65534",
     "--cpus",
     "0.5",
     "--pids-limit",
@@ -383,6 +394,31 @@ describe("the assertions are not vacuous", () => {
     ["pull allowed", mutate((v) => v.filter((x) => x !== "--pull=never"))],
     ["network host", mutate((v) => v.map((x) => (x === "none" ? "host" : x)))],
     ["more memory", mutate((v) => v.map((x) => (x === "128m" ? "512m" : x)))],
+    [
+      "swap beyond memory",
+      mutate((v) => {
+        const i = v.indexOf("--memory-swap");
+        return v.map((x, at) => (at === i + 1 ? "1g" : x));
+      }),
+    ],
+    [
+      "no memory-swap",
+      mutate((v) => {
+        const i = v.indexOf("--memory-swap");
+        return [...v.slice(0, i), ...v.slice(i + 2)];
+      }),
+    ],
+    [
+      "root user",
+      mutate((v) => v.map((x) => (x === "65534:65534" ? "0:0" : x))),
+    ],
+    [
+      "no user",
+      mutate((v) => {
+        const i = v.indexOf("--user");
+        return [...v.slice(0, i), ...v.slice(i + 2)];
+      }),
+    ],
     ["more cpus", mutate((v) => v.map((x) => (x === "0.5" ? "4" : x)))],
     ["more pids", mutate((v) => v.map((x) => (x === "64" ? "4096" : x)))],
     ["writable root", mutate((v) => v.filter((x) => x !== "--read-only"))],

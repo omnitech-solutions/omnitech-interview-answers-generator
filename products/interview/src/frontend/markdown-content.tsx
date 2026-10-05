@@ -15,6 +15,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { highlighterFor, THEMES } from "./shiki-highlighter";
+import { useCopied } from "./studio/shared/use-copied";
 
 function MermaidDiagram({ source }: { source: string }) {
   const reactId = useId();
@@ -22,7 +23,7 @@ function MermaidDiagram({ source }: { source: string }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   const [showSource, setShowSource] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy: copyToClipboard } = useCopied();
   const diagramRef = useRef<HTMLDivElement>(null);
   const panzoomRef = useRef<PanzoomObject | null>(null);
 
@@ -97,10 +98,8 @@ function MermaidDiagram({ source }: { source: string }) {
     };
   }, [svg]);
 
-  async function copySource() {
-    await navigator.clipboard.writeText(source);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1_500);
+  function copySource() {
+    void copyToClipboard(source);
   }
 
   async function toggleFullscreen() {
@@ -245,7 +244,7 @@ function ShikiCodeBlock({
   source: string;
 }) {
   const [html, setHtml] = useState("");
-  const [copied, setCopied] = useState(false);
+  const { copied, copy: copyToClipboard } = useCopied();
 
   useEffect(() => {
     let active = true;
@@ -274,10 +273,8 @@ function ShikiCodeBlock({
     };
   }, [language, source]);
 
-  async function copy() {
-    await navigator.clipboard.writeText(source);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1_500);
+  function copy() {
+    void copyToClipboard(source);
   }
 
   return (

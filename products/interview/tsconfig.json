@@ -6,5 +6,10 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  // The build ships no test files in dist. `pnpm typecheck` uses
+  // tsconfig.typecheck.json, which still checks them. Fixtures stay emitted for
+  // now (production-included worlds import them); scripts/test-exclusion.test.ts
+  // keeps tests out and keeps test frameworks unreachable from entrypoints.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

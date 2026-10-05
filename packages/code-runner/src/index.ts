@@ -204,6 +204,12 @@ function isDockerDaemonUnavailable(stderr: string): boolean {
   );
 }
 
+// [SAFETY] A numeric non-root uid and gid (the conventional "nobody"), so a
+// breakout starts unprivileged whatever user the image defaults to. Numeric so
+// it needs no passwd entry. --memory-swap equals --memory everywhere, so the
+// memory limit cannot be exceeded by swapping.
+const SANDBOX_USER = "65534:65534";
+
 export class DockerCodeRunner implements CodeRunner {
   constructor(private readonly options: DockerCodeRunnerOptions = {}) {}
 
@@ -218,6 +224,10 @@ export class DockerCodeRunner implements CodeRunner {
       "none",
       "--memory",
       "128m",
+      "--memory-swap",
+      "128m",
+      "--user",
+      SANDBOX_USER,
       "--cpus",
       "0.5",
       "--pids-limit",
@@ -246,7 +256,9 @@ export class DockerCodeRunner implements CodeRunner {
       input.language === "php"
         ? buildPhpTestSource(input.code, "")
         : input.code;
-    await writeFile(sourcePath, source, { mode: 0o600 });
+    // Readable by the sandbox user; the temporary directory itself is 0700, so
+    // no other host user can reach it.
+    await writeFile(sourcePath, source, { mode: 0o644 });
 
     const dockerArguments = [
       "run",
@@ -255,6 +267,10 @@ export class DockerCodeRunner implements CodeRunner {
       "none",
       "--memory",
       "128m",
+      "--memory-swap",
+      "128m",
+      "--user",
+      SANDBOX_USER,
       "--cpus",
       "0.5",
       "--pids-limit",
@@ -308,11 +324,17 @@ export class DockerCodeRunner implements CodeRunner {
         : [input.code, input.testCode]
             .filter((section) => section.trim())
             .join("\n\n");
-    await writeFile(sourcePath, source, { mode: 0o600 });
+    // Readable by the sandbox user; the temporary directory itself is 0700, so
+    // no other host user can reach it.
+    await writeFile(sourcePath, source, { mode: 0o644 });
     // The only writable mount: the framework's report, read back below.
     const outputDirectory = join(temporaryDirectory, "out");
     await mkdir(outputDirectory);
-    await chmod(outputDirectory, 0o777);
+    // The container runs as SANDBOX_USER, not the owner of this directory, so
+    // it needs write and search access as "other" to create the report. It
+    // gets no read access (-wx): it cannot list or read what is there, and the
+    // host (the owner) reads and removes the report. Narrower than 0777.
+    await chmod(outputDirectory, 0o703);
 
     const dockerArguments = [
       "run",
@@ -322,6 +344,10 @@ export class DockerCodeRunner implements CodeRunner {
       "none",
       "--memory",
       "256m",
+      "--memory-swap",
+      "256m",
+      "--user",
+      SANDBOX_USER,
       "--cpus",
       "1",
       "--pids-limit",

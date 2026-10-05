@@ -17,6 +17,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, type IconName } from "../icon";
 import { Resizer, useStoredSize } from "../resizer";
+import { useCopied } from "../shared/use-copied";
 import {
   AssistantChangeBanner,
   type EditorFile,
@@ -123,7 +124,7 @@ export function CodePanel({
   // [STRATEGY] Results stay a one-line bar until there is something to read;
   // a run opens them.
   const [open, setOpen] = useState(run.kind !== "idle");
-  const [copied, setCopied] = useState(false);
+  const { copied, copy: copyToClipboard } = useCopied();
   const names = FILE_NAMES[language];
   const change = previewedChange(preview, file);
   const failing =
@@ -193,12 +194,7 @@ export function CodePanel({
           className="ws-code-icon"
           aria-label={copied ? "Code copied" : "Copy code"}
           title={copied ? "Code copied" : "Copy code"}
-          onClick={() =>
-            void navigator.clipboard?.writeText(sources[file]).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            })
-          }
+          onClick={() => void copyToClipboard(sources[file])}
         >
           <Icon name={copied ? "check" : "content_copy"} size={16} />
         </button>

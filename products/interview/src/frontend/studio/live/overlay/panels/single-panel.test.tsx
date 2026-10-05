@@ -157,7 +157,7 @@ describe("capture button and mode menu", () => {
     ]);
     await show();
     const stop = screen.getByRole("button", { name: "Stop" });
-    expect(stop).toHaveTextContent("⌘⇧S");
+    expect(stop).toHaveAttribute("title", expect.stringContaining("⌘⇧S"));
   });
 
   it("opens a real menu whose items carry subtitles from the Auto config", async () => {
@@ -232,13 +232,77 @@ describe("capture button and mode menu", () => {
   });
 });
 
+describe("window controls", () => {
+  const dot = (id: string) => screen.getByTestId(`pn-dot-${id}`);
+
+  it("draws red, yellow and green, named, in order", async () => {
+    nativeHost();
+    await show();
+    const dots = within(screen.getByRole("group", { name: "Window controls" }))
+      .getAllByRole("button")
+      .map((button) => [
+        button.getAttribute("aria-label"),
+        button.getAttribute("data-colour"),
+      ]);
+    expect(dots).toEqual([
+      ["Hide window", "red"],
+      ["Collapse to toolbar", "yellow"],
+      ["Show all panes", "green"],
+    ]);
+  });
+
+  it("red hides the window through the shell, and says how it comes back", async () => {
+    const setVisible = vi.fn(async () => true);
+    nativeHost({
+      setVisible,
+      capabilities: ["click-through", "always-on-top"],
+    });
+    await show();
+    expect(dot("hide")).toHaveAttribute(
+      "title",
+      expect.stringContaining("⌘⇧V"),
+    );
+    fireEvent.click(dot("hide"));
+    expect(setVisible).toHaveBeenCalledWith(false);
+  });
+
+  it("never offers hide where nothing can bring the window back", async () => {
+    nativeHost();
+    await show();
+    expect(dot("hide")).toBeDisabled();
+    expect(dot("collapse")).toBeEnabled();
+  });
+
+  it("yellow collapses to the bare toolbar and green shows every pane again", async () => {
+    nativeHost();
+    await show();
+    expect(document.querySelector(".pn-single-body")).not.toBeNull();
+    fireEvent.click(dot("collapse"));
+    expect(document.querySelector(".pn-single-body")).toBeNull();
+    expect(screen.getByTestId("pn-pill")).toBeVisible();
+    fireEvent.click(dot("expand"));
+    expect(
+      document.querySelectorAll(".pn-single-pane[data-which]"),
+    ).toHaveLength(3);
+  });
+
+  it("dims while the window ignores the mouse", async () => {
+    const host = nativeHost();
+    await show();
+    const group = screen.getByRole("group", { name: "Window controls" });
+    expect(group).not.toHaveAttribute("data-dimmed");
+    await host.set(false);
+    expect(group).toHaveAttribute("data-dimmed", "true");
+  });
+});
+
 describe("microphone", () => {
   it("shows its hotkey, and bars only while listening", async () => {
     await show();
     const mic = within(screen.getByTestId("pn-pill")).getByRole("button", {
       name: "Start microphone",
     });
-    expect(mic).toHaveTextContent("⌥R");
+    expect(mic).toHaveAttribute("title", expect.stringContaining("⌥R"));
     expect(screen.queryByTestId("pn-level")).toBeNull();
   });
 });

@@ -128,7 +128,6 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         let window = PanelWindow(kind: .settings, webView: makeWebView(), frame: frame) { [weak self] frame in
             self?.model.prefs.saveFrame(.settings, frame)
         }
-        wireControls(window)
         settings = window
         load(window.webView, .window(.settings), onlyIfBlank: true)
         return window
@@ -140,18 +139,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         let window = PanelWindow(kind: .compact, webView: makeWebView(), frame: frame) { [weak self] frame in
             self?.model.prefs.saveFrame(.compact, frame)
         }
-        wireControls(window)
         compact = window
         load(window.webView, .window(.compact), onlyIfBlank: true)
         return window
-    }
-
-    // The strip's buttons: close quits the app; expand opens the main Studio window.
-    private func wireControls(_ window: PanelWindow) {
-        window.onClose = { NSApp.terminate(nil) }
-        // Green maximizes to the full Studio view. The analysis is revealed by the
-        // toolbar (a wider window), never by a handle of its own.
-        window.onExpand = { [weak self] in self?.requestMode(.expanded) }
     }
 
     private func showMain() {
@@ -197,9 +187,6 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     let panel: StudioPanel
     let webView: WKWebView
     private let onFrame: (CGRect) -> Void
-    /// What the strip's buttons ask for: quit the app, or open the main window.
-    var onClose: (() -> Void)?
-    var onExpand: (() -> Void)?
 
     init(kind: WindowKind, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.webView = webView
@@ -216,19 +203,12 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         super.init()
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        // Settings has no chrome: no traffic lights, no title strip. Only the compact
-        // window keeps its lights (red quits, green expands).
+        // [DOMAIN] No system traffic lights on either window: they grey out when
+        // the non-activating panel is not key. The compact window draws its own
+        // always-coloured dots in the page toolbar (hide, collapse, expand).
         let isCompact = kind == .compact
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        if let close = panel.standardWindowButton(.closeButton) {
-            close.isHidden = !isCompact
-            close.target = self
-            close.action = #selector(closeTapped)
-        }
-        if let zoom = panel.standardWindowButton(.zoomButton) {
-            zoom.isHidden = !isCompact
-            zoom.target = self
-            zoom.action = #selector(zoomTapped)
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            panel.standardWindowButton(button)?.isHidden = true
         }
         panel.isMovableByWindowBackground = true
         panel.setFrame(frame, display: false)
@@ -266,10 +246,8 @@ final class PanelWindow: NSObject, NSWindowDelegate {
             bar.autoresizingMask = [.width, .minYMargin]
             container.addSubview(bar)
         }
-        // [DOMAIN] Real controls, because a chromeless window has no title bar to
-        // close it by: close (quits the app), expand (the main Studio window), and
-        // resize handles on every edge and corner (a borderless-looking window gets
-        // no native edge-resize where the web view covers the frame).
+        // [DOMAIN] Resize handles on every edge and corner (a borderless-looking
+        // window gets no native edge-resize where the web view covers the frame).
         for edge in ResizeHandle.Edge.allCases {
             let handle = ResizeHandle(edge: edge, minSize: panel.minSize)
             handle.frame = edge.frame(in: size)
@@ -307,9 +285,6 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         let problems = PanelChrome.violations(snapshot)
         if !problems.isEmpty { NSLog("studio-shell: window is not see-through: %@", problems.joined(separator: "; ")) }
     }
-
-    @objc private func closeTapped() { onClose?() }
-    @objc private func zoomTapped() { onExpand?() }
 
     // The height the window had before it was fitted to its content.
     private var tallHeight: CGFloat?

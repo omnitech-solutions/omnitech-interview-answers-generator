@@ -1,4 +1,4 @@
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, realpathSync, statSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 
@@ -22,10 +22,14 @@ export async function GET(
   if (!root) return new Response(null, { status: 404 });
   // [GUARD] Only files inside the model directory, never a path out of it.
   const { path } = await context.params;
-  const base = resolve(root);
-  const file = resolve(base, ...path);
+  // [SAFETY] Compare real paths: a symlink inside the directory must not lead
+  // out of it.
+  let base: string;
+  let file: string;
   let size: number;
   try {
+    base = realpathSync(resolve(root));
+    file = realpathSync(resolve(base, ...path));
     const stat = statSync(file);
     if (!file.startsWith(base + sep) || !stat.isFile()) throw new Error();
     size = stat.size;

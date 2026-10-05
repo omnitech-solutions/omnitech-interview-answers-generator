@@ -13,6 +13,7 @@ import {
   nativeChord,
   PANES,
   phaseLabel,
+  WINDOW_CONTROLS,
   windowWidthFor,
 } from "./toolbar-config";
 
@@ -209,5 +210,23 @@ describe("the ended footer", () => {
       canSummary: true,
     }).map((button) => button.id);
     expect(ids).toEqual(["summary", "start"]);
+  });
+});
+
+describe("window controls", () => {
+  it("are red, yellow and green, each with a glyph, a name and an action", () => {
+    expect(WINDOW_CONTROLS.map((c) => [c.colour, c.glyph, c.action])).toEqual([
+      ["red", "×", "hide"],
+      ["yellow", "−", "collapse"],
+      ["green", "+", "expand"],
+    ]);
+    for (const control of WINDOW_CONTROLS) {
+      expect(control.label).not.toBe("");
+      expect(control.title).not.toBe("");
+    }
+  });
+
+  it("tells the person how the hidden window comes back", () => {
+    expect(WINDOW_CONTROLS[0].title).toContain(nativeChord("show-hide"));
   });
 });

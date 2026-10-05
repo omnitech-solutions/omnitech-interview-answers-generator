@@ -1,0 +1,13 @@
+{
+  // Type-checks everything under src, tests and fixtures included, without
+  // emitting; the build config (tsconfig.json) excludes them from dist.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "exclude": []
+}

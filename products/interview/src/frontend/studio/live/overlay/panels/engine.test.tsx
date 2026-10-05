@@ -3,7 +3,7 @@
 // stays off while it listens.
 import type { EngineHost, EngineState } from "@omnitech/interview-contracts";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { engineHost, engineLine, useEngine } from "./use-engine";
 
 const state = (extra: Partial<EngineState> = {}): EngineState => ({

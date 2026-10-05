@@ -16,6 +16,8 @@ import { createAnthropicModelAdapter } from "./index.js";
 // for a stream. Each request body is recorded.
 const requests: Record<string, unknown>[] = [];
 let reply = "Closures capture scope.";
+let stopReason = "end_turn";
+let hang = false;
 let server: Server;
 
 function sse(text: string): string {
@@ -57,7 +59,7 @@ function sse(text: string): string {
       "message_delta",
       {
         type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
+        delta: { stop_reason: stopReason, stop_sequence: null },
         usage: { output_tokens: 3 },
       },
     ],
@@ -75,6 +77,7 @@ beforeAll(async () => {
     request.on("end", () => {
       const parsed = JSON.parse(body) as Record<string, unknown>;
       requests.push(parsed);
+      if (hang) return;
       if (parsed["stream"]) {
         response.writeHead(200, { "content-type": "text/event-stream" });
         response.end(sse(reply));
@@ -88,7 +91,7 @@ beforeAll(async () => {
           role: "assistant",
           model: "claude-test",
           content: [{ type: "text", text: reply }],
-          stop_reason: "end_turn",
+          stop_reason: stopReason,
           stop_sequence: null,
           usage: { input_tokens: 10, output_tokens: 6 },
         }),
@@ -100,6 +103,8 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 afterEach(() => {
   requests.length = 0;
+  stopReason = "end_turn";
+  hang = false;
   vi.unstubAllEnvs();
 });
 
@@ -197,6 +202,7 @@ describe("Anthropic model adapter over the Messages API", () => {
       "text-delta",
       "text-delta",
       "text-delta",
+      "usage",
       "completed",
     ]);
     expect(
@@ -205,5 +211,98 @@ describe("Anthropic model adapter over the Messages API", () => {
         .join(""),
     ).toBe("Scope travels along");
     expect(requests[0]).toMatchObject({ stream: true, system: "Teach." });
+  });
+
+  it("reports usage and the stop reason when streaming", async () => {
+    reply = "Scope";
+    stopReason = "max_tokens";
+    const events: AiEvent[] = [];
+    for await (const event of adapter().stream({
+      context,
+      task: { type: "streaming-chat", prompt: "Explain" },
+    }))
+      events.push(event);
+    expect(events.map((event) => event.type)).toEqual([
+      "started",
+      "text-delta",
+      "usage",
+      "completed",
+    ]);
+    expect(events.find((event) => event.type === "usage")).toMatchObject({
+      usage: { inputTokens: 4, outputTokens: 3, totalTokens: 7 },
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "completed",
+      result: { finishReason: "max_tokens" },
+    });
+  });
+
+  it("turns a streamed refusal into a typed failure instead of a completion", async () => {
+    stopReason = "refusal";
+    const events: AiEvent[] = [];
+    for await (const event of adapter().stream({
+      context,
+      task: { type: "streaming-chat", prompt: "Explain" },
+    }))
+      events.push(event);
+    expect(events.at(-1)).toEqual({
+      type: "failed",
+      error: {
+        code: "policy-refused",
+        message: "The model declined this request.",
+        retryable: false,
+      },
+    });
+    expect(events.some((event) => event.type === "completed")).toBe(false);
+  });
+
+  it("refuses to return a refused non-streamed message as text", async () => {
+    stopReason = "refusal";
+    await expect(
+      adapter().execute({
+        context,
+        task: { type: "text-generation", prompt: "x" },
+      }),
+    ).rejects.toThrow("The model declined this request.");
+  });
+
+  it("stops a hanging stream when the caller aborts, with a fixed cancelled failure", async () => {
+    hang = true;
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 50);
+    const events: AiEvent[] = [];
+    for await (const event of adapter().stream({
+      context,
+      task: { type: "streaming-chat", prompt: "Explain" },
+      signal: controller.signal,
+    }))
+      events.push(event);
+    expect(events.at(-1)).toEqual({
+      type: "failed",
+      error: {
+        code: "cancelled",
+        message: "The AI request was cancelled.",
+        retryable: false,
+      },
+    });
+  });
+
+  it("bounds a hanging request by its own timeout without echoing provider text", async () => {
+    hang = true;
+    vi.stubEnv(
+      "ANTHROPIC_BASE_URL",
+      `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    );
+    const bounded = createAnthropicModelAdapter({
+      apiKey: "sk-ant-test",
+      model: "claude-test",
+      timeoutMs: 60,
+    });
+    await expect(
+      bounded.execute({
+        context,
+        task: { type: "text-generation", prompt: "secret prompt text" },
+      }),
+    ).rejects.toThrow(/no reply within \d+ s\.$/);
   });
 });

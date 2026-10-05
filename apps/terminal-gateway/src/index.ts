@@ -12,11 +12,34 @@ export interface TerminalGatewayOptions {
   // The internal token the gateway sends when it reads job events.
   serviceToken?: string | undefined;
   platformUrl: string;
+  // Browser origins allowed to open the socket besides the platform's own
+  // origin and loopback development hosts.
+  allowedOrigins?: readonly string[] | undefined;
 }
 
 export interface TerminalGateway {
   port: number;
   close(): Promise<void>;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+// [SAFETY] A browser always sends Origin on a WebSocket handshake, so a
+// foreign page cannot ride a visitor's local network position to read job
+// events. Clients that send none (the CLI, tests) are not a browser's cross-
+// site risk and pass.
+function originAllowed(
+  origin: string | undefined,
+  allowed: ReadonlySet<string>,
+): boolean {
+  if (origin === undefined) return true;
+  if (allowed.has(origin)) return true;
+  try {
+    return LOOPBACK_HOSTS.has(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
 }
 
 function line(value: string): string {
@@ -32,7 +55,18 @@ export async function startTerminalGateway(
     response.writeHead(200, { "content-type": "text/plain" });
     response.end("agent job event gateway\n");
   });
-  const sockets = new WebSocketServer({ server, path: "/terminal" });
+  const allowedOrigins = new Set([
+    new URL(platformUrl).origin,
+    ...(options.allowedOrigins ?? []),
+  ]);
+  const sockets = new WebSocketServer({
+    server,
+    path: "/terminal",
+    verifyClient: ({ origin }: { origin?: string }, done) =>
+      originAllowed(origin, allowedOrigins)
+        ? done(true)
+        : done(false, 403, "Forbidden"),
+  });
 
   sockets.on("connection", (socket: WebSocket, request) => {
     const query = new URL(request.url ?? "/", "http://localhost").searchParams;
@@ -44,12 +78,7 @@ export async function startTerminalGateway(
     // A job's events are tenant-owned, so the platform reads them only inside
     // the tenant the observer names.
     const tenantId = query.get("tenant");
-    if (
-      !jobId ||
-      !/^[0-9a-f-]{36}$/i.test(jobId) ||
-      !tenantId ||
-      !/^[0-9a-f-]{36}$/i.test(tenantId)
-    ) {
+    if (!jobId || !UUID.test(jobId) || !tenantId || !UUID.test(tenantId)) {
       socket.close(1008, "A valid agent job and tenant id are required.");
       return;
     }
@@ -69,8 +98,16 @@ export async function startTerminalGateway(
             signal: AbortSignal.timeout(5_000),
           },
         );
-        if (!response.ok)
-          throw new Error(`Event service returned ${response.status}`);
+        if (!response.ok) {
+          // Only the status number: the service's body and message stay here.
+          if (socket.readyState === socket.OPEN)
+            socket.send(
+              line(
+                `[observer] Event service unavailable (${response.status}).`,
+              ),
+            );
+          return;
+        }
         const events = (await response.json()) as Array<{
           sequence: number;
           event: unknown;
@@ -81,15 +118,10 @@ export async function startTerminalGateway(
             socket.send(renderEvent(persisted.event));
           }
         }
-      } catch (error) {
+      } catch {
+        // A fixed text: error messages can carry URLs, tokens or paths.
         if (socket.readyState === socket.OPEN) {
-          socket.send(
-            line(
-              `[observer] ${
-                error instanceof Error ? error.message : "Unable to read events"
-              }`,
-            ),
-          );
+          socket.send(line("[observer] Unable to read events."));
         }
       } finally {
         if (!closed) setTimeout(() => void poll(), 750);
@@ -135,6 +167,10 @@ if (
     token: process.env["TERMINAL_GATEWAY_TOKEN"],
     serviceToken: process.env["AGENT_SERVICE_TOKEN"],
     platformUrl: process.env["PLATFORM_HTTP_URL"] ?? "http://127.0.0.1:3000",
+    allowedOrigins: (process.env["TERMINAL_GATEWAY_ALLOWED_ORIGINS"] ?? "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   });
   console.log(
     `Agent job event gateway listening on ws://127.0.0.1:${gateway.port}/terminal`,

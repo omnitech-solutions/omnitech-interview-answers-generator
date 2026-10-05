@@ -33,18 +33,19 @@ export type StudioHostCaptureRequest = {
   // The display the region was drawn on, echoed from an earlier result. A shell
   // that is now capturing a different display refuses with "capture-failed"
   // rather than apply the region to it.
-  displayId?: string | undefined;
+  displayId?: StudioHostDisplayId | undefined;
 };
 
-// A display identifier is opaque, short and made of a safe alphabet, so it can
-// be echoed and stored without carrying content.
-export const STUDIO_HOST_DISPLAY_ID_MAX_CHARS = 64;
-const DISPLAY_ID = /^[A-Za-z0-9._:-]+$/;
-export const isStudioHostDisplayId = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.length >= 1 &&
-  value.length <= STUDIO_HOST_DISPLAY_ID_MAX_CHARS &&
-  DISPLAY_ID.test(value);
+// A display identifier is the system's display number (CGDirectDisplayID): an
+// unsigned 32-bit integer, echoed back unchanged and carrying no content.
+export type StudioHostDisplayId = number;
+export const isStudioHostDisplayId = (
+  value: unknown,
+): value is StudioHostDisplayId =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  value >= 0 &&
+  value <= 0xffff_ffff;
 
 // Why a capture produced nothing. "no-focused-window" is never widened to the
 // whole display.
@@ -63,7 +64,7 @@ export type StudioHostCaptureResult =
       mediaType: "image/jpeg";
       base64: string;
       // The display the frame was taken from, when the shell can name it.
-      displayId?: string | undefined;
+      displayId?: StudioHostDisplayId | undefined;
     }
   | { ok: false; reason: StudioHostCaptureFailure };
 
@@ -121,7 +122,7 @@ export type ScreenWatchOptions = {
   mode: "focused-window" | "region";
   // Exactly when the mode is "region", normalised to the display.
   region?: ScreenWatchRegion | undefined;
-  displayId?: number | undefined;
+  displayId?: StudioHostDisplayId | undefined;
   intervalMs?: number | undefined;
 };
 

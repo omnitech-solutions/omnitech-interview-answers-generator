@@ -13,6 +13,7 @@ await presentationTests(harness)
 await engineTests(harness)
 await screenWatchTests(harness)
 await browserFocusTests(harness)
+await studioWebFetchTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("studio-shell-tests: \(harness.passed) passed, \(harness.failures.count) failed")

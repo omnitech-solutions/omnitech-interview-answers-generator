@@ -9,7 +9,6 @@ import {
   FULL,
   growRect,
   type Handle,
-  isFull,
   moveRect,
   PRESETS,
   type Rect,

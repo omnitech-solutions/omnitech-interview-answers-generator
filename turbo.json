@@ -20,16 +20,6 @@
       "dependsOn": ["^build", "^typecheck"],
       "outputs": []
     },
-    "test:integration": {
-      "dependsOn": ["^build"],
-      "cache": false,
-      "outputs": []
-    },
-    "test:browser": {
-      "dependsOn": ["build"],
-      "cache": false,
-      "outputs": ["test-results/**", "playwright-report/**"]
-    },
     "db:migrate": {
       "cache": false,
       "outputs": []

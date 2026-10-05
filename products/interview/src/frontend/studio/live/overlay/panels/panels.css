@@ -11,7 +11,8 @@
   --pn-glass-code: rgba(22, 22, 26, 0.86);
   --pn-radius: 12px;
   --pn-control: 30px;
-  --pn-control-radius: 9px;
+  --pn-glass-fill: rgba(255, 255, 255, 0.08);
+  --pn-glass-fill-hover: rgba(255, 255, 255, 0.16);
   --pn-chip: rgba(255, 255, 255, 0.07);
   --pn-chip-strong: rgba(255, 255, 255, 0.1);
   --pn-hair: rgba(255, 255, 255, 0.08);
@@ -672,41 +673,56 @@
   padding: 3px 9px;
 }
 
-/* ---- The toolbar's controls: 30 px, rounded, no borders ---- */
+/* ---- The toolbar's controls: round translucent glass, no solid fills ---- */
 .pn-pill .pn-bar-button,
 .pn-split-main,
 .pn-split-menu {
   height: var(--pn-control);
-  padding: 0 9px;
+  padding: 0 11px;
   border: 0;
-  border-radius: var(--pn-control-radius);
+  border-radius: calc(var(--pn-control) / 2);
   font-size: 12px;
   font-weight: 500;
+  background: var(--pn-glass-fill);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  transition: background 0.12s;
+}
+.pn-pill .pn-bar-button:hover:not(:disabled),
+.pn-split-main:hover:not(:disabled),
+.pn-split-menu:hover {
+  background: var(--pn-glass-fill-hover);
+}
+.pn-pill .pn-bar-button:focus-visible,
+.pn-split-main:focus-visible,
+.pn-split-menu:focus-visible,
+.pn-window-dot:focus-visible {
+  outline: 2px solid var(--pn-link);
+  outline-offset: 1px;
 }
 .pn-pill .pn-bar-button[aria-pressed="true"],
 .pn-pill .pn-bar-button[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.24);
 }
-.pn-pill .pn-bar-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-}
-.pn-pill .pn-icon-button {
+/* Icon-only controls are circles; their name is the aria-label and title. */
+.pn-pill .pn-icon-button,
+.pn-split-main {
   width: var(--pn-control);
   padding: 0;
   justify-content: center;
-  color: var(--ov-muted);
+  color: var(--ov-text);
 }
 .pn-pill .pn-icon-button[aria-pressed="true"] {
   color: var(--pn-link);
-  background: rgba(143, 176, 255, 0.25);
-}
-.pn-pill .pn-mic-button,
-.pn-pill .pn-skill {
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  background: rgba(143, 176, 255, 0.28);
 }
 .pn-pill .pn-mic-button[data-mic="listening"] {
-  background: rgba(229, 72, 77, 0.22);
+  background: rgba(229, 72, 77, 0.3);
+  width: auto;
+  min-width: var(--pn-control);
+  padding: 0 8px;
+  gap: 5px;
 }
 .pn-pill .pn-skill {
   font-weight: 600;
@@ -727,50 +743,89 @@
   padding: 0 4px;
 }
 
-/* The capture control: one split button, [capture | mode menu]. */
+/* The capture control: a round capture button beside a round mode chip. */
 .pn-split {
   display: inline-flex;
-  align-items: stretch;
-  border-radius: var(--pn-control-radius);
-  overflow: visible;
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
-  background: var(--pn-chip-strong);
+  align-items: center;
+  gap: 4px;
   color: #fff;
 }
 .pn-split-main,
 .pn-split-menu {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: none;
   color: inherit;
   cursor: pointer;
   text-shadow: inherit;
 }
-.pn-split-main {
-  border-radius: var(--pn-control-radius) 0 0 var(--pn-control-radius);
-  padding-left: 8px;
-}
 .pn-split-menu {
   gap: 2px;
-  padding: 0 6px 0 8px;
-  border-left: 0.5px solid rgba(255, 255, 255, 0.14);
-  border-radius: 0 var(--pn-control-radius) var(--pn-control-radius) 0;
-  background: rgba(255, 255, 255, 0.06);
+  padding: 0 6px 0 11px;
 }
 .pn-split-main:disabled {
   opacity: 0.45;
   cursor: default;
 }
-.pn-split-main:hover:not(:disabled),
-.pn-split-menu:hover {
-  background: rgba(255, 255, 255, 0.14);
+.pn-split[data-stop="true"] .pn-split-main {
+  background: rgba(229, 72, 77, 0.55);
 }
-.pn-split[data-stop="true"] {
-  background: var(--pn-danger);
+
+/* The window controls: macOS-sized dots in the macOS colours, kept coloured
+   when the window is not key (our own, not the system's greyed ones). They dim
+   only while the window ignores the mouse. */
+.pn-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 6px;
 }
-.pn-split[data-stop="true"] .pn-split-menu {
-  background: #c93b40;
+.pn-window-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pn-window-dot[data-colour="red"] {
+  --dot: #ff5f57;
+}
+.pn-window-dot[data-colour="yellow"] {
+  --dot: #febc2e;
+}
+.pn-window-dot[data-colour="green"] {
+  --dot: #28c840;
+}
+/* The glyph shows on hover or focus, as on macOS, over the whole group. */
+.pn-window-dot span {
+  opacity: 0;
+}
+.pn-dots:hover .pn-window-dot span,
+.pn-window-dot:focus-visible span {
+  opacity: 1;
+}
+.pn-window-dot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pn-dots[data-dimmed="true"] {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pn-pill .pn-bar-button,
+  .pn-split-main,
+  .pn-split-menu {
+    transition: none;
+  }
 }
 .pn-popover {
   position: relative;

@@ -5,7 +5,6 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   captureNavigation,
@@ -320,6 +319,34 @@ describe("presentation library", () => {
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByRole("button", { name: "＋ Create new" }));
     expect(assign).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("blocked browser storage", () => {
+  it("still lists models and hands the create form its settings", async () => {
+    installFakeApi({
+      [`GET ${docs}`]: summaries,
+      [`GET ${targets}`]: aiTargets,
+    });
+    const assign = captureNavigation();
+    const blocked = () => {
+      throw new DOMException("blocked", "SecurityError");
+    };
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(blocked);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(blocked);
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(blocked);
+    await mount("presentation.library");
+    expect(
+      await screen.findByRole("option", { name: "Fast · m-fast" }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("AI model"), {
+      target: { value: "fast" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create presentation" }),
+    );
+    expect(assign).toHaveBeenCalledWith("/t/acme/p/presentation/create");
+    vi.restoreAllMocks();
   });
 });
 

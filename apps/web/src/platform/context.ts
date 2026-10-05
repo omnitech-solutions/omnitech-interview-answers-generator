@@ -1,5 +1,7 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 
+import { cache } from "react";
+
 import { auth } from "@/auth";
 
 const localContext: PlatformContext = {
@@ -65,7 +67,10 @@ async function resolveLocalContext(): Promise<PlatformContext | null> {
   };
 }
 
-export async function resolvePlatformContext(
+// [STRATEGY] The tenant layout and the product page both resolve the member's
+// context in one request; `cache` (react-best-practices server-cache-react)
+// makes that one membership read per request, not two.
+export const resolvePlatformContext = cache(async function resolve(
   tenantSlug: string,
 ): Promise<PlatformContext | null> {
   const localFakeAuth =
@@ -87,4 +92,4 @@ export async function resolvePlatformContext(
     session.user.email,
     tenantSlug,
   );
-}
+});

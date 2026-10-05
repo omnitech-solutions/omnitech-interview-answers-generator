@@ -14,7 +14,6 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
-import type { PgBossRunQueue } from "@omnitech-assistant/storage-postgres";
 import {
   afterAll,
   afterEach,

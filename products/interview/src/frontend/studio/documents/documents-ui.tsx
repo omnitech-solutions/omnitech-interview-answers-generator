@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Icon, type IconName } from "../icon";
+import { Dialog } from "../shared/dialog";
 import { DocumentsApiError } from "./documents-client";
 
 export function message(error: unknown): string {
@@ -133,35 +134,21 @@ export function Modal({
   footer: ReactNode;
   children: ReactNode;
 }) {
-  const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    panel.current?.focus();
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   return (
-    <div className="dx-scrim" onMouseDown={onClose}>
-      <div
-        ref={panel}
-        className="dx-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        tabIndex={-1}
-        style={{ width: `min(${width}px, 100%)` }}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="dx-modal-head">
-          <span>{title}</span>
-          <IconButton icon="close" label="Close" onClick={onClose} />
-        </div>
-        <div className="dx-modal-body">{children}</div>
-        <div className="dx-modal-foot">{footer}</div>
+    <Dialog
+      title={title}
+      onClose={onClose}
+      scrimClassName="dx-scrim"
+      className="dx-modal"
+      style={{ width: `min(${width}px, 100%)` }}
+    >
+      <div className="dx-modal-head">
+        <span>{title}</span>
+        <IconButton icon="close" label="Close" onClick={onClose} />
       </div>
-    </div>
+      <div className="dx-modal-body">{children}</div>
+      <div className="dx-modal-foot">{footer}</div>
+    </Dialog>
   );
 }
 

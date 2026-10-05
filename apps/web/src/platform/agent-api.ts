@@ -1,10 +1,14 @@
-import { AgentJobService } from "@omnitech/agent-job-service";
+import {
+  AgentJobService,
+  agentPayloadSecret,
+} from "@omnitech/agent-job-service";
 import {
   type AgentProfile,
   validateAgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 import { resolveAgentProfiles } from "@omnitech/ai-runtime/config";
 import { getPlatformDatabase } from "@omnitech/database";
+import { readBoundedJson } from "@omnitech/platform-contracts";
 import {
   AgentPayloadStore,
   PostgresAgentJobRepository,
@@ -29,6 +33,28 @@ const JOB_PROFILES = [
   "presentation-editor",
 ] as const;
 
+// A prompt is at most 500k characters; the body bound leaves room for UTF-8.
+const AGENT_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+
+// [SAFETY] Failures are logged as metadata only: the route and the error's
+// class, never its message, which can quote the prompt.
+function logFailure(route: string, error: unknown) {
+  console.error(
+    JSON.stringify({
+      route,
+      error: error instanceof Error ? error.name : "non-error",
+    }),
+  );
+}
+
+async function readAgentBody(request: Request) {
+  const body = await readBoundedJson(request, AGENT_BODY_LIMIT_BYTES);
+  if (body.ok) return body;
+  return body.reason === "too-large"
+    ? ({ ok: false, status: 413, error: "The request is too large." } as const)
+    : ({ ok: false, status: 400, error: "Invalid request body." } as const);
+}
+
 function profiles(): ReadonlyMap<string, AgentProfile> {
   const all = resolveAgentProfiles();
   return new Map(
@@ -44,9 +70,7 @@ export function createAgentApi() {
   const database = getPlatformDatabase();
   const repository = new PostgresAgentJobRepository(database);
   const service = new AgentJobService(repository);
-  const payloadSecret =
-    process.env["AGENT_PAYLOAD_SECRET"] ??
-    process.env["CONNECTED_ACCOUNT_SECRET"];
+  const payloadSecret = agentPayloadSecret(process.env);
   const payloads = payloadSecret
     ? new AgentPayloadStore(database, payloadSecret)
     : undefined;
@@ -75,8 +99,10 @@ export function createAgentApi() {
         503,
       );
     }
+    const body = await readAgentBody(context.req.raw);
+    if (!body.ok) return context.json({ error: body.error }, body.status);
     try {
-      const input = createSchema.parse(await context.req.json());
+      const input = createSchema.parse(body.value);
       // [SAFETY] A job is started for a product the member has installed and
       // may use (INV-0004); every miss is a 404, before anything is written.
       const installed = platformContext.products.some(
@@ -110,10 +136,8 @@ export function createAgentApi() {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid agent job request." }, 400);
       }
-      return context.json(
-        { error: error instanceof Error ? error.message : "Job failed." },
-        400,
-      );
+      logFailure("agent-job-create", error);
+      return context.json({ error: "Job failed." }, 400);
     }
   });
 
@@ -217,10 +241,12 @@ export function createAgentApi() {
     if (!platformContext || !payloads) {
       return context.json({ error: "Unauthorized" }, 401);
     }
+    const body = await readAgentBody(context.req.raw);
+    if (!body.ok) return context.json({ error: body.error }, body.status);
     try {
       const input = z
         .object({ prompt: z.string().trim().min(1).max(500_000) })
-        .parse(await context.req.json());
+        .parse(body.value);
       const promptReference = await payloads.save(
         platformContext.tenant.id,
         input.prompt,
@@ -236,13 +262,8 @@ export function createAgentApi() {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid resume prompt." }, 400);
       }
-      return context.json(
-        {
-          error:
-            error instanceof Error ? error.message : "Unable to resume job.",
-        },
-        409,
-      );
+      logFailure("agent-job-resume", error);
+      return context.json({ error: "Unable to resume job." }, 409);
     }
   });
 

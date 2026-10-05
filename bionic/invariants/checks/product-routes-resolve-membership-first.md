@@ -2,7 +2,7 @@
 
 - **Pin:** INV-0004 ([[invariants/product-routes-resolve-membership-first]]) — `observed` candidate.
 - **Class:** behavior
-- **Environment:** None beyond the package test setup.
+- **Environment:** Docker. `apps/web/app/api/[[...route]]/route.test.ts` starts a disposable PostgreSQL container (`startDisposablePostgres`), so the check fails fast with a Docker message when Docker is not running; `registry.test.ts` needs no environment.
 
 Run from the repository root:
 

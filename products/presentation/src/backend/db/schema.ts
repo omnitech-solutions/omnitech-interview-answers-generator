@@ -1,21 +1,22 @@
 // The presentation product's tables.
-import { sql } from "drizzle-orm";
-import {
-  pgSchema,
-  uuid,
-  primaryKey,
-  timestamp,
-  pgPolicy,
-  text,
-  jsonb,
-  integer,
-  unique,
-  check,
-  boolean,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
+
 import { tenantReference, tenantUnique } from "@omnitech/database";
 import { tenants, users } from "@omnitech/platform-storage/schema";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  integer,
+  jsonb,
+  pgPolicy,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 export const presentation = pgSchema("presentation");
 

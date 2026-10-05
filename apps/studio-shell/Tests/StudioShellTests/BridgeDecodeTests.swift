@@ -67,9 +67,14 @@ func bridgeDecodeTests(_ t: Harness) async {
         t.expectEqual(call("pinOnTop", ["pinned": "yes"]), .failure(.invalidParameters))
         t.expectEqual(call("openExternal", ["url": "https://example.com/a"]),
             .success(.openExternal(URL(string: "https://example.com/a")!)))
-        for bad in ["javascript:alert(1)", "file:///etc/passwd", "https://u:p@example.com", "https://", "example.com", ""] {
-            t.expectEqual(call("openExternal", ["url": bad]), .failure(.invalidParameters), bad)
+        for bad in [
+            "javascript:alert(1)", "file:///etc/passwd", "https://u:p@example.com", "https://", "example.com", "",
+            "ftp://example.com/a", "omnitech-studio://callback", "x-apple.systempreferences:com.apple.preference",
+            "data:text/html,hi", "https://example.com/" + String(repeating: "a", count: 2048),
+        ] {
+            t.expectEqual(call("openExternal", ["url": bad]), .failure(.invalidParameters), String(bad.prefix(40)))
         }
+        t.expect(HostCallDecoder.externalURL("HTTP://Example.com/a") != nil, "the scheme is case-insensitive")
     }
 
     await t.test("an unknown version, method or body shape is refused") {

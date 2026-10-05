@@ -98,6 +98,9 @@ testing, not realistic interview answers.
 Values in `apps/web/.env.local` override the root file; exported shell
 variables take precedence over both. Both files are ignored by Git.
 Use `.env.example` as a reference, not a file to copy with placeholder secrets.
+It lists every variable the code reads, with its purpose and default;
+`scripts/env-docs.test.ts` fails when a variable is read but undocumented, or
+documented but no longer read.
 
 To default the Studio assistant to Claude Code's signed-in CLI, set these in
 the root `.env`:
@@ -401,8 +404,18 @@ pnpm format
 pnpm typecheck
 pnpm test
 pnpm test:coverage
+pnpm test:no-docker
+pnpm test:integration
 pnpm build
 pnpm --filter @omnitech/interview-library benchmark
 pnpm hooks:run:pre-commit
 pnpm hooks:run:pre-push
 ```
+
+About 80 test files start a disposable PostgreSQL container and run as the
+`docker` vitest project; they need a running Docker daemon and fail at once
+with a message saying so when there is none. `pnpm test:no-docker` runs the
+suites that do not need Docker. `pnpm test:integration` runs the real-provider
+checks (`*.integration.test.ts`, never part of `pnpm test`); set
+`ACTIVE_SESSION_AGENT_INTEGRATION` to `claude-code` or `codex`, the runtime
+signed in on this machine.

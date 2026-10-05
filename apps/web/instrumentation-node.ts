@@ -26,9 +26,10 @@ process.once("SIGTERM", () => stop.abort());
 process.once("SIGINT", () => stop.abort());
 for (const backend of createProductBackends(createPlatformAiGateway()))
   backend.runWorker?.(stop.signal).catch((error) =>
+    // Only the error's class is logged; its message can quote content.
     console.error(
       JSON.stringify({
-        productWorker: error instanceof Error ? error.message : "stopped",
+        productWorker: error instanceof Error ? error.name : "stopped",
       }),
     ),
   );

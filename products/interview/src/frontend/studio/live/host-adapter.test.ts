@@ -169,6 +169,24 @@ describe("the display a region belongs to", () => {
         ok: true,
         mediaType: "image/jpeg",
         base64: JPEG_BASE64,
+        displayId: 69_733_378,
+      })),
+    });
+    await captureThroughHost(FULL);
+    await captureThroughHost(region);
+    expect(host.captureScreen).toHaveBeenLastCalledWith({
+      mode: "region",
+      region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+      displayId: 69_733_378,
+    });
+  });
+
+  it("ignores a display id that is not a display number", async () => {
+    const host = installHost({
+      captureScreen: vi.fn(async () => ({
+        ok: true,
+        mediaType: "image/jpeg",
+        base64: JPEG_BASE64,
         displayId: "display-1",
       })),
     });
@@ -177,7 +195,6 @@ describe("the display a region belongs to", () => {
     expect(host.captureScreen).toHaveBeenLastCalledWith({
       mode: "region",
       region: { x: 0, y: 0, width: 0.5, height: 0.5 },
-      displayId: "display-1",
     });
   });
 
@@ -191,7 +208,7 @@ describe("the display a region belongs to", () => {
               ok: true,
               mediaType: "image/jpeg",
               base64: JPEG_BASE64,
-              displayId: "display-1",
+              displayId: 69_733_378,
             },
       ),
     });

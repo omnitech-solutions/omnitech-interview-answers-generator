@@ -20,6 +20,28 @@ export interface AgentWorkerOptions {
   concurrency?: number;
 }
 
+const TIMED_OUT = Symbol("timed-out");
+
+// [SAFETY] Yields the runtime's events until the deadline fires. A runtime
+// that hangs and ignores cancel() still cannot hold the job: the pending read
+// is abandoned (not awaited) so the loop is free to fail the job.
+async function* untilDeadline<T>(
+  source: AsyncIterable<T>,
+  deadline: Promise<typeof TIMED_OUT>,
+): AsyncGenerator<T | typeof TIMED_OUT> {
+  const iterator = source[Symbol.asyncIterator]();
+  for (;;) {
+    const next = await Promise.race([iterator.next(), deadline]);
+    if (next === TIMED_OUT) {
+      void iterator.return?.()?.catch(() => undefined);
+      yield TIMED_OUT;
+      return;
+    }
+    if (next.done) return;
+    yield next.value;
+  }
+}
+
 export async function runAgentWorker(
   options: AgentWorkerOptions,
   signal: AbortSignal,
@@ -160,6 +182,15 @@ async function runLoop(
       Math.max(250, Math.floor(leaseMs / 3)),
     );
     let ended = false;
+    // [SAFETY] The profile's own time limit bounds the whole run, enforced here
+    // once for every runtime; the heartbeat above keeps the lease meanwhile.
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<typeof TIMED_OUT>((resolve) => {
+      timeoutTimer = setTimeout(() => {
+        stopRuntime();
+        resolve(TIMED_OUT);
+      }, job.profile.timeoutMs);
+    });
     try {
       await options.repository.transition(job.id, ["claimed"], "starting", me);
       const request: AgentRunRequest = {
@@ -188,9 +219,43 @@ async function runLoop(
                 : { outputSchema: job.profile.outputSchema }),
             })
           : runtime.run(request);
-      for await (const event of events) {
+      for await (const event of untilDeadline(events, deadline)) {
         // [GUARD] A lost lease means another worker owns the job now.
         if (leaseLost) break;
+        if (event === TIMED_OUT) {
+          // A fixed message: nothing the agent produced is recorded.
+          const failed = await options.repository.finalize(
+            job.id,
+            ["running"],
+            "failed",
+            {
+              type: "failed",
+              error: {
+                code: "timeout",
+                message: "The agent job exceeded its time limit.",
+                retryable: true,
+              },
+            },
+            me,
+          );
+          if (!failed)
+            await options.repository.finalize(
+              job.id,
+              ["cancelling"],
+              "cancelled",
+              {
+                type: "failed",
+                error: {
+                  code: "cancelled",
+                  message: "Agent job cancelled.",
+                  retryable: false,
+                },
+              },
+              me,
+            );
+          ended = true;
+          break;
+        }
         const current = await options.repository.get(job.tenantId, job.id);
         if (current?.status === "cancelling") {
           await runtime.cancel(job.id);
@@ -358,6 +423,7 @@ async function runLoop(
         // Nothing left to record: the job belongs to another worker now.
       }
     } finally {
+      clearTimeout(timeoutTimer);
       clearInterval(heartbeat);
       await rm(workspace, { recursive: true, force: true });
     }

@@ -11,7 +11,7 @@ import type {
 import { z } from "zod";
 import type { IconName } from "../../icon";
 import { claimSummary } from "../claim-chips";
-import { ageLabel, clockLabel } from "../session-format";
+import { ageLabel } from "../session-format";
 import { formatElapsed } from "../session-merge";
 import {
   type AnswerResult,

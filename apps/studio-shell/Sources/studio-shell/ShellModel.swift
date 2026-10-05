@@ -3,6 +3,7 @@ import CaptureAdapters
 import CaptureCore
 import Foundation
 import StudioShellCore
+import StudioShellEngine
 import WebKit
 
 // What the shell currently knows: where Studio is, whether it answers, the
@@ -68,9 +69,6 @@ final class ShellModel {
         onChange()
     }
 
-    // True while a hosted page is at Studio's configured origin.
-    var webViewIsAtStudio: Bool { isAtStudio(webView) }
-
     // [SAFETY] A rebind (new address or workspace) invalidates in-flight
     // requests, forgets the old sign-in and, when the origin changed, erases the
     // web view's stored site data so one origin's session never meets another.
@@ -132,22 +130,10 @@ final class ShellModel {
     }
 
     // Calls a Studio session route from inside the web view, with the person's
-    // own sign-in; the shell sees only the status and response text.
+    // own sign-in, in the shell's private content world (StudioWebFetch).
     @MainActor
-    func studioFetch(path: String, method: String = "GET", body: String? = nil) async -> (status: Int, text: String?)? {
-        guard let webView, webViewIsAtStudio else { return nil }
-        let script = """
-        const response = await fetch(path, {
-          method: method, credentials: "same-origin",
-          headers: body === null ? {} : { "content-type": "application/json" },
-          body: body });
-        return { status: response.status, text: response.ok ? await response.text() : null };
-        """
-        let value = try? await webView.callAsyncJavaScript(
-            script, arguments: ["path": path, "method": method, "body": body as Any? ?? NSNull()],
-            in: nil, contentWorld: .page)
-        guard let object = value as? [String: Any], let status = object["status"] as? Int else { return nil }
-        return (status, object["text"] as? String)
+    func studioFetch(path: String, method: String = "GET", body: String? = nil) async -> StudioAnswer? {
+        await StudioWebFetch.run(in: webView, at: location, path: path, method: method, body: body)
     }
 
     // 401/403 from Studio's own session route means the web view is signed out

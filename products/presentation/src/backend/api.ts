@@ -1,6 +1,13 @@
-import type { AiExecutionGateway, ImageResult } from "@omnitech/ai-contracts";
-import type { PlatformContext } from "@omnitech/platform-contracts";
+import {
+  type AiExecutionGateway,
+  type ImageResult,
+  isSafeImageModelId,
+} from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
+import {
+  type PlatformContext,
+  readBoundedJson,
+} from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { z } from "zod";
 import { PresentationService } from "../application/index.js";
@@ -9,6 +16,7 @@ import {
   PresentationNotFoundError,
   PresentationThemeNotFoundError,
 } from "../domain/index.js";
+import { ExportRefusedError } from "../export/index.js";
 import { PresentationRepository } from "../repositories/index.js";
 import { importPowerPointTheme } from "../theme-import.js";
 
@@ -40,7 +48,11 @@ const generationSchema = z.object({
   prompt: z.string().trim().min(1).max(50_000),
   profileId: z.string().trim().min(1),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:3", "3:4"]).optional(),
-  modelId: z.string().trim().min(1).max(200).optional(),
+  modelId: z
+    .string()
+    .trim()
+    .refine(isSafeImageModelId, "Not an allowed image model id.")
+    .optional(),
   width: z.number().int().positive().max(4096).optional(),
   height: z.number().int().positive().max(4096).optional(),
   slideCount: z.number().int().min(1).max(100).optional(),
@@ -88,20 +100,62 @@ const imageUploadSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({}),
 });
 
+// A request body is read as a stream against these bounds before any handler
+// sees it. Images and theme files travel as base64 inside JSON.
+const JSON_BODY_LIMIT_BYTES = 2 * 1024 * 1024;
+const IMAGE_BODY_LIMIT_BYTES = 8 * 1024 * 1024;
+const THEME_IMPORT_BODY_LIMIT_BYTES = 24 * 1024 * 1024;
+
+function bodyLimitFor(path: string): number {
+  if (path.endsWith("/themes/import")) return THEME_IMPORT_BODY_LIMIT_BYTES;
+  if (path.endsWith("/images")) return IMAGE_BODY_LIMIT_BYTES;
+  return JSON_BODY_LIMIT_BYTES;
+}
+
+// The only refusal whose message reaches the client: fixed text, written here.
+class ImageAssetRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ImageAssetRefusedError";
+  }
+}
+
+// [SAFETY] Failures are logged as metadata only: the route and the error's
+// class, never its message, which can quote a prompt, a file or a reply.
+function logFailure(route: string, error: unknown) {
+  console.error(
+    JSON.stringify({
+      route,
+      error: error instanceof Error ? error.name : "non-error",
+    }),
+  );
+}
+
 function validateImageAssetReference(
   value: string,
   localProvider = false,
 ): void {
   if (value.startsWith("data:image/")) return;
-  const url = new URL(value);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ImageAssetRefusedError(
+      "Image assets must use an HTTP(S) URL or image data URL.",
+    );
+  }
   if (!new Set(["http:", "https:"]).has(url.protocol)) {
-    throw new Error("Image assets must use an HTTP(S) URL or image data URL.");
+    throw new ImageAssetRefusedError(
+      "Image assets must use an HTTP(S) URL or image data URL.",
+    );
   }
   if (
     !localProvider &&
     ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
   ) {
-    throw new Error("Image assets cannot point to loopback hosts.");
+    throw new ImageAssetRefusedError(
+      "Image assets cannot point to loopback hosts.",
+    );
   }
 }
 
@@ -120,10 +174,34 @@ export interface PresentationApiOptions {
 }
 
 export function createPresentationApi(options: PresentationApiOptions) {
-  const api = new Hono();
+  const api = new Hono<{ Variables: { body: unknown } }>();
   const service = new PresentationService(
     new PresentationRepository(options.database),
   );
+
+  // [GUARD] Bodies are bounded by streamed byte count, never by content-length.
+  // A body that is not valid JSON reaches the handler as undefined, which its
+  // schema refuses with the route's fixed 400. Scoped to this product's own
+  // paths: Hono carries a sub-app's middleware into the app it is mounted on,
+  // so an unscoped one would read (and lock) the body of every /api request.
+  api.use("/presentation/v1/*", async (context, next) => {
+    if (!["POST", "PUT", "PATCH"].includes(context.req.method)) return next();
+    const body = await readBoundedJson(
+      context.req.raw,
+      bodyLimitFor(context.req.path),
+    );
+    if (!body.ok && body.reason === "too-large") {
+      return context.json({ error: "The request is too large." }, 413);
+    }
+    context.set("body", body.ok ? body.value : undefined);
+    return next();
+  });
+
+  // A failure no route handled is answered with fixed text.
+  api.onError((error, context) => {
+    logFailure("unhandled", error);
+    return context.json({ error: "Request failed." }, 500);
+  });
 
   async function contextFor(tenantSlug: string) {
     const context = await options.resolveContext(tenantSlug);
@@ -167,7 +245,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/documents", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = createSchema.parse(await context.req.json());
+      const input = createSchema.parse(context.get("body"));
       const id = await service.create(resolved.tenant, {
         title: input.title,
         idempotencyKey: input.idempotencyKey,
@@ -181,12 +259,13 @@ export function createPresentationApi(options: PresentationApiOptions) {
         return context.json({ error: "Invalid presentation input." }, 400);
       }
       if (error instanceof PresentationThemeNotFoundError) {
-        return context.json({ error: error.message }, 400);
+        return context.json({ error: "Theme not found." }, 400);
       }
       if (error instanceof UnauthorizedError) {
         return context.json({ error: "Unauthorized" }, 401);
       }
-      throw error;
+      logFailure("presentation", error);
+      return context.json({ error: "Request failed." }, 500);
     }
   });
 
@@ -219,7 +298,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.patch("/presentation/v1/documents/:id", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = saveSchema.parse(await context.req.json());
+      const input = saveSchema.parse(context.get("body"));
       const revision = await service.save(
         resolved.tenant,
         context.req.param("id"),
@@ -234,18 +313,22 @@ export function createPresentationApi(options: PresentationApiOptions) {
       return context.json({ revision });
     } catch (error) {
       if (error instanceof PresentationConflictError) {
-        return context.json({ error: error.message }, 409);
+        return context.json(
+          { error: "The presentation changed since it was loaded." },
+          409,
+        );
       }
       if (error instanceof z.ZodError || error instanceof SyntaxError) {
         return context.json({ error: "Invalid presentation update." }, 400);
       }
       if (error instanceof PresentationThemeNotFoundError) {
-        return context.json({ error: error.message }, 400);
+        return context.json({ error: "Theme not found." }, 400);
       }
       if (error instanceof UnauthorizedError) {
         return context.json({ error: "Unauthorized" }, 401);
       }
-      throw error;
+      logFailure("presentation", error);
+      return context.json({ error: "Request failed." }, 500);
     }
   });
 
@@ -275,7 +358,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.put("/presentation/v1/documents/:id/favorite", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = booleanSchema.parse(await context.req.json());
+      const input = booleanSchema.parse(context.get("body"));
       await service.setFavorite(
         resolved.tenant,
         context.req.param("id"),
@@ -290,7 +373,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.put("/presentation/v1/documents/:id/slides", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = slideSchema.parse(await context.req.json());
+      const input = slideSchema.parse(context.get("body"));
       const saved = await service.saveSlide(
         resolved.tenant,
         context.req.param("id"),
@@ -305,7 +388,10 @@ export function createPresentationApi(options: PresentationApiOptions) {
       return context.json(saved);
     } catch (error) {
       if (error instanceof PresentationConflictError) {
-        return context.json({ error: error.message }, 409);
+        return context.json(
+          { error: "The presentation changed since it was loaded." },
+          409,
+        );
       }
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid slide." }, 400);
@@ -338,7 +424,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
         const resolved = await contextFor(context.req.query("tenant") ?? "");
         const input = z
           .object({ position: z.number().int().nonnegative() })
-          .parse(await context.req.json());
+          .parse(context.get("body"));
         await service.moveSlide(
           resolved.tenant,
           context.req.param("id"),
@@ -364,7 +450,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/themes", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = themeSchema.parse(await context.req.json());
+      const input = themeSchema.parse(context.get("body"));
       const id = await service.createTheme(resolved.tenant, input);
       return context.json({ id }, 201);
     } catch {
@@ -375,7 +461,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/themes/import", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = themeImportSchema.parse(await context.req.json());
+      const input = themeImportSchema.parse(context.get("body"));
       const imported = await importPowerPointTheme(
         Uint8Array.from(Buffer.from(input.fileBase64, "base64")),
         input.name,
@@ -389,11 +475,9 @@ export function createPresentationApi(options: PresentationApiOptions) {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid PowerPoint theme upload." }, 400);
       }
+      logFailure("theme-import", error);
       return context.json(
-        {
-          error:
-            error instanceof Error ? error.message : "Theme import failed.",
-        },
+        { error: "The PowerPoint file could not be read as a theme." },
         400,
       );
     }
@@ -405,7 +489,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
       const reaction = z
         .enum(["favorite", "like"])
         .parse(context.req.param("reaction"));
-      const input = booleanSchema.parse(await context.req.json());
+      const input = booleanSchema.parse(context.get("body"));
       await service.setThemeReaction(
         resolved.tenant,
         context.req.param("id"),
@@ -430,7 +514,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/images", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = imageUploadSchema.parse(await context.req.json());
+      const input = imageUploadSchema.parse(context.get("body"));
       validateImageAssetReference(input.assetReference);
       const id = await service.recordGeneratedImage(resolved.tenant, {
         assetReference: input.assetReference,
@@ -454,7 +538,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
     }
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = generationSchema.parse(await context.req.json());
+      const input = generationSchema.parse(context.get("body"));
       const execution = await options.ai.execute({
         context: {
           tenantId: resolved.access.tenant.id,
@@ -506,12 +590,8 @@ export function createPresentationApi(options: PresentationApiOptions) {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid generation request." }, 400);
       }
-      return context.json(
-        {
-          error: error instanceof Error ? error.message : "Generation failed.",
-        },
-        502,
-      );
+      logFailure("generate-outline", error);
+      return context.json({ error: "Generation failed." }, 502);
     }
   });
 
@@ -522,7 +602,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
         return context.json({ error: "AI is not configured." }, 503);
       try {
         const resolved = await contextFor(context.req.query("tenant") ?? "");
-        const input = slideGenerationSchema.parse(await context.req.json());
+        const input = slideGenerationSchema.parse(context.get("body"));
         const execution = await options.ai.execute({
           context: {
             tenantId: resolved.access.tenant.id,
@@ -552,15 +632,8 @@ export function createPresentationApi(options: PresentationApiOptions) {
             400,
           );
         }
-        return context.json(
-          {
-            error:
-              error instanceof Error
-                ? error.message
-                : "Slide generation failed.",
-          },
-          502,
-        );
+        logFailure("generate-slide", error);
+        return context.json({ error: "Slide generation failed." }, 502);
       }
     },
   );
@@ -571,7 +644,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
     }
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = generationSchema.parse(await context.req.json());
+      const input = generationSchema.parse(context.get("body"));
       const execution = await options.ai.execute({
         context: {
           tenantId: resolved.access.tenant.id,
@@ -610,10 +683,13 @@ export function createPresentationApi(options: PresentationApiOptions) {
       if (error instanceof z.ZodError) {
         return context.json({ error: "Invalid image request." }, 400);
       }
+      logFailure("generate-image", error);
       return context.json(
         {
           error:
-            error instanceof Error ? error.message : "Image generation failed.",
+            error instanceof ImageAssetRefusedError
+              ? error.message
+              : "Image generation failed.",
         },
         502,
       );
@@ -652,7 +728,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/documents/:id/exports", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = exportSchema.parse(await context.req.json());
+      const input = exportSchema.parse(context.get("body"));
       const result = await service.export(
         resolved.tenant,
         context.req.param("id"),
@@ -664,8 +740,14 @@ export function createPresentationApi(options: PresentationApiOptions) {
       if (error instanceof PresentationNotFoundError) {
         return context.json({ error: "Not found" }, 404);
       }
+      logFailure("export", error);
       return context.json(
-        { error: error instanceof Error ? error.message : "Export failed." },
+        {
+          error:
+            error instanceof ExportRefusedError
+              ? error.message
+              : "Export failed.",
+        },
         400,
       );
     }
@@ -674,7 +756,7 @@ export function createPresentationApi(options: PresentationApiOptions) {
   api.post("/presentation/v1/documents/:id/recordings", async (context) => {
     try {
       const resolved = await contextFor(context.req.query("tenant") ?? "");
-      const input = recordingSchema.parse(await context.req.json());
+      const input = recordingSchema.parse(context.get("body"));
       const id = await service.saveRecording(
         resolved.tenant,
         context.req.param("id"),

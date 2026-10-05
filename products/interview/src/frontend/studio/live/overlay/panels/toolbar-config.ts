@@ -83,6 +83,47 @@ export function captureMenuItems(input: {
   ];
 }
 
+// ---- Window controls ------------------------------------------------------------
+
+// The three always-coloured dots at the toolbar's left, as the Mac draws its
+// window controls but glass-transparent. Red hides the window (the show/hide
+// chord and the menu-bar item bring it back), yellow collapses to the bare
+// toolbar, green shows every pane. The hex values live in panels.css by `colour`.
+export const WINDOW_CONTROLS = [
+  {
+    id: "hide",
+    label: "Hide window",
+    title: `Hide the window · ${nativeChord("show-hide")} or the menu-bar item shows it again`,
+    colour: "red",
+    glyph: "×",
+    action: "hide",
+  },
+  {
+    id: "collapse",
+    label: "Collapse to toolbar",
+    title: "Hide every pane and keep only the toolbar",
+    colour: "yellow",
+    glyph: "−",
+    action: "collapse",
+  },
+  {
+    id: "expand",
+    label: "Show all panes",
+    title: "Show the chat, the answer and the code",
+    colour: "green",
+    glyph: "+",
+    action: "expand",
+  },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  title: string;
+  colour: "red" | "yellow" | "green";
+  glyph: string;
+  action: "hide" | "collapse" | "expand";
+}[];
+export type WindowControlAction = (typeof WINDOW_CONTROLS)[number]["action"];
+
 // ---- Panes --------------------------------------------------------------------
 
 // Order is left to right. `width` is what the pane needs in CSS px.

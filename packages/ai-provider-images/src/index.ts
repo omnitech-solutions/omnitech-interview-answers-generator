@@ -1,7 +1,8 @@
-import type {
-  AiExecutionRequest,
-  ImageProviderAdapter,
-  ImageResult,
+import {
+  type AiExecutionRequest,
+  type ImageProviderAdapter,
+  type ImageResult,
+  isSafeImageModelId,
 } from "@omnitech/ai-contracts";
 
 export interface GeneratedImagePayload {
@@ -55,6 +56,12 @@ export function createImageProviderAdapter(
     request: AiExecutionRequest,
     mode: "generate" | "edit",
   ): Promise<ImageResult> => {
+    // [SAFETY] A caller-chosen model id reaches provider URLs and bodies: it
+    // must be a plain catalog name before any transport sees it.
+    const requestedModel = request.task.image?.modelId;
+    if (requestedModel !== undefined && !isSafeImageModelId(requestedModel)) {
+      throw new Error("The image model id is not allowed.");
+    }
     const payload = await options.generate(request, mode);
     if (options.id !== "comfyui" && options.id !== "fake-image") {
       assertSafeProviderUrl(payload.url);
@@ -87,6 +94,24 @@ export function createImageProviderAdapter(
     adapter.edit = (request) => run(request, "edit");
   }
   return adapter;
+}
+
+// Puts the prompt into every string value of a parsed ComfyUI workflow. The
+// walk works on the object, never on serialised JSON text, so quotes,
+// backslashes and braces in the prompt stay data and cannot reshape the graph.
+export function fillWorkflowPrompt(workflow: unknown, prompt: string): unknown {
+  if (typeof workflow === "string")
+    return workflow.replaceAll("{{prompt}}", () => prompt);
+  if (Array.isArray(workflow))
+    return workflow.map((item) => fillWorkflowPrompt(item, prompt));
+  if (workflow !== null && typeof workflow === "object")
+    return Object.fromEntries(
+      Object.entries(workflow).map(([key, value]) => [
+        key,
+        fillWorkflowPrompt(value, prompt),
+      ]),
+    );
+  return workflow;
 }
 
 export type NamedImageProviderOptions = Omit<ImageAdapterOptions, "id">;

@@ -1,9 +1,10 @@
+export { type BoundedJson, readBoundedJson } from "./bounded-json.js";
 export {
   type InstalledProductSummary,
   installedProductSummarySchema,
   type PlatformContext,
-  platformContextSchema,
   type ProductInstallationConfiguration,
+  platformContextSchema,
   productInstallationConfigurationSchema,
   type UserPreferences,
   userPreferencesSchema,
@@ -13,12 +14,12 @@ export {
   navigationManifestSchema,
   type ProductFrame,
   type ProductFrontendPlugin,
-  type ProductManifest,
-  productFrameSchema,
-  productManifestSchema,
-  type ProductPageLoader,
   type ProductLink,
+  type ProductManifest,
+  type ProductPageLoader,
   type ProductPageProps,
   type ProductRouteManifest,
+  productFrameSchema,
+  productManifestSchema,
   productRouteManifestSchema,
 } from "./plugin.js";

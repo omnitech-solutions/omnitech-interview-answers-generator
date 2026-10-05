@@ -22,7 +22,6 @@ import { useLiveSession } from "../../use-live-session";
 import { loadAutoPreferred, saveAutoPreferred } from "../auto-prefs";
 import { loadMask, loadSettings } from "../capture-prefs";
 import { FrameError } from "../capture-source";
-import { claimCaptureTrigger } from "../capture-trigger";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";

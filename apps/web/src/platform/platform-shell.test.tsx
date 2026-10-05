@@ -1,6 +1,6 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { act, render, screen } from "@testing-library/react";
-import React, { StrictMode } from "react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Next.js supplies the URL; the shell reads only the pathname.
@@ -123,7 +123,42 @@ describe("the member's preferences", () => {
   });
 });
 
+describe("the theme owner", () => {
+  it("applies and saves a theme a product asks for, keeping the saved AI profile", async () => {
+    renderShell(context({ theme: "light", locale: "en", aiProfileId: "fast" }));
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("platform-theme-change", { detail: { theme: "dark" } }),
+      );
+      window.dispatchEvent(
+        new CustomEvent("platform-theme-change", { detail: { theme: "pink" } }),
+      );
+    });
+    await settle();
+    expect(document.documentElement.dataset["theme"]).toBe("dark");
+    expect(sent).toHaveLength(1);
+    expect(JSON.parse(String(sent[0]?.init?.body))).toEqual({
+      theme: "dark",
+      locale: "en",
+      aiProfileId: "fast",
+    });
+  });
+});
+
 describe("the member's AI profile", () => {
+  it("works when browser storage is blocked", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    expect(() =>
+      renderShell(
+        context({ theme: "light", locale: "en", aiProfileId: "fast" }),
+      ),
+    ).not.toThrow();
+    await settle();
+    expect(sent).toEqual([]);
+  });
+
   it("hands products a saved choice without asking the server", async () => {
     renderShell(context({ theme: "light", locale: "en", aiProfileId: "fast" }));
     await settle();

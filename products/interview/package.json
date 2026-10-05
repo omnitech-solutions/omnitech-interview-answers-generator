@@ -35,7 +35,7 @@
     "postbuild": "node scripts/copy-document-assets.mjs",
     "dev": "node scripts/copy-document-assets.mjs && tsc -b --watch --preserveWatchOutput",
     "lint": "biome lint src",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
     "test": "vitest run --config vitest.config.ts",
     "icons": "node scripts/generate-studio-icons.mjs"
   },

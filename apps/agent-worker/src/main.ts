@@ -1,6 +1,7 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { agentPayloadSecret } from "@omnitech/agent-job-service";
 import { createClaudeRuntimeAdapter } from "@omnitech/agent-runtime-claude";
 import { createCodexRuntimeAdapter } from "@omnitech/agent-runtime-codex";
 import type { AgentRuntimeAdapter } from "@omnitech/agent-runtime-contracts";
@@ -229,7 +230,7 @@ export function sessionAgentEscalation(
   database: PlatformDatabase,
 ): AgentEscalationPort | undefined {
   if (env["ACTIVE_SESSION_AGENT_ESCALATION"] !== "on") return undefined;
-  const secret = env["AGENT_PAYLOAD_SECRET"] ?? env["CONNECTED_ACCOUNT_SECRET"];
+  const secret = agentPayloadSecret(env);
   if (!secret) return undefined;
   const profiles = resolveAgentProfiles(env);
   const payloads = new AgentPayloadStore(database, secret);
@@ -353,8 +354,7 @@ export async function runConfiguredAgentWorker(
   runtimes: Readonly<Record<string, AgentRuntimeAdapter>> = agentRuntimes(env),
   log: (line: string) => void = console.error,
 ): Promise<void> {
-  const payloadSecret =
-    env["AGENT_PAYLOAD_SECRET"] ?? env["CONNECTED_ACCOUNT_SECRET"];
+  const payloadSecret = agentPayloadSecret(env);
   if (!payloadSecret) {
     throw new Error("AGENT_PAYLOAD_SECRET is required by the agent worker.");
   }

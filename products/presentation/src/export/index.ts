@@ -53,7 +53,7 @@ async function exportPptx(document: PresentationDocument): Promise<string> {
     for (const block of blocks) {
       if (block.type === "IMG") {
         if (!/^data:image\/(png|jpe?g);base64,/i.test(block.text)) {
-          throw new Error(
+          throw new ExportRefusedError(
             "Upload PNG or JPEG images before exporting. Remote image exports are not supported.",
           );
         }
@@ -78,7 +78,7 @@ async function exportPptx(document: PresentationDocument): Promise<string> {
               (text.split("\n").length - 1) * 0.3,
           );
       if (y + height > 7)
-        throw new Error(
+        throw new ExportRefusedError(
           "This slide has too much content to export. Split it into smaller slides.",
         );
       page.addText(text, {
@@ -135,7 +135,7 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
           /^data:image\/(png|jpe?g);base64,(.+)$/i,
         );
         if (!match?.[2])
-          throw new Error(
+          throw new ExportRefusedError(
             "Upload PNG or JPEG images before exporting. Remote image exports are not supported.",
           );
         // pdf-lib's JPEG reader ignores byteOffset, so give it an unshared copy
@@ -147,7 +147,7 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
             : await pdf.embedJpg(bytes);
         const dimensions = image.scaleToFit(700, 260);
         if (y - dimensions.height < 40)
-          throw new Error(
+          throw new ExportRefusedError(
             "This slide has too much content to export. Split it into smaller slides.",
           );
         page.drawImage(image, {
@@ -174,7 +174,7 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
               line = word;
             } else line = next;
           } catch {
-            throw new Error(
+            throw new ExportRefusedError(
               "PDF export supports Latin text. Use PPTX for slides containing other scripts or emoji.",
             );
           }
@@ -183,7 +183,7 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
       }
       for (const line of lines) {
         if (y < 40)
-          throw new Error(
+          throw new ExportRefusedError(
             "This slide has too much content to export. Split it into smaller slides.",
           );
         page.drawText(line, {
@@ -204,6 +204,14 @@ async function exportPdf(document: PresentationDocument): Promise<string> {
     }
   }
   return dataUrl("application/pdf", await pdf.save());
+}
+
+/** A refusal whose message is fixed text written for the person exporting. */
+export class ExportRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExportRefusedError";
+  }
 }
 
 export function exportPresentation(
