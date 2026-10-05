@@ -1,447 +1,223 @@
 # Omnitech Studio
 
-Omnitech Studio is a pluggable, tenant-aware product catalog. Next.js provides
-the cohesive delivery shell while product frontend and backend logic lives in
-`products/*`. See [Platform architecture](bionic/research/concepts/platform-architecture.md)
+A tenant-aware product platform. Its first product, **Interview Studio**, helps
+you prepare for and perform in technical interviews: runnable, explainable
+answers, spoken briefings, mock interviews, and a hands-free live-session
+assistant. Next.js is the delivery shell; each product's frontend and backend
+live in `products/*`. See [Platform architecture](bionic/research/concepts/platform-architecture.md)
 and [Adding a product](bionic/research/references/adding-a-product.md).
 
-Its interview product is **Interview Studio**, served at
-`/t/<tenant>/p/interview`:
+Interview Studio is served at `/t/<tenant>/p/interview`:
 
-- **Home:** the upcoming interview, a prep plan with live status, recent runs.
-- **Workspace:** a question worked through Understand → Plan → Code → Test →
-  Explain, with editable solution, usage and test code run in isolated Docker
-  containers (Pest, Vitest or RSpec), autosaved drafts and saved versions.
-- **Briefings:** 60–90 second spoken briefs on concepts and system design, and
-  evidence-backed behavioural preparation packs from a candidate experience
-  matrix.
-- **Knowledge:** reviewed React, PHP 8.4, Laravel 13, Symfony, web, backend
-  and DSA references with search, facets and an article reader.
-- **Rehearsal:** timed mock interviews with hints that cost points, a
-  checklist and a saved scorecard.
-- **Assistant:** a docked assistant that reads the open question, proposes
-  changes for review, and applies them only when you accept.
+- **Home:** the upcoming interview, a prep plan, recent runs.
+- **Workspace:** a question worked through Understand, Plan, Code, Test,
+  Explain; solution, usage and test code run in isolated Docker containers
+  (Pest, Vitest or RSpec); autosaved drafts and saved versions.
+- **Briefings:** 60-90 second spoken briefs, and behavioural preparation packs
+  built from your experience matrix.
+- **Knowledge:** reviewed reference articles with search and facets.
+- **Rehearsal:** timed mock interviews with a scorecard.
+- **Assistant:** a docked assistant that proposes changes and applies them only
+  when you accept.
+- **Active Session:** a live session (web page plus an optional native macOS
+  panel) that listens, understands the question and drafts an answer.
 
-Questions are routed to PHP, React, TypeScript or Ruby, and answers use any
-OpenAI-compatible provider, hosted or local. Codex, Claude, shell scripts and
-other tools can push questions, answers, explanations and rehearsals into the
-open studio with the `interview-answers` CLI, which keeps callers independent
-of HTTP routes and authentication details.
+## Run it from scratch
 
-## Prerequisites
+You need: **Node.js 22+**, **Docker** (running), and **a language model** (step 3).
+The macOS app (step 7) also needs Xcode's Swift toolchain.
 
-- Node.js 22 or newer.
-- pnpm 10.33.3 through Corepack or a compatible pnpm 10 installation.
-- Docker with a running daemon for syntax checks and code execution.
-- A separate agent worker for Codex and Claude Code jobs.
+1. **Install.**
 
-Shared packages from sibling repositories ship as packed tarballs in
-`vendor/`: `@oc-tech/omni-ui-components` (from `omni-ui-components`) and the
-`@omnitech-assistant/*` packages. To take a newer build, run `npm pack` in that
-package and replace the tarball, keeping its file name or updating the
-`file:` references and `pnpm.overrides` to match.
+   ```bash
+   corepack enable
+   pnpm install
+   ```
 
-## Quick start
+2. **Build the code-runner images** (once; rerun after changing their Dockerfiles).
 
-From the repository root:
+   ```bash
+   pnpm runner:build
+   ```
 
-```bash
-corepack enable
-pnpm install
-pnpm runner:build
-pnpm dev
-```
+3. **Create your environment file and choose a model.**
 
-Open <http://127.0.0.1:3000/t/local/p/interview> for Interview Studio: Home,
-Workspace, Briefings, Knowledge and Rehearsal, with the docked assistant. The
-development command starts the Next.js web app (which also runs the
-assistant's turns), the terminal gateway and the agent worker. The gateway listens at
-`ws://127.0.0.1:3001/terminal` by default.
+   ```bash
+   cp .env.example .env
+   ```
 
-Stop everything the development command started (web app, terminal gateway
-and agent worker) with:
+   Open `.env`, find section 1, and uncomment **one** option (every option is
+   a ready-to-edit example):
 
-```bash
-pnpm dev:stop
-```
+   | You have | Set |
+   | --- | --- |
+   | LM Studio running locally | nothing, or `LM_STUDIO_MODEL=<model id>` |
+   | An OpenAI key | `OPENAI_API_KEY=sk-...` |
+   | Another OpenAI-compatible endpoint (Ollama, vLLM, ...) | `AI_BASE_URL=...` and `AI_MODEL=...` |
+   | No model, just a demo | `AI_BASE_URL=http://127.0.0.1:3000/api/fake/v1` and `AI_MODEL=fake-interview-model` |
 
-It asks each launcher to shut down cleanly, then stops anything from this
-repository that still holds ports 3000 or 3001. Other programs on
-those ports are reported and left running. It is safe to run when nothing is
-up.
+   With no model set, `pnpm dev` uses LM Studio's loaded model (or asks it for
+   `qwen/qwen3-coder-30b`) and says so on start; that works only if LM Studio's
+   local server is running. Do not set `AI_MODEL` to "fill it in": any of
+   `AI_MODEL`, `OPENAI_MODEL`, `OPENAI_API_KEY` or `LM_STUDIO_MODEL` turns that
+   fallback off. Everything else in `.env.example` has a working local default.
 
-Knowledge, inside Interview Studio, searches the interview reference library.
-Library source records are stored in `INTERVIEW_DATA_DIR/library.json`; the
-derived search index is disposable and rebuilt automatically.
+4. **Start everything.**
 
-Workspace drafts are saved to PostgreSQL as you edit; **Save version** keeps
-an immutable copy.
+   ```bash
+   pnpm dev
+   ```
 
-### Deterministic local generation
+   This starts PostgreSQL (Docker Compose, port 54320), migrates and seeds it,
+   builds the workspace, then runs the web app (port 3000), the terminal gateway
+   (3001) and the agent worker. The first start builds the whole workspace
+   first, so it is the slow one.
 
-The committed `.env.example` targets an OpenAI-compatible hosted endpoint. To
-exercise the application without an external model, set these values in
-the root `.env`:
+5. **Open the app.** Go to <http://127.0.0.1:3000/t/local/p/interview> and use
+   the **Local development** sign-in (passwordless; local only).
 
-```dotenv
-AI_BASE_URL=http://127.0.0.1:3000/api/fake/v1
-AI_MODEL=fake-interview-model
-AI_API_KEY=
-```
+6. **Stop it.**
 
-The fake provider is intended for deterministic application and integration
-testing, not realistic interview answers.
+   ```bash
+   pnpm dev:stop
+   ```
+
+   It shuts down what `pnpm dev` started and frees ports 3000 and 3001 if this
+   repository holds them; other programs on those ports are reported and left
+   alone. It is safe to run when nothing is up.
+
+7. **Optional: the native macOS app** (a glass panel for Active Session).
+
+   ```bash
+   cd apps/studio-shell
+   swift build -c release && scripts/bundle-app.sh
+   open .build/InterviewStudioShell.app
+   ```
+
+   It is a development bundle, ad-hoc signed, so macOS asks for Screen Recording
+   access again after each rebuild.
+
+Problems on first run: "no model" means step 3; a database error means Docker is
+not running; a Docker image error means step 2.
 
 ## Configuration
 
-`pnpm dev` reads the root `.env`, then `apps/web/.env.local` if present.
-Values in `apps/web/.env.local` override the root file; exported shell
-variables take precedence over both. Both files are ignored by Git.
-Use `.env.example` as a reference, not a file to copy with placeholder secrets.
-It lists every variable the code reads, with its purpose and default;
-`scripts/env-docs.test.ts` fails when a variable is read but undocumented, or
-documented but no longer read.
+`.env.example` is the reference: every variable the code reads, grouped into
+numbered sections, with its purpose, default and an example. Copy it to `.env`
+and uncomment what you need.
 
-To default the Studio assistant to Claude Code's signed-in CLI, set these in
-the root `.env`:
+- `pnpm dev` loads the root `.env`, then `apps/web/.env.local` (which wins).
+  A variable exported in your shell wins over both. Both files are ignored by Git.
+- Direct commands (`pnpm --filter <package> <script>`, a worker started by hand,
+  the CLI, Playwright) do **not** load `.env`: export the variable in your shell.
+- `pnpm dev` sets `DATABASE_URL`, local sign-in and throwaway secrets itself.
+  Anything shared or deployed must set its own `AUTH_SECRET` and
+  `AGENT_PAYLOAD_SECRET` and must not enable `FAKE_AUTH_ENABLED`.
+- `scripts/env-docs.test.ts` fails when the code reads a variable that is not
+  documented, or when `.env.example` names one nothing reads.
 
-```dotenv
-INTERVIEW_ASSISTANT_DEFAULT_MODEL=agent/claude-code
-CLAUDE_ASSISTANT_MODEL=claude-sonnet-5-5
-```
-
-The Claude Code assistant profile uses medium effort. Its model must be
-available to your Claude Code login. A previously saved model choice in the
-browser continues to take precedence until changed in the assistant picker.
-Generated answers and Active Session use the separate HTTP model configuration
-below; `pnpm dev` uses LM Studio when no HTTP model is configured.
-
-The interview API, platform AI gateway and Studio's direct-model assistant
-profile resolve their HTTP model from the `AI_*`, `OPENAI_*` and `LM_STUDIO_*`
-variables below through `packages/ai-runtime/src/config.ts`. When none is set,
-`pnpm dev` uses the model LM Studio already has loaded and says so on
-start, loading it with a 65,536-token window (`ASSISTANT_CONTEXT_TOKENS`) so
-the assistant's history and output limits fit.
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `AI_BASE_URL` | Base URL for an OpenAI-compatible `/v1` API | Required |
-| `AI_MODEL` | Model sent to the provider | Required |
-| `AI_API_KEY` | Optional bearer token for the AI provider | Unset |
-| `AI_PROVIDER_ID` | Identifier for the `AI_*` provider | Inferred as `openai` or `lm-studio` |
-| `AI_PROVIDER_LABEL` | Display label for the `AI_*` provider | Inferred from its URL |
-| `AI_TIMEOUT_MS` | AI request timeout in milliseconds | `120000` |
-| `AI_DEFAULT_PROVIDER_ID` | Default named provider (`openai` or `lm-studio`) | First configured provider |
-| `INTERVIEW_ASSISTANT_DEFAULT_MODEL` | Preferred Studio assistant picker target, such as `agent/claude-code`; falls back if unavailable | `interview-assistant` |
-| `CLAUDE_ASSISTANT_MODEL` | Claude Code CLI model for assistant turns | `sonnet` at medium effort |
-| `OPENAI_MODEL` | OpenAI model offered when choosing a provider | Unset |
-| `OPENAI_API_KEY` | OpenAI credential | Unset |
-| `OPENAI_BASE_URL` | OpenAI-compatible endpoint | `https://api.openai.com/v1` |
-| `LM_STUDIO_MODEL` | Loaded LM Studio model identifier | Unset |
-| `LM_STUDIO_BASE_URL` | LM Studio OpenAI-compatible endpoint | `http://127.0.0.1:1234/v1` |
-| `AI_LOCALITY` | Declared locality of the `AI_*` model: `device`, `private-network` or `remote` | `remote` |
-| `OPENAI_LOCALITY` | Declared locality of the OpenAI model (same values) | `remote` |
-| `LM_STUDIO_LOCALITY` | Declared locality of the LM Studio model (same values) | `remote` |
-| `INTERVIEW_API_TOKEN` | Bearer token required for non-same-origin API calls | Unset |
-| `INTERVIEW_DATA_DIR` | Directory used by the JSON answer repository | `.data` |
-| `INTERVIEW_EXPERIENCE_MATRIX_PATH` | Candidate evidence used for experience-based explanations | `~/dev/omnitech-solutions/docx-generator-studio/server/data/profiles/my-experience-matrix.json` |
-| `NEXT_PUBLIC_TERMINAL_GATEWAY_URL` | Browser WebSocket terminal URL | `ws://localhost:3001/terminal` |
-| `PLATFORM_HTTP_URL` | Platform API origin observed by the agent event gateway | `http://127.0.0.1:3000` |
-| `AGENT_SERVICE_TOKEN` | Internal token shared by the platform and event gateway | Required outside local development |
-| `AGENT_PAYLOAD_SECRET` | At least 32 characters; encrypts short-lived agent inputs | Falls back to `CONNECTED_ACCOUNT_SECRET` |
-
-The terminal gateway accepts:
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `TERMINAL_GATEWAY_PORT` | Local terminal gateway port | `3001` |
-| `TERMINAL_GATEWAY_TOKEN` | Optional WebSocket query-string and HTTP bearer token | Unset |
-| `AGENT_WORKER_ID` | Optional worker name; each startup adds a unique UUID for job leases | `worker` plus UUID |
-| `AGENT_WORKER_CONCURRENCY` | Agent jobs run at once (1–16); keep above `DOCUMENTS_MAX_PARALLEL_CALLS` | `6` |
-| `AGENT_WORKER_LEASE_MS` | Job lease, renewed while a job runs (3000–600000) | `30000` |
-| `AGENT_WORKER_POLL_MS` | Idle claim interval (10–60000) | `100` |
-
-Document generation (read by the web server; out-of-range values stop startup
-and name the variable):
-
-| Variable | Purpose | Default (bounds) |
-| --- | --- | --- |
-| `DOCUMENTS_MAX_PARALLEL_CALLS` | Most calls for one document | `4` (1–8) |
-| `DOCUMENTS_FIELDS_PER_CALL` | Fields one call is worth | `24` (5–100) |
-| `DOCUMENTS_CALL_ATTEMPTS` | Tries per call | `2` (1–3) |
-| `DOCUMENTS_FIELD_WORDS` | Words per field | `25` (5–200) |
-| `DOCUMENTS_LIST_ITEM_WORDS` | Words per list item | `15` (3–100) |
-| `DOCUMENTS_SUMMARY_WORDS` | Words per summary | `60` (10–300) |
-| `DOCUMENTS_SKILL_ITEMS` | Skill items listed | `12` (3–40) |
-
-`DEV_SKIP_LM_STUDIO_LOAD=1` makes `pnpm dev` skip loading the local LM Studio model.
-
-If `TERMINAL_GATEWAY_TOKEN` is enabled, include the same token in
-`NEXT_PUBLIC_TERMINAL_GATEWAY_URL`, for example
-`ws://localhost:3001/terminal?token=change-me`.
+To make the docked assistant default to your signed-in Claude Code CLI, set
+`INTERVIEW_ASSISTANT_DEFAULT_MODEL=agent/claude-code` (section 2). That is
+separate from the model in step 3, which generated answers and Active Session
+always use.
 
 ## Active Session
 
-An Active Session is a live capture session for a rehearsal or an interview
-that everyone has agreed to be recorded. A small macOS capture companion
-(`apps/capture-companion`) sends microphone, application-audio and screen
-observations to Studio over the versioned `active-session-contracts` wire
-schema with a short-lived, session-bound credential. Speech recognition runs in
-the companion, on the Mac, with the OS's on-device recogniser. The Active
-Session processor runs inside `apps/agent-worker`, so **the worker must be
-running** for questions to be understood and drafts, answers or coding
-solutions to appear; Studio only shows what the worker publishes. The
-worker's session loop is disabled when no language model is configured, so
-then no question is answered and the purge and the duration cap never run
-either. Studio never submits, sends or operates an external interview
-interface for you.
+A live session for a rehearsal or an interview that everyone has agreed to be
+recorded. Studio shows what the agent worker publishes, so **the worker must be
+running** (`pnpm dev` starts it) and **a language model must be configured**:
+with none, the session loop is off and no question is answered. Studio never
+submits, sends or operates an external interview interface for you.
 
-**Retention.** Deleting a session removes its captured observations and
-session records. An edited Workspace draft, or a draft named by a saved answer
-revision or revert, remains in Workspace. It may still contain a captured
-question and generated answer or code. Delete that draft separately in
-Workspace if you want to remove it. Copies in backups remain until they rotate.
-
-**Logistics grounding.** Structured notice, compensation and work-arrangement
-answers use pinned approved candidate preferences. The missing list shows every
-field without a matching approved preference line, including fields the question
-did not ask about.
-Suggested drafts and interpretations do not set or confirm preferences; review
-personal commitments before saying or copying them.
-
-**Running the companion.** `pnpm dev` does not start the companion. Build and
-run it from `apps/capture-companion/macos` with SwiftPM: `swift run
-capture-companion pair` stores the credential Studio shows (in the Keychain),
-`swift run capture-companion run` starts capture, and `stop` and `status` are
-the other commands. Running the Swift companion is **unverified**: this
-repository has no `Info.plist` for the binary and the SFSpeechRecognizer
-authorization prompt has not been exercised, so that work is deferred. The
-Swift core and the TypeScript companion logic are covered by their tests only.
-
-**Locality.** The owner picks a processing policy when starting a session.
-*Device only* means a model whose declared locality is `device`, which is a
-loopback model on the worker's host (`AI_LOCALITY=device` with a
-`localhost`, `127.0.0.1` or `::1` base URL; any other URL is treated as
-`remote`). A stage with no such model is refused and never sent elsewhere.
-*Allow remote* lets remote models answer; speech still runs on the Mac. The
-policy can only be tightened after the session starts. Locality is declared;
-the URL can only lower a device declaration to remote.
-
-**Single-machine assumption.** Studio's wording "on this Mac" assumes the
-companion, the worker and the browser run on one machine. If the worker runs elsewhere, "device" means that
-worker's host, not the Mac you are looking at.
-
-The worker reads these variables (the locality variables also apply to the web
-server):
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `ACTIVE_SESSION_CODE_RUNNER` | `docker` lets the coding path run tests in the sandboxed Docker runner. Anything else means no tests ever run: a solution still publishes, but never as tests passed | Unset (off) |
-| `ACTIVE_SESSION_RUNNER_DEVICE_LOCAL` | `true` declares that the Docker runner runs on this device, so a device-only session may run tests. Only read when the runner is on | Unset (a device-only session never runs tests) |
-| `ACTIVE_SESSION_AGENT_ESCALATION` | `on` lets a validated coding task escalate to a bounded agent job; needs `AGENT_PAYLOAD_SECRET` or `CONNECTED_ACCOUNT_SECRET` | Unset (off) |
-| `AI_LOCALITY`, `OPENAI_LOCALITY`, `LM_STUDIO_LOCALITY` | See the model table above | `remote` |
+- **Locality.** Each session picks a policy. *Device only* uses only models
+  whose declared locality is `device` (a loopback model on the worker's host,
+  `LM_STUDIO_LOCALITY=device` or `AI_LOCALITY=device` with a localhost URL); a
+  stage with no such model is refused, never sent elsewhere. *Allow remote*
+  lets remote models answer. "On this Mac" assumes the app, worker and browser
+  share one machine.
+- **Retention.** Deleting a session removes its captured observations and
+  records. A Workspace draft created from it remains until you delete it; it
+  may still hold the captured question and generated answer. Backups keep
+  copies until they rotate.
+- **Logistics answers** (notice, compensation, work arrangement) use only
+  approved candidate preferences; review personal commitments before saying or
+  copying them.
+- **Running tests for coding answers** needs `ACTIVE_SESSION_CODE_RUNNER=docker`
+  (section 4 of `.env.example`) and the images from step 2.
+- **The older Swift capture companion** (`apps/capture-companion`) is not started
+  by `pnpm dev`; running it is **unverified** (no `Info.plist`, speech
+  authorization not exercised). Its core and the TypeScript logic are covered
+  by tests only.
 
 ## Code execution
 
-Build the local test-runner images once, and rebuild them after changing their
-Dockerfiles:
+`pnpm runner:build` builds `omnitech/pest-runner`, `omnitech/rspec-runner` and
+`omnitech/vitest-runner`, used with `php:8.3-cli-alpine`, `ruby:3.4-alpine` and
+`node:22-alpine`. Each run uses a temporary workspace, a timeout and an output
+limit, and removes its container and files when done.
 
-```bash
-pnpm runner:build
-```
-
-The runner uses:
-
-- `php:8.3-cli-alpine` for PHP execution and
-  `omnitech/pest-runner:latest` for PHP tests.
-- `ruby:3.4-alpine` for Ruby execution and
-  `omnitech/rspec-runner:latest` for Ruby tests.
-- `node:22-alpine` for TypeScript execution and
-  `omnitech/vitest-runner:latest` for TypeScript and React tests.
-
-Each run uses a temporary workspace, has an execution timeout and output limit,
-and removes its container and temporary files when finished.
-
-## CLI automation
-
-Build and install the standalone CLI globally from the workspace:
+## Command line
 
 ```bash
 pnpm cli:install:global
-```
-
-Configure its API connection:
-
-```bash
-interview-answers configure \
-  --url http://127.0.0.1:3000 \
-  --token change-me
-```
-
-Common operations:
-
-```bash
+interview-answers configure --url http://127.0.0.1:3000 --token <INTERVIEW_API_TOKEN>
 interview-answers health
-interview-answers ask \
-  --language auto \
-  --question "Return the first unique character"
-interview-answers ask --file question.md --save --format json
-interview-answers list
-cat answer.json | interview-answers save --format json
-interview-answers explain \
-  --topic "Explain React reconciliation and its performance trade-offs"
-interview-answers explain \
-  --topic "Give me a STAR story about modernizing an older workflow" \
-  --save
-interview-answers explain \
-  --topic "How would the cache change for pagination?" \
-  --append
+interview-answers ask --language auto --question "Return the first unique character"
+interview-answers explain --topic "Explain React reconciliation" --save
+interview-answers playground set --question "Build an accessible React counter." --language react
+interview-answers playground show | reset
+interview-answers mock-interview start | end | reset
 ```
 
 `ask` and `explain` generate for a tenant you belong to (`--tenant`, default
-`local`): the server resolves your membership of that tenant and runs the
-model through the platform AI gateway.
+`local`). Pushes into the open Studio apply once, within about 500 ms: a question
+and answer open as a Workspace draft, explanations appear under Briefings, and
+`mock-interview` drives Rehearsal. Connection precedence: flags, then
+`INTERVIEW_API_URL` and `INTERVIEW_API_TOKEN`, then
+`~/.config/omnitech-interview-answers/config.json`.
 
-Push into the open Interview Studio (the Playground channel):
-
-```bash
-interview-answers playground set \
-  --question "Build an accessible React counter." \
-  --language react \
-  --notes "Prefer the functional state updater." \
-  --panel notes
-
-interview-answers playground show
-interview-answers playground append-explanation \
-  --topic "Cache follow-up" \
-  --title "Pagination and cache keys" \
-  --markdown-file follow-up.md
-interview-answers playground reset
-```
-
-Interview Studio polls for pushes and applies each one once, within roughly
-500 ms: a question and answer open as a Workspace draft, explanations appear in
-Briefings › Concept explanations (the first expanded, follow-ups collapsed),
-and `interview-answers mock-interview start|end|reset` drives Rehearsal. A
-complete patch can also be supplied as JSON through `--file` or stdin.
-
-CLI connection precedence is command flags, `INTERVIEW_API_URL` and
-`INTERVIEW_API_TOKEN`, then
-`~/.config/omnitech-interview-answers/config.json`. The `save` command accepts
-the JSON shape returned by `ask`; include an existing `id` to update a saved
-answer.
-
-## Agent workflows
+## Working with coding agents
 
 Project skills live once in `.agents/skills/`; `.claude/skills` and
-`.opencode/skills` link to it, so Claude Code, Codex, and OpenCode load the same
-copy. `AGENTS.md` is the single instruction file for all three. Edit those
-files directly — nothing generates them.
+`.opencode/skills` link to it, so Claude Code, Codex and OpenCode load the same
+copy. `AGENTS.md` is the single instruction file. Slash commands: `/answer`,
+`/explain`, `/playground`, `/playground-show`, `/playground-reset`,
+`/mock-interview`, `/mock-interview-show`, `/mock-interview-reset`, `/verify`.
 
-- `/answer` solves a supplied question and updates the live Playground.
-- `/explain` creates a concise briefing and shows it in Briefings.
-- `/playground` routes show, reset, and question-update requests.
-- `/playground-show` displays the current Playground state.
-- `/playground-reset` clears the Playground.
-- `/mock-interview`, `/mock-interview-show`, and `/mock-interview-reset` drive
-  Rehearsal.
-- `/verify` runs the repository verification gate.
+Development follows Crux: decisions, research, the journal and invariants live
+in `bionic/` (see `bionic/AGENTS.md` and `USER_GUIDE.md`). Regenerate or check
+the architecture map with `pnpm docs:arch` and `pnpm docs:arch:check`; use these
+scripts rather than a bare derive-arch (see section 14 of `.env.example` for why).
 
-Development work follows crux: decisions, research, the journal, promptbooks,
-and invariants live in `bionic/` (see `bionic/AGENTS.md` and `USER_GUIDE.md`).
+## Repository layout
 
-Regenerate or check the architecture map with `pnpm docs:arch` and
-`pnpm docs:arch:check` (dry run). `bionic/arch/data-model.md` comes from the
-project extractor `tools/crux/arch/drizzle_data_model.py`, which Crux runs only
-when `CRUX_ARCH_ALLOW_OVERRIDES=1`; the scripts set it (and find the Crux plugin
-through `CRUX_PLUGIN_ROOT`, else the newest install under
-`~/.claude/plugins/cache/crux/crux`). Any derive-arch, audit-docs or
-check-drift run without that flag regenerates data-model as a stub and reports
-false drift, so use the scripts, or prefix a single command
-(`CRUX_ARCH_ALLOW_OVERRIDES=1 <command>`). Never `export` it in a shell profile:
-the flag lets Crux run a repository's own Python, so a profile export would do
-that in every repository you derive in, including untrusted checkouts.
+- `apps/web`: the Next.js shell and API routes. `apps/agent-worker`: Codex,
+  Claude Code and Active Session jobs. `apps/terminal-gateway`: a WebSocket
+  observer for agent-job events. `apps/studio-shell`: the native macOS app.
+- `products/interview`: Interview Studio (manifest, frontend, Hono backend,
+  services, tests).
+- `packages/*`: single-purpose libraries. The ones you meet first are
+  `database` (connection, tenant scope, migrations), `ai-runtime` (model and
+  agent-profile resolution), `interview-contracts` (Zod schemas),
+  `code-runner` (Docker execution) and `interview-answers-cli`.
+- `e2e/live-session`: the browser suite. `vendor/`: packed sibling packages
+  (`npm pack` in the source package and replace the tarball to update).
 
-## Workspace structure
-
-### Applications
-
-- `apps/web`: Next.js Interview Studio UI and Hono API routes.
-- `apps/terminal-gateway`: WebSocket observer for normalized agent-job events.
-- `apps/agent-worker`: isolated Codex and Claude Code job executor.
-
-The worker uses one long-lived Codex App Server transport for Codex jobs.
-Document grouping is configured with `DOCUMENTS_FIELDS_PER_CALL` and
-`DOCUMENTS_MAX_PARALLEL_CALLS` in the root `.env` for `pnpm dev`.
-
-### Reusable packages
-
-- `@omnitech/ai-provider-openai`: the OpenAI-compatible model adapter
-  (OpenAI and LM Studio) behind the platform AI gateway.
-- `@omnitech/interview-contracts`: shared Zod schemas, language routing, and
-  prompt workflows.
-- `@omnitech/interview-storage`: JSON repositories for saved coding answers and
-  Concept Lab explanations, plus draft and published Library records.
-- `@omnitech/interview-library`: Markdown section extraction, reviewed seed
-  content, and the provider-neutral Library search interface with its Orama
-  implementation.
-- `@omnitech/code-runner`: isolated Docker execution, test, and syntax-check
-  adapter.
-- `@omnitech/interview-api-client`: typed API client used by automation tools.
-- `@omnitech/interview-answers-cli`: global CLI and configured client factories.
-- `@omnitech/interview-playground-control`: typed `get`, `set`,
-  `appendExplanation`, and `reset` client for the live Playground.
-
-## Quality gates
-
-Run the complete pre-push verification:
+## Verify and test
 
 ```bash
-pnpm verify
+pnpm verify              # lint, format, typecheck, coverage, build, native checks
+pnpm test:no-docker      # the suites that need no Docker
+pnpm test:integration    # real-provider checks; set ACTIVE_SESSION_AGENT_INTEGRATION
+pnpm test:browser:install && pnpm test:browser   # Playwright, never part of verify
 ```
 
-It runs repository linting, formatting checks, all package typechecks, coverage,
-and production builds. Coverage thresholds are enforced globally at:
+About 80 test files start a disposable PostgreSQL container and need a running
+Docker daemon; they fail at once with a message saying so. Coverage thresholds
+are 90% statements, 80% branches, 90% functions and 90% lines.
 
-- 90% statements.
-- 80% branches.
-- 90% functions.
-- 90% lines.
-
-Useful focused commands:
-
-```bash
-pnpm lint
-pnpm format
-pnpm typecheck
-pnpm test
-pnpm test:coverage
-pnpm test:no-docker
-pnpm test:integration
-pnpm test:browser:install
-pnpm test:browser
-pnpm build
-pnpm --filter @omnitech/interview-library benchmark
-pnpm hooks:run:pre-commit
-pnpm hooks:run:pre-push
-```
-
-About 80 test files start a disposable PostgreSQL container and run as the
-`docker` vitest project; they need a running Docker daemon and fail at once
-with a message saying so when there is none. `pnpm test:no-docker` runs the
-suites that do not need Docker. `pnpm test:integration` runs the real-provider
-checks (`*.integration.test.ts`, never part of `pnpm test`); set
-`ACTIVE_SESSION_AGENT_INTEGRATION` to `claude-code` or `codex`, the runtime
-signed in on this machine.
-
-`pnpm test:browser` runs the live-session browser suite (`e2e/live-session`,
-Playwright; never part of `pnpm verify`). It needs a running Docker daemon (a
-disposable PostgreSQL) and the Playwright browsers, downloaded once with
-`pnpm test:browser:install`; without either it stops with a message naming the
-fix. It drives the real built web app and agent worker against a scripted model,
-and checks each covered control by its real effect; pending claims are listed in
-`e2e/live-session/src/claims/claims.ts`. `E2E_HEADED=1` shows the browser,
-`E2E_STRICT=1` makes claims still marked `pending` fail the run, `E2E_REBUILD=1`
-forces a fresh `next build`, `E2E_BROWSER_CHANNEL=chrome` uses the installed
-Google Chrome for the Chromium project, and `E2E_DIST_DIR=.next-e2e-<name>` gives
-a parallel run its own build directory. See `e2e/live-session/README.md`.
+`pnpm test:browser` drives the real built web app and agent worker against a
+scripted model, as **4 parallel shards** by default (each with its own database
+and stack; `E2E_SHARDS=1` runs one process). It needs Docker and the Playwright
+browsers. Options, the claims inventory and the shard design are in
+`e2e/live-session/README.md`.
