@@ -64,7 +64,8 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
     const port = Number(published.trim().split("\n")[0]?.split(":").pop());
     const ownerUrl = `postgresql://fixture_owner@127.0.0.1:${port}/postgres`;
     const memberUrl = `postgresql://fixture_member@127.0.0.1:${port}/postgres`;
-    owner = createPlatformDatabase(ownerUrl);
+    // The one owner handle: it seeds and migrates, so it opts in to bypass.
+    owner = createPlatformDatabase(ownerUrl, { allowRlsBypass: true });
     // The image initialises the cluster before it accepts TCP connections.
     const deadline = Date.now() + 30_000;
     for (;;) {
@@ -87,4 +88,49 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
     await stop();
     throw error;
   }
+}
+
+// Gives the application role (fixture_member) what the deployed app role has:
+// it may create schemas (the deployed role owns its database; pg-boss creates
+// its own schema at start), plus usage on every migrated schema and read/write
+// on its tables and sequences.
+// Call it after migrateDatabase so an app under test runs as a role that row
+// level security applies to, never as the superuser.
+export async function grantApplicationRole(
+  owner: PlatformDatabase,
+): Promise<void> {
+  await owner.query(`
+    DO $grant$
+    DECLARE schema_name text;
+    BEGIN
+      EXECUTE format('GRANT CREATE ON DATABASE %I TO fixture_member', current_database());
+      FOR schema_name IN
+        SELECT nspname FROM pg_namespace
+        WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
+      LOOP
+        EXECUTE format('GRANT USAGE ON SCHEMA %I TO fixture_member', schema_name);
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO fixture_member', schema_name);
+        EXECUTE format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO fixture_member', schema_name);
+      END LOOP;
+    END
+    $grant$`);
+}
+
+// A fresh database owned by fixture_app, a NOSUPERUSER NOBYPASSRLS role that
+// may create roles (the migrations need it), like the deployed app role that
+// runs migrations. Returns its connection URL.
+export async function createMigratingApplicationDatabase(
+  pg: DisposablePostgres,
+  name: string,
+): Promise<string> {
+  await pg.owner.query(`
+    DO $role$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fixture_app') THEN
+        CREATE ROLE fixture_app LOGIN NOSUPERUSER NOBYPASSRLS CREATEROLE;
+      END IF;
+    END $role$`);
+  await pg.owner.query(`CREATE DATABASE ${name} OWNER fixture_app`);
+  return pg.memberUrl
+    .replace("fixture_member", "fixture_app")
+    .replace(/\/postgres$/, `/${name}`);
 }

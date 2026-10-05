@@ -14,6 +14,7 @@ import {
 import type { StudioActions } from "../config/commands";
 import { ActivityTab } from "./activity-tab";
 import type { BannerAction, BannerHost } from "./banner-copy";
+import { presentation, usePresentation } from "./focus-presentation";
 import { studioHostInfo } from "./host-adapter";
 import { HandsFreeBand } from "./overlay/hands-free-controls";
 import { PairingPanel } from "./pairing-panel";
@@ -26,6 +27,7 @@ import { type SessionTabId, SessionTabs } from "./session-tabs";
 import { transcriptLabels } from "./session-transcript";
 import { copyText } from "./shared/copy-text";
 import { taskCardModel } from "./shared/task-card-model";
+import { useMissingContext } from "./shared/use-missing-context";
 import { SourcesTab } from "./sources-tab";
 import { IdleState, TaskPanel, TaskSelector } from "./task-panels";
 import { TranscriptTab } from "./transcript-tab";
@@ -34,6 +36,7 @@ import {
   useCompanionCapability,
 } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
+import { useMissingContextActions } from "./use-missing-context-actions";
 
 export type LiveSessionPanelProps = {
   // Studio navigation, for opening the session draft in the Workspace.
@@ -114,8 +117,11 @@ export function LiveSessionBody({
   const [tab, setTab] = useState<SessionTabId>(initialTab);
   // The credential panel is revealed by an explicit action, never by default.
   const [pairingOpen, setPairingOpen] = useState(initialPairing);
-  // null follows the newest task; an id pins an earlier one.
-  const [pinned, setPinned] = useState<string | null>(null);
+  // null follows the newest task; an id pins an earlier one. The pin is the
+  // presentation's, shared with the card and the follow-up box, so a follow-up
+  // or an added screenshot goes to the task on show.
+  const { pinnedTaskId: pinned } = usePresentation();
+  const setPinned = presentation.pin;
   const [toast, setToast] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
@@ -134,6 +140,8 @@ export function LiveSessionBody({
     selectedTaskId: pinned,
     deviceOnly: session.processingPolicy === "device-only",
   });
+  const { missing, dismiss } = useMissingContext(session.id, card);
+  const missingActions = useMissingContextActions(dismiss);
 
   // A result that arrives is announced, once, without moving focus.
   useEffect(() => {
@@ -235,6 +243,7 @@ export function LiveSessionBody({
                 policy={model.locality?.policy ?? null}
                 onCopy={copy}
                 onBackToNow={() => setPinned(null)}
+                missing={missing ? { items: missing, ...missingActions } : null}
               />
             </>
           ) : (

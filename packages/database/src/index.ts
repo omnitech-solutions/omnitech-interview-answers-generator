@@ -4,12 +4,10 @@ export {
   enterTenant,
   getPlatformDatabase,
   type PlatformDatabase,
+  type PlatformDatabaseOptions,
+  roleBypassesRowLevelSecurityMessage,
+  verifyDatabaseRole,
 } from "./connection.js";
-export {
-  type TenantContext,
-  type TenantDatabase,
-  withTenant,
-} from "./with-tenant.js";
 export {
   actorPredicate,
   type PlatformTables,
@@ -20,3 +18,8 @@ export {
   tenantUnique,
   timestamps,
 } from "./conventions.js";
+export {
+  type TenantContext,
+  type TenantDatabase,
+  withTenant,
+} from "./with-tenant.js";

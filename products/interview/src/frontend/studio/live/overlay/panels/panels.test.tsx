@@ -249,7 +249,7 @@ describe("analysis", () => {
       action({ actionKind: "solve-code", result: codeResult() }),
     ]);
     await show("single");
-    const strip = screen.getByTestId("pn-missing");
+    const strip = screen.getByTestId("missing-context");
     expect(strip).toHaveTextContent("Examples");
     expect(strip).toHaveTextContent(
       "The rest of the problem (it looks cut off): the bottom of the page is hidden",
@@ -263,12 +263,12 @@ describe("analysis", () => {
     fireEvent.click(
       within(strip).getByRole("button", { name: "Looks complete" }),
     );
-    expect(screen.queryByTestId("pn-missing")).toBeNull();
+    expect(screen.queryByTestId("missing-context")).toBeNull();
   });
   it("shows no strip when nothing is reported missing", async () => {
     serve(live(), codingActions());
     await show("single");
-    expect(screen.queryByTestId("pn-missing")).toBeNull();
+    expect(screen.queryByTestId("missing-context")).toBeNull();
   });
   it("has none of the old chrome: tabs, slots, revisions, run, activity, workspace", async () => {
     serve(live(), codingActions());

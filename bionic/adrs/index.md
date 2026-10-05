@@ -2,6 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0023 | Use the query builder by default and check the database role on every tenant-scoped path | Proposed | 2026-10-04 | — (amends ADR-0005) | — | tenancy, drizzle, postgresql, security, data-access |
 | ADR-0022 | Allow owner-enabled hands-free listening and automatic capture | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, overlay, capture, privacy, hands-free |
 | ADR-0021 | Negotiate companion capture requests and report their failures | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, companion, wire, negotiation, capture |
 | ADR-0020 | Sign in to Studio from the native shell through a one-time handoff | Proposed | 2026-10-04 | — (amends ADR-0019) | — | active-session, native, auth, oauth, privacy |

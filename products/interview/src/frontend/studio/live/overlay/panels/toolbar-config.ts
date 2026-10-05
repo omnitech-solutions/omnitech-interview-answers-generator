@@ -304,16 +304,3 @@ export function answerSteps(
     state: index < at ? "done" : index === at ? "active" : "waiting",
   }));
 }
-
-// ---- Missing context ------------------------------------------------------------
-
-// What the model says it could not see, in words for the person. The kinds are
-// the contract's closed set.
-export const MISSING_CONTEXT_LABEL: Record<string, string> = {
-  constraints: "Constraints",
-  examples: "Examples",
-  signature: "Function signature",
-  language: "Target language",
-  "statement-cut-off": "The rest of the problem (it looks cut off)",
-  other: "Something else",
-};

@@ -138,6 +138,7 @@ it("exposes exactly the convention helpers from the package entrypoint", () => {
           "createPlatformDatabase",
           "enterTenant",
           "getPlatformDatabase",
+          "verifyDatabaseRole",
           "withTenant",
         ].includes(key),
     )

@@ -6,6 +6,7 @@ import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
+  grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import {
@@ -42,18 +43,19 @@ let tenantId: string;
 beforeAll(async () => {
   pg = await startDisposablePostgres();
   await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
   // The local tenant, owner and installed products, as `pnpm dev` seeds them.
   await promisify(execFile)(
     process.execPath,
     ["--import", "tsx", "src/bootstrap.ts"],
-    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.ownerUrl } },
+    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
   );
   tenantId = (
     await pg.owner.query<{ id: string }>(
       "SELECT id FROM platform.tenants WHERE slug = 'local'",
     )
   ).rows[0]!.id;
-  vi.stubEnv("DATABASE_URL", pg.ownerUrl);
+  vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.stubEnv("FAKE_AUTH_ENABLED", "true");
   vi.stubEnv("AGENT_PAYLOAD_SECRET", SECRET);
   vi.stubEnv("AGENT_SERVICE_TOKEN", SERVICE_TOKEN);
@@ -257,10 +259,10 @@ describe("the agent jobs API", () => {
       })
     ).json();
     // The worker stores the result and points the job at it.
-    const reference = await new AgentPayloadStore(pg.owner, SECRET).save(
-      tenantId,
-      JSON.stringify({ summary: "Three points." }),
-    );
+    const reference = await new AgentPayloadStore(
+      getPlatformDatabase(),
+      SECRET,
+    ).save(tenantId, JSON.stringify({ summary: "Three points." }));
     await new PostgresAgentJobWorkerRepository(pg.owner).setResultReference(
       id,
       reference,
@@ -274,7 +276,10 @@ describe("the agent jobs API", () => {
     // A result that is not JSON is left out rather than failing the read.
     await new PostgresAgentJobWorkerRepository(pg.owner).setResultReference(
       id,
-      await new AgentPayloadStore(pg.owner, SECRET).save(tenantId, "not json"),
+      await new AgentPayloadStore(getPlatformDatabase(), SECRET).save(
+        tenantId,
+        "not json",
+      ),
     );
     expect(
       await (

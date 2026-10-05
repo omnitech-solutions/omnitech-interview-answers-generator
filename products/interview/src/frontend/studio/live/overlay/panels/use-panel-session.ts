@@ -15,8 +15,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nativeCaptureAvailable, onHostHotkey } from "../../host-adapter";
 import { isOpenSession } from "../../session-deps";
 import { SKILLS } from "../../shared/skills";
-import { missingContextFor, taskCardModel } from "../../shared/task-card-model";
+import { taskCardModel } from "../../shared/task-card-model";
 import { resolveTarget, targetOf } from "../../shared/task-target";
+import { useMissingContext } from "../../shared/use-missing-context";
 import { useLiveSession } from "../../use-live-session";
 import { loadAutoPreferred, saveAutoPreferred } from "../auto-prefs";
 import { loadMask, loadSettings } from "../capture-prefs";
@@ -180,12 +181,24 @@ export function usePanelSession(
   const sessionNow = useRef(sessionId);
   sessionNow.current = sessionId;
 
+  const capturing = useRef(false);
   // `attach`: the screen is more of the problem already on show (a second
   // screenshot after scrolling), not a new problem.
   async function grabAndAnalyze(
     label?: string,
     attach = false,
   ): Promise<boolean> {
+    // One capture at a time: a second press (or Add screenshot) while the first
+    // is still being grabbed or sent is the same request, never a second revision.
+    if (capturing.current) return false;
+    capturing.current = true;
+    try {
+      return await captureOnce(label, attach);
+    } finally {
+      capturing.current = false;
+    }
+  }
+  async function captureOnce(label: string | undefined, attach: boolean) {
     const origin = sessionNow.current;
     const here = () => sessionNow.current === origin;
     // Show a refusal here AND in every other panel (the analysis panel is where
@@ -661,21 +674,11 @@ export function usePanelSession(
   };
 
   // What the model says it could not see for the task on show, until the person
-  // says the problem looks complete (per task revision).
-  const [dismissedMissing, setDismissedMissing] = useState<ReadonlySet<string>>(
-    () => new Set(),
+  // says the problem looks complete (kept per session, task and revision).
+  const { missing, dismiss: dismissMissing } = useMissingContext(
+    sessionId,
+    card,
   );
-  const missingKey = selected
-    ? `${selected.taskId}:${selected.currentRevision}`
-    : null;
-  const missingAll = missingContextFor(snapshot.actions, selected);
-  const missing =
-    missingAll && missingKey && !dismissedMissing.has(missingKey)
-      ? missingAll
-      : null;
-  const dismissMissing = useCallback(() => {
-    if (missingKey) setDismissedMissing((now) => new Set(now).add(missingKey));
-  }, [missingKey]);
   // Capturing or analyzing, whichever document is doing it: shown before the
   // work finishes, from typed state (never from status text).
   // A stop hides the phase until the work has really wound down.

@@ -14,10 +14,20 @@ import { asSessionPurge } from "./session-purge.js";
 function fakeDatabase() {
   const statements: { text: string; values: unknown[] | undefined }[] = [];
   const client: DatabaseClient = {
-    query: async (text: string, values?: unknown[]) => {
+    query: (async (text: string, values?: unknown[]) => {
+      // The database package's own role check asks who the role is; a normal
+      // role answers, and that lookup is not one of the module's statements.
+      if (text.includes("from pg_roles"))
+        return {
+          rows: [{ bypass: false }],
+          rowCount: 1,
+          command: "",
+          oid: 0,
+          fields: [],
+        };
       statements.push({ text, values });
       return { rows: [], rowCount: 0, command: "", oid: 0, fields: [] };
-    },
+    }) as DatabaseClient["query"],
   };
   const database = {
     transaction: async <R>(work: (c: DatabaseClient) => Promise<R>) =>

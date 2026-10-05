@@ -2,6 +2,30 @@
 
 _Append-only. Newest first._
 
+## [2026-10-04] journal | decision: File technology reference skills and forge the technology-references router
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-04T20:30-06:00. Refs: [[research/references/technology-references]]
+
+## [2026-10-04] skill | authored .agents/skills/technology-references/
+
+Gap: layer audits and implementers had no technology references. Path `.agents/skills/technology-references/SKILL.md`; self-test closed-with-caveats. Forge log: `.agents/skills/forge-log.md`.
+
+## [2026-10-04] ingest | swift-concurrency-agent-skill
+
+Swift Concurrency Agent Skill (AvdLee, MIT). Raw `research/raw/2026-10-04/swift-concurrency-agent-skill/` (whole skill folder plus PROVENANCE.md, pinned by upstream commit). Synthesis: `research/references/technology-references` (new page). Index, registry and master rollup updated.
+
+## [2026-10-04] ingest | vercel-composition-patterns
+
+Vercel React Composition Patterns (agent skill). Raw `research/raw/2026-10-04/vercel-composition-patterns/` (whole skill folder plus PROVENANCE.md, pinned by upstream commit). Synthesis: `research/references/technology-references` (new page). Index, registry and master rollup updated.
+
+## [2026-10-04] ingest | vercel-react-best-practices
+
+Vercel React Best Practices (agent skill). Raw `research/raw/2026-10-04/vercel-react-best-practices/` (whole skill folder plus PROVENANCE.md, pinned by upstream commit). Synthesis: `research/references/technology-references` (new page). Index, registry and master rollup updated.
+
+## [2026-10-04] adr | ADR-0023: Use the query builder by default and check the database role on every tenant-scoped path
+
+Proposed. File `bionic/adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat.md`. Amends ADR-0005. Tags: tenancy, drizzle, postgresql, security, data-access.
+
 ## [2026-10-04] adr | ADR-0022: Allow owner-enabled hands-free listening and automatic capture
 
 Proposed. File `bionic/adrs/ADR-0022-allow-owner-enabled-hands-free-listening-and-automatic-capture.md`. Amends ADR-0018. Tags: active-session, overlay, capture, privacy, hands-free.

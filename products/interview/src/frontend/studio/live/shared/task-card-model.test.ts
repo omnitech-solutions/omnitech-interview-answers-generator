@@ -371,4 +371,29 @@ describe("what the model says is missing", () => {
     ).toBeNull();
     expect(missingContextFor([action({})], undefined)).toBeNull();
   });
+
+  it("is cleared by a newer draft for the same revision that reports nothing", () => {
+    expect(
+      missingContextFor(
+        [
+          action({}),
+          action({ updatedAt: "2026-10-04T10:05:00Z", missingContext: [] }),
+        ],
+        task,
+      ),
+    ).toBeNull();
+  });
+
+  it("never shows a late result for a revision the task has moved past", () => {
+    const moved = { taskId: "t1", currentRevision: 3 } as unknown as TaskView;
+    expect(
+      missingContextFor(
+        [
+          action({ taskRevision: 3, missingContext: [] }),
+          action({ taskRevision: 2, updatedAt: "2026-10-04T10:09:00Z" }),
+        ],
+        moved,
+      ),
+    ).toBeNull();
+  });
 });

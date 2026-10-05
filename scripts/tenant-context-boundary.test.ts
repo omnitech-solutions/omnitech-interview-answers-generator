@@ -3,7 +3,8 @@
 // security reads. Everything else enters a tenant through its public API
 // (`withTenant`, `tenantTransaction`, `enterTenant`), so the rule for how a
 // transaction is scoped lives in one place. The cross-tenant worker settings
-// are each set by exactly one owning file.
+// are each set by exactly one owning file; a setting with two storage owners
+// (the document catalog) names both.
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,7 +35,16 @@ const workerSettings = {
   session_credential_hash:
     "products/interview/src/backend/live-session/credential-lookup.ts",
   session_purge: "products/interview/src/backend/live-session/session-purge.ts",
-} as const;
+  // ADR-0005 Decision 6 settings outside the worker family: the public share
+  // lookup, the private agent payload read, and the built-in document catalog.
+  share_token_hash: "products/presentation/src/repositories/index.ts",
+  agent_payload_reference:
+    "packages/platform-storage/src/agent-job-repository.ts",
+  document_catalog_provisioner: [
+    "packages/platform-storage/src/document-artifact-repository.ts",
+    "products/interview/src/backend/documents/repository.ts",
+  ],
+} as const satisfies Record<string, string | readonly string[]>;
 const setsSetting = (name: string) =>
   new RegExp(
     `set_config\\(\\s*["'\`]app\\.${name}["'\`]|\\bset\\s+(local\\s+)?app\\.${name}\\s*(=|to\\b)`,
@@ -83,11 +93,11 @@ it("recognises every way of setting the tenant context", () => {
 });
 
 it.each(Object.entries(workerSettings))(
-  "sets app.%s only in its one owning file",
+  "sets app.%s only in its owning file(s)",
   (setting, owner) => {
     const setters = scannedSources().filter((path) =>
       setsSetting(setting).test(readFileSync(join(repoRoot, path), "utf8")),
     );
-    expect(setters).toEqual([owner]);
+    expect(setters.sort()).toEqual([owner].flat().sort());
   },
 );

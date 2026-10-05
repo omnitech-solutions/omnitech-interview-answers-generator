@@ -202,7 +202,8 @@ export function ChatPanel({ s }: { s: PanelSession }) {
     const text = s.draft.trim();
     if (text === "") return;
     const result = await s.send(text);
-    if (result.ok) s.setDraft("");
+    // Words typed while it was sending stay in the box.
+    if (result.ok) s.setDraft((now) => (now.trim() === text ? "" : now));
   };
   return (
     <div className="pn-card pn-chat" data-testid="pn-chat">

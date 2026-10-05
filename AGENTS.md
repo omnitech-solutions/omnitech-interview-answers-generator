@@ -31,6 +31,9 @@ Crux is the only development workflow (ADR-0001).
   `fix-directly` (bounded defect, failing test first).
 - Answer questions about the project with `query-docs`; record finished work
   with `log-work`.
+- Before reviewing or writing React, Next.js, Swift, Hono, Drizzle or Postgres code,
+  use the `technology-references` skill (map:
+  `bionic/research/references/technology-references.md`).
 - Documentation lives only in `bionic/`. Never hand-edit its regenerated parts
   (`code/`, `arch/`).
 - Project skills live once in `.agents/skills/`; `.claude/skills` and

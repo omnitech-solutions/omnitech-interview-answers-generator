@@ -207,7 +207,8 @@ export function generatedByLabel(
 // ---- Missing context ----------------------------------------------------------------
 
 // What the model said it could not see for a task: from its newest succeeded
-// answer draft for the task's current revision, or none.
+// answer draft for the task's current revision, or none. A newer draft that
+// reports nothing missing clears an older one's list.
 export function missingContextFor(
   actions: readonly LiveAction[],
   task: TaskView | undefined,
@@ -219,11 +220,10 @@ export function missingContextFor(
         action.taskId === task.taskId &&
         action.taskRevision === task.currentRevision &&
         action.actionKind === "draft-answer" &&
-        action.dispatchStatus === "succeeded" &&
-        (action.missingContext?.length ?? 0) > 0,
+        action.dispatchStatus === "succeeded",
     )
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
-  return draft?.missingContext ?? null;
+  return draft?.missingContext?.length ? draft.missingContext : null;
 }
 
 // ---- Screenshot numbers -------------------------------------------------------------

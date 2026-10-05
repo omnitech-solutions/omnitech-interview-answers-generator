@@ -407,12 +407,16 @@ describe("the card", () => {
     await openCard();
     const before = server.calls.filter((call) => call.startsWith("POST"));
     await click("Task 1");
-    expect(screen.getByText(/Viewing an earlier task/)).toBeVisible();
+    // The page and the card show the one pinned task.
+    expect(screen.getAllByText(/Viewing an earlier task/)).toHaveLength(2);
     expect(presentation.get().pinnedTaskId).toBe("task-1");
     expect(server.calls.filter((call) => call.startsWith("POST"))).toEqual(
       before,
     );
-    await click("Back to now");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Back to now" })[0] as HTMLElement,
+    );
+    await settle();
     expect(presentation.get().pinnedTaskId).toBeNull();
   });
 

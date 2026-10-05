@@ -1,7 +1,11 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { createPlatformDatabase, type PlatformDatabase } from "./connection.js";
+import {
+  createPlatformDatabase,
+  type PlatformDatabase,
+  roleBypassesRowLevelSecurityMessage,
+} from "./connection.js";
 import {
   type DisposablePostgres,
   startDisposablePostgres,
@@ -189,6 +193,7 @@ it("rolls back only the failed nested savepoint", async () => {
 });
 
 it("refuses a role that bypasses row-level security", async () => {
+  // refusal is the point of this test: no opt-in on a superuser URL
   const owner = createPlatformDatabase(pg.ownerUrl);
   try {
     await expect(
@@ -197,9 +202,7 @@ it("refuses a role that bypasses row-level security", async () => {
         (db) => db.execute(sql`SELECT 1`),
         { database: owner },
       ),
-    ).rejects.toThrow(
-      "withTenant: the database role bypasses row-level security (superuser or BYPASSRLS); connect as a NOSUPERUSER NOBYPASSRLS role",
-    );
+    ).rejects.toThrow(roleBypassesRowLevelSecurityMessage);
   } finally {
     await owner.close();
   }

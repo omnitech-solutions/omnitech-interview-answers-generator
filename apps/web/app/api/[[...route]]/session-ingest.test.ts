@@ -10,6 +10,7 @@ import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
+  grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -32,12 +33,13 @@ let handlers: typeof import("./route");
 beforeAll(async () => {
   pg = await startDisposablePostgres();
   await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
   await promisify(execFile)(
     process.execPath,
     ["--import", "tsx", "src/bootstrap.ts"],
-    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.ownerUrl } },
+    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
   );
-  vi.stubEnv("DATABASE_URL", pg.ownerUrl);
+  vi.stubEnv("DATABASE_URL", pg.memberUrl);
   // Real sign-in rules: no fake local owner stands in for the missing session.
   vi.stubEnv("FAKE_AUTH_ENABLED", "false");
   vi.stubEnv("AGENT_PAYLOAD_SECRET", "agent-payload-secret-of-32-chars!");

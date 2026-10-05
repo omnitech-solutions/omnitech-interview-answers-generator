@@ -150,6 +150,7 @@ export function useHandsFree(kind: OwnerKind) {
   }, []);
 
   // ---- Capturing --------------------------------------------------------------
+  const capturing = useRef(false);
   // A fresh frame of the shared source, cropped to the owner's region here, then
   // sent through the capture route. `label` names an automatic capture; true
   // when the frame was sent.
@@ -157,6 +158,21 @@ export function useHandsFree(kind: OwnerKind) {
     attach: TaskTarget | undefined,
     label?: string,
     here: () => boolean = () => true,
+  ): Promise<boolean> {
+    // One capture at a time: a second press (or Attach) while the first is
+    // still being grabbed or sent is the same request, never a second revision.
+    if (capturing.current) return false;
+    capturing.current = true;
+    try {
+      return await grabAndSend(attach, label, here);
+    } finally {
+      capturing.current = false;
+    }
+  }
+  async function grabAndSend(
+    attach: TaskTarget | undefined,
+    label: string | undefined,
+    here: () => boolean,
   ): Promise<boolean> {
     setGrabbing(true);
     try {

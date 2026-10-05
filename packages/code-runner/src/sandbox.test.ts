@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -506,17 +507,23 @@ if (process.argv[2] === "run") setInterval(() => {}, 1000);
     chmodSync(hanging, 0o755);
     const result = await new DockerCodeRunner({
       dockerBinary: hanging,
-      timeoutMs: 300,
+      // Room for the fake binary (a Node script) to start on a busy machine
+      // and log its `run` call before the timeout kills it.
+      timeoutMs: 2_000,
     }).run({ language: "typescript", code: "1", stdin: "" });
     expect(result.timedOut).toBe(true);
     // Cleanup is asynchronous and no longer awaited by the run, so poll the
-    // log (bounded) until the kill and both rm -f calls have landed.
-    const readCalls = () =>
-      readFileSync(hangLog, "utf8")
+    // log (bounded) until the kill and both rm -f calls have landed. No log
+    // yet means no calls yet.
+    const readCalls = () => {
+      if (!existsSync(hangLog)) return [];
+      return readFileSync(hangLog, "utf8")
         .trim()
         .split("\n")
+        .filter((line) => line !== "")
         .map((line) => JSON.parse(line) as string[]);
-    const deadline = Date.now() + 5_000;
+    };
+    const deadline = Date.now() + 15_000;
     while (
       readCalls().filter((argv) => argv[0] === "rm").length < 2 &&
       Date.now() < deadline

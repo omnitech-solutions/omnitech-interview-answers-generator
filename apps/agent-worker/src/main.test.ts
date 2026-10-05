@@ -13,6 +13,7 @@ import type {
 import {
   createPlatformDatabase,
   type PlatformDatabase,
+  roleBypassesRowLevelSecurityMessage,
 } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
@@ -224,6 +225,17 @@ describe("configured agent worker", () => {
       sessionId: "thread-1",
       output: "Echo: Explain hoisting",
     });
+  });
+
+  it("refuses to boot when DATABASE_URL names a role that bypasses row-level security", async () => {
+    await expect(
+      runConfiguredAgentWorker(
+        // refusal is the point of this test: the superuser URL must stop boot
+        { DATABASE_URL: pg.ownerUrl, AGENT_PAYLOAD_SECRET: secret },
+        new AbortController().signal,
+        {},
+      ),
+    ).rejects.toThrow(roleBypassesRowLevelSecurityMessage);
   });
 
   it("cancels a running job when its tenant asks to", async () => {

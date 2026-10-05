@@ -3,7 +3,7 @@
 // the follow-up box. The overlay card places these pieces in its own layout; the
 // Studio live view shows them together as a band at the top of the page
 // (HandsFreeBand). Nothing is duplicated: both are views of the same state.
-import { useContext, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { CAPTURE_UPDATE_LINE } from "../companion-capability";
 import { usePresentation } from "../focus-presentation";
@@ -18,6 +18,7 @@ import { isFull, toDisplayRegion } from "./mask-geometry";
 import { CaptureStrip } from "./overlay-capture";
 import { FollowUp, failureNote, UNAVAILABLE_NOTE } from "./overlay-footer";
 import { sourceAdvice } from "./overlay-model";
+import { FOCUS_INPUT_EVENT } from "./panels/commands";
 import { SettingsPopover } from "./settings-popover";
 import { openStartPage } from "./studio-links";
 import { type HandsFree, useHandsFree } from "./use-hands-free";
@@ -422,6 +423,28 @@ function BandView({ hf }: { hf: HandsFree }) {
   const { float } = usePresentation();
   // While a card shows the same controller, it has the controls and dialogs.
   const dialogs = !hf.cardAttached;
+  // The follow-up box and the capture notes are in the band's body: "Add
+  // context" and "Add another screenshot" open it first when it is collapsed,
+  // and the focus is asked for once the box is on screen.
+  const focusWhenShown = useRef(false);
+  const problem = hf.note ?? hf.share.message;
+  useEffect(() => {
+    if (problem) setCollapsed(false);
+  }, [problem]);
+  useEffect(() => {
+    if (!collapsed) {
+      if (!focusWhenShown.current) return;
+      focusWhenShown.current = false;
+      window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+      return;
+    }
+    const open = () => {
+      focusWhenShown.current = true;
+      setCollapsed(false);
+    };
+    window.addEventListener(FOCUS_INPUT_EVENT, open);
+    return () => window.removeEventListener(FOCUS_INPUT_EVENT, open);
+  }, [collapsed]);
   if (!hf.open) return null;
   const light = lights(hf);
   return (

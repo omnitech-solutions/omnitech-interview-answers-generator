@@ -294,6 +294,45 @@ describe("unsupported references", () => {
   }, 60_000);
 });
 
+describe("what the model says it could not see", () => {
+  it("is stored with the published draft, sanitised, and reaches the browser feed as display metadata", async () => {
+    const kept = [
+      { kind: "examples" },
+      { kind: "constraints", note: "the limits are cut off" },
+    ];
+    const gateway = createFakeGateway({
+      result: () =>
+        output({
+          category: "coding",
+          draft: "Restate the problem, then outline the approach.",
+          codingBrief: {
+            language: "typescript",
+            restatement: "Find the first non-repeating character.",
+            constraints: [],
+          },
+          missingContext: [kept[0], { kind: "bogus" }, kept[1]],
+        }),
+    });
+    const w = await world("svc-missing-context", { gateway });
+    for (const segment of opening()) await w.ingestor.ingest(segment);
+    await settle(w.processor);
+    const stored = await w.actions();
+    const draft = stored.find((action) => action.actionKind === "draft-answer");
+    expect(draft?.result).toMatchObject({ missingContext: kept });
+    const changes = await repo.listActionChanges(w.scope, w.sessionId, {
+      limit: 50,
+    });
+    const onWire = changes.actions.find(
+      (action) => action.actionKind === "draft-answer",
+    );
+    expect(
+      liveActionSchema.parse(JSON.parse(JSON.stringify(onWire))),
+    ).toMatchObject({ missingContext: kept });
+    // Nothing branches on it: the same revision still owes its solution.
+    expect(stored.map((action) => action.actionKind)).toContain("solve-code");
+  }, 60_000);
+});
+
 describe("hazard 7d: notice period and compensation", () => {
   // The scripted model answers from preferences when its prompt carries them
   // and lists the field as missing when it does not.

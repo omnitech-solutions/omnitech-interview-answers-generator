@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { createPlatformDatabase, type PlatformDatabase } from "./connection.js";
 import { migrateDatabase } from "./migrate.js";
 import {
+  createMigratingApplicationDatabase,
   type DisposablePostgres,
   startDisposablePostgres,
 } from "./test-support/postgres.js";
@@ -19,14 +20,8 @@ let pg: DisposablePostgres;
 let app: PlatformDatabase;
 beforeAll(async () => {
   pg = await startDisposablePostgres();
-  await pg.owner.query(
-    "CREATE ROLE fixture_app LOGIN NOSUPERUSER NOBYPASSRLS CREATEROLE",
-  );
-  await pg.owner.query("CREATE DATABASE upgrade OWNER fixture_app");
   app = createPlatformDatabase(
-    pg.memberUrl
-      .replace("fixture_member", "fixture_app")
-      .replace(/\/postgres$/, "/upgrade"),
+    await createMigratingApplicationDatabase(pg, "upgrade"),
   );
 }, 60_000);
 afterAll(async () => {

@@ -12,6 +12,7 @@ import {
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
+  grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import type { PlatformContext } from "@omnitech/platform-contracts";
@@ -70,6 +71,7 @@ let matrices: string;
 beforeAll(async () => {
   pg = await startDisposablePostgres();
   await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
   const user = await pg.owner.query<{ id: string }>(
     "INSERT INTO platform.users (email, display_name) VALUES ('local@omnitech.test', 'Local') RETURNING id",
   );
@@ -81,7 +83,7 @@ beforeAll(async () => {
     "INSERT INTO platform.tenant_memberships (tenant_id, user_id, role) VALUES ($1, $2, 'owner')",
     [member.tenantId, member.userId],
   );
-  database = createPlatformDatabase(pg.ownerUrl);
+  database = createPlatformDatabase(pg.memberUrl);
   matrices = mkdtempSync(join(tmpdir(), "interview-matrix-"));
 }, 60_000);
 afterAll(async () => {
@@ -136,7 +138,7 @@ function backend(overrides: { answersConfigured?: boolean } = {}) {
   return createInterviewBackend({
     ai,
     database,
-    runQueueConnectionString: pg.ownerUrl,
+    runQueueConnectionString: pg.memberUrl,
     resolveContext,
     answersConfigured: overrides.answersConfigured ?? true,
     modelVersion: "test",

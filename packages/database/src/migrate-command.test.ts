@@ -1,12 +1,17 @@
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
+import { createPlatformDatabase } from "./connection.js";
 import {
+  createMigratingApplicationDatabase,
   type DisposablePostgres,
   startDisposablePostgres,
 } from "./test-support/postgres.js";
 
+// `pnpm db:migrate` runs as the application role, never the superuser.
 let pg: DisposablePostgres;
+let appUrl: string;
 beforeAll(async () => {
   pg = await startDisposablePostgres();
+  appUrl = await createMigratingApplicationDatabase(pg, "command");
 }, 30_000);
 afterAll(async () => pg?.stop());
 afterEach(() => vi.unstubAllEnvs());
@@ -18,14 +23,19 @@ async function migrateCommand() {
 }
 
 it("migrates the database named by DATABASE_URL", async () => {
-  vi.stubEnv("DATABASE_URL", pg.ownerUrl);
+  vi.stubEnv("DATABASE_URL", appUrl);
 
   await migrateCommand();
 
-  const applied = await pg.owner.query<{ count: number }>(
-    "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
-  );
-  expect(applied.rows[0]?.count).toBeGreaterThan(0);
+  const app = createPlatformDatabase(appUrl);
+  try {
+    const applied = await app.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
+    );
+    expect(applied.rows[0]?.count).toBeGreaterThan(0);
+  } finally {
+    await app.close();
+  }
 }, 30_000);
 
 it("refuses to run without DATABASE_URL", async () => {
@@ -37,7 +47,7 @@ it("refuses to run without DATABASE_URL", async () => {
 });
 
 it("shares one process-wide database from DATABASE_URL", async () => {
-  vi.stubEnv("DATABASE_URL", pg.ownerUrl);
+  vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.resetModules();
   const { getPlatformDatabase } = await import("./connection.js");
 

@@ -4,6 +4,7 @@ import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
+  grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
@@ -60,6 +61,7 @@ let userId: string;
 beforeAll(async () => {
   pg = await startDisposablePostgres();
   await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
   const user = await pg.owner.query<{ id: string }>(
     "INSERT INTO platform.users (email, display_name) VALUES ('member@acme.test', 'Member') RETURNING id",
   );
@@ -69,7 +71,7 @@ beforeAll(async () => {
   userId = user.rows[0]!.id;
   tenantId = tenant.rows[0]!.id;
   // The gateway's agent port keeps jobs in the platform database.
-  process.env["DATABASE_URL"] = pg.ownerUrl;
+  process.env["DATABASE_URL"] = pg.memberUrl;
 }, 60_000);
 afterAll(async () => {
   await getPlatformDatabase()

@@ -6,17 +6,18 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import { copyText } from "../../shared/copy-text";
+import {
+  type MissingContextActionId,
+  MissingContextStrip,
+} from "../../shared/missing-context-strip";
 import { STAGE_PRESENTATION } from "../../shared/task-card-model";
 import { taskLabel } from "../../shared/task-target";
+import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { CodeCard, TextCard } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
 import type { PanelSession } from "./panel-views";
-import {
-  answerSteps,
-  MISSING_CONTEXT_LABEL,
-  nativeChord,
-} from "./toolbar-config";
+import { answerSteps, nativeChord } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 import { TOAST_TEXT } from "./use-panel-session";
 
@@ -50,6 +51,15 @@ function stepsShown(
   if (!s.phase) return false;
   if (!s.card || s.card.answerText === null) return true;
   return !s.selected?.current.runs.some((run) => run.state === "running");
+}
+
+// Adding a screenshot sends the screen, so it waits for what a capture needs.
+function missingUnavailable(
+  s: Pick<PanelSession, "deviceOnly" | "open">,
+): Partial<Record<MissingContextActionId, string>> {
+  if (s.deviceOnly) return { screenshot: DEVICE_ONLY_ANALYZE };
+  if (!s.open) return { screenshot: "The session is not taking captures now." };
+  return {};
 }
 
 export function AnswerPane({
@@ -176,42 +186,17 @@ export function AnswerPane({
             </p>
           )}
           {s.missing && (
-            <div className="pn-missing" role="note" data-testid="pn-missing">
-              <strong>The AI may be missing:</strong>
-              <ul>
-                {s.missing.map((item) => (
-                  <li key={item.kind}>
-                    {MISSING_CONTEXT_LABEL[item.kind] ?? item.kind}
-                    {item.note ? `: ${item.note}` : ""}
-                  </li>
-                ))}
-              </ul>
-              <div className="pn-missing-actions">
-                <button
-                  type="button"
-                  className="pn-bar-button"
-                  onClick={() => s.press("attach")}
-                >
-                  Add another screenshot
-                </button>
-                <button
-                  type="button"
-                  className="pn-bar-button"
-                  onClick={() =>
-                    window.dispatchEvent(new Event(FOCUS_INPUT_EVENT))
-                  }
-                >
-                  Add context
-                </button>
-                <button
-                  type="button"
-                  className="pn-bar-button"
-                  onClick={s.dismissMissing}
-                >
-                  Looks complete
-                </button>
-              </div>
-            </div>
+            <MissingContextStrip
+              items={s.missing}
+              variant="native"
+              unavailable={missingUnavailable(s)}
+              onAction={(id) => {
+                if (id === "screenshot") s.press("attach");
+                else if (id === "context")
+                  window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+                else s.dismissMissing();
+              }}
+            />
           )}
           {card.constraints.some((each) => each.status === "current") && (
             <div className="pn-constraints">

@@ -3,6 +3,7 @@
 // activity, so it never says "listening" when the session is paused, a source
 // is lost or the companion has not been heard from.
 import type {
+  LiveMissingContext,
   LiveProcessingPolicy,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
@@ -15,6 +16,10 @@ import type { ActivityKey } from "./session-banners";
 import type { AnswerResult } from "./session-results";
 import type { LiveViewModel } from "./session-state";
 import type { TaskView } from "./session-tasks";
+import {
+  type MissingContextActionId,
+  MissingContextStrip,
+} from "./shared/missing-context-strip";
 import { STAGE_PRESENTATION, type TaskCard } from "./shared/task-card-model";
 import { TASK_KIND } from "./shared/task-kind";
 
@@ -185,6 +190,7 @@ export function TaskPanel({
   policy,
   onCopy,
   onBackToNow,
+  missing = null,
   showWorkspaceLink = true,
 }: {
   task: TaskView;
@@ -194,6 +200,13 @@ export function TaskPanel({
   policy: LiveProcessingPolicy | null;
   onCopy(text: string): void;
   onBackToNow(): void;
+  // What the model could not see and what the person can do about it; null
+  // when nothing is missing or the person said it looks complete.
+  missing?: {
+    items: LiveMissingContext;
+    onAction(id: MissingContextActionId): void;
+    unavailable: Partial<Record<MissingContextActionId, string>>;
+  } | null;
   showWorkspaceLink?: boolean;
 }) {
   const noticed = noticesFor(task, policy).length > 0;
@@ -224,6 +237,14 @@ export function TaskPanel({
         <ModelLine card={card} answer={task.answer} />
         <StageTiles card={card} noticed={noticed} />
         <RunNotices task={task} policy={policy} />
+        {missing && (
+          <MissingContextStrip
+            variant="web"
+            items={missing.items}
+            onAction={missing.onAction}
+            unavailable={missing.unavailable}
+          />
+        )}
         {card.kind.id === "programming-challenge" ? (
           <CodingPanel
             task={task}

@@ -7,6 +7,7 @@ import type { SessionErrorCode } from "../session-client";
 import { latestRefusalReason } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD_ID } from "./build-id";
+import { FOCUS_INPUT_EVENT } from "./panels/commands";
 import { type FooterButtonId, footerButtons } from "./panels/toolbar-config";
 
 export const UNAVAILABLE_NOTE =
@@ -59,6 +60,13 @@ export function FollowUp({
   const shown = interim
     ? `${value}${value === "" || value.endsWith(" ") ? "" : " "}${interim}`
     : value;
+  // "Add context" (the missing-context strip) takes the person here.
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focus = () => input.current?.focus();
+    window.addEventListener(FOCUS_INPUT_EVENT, focus);
+    return () => window.removeEventListener(FOCUS_INPUT_EVENT, focus);
+  }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (shown.trim() === "") return;
@@ -68,6 +76,7 @@ export function FollowUp({
   return (
     <form className="ov-followup" onSubmit={submit}>
       <input
+        ref={input}
         className={`ov-input${interim ? " interim" : ""}`}
         aria-label="Follow-up"
         placeholder={label}

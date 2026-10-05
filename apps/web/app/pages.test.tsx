@@ -6,6 +6,7 @@ import { getPlatformDatabase } from "@omnitech/database";
 import { migrateDatabase } from "@omnitech/database/migrate";
 import {
   type DisposablePostgres,
+  grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { signIntegrationState } from "@omnitech/platform-integrations";
@@ -24,10 +25,11 @@ let local: { tenantId: string; userId: string };
 beforeAll(async () => {
   pg = await startDisposablePostgres();
   await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
   await promisify(execFile)(
     process.execPath,
     ["--import", "tsx", "src/bootstrap.ts"],
-    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.ownerUrl } },
+    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
   );
   const row = (
     await pg.owner.query<{ tenant_id: string; user_id: string }>(
@@ -35,7 +37,7 @@ beforeAll(async () => {
     )
   ).rows[0]!;
   local = { tenantId: row.tenant_id, userId: row.user_id };
-  vi.stubEnv("DATABASE_URL", pg.ownerUrl);
+  vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.stubEnv("FAKE_AUTH_ENABLED", "true");
 }, 90_000);
 afterAll(async () => {
