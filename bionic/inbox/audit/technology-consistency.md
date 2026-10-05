@@ -313,3 +313,47 @@ No MUST-level deviation was found, so ranking is by impact among SHOULD/MAY. No 
 8. Which Claude models are the intended defaults (AN-DEP-01), and do you want native structured outputs for the direct adapter (AN-ARC-02)?
 9. Are the two failing invariant records stale, and who refreshes `bionic/invariants/reconciliation.yml`?
 10. Do you want the uncaptured docs added (TypeScript, Apple WebKit/ScreenCaptureKit/Vision, Mermaid, Docker Hub postgres, OAuth RFC 9700 for the integrations flow, which currently has no PKCE in `packages/platform-integrations/src`)?
+
+---
+
+## Lead review (2026-10-05, after the worker's report)
+
+Author: the lead agent, reading the code directly at HEAD `2b0d19d` (the worker audited `3ae02b9`; no source files changed between them). This section is separate from the worker's analysis above so the two can be told apart. It is also model analysis, not a certification, and nothing was run: no database, browser, Docker or native app.
+
+### What the lead re-verified (read in the code, with evidence)
+
+| Worker finding | Lead result | Evidence read |
+| --- | --- | --- |
+| AU-SEC-02 passwordless `local` provider gated on the flag alone | **Confirmed, and worse than the worker stated.** `authorize` takes no credentials and always returns the fixed local user (id `00000000-0000-4000-8000-000000000001`, email `local@omnitech.test`). Only `context.ts` and `products.ts` also test `NODE_ENV !== "production"`; the provider (`auth.ts:10`) and the sign-in button (`sign-in/page.tsx:26`) do not. With the flag on in a production build, anyone can mint a session as that user; `context.ts` then resolves real membership, so the impact depends on whether that email exists as a member. `PLATFORM_BOOTSTRAP_EMAIL` defaults to the same address. | `apps/web/auth.ts:10-21`, `apps/web/src/platform/context.ts:76-78`, `apps/web/src/platform/products.ts:48-50` |
+| HO-SEC-02 `/api/v1` token gate | **Confirmed, and the bypass is broader.** The gate is skipped when the token is unset; when it is set, a request is exempt if it carries `Sec-Fetch-Site: same-origin` or an `Origin` equal to its own URL. Both headers are set by the client, so any non-browser client can send them and skip the token entirely. The bearer comparison is a plain `!==`. | `products/interview/src/backend/api.ts:211-232` |
+| DK-SEC-01 Postgres published on all interfaces with default passwords | **Confirmed.** `54320:5432` (no `127.0.0.1:` prefix), user and password `postgres`. | `compose.yaml:9-13` |
+| NX-SEC-01/02 no security headers, `x-powered-by` sent | **Confirmed.** `next.config.ts` has no `headers()` and no `poweredByHeader: false`; there is no `middleware.ts` or `proxy.ts`. | `apps/web/next.config.ts` |
+| PG-SEC-05 runtime role can alter its own RLS | **Plausible, not shown at runtime.** The role guard checks only superuser and BYPASSRLS, not table ownership; `pnpm dev` runs migrations and the app through the same `omnitech` URL, so that role owns the tables, and an owner can disable RLS or drop policies. Not exercised against a database. | `packages/database/src/connection.ts:148-170`, `scripts/dev.mjs` |
+| PW-TST-04 e2e in no CI or `verify` | **Confirmed.** There is no `.github/workflows`; `pnpm verify` does not run Playwright; the only automated gate is the lefthook `pre-push` running `pnpm verify`. | `lefthook.yml`, `package.json` |
+| BM-DEV-01 Biome `preset: none` | **Confirmed** (`"preset": "none"` with an explicit rule list). | `biome.json:31-33` |
+| ADR-0004/5/6/7 still Proposed while AGENTS.md cites them | **Confirmed.** | `bionic/adrs/ADR-0004`..`0007` frontmatter |
+| Two invariants with `last_result: fail` | **Confirmed** by file: `tenant-drizzle-handle-only-via-with-tenant.md`, `product-routes-resolve-membership-first.md`. Why they fail was not investigated. | `bionic/invariants/` |
+
+Not re-verified by the lead (so still the worker's word only): the other ~75 findings, all provenance rows, the doc-version matching, and every UNVERIFIED item (including the WKWebView navigation allow-list, which needs Apple's docs).
+
+### Re-ranked priorities (lead judgement)
+
+1. **AU-SEC-02** (S): also gate the `local` provider and the sign-in button on `NODE_ENV !== "production"`, or refuse to start when `FAKE_AUTH_ENABLED=true` in production. Worth doing before any shared deployment; it is the only finding where a single environment mistake grants a session.
+2. **HO-SEC-02** (S-M): do not treat client-supplied `Origin` / `Sec-Fetch-Site` as proof of identity for a non-browser caller; require the token for anything the browser flow does not authenticate by cookie, use a constant-time compare, and decide whether an unset token should mean open. Needs an owner decision (it changes the CLI contract).
+3. **DK-SEC-01** (S): publish Postgres as `127.0.0.1:54320:5432`.
+4. **NX-SEC-01/02** (S-M): `poweredByHeader: false` and a baseline header set; a CSP needs care because of the WKWebView host and the OCR worker.
+5. **PW-TST-04** (M): there is no CI at all; the e2e suite (now 4 shards, about 6 minutes) is a candidate first job.
+6. **PG-SEC-05** (M, needs an ADR): separate the migration/owner role from the runtime role.
+7. **Cross-cutting** (S): accept or supersede ADR-0004 to 0007; find out why the two invariants fail.
+
+### Findings the lead found this session that the audit does not contain
+
+- `.env.example` shipped an active `AI_MODEL=gpt-5-mini`. Any of `AI_MODEL`, `OPENAI_MODEL`, `OPENAI_API_KEY`, `LM_STUDIO_MODEL` turns off `pnpm dev`'s LM Studio fallback (`scripts/local-model.mjs`), so a copy configured a hosted model with an empty key. **Fixed** in `47050af`.
+- `pnpm dev` hardcodes `DATABASE_URL`, so the line in `.env.example` was misleading. **Documented** in `47050af`.
+- The README documented `NEXT_PUBLIC_TERMINAL_GATEWAY_URL`, which no code reads. **Removed** in `47050af`.
+- `e2e/live-session` `glass-clear` (WebKit) fails intermittently (2 of 4 runs, identical numbers each time). Cause not found. See `bionic/inbox/redesign/plan.md` 7.0y.
+- The WebKit e2e project raised macOS's microphone dialog. **Fixed** in `3ae02b9`; see plan 7.0y.
+
+### Honest limits of this review
+
+The lead read about 10 code locations. A security-relevant claim here means "the code reads this way", not "this was exploited": none of the bypasses above was attempted.
