@@ -11,7 +11,6 @@ import {
   useRef,
   useState,
 } from "react";
-import type { StudioActions } from "../config/commands";
 import { ActivityTab } from "./activity-tab";
 import type { BannerAction, BannerHost } from "./banner-copy";
 import { presentation, usePresentation } from "./focus-presentation";
@@ -27,6 +26,7 @@ import { type SessionTabId, SessionTabs } from "./session-tabs";
 import { transcriptLabels } from "./session-transcript";
 import { copyText } from "./shared/copy-text";
 import { taskCardModel } from "./shared/task-card-model";
+import { selectedTask } from "./shared/task-target";
 import { useMissingContext } from "./shared/use-missing-context";
 import { SourcesTab } from "./sources-tab";
 import { IdleState, TaskPanel, TaskSelector } from "./task-panels";
@@ -38,11 +38,6 @@ import {
 import { useLiveSession } from "./use-live-session";
 import { useMissingContextActions } from "./use-missing-context-actions";
 
-export type LiveSessionPanelProps = {
-  // Studio navigation, for opening the session draft in the Workspace.
-  studio: StudioActions;
-};
-
 const TOAST_MS = 3_000;
 const CAPABILITY_REFRESH_MS = 15_000;
 
@@ -50,13 +45,13 @@ const CAPABILITY_REFRESH_MS = 15_000;
 // banners, the task panels and the Transcript, Activity and Sources tabs.
 // Everything comes from `useLiveSession()`. New results are announced politely
 // and never move focus.
-export function LiveSessionPanel(_props: LiveSessionPanelProps) {
+export function LiveSessionPanel() {
   const { snapshot, actions, model } = useLiveSession();
   // The companion reports when it starts, after this panel is already open.
   const capability = useCompanionCapability(CAPABILITY_REFRESH_MS);
   return (
     <div className="live-page" data-testid="live-panel">
-      <SessionBar variant="header" onOpen={() => undefined} />
+      <SessionBar variant="header" />
       {/* The same hands-free controls as the card: this page listens, watches
           and captures itself, so nothing needs a second window. */}
       {snapshot.session && <HandsFreeBand />}
@@ -132,7 +127,7 @@ export function LiveSessionBody({
 
   const tasks = model.tasks;
   const newest = tasks[tasks.length - 1];
-  const selected = tasks.find((task) => task.taskId === pinned) ?? newest;
+  const selected = selectedTask(tasks, pinned);
   const card = taskCardModel({
     tasks,
     actions: stream.actions,

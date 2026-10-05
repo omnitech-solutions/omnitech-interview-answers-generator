@@ -468,7 +468,7 @@ describe("earlier tasks", () => {
     show({ actions: two() });
     expect(screen.getByText("Second answer.")).toBeVisible();
     expect(screen.queryByText(/Viewing an earlier task/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Task 1 ·/ }));
+    fireEvent.click(screen.getByRole("button", { name: /T1 ·/ }));
     expect(screen.getByText("First answer.")).toBeVisible();
     expect(
       screen.getByText(
@@ -488,8 +488,8 @@ describe("earlier tasks", () => {
     const names = within(screen.getByRole("group", { name: "Detected tasks" }))
       .getAllByRole("button")
       .map((b) => b.textContent);
-    expect(names[0]).toMatch(/^Task 2/);
-    fireEvent.click(screen.getByRole("button", { name: /Task 1 ·/ }));
+    expect(names[0]).toMatch(/^T2/);
+    fireEvent.click(screen.getByRole("button", { name: /T1 ·/ }));
     view.again({
       actions: [
         ...two(),

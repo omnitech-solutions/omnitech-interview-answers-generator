@@ -12,7 +12,6 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StudioActions } from "../config/commands";
 import { LiveSessionBody, LiveSessionPanel } from "./live-session-view";
 import { SessionBar } from "./session-bar";
 import { getSessionStore, resetSessionStores } from "./session-registry";
@@ -253,7 +252,7 @@ describe("the bar and the live panel", () => {
 
   it("the panel re-reads the report: a report that arrives after the panel opened appears", async () => {
     install();
-    render(<LiveSessionPanel studio={{} as StudioActions} />);
+    render(<LiveSessionPanel />);
     getSessionStore("local").subscribe(() => undefined);
     await flush();
     await flush();

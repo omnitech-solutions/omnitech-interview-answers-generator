@@ -7,7 +7,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { CAPTURE_UPDATE_LINE } from "../companion-capability";
 import { usePresentation } from "../focus-presentation";
-import { resolveTarget } from "../shared/task-target";
+import { resolveTarget, taskLabel, taskOrdinal } from "../shared/task-target";
 import { AutoStatus } from "./auto-status";
 import { CommandBar } from "./command-bar";
 import { DeviceOnlyCard } from "./device-only-notice";
@@ -19,6 +19,7 @@ import { CaptureStrip } from "./overlay-capture";
 import { FollowUp, failureNote, UNAVAILABLE_NOTE } from "./overlay-footer";
 import { sourceAdvice } from "./overlay-model";
 import { FOCUS_INPUT_EVENT } from "./panels/commands";
+import { CAPTURE_MODES } from "./panels/toolbar-config";
 import { SettingsPopover } from "./settings-popover";
 import { openStartPage } from "./studio-links";
 import { type HandsFree, useHandsFree } from "./use-hands-free";
@@ -138,7 +139,7 @@ export function HandsFreeCapture({
                 : "No source shared in the window that owns hands-free"}
             </div>
           </div>
-          {hf.working ? (
+          {hf.working || hf.live.phase === "analyzing" ? (
             <button
               type="button"
               className="ov-analyze stop"
@@ -188,7 +189,7 @@ export function HandsFreeCapture({
       ? CAPTURE_UPDATE_LINE
       : (screenAdvice?.reason ??
         "The companion’s screen source isn’t available.");
-  const number = selected ? tasks.indexOf(selected) + 1 : 0;
+  const number = selected ? taskOrdinal(tasks, selected.taskId) : null;
   return (
     <CaptureStrip
       share={{ status: share.status, kind: share.kind, stream: share.stream }}
@@ -200,17 +201,17 @@ export function HandsFreeCapture({
       companionReason={companionReason}
       progress={hf.companionCapture.progress}
       attachTo={
-        selected
-          ? { label: `T${number} rev ${selected.currentRevision}` }
+        selected && number !== null
+          ? { label: `${taskLabel(number)} rev ${selected.currentRevision}` }
           : null
       }
-      nextTaskLabel={`T${tasks.length + 1}`}
+      nextTaskLabel={taskLabel(tasks.length + 1)}
       deviceOnly={hf.deviceOnly}
       phase={hf.phase}
       flash={hf.flash}
       unavailable={hf.unavailable}
       stopWork={
-        hf.working
+        hf.working || hf.phase === "analyzing"
           ? { stopping: hf.stopping, onStop: () => void hf.stopAnalysis() }
           : null
       }
@@ -267,7 +268,6 @@ export function HandsFreeFollowUp({ hf }: { hf: HandsFree }) {
           hf.setFollowText(text);
         }}
         disabled={hf.unavailable}
-        sending={hf.pending.includes("follow-up")}
         onSend={hf.send}
       />
     </>
@@ -381,23 +381,9 @@ const HAND_OFF_TEXT = {
 } as const;
 
 // Manual: capture only when Analyze is pressed. Auto: hands-free listening and
-// capture when the shared screen changes. One choice, the same Auto state the
-// card's pill shows.
-const CAPTURE_MODES = [
-  {
-    id: "manual",
-    label: "Manual",
-    title: "Capture only when you press Analyze",
-    on: false,
-  },
-  {
-    id: "auto",
-    label: "Auto",
-    title: "Listen, and capture when the shared screen changes",
-    on: true,
-  },
-] as const;
-
+// capture when the shared screen changes. One choice, the one Auto preference
+// the native toolbar menu, the strip and the Auto hotkey share (the table is in
+// toolbar-config.ts).
 function CaptureMode({ hf }: { hf: HandsFree }) {
   return (
     <div className="ov-segmented" role="group" aria-label="Capture mode">

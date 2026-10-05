@@ -17,9 +17,11 @@ const ITEM = '[role^="menuitem"]:not([aria-disabled="true"])';
 type PopoverProps = {
   open: boolean;
   onOpenChange(open: boolean): void;
-  // The button's own look and name.
+  // The button's own look and name. `label` names the panel; the button says
+  // `triggerLabel` when it has one (the label plus the value it now shows).
   className: string;
   label: string;
+  triggerLabel?: string;
   title?: string;
   trigger: ReactNode;
   // "menu": items with role menuitem*; "dialog": a read-only panel.
@@ -85,7 +87,7 @@ export function Popover(props: PopoverProps) {
         ref={button}
         type="button"
         className={props.className}
-        aria-label={props.label}
+        aria-label={props.triggerLabel ?? props.label}
         title={props.title}
         aria-haspopup={kind}
         aria-expanded={open}

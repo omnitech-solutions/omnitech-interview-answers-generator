@@ -209,6 +209,42 @@ describe("Analyze latest capture and follow-ups", () => {
     });
   });
 
+  it("sends a second, different follow-up while the first is still pending, as its own request", async () => {
+    const releases: (() => void)[] = [];
+    server.on(
+      "POST /:id/input",
+      ({ body }) =>
+        new Promise<Response>((resolve) => {
+          bodies.push(body);
+          releases.push(() =>
+            resolve(
+              jsonResponse({ input: { requestId: "r", sequence: 3 } }, 202),
+            ),
+          );
+        }),
+    );
+    await openFocus();
+    const input = screen.getByLabelText("Follow-up");
+    fireEvent.change(input, { target: { value: "first question" } });
+    await click("Send follow-up");
+    // The box stays usable while the first is on its way.
+    expect(input).toBeEnabled();
+    fireEvent.change(input, { target: { value: "second question" } });
+    await click("Send follow-up");
+    expect(bodies.map((body) => (body as { text: string }).text)).toEqual([
+      "first question",
+      "second question",
+    ]);
+    const ids = bodies.map((body) => (body as { requestId: string }).requestId);
+    expect(new Set(ids).size).toBe(2);
+    // The first finishing does not clear what was typed for the second.
+    fireEvent.change(input, { target: { value: "third, still typing" } });
+    for (const release of releases) release();
+    await flush();
+    await flush();
+    expect(input).toHaveValue("third, still typing");
+  });
+
   it("explains a refusal from the server in the Focus view", async () => {
     server.on("POST /:id/input", () =>
       jsonResponse({ error: { code: "status_refused" } }, 409),

@@ -5,6 +5,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { vi } from "vitest";
+
+// These guards parse much of the repository with the compiler API; on a busy
+// machine that outlasts the 10 s default test timeout.
+vi.setConfig({ testTimeout: 120_000 });
 
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

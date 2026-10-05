@@ -12,6 +12,10 @@ import type {
   PresentationHost,
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  presentation as focus,
+  usePresentation,
+} from "../../focus-presentation";
 import { nativeCaptureAvailable, onHostHotkey } from "../../host-adapter";
 import { isOpenSession } from "../../session-deps";
 import { SKILLS } from "../../shared/skills";
@@ -66,7 +70,7 @@ export const TOAST_TEXT = {
   }),
   skillChanged: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
     title: `Skill changed to - ${skillLabel(skill)}`,
-    detail: "Look in the small tab above",
+    detail: "",
   }),
   copied: (what: string): Omit<Toast, "key"> => ({
     title: `Copied ${what}`,
@@ -120,18 +124,30 @@ export function usePanelSession(
   const setNote = setNoteState;
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [grabbing, setGrabbing] = useState(false);
+  const grabbingRef = useRef(false);
+  grabbingRef.current = grabbing;
   // System lines of the chat, and the time before which rows were cleared.
   const [system, setSystem] = useState<SystemLine[]>([]);
   const [clearedAt, setClearedAt] = useState(0);
   const toastSeq = useRef(0);
+  // Every toast's timer, so none fires after the window is gone.
+  const toastTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
   const toast = useCallback((text: Omit<Toast, "key">) => {
     toastSeq.current += 1;
     const key = toastSeq.current;
     setToasts((now) => [...now.slice(-1), { key, ...text }]);
-    setTimeout(
-      () => setToasts((now) => now.filter((t) => t.key !== key)),
-      TOAST_MS,
-    );
+    const timer = setTimeout(() => {
+      toastTimers.current.delete(timer);
+      setToasts((now) => now.filter((t) => t.key !== key));
+    }, TOAST_MS);
+    toastTimers.current.add(timer);
   }, []);
   const addSystem = useCallback((text: string) => {
     const at = Date.now();
@@ -224,6 +240,9 @@ export function usePanelSession(
     try {
       const frame = await share.grab(latest.current.mask);
       if (!here()) return false;
+      // The frame is taken: from here it is sending (the analyze command is
+      // pending), not capturing, and Stop has work to cancel.
+      setGrabbing(false);
       // A capture is a new analysis that replaces the one on show, and is never
       // attached to the previous task by accident (a heard question and a screen
       // of another problem would be merged). Attaching is only ever asked for.
@@ -377,10 +396,18 @@ export function usePanelSession(
   const [stopped, setStopped] = useState(false);
   const phaseRef = useRef<"capturing" | "analyzing" | null>(null);
   async function stopAnalysis(): Promise<void> {
+    // [GUARD] While the screen is still being taken there is nothing on the
+    // server to stop, and hiding the phase would show "idle" for a capture that
+    // is about to be sent.
+    if (grabbingRef.current) return;
     setStopped(true);
     setNote(null);
     const result = await actions.stopWork();
-    if (!result.ok) setNote(failureNote(result.code));
+    if (!result.ok) {
+      // The work was not stopped: the panels keep saying what is running.
+      setStopped(false);
+      setNote(failureNote(result.code));
+    }
   }
   const press = useCallback(
     (command: "capture" | "attach" | "toggle-mic") => {
@@ -396,7 +423,9 @@ export function usePanelSession(
       else if (phaseRef.current) void stopAnalysis();
       else void grabAndAnalyze();
     },
-    // grabAndAnalyze and stopAnalysis read refs; auto.toggleListening is stable.
+    // grabAndAnalyze reads share.status from the render that made this callback
+    // (benign: share.start() is idempotent) and the rest through refs;
+    // stopAnalysis reads refs; auto.toggleListening is stable.
     [owns, bus, auto.toggleListening],
   );
   const pressRef = useRef(press);
@@ -584,11 +613,10 @@ export function usePanelSession(
     if (recording) addSystem(RECORDING_LINE);
   }, [recording, toast, addSystem]);
   // A session that is already recording when this panel opens says so once.
+  const recordingOnOpen = useRef(recording);
   useEffect(() => {
-    if (recording) addSystem(RECORDING_LINE);
-    // Only on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (recordingOnOpen.current) addSystem(RECORDING_LINE);
+  }, [addSystem]);
 
   // ---- Typing -----------------------------------------------------------------
   const send = useCallback(
@@ -619,15 +647,13 @@ export function usePanelSession(
 
   const tasks = model.tasks;
   // The task on show: the newest, unless the person chose another from the
-  // transcript. Choosing only changes what is shown; the other task keeps running
-  // unless they stop it. A new task takes over the view.
-  const [pinned, setPinned] = useState<string | null>(null);
+  // transcript or the chips. The pin is the shared presentation's (the web page
+  // reads the same one): a new task does not move it, and Back to now clears it.
+  // Choosing only changes what is shown; the other task keeps running.
+  const { pinnedTaskId: pinned } = usePresentation();
+  const setPinned = focus.pin;
   const resolved = resolveTarget(tasks, pinned);
   const selected = resolved?.task;
-  const taskCount = tasks.length;
-  useEffect(() => {
-    if (taskCount >= 0) setPinned(null);
-  }, [taskCount]);
   selectedRef.current = selected;
   // The one description of the task on show, shared with the web page; and the
   // lines between the conversation's own (a task starting, a task stopped).
@@ -660,14 +686,14 @@ export function usePanelSession(
   // Auto's own numbers, for the strip and the capture menu: the interval in
   // force and the per-session limit, from the one Auto config.
   const autoNow = {
-    on: auto.on,
+    on: live.auto,
     line: auto.line,
     limits: autoLimits(auto.intervalSec),
     // Auto is only watching the screen while the analysis shows, a screen is
     // wanted and the session may send it.
     watching:
       options.watchScreen === true &&
-      auto.on &&
+      live.auto &&
       !deviceOnly &&
       (session?.captureSources.includes("screen") ?? false),
   };

@@ -8,7 +8,7 @@
 import type { PresentationHost } from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
-import { shortcutsFor } from "../../shared/shortcuts";
+import { nativeChord, shortcutsFor } from "../../shared/shortcuts";
 import { SKILLS } from "../../shared/skills";
 import { DEFAULT_SKILL } from "./commands";
 import type { PanelSession } from "./panel-views";
@@ -16,11 +16,10 @@ import { Popover } from "./popover";
 import { hasCapability } from "./presentation-host";
 import type { Panes } from "./single-panel";
 import {
-  CAPTURE_MODES,
-  type CaptureMode,
   captureControl,
   captureMenuItems,
-  nativeChord,
+  captureModeOf,
+  hideBlockedReason,
   PANES,
   WINDOW_CONTROLS,
   type WindowControlAction,
@@ -42,22 +41,25 @@ type MenuId = "mode" | "skill" | "keys";
 type WindowControls = {
   panes: Panes;
   presentation: PresentationHost;
-  captureMode: { value: CaptureMode; onChange(mode: CaptureMode): void };
   // A menu is open: the window keeps room below the bar for it.
   onMenuOpen(open: boolean): void;
 };
 
 // The window's own controls. Red hides it, which is only offered where the
-// shell can bring it back (a native window); elsewhere it stays disabled so the
-// window can never be made invisible without a way back.
+// shell can bring it back (a native window) and only while the session is not
+// capturing or listening; otherwise it stays disabled, with its reason, so the
+// window can never be made invisible while it works, or without a way back.
 export function WindowDots({
   panes,
   presentation,
   dimmed,
+  hideBlocked,
 }: {
   panes: Panes;
   presentation: PresentationHost;
   dimmed: boolean;
+  // Why hide is refused right now (capturing or listening), or null.
+  hideBlocked: string | null;
 }) {
   const recoverable = hasCapability(presentation, "always-on-top");
   const run: Record<WindowControlAction, () => void> = {
@@ -73,7 +75,8 @@ export function WindowDots({
       data-dimmed={dimmed ? "true" : undefined}
     >
       {WINDOW_CONTROLS.map((control) => {
-        const unavailable = control.action === "hide" && !recoverable;
+        const hide = control.action === "hide";
+        const unavailable = hide && (!recoverable || hideBlocked !== null);
         return (
           <button
             key={control.id}
@@ -83,9 +86,11 @@ export function WindowDots({
             data-testid={`pn-dot-${control.id}`}
             aria-label={control.label}
             title={
-              unavailable
-                ? "Only the Mac app can hide its window and bring it back"
-                : control.title
+              hide && hideBlocked !== null
+                ? hideBlocked
+                : unavailable
+                  ? "Only the Mac app can hide its window and bring it back"
+                  : control.title
             }
             disabled={unavailable}
             onClick={run[control.action]}
@@ -113,7 +118,7 @@ export function Toolbar({
   useEffect(() => onMenuOpen(menu !== null), [menu, onMenuOpen]);
   const toggle = (id: MenuId) => (open: boolean) => setMenu(open ? id : null);
   const skill = SKILLS.find((option) => option.id === s.skill)?.label ?? "";
-  const modes = controls.captureMode;
+  const mode = captureModeOf(s.auto.on);
   const clickThrough = s.interaction === false;
   return (
     <div
@@ -126,6 +131,7 @@ export function Toolbar({
         panes={controls.panes}
         presentation={controls.presentation}
         dimmed={clickThrough}
+        hideBlocked={hideBlockedReason(s)}
       />
       <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
         <button
@@ -133,7 +139,7 @@ export function Toolbar({
           className="pn-split-main"
           aria-label={control.label}
           title={`${control.title} · ${nativeChord("analyze")}`}
-          disabled={!s.open}
+          disabled={!s.open || s.phase === "capturing"}
           onClick={() => s.press("capture")}
         >
           <span className="pn-icon-dot">
@@ -144,31 +150,36 @@ export function Toolbar({
             <span
               className="pn-dot"
               data-tone={status.tone}
-              role="status"
-              aria-label={status.label}
               title={status.label}
+              aria-hidden="true"
               data-testid="pn-dot"
             />
           </span>
         </button>
+        {/* The state the dot colours, outside the button so the button's name
+            stays its action. */}
+        <span className="pn-sr" role="status" data-testid="pn-status">
+          {status.label}
+        </span>
         <Popover
           open={menu === "mode"}
           onOpenChange={toggle("mode")}
           className="pn-split-menu"
           label="Capture mode"
+          triggerLabel={`Capture mode: ${mode.label}`}
           title="How the screen is captured"
           kind="menu"
           panelClassName="pn-menu"
           trigger={
             <>
-              {CAPTURE_MODES.find((mode) => mode.id === modes.value)?.label}
+              {mode.label}
               <Icon name="expand_more" />
             </>
           }
         >
           {(close) =>
             captureMenuItems({
-              mode: modes.value,
+              mode: mode.id,
               auto: s.auto.limits,
               target: s.target?.targetLabel ?? null,
               open: s.open,
@@ -185,7 +196,7 @@ export function Toolbar({
                   onClick={() => {
                     if (item.disabledReason !== null) return;
                     if (item.id === "attach") s.press("attach");
-                    else modes.onChange(item.id);
+                    else s.setAuto(captureModeOf(item.id === "auto").on);
                     close();
                   }}
                 >
@@ -232,6 +243,7 @@ export function Toolbar({
         onOpenChange={toggle("skill")}
         className="pn-bar-button pn-skill"
         label="Answer style"
+        triggerLabel={`Answer style: ${skill}`}
         title={`Answer style · ${nativeChord("skill-previous")} ${nativeChord("skill-next")}`}
         testId="pn-skill"
         kind="menu"
@@ -325,12 +337,21 @@ export function Toolbar({
       >
         {() => (
           <ul className="pn-keys-list">
-            {shortcutsFor("native").map((shortcut) => (
-              <li key={shortcut.id}>
-                <span>{shortcut.label}</span>
-                <kbd>{shortcut.chord}</kbd>
-              </li>
-            ))}
+            {shortcutsFor("native").map((shortcut) => {
+              // Registered by the shell only while the window takes the mouse.
+              const off = clickThrough && shortcut.requiresInteractive === true;
+              return (
+                <li
+                  key={shortcut.id}
+                  aria-disabled={off ? "true" : undefined}
+                  data-disabled={off ? "true" : undefined}
+                >
+                  <span>{shortcut.label}</span>
+                  <kbd>{shortcut.chord}</kbd>
+                  {off && <small>Only while interactive</small>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Popover>

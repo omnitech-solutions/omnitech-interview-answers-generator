@@ -118,6 +118,21 @@ describe("PairingPanel", () => {
     expect(value).not.toHaveTextContent(SECRET);
   });
 
+  it("lets the revealed text be read: no label overrides it, and the button says it is pressed", async () => {
+    await openWithCredential();
+    const value = screen.getByTestId("pairing-credential");
+    expect(value).not.toHaveAttribute("aria-label");
+    const show = screen.getByRole("button", { name: "Show" });
+    expect(show).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(show);
+    expect(screen.getByRole("button", { name: "Hide" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(value).not.toHaveAttribute("aria-label");
+    expect(value).toHaveTextContent(SECRET);
+  });
+
   it("copies the credential, even while it is masked", async () => {
     await openWithCredential();
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));

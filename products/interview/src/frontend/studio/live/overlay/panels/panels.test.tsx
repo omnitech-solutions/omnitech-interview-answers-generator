@@ -36,7 +36,7 @@ import {
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { OWNER_LOCK, useOwnsSession } from "./panel-owner";
-import { AnalysisPanel, ChatPanel, type PanelSession } from "./panel-views";
+import { AnswerPanel, ChatPanel, type PanelSession } from "./panel-views";
 import { RECORDING_LINE, TOAST_MS } from "./use-panel-session";
 
 const live = (extra = {}) =>
@@ -292,9 +292,10 @@ describe("analysis", () => {
       card: null,
       phase: "analyzing",
       note: null,
+      auto: { on: false },
       model: { activity: { key: "idle", text: "" }, tasks: [] },
     } as unknown as PanelSession;
-    render(<AnalysisPanel s={session} part="text" />);
+    render(<AnswerPanel s={session} />);
     const steps = screen.getByTestId("pn-steps");
     expect(
       within(steps)
@@ -310,9 +311,10 @@ describe("analysis", () => {
       card: null,
       phase: "analyzing",
       note: null,
+      auto: { on: false },
       model: { activity: { key: "drafting", text: "" }, tasks: [] },
     } as unknown as PanelSession;
-    render(<AnalysisPanel s={session} part="text" />);
+    render(<AnswerPanel s={session} />);
     expect(
       within(screen.getByTestId("pn-steps"))
         .getAllByRole("listitem")
@@ -481,7 +483,9 @@ describe("toasts", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(toasts()).toHaveTextContent("Skill changed to - System Design");
-    expect(toasts()).toHaveTextContent("Look in the small tab above");
+    // No pointer to a tab that no longer exists.
+    expect(toasts()).not.toHaveTextContent(/small tab/);
+    expect(document.querySelector(".pn-toast-detail")).toBeNull();
   });
   it("says Current Skill when interaction mode is off and the skill is not changed", async () => {
     const host = nativeHost();

@@ -89,7 +89,7 @@ public struct Endpoint: Equatable, Sendable {
     }
 
     public static func isValidSlug(_ slug: String) -> Bool {
-        slug.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$", options: .regularExpression) != nil
+        slug.range(of: "^[a-z0-9][a-z0-9-]{0,62}$", options: .regularExpression) != nil
     }
 
     public static func isCredentialShape(_ credential: String) -> Bool {

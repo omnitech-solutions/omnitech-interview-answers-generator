@@ -982,7 +982,9 @@ describe("capture feels instant", () => {
     );
     finish();
     await settle();
-    expect(screen.getByRole("button", { name: /Analyzing…/ })).toBeDisabled();
+    // Once the frame is sent there is work to stop, so Stop is offered during
+    // the handoff, before the server has started a run.
+    expect(screen.getByRole("button", { name: /Stop analysis/ })).toBeEnabled();
     expect(screen.getByTestId("analyzing")).toHaveTextContent("Analyzing…");
     release(
       jsonResponse(

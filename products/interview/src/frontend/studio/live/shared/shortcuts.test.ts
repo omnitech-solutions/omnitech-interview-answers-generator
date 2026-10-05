@@ -64,6 +64,22 @@ describe("shortcut parity with Hotkeys.swift", () => {
     expect(missing).toEqual([]);
   });
 
+  it("marks exactly the chords the shell registers only while interactive", () => {
+    const source = readFileSync(HOTKEYS_SWIFT, "utf8");
+    const interactive = new Set(
+      [
+        ...source.matchAll(
+          /HotkeyBinding\([^\n]*?label: "((?:[^"\\]|\\.)*)"[^\n]*requiresInteractive: true/g,
+        ),
+      ].map(([, label = ""]) => label.replaceAll("\\\\", "\\")),
+    );
+    expect(interactive.size).toBeGreaterThan(0);
+    const flagged = NATIVE_SHORTCUTS.filter(
+      (each) => each.requiresInteractive,
+    ).map((each) => each.chord);
+    expect([...interactive].sort()).toEqual(flagged.sort());
+  });
+
   it("every primary chord the shell registers is in the table", () => {
     const table = new Set(NATIVE_SHORTCUTS.map((each) => each.chord));
     const unlisted = registered()

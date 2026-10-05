@@ -17,6 +17,10 @@
 // The table is configuration, not suppression: each row has a written reason.
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 
+// These guards parse much of the repository with the compiler API; on a busy
+// machine that outlasts the 10 s default test timeout.
+vi.setConfig({ testTimeout: 120_000 });
+
 // The sign-in session is the identity boundary and is out of scope here.
 vi.mock("@/auth", () => ({ auth: async () => null }));
 

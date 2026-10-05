@@ -2,12 +2,8 @@
 // the window's width and the footer buttons are all drawn from these tables, so
 // adding a pane or a mode is one entry here and nothing else changes.
 import type { IconName } from "../../../icon";
-import { NATIVE_SHORTCUTS } from "../../shared/shortcuts";
+import { nativeChord } from "../../shared/shortcuts";
 import { AUTO_MAX_PER_SESSION } from "../auto-gate";
-
-// The chord the Mac shell registers for a control, from the one shortcut table.
-export const nativeChord = (id: string): string =>
-  NATIVE_SHORTCUTS.find((shortcut) => shortcut.id === id)?.chord ?? "";
 
 // ---- Capture modes ------------------------------------------------------------
 
@@ -19,26 +15,32 @@ export const autoLimits = (intervalSec: number): AutoLimits => ({
   maxPerSession: AUTO_MAX_PER_SESSION,
 });
 
+// Auto and Manual are the two values of the ONE Auto preference (listening and
+// watching the screen), on every surface: the toolbar menu, the strip, the Auto
+// hotkey and the web band all read and write it. `on` is that preference.
 export const CAPTURE_MODES = [
   {
     id: "auto",
     label: "Auto",
-    title: "Analyses a new screen by itself while the analysis is showing",
+    on: true,
+    title: "Listen, and capture when the screen changes",
     subtitle: (auto: AutoLimits) =>
       `Re-analyse when the screen changes · checks every ${auto.intervalSec} s, at most ${auto.maxPerSession} per session`,
   },
   {
     id: "manual",
     label: "Manual",
-    title: "Only analyses when you press capture",
+    on: false,
+    title: "Capture only when you press Analyze",
     subtitle: () => `Analyse only when you press ${nativeChord("analyze")}`,
   },
 ] as const;
 export type CaptureMode = (typeof CAPTURE_MODES)[number]["id"];
 
-export const DEFAULT_CAPTURE_MODE: CaptureMode = "auto";
-export const isCaptureMode = (value: unknown): value is CaptureMode =>
-  CAPTURE_MODES.some((mode) => mode.id === value);
+export const captureModeOf = (
+  autoOn: boolean,
+): (typeof CAPTURE_MODES)[number] =>
+  CAPTURE_MODES.find((mode) => mode.on === autoOn) ?? CAPTURE_MODES[0];
 
 // One row of the capture menu: a mode (checked when chosen) or the action that
 // captures the screen as more of the task on show. The action is never
@@ -123,6 +125,18 @@ export const WINDOW_CONTROLS = [
   action: "hide" | "collapse" | "expand";
 }[];
 export type WindowControlAction = (typeof WINDOW_CONTROLS)[number]["action"];
+
+// Why the red dot cannot hide the window now, or null when it can. A window
+// that is capturing or listening stays on screen: the person is told to pause
+// first, so what is being captured is never out of sight.
+export function hideBlockedReason(session: {
+  open: boolean;
+  paused: boolean;
+}): string | null {
+  return session.open && !session.paused
+    ? "Pause the session to hide the window"
+    : null;
+}
 
 // ---- Panes --------------------------------------------------------------------
 
@@ -224,23 +238,24 @@ export type FooterButton = {
   disabled: boolean;
 };
 
+// What the bottom bar is for: a running (or paused) session, or a finished one.
+export type FooterState =
+  | { kind: "live"; paused: boolean; busy: boolean }
+  // A finished session offers a new one, and its summary page when it can be
+  // opened from here.
+  | { kind: "ended"; starting: boolean; canSummary: boolean };
+
 // Which buttons the bottom bar shows now. Pause is a break (the session stays
 // open); End finishes it for good; a finished session offers a new one.
-export function footerButtons(input: {
-  paused: boolean;
-  ended: boolean;
-  starting: boolean;
-  busy: boolean;
-  // "session" spells out what each button acts on: "Pause session".
-  wording: "short" | "session";
-  canStart: boolean;
-  // The ended session's summary page can be opened from here.
-  canSummary?: boolean;
-}): FooterButton[] {
-  const noun = input.wording === "session" ? " session" : "";
-  if (input.ended)
+// "session" wording spells out what each button acts on: "Pause session".
+export function footerButtons(
+  state: FooterState,
+  wording: "short" | "session",
+): FooterButton[] {
+  const noun = wording === "session" ? " session" : "";
+  if (state.kind === "ended")
     return [
-      ...(input.canSummary
+      ...(state.canSummary
         ? [
             {
               id: "summary" as const,
@@ -252,28 +267,24 @@ export function footerButtons(input: {
             },
           ]
         : []),
-      ...(input.canStart
-        ? [
-            {
-              id: "start" as const,
-              label: input.starting ? "Starting…" : "Start a new session",
-              title: "Start a new session",
-              icon: "play_circle" as const,
-              tone: "go" as const,
-              disabled: input.starting,
-            },
-          ]
-        : []),
+      {
+        id: "start" as const,
+        label: state.starting ? "Starting…" : "Start a new session",
+        title: "Start a new session",
+        icon: "play_circle" as const,
+        tone: "go" as const,
+        disabled: state.starting,
+      },
     ];
   return [
-    input.paused
+    state.paused
       ? {
           id: "resume",
           label: `Resume${noun}`,
           title: "Carry on listening and analysing",
           icon: "play_arrow",
           tone: "go",
-          disabled: input.busy,
+          disabled: state.busy,
         }
       : {
           id: "pause",
@@ -282,7 +293,7 @@ export function footerButtons(input: {
             "Take a break: stop listening and analysing until you resume. The session stays open",
           icon: "pause",
           tone: "default",
-          disabled: input.busy,
+          disabled: state.busy,
         },
     {
       id: "end",

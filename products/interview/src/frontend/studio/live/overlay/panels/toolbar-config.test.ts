@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { nativeChord } from "../../shared/shortcuts";
 import { AUTO_MAX_PER_SESSION } from "../auto-gate";
 import {
   ALL_PANES_SHOWN,
@@ -8,9 +9,9 @@ import {
   CAPTURE_MODES,
   captureControl,
   captureMenuItems,
+  captureModeOf,
   footerButtons,
-  isCaptureMode,
-  nativeChord,
+  hideBlockedReason,
   PANES,
   phaseLabel,
   WINDOW_CONTROLS,
@@ -43,43 +44,42 @@ describe("capture control", () => {
 
   it("knows its modes", () => {
     expect(CAPTURE_MODES.map((mode) => mode.id)).toEqual(["auto", "manual"]);
-    expect(isCaptureMode("manual")).toBe(true);
-    expect(isCaptureMode("later")).toBe(false);
+    // Each is one value of the single Auto preference.
+    expect(captureModeOf(true).id).toBe("auto");
+    expect(captureModeOf(false).id).toBe("manual");
   });
 });
 
 describe("footer buttons", () => {
-  const base = {
-    paused: false,
-    ended: false,
-    starting: false,
-    busy: false,
-    wording: "short" as "short" | "session",
-    canStart: true,
-  };
-  const ids = (input: Partial<typeof base>) =>
-    footerButtons({ ...base, ...input }).map((button) => button.id);
+  const live = { kind: "live", paused: false, busy: false } as const;
+  const ids = (state: Parameters<typeof footerButtons>[0]) =>
+    footerButtons(state, "short").map((button) => button.id);
 
   it("offers Pause and End while live, Resume and End while paused", () => {
-    expect(ids({})).toEqual(["pause", "end"]);
-    expect(ids({ paused: true })).toEqual(["resume", "end"]);
+    expect(ids(live)).toEqual(["pause", "end"]);
+    expect(ids({ ...live, paused: true })).toEqual(["resume", "end"]);
     expect(
-      footerButtons({ ...base, paused: true }).find((b) => b.id === "resume")
-        ?.tone,
+      footerButtons({ ...live, paused: true }, "short").find(
+        (b) => b.id === "resume",
+      )?.tone,
     ).toBe("go");
   });
 
-  it("offers only a new session once ended, and nothing when it cannot start one", () => {
-    expect(ids({ ended: true })).toEqual(["start"]);
-    expect(ids({ ended: true, canStart: false })).toEqual([]);
+  it("offers only a new session once ended", () => {
+    const ended = {
+      kind: "ended",
+      starting: false,
+      canSummary: false,
+    } as const;
+    expect(ids(ended)).toEqual(["start"]);
     expect(
-      footerButtons({ ...base, ended: true, starting: true })[0],
+      footerButtons({ ...ended, starting: true }, "short")[0],
     ).toMatchObject({ disabled: true, label: "Starting…" });
   });
 
   it("spells out the session when asked", () => {
     const labels = (wording: "short" | "session") =>
-      footerButtons({ ...base, wording }).map((button) => button.label);
+      footerButtons(live, wording).map((button) => button.label);
     expect(labels("short")).toEqual(["Pause", "End"]);
     expect(labels("session")).toEqual(["Pause session", "End session"]);
   });
@@ -160,7 +160,9 @@ describe("panes and shortcuts", () => {
     expect(nativeChord("analyze")).toBe("⌘⇧S");
     expect(nativeChord("listening")).toBe("⌥R");
     expect(nativeChord("click-through")).toBe("⌘⇧I");
-    expect(nativeChord("nothing")).toBe("");
+    // An id outside the table does not compile; forced past the types it fails
+    // loudly instead of answering an empty chord.
+    expect(() => nativeChord("nothing" as never)).toThrow();
   });
 });
 
@@ -200,15 +202,10 @@ describe("answer steps", () => {
 
 describe("the ended footer", () => {
   it("offers the summary before a new session when both can be done", () => {
-    const ids = footerButtons({
-      paused: false,
-      ended: true,
-      starting: false,
-      busy: false,
-      wording: "session",
-      canStart: true,
-      canSummary: true,
-    }).map((button) => button.id);
+    const ids = footerButtons(
+      { kind: "ended", starting: false, canSummary: true },
+      "session",
+    ).map((button) => button.id);
     expect(ids).toEqual(["summary", "start"]);
   });
 });
@@ -228,5 +225,15 @@ describe("window controls", () => {
 
   it("tells the person how the hidden window comes back", () => {
     expect(WINDOW_CONTROLS[0].title).toContain(nativeChord("show-hide"));
+  });
+});
+
+describe("hiding the window", () => {
+  it("is refused, with the reason, only while the session is capturing or listening", () => {
+    expect(hideBlockedReason({ open: true, paused: false })).toBe(
+      "Pause the session to hide the window",
+    );
+    expect(hideBlockedReason({ open: true, paused: true })).toBeNull();
+    expect(hideBlockedReason({ open: false, paused: false })).toBeNull();
   });
 });

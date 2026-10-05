@@ -12,20 +12,24 @@ import {
   useRef,
   useState,
 } from "react";
+import { nativeChord } from "../../shared/shortcuts";
 import { Footer, failureNote } from "../overlay-footer";
 import { AUTO_SESSION } from "./auto-session";
-import type { CaptureMode } from "./capture-mode";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
 import { openPanelBus } from "./panel-bus";
-import { AnalysisPanel, ChatPanel, type PanelSession } from "./panel-views";
+import {
+  AnswerPanel,
+  ChatPanel,
+  CodePanel,
+  type PanelSession,
+} from "./panel-views";
 import { StatusStrip, useStrip } from "./status-strip";
 import { openSessionSummary } from "./summary-link";
 import { Toolbar } from "./toolbar";
 import {
   ALL_PANES_SHOWN,
   BARE_WIDTH,
-  nativeChord,
   PANES,
   type PaneId,
   type PaneState,
@@ -62,25 +66,17 @@ export function SinglePanel({
   s,
   panes,
   presentation,
-  captureMode,
 }: {
   s: PanelSession;
   panes: Panes;
   presentation: PresentationHost;
-  captureMode: { value: CaptureMode; onChange(mode: CaptureMode): void };
 }) {
   const { shown, show } = panes;
   // What each pane shows. The ids and sizes live in PANES.
   const view: Record<PaneId, (session: PanelSession) => ReactNode> = {
     chat: (session) => <ChatPanel s={session} />,
-    analysis: (session) => (
-      <AnalysisPanel
-        s={session}
-        part="text"
-        autoWatching={captureMode.value === "auto"}
-      />
-    ),
-    code: (session) => <AnalysisPanel s={session} part="code" />,
+    analysis: (session) => <AnswerPanel s={session} />,
+    code: (session) => <CodePanel s={session} />,
   };
   // The session ended (End, or the server's time limit): the window starts the
   // next one itself. It is the same server-side session Studio shows, so the
@@ -171,7 +167,7 @@ export function SinglePanel({
     <>
       <Toolbar
         s={s}
-        controls={{ panes, presentation, captureMode, onMenuOpen: setMenuOpen }}
+        controls={{ panes, presentation, onMenuOpen: setMenuOpen }}
       />
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {anyPane && (
@@ -186,17 +182,23 @@ export function SinglePanel({
       {ended && <EndedCard s={s} />}
       <div className="pn-single-foot">
         <Footer
-          sessionWording
-          ended={ended}
-          onStart={() => void startNext()}
-          {...(sessionId
-            ? { onOpenSummary: () => openSessionSummary(sessionId) }
-            : {})}
-          starting={starting}
-          clock={
-            ended ? null : { label: s.model.elapsedLabel, paused: s.paused }
+          wording="session"
+          variant={
+            ended
+              ? {
+                  kind: "ended",
+                  starting,
+                  onStart: () => void startNext(),
+                  ...(sessionId
+                    ? { onOpenSummary: () => openSessionSummary(sessionId) }
+                    : {}),
+                }
+              : {
+                  kind: "live",
+                  paused: s.paused,
+                  clock: { label: s.model.elapsedLabel, paused: s.paused },
+                }
           }
-          paused={s.paused}
           pending={s.snapshot.pending}
           actions={s.actions}
           onFailure={(code) => s.notify(failureNote(code))}

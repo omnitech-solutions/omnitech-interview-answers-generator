@@ -22,6 +22,7 @@ import {
 } from "./shared/missing-context-strip";
 import { STAGE_PRESENTATION, type TaskCard } from "./shared/task-card-model";
 import { TASK_KIND } from "./shared/task-kind";
+import { taskLabel, taskOrdinal } from "./shared/task-target";
 
 export type Idle = { icon: IconName; title: string; detail: string };
 const IDLE: Partial<Record<ActivityKey, Idle>> = {
@@ -74,7 +75,10 @@ export function TaskSelector({
 }) {
   if (tasks.length < 2) return null;
   const newestFirst = tasks
-    .map((task, index) => ({ task, number: index + 1 }))
+    .map((task, index) => ({
+      task,
+      number: taskOrdinal(tasks, task.taskId) ?? index + 1,
+    }))
     .reverse();
   return (
     <div className="live-task-select" role="group" aria-label="Detected tasks">
@@ -86,7 +90,7 @@ export function TaskSelector({
           aria-pressed={task.taskId === selectedId}
           onClick={() => onSelect(task.taskId)}
         >
-          Task {number} · {TASK_KIND[task.kind].label}
+          {taskLabel(number)} · {TASK_KIND[task.kind].label}
         </button>
       ))}
     </div>
@@ -191,7 +195,6 @@ export function TaskPanel({
   onCopy,
   onBackToNow,
   missing = null,
-  showWorkspaceLink = true,
 }: {
   task: TaskView;
   // The one derivation of this task's identity, stages and model.
@@ -207,7 +210,6 @@ export function TaskPanel({
     onAction(id: MissingContextActionId): void;
     unavailable: Partial<Record<MissingContextActionId, string>>;
   } | null;
-  showWorkspaceLink?: boolean;
 }) {
   const noticed = noticesFor(task, policy).length > 0;
   const meta = [
@@ -251,7 +253,6 @@ export function TaskPanel({
             card={card}
             session={session}
             onCopy={onCopy}
-            showWorkspaceLink={showWorkspaceLink}
           />
         ) : task.answer ? (
           <AnswerBody

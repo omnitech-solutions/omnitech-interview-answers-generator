@@ -2,7 +2,7 @@
 // transcript, draft or answer content ever comes from the list route), newest
 // first, paged by the server's cursor. Opening one addresses it as live/<id>.
 import type { LiveSessionSummary } from "@omnitech/interview-contracts";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { formatDayTime, RETENTION_LABEL } from "./ended-summary";
@@ -33,6 +33,14 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // A page that arrives after the history is gone changes nothing.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   async function load(cursor?: string) {
     setLoading(true);
@@ -42,10 +50,12 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
         limit: PAGE,
         ...(cursor ? { cursor } : {}),
       });
+      if (!mounted.current) return;
       setSessions((held) => [...held, ...page.sessions]);
       setNext(page.nextCursor);
       setLoaded(true);
     } catch {
+      if (!mounted.current) return;
       setFailed(true);
     }
     setLoading(false);

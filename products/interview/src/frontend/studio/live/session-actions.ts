@@ -88,19 +88,22 @@ export function createSessionActions(context: CommandContext): SessionActions {
     publishPending();
   }
 
-  // The same command pressed twice on the same session shares one request;
-  // different commands, or the same one on another session, run side by side,
-  // so End is never queued behind anything.
+  // The same request made twice on the same session shares one call: a request
+  // is the command plus, for the ones that carry a subject (a task target, the
+  // text), its `identity`. Different commands, a different subject, or the same
+  // one on another session run side by side, so End is never queued behind
+  // anything and a second, different follow-up is never dropped.
   function run(
     command: SessionCommand,
     work: (bound: Binding) => Promise<void>,
     scope: "session" | "global" = "session",
+    identity = "",
   ): Promise<CommandResult> {
     const bound = binding();
     const key =
       scope === "global"
         ? command
-        : `${command}|${bound.id ?? ""}|${bound.epoch}`;
+        : `${command}|${bound.id ?? ""}|${bound.epoch}|${identity}`;
     const existing = inFlight.get(key);
     if (existing) return existing;
     const promise = (async (): Promise<CommandResult> => {
@@ -303,23 +306,34 @@ export function createSessionActions(context: CommandContext): SessionActions {
         return { ok: false, code: errorCodeOf(error) };
       }
     },
-    submitFollowUp: (text, target, hints) =>
-      run("follow-up", async (bound) => {
-        const send = context.submitFollowUp;
-        if (!send) throw new SessionApiError("unavailable", 0);
-        // [GUARD] Nothing empty is sent; the text goes to the route only.
-        const trimmed = text.trim();
-        if (trimmed === "") throw new SessionApiError("invalid_input", 0);
-        await send(sessionIdOf(bound), trimmed, target, hints);
-        restartIfLive(bound);
-      }),
+    submitFollowUp: (text, target, hints) => {
+      const trimmed = text.trim();
+      return run(
+        "follow-up",
+        async (bound) => {
+          const send = context.submitFollowUp;
+          if (!send) throw new SessionApiError("unavailable", 0);
+          // [GUARD] Nothing empty is sent; the text goes to the route only.
+          if (trimmed === "") throw new SessionApiError("invalid_input", 0);
+          await send(sessionIdOf(bound), trimmed, target, hints);
+          restartIfLive(bound);
+        },
+        "session",
+        `${target ? `${target.taskId}@${target.revision}` : ""}|${trimmed}`,
+      );
+    },
     solveTask: (target, hints) =>
-      run("solve", async (bound) => {
-        const send = context.solveTask;
-        if (!send) throw new SessionApiError("unavailable", 0);
-        await send(sessionIdOf(bound), target, hints);
-        restartIfLive(bound);
-      }),
+      run(
+        "solve",
+        async (bound) => {
+          const send = context.solveTask;
+          if (!send) throw new SessionApiError("unavailable", 0);
+          await send(sessionIdOf(bound), target, hints);
+          restartIfLive(bound);
+        },
+        "session",
+        `${target.taskId}@${target.revision}`,
+      ),
     // Not a `run` command: phrases arrive back to back and each is its own
     // request, so none may share another's in-flight call, and heard speech
     // is not shown as a pending command.

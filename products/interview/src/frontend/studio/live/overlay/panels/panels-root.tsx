@@ -13,7 +13,6 @@ import { useLiveSession } from "../../use-live-session";
 import { installHostSurface, isNativeSurface } from "../host-surface";
 import { tellHost } from "../overlay-url";
 import { useAutoSession } from "./auto-session";
-import { useCaptureMode } from "./capture-mode";
 import type { NativeWindowPage } from "./panel-owner";
 import { SettingsPanel, Toasts } from "./panel-views";
 import { selectPresentation } from "./presentation-host";
@@ -31,10 +30,9 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
   const presentation = useMemo(() => selectPresentation(), []);
   const { snapshot, actions } = useLiveSession();
   const panes = usePanes();
-  const [captureMode, setCaptureMode] = useCaptureMode(tenantFromLocation());
+  // Auto (the one preference) watches the screen while the analysis shows.
   const s = usePanelSession(panel, presentation, {
-    watchScreen:
-      panel === "single" && panes.shown.analysis && captureMode === "auto",
+    watchScreen: panel === "single" && panes.shown.analysis,
   });
   const access = overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
@@ -121,12 +119,7 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
   return (
     <div className="pn-root" data-panel={panel} data-testid="pn-root">
       {panel === "single" ? (
-        <SinglePanel
-          s={s}
-          panes={panes}
-          presentation={presentation}
-          captureMode={{ value: captureMode, onChange: setCaptureMode }}
-        />
+        <SinglePanel s={s} panes={panes} presentation={presentation} />
       ) : (
         <SettingsPanel s={s} presentation={presentation} />
       )}

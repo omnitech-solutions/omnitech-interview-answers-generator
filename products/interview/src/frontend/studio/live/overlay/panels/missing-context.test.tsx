@@ -417,6 +417,8 @@ describe("reload, stop and late results", () => {
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
     view.unmount();
     resetSessionStores();
+    // A reload starts the shared presentation (and its pin) afresh.
+    presentation.reset();
     serve(journey);
     await open();
     // The pin is not kept across a reload: the newest task is on show again.

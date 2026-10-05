@@ -3,81 +3,74 @@
 // which stays its own table); shortcuts.test.ts reads that file and fails when
 // the two disagree. The web's own Alt bindings come from COMMAND_KEYS, the
 // table the page's key handler already matches against.
-import { COMMAND_KEYS } from "../overlay/panels/commands";
+import { COMMAND_KEYS, type Command } from "../overlay/panels/commands";
+
+export type NativeShortcutId =
+  | "analyze"
+  | "listening"
+  | "click-through"
+  | "show-hide"
+  | "focus-chat"
+  | "clear-session"
+  | "skill-previous"
+  | "skill-next"
+  | "auto"
+  | "settings";
 
 export type Shortcut = {
-  id: string;
+  id: NativeShortcutId | Command;
   label: string;
   chord: string;
   platform: "native" | "web";
   // The typed command the key asks the page for, when it is one.
-  intent?: string;
+  intent?: Command;
+  // The shell registers this chord only while the window takes the mouse
+  // (Hotkeys.swift `requiresInteractive`); in click-through it does nothing.
+  requiresInteractive?: true;
 };
 
-export const NATIVE_SHORTCUTS: readonly Shortcut[] = [
-  {
-    id: "analyze",
+// Keyed by id, so every id has exactly one entry and a typo cannot compile.
+const NATIVE: Record<NativeShortcutId, Omit<Shortcut, "id" | "platform">> = {
+  analyze: {
     label: "Analyze / stop",
     chord: "⌘⇧S",
-    platform: "native",
     intent: "capture.analyze",
   },
-  {
-    id: "listening",
+  listening: {
     label: "Listening on or off",
     chord: "⌥R",
-    platform: "native",
     intent: "transcribe.toggle",
   },
-  {
-    id: "click-through",
-    label: "Click-through",
-    chord: "⌘⇧I",
-    platform: "native",
-  },
-  {
-    id: "show-hide",
-    label: "Show or hide",
-    chord: "⌘⇧V",
-    platform: "native",
-  },
-  {
-    id: "focus-chat",
-    label: "Focus chat",
-    chord: "⌘⇧C",
-    platform: "native",
-    intent: "chat.focus",
-  },
-  {
-    id: "clear-session",
+  "click-through": { label: "Click-through", chord: "⌘⇧I" },
+  "show-hide": { label: "Show or hide", chord: "⌘⇧V" },
+  "focus-chat": { label: "Focus chat", chord: "⌘⇧C", intent: "chat.focus" },
+  "clear-session": {
     label: "Clear session memory",
     chord: "⌘⇧\\",
-    platform: "native",
     intent: "session.clear",
   },
-  {
-    id: "skill-previous",
+  "skill-previous": {
     label: "Previous answer style",
     chord: "⌘↑",
-    platform: "native",
     intent: "skill.prev",
+    requiresInteractive: true,
   },
-  {
-    id: "skill-next",
+  "skill-next": {
     label: "Next answer style",
     chord: "⌘↓",
-    platform: "native",
     intent: "skill.next",
+    requiresInteractive: true,
   },
-  {
-    id: "auto",
-    label: "Auto on or off",
-    chord: "⌥⇧U",
-    platform: "native",
-    intent: "auto.toggle",
-  },
-  { id: "settings", label: "Settings", chord: "⌘,", platform: "native" },
-];
+  auto: { label: "Auto on or off", chord: "⌥⇧U", intent: "auto.toggle" },
+  settings: { label: "Settings", chord: "⌘," },
+};
+
+// The chord the Mac shell registers for a control.
+export const nativeChord = (id: NativeShortcutId): string => NATIVE[id].chord;
+
+export const NATIVE_SHORTCUTS: readonly Shortcut[] = (
+  Object.keys(NATIVE) as NativeShortcutId[]
+).map((id) => ({ id, platform: "native", ...NATIVE[id] }));
 
 export const WEB_SHORTCUTS: readonly Shortcut[] = COMMAND_KEYS.map((key) => ({
   id: key.command,

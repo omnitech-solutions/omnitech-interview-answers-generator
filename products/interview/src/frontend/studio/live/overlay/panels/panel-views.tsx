@@ -40,23 +40,19 @@ export type PanelSession = ReturnType<typeof usePanelSession>;
 
 // ---- Analysis ---------------------------------------------------------------
 
-export function AnalysisPanel({
-  s,
-  part,
-  autoWatching = false,
-}: {
-  s: PanelSession;
-  // The one window shows the answer and the code as separate panes.
-  part: "text" | "code";
-  autoWatching?: boolean;
-}) {
+// The one window shows the answer and the code as separate panes.
+export function AnswerPanel({ s }: { s: PanelSession }) {
   return (
     <div className="pn-analysis" data-testid="pn-analysis">
-      {part === "text" ? (
-        <AnswerPane s={s} autoWatching={autoWatching} />
-      ) : (
-        <CodePane s={s} />
-      )}
+      <AnswerPane s={s} />
+    </div>
+  );
+}
+
+export function CodePanel({ s }: { s: PanelSession }) {
+  return (
+    <div className="pn-analysis" data-testid="pn-analysis">
+      <CodePane s={s} />
     </div>
   );
 }

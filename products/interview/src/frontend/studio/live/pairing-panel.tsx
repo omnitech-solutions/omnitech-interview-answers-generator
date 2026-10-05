@@ -79,11 +79,9 @@ export function PairingPanel() {
             show it again once dismissed.
           </p>
           <div className="pairing-value-row">
-            <code
-              className="pairing-value"
-              data-testid="pairing-credential"
-              aria-label="Pairing credential"
-            >
+            {/* No aria-label: it would replace the revealed text. The Show
+                button's pressed state announces the reveal. */}
+            <code className="pairing-value" data-testid="pairing-credential">
               {shown ? pairing.value : MASK}
             </code>
             <button

@@ -66,7 +66,13 @@ const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 
 async function openBar(variant: "bar" | "header" = "bar") {
   window.history.replaceState({}, "", "/t/local/p/interview");
-  render(<SessionBar variant={variant} onOpen={onOpen} />);
+  render(
+    variant === "bar" ? (
+      <SessionBar variant="bar" onOpen={onOpen} />
+    ) : (
+      <SessionBar variant="header" />
+    ),
+  );
   await flush();
 }
 const bar = () => screen.getByTestId("session-bar");

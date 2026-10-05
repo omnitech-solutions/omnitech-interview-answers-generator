@@ -3,8 +3,8 @@
 // priority is the order of the table and nothing else decides it. Pure.
 import type { IconName } from "../../../icon";
 import type { TaskView } from "../../session-tasks";
+import { nativeChord } from "../../shared/shortcuts";
 import type { AutoLine } from "../auto-line";
-import { nativeChord } from "./toolbar-config";
 
 type StripTone = "neutral" | "accent" | "green" | "amber";
 export type StripActionId = "stop" | "resume";

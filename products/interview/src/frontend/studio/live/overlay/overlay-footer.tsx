@@ -44,7 +44,6 @@ export function FollowUp({
   interim = "",
   onChange,
   disabled,
-  sending,
   onSend,
 }: {
   label: string;
@@ -54,7 +53,6 @@ export function FollowUp({
   interim?: string;
   onChange(text: string): void;
   disabled: boolean;
-  sending: boolean;
   onSend(text: string): Promise<CommandResult>;
 }) {
   const shown = interim
@@ -67,11 +65,16 @@ export function FollowUp({
     window.addEventListener(FOCUS_INPUT_EVENT, focus);
     return () => window.removeEventListener(FOCUS_INPUT_EVENT, focus);
   }, []);
+  // What the box holds now, so a send that finishes later clears only the
+  // text it sent, never words typed while it was in flight.
+  const latest = useRef(shown);
+  latest.current = shown;
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (shown.trim() === "") return;
-    const result = await onSend(shown);
-    if (result.ok) onChange("");
+    const sent = shown;
+    if (sent.trim() === "") return;
+    const result = await onSend(sent);
+    if (result.ok && latest.current.trim() === sent.trim()) onChange("");
   }
   return (
     <form className="ov-followup" onSubmit={submit}>
@@ -82,14 +85,14 @@ export function FollowUp({
         placeholder={label}
         value={shown}
         data-interim={interim ? "true" : undefined}
-        disabled={disabled || sending}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
       <button
         type="submit"
         className="ov-send"
         aria-label="Send follow-up"
-        disabled={disabled || sending || shown.trim() === ""}
+        disabled={disabled || shown.trim() === ""}
       >
         <Icon name="arrow_upward" />
       </button>
@@ -97,30 +100,32 @@ export function FollowUp({
   );
 }
 
+// What the footer is for. A live session may show its running time beside a
+// live dot (amber while paused); a finished session offers a new one (and its
+// summary page) instead of Pause and End.
+export type FooterVariant =
+  | {
+      kind: "live";
+      paused: boolean;
+      clock?: { label: string; paused: boolean } | null;
+    }
+  | {
+      kind: "ended";
+      starting: boolean;
+      onStart(): void;
+      onOpenSummary?(): void;
+    };
+
 export function Footer({
-  paused,
+  variant,
+  // The one-window view spells out what each button acts on: "End session".
+  wording = "short",
   pending,
   actions,
   onFailure,
-  sessionWording = false,
-  ended = false,
-  onStart,
-  starting = false,
-  clock,
-  onOpenSummary,
 }: {
-  // The one-window view spells out what each button acts on: "End session".
-  sessionWording?: boolean;
-  // A finished session offers a new one instead of Pause and End.
-  ended?: boolean;
-  onStart?(): void;
-  starting?: boolean;
-  // The one-window view shows the session's running time beside a live dot
-  // (amber while paused).
-  clock?: { label: string; paused: boolean } | null;
-  // A finished session offers its summary page.
-  onOpenSummary?(): void;
-  paused: boolean;
+  variant: FooterVariant;
+  wording?: "short" | "session";
   pending: readonly string[];
   actions: SessionActions;
   onFailure(code: SessionErrorCode): void;
@@ -141,9 +146,10 @@ export function Footer({
     pause: () => void run(actions.pause()),
     resume: () => void run(actions.resume()),
     end: () => setConfirming(true),
-    start: () => onStart?.(),
-    summary: () => onOpenSummary?.(),
+    start: () => variant.kind === "ended" && variant.onStart(),
+    summary: () => variant.kind === "ended" && variant.onOpenSummary?.(),
   };
+  const clock = variant.kind === "live" ? variant.clock : null;
   return (
     <div className="ov-footer">
       <div className="ov-footer-row">
@@ -169,15 +175,20 @@ export function Footer({
             {clock.label}
           </span>
         )}
-        {footerButtons({
-          paused,
-          ended,
-          starting,
-          busy: pending.includes("pause") || pending.includes("resume"),
-          wording: sessionWording ? "session" : "short",
-          canStart: onStart !== undefined,
-          canSummary: onOpenSummary !== undefined,
-        }).map((button) => (
+        {footerButtons(
+          variant.kind === "ended"
+            ? {
+                kind: "ended",
+                starting: variant.starting,
+                canSummary: variant.onOpenSummary !== undefined,
+              }
+            : {
+                kind: "live",
+                paused: variant.paused,
+                busy: pending.includes("pause") || pending.includes("resume"),
+              },
+          wording,
+        ).map((button) => (
           <button
             key={button.id}
             ref={button.id === "end" ? endButton : undefined}
@@ -227,7 +238,10 @@ export function Footer({
             className="ov-button danger"
             disabled={pending.includes("end")}
             onClick={async () => {
-              if (!(await run(actions.end()))) setConfirming(false);
+              await run(actions.end());
+              // Answered either way: on success the ended card takes over, on
+              // failure the note says so and the dialog does not linger.
+              setConfirming(false);
             }}
           >
             End now

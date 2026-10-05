@@ -24,6 +24,11 @@ func sessionTests(_ t: Harness) async {
         t.expect(Endpoint(studioAddress: "https://studio.example.test/app", tenantSlug: "acme") == nil)
         t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "a/b") == nil)
         t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "") == nil)
+        // The web accepts only lower-case letters, digits and hyphens (a hyphen never first).
+        for slug in ["Acme", "a.b", "a_b", "-acme", String(repeating: "a", count: 64)] {
+            t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: slug) == nil, "slug \(slug) refused")
+        }
+        t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "a-1") != nil, "lower-case slug with hyphen")
     }
 
     await t.test("a screenshot is multipart with envelope and payload parts") {

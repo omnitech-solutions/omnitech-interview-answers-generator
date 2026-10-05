@@ -59,7 +59,7 @@ function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
     return <SessionNotFound studio={studio} />;
   // The dashboard (or the ended summary, or setup) is the page; the card is the
   // shell's (live/card-host.tsx), so it stays when the person changes page.
-  if (model.phase === "open") return <LiveSessionPanel studio={studio} />;
+  if (model.phase === "open") return <LiveSessionPanel />;
   if (model.phase === "finished") return <EndedView studio={studio} />;
   return <SetupView studio={studio} />;
 }

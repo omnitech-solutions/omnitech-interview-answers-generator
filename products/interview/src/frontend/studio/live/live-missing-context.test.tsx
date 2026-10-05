@@ -146,7 +146,7 @@ describe("Add context", () => {
     serve(journey);
     await open();
     expect(strip()).toBeNull();
-    await press(/^Task 1 · /);
+    await press(/^T1 · /);
     expect(strip()).toBeVisible();
     await press("Add context");
     fireEvent.change(input(), { target: { value: "constraints" } });

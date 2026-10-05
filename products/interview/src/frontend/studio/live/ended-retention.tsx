@@ -6,7 +6,7 @@ import type {
   LiveRetentionMode,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import {
   PROMOTED_NOTE,
@@ -41,6 +41,14 @@ export function EndedRetention({
   remove,
 }: EndedRetentionProps) {
   const [confirming, setConfirming] = useState(false);
+  // Closing the confirm step (Keep session data, or after the delete ran)
+  // returns focus to the button that opened it, when that button is still here.
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) deleteButton.current?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
   const [shortenError, setShortenError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const shorter = shorterRetentions(session.retention);
@@ -154,6 +162,7 @@ export function EndedRetention({
           ) : (
             <div className="ended-actions">
               <button
+                ref={deleteButton}
                 type="button"
                 className="studio-button ended-danger"
                 onClick={() => {

@@ -452,6 +452,10 @@ describe("deleting session data", () => {
     expect(server.count("DELETE /:id")).toBe(0);
     expect(screen.queryByRole("group", { name: /Confirm/ })).toBeNull();
     expect(screen.getByTestId("ended-answer")).toBeVisible();
+    // Focus goes back to the button that opened the confirm step.
+    expect(
+      screen.getByRole("button", { name: "Delete session data" }),
+    ).toHaveFocus();
   });
 
   it("shows progress, then Deleted, and keeps no content in the browser", async () => {

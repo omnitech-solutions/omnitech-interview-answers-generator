@@ -493,7 +493,7 @@ function CardView({
           />
           <HandsFreeFollowUp hf={hf} />
           <Footer
-            paused={paused}
+            variant={{ kind: "live", paused }}
             pending={pending}
             actions={actions}
             onFailure={hf.fail}

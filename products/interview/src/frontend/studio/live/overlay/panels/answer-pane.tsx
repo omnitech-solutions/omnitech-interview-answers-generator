@@ -10,6 +10,7 @@ import {
   type MissingContextActionId,
   MissingContextStrip,
 } from "../../shared/missing-context-strip";
+import { nativeChord } from "../../shared/shortcuts";
 import { STAGE_PRESENTATION } from "../../shared/task-card-model";
 import { taskLabel } from "../../shared/task-target";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
@@ -17,7 +18,7 @@ import { CodeCard, TextCard } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
 import type { PanelSession } from "./panel-views";
-import { answerSteps, nativeChord } from "./toolbar-config";
+import { answerSteps } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 import { TOAST_TEXT } from "./use-panel-session";
 
@@ -62,14 +63,7 @@ function missingUnavailable(
   return {};
 }
 
-export function AnswerPane({
-  s,
-  autoWatching = false,
-}: {
-  s: PanelSession;
-  // Auto is on and watching: the empty state says so.
-  autoWatching?: boolean;
-}) {
+export function AnswerPane({ s }: { s: PanelSession }) {
   const { card } = s;
   const task = s.selected;
   const view = task ? answerView(task) : null;
@@ -123,7 +117,7 @@ export function AnswerPane({
           </span>
           <div className="pn-empty-title">Nothing analysed yet</div>
           <div className="pn-empty-sub">
-            {autoWatching
+            {s.auto.on
               ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
               : "Open the problem in your browser, then analyse the screen. Spoken questions are answered without pressing anything."}
           </div>

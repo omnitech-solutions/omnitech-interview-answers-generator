@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 async function open() {
-  render(<LiveSessionPanel studio={studio} />);
+  render(<LiveSessionPanel />);
   // The shell subscribes the store; a lone panel has to do it itself.
   getSessionStore("local").subscribe(() => undefined);
   await flush();

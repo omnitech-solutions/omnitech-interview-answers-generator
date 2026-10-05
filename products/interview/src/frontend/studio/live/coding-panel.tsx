@@ -162,14 +162,11 @@ export function CodingPanel({
   card,
   session,
   onCopy,
-  showWorkspaceLink = true,
 }: {
   task: TaskView;
   card: TaskCard;
   session: LiveSessionView | null;
   onCopy(text: string): void;
-  // Focus has its own Open in Workspace control.
-  showWorkspaceLink?: boolean;
 }) {
   const link = useSessionDraftLink(session, task.taskId);
   const [tab, setTab] = useState<CodingTabId>(task.answer ? "answer" : "code");
@@ -285,12 +282,12 @@ export function CodingPanel({
               </p>
             </div>
           )}
-          {(draftLabel || (showWorkspaceLink && link)) && (
+          {(draftLabel || link) && (
             <div className="live-workspace-link">
               {draftLabel && (
                 <span className="live-chip green">{draftLabel}</span>
               )}
-              {showWorkspaceLink && link && (
+              {link && (
                 <button
                   type="button"
                   className="studio-button"

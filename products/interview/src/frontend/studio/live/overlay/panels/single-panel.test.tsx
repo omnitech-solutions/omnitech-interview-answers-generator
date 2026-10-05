@@ -46,19 +46,22 @@ const submitFollowUp = vi.fn(async (..._args: unknown[]) => undefined);
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 
 // The session the server answers with; a test moves it on (ended, paused).
+// `served` is the action list a later poll answers with (a new task arriving).
 let current = live();
+let served: unknown[] = [];
 function serve(
   session = live(),
   actions: unknown[] = [],
   observations = [snapshot(1)],
 ) {
   current = session;
+  served = actions;
   server = createTestServer(() =>
     streamPage({
       session: current,
       observations,
       nextAfterSequence: observations.length,
-      actions: actions as never,
+      actions: served as never,
       serverNow: minutesAfter(1, 10),
     }),
   );
@@ -142,6 +145,7 @@ afterEach(() => {
   cleanup();
   resetSessionStores();
   delete (window as { studioHost?: unknown }).studioHost;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -166,7 +170,7 @@ describe("capture button and mode menu", () => {
       "12",
     );
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Capture mode" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
     const menu = screen.getByRole("menu", { name: "Capture mode" });
     expect(within(menu).queryByRole("combobox")).toBeNull();
     const items = [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
@@ -182,28 +186,80 @@ describe("capture button and mode menu", () => {
   it("names the task the screen would be added to", async () => {
     serve(live(), [named("Rate limiter")]);
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Capture mode" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
     expect(
       screen.getByRole("menuitem", { name: /Add screen to T1/ }),
     ).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("chooses Manual, remembers it, closes and returns focus to the trigger", async () => {
+  it("chooses Manual, remembers it in the one Auto preference, closes and returns focus to the trigger", async () => {
     await show();
-    const trigger = screen.getByRole("button", { name: "Capture mode" });
+    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("menuitemradio", { name: /^Manual/ }));
     expect(screen.queryByRole("menu")).toBeNull();
     expect(trigger).toHaveTextContent("Manual");
     expect(trigger).toHaveFocus();
     expect(
+      window.localStorage.getItem("interview-studio.live.auto.local"),
+    ).toBe("off");
+    // No second store for the same fact.
+    expect(
       window.localStorage.getItem("interview-studio.panels.capture-mode.local"),
-    ).toBe("manual");
+    ).toBeNull();
+  });
+
+  it("names the toolbar triggers with their value and keeps the status out of the capture button", async () => {
+    await show();
+    expect(
+      screen.getByRole("button", {
+        name: "Answer style: Data Structures & Algorithms",
+      }),
+    ).toBeVisible();
+    const capture = screen.getByRole("button", { name: "Analyze screen" });
+    // The state the dot colours is announced beside the button, not inside it.
+    expect(capture.querySelector('[role="status"]')).toBeNull();
+    expect(screen.getByTestId("pn-status")).toHaveTextContent(
+      /Interaction on|Recording/,
+    );
+    expect(screen.getByTestId("pn-dot")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("agrees with the Auto hotkey: one state feeds the menu check and the label", async () => {
+    await show();
+    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
+    expect(trigger).toHaveAccessibleName("Capture mode: Auto");
+    await act(async () => {
+      fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyH" });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(trigger).toHaveAccessibleName("Capture mode: Manual");
+    expect(
+      window.localStorage.getItem("interview-studio.live.auto.local"),
+    ).toBe("off");
+    fireEvent.click(trigger);
+    expect(
+      screen.getByRole("menuitemradio", { name: /^Manual/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menuitemradio", { name: /^Auto/ }),
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("follows an Auto preference changed in another window", async () => {
+    await show();
+    window.localStorage.setItem("interview-studio.live.auto.local", "off");
+    await act(async () => {
+      window.dispatchEvent(new Event("storage"));
+    });
+    expect(
+      screen.getByRole("button", { name: /^Capture mode/ }),
+    ).toHaveAccessibleName("Capture mode: Manual");
   });
 
   it("closes on Escape with focus back on the trigger, and on a press outside", async () => {
     await show();
-    const trigger = screen.getByRole("button", { name: "Capture mode" });
+    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
     fireEvent.click(trigger);
     expect(screen.getByRole("menuitemradio", { name: /^Auto/ })).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
@@ -216,7 +272,7 @@ describe("capture button and mode menu", () => {
 
   it("moves between items with the arrow keys", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Capture mode" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
     fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
     expect(
       screen.getByRole("menuitemradio", { name: /^Manual/ }),
@@ -225,8 +281,8 @@ describe("capture button and mode menu", () => {
 
   it("keeps one menu open at a time", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: "Capture mode" }));
-    fireEvent.click(screen.getByRole("button", { name: "Answer style" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Answer style/ }));
     expect(screen.getAllByRole("menu")).toHaveLength(1);
     expect(screen.getByRole("menu")).toHaveAccessibleName("Answer style");
   });
@@ -251,7 +307,8 @@ describe("window controls", () => {
     ]);
   });
 
-  it("red hides the window through the shell, and says how it comes back", async () => {
+  it("red hides a paused window through the shell, and says how it comes back", async () => {
+    serve(live({ status: "paused" }));
     const setVisible = vi.fn(async () => true);
     nativeHost({
       setVisible,
@@ -264,6 +321,29 @@ describe("window controls", () => {
     );
     fireEvent.click(dot("hide"));
     expect(setVisible).toHaveBeenCalledWith(false);
+  });
+
+  it("red hides the window of an ended session too", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(5) }));
+    const setVisible = vi.fn(async () => true);
+    nativeHost({ setVisible, capabilities: ["always-on-top"] });
+    await show();
+    expect(dot("hide")).toBeEnabled();
+    fireEvent.click(dot("hide"));
+    expect(setVisible).toHaveBeenCalledWith(false);
+  });
+
+  it("red is disabled, with the reason, while the session is capturing and listening", async () => {
+    const setVisible = vi.fn(async () => true);
+    nativeHost({ setVisible, capabilities: ["always-on-top"] });
+    await show();
+    expect(dot("hide")).toBeDisabled();
+    expect(dot("hide")).toHaveAttribute(
+      "title",
+      "Pause the session to hide the window",
+    );
+    fireEvent.click(dot("hide"));
+    expect(setVisible).not.toHaveBeenCalled();
   });
 
   it("never offers hide where nothing can bring the window back", async () => {
@@ -310,7 +390,7 @@ describe("microphone", () => {
 describe("answer style", () => {
   it("lists every skill from the contract table and writes the choice", async () => {
     await show();
-    const button = screen.getByRole("button", { name: "Answer style" });
+    const button = screen.getByRole("button", { name: /^Answer style/ });
     expect(button).toHaveTextContent("Data Structures & Algorithms");
     fireEvent.click(button);
     const menu = screen.getByRole("menu", { name: "Answer style" });
@@ -338,7 +418,7 @@ describe("answer style", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(
-      screen.getByRole("button", { name: "Answer style" }),
+      screen.getByRole("button", { name: /^Answer style/ }),
     ).toHaveTextContent("System Design");
   });
 });
@@ -418,6 +498,31 @@ describe("shortcut list", () => {
   });
 });
 
+describe("shortcut list while click-through is on", () => {
+  const row = (label: string) =>
+    screen.getByText(label).closest("li") as HTMLElement;
+
+  it("lists the answer-style keys as available while interactive", async () => {
+    nativeHost();
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(row("Previous answer style")).not.toHaveAttribute("aria-disabled");
+    expect(row("Next answer style")).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("shows them disabled, with a note, because the shell registers them only while interactive", async () => {
+    const host = nativeHost();
+    await show();
+    await host.set(false);
+    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    for (const label of ["Previous answer style", "Next answer style"]) {
+      expect(row(label)).toHaveAttribute("aria-disabled", "true");
+      expect(row(label)).toHaveTextContent("Only while interactive");
+    }
+    expect(row("Analyze / stop")).not.toHaveAttribute("aria-disabled");
+  });
+});
+
 describe("status strip", () => {
   it("says Paused and resumes through the session", async () => {
     serve(live({ status: "paused" }));
@@ -462,6 +567,56 @@ describe("status strip", () => {
         body: expect.objectContaining({ action: "stop-work" }),
       }),
     );
+  });
+
+  it("keeps saying work is running when Stop failed, and says so", async () => {
+    serve(live(), [
+      action({
+        actionKind: "draft-answer",
+        dispatchStatus: "in_flight",
+        result: null,
+      }),
+    ]);
+    server.on("POST /:id/control", () =>
+      jsonResponse({ error: "unavailable" }, 503),
+    );
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await flush();
+    await flush();
+    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
+    expect(screen.getByTestId("pn-strip")).toHaveAttribute(
+      "data-state",
+      "busy",
+    );
+  });
+
+  it("ignores Stop while the screen is still being captured", async () => {
+    window.localStorage.setItem("interview-studio.live.auto.local", "off");
+    vi.stubGlobal("MediaStream", class {});
+    (window as { studioHost?: unknown }).studioHost = {
+      version: 1,
+      hostKind: "native-macos",
+      capabilities: ["capture-screen"],
+      captureScreen: () => new Promise(() => undefined),
+      pinOnTop: async () => false,
+      openExternal: async () => undefined,
+      onHotkey: () => () => undefined,
+    };
+    await show();
+    await act(async () => {
+      fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyA" });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(screen.getByTestId("pn-strip")).toHaveTextContent(/Capturing/);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+      fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyA" });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(server.count("POST /:id/control")).toBe(0);
+    expect(screen.getByTestId("pn-strip")).toHaveTextContent(/Capturing/);
   });
 
   it("says what Auto needs when it cannot do its job, ahead of everything calm", async () => {
@@ -523,6 +678,58 @@ describe("task chips and the earlier task", () => {
       "true",
     );
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
+  });
+
+  it("keeps an earlier pinned task when a new one arrives, and aims at it", async () => {
+    serve(live(), twoTasks());
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: /^T1 · / }));
+    expect(screen.getByTestId("pn-earlier")).toBeVisible();
+    // A third task arrives on a later poll.
+    served = [
+      ...twoTasks(),
+      answerAction(answerResult(), {
+        taskId: "task-3",
+        createdAt: minutesAfter(1, 9),
+        updatedAt: minutesAfter(1, 10),
+      }),
+    ];
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(screen.getByRole("button", { name: /^T3 · / })).toBeVisible();
+    expect(screen.getByTestId("pn-earlier")).toBeVisible();
+    expect(screen.getByRole("button", { name: /^T1 · / })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(presentation.get().pinnedTaskId).toBe("task-1");
+    const box = screen.getByLabelText("Message");
+    expect(box).toHaveAttribute(
+      "placeholder",
+      "Add context to T1, or ask a follow-up",
+    );
+    fireEvent.change(box, { target: { value: "still about the first" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await flush();
+    expect(submitFollowUp).toHaveBeenCalledWith(
+      expect.any(String),
+      "still about the first",
+      { taskId: "task-1", revision: 1 },
+      expect.anything(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Back to T3" }));
+    expect(screen.queryByTestId("pn-earlier")).toBeNull();
+    expect(presentation.get().pinnedTaskId).toBeNull();
+  });
+
+  it("shares the pin with the shared presentation, as the web page does", async () => {
+    serve(live(), twoTasks());
+    await show();
+    act(() => presentation.pin("task-1"));
+    expect(screen.getByTestId("pn-earlier")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /^T2 · / }));
+    expect(presentation.get().pinnedTaskId).toBeNull();
   });
 
   it("sends a follow-up to the task on show, and says so in the box", async () => {
@@ -602,6 +809,63 @@ describe("conversation", () => {
     expect(screen.getByTestId("pn-pending")).toHaveTextContent(
       "Answering your follow-up…",
     );
+  });
+});
+
+describe("typing follow-ups", () => {
+  const send = async (text: string) => {
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: text },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await flush();
+  };
+  const texts = () => submitFollowUp.mock.calls.map((call) => call[1]);
+
+  it("sends a second, different follow-up while the first is pending, in order", async () => {
+    serve(live(), [named("Rate limiter")]);
+    const releases: (() => void)[] = [];
+    submitFollowUp.mockImplementation(
+      () => new Promise((resolve) => releases.push(() => resolve(undefined))),
+    );
+    await show();
+    await send("first question");
+    expect(screen.getByLabelText("Message")).toBeEnabled();
+    await send("second question");
+    expect(texts()).toEqual(["first question", "second question"]);
+    for (const release of releases) release();
+    await flush();
+    await flush();
+    const typed = [...document.querySelectorAll('.pn-row[data-kind="typed"]')];
+    expect(typed.map((row) => row.textContent).join("|")).toMatch(
+      /first question.*second question/,
+    );
+  });
+
+  it("clears the box only for the text that was actually sent", async () => {
+    serve(live(), [named("Rate limiter")]);
+    let release: () => void = () => undefined;
+    submitFollowUp.mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve(undefined))),
+    );
+    await show();
+    await send("sent text");
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "typed meanwhile" },
+    });
+    release();
+    await flush();
+    await flush();
+    expect(screen.getByLabelText("Message")).toHaveValue("typed meanwhile");
+  });
+
+  it("sends an identical double submit once", async () => {
+    serve(live(), [named("Rate limiter")]);
+    submitFollowUp.mockImplementation(() => new Promise(() => undefined));
+    await show();
+    await send("same words");
+    await send("same words");
+    expect(texts()).toEqual(["same words"]);
   });
 });
 
@@ -827,6 +1091,8 @@ describe("footer and the ended session", () => {
     fireEvent.click(screen.getByRole("button", { name: "End now" }));
     await flush();
     await flush();
+    // The confirmation is answered: it does not linger beside the ended card.
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     const ended = screen.getByTestId("pn-ended");
     expect(ended).toHaveTextContent("Session ended");
     expect(ended).toHaveTextContent("Nothing was submitted or typed for you.");

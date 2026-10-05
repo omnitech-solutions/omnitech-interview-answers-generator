@@ -3,7 +3,7 @@
 // plain text (rule:inert-draft-rendering): no Markdown, no HTML, no links.
 
 import type { LiveSessionView } from "@omnitech/interview-contracts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import {
   type AnswerRow,
@@ -16,6 +16,8 @@ import { useSessionDraftLink } from "./workspace-handoff";
 // "Copied" only after the write succeeded; a blocked clipboard says so.
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [outcome, setOutcome] = useState<"copied" | "failed" | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   const word =
     outcome === "copied"
       ? "Copied"
@@ -30,7 +32,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       onClick={() => {
         void copyText(text).then((written) => {
           setOutcome(written ? "copied" : "failed");
-          setTimeout(() => setOutcome(null), 1500);
+          clearTimeout(timer.current);
+          timer.current = setTimeout(() => setOutcome(null), 1500);
         });
       }}
     >

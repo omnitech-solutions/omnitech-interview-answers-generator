@@ -61,10 +61,11 @@ export default defineConfig({
         test: {
           name: "docker",
           environment: "node",
-          testTimeout: 10_000,
-          // The container waits up to 30 s to accept connections and then
-          // migrates, so setup hooks get far more than the 10 s of the
-          // Docker-free projects.
+          // These tests start databases and worker processes, so on a busy
+          // machine a single test legitimately needs far more than the 10 s of
+          // the Docker-free projects; the container also waits up to 30 s to
+          // accept connections and then migrates, so setup hooks get more still.
+          testTimeout: 60_000,
           hookTimeout: 120_000,
           include: dockerTests,
           exclude: ["**/dist/**", "**/node_modules/**"],

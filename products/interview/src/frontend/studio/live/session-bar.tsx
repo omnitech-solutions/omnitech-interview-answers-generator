@@ -22,13 +22,12 @@ import { useCompanionCapability } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 import { useSessionTarget } from "./use-session-target";
 
-export type SessionBarProps = {
-  // "bar": the strip above every Studio page while a session is open.
-  // "header": the live header inside the Live session view itself.
-  variant: "bar" | "header";
-  // Return to the Live session view ("Open" in the bar).
-  onOpen(): void;
-};
+// "bar": the strip above every Studio page while a session is open; it can
+// return to the Live session view ("Open"). "header": the live header inside
+// the Live session view itself, which has nowhere further to open.
+export type SessionBarProps =
+  | { variant: "bar"; onOpen(): void }
+  | { variant: "header" };
 
 const NOTICE_MS = 5_000;
 const ERROR_MS = 10_000;
@@ -48,10 +47,10 @@ export function SessionBar(props: SessionBarProps) {
 }
 
 function OpenSessionBar({
-  variant,
-  onOpen,
   session,
+  ...props
 }: SessionBarProps & { session: LiveSessionView }) {
+  const variant = props.variant;
   const { snapshot, actions, model } = useLiveSession();
   const target = useSessionTarget(session);
   const { mode: presentationMode } = usePresentation();
@@ -239,7 +238,7 @@ function OpenSessionBar({
             type="button"
             className="studio-button live-bar-button"
             title="Open the live session"
-            onClick={onOpen}
+            onClick={props.variant === "bar" ? props.onOpen : undefined}
           >
             Open
           </button>

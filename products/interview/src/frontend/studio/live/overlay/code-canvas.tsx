@@ -141,13 +141,18 @@ export function LiveCodeCanvas({
 
   // A result arrives: adopt it when nothing is edited; otherwise offer it.
   // Editing never loses to an arrival (the person's text is the newer fact).
+  // The effect fires on an arrival only, so what it compares with is read
+  // through a ref of the latest render's values.
   const arrived = keyOf(result);
+  const now = useRef({ base, origin, editing, dismissed, revision });
+  now.current = { base, origin, editing, dismissed, revision };
   useEffect(() => {
-    if (arrived === keyOf(base)) {
+    const here = now.current;
+    if (arrived === keyOf(here.base)) {
       // Same sources: only the verification facts may have moved.
-      if (result !== base) {
+      if (result !== here.base) {
         setBase(result);
-        if (origin === "worker") {
+        if (here.origin === "worker") {
           setRun(workerRun(result));
           setStale(false);
         }
@@ -155,7 +160,7 @@ export function LiveCodeCanvas({
       setPending(null);
       return;
     }
-    if (!editing) {
+    if (!here.editing) {
       runId.current += 1;
       setBase(result);
       setRun(workerRun(result));
@@ -164,23 +169,21 @@ export function LiveCodeCanvas({
       setPending(null);
       return;
     }
-    if (arrived !== dismissed) setPending({ result, revision });
-    // base/origin are read, not triggers: a new arrival is what matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (arrived !== here.dismissed)
+      setPending({ result, revision: here.revision });
   }, [arrived, result]);
 
+  // The source a file reverts to: the adopted result's own text.
   const change = useCallback(
     (which: EditorFile, text: string) => {
       setEdits((current) => {
         const next = { ...current };
-        if (text === baseSources[which]) delete next[which];
+        if (text === sourcesOf(base)[which]) delete next[which];
         else next[which] = text;
         return next;
       });
       setStale(true);
     },
-    // baseSources derives from base.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [base],
   );
 
