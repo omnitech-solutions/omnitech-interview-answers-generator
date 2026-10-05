@@ -29,7 +29,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts",
     "db:migrate": "tsx src/migrate-command.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate && node scripts/write-migration-names.mjs",
+    "db:names": "node scripts/write-migration-names.mjs"
   },
   "dependencies": {
     "@omnitech-assistant/storage-postgres": "file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",

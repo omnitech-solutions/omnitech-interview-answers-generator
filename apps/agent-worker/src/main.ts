@@ -11,6 +11,7 @@ import {
   createPlatformDatabase,
   type PlatformDatabase,
   verifyDatabaseRole,
+  verifyMigrations,
 } from "@omnitech/database";
 import { AgentPayloadStore } from "@omnitech/platform-storage";
 import { PostgresAgentJobWorkerRepository } from "@omnitech/platform-storage/worker";
@@ -359,11 +360,15 @@ export async function runConfiguredAgentWorker(
     throw new Error("AGENT_PAYLOAD_SECRET is required by the agent worker.");
   }
   const database = createPlatformDatabase(env["DATABASE_URL"]);
-  // Stops the process at boot when the role bypasses row-level security.
-  await verifyDatabaseRole(database).catch(async (error: unknown) => {
-    await database.close();
-    throw error;
-  });
+  // Stops the process at boot when the role bypasses row-level security or
+  // the database has not applied exactly this build's migrations (never run
+  // here: `pnpm db:migrate` is a separate deploy step).
+  await verifyDatabaseRole(database)
+    .then(() => verifyMigrations(database))
+    .catch(async (error: unknown) => {
+      await database.close();
+      throw error;
+    });
   const loops = [
     agentJobLoop(env, database, payloadSecret, runtimes),
     // Without a usable model there is no session loop, but ended sessions are

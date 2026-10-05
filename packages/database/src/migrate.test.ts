@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { migrateDatabase } from "./migrate";
@@ -6,6 +8,8 @@ import {
   startDisposablePostgres,
 } from "./test-support/postgres";
 import { schemaDrift } from "./test-support/schema";
+
+const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 let pg: DisposablePostgres;
 beforeAll(async () => {
@@ -21,33 +25,15 @@ it("migrates a fresh database to the current schema and re-runs as a no-op", asy
   const applied = () =>
     rows("SELECT name FROM drizzle.__drizzle_migrations ORDER BY id");
   const first = await applied();
-  expect(first.map((name) => name.replace(/^\d+_/, ""))).toEqual([
-    "initial",
-    "forced_rls_and_immutability",
-    "foreign_key_indexes",
-    "remove_presentation_import",
-    "force_rls_platform_ai_presentation",
-    "worker_and_link_lookup_policies",
-    "remove_workflow_seam",
-    "agent_job_tenant_rows_and_composite_keys",
-    "forced_rls_job_identity_and_catalog_tenancy",
-    "document_artifact_payloads_and_interview_documents",
-    "agent_job_private_marker",
-    "active_sessions",
-    "companion_capabilities",
-    "agent_job_child_insert_guard",
-    "action_source_event_ids",
-    "session_processed_through",
-    "document-generation-requests",
-    "agent-execution-identities",
-    "document-generation-batches",
-    "document-generation-batch-usage",
-    "owner_input_observation",
-    "owner_capture",
-    "capture_request",
-    "companion_declaration",
-    "screenshot_send",
-  ]);
+  // The expected stream is the migration folders themselves, in timestamp order:
+  // every committed migration must have run, in order, and nothing else (like
+  // Rails' schema_migrations against db/migrate). No list to keep in step.
+  const folders = readdirSync(migrationsFolder, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^\d+_/.test(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  expect(folders[0]).toMatch(/_initial$/);
+  expect(first).toEqual(folders);
 
   // No workflow engine exists: no thread table, no conversation link to one,
   // and profiles name only the execution families the runtime can dispatch.

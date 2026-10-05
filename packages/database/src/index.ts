@@ -19,6 +19,14 @@ export {
   timestamps,
 } from "./conventions";
 export {
+  currentMigrationStatus,
+  MigrationMismatchError,
+  type MigrationStatus,
+  migrationRefusal,
+  migrationStatus,
+  verifyMigrations,
+} from "./migration-check";
+export {
   type TenantContext,
   type TenantDatabase,
   withTenant,

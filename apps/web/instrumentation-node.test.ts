@@ -2,10 +2,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const runWorker = vi.hoisted(() => vi.fn());
+const verifyMigrations = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("@omnitech/database", () => ({
   getPlatformDatabase: () => ({}),
+  MigrationMismatchError: class MigrationMismatchError extends Error {},
   roleBypassesRowLevelSecurityMessage: "bypass",
   verifyDatabaseRole: async () => undefined,
+  verifyMigrations,
 }));
 vi.mock("./src/platform/ai", () => ({ createPlatformAiGateway: () => ({}) }));
 vi.mock("./src/platform/products", () => ({
@@ -29,5 +32,18 @@ describe("instrumentation-node", () => {
     expect(JSON.stringify(logged.mock.calls)).not.toContain(
       "SECRET-PROMPT-TEXT",
     );
+  });
+
+  it("refuses to serve on a definite migration mismatch", async () => {
+    const { MigrationMismatchError } = await import("@omnitech/database");
+    verifyMigrations.mockRejectedValueOnce(
+      new MigrationMismatchError("1 pending"),
+    );
+    await expect(import("./instrumentation-node")).rejects.toThrow("1 pending");
+  });
+
+  it("serves when the database cannot be reached", async () => {
+    verifyMigrations.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    await expect(import("./instrumentation-node")).resolves.toBeDefined();
   });
 });

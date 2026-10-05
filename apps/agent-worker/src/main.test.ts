@@ -86,7 +86,9 @@ beforeAll(async () => {
   await migrateDatabase(pg.owner);
   await pg.owner.query(`
     GRANT USAGE ON SCHEMA platform, ai TO fixture_member;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform, ai TO fixture_member;`);
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA platform, ai TO fixture_member;
+    GRANT USAGE ON SCHEMA drizzle TO fixture_member;
+    GRANT SELECT ON ALL TABLES IN SCHEMA drizzle TO fixture_member;`);
   userId = (
     await pg.owner.query<{ id: string }>(
       "INSERT INTO platform.users (email, display_name) VALUES ('ada@example.test', 'Ada') RETURNING id",
@@ -236,6 +238,33 @@ describe("configured agent worker", () => {
         {},
       ),
     ).rejects.toThrow(roleBypassesRowLevelSecurityMessage);
+  });
+
+  it("refuses to boot while migrations are pending, naming pnpm db:migrate", async () => {
+    const last = (
+      await pg.owner.query<{ id: number }>(
+        "DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations) RETURNING *",
+      )
+    ).rows[0]!;
+    try {
+      await expect(
+        runConfiguredAgentWorker(
+          { DATABASE_URL: pg.memberUrl, AGENT_PAYLOAD_SECRET: secret },
+          new AbortController().signal,
+          {},
+        ),
+      ).rejects.toThrow(/1 pending migration\(s\).*pnpm db:migrate/);
+    } finally {
+      await pg.owner.query(
+        "INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, name) SELECT $1, $2, $3, $4",
+        [
+          last.id,
+          (last as never as Record<string, unknown>)["hash"],
+          (last as never as Record<string, unknown>)["created_at"],
+          (last as never as Record<string, unknown>)["name"],
+        ],
+      );
+    }
   });
 
   it("cancels a running job when its tenant asks to", async () => {
