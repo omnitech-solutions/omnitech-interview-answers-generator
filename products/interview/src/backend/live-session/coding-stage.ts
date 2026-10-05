@@ -19,15 +19,15 @@
 // (rule:unlisted-stage-refused).
 import { LIVE_OWNER_LANGUAGES } from "@omnitech/interview-contracts";
 import { z } from "zod";
-import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
+import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
 import {
   boundedLines,
   type CapturedLine,
   type CodingBrief,
   DEVICE_MAX_PROMPT_BYTES,
   MAX_PROMPT_BYTES,
-} from "./assist-stage.js";
-import { parseRaw, zodViolations } from "./stage-output.js";
+} from "./assist-stage";
+import { parseRaw, zodViolations } from "./stage-output";
 
 export const CODING_ACTION_KIND = "solve-code";
 const ESCALATIONS = [

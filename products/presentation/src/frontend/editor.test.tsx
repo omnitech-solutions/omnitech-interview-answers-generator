@@ -13,7 +13,7 @@ import {
   Raw,
   routeScreen,
   sampleDocument,
-} from "./fake-api.js";
+} from "./fake-api";
 
 const docs = "/api/presentation/v1/documents";
 const doc = `${docs}/doc-1`;

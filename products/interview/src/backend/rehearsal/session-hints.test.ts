@@ -16,21 +16,21 @@ import {
   rehearsalScore,
 } from "@omnitech/interview-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { WorkspaceDatabasePort } from "../assistant/workspace.js";
+import type { WorkspaceDatabasePort } from "../assistant/workspace";
 import {
   type Fixture,
   startFixture,
-} from "../live-session/live-session-fixture.js";
+} from "../live-session/live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   ingestorFor,
   settle,
-} from "../live-session/processor-fixture.js";
-import { ActiveSessionRepository } from "../live-session/repository.js";
-import { purgeSession } from "../live-session/session-purge.js";
-import { RECRUITER_SCREEN } from "../live-session/session-replay-fixtures.js";
-import { createRehearsalApi } from "./api.js";
+} from "../live-session/processor-fixture";
+import { ActiveSessionRepository } from "../live-session/repository";
+import { purgeSession } from "../live-session/session-purge";
+import { RECRUITER_SCREEN } from "../live-session/session-replay-fixtures";
+import { createRehearsalApi } from "./api";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

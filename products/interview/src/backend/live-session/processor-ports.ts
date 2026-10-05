@@ -5,25 +5,22 @@
 // The processor never builds a gateway (rule:model-calls-gateway-routed): the
 // host hands one in, and the processor names profiles, never providers.
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
-import type { Clock } from "./core/index.js";
-import type { AgentEscalationPort } from "./escalation.js";
-import type {
-  FencedSessionWrites,
-  SessionJobRequest,
-} from "./fenced-writes.js";
-import type { InterviewSessionPolicy } from "./interview-policy.js";
-import type { OwnerScope } from "./scope.js";
+import type { Clock } from "./core/index";
+import type { AgentEscalationPort } from "./escalation";
+import type { FencedSessionWrites, SessionJobRequest } from "./fenced-writes";
+import type { InterviewSessionPolicy } from "./interview-policy";
+import type { OwnerScope } from "./scope";
 import type {
   LeaseRenewal,
   SessionClaim,
   SessionTarget,
-} from "./session-claim.js";
-import type { SessionContext } from "./session-context.js";
-import type { PurgeResult } from "./session-purge.js";
-import type { StoredAction, StoredObservation } from "./session-reads.js";
-import type { SessionView } from "./session-record.js";
-import type { SessionCodeRunner } from "./session-run.js";
-import type { TraceSink } from "./trace.js";
+} from "./session-claim";
+import type { SessionContext } from "./session-context";
+import type { PurgeResult } from "./session-purge";
+import type { StoredAction, StoredObservation } from "./session-reads";
+import type { SessionView } from "./session-record";
+import type { SessionCodeRunner } from "./session-run";
+import type { TraceSink } from "./trace";
 
 // The worker's cross-tenant claim: ids and a fence only. Lease and fence are
 // the only columns it may change (rule:claim-writes-lease-and-fence-only).

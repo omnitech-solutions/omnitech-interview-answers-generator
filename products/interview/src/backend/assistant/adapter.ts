@@ -27,29 +27,29 @@ import {
   type Transaction,
 } from "@omnitech-assistant/contracts";
 import { z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { userEditedBriefing } from "../briefing/edits.js";
-import { BriefingRepository } from "../briefing/repository.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { userEditedBriefing } from "../briefing/edits";
+import { BriefingRepository } from "../briefing/repository";
 import {
   answerProse,
   type EvidenceAuthority,
   genericEvidence,
   permitted,
   validateClaims,
-} from "./evidence.js";
+} from "./evidence";
 import {
   briefingPrompt,
   conceptBriefPrompt,
   interviewAdapterVersion,
   interviewPrompt,
-} from "./prompt.js";
+} from "./prompt";
 import {
   type InterviewEvidence,
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
   interviewDraftSchema,
   WorkspaceError,
-} from "./workspace.js";
+} from "./workspace";
 export const interviewProposalPatchSchema = interviewDraftPatchSchema
   .extend({ claims: interviewClaimsSchema.optional() })
   .refine(

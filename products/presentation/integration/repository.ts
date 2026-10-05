@@ -3,7 +3,7 @@ import {
   createPlatformDatabase,
   type PlatformDatabase,
 } from "@omnitech/database";
-import { PresentationRepository } from "../src/repositories/index.js";
+import { PresentationRepository } from "../src/repositories/index";
 
 if (!process.env["DATABASE_URL"])
   throw new Error("DATABASE_URL must point to the local integration database.");

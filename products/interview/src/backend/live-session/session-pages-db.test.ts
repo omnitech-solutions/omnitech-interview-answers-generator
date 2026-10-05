@@ -6,9 +6,9 @@
 // list comes back sanitised on the action.
 import { liveActionSchema } from "@omnitech/interview-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
-import { snapshotProvenanceId } from "./owner-input.js";
-import { ActiveSessionRepository } from "./repository.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
+import { snapshotProvenanceId } from "./owner-input";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

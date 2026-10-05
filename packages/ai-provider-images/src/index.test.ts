@@ -3,7 +3,7 @@ import {
   createFakeImageProvider,
   createImageProviderAdapter,
   fillWorkflowPrompt,
-} from "./index.js";
+} from "./index";
 
 describe("image provider boundary", () => {
   it("rejects remote loopback results before persistence", async () => {

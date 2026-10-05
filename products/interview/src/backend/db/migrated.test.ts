@@ -6,10 +6,10 @@ import {
   tablesOf,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import * as documents from "./documents.js";
-import * as liveSession from "./live-session.js";
-import * as domain from "./schema.js";
-import * as studio from "./studio.js";
+import * as documents from "./documents";
+import * as liveSession from "./live-session";
+import * as domain from "./schema";
+import * as studio from "./studio";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {

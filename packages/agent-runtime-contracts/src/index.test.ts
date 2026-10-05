@@ -8,7 +8,7 @@ import {
   type AgentProfile,
   stagedImages,
   validateAgentProfile,
-} from "./index.js";
+} from "./index";
 
 const safeProfile: AgentProfile = {
   id: "document-quality",

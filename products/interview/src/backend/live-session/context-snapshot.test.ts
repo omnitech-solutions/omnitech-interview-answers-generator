@@ -10,7 +10,7 @@ import {
   selectSourcesForTask,
   TASK_VIEW_LIMITS,
   verifyMatrixHash,
-} from "./context-snapshot.js";
+} from "./context-snapshot";
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 const PROFILE = { id: "profile-1", revision: 3, sha256: "a".repeat(64) };

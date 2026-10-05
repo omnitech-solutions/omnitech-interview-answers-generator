@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { CompanionError } from "./errors.js";
-import { FAKE_CREDENTIAL, fakeStudio } from "./fixture/fake-studio.js";
-import { heartbeatMessage, screenSnapshotMessage } from "./messages.js";
-import { createWireClient, type WireClientOptions } from "./wire-client.js";
+import { CompanionError } from "./errors";
+import { FAKE_CREDENTIAL, fakeStudio } from "./fixture/fake-studio";
+import { heartbeatMessage, screenSnapshotMessage } from "./messages";
+import { createWireClient, type WireClientOptions } from "./wire-client";
 
 const beat = heartbeatMessage({
   sourceId: "companion",

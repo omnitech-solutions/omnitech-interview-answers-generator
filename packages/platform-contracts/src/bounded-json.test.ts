@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBoundedJson } from "./bounded-json.js";
+import { readBoundedJson } from "./bounded-json";
 
 function post(body: BodyInit | null, headers: Record<string, string> = {}) {
   return new Request("http://localhost/x", { method: "POST", body, headers });

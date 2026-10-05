@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVE_SESSION_LIMITS } from "./limits.js";
-import {
-  isWithinEnvelopeByteLimit,
-  validateObservation,
-} from "./observation.js";
+import { ACTIVE_SESSION_LIMITS } from "./limits";
+import { isWithinEnvelopeByteLimit, validateObservation } from "./observation";
 
 const envelope = {
   version: 1,

@@ -1,6 +1,6 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { describe, expect, it, vi } from "vitest";
-import { createPlatformApi } from "./router.js";
+import { createPlatformApi } from "./router";
 
 const platformContext: PlatformContext = {
   user: {

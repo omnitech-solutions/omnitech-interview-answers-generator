@@ -2,14 +2,14 @@
 // closed structured schema (escalation is a validated enum, not a request), no
 // device implementation, and a bounded repair report of names and statuses.
 import { describe, expect, it } from "vitest";
-import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
-import type { CodingBrief } from "./assist-stage.js";
+import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
+import type { CodingBrief } from "./assist-stage";
 import {
   CODING_ACTION_KIND,
   type CodingInput,
   createCodingStage,
   MAX_REPORT_TESTS,
-} from "./coding-stage.js";
+} from "./coding-stage";
 
 const stage = createCodingStage();
 const BRIEF: CodingBrief = {

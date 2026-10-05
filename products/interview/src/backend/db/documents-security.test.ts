@@ -19,7 +19,7 @@ import {
   documents,
   documentTemplateRevisions,
   documentTemplates,
-} from "./documents.js";
+} from "./documents";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

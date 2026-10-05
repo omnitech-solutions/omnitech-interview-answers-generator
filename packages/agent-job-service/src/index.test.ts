@@ -4,7 +4,7 @@ import {
   type AgentJobRepository,
   AgentJobService,
   agentPayloadSecret,
-} from "./index.js";
+} from "./index";
 
 function makeRepository(): AgentJobRepository & {
   cancelled: boolean;

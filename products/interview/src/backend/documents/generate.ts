@@ -6,8 +6,8 @@ import {
   documentValuesSchema,
   validateDocumentValues,
 } from "@omnitech/interview-contracts";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { DEFAULT_DOCUMENTS_CONFIG, type GenerationSettings } from "./config.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { DEFAULT_DOCUMENTS_CONFIG, type GenerationSettings } from "./config";
 
 export type DocumentGenerationInput = {
   tenantId: string;

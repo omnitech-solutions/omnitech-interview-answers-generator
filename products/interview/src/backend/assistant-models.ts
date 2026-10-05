@@ -8,8 +8,8 @@ import type {
   Scope,
 } from "@omnitech-assistant/contracts";
 import { createRelayModelSource } from "@omnitech-assistant/server";
-import { INTERVIEW_ASSISTANT_PROFILE } from "../assistant-profile.js";
-import { manifest } from "../manifest.js";
+import { INTERVIEW_ASSISTANT_PROFILE } from "../assistant-profile";
+import { manifest } from "../manifest";
 
 const PERMISSIONS = manifest.permissions;
 // The most models one picker listing may hold.

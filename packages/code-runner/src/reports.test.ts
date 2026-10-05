@@ -5,7 +5,7 @@ import {
   parseRspecReport,
   parseVitestReport,
   testSourceMap,
-} from "./reports.js";
+} from "./reports";
 
 const strip = (source: string) =>
   source.replace(/<\?php\s*/gi, "").replace(/\?>\s*/g, "");

@@ -13,8 +13,8 @@
 // What it does not do: the Workspace draft write of a coding publish (a
 // database effect, covered by the database suites) and row security.
 import { randomUUID } from "node:crypto";
-import { OWNER_INPUT_SOURCE_ID } from "../db/live-session.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
+import { OWNER_INPUT_SOURCE_ID } from "../db/live-session";
+import { buildContextSnapshot } from "./context-snapshot";
 import {
   canPublish,
   decideDispatch,
@@ -22,12 +22,12 @@ import {
   holderStanding,
   revisionStanding,
   sourceIdsOf,
-} from "./core/index.js";
-import type { Refused, WriteRefusalReason } from "./fenced-writes.js";
-import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
-import type { SessionClaim, SessionTarget } from "./session-claim.js";
-import type { StoredAction, StoredObservation } from "./session-reads.js";
-import type { SessionView } from "./session-record.js";
+} from "./core/index";
+import type { Refused, WriteRefusalReason } from "./fenced-writes";
+import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
+import type { SessionClaim, SessionTarget } from "./session-claim";
+import type { StoredAction, StoredObservation } from "./session-reads";
+import type { SessionView } from "./session-record";
 
 export type MemoryWorldOptions = {
   processingPolicy?: "device-only" | "permitted-remote";

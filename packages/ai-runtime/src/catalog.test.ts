@@ -1,6 +1,6 @@
 import type { ModelProviderAdapter } from "@omnitech/ai-contracts";
 import { describe, expect, it } from "vitest";
-import { type AiProfile, createAiExecutionGateway } from "./index.js";
+import { type AiProfile, createAiExecutionGateway } from "./index";
 
 const context = {
   tenantId: "t",

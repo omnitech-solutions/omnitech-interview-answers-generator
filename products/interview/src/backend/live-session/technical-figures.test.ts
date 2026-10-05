@@ -4,10 +4,10 @@
 // complexity?") was withheld for O(n^2) and "up to 1000" although the session
 // had no experience matrix.
 import { describe, expect, it } from "vitest";
-import { createAssistStage } from "./assist-stage.js";
-import { nonGeneralFigures, type TechnicalScope } from "./claims.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
-import { planAssist } from "./service.js";
+import { createAssistStage } from "./assist-stage";
+import { nonGeneralFigures, type TechnicalScope } from "./claims";
+import { buildContextSnapshot } from "./context-snapshot";
+import { planAssist } from "./service";
 
 const stage = createAssistStage();
 const snapshot = buildContextSnapshot({ matrix: null, profile: null });

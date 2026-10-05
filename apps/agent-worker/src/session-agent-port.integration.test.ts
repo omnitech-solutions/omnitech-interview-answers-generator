@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   createSessionAgentPort,
   defaultStagingBase,
-} from "./session-agent-port.js";
+} from "./session-agent-port";
 
 const runtime = process.env["ACTIVE_SESSION_AGENT_INTEGRATION"];
 

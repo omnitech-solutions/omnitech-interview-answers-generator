@@ -1,7 +1,7 @@
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installFakeApi, routeScreen, sampleDocument } from "./fake-api.js";
+import { installFakeApi, routeScreen, sampleDocument } from "./fake-api";
 
 const api = "/api/presentation/v1";
 const targets = "/api/platform/v1/ai-targets";

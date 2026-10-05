@@ -6,7 +6,7 @@
 // latest device capability, content-free and surviving a session purge.
 import { CAPABILITY_ACK_EVENT_ID } from "@omnitech/active-session-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
@@ -14,8 +14,8 @@ import {
   screenshot,
   startFixture,
   transcript,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

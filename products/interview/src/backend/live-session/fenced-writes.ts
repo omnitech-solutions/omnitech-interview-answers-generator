@@ -12,7 +12,7 @@
 import { randomUUID } from "node:crypto";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   canPublish,
   type DispatchLedger,
@@ -28,12 +28,12 @@ import {
   type SessionStatus,
   sourceIdsOf,
   type TaskState,
-} from "./core/index.js";
-import { assertUuid, SessionError } from "./errors.js";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
-import type { SessionJobs } from "./session-jobs.js";
-import { lockSession, type SessionRecord } from "./session-record.js";
-import { MAX_REASON_CHARS } from "./withheld.js";
+} from "./core/index";
+import { assertUuid, SessionError } from "./errors";
+import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import type { SessionJobs } from "./session-jobs";
+import { lockSession, type SessionRecord } from "./session-record";
+import { MAX_REASON_CHARS } from "./withheld";
 
 // The lease token a worker holds: the id it claimed under and the fence its
 // acquire produced.

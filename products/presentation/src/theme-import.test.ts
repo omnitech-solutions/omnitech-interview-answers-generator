@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { importPowerPointTheme } from "./theme-import.js";
+import { importPowerPointTheme } from "./theme-import";
 
 describe("PowerPoint theme import", () => {
   it("extracts the OOXML palette and font pair", async () => {

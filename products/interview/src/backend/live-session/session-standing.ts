@@ -8,9 +8,9 @@
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import { isUuid } from "./errors.js";
-import { policyFromDb } from "./mapping.js";
-import { firstRow, inOwnerScope } from "./scope.js";
+import { isUuid } from "./errors";
+import { policyFromDb } from "./mapping";
+import { firstRow, inOwnerScope } from "./scope";
 
 // `true` permits, `false` is a real policy denial (final: the session is not
 // remote-permitted, or the request names no session), and the two strings are

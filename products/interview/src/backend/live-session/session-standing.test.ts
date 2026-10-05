@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createSessionStillPermitted,
   standingVerdictOf,
-} from "./session-standing.js";
+} from "./session-standing";
 
 describe("standingVerdictOf", () => {
   it("permits an active remote-permitted session", () => {

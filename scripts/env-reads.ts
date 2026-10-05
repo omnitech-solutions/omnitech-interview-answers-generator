@@ -5,12 +5,7 @@
 //   helper(env, "NAME", ...), where the first argument is an environment object
 //   env[CONSTANT], where CONSTANT is a string constant in the same file
 import ts from "typescript";
-import {
-  isTestSupportPath,
-  parse,
-  sourcePattern,
-  walk,
-} from "./guard-support.js";
+import { isTestSupportPath, parse, sourcePattern, walk } from "./guard-support";
 
 export interface EnvRead {
   name: string;

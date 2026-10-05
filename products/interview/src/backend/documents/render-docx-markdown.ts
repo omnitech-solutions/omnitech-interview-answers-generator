@@ -1,10 +1,10 @@
-import { renderDocxTemplate } from "./render-docx.js";
-import { escapeMarkdownValue } from "./render-markdown.js";
+import { renderDocxTemplate } from "./render-docx";
+import { escapeMarkdownValue } from "./render-markdown";
 import {
   decodeXmlText,
   InvalidDocumentTemplateError,
   loadDocxTemplate,
-} from "./template-intake.js";
+} from "./template-intake";
 
 /** Render the selected DOCX revision as readable Markdown with the same field values. */
 export async function renderDocxAsMarkdown(

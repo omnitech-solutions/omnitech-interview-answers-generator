@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { createAnthropicModelAdapter } from "./index.js";
+import { createAnthropicModelAdapter } from "./index";
 
 describe("Anthropic model adapter", () => {
   it("exposes the provider-neutral capability contract", () => {

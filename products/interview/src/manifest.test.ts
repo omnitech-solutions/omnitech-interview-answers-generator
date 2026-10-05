@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frontendPlugin, manifest } from "./manifest.js";
+import { frontendPlugin, manifest } from "./manifest";
 
 describe("interview manifest", () => {
   it("serves the Live session view at /live under interview.read, with no new permission", () => {

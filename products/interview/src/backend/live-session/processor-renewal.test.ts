@@ -3,10 +3,10 @@
 // renewal that answers resets the count. In-memory ports; no database.
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import { describe, expect, it } from "vitest";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
-import { createSessionProcessor } from "./processor.js";
-import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
-import type { SessionTraceEvent } from "./trace.js";
+import { createInterviewSessionPolicy } from "./interview-policy";
+import { createSessionProcessor } from "./processor";
+import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
+import type { SessionTraceEvent } from "./trace";
 
 const CLAIM = { tenantId: "t1", ownerUserId: "u1", sessionId: "s1", fence: 1 };
 const ACTIVE_VIEW = {

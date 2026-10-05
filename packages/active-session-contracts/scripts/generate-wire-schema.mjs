@@ -1,7 +1,7 @@
-// Regenerates the published wire artifacts from the package's own build:
+// Regenerates the published wire artifacts from the package's own source:
 // schema/active-session-wire.schema.json and corpus/index.json. Run through
 // `pnpm --filter @omnitech/active-session-contracts schema:generate`, which
-// builds first and formats the output. Nothing here is needed at runtime.
+// formats the output. Nothing here is needed at runtime.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +9,7 @@ import {
   buildCorpusManifest,
   buildWireSchema,
   serializeWireSchema,
-} from "../dist/wire-schema.js";
+} from "../src/wire-schema.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const corpusRoot = join(packageRoot, "corpus");

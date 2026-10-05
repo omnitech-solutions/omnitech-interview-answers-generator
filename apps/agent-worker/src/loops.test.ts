@@ -8,8 +8,8 @@ import {
   sessionLoop,
   sessionSweepLoop,
   sweepStagingAtStartup,
-} from "./main.js";
-import { sweepStagingBase } from "./session-agent-port.js";
+} from "./main";
+import { sweepStagingBase } from "./session-agent-port";
 
 const CANARY = "canary-question-text";
 const gate = () => {

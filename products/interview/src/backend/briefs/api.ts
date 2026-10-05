@@ -14,8 +14,8 @@ import {
   type WorkspaceDatabasePort,
   WorkspaceError,
   type WorkspaceScope,
-} from "../assistant/workspace.js";
-import { generateChecked } from "../structured.js";
+} from "../assistant/workspace";
+import { generateChecked } from "../structured";
 
 const prefix = "/api/interview/briefs";
 const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";

@@ -4,12 +4,12 @@
 // mid-exercise; the last change (a token bucket replacing the sliding window)
 // invalidates the earlier solution. Narration is deliberately free of
 // constraint cues so only the interviewer's lines revise the task.
-import type { ReplayFixtureSet } from "./replay-fixtures-hazards.js";
+import type { ReplayFixtureSet } from "./replay-fixtures-hazards";
 import {
   candidate,
   createScript,
   interviewer,
-} from "./session-replay-fixtures.js";
+} from "./session-replay-fixtures";
 
 const code = createScript("code");
 

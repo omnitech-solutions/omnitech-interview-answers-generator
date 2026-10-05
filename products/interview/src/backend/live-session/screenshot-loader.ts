@@ -23,11 +23,11 @@ import {
 import type { AgentAttachment, AiAccessContext } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
-import { isUuid } from "./errors.js";
-import { parseSnapshotProvenanceId } from "./owner-input.js";
-import { firstRow, inOwnerScope } from "./scope.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
+import { isUuid } from "./errors";
+import { parseSnapshotProvenanceId } from "./owner-input";
+import { firstRow, inOwnerScope } from "./scope";
 
 export const SCREENSHOT_LOAD_LIMITS = Object.freeze({
   // What ingest accepts; never more than a runtime's own image bound.

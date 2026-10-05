@@ -5,14 +5,14 @@
 // (not on later ticks, not in a rebuilt run), and leaves later questions and
 // new task revisions to dispatch normally.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

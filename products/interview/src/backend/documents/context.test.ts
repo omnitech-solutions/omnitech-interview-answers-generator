@@ -9,7 +9,7 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { DocumentContextNotFound, resolveDocumentContext } from "./context.js";
+import { DocumentContextNotFound, resolveDocumentContext } from "./context";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

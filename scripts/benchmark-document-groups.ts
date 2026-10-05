@@ -7,9 +7,9 @@ import type {
   AgentRuntimeAdapter,
 } from "@omnitech/agent-runtime-contracts";
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
-import { createClaudeRuntimeAdapter } from "../packages/agent-runtime-claude/src/index.js";
-import { createCodexRuntimeAdapter } from "../packages/agent-runtime-codex/src/index.js";
-import { generateDocumentValues } from "../products/interview/src/backend/documents/generate.js";
+import { createClaudeRuntimeAdapter } from "../packages/agent-runtime-claude/src/index";
+import { createCodexRuntimeAdapter } from "../packages/agent-runtime-codex/src/index";
+import { generateDocumentValues } from "../products/interview/src/backend/documents/generate";
 
 if (process.env["BENCHMARK_LIVE"] !== "1")
   throw new Error(

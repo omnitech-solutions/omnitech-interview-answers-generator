@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   type BuiltInKey,
   builtInTemplates,
-} from "./documents/built-in-templates.js";
+} from "./documents/built-in-templates";
 
 // Private local data (the experience matrix, the author's real templates)
 // lives with the source studio rather than in this repository or in the

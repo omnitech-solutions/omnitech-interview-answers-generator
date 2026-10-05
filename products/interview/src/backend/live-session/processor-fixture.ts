@@ -11,32 +11,32 @@ import type {
 } from "@omnitech/ai-contracts";
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { expect } from "vitest";
-import { matrixSha256 } from "./context-snapshot.js";
-import { ingestObservation } from "./ingest.js";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
-import type { Fixture, Person } from "./live-session-fixture.js";
-import type { WorkspaceDraftKey } from "./mapping.js";
-import { createSessionProcessor } from "./processor.js";
+import { matrixSha256 } from "./context-snapshot";
+import { ingestObservation } from "./ingest";
+import { createInterviewSessionPolicy } from "./interview-policy";
+import type { Fixture, Person } from "./live-session-fixture";
+import type { WorkspaceDraftKey } from "./mapping";
+import { createSessionProcessor } from "./processor";
 import type {
   SessionClaimPort,
   SessionProcessorOptions,
   SessionProcessorPorts,
   SessionStorePort,
-} from "./processor-ports.js";
-import { capturedText } from "./replay-evidence-fixture.js";
-import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./processor-ports";
+import { capturedText } from "./replay-evidence-fixture";
+import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix";
+import { ActiveSessionRepository } from "./repository";
 import {
   createDatabaseClaimPort,
   createDatabaseStorePort,
-} from "./session-ports.js";
+} from "./session-ports";
 import {
   CANNED_DRAFT,
   CANNED_LOGISTICS_DRAFT,
   FIXTURE_SOURCES,
   type FixtureSegment,
-} from "./session-replay-fixtures.js";
-import type { SessionTraceEvent, TraceSink } from "./trace.js";
+} from "./session-replay-fixtures";
+import type { SessionTraceEvent, TraceSink } from "./trace";
 
 export type FakeGateway = AiExecutionGateway & {
   requests: AiExecutionRequest[];

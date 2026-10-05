@@ -29,7 +29,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { interview } from "./studio.js";
+import { interview } from "./studio";
 
 const platform = { tenants, users };
 

@@ -2,15 +2,15 @@
 // view never carries the credential hash (rule:credential-storage).
 import type { TenantDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import type { ProcessingPolicy, SessionStatus } from "./core/index.js";
+import type { ProcessingPolicy, SessionStatus } from "./core/index";
 import {
   decodeDraftKey,
   policyFromDb,
   type RetentionMode,
   retentionFromDb,
   type WorkspaceDraftKey,
-} from "./mapping.js";
-import { firstRow, type OwnerScope } from "./scope.js";
+} from "./mapping";
+import { firstRow, type OwnerScope } from "./scope";
 
 export type SessionRecord = {
   id: string;

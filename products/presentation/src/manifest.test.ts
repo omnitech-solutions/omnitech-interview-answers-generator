@@ -1,6 +1,6 @@
 import { productManifestSchema } from "@omnitech/platform-contracts";
 import { describe, expect, it } from "vitest";
-import { frontendPlugin, manifest } from "./manifest.js";
+import { frontendPlugin, manifest } from "./manifest";
 
 describe("presentation product manifest", () => {
   it("declares a frontend loader for every route", () => {

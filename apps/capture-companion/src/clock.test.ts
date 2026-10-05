@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isoAt, systemClock } from "./clock.js";
+import { isoAt, systemClock } from "./clock";
 
 describe("clock", () => {
   it("formats epoch milliseconds as an ISO timestamp", () => {

@@ -17,19 +17,19 @@ import {
   it,
   vi,
 } from "vitest";
-import { QUESTION } from "../coding-fixture.js";
-import { PNG_BYTES } from "../live-session-fixture.js";
+import { QUESTION } from "../coding-fixture";
+import { PNG_BYTES } from "../live-session-fixture";
 import {
   buildProcessor,
   type CollectedTrace,
   collectTraces,
   createFakeGateway,
   settle,
-} from "../processor-fixture.js";
-import { ActiveSessionRepository } from "../repository.js";
-import { purgeSession } from "../session-purge.js";
-import { RECRUITER_SCREEN } from "../session-replay-fixtures.js";
-import { startWorld, type World } from "./world.js";
+} from "../processor-fixture";
+import { ActiveSessionRepository } from "../repository";
+import { purgeSession } from "../session-purge";
+import { RECRUITER_SCREEN } from "../session-replay-fixtures";
+import { startWorld, type World } from "./world";
 
 let world: World<typeof fixture>;
 beforeAll(async () => {

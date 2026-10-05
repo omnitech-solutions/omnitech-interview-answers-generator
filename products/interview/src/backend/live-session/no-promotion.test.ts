@@ -11,17 +11,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   seedMatrixProfile,
   settle,
   startSessionForPerson,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { seg } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { seg } from "./session-replay-fixtures";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -69,7 +69,7 @@ const FORBIDDEN_IMPORTS = [
   "/briefs/",
   "/plan/",
   "/studio/",
-  "/services.js",
+  "/services",
   "local-seeds",
 ];
 

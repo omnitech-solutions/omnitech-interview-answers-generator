@@ -8,7 +8,7 @@ import {
   withTenant,
 } from "@omnitech/database";
 import type { SQL } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 
 export type OwnerScope = { tenantId: string; actorId: string };
 

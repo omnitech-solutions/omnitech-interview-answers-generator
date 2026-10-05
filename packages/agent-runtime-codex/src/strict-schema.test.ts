@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { restoreOptional, strictSchema } from "./strict-schema.js";
+import { restoreOptional, strictSchema } from "./strict-schema";
 
 const product = {
   type: "object",

@@ -6,7 +6,7 @@ import {
   createLoggerTraceSink,
   type SessionTraceEvent,
   sanitizeTrace,
-} from "./trace.js";
+} from "./trace";
 
 const event: SessionTraceEvent = {
   event: "dispatch.published",

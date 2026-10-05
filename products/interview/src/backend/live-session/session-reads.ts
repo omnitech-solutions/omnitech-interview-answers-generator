@@ -9,15 +9,15 @@ import {
   liveGeneratedBySchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
-import { assertUuid, SessionError } from "./errors.js";
-import { sanitizeMissingContext } from "./missing-context.js";
-import { parseSnapshotProvenanceId } from "./owner-input.js";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
-import type { SessionJobs } from "./session-jobs.js";
-import { readSession, type SessionView, toView } from "./session-record.js";
-import { decodeWithheldReason } from "./withheld.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
+import { assertUuid, SessionError } from "./errors";
+import { sanitizeMissingContext } from "./missing-context";
+import { parseSnapshotProvenanceId } from "./owner-input";
+import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import type { SessionJobs } from "./session-jobs";
+import { readSession, type SessionView, toView } from "./session-record";
+import { decodeWithheldReason } from "./withheld";
 
 export const MAX_PAGE = 500;
 // A page is at most MAX_PAGE; one more row may be asked for (MAX_PAGE + 1) so

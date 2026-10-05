@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { assistantMigrations } from "@omnitech-assistant/storage-postgres";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { type PlatformDatabase, withPoolClient } from "./connection.js";
+import { type PlatformDatabase, withPoolClient } from "./connection";
 
 // The Drizzle stream ships beside dist (package "files": ["dist", "drizzle"]).
 const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));

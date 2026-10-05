@@ -7,7 +7,7 @@ import type {
   AgentProfile,
 } from "@omnitech/agent-runtime-contracts";
 import { describe, expect, it } from "vitest";
-import { runAgentWorker } from "./index.js";
+import { runAgentWorker } from "./index";
 
 const profile: AgentProfile = {
   id: "presentation-editor",
@@ -743,6 +743,56 @@ describe("agent worker lease and cancellation", () => {
     );
     await done;
     expect(cancelled).toHaveLength(1);
+  });
+
+  it("stops the agent and ends the job as cancelled when a cancel lands while a lifecycle write is refused", async () => {
+    // The tenant's cancel arrives between the runtime's `started` event and the
+    // write that records it: that write is refused (the job is `cancelling`),
+    // which used to skip straight to the failure handler, leaving the agent
+    // running and the job waiting for its lease to run out.
+    const cancelled: string[] = [];
+    const finalized: Array<{ expected: readonly string[]; next: string }> = [];
+    let refused = false;
+    let release: () => void = () => undefined;
+    const runtime = {
+      runtime: "claude-code" as const,
+      capabilities,
+      async *run(): AsyncIterable<AgentEvent> {
+        yield { type: "started", sessionId: "session-x" };
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+      async *resume(): AsyncIterable<AgentEvent> {
+        return;
+      },
+      async cancel(id: string) {
+        cancelled.push(id);
+        release();
+      },
+    };
+    const { done } = run(
+      {
+        async get() {
+          return job({ status: refused ? "cancelling" : "running" });
+        },
+        async appendEvent() {
+          refused = true;
+          throw new Error("fenced write refused");
+        },
+        async finalize(_id: string, expected: readonly string[], next: string) {
+          finalized.push({ expected, next });
+          return expected.includes(refused ? "cancelling" : "running");
+        },
+      },
+      runtime,
+    );
+    await done;
+    expect(cancelled).toHaveLength(1);
+    expect(finalized.at(-1)).toMatchObject({
+      expected: ["cancelling"],
+      next: "cancelled",
+    });
   });
 
   it("moves every lifecycle write under the worker that holds the job", async () => {

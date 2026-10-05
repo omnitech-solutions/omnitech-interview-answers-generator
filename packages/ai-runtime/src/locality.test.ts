@@ -1,7 +1,7 @@
 import {
-  AiPolicyRefusedError,
   type AiAccessContext,
   type AiExecutionRequest,
+  AiPolicyRefusedError,
   type AiProcessingPolicy,
   type ImageProviderAdapter,
   type ModelProviderAdapter,
@@ -12,7 +12,7 @@ import {
   type AiLocality,
   type AiProfile,
   createAiExecutionGateway,
-} from "./index.js";
+} from "./index";
 
 const context: AiAccessContext = {
   tenantId: "tenant-1",

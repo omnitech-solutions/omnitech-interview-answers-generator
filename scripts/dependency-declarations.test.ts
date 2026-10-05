@@ -18,7 +18,7 @@ import {
   repoRoot,
   sourcePattern,
   walk,
-} from "./guard-support.js";
+} from "./guard-support";
 
 interface Manifest {
   name: string;

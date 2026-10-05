@@ -4,7 +4,7 @@
 // not say it, or the owner's next resume is undone by the following heartbeat.
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startWorld, type World } from "./world.js";
+import { startWorld, type World } from "./world";
 
 let world: World;
 beforeAll(async () => {

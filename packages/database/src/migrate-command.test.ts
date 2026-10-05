@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
-import { createPlatformDatabase } from "./connection.js";
+import { createPlatformDatabase } from "./connection";
 import {
   createMigratingApplicationDatabase,
   type DisposablePostgres,
   startDisposablePostgres,
-} from "./test-support/postgres.js";
+} from "./test-support/postgres";
 
 // `pnpm db:migrate` runs as the application role, never the superuser.
 let pg: DisposablePostgres;
@@ -19,7 +19,7 @@ afterEach(() => vi.unstubAllEnvs());
 // `pnpm db:migrate` runs this module as a script: importing it runs it.
 async function migrateCommand() {
   vi.resetModules();
-  await import("./migrate-command.js");
+  await import("./migrate-command");
 }
 
 it("migrates the database named by DATABASE_URL", async () => {
@@ -49,7 +49,7 @@ it("refuses to run without DATABASE_URL", async () => {
 it("shares one process-wide database from DATABASE_URL", async () => {
   vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.resetModules();
-  const { getPlatformDatabase } = await import("./connection.js");
+  const { getPlatformDatabase } = await import("./connection");
 
   const database = getPlatformDatabase();
 

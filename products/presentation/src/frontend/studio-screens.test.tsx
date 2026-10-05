@@ -6,12 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  installFakeApi,
-  Raw,
-  routeScreen,
-  sampleDocument,
-} from "./fake-api.js";
+import { installFakeApi, Raw, routeScreen, sampleDocument } from "./fake-api";
 
 const api = "/api/presentation/v1";
 

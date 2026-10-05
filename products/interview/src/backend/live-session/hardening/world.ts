@@ -8,13 +8,13 @@
 import type { CaptureSource } from "@omnitech/active-session-contracts";
 import { liveStreamResponseSchema } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
-import { deriveLiveModel } from "../../../frontend/studio/live/session-state.js";
+import { deriveLiveModel } from "../../../frontend/studio/live/session-state";
 import {
   type Fixture,
   type Person,
   startFixture,
-} from "../live-session-fixture.js";
-import { createSessionRoutes } from "../routes.js";
+} from "../live-session-fixture";
+import { createSessionRoutes } from "../routes";
 
 // The fixture companion arrives as an argument: only TEST files may import
 // @omnitech/capture-companion/fixture (scripts/package-boundaries.test.ts), so

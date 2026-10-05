@@ -1,6 +1,6 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { describe, expect, it } from "vitest";
-import * as access from "./briefing-access.js";
+import * as access from "./briefing-access";
 
 const context = {
   tenant: { id: "tenant-id", slug: "team" },

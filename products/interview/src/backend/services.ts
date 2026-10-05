@@ -21,9 +21,9 @@ import {
   JsonExplanationRepository,
   JsonLibraryRepository,
 } from "@omnitech/interview-storage";
-import type { WorkspaceScope } from "./assistant/workspace.js";
-import { LibraryService } from "./library-service.js";
-import { generateChecked, type StructuredGenerate } from "./structured.js";
+import type { WorkspaceScope } from "./assistant/workspace";
+import { LibraryService } from "./library-service";
+import { generateChecked, type StructuredGenerate } from "./structured";
 
 const dataDirectory =
   process.env["INTERVIEW_DATA_DIR"] ?? resolve(process.cwd(), ".data");

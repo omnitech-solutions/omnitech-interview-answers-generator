@@ -7,7 +7,7 @@
 //
 // A browser and an installed web app have no bridge: `window.studioHost` is
 // absent and the page uses the browser's own capture, as before.
-import type { LiveCaptureMode, LiveCaptureRegion } from "./live-session.js";
+import type { LiveCaptureMode, LiveCaptureRegion } from "./live-session";
 
 // Bumps only on an incompatible change. A page ignores a bridge it does not know.
 export const STUDIO_HOST_VERSION = 1;

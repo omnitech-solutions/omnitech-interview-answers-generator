@@ -4,11 +4,11 @@ import {
   PgBossRunQueue,
 } from "@omnitech-assistant/storage-postgres";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { guidedProse } from "../../answer-fixture.js";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { InterviewWorkspaceRepository } from "../assistant/workspace.js";
-import { disposablePostgres } from "../assistant/workspace-fixture.js";
-import { createInterviewStudio } from "./host.js";
+import { guidedProse } from "../../answer-fixture";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { InterviewWorkspaceRepository } from "../assistant/workspace";
+import { disposablePostgres } from "../assistant/workspace-fixture";
+import { createInterviewStudio } from "./host";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 let queue: PgBossRunQueue;

@@ -11,7 +11,7 @@ import {
 } from "@orama/plugin-data-persistence/server";
 import GithubSlugger from "github-slugger";
 
-export { interviewLibrarySeed } from "./catalog.js";
+export { interviewLibrarySeed } from "./catalog";
 
 const indexFormatVersion = 3;
 

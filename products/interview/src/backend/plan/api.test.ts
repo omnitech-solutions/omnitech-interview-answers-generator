@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { InterviewWorkspaceRepository } from "../assistant/workspace.js";
-import { disposablePostgres } from "../assistant/workspace-fixture.js";
-import { createPlanApi, questionStatus } from "./api.js";
+import { InterviewWorkspaceRepository } from "../assistant/workspace";
+import { disposablePostgres } from "../assistant/workspace-fixture";
+import { createPlanApi, questionStatus } from "./api";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const scope = {

@@ -10,7 +10,7 @@ import {
   type AgentExecutionPort,
   type AiProfile,
   createAiExecutionGateway,
-} from "./index.js";
+} from "./index";
 
 const context: AiAccessContext = {
   tenantId: "tenant-1",

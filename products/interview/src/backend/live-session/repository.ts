@@ -14,17 +14,17 @@ import { liveSessionStartRequestSchema } from "@omnitech/interview-contracts";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { readCaptureRequest, submitCaptureRequest } from "./capture-request.js";
-import { getCompanionCapability } from "./companion-capability.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { readCaptureRequest, submitCaptureRequest } from "./capture-request";
+import { getCompanionCapability } from "./companion-capability";
 import {
   type ProcessingPolicy,
   type StatusActor,
   type StatusCommand,
   tightenPolicy,
   transitionStatus,
-} from "./core/index.js";
-import { assertUuid, SessionError } from "./errors.js";
+} from "./core/index";
+import { assertUuid, SessionError } from "./errors";
 import {
   encodeDraftKey,
   isProcessingPolicy,
@@ -34,23 +34,23 @@ import {
   retentionRank,
   retentionToDb,
   type WorkspaceDraftKey,
-} from "./mapping.js";
-import { storeOwnerCapture } from "./owner-capture.js";
+} from "./mapping";
+import { storeOwnerCapture } from "./owner-capture";
 import {
   insertOwnerInput,
   nextOwnerSequence,
   OWNER_STOP_BODY,
   storeOwnerInput,
-} from "./owner-input.js";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
-import { getSessionChoices } from "./session-choices.js";
-import { mintSessionCredential } from "./session-credential.js";
+} from "./owner-input";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { getSessionChoices } from "./session-choices";
+import { mintSessionCredential } from "./session-credential";
 import {
   type CancellationSummary,
   cancelSessionJobs,
   type SessionJobs,
-} from "./session-jobs.js";
-import { listActionChanges, listSessions } from "./session-pages.js";
+} from "./session-jobs";
+import { listActionChanges, listSessions } from "./session-pages";
 import {
   getOpenSession,
   getSession,
@@ -59,7 +59,7 @@ import {
   listActions,
   listObservations,
   readScreenshot,
-} from "./session-reads.js";
+} from "./session-reads";
 import {
   lockSession,
   readSession,
@@ -67,13 +67,13 @@ import {
   type SessionView,
   toRecord,
   toView,
-} from "./session-record.js";
+} from "./session-record";
 import {
   CANCELS_JOBS,
   type ReconcileOptions,
   reconcileLocked,
   transitionLocked,
-} from "./status-transition.js";
+} from "./status-transition";
 
 export type StartSessionInput = {
   processingPolicy: ProcessingPolicy;

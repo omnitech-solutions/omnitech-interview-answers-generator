@@ -4,8 +4,8 @@ import type {
 } from "@omnitech/ai-contracts";
 import type { ModelRelay } from "@omnitech-assistant/contracts";
 import { describe, expect, it, vi } from "vitest";
-import { INTERVIEW_ASSISTANT_PROFILE } from "../assistant-profile.js";
-import { createAssistantModels } from "./assistant-models.js";
+import { INTERVIEW_ASSISTANT_PROFILE } from "../assistant-profile";
+import { createAssistantModels } from "./assistant-models";
 
 const scope = { tenantId: "t", actorId: "a", productId: "omnitech.interview" };
 const target = (id: string, listing = true): AiTargetSummary => ({

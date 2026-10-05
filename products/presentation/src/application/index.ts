@@ -3,10 +3,10 @@ import type {
   SavePresentationInput,
   Slide,
   TenantContext,
-} from "../domain/index.js";
-import { PresentationNotFoundError } from "../domain/index.js";
-import { exportPresentation } from "../export/index.js";
-import { PresentationRepository } from "../repositories/index.js";
+} from "../domain/index";
+import { PresentationNotFoundError } from "../domain/index";
+import { exportPresentation } from "../export/index";
+import { PresentationRepository } from "../repositories/index";
 
 export class PresentationService {
   constructor(private readonly repository: PresentationRepository) {}

@@ -2,22 +2,22 @@ export {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_ASSISTANT_PROFILE,
   INTERVIEW_PRODUCT_ID,
-} from "../assistant-profile.js";
+} from "../assistant-profile";
 export {
   createApi as createInterviewApi,
   type InterviewApiOptions,
-} from "./api.js";
+} from "./api";
 export {
   createInterviewAdapter,
   type InterviewAdapterOptions,
   interviewPatchJsonSchema,
   interviewProposalPatchSchema,
-} from "./assistant/adapter.js";
+} from "./assistant/adapter";
 export {
   interviewAdapterVersion,
   interviewPrompt,
   interviewRunVersions,
-} from "./assistant/prompt.js";
+} from "./assistant/prompt";
 export {
   type AnswerRevisionRecord,
   type InterviewDraft,
@@ -29,19 +29,19 @@ export {
   WorkspaceError,
   type WorkspaceOrigin,
   type WorkspaceScope,
-} from "./assistant/workspace.js";
-export { createBriefingApi } from "./briefing/api.js";
-export { briefingScope } from "./briefing-access.js";
-export { createBriefsApi } from "./briefs/api.js";
+} from "./assistant/workspace";
+export { createBriefingApi } from "./briefing/api";
+export { briefingScope } from "./briefing-access";
+export { createBriefsApi } from "./briefs/api";
 export {
   createInterviewBackend,
   type InterviewBackendServices,
-} from "./interview-backend.js";
+} from "./interview-backend";
 
-export { loadLocalDefaultProfile } from "./local-default-profile.js";
-export { createPlanApi } from "./plan/api.js";
-export { createRehearsalApi, rehearsalStatus } from "./rehearsal/api.js";
+export { loadLocalDefaultProfile } from "./local-default-profile";
+export { createPlanApi } from "./plan/api";
+export { createRehearsalApi, rehearsalStatus } from "./rehearsal/api";
 export {
   createInterviewStudio,
   type InterviewStudioOptions,
-} from "./studio/host.js";
+} from "./studio/host";

@@ -6,4 +6,4 @@ export {
   ProductUnavailableError,
   type RegisteredProduct,
   type ResolvedProductRoute,
-} from "./registry.js";
+} from "./registry";

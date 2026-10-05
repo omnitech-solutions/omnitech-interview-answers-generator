@@ -50,8 +50,8 @@ import {
   type AssistDraft,
   type CodingBrief,
   codingBriefSchema,
-} from "./assist-stage.js";
-import { CODING_ACTION_KIND, type PriorSolution } from "./coding-stage.js";
+} from "./assist-stage";
+import { CODING_ACTION_KIND, type PriorSolution } from "./coding-stage";
 import {
   applyTranscriptFinal,
   applyVerdict,
@@ -73,21 +73,21 @@ import {
   type TraceEvent,
   type TranscriptView,
   type Utterance,
-} from "./core/index.js";
-import type { FenceHolder } from "./fenced-writes.js";
-import type { InterviewSessionPolicy } from "./interview-policy.js";
+} from "./core/index";
+import type { FenceHolder } from "./fenced-writes";
+import type { InterviewSessionPolicy } from "./interview-policy";
 import {
   isSnapshotProvenanceId,
   OWNER_STOP_OPERATION,
   ownerInputProvenanceId,
   snapshotProvenanceId,
-} from "./owner-input.js";
-import type { SessionStorePort } from "./processor-ports.js";
-import type { OwnerScope } from "./scope.js";
-import type { SessionClaim } from "./session-claim.js";
-import type { SessionContext } from "./session-context.js";
-import type { StoredAction, StoredObservation } from "./session-reads.js";
-import type { SessionTraceEvent } from "./trace.js";
+} from "./owner-input";
+import type { SessionStorePort } from "./processor-ports";
+import type { OwnerScope } from "./scope";
+import type { SessionClaim } from "./session-claim";
+import type { SessionContext } from "./session-context";
+import type { StoredAction, StoredObservation } from "./session-reads";
+import type { SessionTraceEvent } from "./trace";
 
 // An owner input replayed and waiting to be applied to the task state after the
 // spoken utterances have been (so a follow-up finds the task it targets).

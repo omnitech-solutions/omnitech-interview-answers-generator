@@ -2,14 +2,14 @@
 // it has settled, a LATER dispatch that throws before recording its own action
 // must not settle the earlier, finished one as failed.
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

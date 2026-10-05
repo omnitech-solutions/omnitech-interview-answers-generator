@@ -25,7 +25,7 @@ import {
   SessionAgentError,
   type SessionAgentPortOptions,
   type StandingVerdict,
-} from "./session-agent-port.js";
+} from "./session-agent-port";
 
 const agentProfile: AgentProfile = {
   id: "assistant",

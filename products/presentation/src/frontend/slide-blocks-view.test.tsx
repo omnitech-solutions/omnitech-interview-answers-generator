@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SlideBlockEditor, SlideBlockView } from "./slide-blocks.js";
+import { SlideBlockEditor, SlideBlockView } from "./slide-blocks";
 
 afterEach(cleanup);
 

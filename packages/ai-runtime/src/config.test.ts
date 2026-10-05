@@ -6,7 +6,7 @@ import {
   resolveDefaultLanguageModel,
   resolveLanguageModels,
   withDeclaredLocality,
-} from "./config.js";
+} from "./config";
 
 describe("resolveLanguageModels", () => {
   it("needs both a non-empty base URL and model", () => {

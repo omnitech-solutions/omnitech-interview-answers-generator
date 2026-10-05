@@ -10,7 +10,7 @@ import {
   ScreenshotLoadError,
   type SnapshotRead,
   type StoredSnapshot,
-} from "./screenshot-loader.js";
+} from "./screenshot-loader";
 
 const SESSION = "11111111-1111-4111-8111-111111111111";
 const REF = `snap/${SESSION}/screen/shot-1`;

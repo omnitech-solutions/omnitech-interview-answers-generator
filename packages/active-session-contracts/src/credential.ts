@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoTimestampSchema, opaqueIdSchema } from "./ids.js";
+import { isoTimestampSchema, opaqueIdSchema } from "./ids";
 
 // The credential travels only as `Authorization: Bearer <credential>` and is
 // never placed in a URL or logged (rule:credential-storage).

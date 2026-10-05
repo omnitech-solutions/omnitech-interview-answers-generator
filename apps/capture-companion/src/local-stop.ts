@@ -6,10 +6,10 @@ import type {
   CaptureSource,
   IngestMessage,
 } from "@omnitech/active-session-contracts";
-import type { CaptureDriver } from "./capture-driver.js";
-import { sourceDisconnectedMessage } from "./messages.js";
-import type { Outbox } from "./outbox.js";
-import type { StateModel } from "./state.js";
+import type { CaptureDriver } from "./capture-driver";
+import { sourceDisconnectedMessage } from "./messages";
+import type { Outbox } from "./outbox";
+import type { StateModel } from "./state";
 
 export type LocalStopDeps = {
   capture: CaptureDriver;

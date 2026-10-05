@@ -25,7 +25,7 @@ import {
   PostgresAgentJobRepository,
 } from "@omnitech/platform-storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runConfiguredAgentWorker } from "./main.js";
+import { runConfiguredAgentWorker } from "./main";
 
 const secret = "worker-payload-secret-0123456789abcdef";
 

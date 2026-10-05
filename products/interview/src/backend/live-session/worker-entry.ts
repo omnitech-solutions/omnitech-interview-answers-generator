@@ -12,55 +12,55 @@
 // web host and passes it in (rule:model-calls-gateway-routed).
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
-import type { Clock } from "./core/index.js";
-import type { AgentEscalationPort } from "./escalation.js";
+import type { Clock } from "./core/index";
+import type { AgentEscalationPort } from "./escalation";
 import {
   createInterviewSessionPolicy,
   type InterviewSessionPolicy,
-} from "./interview-policy.js";
-import { createSessionProcessor, type SessionProcessor } from "./processor.js";
+} from "./interview-policy";
+import { createSessionProcessor, type SessionProcessor } from "./processor";
 import type {
   SessionProcessorOptions,
   SessionProcessorPorts,
-} from "./processor-ports.js";
+} from "./processor-ports";
 import {
   createDatabaseClaimPort,
   createDatabaseStorePort,
   type DatabasePortOptions,
-} from "./session-ports.js";
-import type { SessionCodeRunner } from "./session-run.js";
-import { createLoggerTraceSink, type TraceSink } from "./trace.js";
+} from "./session-ports";
+import type { SessionCodeRunner } from "./session-run";
+import { createLoggerTraceSink, type TraceSink } from "./trace";
 
 export {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
-export type { AgentEscalationPort } from "./escalation.js";
+} from "../../assistant-profile";
+export type { AgentEscalationPort } from "./escalation";
 export {
   SESSION_GATEWAY_CONTEXT,
   sessionGatewayContext,
-} from "./gateway-context.js";
+} from "./gateway-context";
 export {
   isOwnerInputProvenanceId,
   isSnapshotProvenanceId,
   parseSnapshotProvenanceId,
-} from "./owner-input.js";
-export type { SessionProcessor } from "./processor.js";
-export type { SessionProcessorOptions } from "./processor-ports.js";
+} from "./owner-input";
+export type { SessionProcessor } from "./processor";
+export type { SessionProcessorOptions } from "./processor-ports";
 export {
   createSessionScreenshotLoader,
   loadVerifiedScreenshot,
   type SnapshotRead,
   type StoredSnapshot,
-} from "./screenshot-loader.js";
-export type { SessionCodeRunner } from "./session-run.js";
-export { createSessionStillPermitted } from "./session-standing.js";
+} from "./screenshot-loader";
+export type { SessionCodeRunner } from "./session-run";
+export { createSessionStillPermitted } from "./session-standing";
 export {
   createLoggerTraceSink,
   type SessionTraceEvent,
   type TraceSink,
-} from "./trace.js";
+} from "./trace";
 
 export type SessionWorkerOptions = Omit<SessionProcessorOptions, "workerId"> &
   Pick<DatabasePortOptions, "leaseMs" | "jobs" | "drafts"> & {

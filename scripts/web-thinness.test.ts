@@ -21,7 +21,7 @@ import {
   parse,
   repoRoot,
   walk,
-} from "./guard-support.js";
+} from "./guard-support";
 
 const MAX_FILE_LINES = 150;
 

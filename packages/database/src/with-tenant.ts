@@ -5,7 +5,7 @@ import {
   getPlatformDatabase,
   type PlatformDatabase,
   withPoolClient,
-} from "./connection.js";
+} from "./connection";
 
 export interface TenantContext {
   tenantId: string;

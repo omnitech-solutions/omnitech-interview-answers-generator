@@ -28,8 +28,8 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { candidacies, interviews } from "./schema.js";
-import { interview } from "./studio.js";
+import { candidacies, interviews } from "./schema";
+import { interview } from "./studio";
 
 // The artifact type of a stored screenshot. The restrictive artifact policies
 // of the Active Session migration name it (rule:private-session-artifact-types).

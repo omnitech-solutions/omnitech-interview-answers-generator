@@ -5,7 +5,7 @@ import {
   rehearsalSessionSchema,
 } from "@omnitech/interview-contracts";
 
-import { InterviewApiError } from "./index.js";
+import { InterviewApiError } from "./index";
 
 // Scored rehearsals: save a finished one, list the recent ones.
 export interface RehearsalClient {

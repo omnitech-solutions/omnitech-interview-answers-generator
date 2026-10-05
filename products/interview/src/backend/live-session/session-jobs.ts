@@ -6,8 +6,8 @@
 import type { PlatformDatabase } from "@omnitech/database";
 import type { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
-import { SessionError } from "./errors.js";
-import { inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
+import { SessionError } from "./errors";
+import { inOwnerScope, type OwnerScope, rowsOf } from "./scope";
 
 // What the session layer needs from the job repository. The platform-storage
 // repository satisfies it, so a test can pass the real one.

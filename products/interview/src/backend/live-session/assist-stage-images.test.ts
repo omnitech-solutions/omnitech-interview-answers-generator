@@ -6,8 +6,8 @@ import {
   createAssistStage,
   LANGUAGE_POLICY,
   SKILL_POLICY,
-} from "./assist-stage.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
+} from "./assist-stage";
+import { buildContextSnapshot } from "./context-snapshot";
 
 const stage = createAssistStage();
 const snapshot = buildContextSnapshot({ matrix: null, profile: null });

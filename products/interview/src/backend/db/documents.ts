@@ -19,8 +19,8 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { candidacies, interviews } from "./schema.js";
-import { interview } from "./studio.js";
+import { candidacies, interviews } from "./schema";
+import { interview } from "./studio";
 
 const tenantScope = sql`tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid`;
 const memberScope = sql`${tenantScope} AND owner_user_id = nullif(current_setting('app.actor_id', true), '')::uuid`;

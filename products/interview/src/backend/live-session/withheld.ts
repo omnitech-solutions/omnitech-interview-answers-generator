@@ -8,7 +8,7 @@
 // same), so the summary rides on the suppression reason, which the database
 // already requires for a suppressed action and which the stream mapper
 // (toStoredAction) splits back into reason + result.withheld. No migration.
-import { SessionError } from "./errors.js";
+import { SessionError } from "./errors";
 
 export type WithheldSummary = {
   rejectedClaimCount: number;

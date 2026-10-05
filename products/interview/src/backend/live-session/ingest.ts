@@ -34,40 +34,40 @@ import {
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   OWNER_CAPTURE_SOURCE_ID,
   OWNER_INPUT_SOURCE_ID,
   OWNER_MICROPHONE_SOURCE_ID,
   SESSION_SCREENSHOT_ARTIFACT_TYPE,
-} from "../db/live-session.js";
-import { canonicalJson } from "./canonical-json.js";
+} from "../db/live-session";
+import { canonicalJson } from "./canonical-json";
 import {
   checkSnapshotRequest,
   failCaptureRequest,
   failIfSelectionChanged,
   fulfilCaptureRequest,
   pendingCaptureOf,
-} from "./capture-request.js";
+} from "./capture-request";
 import {
   noteDeclaration,
   reportedWithin,
   storeCapability,
-} from "./companion-capability.js";
+} from "./companion-capability";
 import {
   decideObservation,
   dedupKey,
   emptyLedger,
   ingestRefusal,
   type SessionStatus,
-} from "./core/index.js";
-import { withCredentialLookup } from "./credential-lookup.js";
-import { isUuid } from "./errors.js";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
-import { presentedCredentialHash } from "./session-credential.js";
-import { cancelSessionJobs, type SessionJobs } from "./session-jobs.js";
-import { lockSession, type SessionRecord } from "./session-record.js";
-import { reconcileLocked, transitionLocked } from "./status-transition.js";
+} from "./core/index";
+import { withCredentialLookup } from "./credential-lookup";
+import { isUuid } from "./errors";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { presentedCredentialHash } from "./session-credential";
+import { cancelSessionJobs, type SessionJobs } from "./session-jobs";
+import { lockSession, type SessionRecord } from "./session-record";
+import { reconcileLocked, transitionLocked } from "./status-transition";
 
 export type IngestOptions = {
   // The screenshot's bytes, which travel apart from the envelope.

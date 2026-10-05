@@ -7,12 +7,12 @@ import {
   roleBypassesRowLevelSecurityMessage,
   verifyDatabaseRole,
   withPoolClient,
-} from "./connection.js";
+} from "./connection";
 import {
   type DisposablePostgres,
   startDisposablePostgres,
-} from "./test-support/postgres.js";
-import { withTenant } from "./with-tenant.js";
+} from "./test-support/postgres";
+import { withTenant } from "./with-tenant";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {

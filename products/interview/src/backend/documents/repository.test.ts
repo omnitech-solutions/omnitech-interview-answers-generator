@@ -10,13 +10,13 @@ import {
 } from "@omnitech/database/test-support";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { documentTemplates } from "../db/documents.js";
+import { documentTemplates } from "../db/documents";
 import {
   DocumentNotFound,
   DocumentRetryConflict,
   DocumentRevisionConflict,
   InterviewDocumentRepository,
-} from "./repository.js";
+} from "./repository";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

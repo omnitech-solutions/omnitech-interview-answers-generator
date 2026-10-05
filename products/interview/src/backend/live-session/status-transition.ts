@@ -12,9 +12,9 @@ import {
   type StatusActor,
   type StatusCommand,
   transitionStatus,
-} from "./core/index.js";
-import { SessionError } from "./errors.js";
-import type { SessionRecord } from "./session-record.js";
+} from "./core/index";
+import { SessionError } from "./errors";
+import type { SessionRecord } from "./session-record";
 
 // A companion that has made contact and then goes silent this long is treated
 // as stopped; capture pauses and stays open (never ends).

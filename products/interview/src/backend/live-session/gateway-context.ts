@@ -3,8 +3,8 @@
 // from the claimed session row, never from ingest or model content. The host's
 // gateway authorizes by these permissions, as it does for every product call.
 import type { AiAccessContext } from "@omnitech/ai-contracts";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import type { OwnerScope } from "./scope.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import type { OwnerScope } from "./scope";
 
 export const SESSION_GATEWAY_CONTEXT = Object.freeze({
   productId: INTERVIEW_PRODUCT_ID,

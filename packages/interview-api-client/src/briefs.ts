@@ -1,12 +1,12 @@
 import {
   type Brief,
   type BriefRequest,
+  type BriefSummary,
   briefListResponseSchema,
   briefSchema,
-  type BriefSummary,
 } from "@omnitech/interview-contracts";
 
-import { InterviewApiError } from "./index.js";
+import { InterviewApiError } from "./index";
 
 export interface BriefsClientOptions {
   baseUrl: string;

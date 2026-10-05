@@ -54,17 +54,17 @@ const writeConfig = vi.fn();
 vi.mock("node:fs/promises", () => ({
   readFile: vi.fn(),
 }));
-vi.mock("./config.js", () => ({
+vi.mock("./config", () => ({
   configPath: "/tmp/interview-config.json",
   writeConfig,
 }));
-vi.mock("./index.js", () => ({
+vi.mock("./index", () => ({
   createConfiguredClient,
   createConfiguredPlaygroundControlClient,
   createConfiguredBriefingClient,
 }));
 
-const { createProgram } = await import("./cli.js");
+const { createProgram } = await import("./cli");
 
 async function run(...arguments_: string[]) {
   await createProgram().exitOverride().parseAsync(arguments_, { from: "user" });

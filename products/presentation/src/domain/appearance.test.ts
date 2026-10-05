@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { slideAppearance } from "./appearance.js";
+import { slideAppearance } from "./appearance";
 
 it("uses neutral defaults when no theme or option is set", () => {
   expect(slideAppearance({})).toEqual({

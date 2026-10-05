@@ -1,23 +1,24 @@
 // The platform's AI execution tables: provider configuration, profiles,
 // usage and agent jobs.
+
+import { tenantReference, tenantUnique } from "@omnitech/database";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgPolicy,
   pgSchema,
-  uuid,
   primaryKey,
   text,
   timestamp,
-  integer,
-  jsonb,
-  pgPolicy,
-  index,
-  check,
   unique,
-  boolean,
-  numeric,
+  uuid,
 } from "drizzle-orm/pg-core";
-import { tenantReference, tenantUnique } from "@omnitech/database";
-import { tenants, users } from "./platform.js";
+import { tenants, users } from "./platform";
 
 export const ai = pgSchema("ai");
 

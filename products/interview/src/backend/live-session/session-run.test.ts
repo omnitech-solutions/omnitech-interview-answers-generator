@@ -2,14 +2,10 @@
 // arrive over time, the settle window closes an utterance, and a closed
 // utterance is never reopened by a later segment (M1). No database.
 import { describe, expect, it } from "vitest";
-import { applyTranscriptFinal, markSegmentsSuperseded } from "./core/index.js";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
-import { ALL_REPLAY_SETS } from "./replay-fixture-sets.js";
-import {
-  createRun,
-  processUtterances,
-  type SessionRun,
-} from "./session-run.js";
+import { applyTranscriptFinal, markSegmentsSuperseded } from "./core/index";
+import { createInterviewSessionPolicy } from "./interview-policy";
+import { ALL_REPLAY_SETS } from "./replay-fixture-sets";
+import { createRun, processUtterances, type SessionRun } from "./session-run";
 
 const SETTLE_MS = 1_500;
 const policy = createInterviewSessionPolicy();

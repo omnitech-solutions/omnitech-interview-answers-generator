@@ -3,7 +3,7 @@
 import type { AiTargetSummary } from "@omnitech/ai-contracts";
 import type { ProductPageProps } from "@omnitech/platform-contracts";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { slideAppearance } from "../domain/appearance.js";
+import { slideAppearance } from "../domain/appearance";
 import type {
   GeneratedImage,
   PresentationDocument,
@@ -11,16 +11,16 @@ import type {
   PresentationSummary,
   PresentationTheme,
   Slide,
-} from "../domain/index.js";
-import { copyText } from "./copy-text.js";
-import { safeStorage } from "./safe-storage.js";
-import type { SlideBlock, SlideBlockType } from "./slide-blocks.js";
+} from "../domain/index";
+import { copyText } from "./copy-text";
+import { safeStorage } from "./safe-storage";
+import type { SlideBlock, SlideBlockType } from "./slide-blocks";
 import {
   parseSlideBlocks,
   SlideBlockEditor,
   SlideBlockView,
   serializeSlideBlocks,
-} from "./slide-blocks.js";
+} from "./slide-blocks";
 
 // Shared with the platform shell, which writes the member's saved choice.
 const AI_PROFILE_KEY = "platform.aiProfileId";

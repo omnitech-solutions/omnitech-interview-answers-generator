@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createOpenAiModelAdapter } from "./index.js";
+import { createOpenAiModelAdapter } from "./index";
 
 const context = { tenantId: "t", userId: "u", productId: "p", permissions: [] };
 

@@ -4,7 +4,7 @@
 // reimplementation that could drift. No database.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import * as core from "./core/index.js";
+import * as core from "./core/index";
 
 const source = readFileSync(
   new URL("./memory-session-world.ts", import.meta.url),
@@ -13,7 +13,7 @@ const source = readFileSync(
 
 describe("memory session world", () => {
   it("imports its fence decisions from the core and defines none of its own", () => {
-    const imported = /import \{([^}]*)\} from "\.\/core\/index\.js"/s.exec(
+    const imported = /import \{([^}]*)\} from "\.\/core\/index"/s.exec(
       source,
     )?.[1];
     const names = (imported ?? "").split(",").map((name) => name.trim());

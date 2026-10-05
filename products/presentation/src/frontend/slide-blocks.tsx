@@ -2,17 +2,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import type { SlideBlock, SlideBlockType } from "../domain/slide-blocks.js";
-import {
-  parseSlideBlocks,
-  serializeSlideBlocks,
-} from "../domain/slide-blocks.js";
+import type { SlideBlock, SlideBlockType } from "../domain/slide-blocks";
+import { parseSlideBlocks, serializeSlideBlocks } from "../domain/slide-blocks";
 
-export type { SlideBlock, SlideBlockType } from "../domain/slide-blocks.js";
+export type { SlideBlock, SlideBlockType } from "../domain/slide-blocks";
 export {
   parseSlideBlocks,
   serializeSlideBlocks,
-} from "../domain/slide-blocks.js";
+} from "../domain/slide-blocks";
 
 function InlineText({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);

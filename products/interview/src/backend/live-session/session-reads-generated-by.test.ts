@@ -1,7 +1,7 @@
 // The stored action carries its executor as typed display metadata, lifted from
 // the result; malformed or absent values never fail a read. No database.
 import { describe, expect, it } from "vitest";
-import { toStoredAction } from "./session-reads.js";
+import { toStoredAction } from "./session-reads";
 
 const row = (result: unknown) => ({
   id: "00000000-0000-4000-8000-000000000001",

@@ -5,7 +5,7 @@ export {
   interviewClaimsSchema,
   interviewMetricSchema,
   interviewProvenanceSchema,
-} from "./assistant.js";
+} from "./assistant";
 export {
   type Brief,
   type BriefKind,
@@ -18,7 +18,7 @@ export {
   briefSummarySchema,
   type ConceptBrief,
   conceptBriefSchema,
-} from "./brief.js";
+} from "./brief";
 export {
   type BriefingApply,
   type BriefingArtifactListResponse,
@@ -67,7 +67,7 @@ export {
   briefingSaveSchema,
   type CandidateMatrix,
   candidateMatrixSchema,
-} from "./briefing.js";
+} from "./briefing";
 export {
   type DocumentField,
   type DocumentFieldError,
@@ -85,7 +85,7 @@ export {
   documentTemplateKindSchema,
   documentValuesSchema,
   validateDocumentValues,
-} from "./documents.js";
+} from "./documents";
 export {
   type AnswerGuide,
   answerGuideSchema,
@@ -101,7 +101,7 @@ export {
   stageProgressSchema,
   type TestResult,
   testResultSchema,
-} from "./guide.js";
+} from "./guide";
 export {
   LIVE_CAPTURE_FAILURES,
   LIVE_CAPTURE_MODES,
@@ -214,7 +214,7 @@ export {
   SESSION_LIST_MAX_PAGE,
   SESSION_STREAM_DEFAULT_PAGE,
   SESSION_STREAM_MAX_PAGE,
-} from "./live-session.js";
+} from "./live-session";
 export {
   type InterviewPlan,
   type InterviewPlanInput,
@@ -232,7 +232,7 @@ export {
   planItemSchema,
   planItemStatusSchema,
   planResponseSchema,
-} from "./plan.js";
+} from "./plan";
 export {
   CHECK_POINTS,
   MAX_SESSION_HINTS,
@@ -247,8 +247,8 @@ export {
   rehearsalScore,
   rehearsalSessionInputSchema,
   rehearsalSessionSchema,
-} from "./rehearsal.js";
-export { routeQuestion } from "./routing.js";
+} from "./rehearsal";
+export { routeQuestion } from "./routing";
 export type {
   ApiError,
   ExplanationRequest,
@@ -276,7 +276,7 @@ export type {
   SavedExplanation,
   SaveExplanationRequest,
   SyntaxCheckRequest,
-} from "./schemas.js";
+} from "./schemas";
 export {
   apiErrorSchema,
   explanationRequestSchema,
@@ -304,7 +304,7 @@ export {
   savedExplanationSchema,
   saveExplanationRequestSchema,
   syntaxCheckRequestSchema,
-} from "./schemas.js";
+} from "./schemas";
 export {
   ENGINE_PAIRING_STATES,
   ENGINE_SOURCE_HEALTH,
@@ -345,9 +345,9 @@ export {
   type StudioHostHotkey,
   type StudioHostInfo,
   type StudioHostKind,
-} from "./studio-host.js";
+} from "./studio-host";
 export {
   type AnswerWorkflowDefinition,
   getWorkflow,
   listWorkflows,
-} from "./workflows.js";
+} from "./workflows";

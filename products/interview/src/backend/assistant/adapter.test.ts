@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import type { Proposal } from "@omnitech-assistant/contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
-import * as implementation from "./adapter.js";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture";
+import * as implementation from "./adapter";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "ground",

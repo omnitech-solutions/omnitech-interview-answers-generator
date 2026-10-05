@@ -56,7 +56,7 @@ export const frontendPlugin: ProductFrontendPlugin = {
     manifest.routes.map((route) => [
       route.id,
       async () => {
-        const { StudioRoute } = await import("./frontend/studio-route.js");
+        const { StudioRoute } = await import("./frontend/studio-route");
         return { default: StudioRoute };
       },
     ]),

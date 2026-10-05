@@ -31,7 +31,7 @@ import { z } from "zod";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
+} from "../../assistant-profile";
 import {
   CLAIM_KINDS,
   type Claim,
@@ -41,7 +41,7 @@ import {
   MAX_REFS_PER_CLAIM,
   supportedFigureKeys,
   verifyClaims,
-} from "./claims.js";
+} from "./claims";
 import {
   type ContextSnapshot,
   type ContextSource,
@@ -51,9 +51,9 @@ import {
   isWorkArrangementText,
   selectSourcesForTask,
   TASK_VIEW_LIMITS,
-} from "./context-snapshot.js";
-import { sanitizeMissingContext } from "./missing-context.js";
-import { parseRaw, zodViolations } from "./stage-output.js";
+} from "./context-snapshot";
+import { sanitizeMissingContext } from "./missing-context";
+import { parseRaw, zodViolations } from "./stage-output";
 
 export const ASSIST_ACTION_KIND = "draft-answer";
 // Captured text beyond this is left out oldest-first; a device profile's

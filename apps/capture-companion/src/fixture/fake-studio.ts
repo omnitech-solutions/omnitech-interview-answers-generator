@@ -15,7 +15,7 @@ import {
   type SessionControlState,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
-import type { FetchLike, FetchResponse } from "../wire-client.js";
+import type { FetchLike, FetchResponse } from "../wire-client";
 
 export const FAKE_CREDENTIAL_EXPIRY = "2026-10-03T12:00:00.000Z";
 // Well-formed (asc_ plus 43 base64url characters) and obviously not real.

@@ -1,6 +1,6 @@
 import { generatedAnswerSchema } from "@omnitech/interview-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { guidedProse } from "../answer-fixture.js";
+import { guidedProse } from "../answer-fixture";
 
 const mocks = vi.hoisted(() => ({
   build: vi.fn(),

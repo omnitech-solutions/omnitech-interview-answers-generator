@@ -13,17 +13,14 @@ import {
   DEVICE_MAX_PROMPT_BYTES,
   MAX_CAPTURED_CHARS,
   STAR_ELEMENTS,
-} from "./assist-stage.js";
-import { LEAVING_REASON_PLACEHOLDER } from "./claims.js";
-import {
-  buildContextSnapshot,
-  type ContextSnapshot,
-} from "./context-snapshot.js";
+} from "./assist-stage";
+import { LEAVING_REASON_PLACEHOLDER } from "./claims";
+import { buildContextSnapshot, type ContextSnapshot } from "./context-snapshot";
 import {
   CANDIDATE_PREFERENCES,
   SYNTHETIC_MATRIX,
-} from "./replay-fixture-matrix.js";
-import { CANNED_DRAFT } from "./session-replay-fixtures.js";
+} from "./replay-fixture-matrix";
+import { CANNED_DRAFT } from "./session-replay-fixtures";
 
 const stage = createAssistStage();
 const PROFILE = { id: "profile-1", revision: 3, sha256: "a".repeat(64) };

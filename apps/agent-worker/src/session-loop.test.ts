@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runSessionLoop, sessionWorkerId } from "./session-loop.js";
+import { runSessionLoop, sessionWorkerId } from "./session-loop";
 
 const CANARY = "canary-question-text";
 

@@ -6,11 +6,11 @@ import {
   liveMissingContextSchema,
 } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { createAssistStage } from "./assist-stage.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
-import { sanitizeMissingContext } from "./missing-context.js";
-import { toStoredAction } from "./session-reads.js";
-import { CANNED_DRAFT } from "./session-replay-fixtures.js";
+import { createAssistStage } from "./assist-stage";
+import { buildContextSnapshot } from "./context-snapshot";
+import { sanitizeMissingContext } from "./missing-context";
+import { toStoredAction } from "./session-reads";
+import { CANNED_DRAFT } from "./session-replay-fixtures";
 
 const stage = createAssistStage();
 const snapshot = buildContextSnapshot({ matrix: null, profile: null });

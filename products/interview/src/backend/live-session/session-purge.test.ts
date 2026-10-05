@@ -6,7 +6,7 @@
 // idempotent and a crash resumes at the next sweep. The relay rows of the
 // on-device model are out of scope this loop: none exist yet.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
@@ -14,10 +14,10 @@ import {
   screenshot,
   startFixture,
   transcript,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { claimCapExpired, claimPurgeCandidates } from "./session-claim.js";
-import { purgeSession, type SessionDraftPurger } from "./session-purge.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { claimCapExpired, claimPurgeCandidates } from "./session-claim";
+import { purgeSession, type SessionDraftPurger } from "./session-purge";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

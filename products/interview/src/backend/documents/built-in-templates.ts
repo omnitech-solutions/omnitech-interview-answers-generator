@@ -1,5 +1,5 @@
 import type { DocumentTemplateKind } from "@omnitech/interview-contracts";
-import { type BrevitySettings, DEFAULT_DOCUMENTS_CONFIG } from "./config.js";
+import { type BrevitySettings, DEFAULT_DOCUMENTS_CONFIG } from "./config";
 
 export type BuiltInKey = "resume" | "cover-letter" | "interview-prep";
 

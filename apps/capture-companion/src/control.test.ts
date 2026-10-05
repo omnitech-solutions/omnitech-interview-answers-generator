@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SourceSelection, StudioControl } from "./control.js";
+import { SourceSelection, StudioControl } from "./control";
 
 describe("studio control", () => {
   it("reports one transition per change", () => {

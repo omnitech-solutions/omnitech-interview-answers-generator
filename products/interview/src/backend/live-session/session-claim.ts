@@ -7,7 +7,7 @@
 // lease token, not content). After the claim the worker acts as the owner only
 // in a separate actor-scoped transaction (rule:tenant-scoped-worker-access).
 import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
-import { type Lease, renewLease as renewLeaseDecision } from "./core/index.js";
+import { type Lease, renewLease as renewLeaseDecision } from "./core/index";
 
 // [SAFETY] The explicit claim projection. It is read from the
 // interview.active_session_claims view, which omits credential_hash, the

@@ -8,7 +8,7 @@ import type {
   AgentJobStatus,
 } from "@omnitech/agent-runtime-contracts";
 import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
-import { type JobRow, mapJob } from "./agent-job-row.js";
+import { type JobRow, mapJob } from "./agent-job-row";
 
 // The isolated agent worker's jobs, exported only from
 // `@omnitech/platform-storage/worker` and constructed only by apps/agent-worker

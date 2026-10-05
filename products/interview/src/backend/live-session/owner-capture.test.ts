@@ -17,18 +17,18 @@ import {
 } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session.js";
-import { ingestObservation } from "./ingest.js";
+import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
   PNG_BYTES,
   screenshot,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { createSessionRoutes } from "./routes.js";
-import { purgeSession } from "./session-purge.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { createSessionRoutes } from "./routes";
+import { purgeSession } from "./session-purge";
 
 // A header-valid PNG of the given size (the loader reads dimensions only).
 export function pngOf(width: number, height: number, salt = 0): Uint8Array {

@@ -30,20 +30,20 @@ import {
   renderGuideMarkdown,
 } from "@omnitech/interview-contracts";
 import { type SQL, sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   InterviewWorkspaceRepository,
   interviewDraftSchema,
   type WorkspaceScope,
   type WorkspaceTransaction,
-} from "../assistant/workspace.js";
-import type { CodingBrief } from "./assist-stage.js";
-import type { CodeStates } from "./code-states.js";
-import { CODING_ACTION_KIND, type CodingSolution } from "./coding-stage.js";
-import type { PublishEffect } from "./fenced-writes.js";
-import type { WorkspaceDraftKey } from "./mapping.js";
-import { firstRow } from "./scope.js";
-import type { SessionDraftPurger } from "./session-purge.js";
+} from "../assistant/workspace";
+import type { CodingBrief } from "./assist-stage";
+import type { CodeStates } from "./code-states";
+import { CODING_ACTION_KIND, type CodingSolution } from "./coding-stage";
+import type { PublishEffect } from "./fenced-writes";
+import type { WorkspaceDraftKey } from "./mapping";
+import { firstRow } from "./scope";
+import type { SessionDraftPurger } from "./session-purge";
 
 export const sessionWorkspaceId = (sessionId: string): string =>
   `active-session:${sessionId}`;

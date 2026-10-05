@@ -4,7 +4,7 @@ import {
   diagnosticSchema,
   renderGuideMarkdown,
   testResultSchema,
-} from "./guide.js";
+} from "./guide";
 
 export const languageSchema = z.enum(["php", "react", "typescript", "ruby"]);
 export const languageSelectionSchema = z.enum([

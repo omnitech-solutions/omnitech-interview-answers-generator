@@ -18,18 +18,18 @@ import { DocumentArtifactRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { ZodError, z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards.js";
-import { type BuiltInKey, builtInTemplates } from "./built-in-templates.js";
-import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config.js";
-import { DocumentContextNotFound, resolveDocumentContext } from "./context.js";
-import { generateDocumentValues } from "./generate.js";
-import { renderDocxTemplate } from "./render-docx.js";
-import { renderDocxAsMarkdown } from "./render-docx-markdown.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
+import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
+import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config";
+import { DocumentContextNotFound, resolveDocumentContext } from "./context";
+import { generateDocumentValues } from "./generate";
+import { renderDocxTemplate } from "./render-docx";
+import { renderDocxAsMarkdown } from "./render-docx-markdown";
 import {
   renderMarkdownPreview,
   renderMarkdownTemplate,
-} from "./render-markdown.js";
+} from "./render-markdown";
 import {
   DocumentAlreadyExists,
   DocumentNotFound,
@@ -37,17 +37,17 @@ import {
   DocumentRevisionConflict,
   DocumentSaveCancelled,
   InterviewDocumentRepository,
-} from "./repository.js";
+} from "./repository";
 import {
   documentSourceDigest,
   revisionClaimState,
   revisionModelOwnedKeys,
   revisionSourceDigest,
-} from "./source-digest.js";
+} from "./source-digest";
 import {
   InvalidDocumentTemplateError,
   inspectTemplate,
-} from "./template-intake.js";
+} from "./template-intake";
 
 export type DocumentScope = {
   tenantId: string;

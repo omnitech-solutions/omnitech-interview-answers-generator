@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { routeQuestion } from "./routing.js";
+import { routeQuestion } from "./routing";
 import {
   generatedAnswerSchema,
   routeRequestSchema,
   runRequestSchema,
   savedAnswerSchema,
-} from "./schemas.js";
-import { getWorkflow, listWorkflows } from "./workflows.js";
+} from "./schemas";
+import { getWorkflow, listWorkflows } from "./workflows";
 
 const guide = {
   version: 1 as const,

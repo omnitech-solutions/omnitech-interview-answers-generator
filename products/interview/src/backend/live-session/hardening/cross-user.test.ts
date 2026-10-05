@@ -8,7 +8,7 @@
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PNG_BYTES } from "../live-session-fixture.js";
+import { PNG_BYTES } from "../live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
@@ -16,13 +16,13 @@ import {
   seedBriefingDraft,
   seedMatrixProfile,
   settle,
-} from "../processor-fixture.js";
-import { ActiveSessionRepository } from "../repository.js";
-import { inOwnerScope, rowsOf } from "../scope.js";
-import { loadSessionContext } from "../session-context.js";
-import { getSessionContext, getSessionJob } from "../session-reads.js";
-import { RECRUITER_SCREEN } from "../session-replay-fixtures.js";
-import { type Started, startWorld, type World } from "./world.js";
+} from "../processor-fixture";
+import { ActiveSessionRepository } from "../repository";
+import { inOwnerScope, rowsOf } from "../scope";
+import { loadSessionContext } from "../session-context";
+import { getSessionContext, getSessionJob } from "../session-reads";
+import { RECRUITER_SCREEN } from "../session-replay-fixtures";
+import { type Started, startWorld, type World } from "./world";
 
 let world: World;
 let repo: ActiveSessionRepository;

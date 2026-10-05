@@ -3,9 +3,9 @@
 // input and the exact snapshots, never a transcript segment; replay after a
 // restart does not apply an input twice; attachments name provenance ids only.
 import { describe, expect, it } from "vitest";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
-import type { SessionStorePort } from "./processor-ports.js";
-import type { StoredAction, StoredObservation } from "./session-reads.js";
+import { createInterviewSessionPolicy } from "./interview-policy";
+import type { SessionStorePort } from "./processor-ports";
+import type { StoredAction, StoredObservation } from "./session-reads";
 import {
   attachmentsFor,
   capturedFor,
@@ -17,7 +17,7 @@ import {
   replayObservations,
   type SessionRun,
   seedFromActions,
-} from "./session-run.js";
+} from "./session-run";
 
 const SESSION = "00000000-0000-4000-8000-000000000001";
 const policy = createInterviewSessionPolicy();

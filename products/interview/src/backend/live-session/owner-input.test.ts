@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   OWNER_INPUT_SOURCE_ID,
   OWNER_MICROPHONE_SOURCE_ID,
-} from "../db/live-session.js";
-import { ingestObservation } from "./ingest.js";
+} from "../db/live-session";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
@@ -16,11 +16,11 @@ import {
   screenshot,
   startFixture,
   transcript,
-} from "./live-session-fixture.js";
-import { OWNER_INPUT_MAX_PER_SESSION } from "./owner-input.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { createDatabaseStorePort } from "./session-ports.js";
-import { purgeSession } from "./session-purge.js";
+} from "./live-session-fixture";
+import { OWNER_INPUT_MAX_PER_SESSION } from "./owner-input";
+import { ActiveSessionRepository } from "./repository";
+import { createDatabaseStorePort } from "./session-ports";
+import { purgeSession } from "./session-purge";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

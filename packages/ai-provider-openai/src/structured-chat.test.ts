@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createOpenAiModelAdapter } from "./index.js";
-import { parseStructuredOutput } from "./structured-output.js";
+import { createOpenAiModelAdapter } from "./index";
+import { parseStructuredOutput } from "./structured-output";
+
 const schema = {
   type: "object",
   properties: { value: { $ref: "#/$defs/value" } },

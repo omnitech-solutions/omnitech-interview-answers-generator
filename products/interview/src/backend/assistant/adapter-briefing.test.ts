@@ -1,10 +1,10 @@
 import type { BriefingDraft } from "@omnitech/interview-contracts";
 import type { Proposal } from "@omnitech-assistant/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { BriefingRepository } from "../briefing/repository.js";
-import { createInterviewAdapter, describeChanges } from "./adapter.js";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { BriefingRepository } from "../briefing/repository";
+import { createInterviewAdapter, describeChanges } from "./adapter";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "ground",

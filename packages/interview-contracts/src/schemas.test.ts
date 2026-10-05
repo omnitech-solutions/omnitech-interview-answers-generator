@@ -5,7 +5,7 @@ import {
   libraryItemSchema,
   librarySearchQuerySchema,
   librarySourceSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 const guide = {
   slug: "react-state",

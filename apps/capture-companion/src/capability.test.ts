@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assessCapability, probeCapability } from "./capability.js";
-import { readyDevice, speechUnavailableDevice } from "./fixture/fakes.js";
+import { assessCapability, probeCapability } from "./capability";
+import { readyDevice, speechUnavailableDevice } from "./fixture/fakes";
 
 describe("capability", () => {
   it("is ready only with on-device recognition, a recognizer and authorization", () => {

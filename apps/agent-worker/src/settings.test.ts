@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workerSettings } from "./main.js";
+import { workerSettings } from "./main";
 
 describe("workerSettings", () => {
   it("runs six jobs at once with a 30 s lease unless told otherwise", () => {

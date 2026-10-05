@@ -1,7 +1,7 @@
 // A virtual clock: time moves only when a test says so, so a replay at 4x
 // takes no real time and its elapsed time is exact.
-import type { Clock } from "../clock.js";
-import { CompanionError } from "../errors.js";
+import type { Clock } from "../clock";
+import { CompanionError } from "../errors";
 
 type Timer = { at: number; resolve: () => void };
 

@@ -21,16 +21,16 @@ import {
   candidateMatrixSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   buildContextSnapshot,
   type ContextSnapshot,
   verifyMatrixHash,
-} from "./context-snapshot.js";
-import { assertUuid, SessionError } from "./errors.js";
-import { decodeDraftKey } from "./mapping.js";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
-import { readSession } from "./session-record.js";
+} from "./context-snapshot";
+import { assertUuid, SessionError } from "./errors";
+import { decodeDraftKey } from "./mapping";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { readSession } from "./session-record";
 
 export type SessionContext = {
   snapshot: ContextSnapshot;

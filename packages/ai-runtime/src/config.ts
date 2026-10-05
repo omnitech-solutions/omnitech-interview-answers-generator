@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
-import type { AiLocality, AiProfile } from "./index.js";
+import type { AiLocality, AiProfile } from "./index";
 
 /**
  * One language-model endpoint as the environment describes it. Everything that

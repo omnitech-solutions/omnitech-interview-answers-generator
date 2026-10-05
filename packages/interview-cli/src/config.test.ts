@@ -11,7 +11,7 @@ async function loadConfigModule() {
   temporaryDirectories.push(directory);
   vi.resetModules();
   vi.doMock("node:os", () => ({ homedir: () => directory }));
-  return import("./config.js");
+  return import("./config");
 }
 
 afterEach(async () => {

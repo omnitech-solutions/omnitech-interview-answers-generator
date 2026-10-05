@@ -1,11 +1,11 @@
 import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { migrateDatabase } from "./migrate.js";
+import { migrateDatabase } from "./migrate";
 import {
   type DisposablePostgres,
   startDisposablePostgres,
-} from "./test-support/postgres.js";
-import { schemaDrift } from "./test-support/schema.js";
+} from "./test-support/postgres";
+import { schemaDrift } from "./test-support/schema";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {

@@ -25,13 +25,13 @@ import {
   type AiGeneratedBy,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
-import type { Clock, ProcessingPolicy, Task } from "./core/index.js";
-import type { AgentEscalationPort } from "./escalation.js";
-import type { PublishEffect } from "./fenced-writes.js";
-import { sessionGatewayContext } from "./gateway-context.js";
-import type { InterviewSessionPolicy } from "./interview-policy.js";
-import type { SessionStorePort } from "./processor-ports.js";
-import { planAssist } from "./service.js";
+import type { Clock, ProcessingPolicy, Task } from "./core/index";
+import type { AgentEscalationPort } from "./escalation";
+import type { PublishEffect } from "./fenced-writes";
+import { sessionGatewayContext } from "./gateway-context";
+import type { InterviewSessionPolicy } from "./interview-policy";
+import type { SessionStorePort } from "./processor-ports";
+import { planAssist } from "./service";
 import {
   attachmentsFor,
   hintsFor,
@@ -41,13 +41,13 @@ import {
   type SessionCodeRunner,
   type SessionRun,
   slotFor,
-} from "./session-run.js";
-import type { LocalityDecision } from "./trace.js";
+} from "./session-run";
+import type { LocalityDecision } from "./trace";
 import {
   settleWithheld,
   summarizeWithheld,
   type WithheldSummary,
-} from "./withheld.js";
+} from "./withheld";
 
 export type DispatchDeps = {
   store: SessionStorePort;

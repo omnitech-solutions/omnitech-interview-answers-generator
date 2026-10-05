@@ -11,12 +11,12 @@ import type {
   SavePresentationInput,
   Slide,
   TenantContext,
-} from "../domain/index.js";
+} from "../domain/index";
 import {
   PresentationConflictError,
   PresentationNotFoundError,
   PresentationThemeNotFoundError,
-} from "../domain/index.js";
+} from "../domain/index";
 
 type SummaryRow = {
   id: string;

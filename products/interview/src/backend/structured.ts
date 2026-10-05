@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace.js";
+import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
 
 // One-shot structured generation for the product's JSON replies (briefs,
 // behavioural briefings).

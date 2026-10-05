@@ -1,2 +1,2 @@
-export * from "./ai.js";
-export * from "./platform.js";
+export * from "./ai";
+export * from "./platform";

@@ -14,14 +14,14 @@ import {
   isCompensationText,
   isNoticePeriodText,
   type SourceKind,
-} from "./context-snapshot.js";
-import { hasUnapprovedLogisticsFigure } from "./logistics-figures.js";
+} from "./context-snapshot";
+import { hasUnapprovedLogisticsFigure } from "./logistics-figures";
 import {
   digitAvailability,
   foldSpoken,
   type SpokenQuantity,
   spokenQuantities,
-} from "./spoken-figures.js";
+} from "./spoken-figures";
 
 export const CLAIM_KINDS = [
   "matrix-backed",

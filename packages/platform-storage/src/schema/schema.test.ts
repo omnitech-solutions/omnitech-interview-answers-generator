@@ -6,8 +6,8 @@ import {
   tablesOf,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import * as ai from "./ai.js";
-import * as platform from "./platform.js";
+import * as ai from "./ai";
+import * as platform from "./platform";
 
 let pg: DisposablePostgres;
 beforeAll(async () => {

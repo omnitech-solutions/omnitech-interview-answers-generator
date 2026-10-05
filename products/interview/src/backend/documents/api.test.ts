@@ -16,8 +16,8 @@ import { documentCreateSchema } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import JSZip from "jszip";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDocumentsApi, resolveDocumentsScope } from "./api.js";
-import { InterviewDocumentRepository } from "./repository.js";
+import { createDocumentsApi, resolveDocumentsScope } from "./api";
+import { InterviewDocumentRepository } from "./repository";
 
 let pg: DisposablePostgres;
 let database: PlatformDatabase;

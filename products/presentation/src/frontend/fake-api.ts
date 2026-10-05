@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import type { ProductPageProps } from "@omnitech/platform-contracts";
 import { type Mock, vi } from "vitest";
-import { frontendPlugin } from "../manifest.js";
+import { frontendPlugin } from "../manifest";
 
 /** One request the screen sent through the fetch boundary. */
 export interface SentRequest {

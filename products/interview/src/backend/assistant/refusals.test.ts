@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import type { Proposal } from "@omnitech-assistant/contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
-import { createInterviewAdapter } from "./adapter.js";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture";
+import { createInterviewAdapter } from "./adapter";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 // Every refusal the product can make, against a real PostgreSQL schema: what is
 // refused, with which code, and (where the model can act on it) with which hint.

@@ -163,9 +163,7 @@ const matches = (rule: RouteRule, method: string, path: string) =>
 let routes: Array<{ method: string; path: string }> = [];
 beforeAll(async () => {
   vi.stubEnv("DATABASE_URL", "postgresql://guard:guard@127.0.0.1:1/guard");
-  const { createApplicationApi } = await import(
-    "../apps/web/src/platform/api.js"
-  );
+  const { createApplicationApi } = await import("../apps/web/src/platform/api");
   routes = createApplicationApi().routes.map(({ method, path }) => ({
     method,
     path,

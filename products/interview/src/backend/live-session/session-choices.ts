@@ -6,8 +6,8 @@
 // and counts only: no matrix text, notes, job description or research.
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { inOwnerScope, type OwnerScope, rowsOf } from "./scope";
 
 const MAX_CANDIDACIES = 50;
 const MAX_INTERVIEWS_PER_CANDIDACY = 20;

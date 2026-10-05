@@ -7,7 +7,7 @@ import {
   generateCredential,
   hashCredential,
   hashesEqual,
-} from "./credential.js";
+} from "./credential";
 
 describe("credential", () => {
   it("carries at least 128 random bits", () => {

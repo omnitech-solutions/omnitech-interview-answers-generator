@@ -27,7 +27,7 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("node:fs/promises", () => fsMocks);
 
-import { DockerCodeRunner } from "./index.js";
+import { DockerCodeRunner } from "./index";
 
 function createChildProcess() {
   const child = new EventEmitter() as EventEmitter & {

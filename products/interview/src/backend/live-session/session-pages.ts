@@ -7,17 +7,17 @@
 // already returns to its owner.
 import type { PlatformDatabase } from "@omnitech/database";
 import { sql } from "drizzle-orm";
-import { assertUuid, isUuid, SessionError } from "./errors.js";
-import { policyFromDb, retentionFromDb } from "./mapping.js";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
+import { assertUuid, isUuid, SessionError } from "./errors";
+import { policyFromDb, retentionFromDb } from "./mapping";
+import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
 import {
   ACTION_COLUMNS,
   MAX_PAGE,
   SNAPSHOT_EVENT_IDS,
   type StoredAction,
   toStoredAction,
-} from "./session-reads.js";
-import { readSession, type SessionView } from "./session-record.js";
+} from "./session-reads";
+import { readSession, type SessionView } from "./session-record";
 
 // Microsecond-exact UTC text: a JavaScript Date would truncate to the
 // millisecond, and a keyset that rounds its own key can return the same row

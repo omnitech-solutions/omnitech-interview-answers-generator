@@ -4,9 +4,9 @@ import {
   capabilityReportSchema,
   captureFailureSchema,
   heartbeatSchema,
-} from "./control.js";
-import { WIRE_VERSION } from "./ids.js";
-import { observationSchema } from "./observation.js";
+} from "./control";
+import { WIRE_VERSION } from "./ids";
+import { observationSchema } from "./observation";
 
 // The published wire description for non-TypeScript consumers (the Swift
 // companion's conformance tests). It is derived from the zod schemas and never

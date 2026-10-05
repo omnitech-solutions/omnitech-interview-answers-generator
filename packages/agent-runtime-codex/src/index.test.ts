@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCodexRuntimeAdapter } from "./index.js";
+import { createCodexRuntimeAdapter } from "./index";
 
 describe("Codex agent runtime", () => {
   it("exposes resumable agent capabilities", () => {

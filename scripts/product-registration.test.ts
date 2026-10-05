@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 import { expect, it } from "vitest";
-import { importSites, parse, repoRoot, walk } from "./guard-support.js";
+import { importSites, parse, repoRoot, walk } from "./guard-support";
 
 type Place =
   | "web package.json dependency"

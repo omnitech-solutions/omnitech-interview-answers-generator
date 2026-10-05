@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { recordingCapture } from "./fixture/fakes.js";
-import { VirtualClock } from "./fixture/virtual-clock.js";
-import { Outbox } from "./outbox.js";
-import { recordSourceLoss } from "./source-loss.js";
-import { StateModel } from "./state.js";
+import { recordingCapture } from "./fixture/fakes";
+import { VirtualClock } from "./fixture/virtual-clock";
+import { Outbox } from "./outbox";
+import { recordSourceLoss } from "./source-loss";
+import { StateModel } from "./state";
 
 function deps(queueing: boolean) {
   return {

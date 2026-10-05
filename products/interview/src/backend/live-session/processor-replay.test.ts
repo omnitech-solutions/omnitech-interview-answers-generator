@@ -6,20 +6,17 @@
 // correction that supersedes an earlier segment, nothing published for stale
 // work, and dispatch deduplicated by session, task, revision and action kind.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { ingestObservation } from "./ingest";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import {
-  FIXTURE_SOURCES,
-  RECRUITER_SCREEN,
-} from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { FIXTURE_SOURCES, RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

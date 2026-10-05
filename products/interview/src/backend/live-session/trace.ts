@@ -4,7 +4,7 @@
 // prompt, draft, credential or a hash of any content. The sink re-checks that
 // on the way out, so even a careless caller cannot put a free-text value into
 // a line: every string must be id-shaped or a code, or it is replaced.
-import { HANDLE_PATTERN } from "./core/index.js";
+import { HANDLE_PATTERN } from "./core/index";
 
 export type LocalityDecision = "device-only" | "permitted-remote" | "none";
 

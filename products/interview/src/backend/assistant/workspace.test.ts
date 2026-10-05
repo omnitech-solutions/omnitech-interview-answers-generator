@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import type { BriefingDraft } from "@omnitech/interview-contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { guidedProse } from "../../answer-fixture.js";
-import * as workspace from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse } from "../../answer-fixture";
+import * as workspace from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "a",

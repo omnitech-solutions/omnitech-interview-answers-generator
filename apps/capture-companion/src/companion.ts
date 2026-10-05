@@ -14,12 +14,12 @@ import {
   type SessionControlState,
   validateIngestMessage,
 } from "@omnitech/active-session-contracts";
-import { type Backoff, createBackoff } from "./backoff.js";
-import { type CapabilityProbe, probeCapability } from "./capability.js";
-import type { CaptureDriver, FocusSample } from "./capture-driver.js";
-import { type Clock, isoAt } from "./clock.js";
-import { SourceSelection, StudioControl } from "./control.js";
-import { stopLocally } from "./local-stop.js";
+import { type Backoff, createBackoff } from "./backoff";
+import { type CapabilityProbe, probeCapability } from "./capability";
+import type { CaptureDriver, FocusSample } from "./capture-driver";
+import { type Clock, isoAt } from "./clock";
+import { SourceSelection, StudioControl } from "./control";
+import { stopLocally } from "./local-stop";
 import {
   capabilityReportMessage,
   captureFailureMessage,
@@ -27,20 +27,20 @@ import {
   heartbeatMessage,
   screenSnapshotMessage,
   transcriptFinalMessage,
-} from "./messages.js";
-import { Outbox } from "./outbox.js";
-import { recordSourceLoss, type SourceLossReason } from "./source-loss.js";
+} from "./messages";
+import { Outbox } from "./outbox";
+import { recordSourceLoss, type SourceLossReason } from "./source-loss";
 import {
   type CompanionSnapshot,
   StateModel,
   type TerminalPhase,
-} from "./state.js";
+} from "./state";
 import {
   createWireClient,
   type FetchLike,
   type SendOutcome,
   type WireClient,
-} from "./wire-client.js";
+} from "./wire-client";
 
 // Heartbeat and capability messages are not capture sources.
 const COMPANION_SOURCE_ID = "companion";

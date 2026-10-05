@@ -17,15 +17,15 @@
 // replay set (session-replay-fixtures.test.ts) is run through it.
 
 import { createHash } from "node:crypto";
-import { type AssistStage, createAssistStage } from "./assist-stage.js";
-import { type CodingStage, createCodingStage } from "./coding-stage.js";
+import { type AssistStage, createAssistStage } from "./assist-stage";
+import { type CodingStage, createCodingStage } from "./coding-stage";
 import {
   isOpaqueHandle,
   type PolicyInput,
   type PolicyVerdict,
   type RevisionReason,
   type TaskPolicy,
-} from "./core/index.js";
+} from "./core/index";
 
 export interface InterviewSessionPolicy extends TaskPolicy {
   // Used to coalesce a split question across an interjected backchannel.

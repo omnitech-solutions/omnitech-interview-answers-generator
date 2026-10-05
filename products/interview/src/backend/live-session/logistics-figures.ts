@@ -8,7 +8,7 @@
 // caught. Review findings extend the classes and their regression cases.
 //
 // Pure, no I/O, and no copy of the draft or a quote leaves it.
-import { foldSpoken } from "./spoken-figures.js";
+import { foldSpoken } from "./spoken-figures";
 
 const NUMBER_WORDS = new Set(
   (

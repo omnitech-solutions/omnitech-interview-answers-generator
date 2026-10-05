@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productManifestSchema } from "./plugin.js";
+import { productManifestSchema } from "./plugin";
 
 const manifest = {
   schemaVersion: 1,

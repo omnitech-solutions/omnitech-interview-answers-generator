@@ -1,1 +1,1 @@
-export { createPresentationApi, type PresentationApiOptions } from "./api.js";
+export { createPresentationApi, type PresentationApiOptions } from "./api";

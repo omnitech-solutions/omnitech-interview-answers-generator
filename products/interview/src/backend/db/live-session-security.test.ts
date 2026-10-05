@@ -18,14 +18,14 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { withCredentialLookup } from "../live-session/credential-lookup.js";
+import { withCredentialLookup } from "../live-session/credential-lookup";
 import {
   asSessionWorker,
   CLAIM_COLUMNS,
   CLAIM_SELECT,
-} from "../live-session/session-claim.js";
-import { asSessionPurge } from "../live-session/session-purge.js";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "./live-session.js";
+} from "../live-session/session-claim";
+import { asSessionPurge } from "../live-session/session-purge";
+import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "./live-session";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

@@ -6,7 +6,7 @@
 // Synthetic and content-free by construction. Tests, not production code,
 // import this.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import type { Fixture } from "./live-session-fixture.js";
+import type { Fixture } from "./live-session-fixture";
 
 export type PromptEntry = {
   sourceId: string;

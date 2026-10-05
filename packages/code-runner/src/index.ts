@@ -25,7 +25,7 @@ import {
   parseVitestReport,
   type SourceMap,
   testSourceMap,
-} from "./reports.js";
+} from "./reports";
 
 export interface CodeRunner {
   run(input: RunRequest): Promise<RunResult>;

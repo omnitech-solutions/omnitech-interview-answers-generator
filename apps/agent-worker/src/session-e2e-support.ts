@@ -36,7 +36,7 @@ import {
 import {
   createSessionAgentPort,
   type StandingVerdict,
-} from "./session-agent-port.js";
+} from "./session-agent-port";
 
 export const AGENT_PROFILE_ID = "session-agent-under-test";
 export const FAST_PROFILE_ID = "interview-session-fast";

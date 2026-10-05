@@ -2,9 +2,9 @@
 // Key = session + logical task + task revision + action kind. A failed dispatch
 // records its outcome and may be retried; a succeeded or in-flight one may not.
 // A refusal is a suppression record carrying ids only.
-import type { TraceEvent } from "./ports.js";
-import { acceptsDispatch, type SessionStatus } from "./status.js";
-import { revisionStanding, type TaskState } from "./tasks.js";
+import type { TraceEvent } from "./ports";
+import { acceptsDispatch, type SessionStatus } from "./status";
+import { revisionStanding, type TaskState } from "./tasks";
 
 export type DispatchStatus = "in-flight" | "succeeded" | "failed";
 

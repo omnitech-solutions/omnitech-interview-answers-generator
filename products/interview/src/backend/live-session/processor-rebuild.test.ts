@@ -5,16 +5,16 @@
 // answered, exactly once. Real processor over a disposable PostgreSQL, a fake
 // gateway and a virtual clock.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { capturedText } from "./replay-evidence-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { FixtureSegment } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { capturedText } from "./replay-evidence-fixture";
+import { ActiveSessionRepository } from "./repository";
+import type { FixtureSegment } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

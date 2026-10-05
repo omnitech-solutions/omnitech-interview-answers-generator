@@ -6,7 +6,7 @@ import {
   planResponseSchema,
 } from "@omnitech/interview-contracts";
 
-import { InterviewApiError } from "./index.js";
+import { InterviewApiError } from "./index";
 
 export interface PlanClientOptions {
   baseUrl: string;

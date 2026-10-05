@@ -10,7 +10,7 @@ import {
   JsonLibraryRepository,
   LibrarySlugConflictError,
   LibraryStateError,
-} from "./index.js";
+} from "./index";
 
 const guide = {
   version: 1 as const,

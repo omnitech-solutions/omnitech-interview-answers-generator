@@ -7,7 +7,7 @@
 // Pure, no I/O. The caller says whether the sentence is about compensation or
 // notice period (`topical`): only there does a bare definite number word
 // ("three") count without an adjacent unit.
-import { canonicalText } from "./context-snapshot.js";
+import { canonicalText } from "./context-snapshot";
 
 export type SpokenQuantity = {
   // The decimal value as a string ("4", "150000"), or "~word" for a vague

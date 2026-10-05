@@ -21,11 +21,11 @@ import {
   type WorkspaceDatabasePort,
   WorkspaceError,
   type WorkspaceScope,
-} from "../assistant/workspace.js";
-import { generateChecked, type StructuredGenerate } from "../structured.js";
-import { userEditedBriefing } from "./edits.js";
-import { BriefingRepository } from "./repository.js";
-import { selectCandidateFragments } from "./selection.js";
+} from "../assistant/workspace";
+import { generateChecked, type StructuredGenerate } from "../structured";
+import { userEditedBriefing } from "./edits";
+import { BriefingRepository } from "./repository";
+import { selectCandidateFragments } from "./selection";
 
 const prefix = "/api/interview/briefing";
 const citationSchema = z.strictObject({

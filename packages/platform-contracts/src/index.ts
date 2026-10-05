@@ -1,4 +1,4 @@
-export { type BoundedJson, readBoundedJson } from "./bounded-json.js";
+export { type BoundedJson, readBoundedJson } from "./bounded-json";
 export {
   type InstalledProductSummary,
   installedProductSummarySchema,
@@ -8,7 +8,7 @@ export {
   productInstallationConfigurationSchema,
   type UserPreferences,
   userPreferencesSchema,
-} from "./platform.js";
+} from "./platform";
 export {
   type NavigationManifest,
   navigationManifestSchema,
@@ -22,4 +22,4 @@ export {
   productFrameSchema,
   productManifestSchema,
   productRouteManifestSchema,
-} from "./plugin.js";
+} from "./plugin";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseStructuredOutput } from "./structured-output.js";
+import { parseStructuredOutput } from "./structured-output";
+
 describe("independent host schema compilation", () => {
   it("accepts repeated fresh schemas with the same ID and still rejects invalid output", () => {
     const schema = {

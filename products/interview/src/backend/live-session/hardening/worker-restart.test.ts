@@ -11,10 +11,10 @@ import {
   expireLease,
   NEVER_ABORTED,
   settle,
-} from "../processor-fixture.js";
-import { ActiveSessionRepository } from "../repository.js";
-import { RECRUITER_SCREEN } from "../session-replay-fixtures.js";
-import { startWorld, type World } from "./world.js";
+} from "../processor-fixture";
+import { ActiveSessionRepository } from "../repository";
+import { RECRUITER_SCREEN } from "../session-replay-fixtures";
+import { startWorld, type World } from "./world";
 
 let world: World;
 let repo: ActiveSessionRepository;

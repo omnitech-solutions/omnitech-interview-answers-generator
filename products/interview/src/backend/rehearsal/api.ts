@@ -13,7 +13,7 @@ import {
   type WorkspaceDatabasePort,
   type WorkspaceScope,
   type WorkspaceTransaction,
-} from "../assistant/workspace.js";
+} from "../assistant/workspace";
 
 const prefix = "/api/interview/rehearsals";
 const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";

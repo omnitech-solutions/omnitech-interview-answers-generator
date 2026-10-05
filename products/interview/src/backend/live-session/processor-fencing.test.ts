@@ -5,7 +5,7 @@
 // generation (the late result is not published and jobs are cancelled), purge
 // on end, per-session error isolation, and the same-tenant cross-user case.
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
@@ -15,10 +15,10 @@ import {
   NEVER_ABORTED,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { RECRUITER_SCREEN } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
+import { ActiveSessionRepository } from "./repository";
+import { RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

@@ -13,15 +13,15 @@ import {
   REFUSAL_CODES,
   sessionControlStateSchema,
   validateIngestMessage,
-} from "./control.js";
-import { isoTimestampSchema } from "./ids.js";
+} from "./control";
+import { isoTimestampSchema } from "./ids";
 import {
   COMPANION_FEATURE_CAPTURE_REQUEST,
   COMPANION_FEATURES_HEADER,
   COMPANION_SCREEN_HEADER,
   formatCompanionFeatures,
   parseCompanionDeclaration,
-} from "./negotiation.js";
+} from "./negotiation";
 
 const control = {
   state: "active",

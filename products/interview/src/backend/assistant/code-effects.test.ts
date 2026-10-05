@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { guidedProse } from "../../answer-fixture.js";
-import { createInterviewAdapter } from "./adapter.js";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse } from "../../answer-fixture";
+import { createInterviewAdapter } from "./adapter";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "code",

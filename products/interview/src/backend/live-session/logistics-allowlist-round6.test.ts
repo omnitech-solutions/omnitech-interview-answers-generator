@@ -3,8 +3,8 @@
 // ordinary candidate wording that must still publish.
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { type Claim, verifyClaims } from "./claims.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
+import { type Claim, verifyClaims } from "./claims";
+import { buildContextSnapshot } from "./context-snapshot";
 
 const MATRIX = {
   candidate: { name: "Candidate" },

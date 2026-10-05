@@ -10,8 +10,8 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PostgresAgentJobRepository } from "./agent-job-repository.js";
-import { PostgresAgentJobWorkerRepository } from "./agent-job-worker-repository.js";
+import { PostgresAgentJobRepository } from "./agent-job-repository";
+import { PostgresAgentJobWorkerRepository } from "./agent-job-worker-repository";
 
 // ADR-0012 "Agent jobs": a session's job carries an immutable private marker,
 // admitted only to its creator and the agent worker. fixture_member is

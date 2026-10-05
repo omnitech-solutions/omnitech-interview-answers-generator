@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentJobWorkerRepository } from "@omnitech/agent-job-service";
 import {
+  type AgentEvent,
   type AgentRunRequest,
   type AgentRuntimeAdapter,
   validateAgentProfile,
@@ -21,6 +22,16 @@ export interface AgentWorkerOptions {
 }
 
 const TIMED_OUT = Symbol("timed-out");
+
+// What a cancelled job records: a fixed event, nothing the agent produced.
+const CANCELLED_EVENT: Extract<AgentEvent, { type: "failed" }> = {
+  type: "failed",
+  error: {
+    code: "cancelled",
+    message: "Agent job cancelled.",
+    retryable: false,
+  },
+};
 
 // [SAFETY] Yields the runtime's events until the deadline fires. A runtime
 // that hangs and ignores cancel() still cannot hold the job: the pending read
@@ -243,14 +254,7 @@ async function runLoop(
               job.id,
               ["cancelling"],
               "cancelled",
-              {
-                type: "failed",
-                error: {
-                  code: "cancelled",
-                  message: "Agent job cancelled.",
-                  retryable: false,
-                },
-              },
+              CANCELLED_EVENT,
               me,
             );
           ended = true;
@@ -263,14 +267,7 @@ async function runLoop(
             job.id,
             ["cancelling"],
             "cancelled",
-            {
-              type: "failed",
-              error: {
-                code: "cancelled",
-                message: "Agent job cancelled.",
-                retryable: false,
-              },
-            },
+            CANCELLED_EVENT,
             me,
           );
           ended = true;
@@ -308,14 +305,7 @@ async function runLoop(
               job.id,
               ["cancelling"],
               "cancelled",
-              {
-                type: "failed",
-                error: {
-                  code: "cancelled",
-                  message: "Agent job cancelled.",
-                  retryable: false,
-                },
-              },
+              CANCELLED_EVENT,
               me,
             );
           }
@@ -334,14 +324,7 @@ async function runLoop(
               job.id,
               ["cancelling"],
               "cancelled",
-              {
-                type: "failed",
-                error: {
-                  code: "cancelled",
-                  message: "Agent job cancelled.",
-                  retryable: false,
-                },
-              },
+              CANCELLED_EVENT,
               me,
             );
           ended = true;
@@ -356,14 +339,7 @@ async function runLoop(
           job.id,
           ["cancelling"],
           "cancelled",
-          {
-            type: "failed",
-            error: {
-              code: "cancelled",
-              message: "Agent job cancelled.",
-              retryable: false,
-            },
-          },
+          CANCELLED_EVENT,
           me,
         );
         ended = true;
@@ -388,23 +364,19 @@ async function runLoop(
             job.id,
             ["cancelling"],
             "cancelled",
-            {
-              type: "failed",
-              error: {
-                code: "cancelled",
-                message: "Agent job cancelled.",
-                retryable: false,
-              },
-            },
+            CANCELLED_EVENT,
             me,
           );
       }
     } catch {
       if (leaseLost) continue;
-      // A fenced write that throws means the job is no longer this worker's;
-      // recording the failure must never reject the loop.
+      // [SAFETY] An error here must never leave the agent running: stop it
+      // first. A fenced write that throws means the job is no longer in the
+      // state this worker expected; recording the outcome must never reject
+      // the loop.
+      stopRuntime();
       try {
-        await options.repository.finalize(
+        const failed = await options.repository.finalize(
           job.id,
           ["claimed", "starting", "running"],
           "failed",
@@ -419,6 +391,17 @@ async function runLoop(
           },
           me,
         );
+        // A cancel that landed while the failing write was in flight: the job
+        // is still this worker's, so it ends cancelled now instead of waiting
+        // for its lease to run out.
+        if (!failed)
+          await options.repository.finalize(
+            job.id,
+            ["cancelling"],
+            "cancelled",
+            CANCELLED_EVENT,
+            me,
+          );
       } catch {
         // Nothing left to record: the job belongs to another worker now.
       }

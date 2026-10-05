@@ -13,7 +13,7 @@ import {
 } from "@omnitech/interview-contracts";
 import { DocumentArtifactRepository } from "@omnitech/platform-storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
   documentExports,
   documentGenerationBatches,
@@ -22,7 +22,7 @@ import {
   documents,
   documentTemplateRevisions,
   documentTemplates,
-} from "../db/documents.js";
+} from "../db/documents";
 
 export type DocumentScope = { tenantId: string; actorId: string };
 export type TemplateRow = typeof documentTemplates.$inferSelect;

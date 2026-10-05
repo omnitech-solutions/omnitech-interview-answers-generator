@@ -10,11 +10,8 @@ import {
   type ClaimRef,
   LEAVING_REASON_PLACEHOLDER,
   verifyClaims,
-} from "./claims.js";
-import {
-  buildContextSnapshot,
-  type ContextSnapshot,
-} from "./context-snapshot.js";
+} from "./claims";
+import { buildContextSnapshot, type ContextSnapshot } from "./context-snapshot";
 
 const PROFILE = { id: "profile-eval", revision: 4, sha256: "b".repeat(64) };
 const MATRIX = {

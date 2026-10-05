@@ -11,8 +11,8 @@ import {
   liveWithheldResultSchema,
 } from "@omnitech/interview-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { DEVICE_MAX_PROMPT_BYTES } from "./assist-stage.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { DEVICE_MAX_PROMPT_BYTES } from "./assist-stage";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   type CollectedTrace,
@@ -22,12 +22,12 @@ import {
   seedMatrixProfile,
   settle,
   startSessionForPerson,
-} from "./processor-fixture.js";
-import { answer, blockJson, refFor } from "./replay-evidence-fixture.js";
-import { CANDIDATE_PREFERENCES } from "./replay-fixture-matrix.js";
-import { HAZARD_FIXTURES } from "./replay-fixtures-hazards.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { RECRUITER_SCREEN } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { answer, blockJson, refFor } from "./replay-evidence-fixture";
+import { CANDIDATE_PREFERENCES } from "./replay-fixture-matrix";
+import { HAZARD_FIXTURES } from "./replay-fixtures-hazards";
+import { ActiveSessionRepository } from "./repository";
+import { RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

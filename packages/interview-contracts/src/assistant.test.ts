@@ -4,7 +4,7 @@ import {
   interviewClaimsSchema,
   interviewMetricSchema,
   interviewProvenanceSchema,
-} from "./assistant.js";
+} from "./assistant";
 
 const sha = "a".repeat(64);
 const claim = {

@@ -10,7 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { createAnthropicModelAdapter } from "./index.js";
+import { createAnthropicModelAdapter } from "./index";
 
 // A stand-in Anthropic Messages API: JSON for a message, server-sent events
 // for a stream. Each request body is recorded.

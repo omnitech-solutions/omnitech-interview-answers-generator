@@ -20,12 +20,11 @@ import {
   parse,
   repoRoot,
   walk,
-} from "./guard-support.js";
+} from "./guard-support";
 
 const stillEmitsTests =
   "its build tsconfig still includes src/**/*.test.ts, so tests are emitted into dist; it needs a build config that excludes them plus a typecheck config that does not (pattern: products/interview)";
 const emitsTests: readonly string[] = [
-  "apps/agent-worker",
   "apps/capture-companion",
   "packages/active-session-contracts",
   "packages/agent-job-service",
@@ -144,9 +143,10 @@ function excludesTests(dir: string): boolean {
 }
 
 const resolveRelative = (from: string, specifier: string): string | null => {
-  const base = `${from.slice(0, from.lastIndexOf("/"))}/${specifier}`
-    .replace(/\/\.\//g, "/")
-    .replace(/\.js$/, "");
+  const base = `${from.slice(0, from.lastIndexOf("/"))}/${specifier}`.replace(
+    /\/\.\//g,
+    "/",
+  );
   const normalised = base
     .split("/")
     .reduce<string[]>((parts, part) => {

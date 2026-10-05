@@ -3,20 +3,20 @@
 // both read the session's processing policy under the session-row lock, so a
 // tighten between the dispatch's last check and the write is still refused.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { TaskState } from "./core/index.js";
+import type { TaskState } from "./core/index";
 import {
   createSessionJob,
   FencedSessionWrites,
   reserveJobId,
   resumeSessionJob,
-} from "./fenced-writes.js";
+} from "./fenced-writes";
 import {
   type Fixture,
   type Person,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { claimSessions } from "./session-claim.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { claimSessions } from "./session-claim";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

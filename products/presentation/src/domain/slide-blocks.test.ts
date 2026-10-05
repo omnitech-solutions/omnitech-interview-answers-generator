@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseSlideBlocks, serializeSlideBlocks } from "./slide-blocks.js";
+import { parseSlideBlocks, serializeSlideBlocks } from "./slide-blocks";
 
 it("parses typed blocks, decoding entities and trimming text", () => {
   expect(

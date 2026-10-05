@@ -140,31 +140,31 @@ export const frontendPlugin: ProductFrontendPlugin = {
   id: manifest.id,
   routes: {
     "presentation.library": async () => {
-      const { PresentationLibrary } = await import("./frontend/index.js");
+      const { PresentationLibrary } = await import("./frontend/index");
       return { default: PresentationLibrary };
     },
     "presentation.create": async () => {
-      const { PresentationCreate } = await import("./frontend/index.js");
+      const { PresentationCreate } = await import("./frontend/index");
       return { default: PresentationCreate };
     },
     "presentation.editor": async () => {
-      const { PresentationEditor } = await import("./frontend/index.js");
+      const { PresentationEditor } = await import("./frontend/index");
       return { default: PresentationEditor };
     },
     "presentation.themes": async () => {
-      const { ThemeLibrary } = await import("./frontend/index.js");
+      const { ThemeLibrary } = await import("./frontend/index");
       return { default: ThemeLibrary };
     },
     "presentation.shared": async () => {
-      const { SharedPresentation } = await import("./frontend/index.js");
+      const { SharedPresentation } = await import("./frontend/index");
       return { default: SharedPresentation };
     },
     "presentation.present": async () => {
-      const { PresentationMode } = await import("./frontend/index.js");
+      const { PresentationMode } = await import("./frontend/index");
       return { default: PresentationMode };
     },
     "presentation.image-studio": async () => {
-      const { ImageStudio } = await import("./frontend/index.js");
+      const { ImageStudio } = await import("./frontend/index");
       return { default: ImageStudio };
     },
   },

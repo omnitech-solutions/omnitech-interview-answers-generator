@@ -24,9 +24,9 @@ import {
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session.js";
-import { assertUuid, type InvalidReason, SessionError } from "./errors.js";
-import { storeScreenshot } from "./ingest.js";
+import { OWNER_CAPTURE_SOURCE_ID } from "../db/live-session";
+import { assertUuid, type InvalidReason, SessionError } from "./errors";
+import { storeScreenshot } from "./ingest";
 import {
   assertAcceptsOwnerInput,
   findStoredOwnerInput,
@@ -34,10 +34,10 @@ import {
   nextOwnerSequence,
   type OwnerInputBody,
   sameBody,
-} from "./owner-input.js";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
-import { readImageSize, SCREENSHOT_LOAD_LIMITS } from "./screenshot-loader.js";
-import { lockSession } from "./session-record.js";
+} from "./owner-input";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { readImageSize, SCREENSHOT_LOAD_LIMITS } from "./screenshot-loader";
+import { lockSession } from "./session-record";
 
 // Owner captures one session accepts: each may hold up to 2 MiB, so this
 // bounds stored bytes (400 x 2 MiB is the companion's own bound).

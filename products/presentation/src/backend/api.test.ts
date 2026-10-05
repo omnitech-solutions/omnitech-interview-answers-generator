@@ -17,7 +17,7 @@ import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import PptxGenJS from "pptxgenjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPresentationApi } from "./api.js";
+import { createPresentationApi } from "./api";
 
 // fixture_member is NOSUPERUSER NOBYPASSRLS, so tenant policies bind it exactly
 // as they bind the app role in production.

@@ -16,18 +16,15 @@ import {
   revisionStanding,
   type TaskState,
   type TranscriptView,
-} from "./core/index.js";
+} from "./core/index";
 import {
   createInterviewSessionPolicy,
   decideBaseline,
   isBackchannel,
   isFiller,
   MONOLOGUE_WORDS,
-} from "./interview-policy.js";
-import {
-  FIXTURE_SOURCES,
-  RECRUITER_SCREEN,
-} from "./session-replay-fixtures.js";
+} from "./interview-policy";
+import { FIXTURE_SOURCES, RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 const verdict = (
   text: string,

@@ -1,6 +1,6 @@
 // What the paced replays (processor-latency.test.ts and hardening/latency.test.ts)
 // must produce, per synthetic set and speed. Test support only.
-import { ALL_REPLAY_SETS } from "./replay-fixture-sets.js";
+import { ALL_REPLAY_SETS } from "./replay-fixture-sets";
 
 // Exactly one prose draft per task revision a question reaches (Outcome: one
 // draft per question, no duplicates). A set's count at real pacing is the sum

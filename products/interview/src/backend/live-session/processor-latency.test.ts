@@ -22,27 +22,27 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
+} from "../../assistant-profile";
 import {
   fakeRunner,
   isSolutionRequest,
   RESTATEMENT,
   revisionOf,
   solutionFor,
-} from "./coding-fixture.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+} from "./coding-fixture";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { capturedLines } from "./replay-evidence-fixture.js";
-import { expectedPacedDrafts } from "./replay-expected-drafts.js";
-import { ALL_REPLAY_SETS } from "./replay-fixture-sets.js";
-import { LIVE_CODING_EXPECT } from "./replay-fixtures-coding.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { FixtureSegment, ReplayPhase } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { capturedLines } from "./replay-evidence-fixture";
+import { expectedPacedDrafts } from "./replay-expected-drafts";
+import { ALL_REPLAY_SETS } from "./replay-fixture-sets";
+import { LIVE_CODING_EXPECT } from "./replay-fixtures-coding";
+import { ActiveSessionRepository } from "./repository";
+import type { FixtureSegment, ReplayPhase } from "./session-replay-fixtures";
 
 const SETTLE_MS = 1_500;
 const TICK_MS = 100;

@@ -6,7 +6,7 @@ import {
   bundleReactPreview,
   PreviewCompileError,
   PreviewImportRefusedError,
-} from "./react-preview.js";
+} from "./react-preview";
 
 const SECRET = "HOST-FILE-SECRET-4f9c";
 

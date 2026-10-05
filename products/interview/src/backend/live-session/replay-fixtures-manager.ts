@@ -4,12 +4,12 @@
 // part-two follow-up. Every phase ends on a candidate answer so the next
 // question never coalesces into the previous interviewer utterance, and every
 // answer is a long candidate turn that opens or revises nothing.
-import type { ReplayFixtureSet } from "./replay-fixtures-hazards.js";
+import type { ReplayFixtureSet } from "./replay-fixtures-hazards";
 import {
   candidate,
   createScript,
   interviewer,
-} from "./session-replay-fixtures.js";
+} from "./session-replay-fixtures";
 
 const mgr = createScript("mgr");
 

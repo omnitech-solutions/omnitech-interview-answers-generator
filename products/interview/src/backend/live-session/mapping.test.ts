@@ -2,7 +2,7 @@
 // database-backed behaviour is in repository.test.ts and the other suites.
 import { hashCredential } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
-import { SessionError } from "./errors.js";
+import { SessionError } from "./errors";
 import {
   decodeDraftKey,
   encodeDraftKey,
@@ -11,12 +11,12 @@ import {
   retentionFromDb,
   retentionRank,
   retentionToDb,
-} from "./mapping.js";
+} from "./mapping";
 import {
   credentialExpiry,
   mintSessionCredential,
   presentedCredentialHash,
-} from "./session-credential.js";
+} from "./session-credential";
 
 describe("mapping between the database and the core", () => {
   it("round-trips policy and retention through the underscore forms", () => {

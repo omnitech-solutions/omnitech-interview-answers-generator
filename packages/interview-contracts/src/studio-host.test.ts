@@ -4,7 +4,7 @@ import {
   negotiatePresentation,
   negotiateStudioHost,
   STUDIO_HOST_VERSION,
-} from "./studio-host.js";
+} from "./studio-host";
 
 const bridge = (over: Record<string, unknown> = {}) => ({
   version: STUDIO_HOST_VERSION,

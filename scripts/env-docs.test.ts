@@ -8,8 +8,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { productionEnvReads } from "./env-reads.js";
-import { repoRoot } from "./guard-support.js";
+import { productionEnvReads } from "./env-reads";
+import { repoRoot } from "./guard-support";
 
 // Variables the operating system, Node or Next set; nobody configures them
 // through .env, so they are read but not documented.

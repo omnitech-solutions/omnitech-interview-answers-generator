@@ -25,16 +25,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
-import { type AssistStage, createAssistStage } from "./assist-stage.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
-import { ingestObservation } from "./ingest.js";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
-import {
-  type Fixture,
-  PNG_BYTES,
-  startFixture,
-} from "./live-session-fixture.js";
+} from "../../assistant-profile";
+import { type AssistStage, createAssistStage } from "./assist-stage";
+import { buildContextSnapshot } from "./context-snapshot";
+import { ingestObservation } from "./ingest";
+import { createInterviewSessionPolicy } from "./interview-policy";
+import { type Fixture, PNG_BYTES, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   type CollectedTrace,
@@ -45,14 +41,14 @@ import {
   seedBriefingDraft,
   seedMatrixProfile,
   settle,
-} from "./processor-fixture.js";
+} from "./processor-fixture";
 import {
   EMBEDDED_REPLIES,
   INJECTION_CORPUS,
   type InjectionItem,
   NEUTRAL_QUESTION,
   OUT_OF_SCHEMA_REPLIES,
-} from "./prompt-injection-fixtures.js";
+} from "./prompt-injection-fixtures";
 import {
   agentJobCount,
   answer,
@@ -60,10 +56,10 @@ import {
   outsideBlocks,
   protectedTableDigests,
   sessionPrivacyColumns,
-} from "./replay-evidence-fixture.js";
-import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { seg } from "./session-replay-fixtures.js";
+} from "./replay-evidence-fixture";
+import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix";
+import { ActiveSessionRepository } from "./repository";
+import { seg } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

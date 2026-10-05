@@ -1,8 +1,8 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import PptxGenJS from "pptxgenjs";
-import { slideAppearance } from "../domain/appearance.js";
-import type { PresentationDocument } from "../domain/index.js";
-import { parseSlideBlocks, type SlideBlock } from "../domain/slide-blocks.js";
+import { slideAppearance } from "../domain/appearance";
+import type { PresentationDocument } from "../domain/index";
+import { parseSlideBlocks, type SlideBlock } from "../domain/slide-blocks";
 
 function dataUrl(mimeType: string, bytes: Uint8Array): string {
   return `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;

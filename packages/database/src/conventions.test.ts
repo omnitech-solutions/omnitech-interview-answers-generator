@@ -15,8 +15,8 @@ import {
   tenantPredicate,
   tenantReference,
   tenantUnique,
-} from "./conventions.js";
-import * as index from "./index.js";
+} from "./conventions";
+import * as index from "./index";
 
 const platform = pgSchema("platform");
 const tenants = platform.table("tenants", { id: uuid("id").primaryKey() });

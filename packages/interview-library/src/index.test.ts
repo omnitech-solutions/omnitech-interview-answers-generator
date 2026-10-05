@@ -13,7 +13,7 @@ import {
   extractLibrarySections,
   interviewLibrarySeed,
   OramaLibrarySearchIndex,
-} from "./index.js";
+} from "./index";
 
 const temporaryDirectories: string[] = [];
 

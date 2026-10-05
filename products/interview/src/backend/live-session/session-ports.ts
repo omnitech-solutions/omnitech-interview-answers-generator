@@ -4,24 +4,24 @@
 // PlatformDatabase. The processor itself knows only the port interfaces.
 import type { PlatformDatabase } from "@omnitech/database";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
-import { SessionError } from "./errors.js";
-import { createSessionJob, FencedSessionWrites } from "./fenced-writes.js";
-import type { SessionClaimPort, SessionStorePort } from "./processor-ports.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { inOwnerScope } from "./scope.js";
+import { SessionError } from "./errors";
+import { createSessionJob, FencedSessionWrites } from "./fenced-writes";
+import type { SessionClaimPort, SessionStorePort } from "./processor-ports";
+import { ActiveSessionRepository } from "./repository";
+import { inOwnerScope } from "./scope";
 import {
   claimCapExpired,
   claimPurgeCandidates,
   claimSessions,
   releaseLease,
   renewLease,
-} from "./session-claim.js";
-import { loadSessionContext } from "./session-context.js";
-import { sessionDraftPurger } from "./session-drafts.js";
-import { cancelSessionJobs, type SessionJobs } from "./session-jobs.js";
-import { purgeSession, type SessionDraftPurger } from "./session-purge.js";
-import { listActionsNewest } from "./session-reads.js";
-import { readSession } from "./session-record.js";
+} from "./session-claim";
+import { loadSessionContext } from "./session-context";
+import { sessionDraftPurger } from "./session-drafts";
+import { cancelSessionJobs, type SessionJobs } from "./session-jobs";
+import { purgeSession, type SessionDraftPurger } from "./session-purge";
+import { listActionsNewest } from "./session-reads";
+import { readSession } from "./session-record";
 
 export type DatabasePortOptions = {
   workerId: string;

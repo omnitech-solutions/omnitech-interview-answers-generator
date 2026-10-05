@@ -16,18 +16,18 @@ import { Hono } from "hono";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_ASSISTANT_PROFILE,
-} from "../assistant-profile.js";
-import { manifest } from "../manifest.js";
-import { createApi } from "./api.js";
-import { createAssistantModels } from "./assistant-models.js";
-import { BriefingRepository } from "./briefing/repository.js";
-import { briefingScope } from "./briefing-access.js";
-import { createDocumentsApi, resolveDocumentsScope } from "./documents/api.js";
-import { resolveDocumentsConfig } from "./documents/config.js";
-import { createSessionRoutes } from "./live-session/routes.js";
-import { loadLocalDefaultProfile } from "./local-default-profile.js";
-import { loadLocalTemplates, localMatrixPath } from "./local-seeds.js";
-import { createInterviewStudio } from "./studio/host.js";
+} from "../assistant-profile";
+import { manifest } from "../manifest";
+import { createApi } from "./api";
+import { createAssistantModels } from "./assistant-models";
+import { BriefingRepository } from "./briefing/repository";
+import { briefingScope } from "./briefing-access";
+import { createDocumentsApi, resolveDocumentsScope } from "./documents/api";
+import { resolveDocumentsConfig } from "./documents/config";
+import { createSessionRoutes } from "./live-session/routes";
+import { loadLocalDefaultProfile } from "./local-default-profile";
+import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
+import { createInterviewStudio } from "./studio/host";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

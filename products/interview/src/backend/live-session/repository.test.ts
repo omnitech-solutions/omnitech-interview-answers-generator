@@ -10,18 +10,18 @@ import {
   CREDENTIAL_TRANSPORT,
 } from "@omnitech/active-session-contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { SessionError } from "./errors.js";
+import { SessionError } from "./errors";
 import {
   type Fixture,
   type Person,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
 import {
   credentialExpiry,
   presentedCredentialHash,
-} from "./session-credential.js";
-import { type SessionJobs } from "./session-jobs.js";
+} from "./session-credential";
+import { type SessionJobs } from "./session-jobs";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

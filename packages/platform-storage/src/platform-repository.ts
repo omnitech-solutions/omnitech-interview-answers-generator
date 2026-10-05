@@ -1,10 +1,10 @@
+import { enterTenant, type PlatformDatabase } from "@omnitech/database";
 import type {
   InstalledProductSummary,
   PlatformContext,
   UserPreferences,
 } from "@omnitech/platform-contracts";
-import type { EncryptedValue } from "./connected-account-vault.js";
-import { enterTenant, type PlatformDatabase } from "@omnitech/database";
+import type { EncryptedValue } from "./connected-account-vault";
 
 type ContextRow = {
   user_id: string;

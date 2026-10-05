@@ -109,7 +109,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
     ),
 }));
 
-const { createClaudeRuntimeAdapter } = await import("./index.js");
+const { createClaudeRuntimeAdapter } = await import("./index");
 
 const profile: AgentProfile = {
   id: "p",

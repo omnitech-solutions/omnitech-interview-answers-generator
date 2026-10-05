@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderEvent } from "./render-event.js";
+import { renderEvent } from "./render-event";
 
 describe("agent job event rendering", () => {
   it("renders normalized text and failure events without vendor objects", () => {

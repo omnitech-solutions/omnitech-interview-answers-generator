@@ -2,15 +2,11 @@
 // companion without a Mac. It is the whole companion loop over injected fakes
 // (fetch, capture, speech capability, clock); only the platform is faked.
 import type { CaptureSource } from "@omnitech/active-session-contracts";
-import type { CapabilityProbe } from "../capability.js";
-import type { Clock } from "../clock.js";
-import { Companion } from "../companion.js";
-import type { FetchLike } from "../wire-client.js";
-import {
-  type RecordingCapture,
-  readyDevice,
-  recordingCapture,
-} from "./fakes.js";
+import type { CapabilityProbe } from "../capability";
+import type { Clock } from "../clock";
+import { Companion } from "../companion";
+import type { FetchLike } from "../wire-client";
+import { type RecordingCapture, readyDevice, recordingCapture } from "./fakes";
 
 export type FixtureCompanionOptions = {
   baseUrl: string;
@@ -61,11 +57,11 @@ export function createFixtureCompanion(
   return { companion, capture };
 }
 
-export type { DeviceCapability } from "../capability.js";
-export type { Clock } from "../clock.js";
-export { Companion } from "../companion.js";
-export type { CompanionSnapshot } from "../state.js";
-export type { FetchInit, FetchLike, FetchResponse } from "../wire-client.js";
+export type { DeviceCapability } from "../capability";
+export type { Clock } from "../clock";
+export { Companion } from "../companion";
+export type { CompanionSnapshot } from "../state";
+export type { FetchInit, FetchLike, FetchResponse } from "../wire-client";
 export {
   acceptedAck,
   FAKE_CREDENTIAL,
@@ -75,14 +71,14 @@ export {
   type RecordedRequest,
   type Reply,
   refusedAck,
-} from "./fake-studio.js";
+} from "./fake-studio";
 export {
   fixtureJpeg,
   type RecordingCapture,
   readyDevice,
   recordingCapture,
   speechUnavailableDevice,
-} from "./fakes.js";
+} from "./fakes";
 export {
   type ReplayOptions,
   type ReplayResult,
@@ -92,5 +88,5 @@ export {
   replayInto,
   replaySet,
   sourceForRole,
-} from "./replayer.js";
-export { VirtualClock } from "./virtual-clock.js";
+} from "./replayer";
+export { VirtualClock } from "./virtual-clock";

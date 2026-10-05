@@ -5,12 +5,12 @@ import {
   guideText,
   renderGuideMarkdown,
   stageProgressSchema,
-} from "./guide.js";
+} from "./guide";
 import {
   generatedAnswerSchema,
   runResultSchema,
   saveAnswerRequestSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 const sampleGuide: AnswerGuide = {
   version: 1,

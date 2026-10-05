@@ -5,8 +5,8 @@ import type {
   CaptureRequest,
   CaptureSource,
 } from "@omnitech/active-session-contracts";
-import type { DeviceCapability } from "../capability.js";
-import type { CaptureDriver, CaptureOnceResult } from "../capture-driver.js";
+import type { DeviceCapability } from "../capability";
+import type { CaptureDriver, CaptureOnceResult } from "../capture-driver";
 
 export type RecordingCapture = CaptureDriver & {
   // Sources currently capturing.

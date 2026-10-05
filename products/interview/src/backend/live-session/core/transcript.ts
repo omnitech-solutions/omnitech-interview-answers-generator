@@ -3,7 +3,7 @@
 // on the superseded segment is marked stale elsewhere, never edited. The text
 // is stored only to be handed to the policy port and is never inspected here.
 import type { TranscriptFinal } from "@omnitech/active-session-contracts";
-import type { AudioSource, Utterance } from "./ports.js";
+import type { AudioSource, Utterance } from "./ports";
 
 // The wire's content.source, else the observation's source id when that names
 // one of the two captured sources (older senders omit content.source).

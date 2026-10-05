@@ -10,20 +10,20 @@
 // only (no spoken text, no draft text).
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile.js";
-import { LEAVING_REASON_PLACEHOLDER } from "./claims.js";
+import { INTERVIEW_ANSWER_PROFILE } from "../../assistant-profile";
+import { LEAVING_REASON_PLACEHOLDER } from "./claims";
 import {
   fakeRunner,
   isSolutionRequest,
   RESTATEMENT,
   revisionOf,
   solutionFor,
-} from "./coding-fixture.js";
+} from "./coding-fixture";
 import {
   type AnyRow,
   type Fixture,
   startFixture,
-} from "./live-session-fixture.js";
+} from "./live-session-fixture";
 import {
   buildProcessor,
   type CollectedTrace,
@@ -35,31 +35,31 @@ import {
   seedMatrixProfile,
   settle,
   startSessionForPerson,
-} from "./processor-fixture.js";
-import type { SessionProcessorPorts } from "./processor-ports.js";
+} from "./processor-fixture";
+import type { SessionProcessorPorts } from "./processor-ports";
 import {
   agentJobCount,
   answer,
   capturedText,
   protectedTableDigests,
   refFor,
-} from "./replay-evidence-fixture.js";
+} from "./replay-evidence-fixture";
 import {
   ABSENT_FRAMEWORK,
   CANDIDATE_PREFERENCES,
   CANDIDATE_PREFERENCES_NONE,
-} from "./replay-fixture-matrix.js";
-import { ALL_REPLAY_SETS } from "./replay-fixture-sets.js";
-import { LIVE_CODING_EXPECT } from "./replay-fixtures-coding.js";
+} from "./replay-fixture-matrix";
+import { ALL_REPLAY_SETS } from "./replay-fixture-sets";
+import { LIVE_CODING_EXPECT } from "./replay-fixtures-coding";
 import {
   HAZARD_FIXTURES,
   type ReplayFixtureSet,
-} from "./replay-fixtures-hazards.js";
-import { MANAGER_FIXTURE } from "./replay-fixtures-manager.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { createDatabaseStorePort } from "./session-ports.js";
-import type { ReplayPhase } from "./session-replay-fixtures.js";
-import type { SessionCodeRunner } from "./session-run.js";
+} from "./replay-fixtures-hazards";
+import { MANAGER_FIXTURE } from "./replay-fixtures-manager";
+import { ActiveSessionRepository } from "./repository";
+import { createDatabaseStorePort } from "./session-ports";
+import type { ReplayPhase } from "./session-replay-fixtures";
+import type { SessionCodeRunner } from "./session-run";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

@@ -16,7 +16,7 @@ import {
   AgentRunRequest,
 } from "@omnitech/agent-runtime-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createCodexRuntimeAdapter } from "./index.js";
+import { createCodexRuntimeAdapter } from "./index";
 
 const fakeServer = `#!${process.execPath}
 const readline = require("node:readline");

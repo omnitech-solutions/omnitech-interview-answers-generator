@@ -13,7 +13,7 @@ import {
   type WorkspaceDatabasePort,
   WorkspaceError,
   type WorkspaceScope,
-} from "../assistant/workspace.js";
+} from "../assistant/workspace";
 
 const scoped = "tenant_id=$1 AND actor_id=$2 AND product_id=$3";
 const ids = (scope: WorkspaceScope) => [

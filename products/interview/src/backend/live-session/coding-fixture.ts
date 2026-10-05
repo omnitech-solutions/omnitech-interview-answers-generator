@@ -6,9 +6,9 @@
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
 import type { RunResult } from "@omnitech/interview-contracts";
 import { vi } from "vitest";
-import { createFakeGateway } from "./processor-fixture.js";
-import { seg } from "./session-replay-fixtures.js";
-import type { SessionCodeRunner } from "./session-run.js";
+import { createFakeGateway } from "./processor-fixture";
+import { seg } from "./session-replay-fixtures";
+import type { SessionCodeRunner } from "./session-run";
 
 export const RESTATEMENT = "Implement a rate limiter for a Node service.";
 const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {

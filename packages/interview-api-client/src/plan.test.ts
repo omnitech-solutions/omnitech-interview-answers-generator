@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { InterviewApiError } from "./index.js";
-import { createPlanClient } from "./plan.js";
+import { InterviewApiError } from "./index";
+import { createPlanClient } from "./plan";
 
 const empty = { interview: null, items: [] };
 

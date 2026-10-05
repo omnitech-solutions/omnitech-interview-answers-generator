@@ -14,8 +14,8 @@ import {
   enterTenant,
   type PlatformDatabase,
 } from "@omnitech/database";
-import { type JobRow, mapJob } from "./agent-job-row.js";
-import { ConnectedAccountVault } from "./connected-account-vault.js";
+import { type JobRow, mapJob } from "./agent-job-row";
+import { ConnectedAccountVault } from "./connected-account-vault";
 
 // A member's jobs: every read and write runs inside the job's tenant and as
 // an explicit actor, so a private job (ADR-0012 Agent jobs) is visible only

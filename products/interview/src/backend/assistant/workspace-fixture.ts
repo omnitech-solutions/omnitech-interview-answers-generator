@@ -4,7 +4,7 @@ import { startDisposablePostgres } from "@omnitech/database/test-support";
 import type {
   WorkspaceDatabasePort as DatabasePort,
   WorkspaceTransaction as Transaction,
-} from "./workspace.js";
+} from "./workspace";
 
 const require = createRequire(
   new URL(

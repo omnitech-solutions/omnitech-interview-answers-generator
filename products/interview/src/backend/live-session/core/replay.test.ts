@@ -30,7 +30,7 @@ import {
   type Segment,
   type TaskPolicy,
   type TraceEvent,
-} from "./index.js";
+} from "./index";
 
 const control: ControlStatus = {
   state: "active",

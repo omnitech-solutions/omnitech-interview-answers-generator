@@ -269,11 +269,11 @@ describe("package boundaries", () => {
 
   it("detects a neutral-core import that leaves the directory", () => {
     const source = [
-      'import { a } from "./ok.js";',
+      'import { a } from "./ok";',
       'import type { C } from "@omnitech/active-session-contracts";',
       'import { z } from "zod";',
       'import { fs } from "node:fs";',
-      'import { x } from "../sibling.js";',
+      'import { x } from "../sibling";',
       'import { y } from "@omnitech/interview-contracts";',
       'const lazy = await import("drizzle-orm");',
       'import { it } from "vitest";',
@@ -283,7 +283,7 @@ describe("package boundaries", () => {
     ).toEqual([
       "zod",
       "node:fs",
-      "../sibling.js",
+      "../sibling",
       "@omnitech/interview-contracts",
       "drizzle-orm",
       "vitest",
@@ -293,11 +293,9 @@ describe("package boundaries", () => {
     expect(testViolations.map((v) => v.specifier)).not.toContain("vitest");
     expect(testViolations).toHaveLength(5);
     // A subdirectory file may climb back up inside the directory only.
-    expect(neutralCoreViolations('import "../a.js";', "sub", false)).toEqual(
-      [],
-    );
+    expect(neutralCoreViolations('import "../a";', "sub", false)).toEqual([]);
     expect(
-      neutralCoreViolations('import "../../a.js";', "sub", false),
+      neutralCoreViolations('import "../../a";', "sub", false),
     ).toHaveLength(1);
   });
 
@@ -321,13 +319,13 @@ describe("package boundaries", () => {
 
   it("detects a companion import of anything but the contract and node built-ins", () => {
     const source = [
-      'import { a } from "./ok.js";',
+      'import { a } from "./ok";',
       'import { fs } from "node:fs";',
       'import type { C } from "@omnitech/active-session-contracts";',
       'import { z } from "zod";',
       'import { db } from "@omnitech/database";',
       'import { p } from "@omnitech/product-interview";',
-      'import { x } from "../outside.js";',
+      'import { x } from "../outside";',
       'const lazy = await import("fs");',
       'import { it } from "vitest";',
     ].join("\n");
@@ -337,7 +335,7 @@ describe("package boundaries", () => {
       "zod",
       "@omnitech/database",
       "@omnitech/product-interview",
-      "../outside.js",
+      "../outside",
       "fs",
       "vitest",
     ]);

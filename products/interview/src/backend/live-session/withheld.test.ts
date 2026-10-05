@@ -1,14 +1,14 @@
 // The withheld summary is content-free: a count and codes, nothing the model
 // controlled (ADR-0012/id-only-traces).
 import { describe, expect, it } from "vitest";
-import { SessionError } from "./errors.js";
+import { SessionError } from "./errors";
 import {
   decodeWithheldReason,
   encodeWithheldReason,
   MAX_REASON_CHARS,
   settleWithheld,
   summarizeWithheld,
-} from "./withheld.js";
+} from "./withheld";
 
 // The store's own check on a suppression reason (fenced-writes.ts).
 const REASON_CODE = new RegExp(`^[a-z0-9_.-]{1,${MAX_REASON_CHARS}}$`);

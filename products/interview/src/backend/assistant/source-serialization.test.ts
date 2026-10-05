@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "sources",

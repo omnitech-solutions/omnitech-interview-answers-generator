@@ -35,17 +35,17 @@ import {
   liveCaptureRequestSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { readDeclaration } from "./companion-capability.js";
-import { assertUuid, SessionError } from "./errors.js";
+import { readDeclaration } from "./companion-capability";
+import { assertUuid, SessionError } from "./errors";
 import {
   findStoredOwnerInput,
   insertOwnerInput,
   OWNER_INPUT_MAX_PER_SESSION,
   type OwnerInputBody,
   sameBody,
-} from "./owner-input.js";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
-import { lockSession, type SessionRecord } from "./session-record.js";
+} from "./owner-input";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
+import { lockSession, type SessionRecord } from "./session-record";
 
 const CAPTURE_REFUSED_DEVICE_ONLY = "vision_device_only";
 const CAPTURE_REFUSED_UPDATE_REQUIRED = "companion_update_required";

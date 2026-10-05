@@ -3,9 +3,9 @@
 // through a Companion as if it were a live call. It is defined over plain data
 // so this app never imports a product: tests in the product pass the sets in.
 import type { CaptureSource } from "@omnitech/active-session-contracts";
-import type { Clock } from "../clock.js";
-import type { Companion, TranscriptInput } from "../companion.js";
-import { CompanionError } from "../errors.js";
+import type { Clock } from "../clock";
+import type { Companion, TranscriptInput } from "../companion";
+import { CompanionError } from "../errors";
 
 export type ReplaySegment = {
   eventId: string;

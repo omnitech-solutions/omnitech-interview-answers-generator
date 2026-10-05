@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChatRequestError, createChatCompletions } from "./chat-completions.js";
+import { ChatRequestError, createChatCompletions } from "./chat-completions";
 
 const keyed = {
   label: "Local model",

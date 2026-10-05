@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { selectCandidateFragments } from "./selection.js";
+import { selectCandidateFragments } from "./selection";
 
 it("prioritizes direct skill over domain matches and preserves source order on ties", () => {
   const matrix = {

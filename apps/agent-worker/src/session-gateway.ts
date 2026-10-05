@@ -33,7 +33,7 @@ import {
   type AttachmentSource,
   createSessionAgentPort,
   type SessionAgentPortOptions,
-} from "./session-agent-port.js";
+} from "./session-agent-port";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 

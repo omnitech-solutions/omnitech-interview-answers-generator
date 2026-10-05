@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
+} from "../../assistant-profile";
 import {
   BURSTS,
   codingDraft,
@@ -18,8 +18,8 @@ import {
   QUESTION,
   revisionOf,
   solutionFor,
-} from "./coding-fixture.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+} from "./coding-fixture";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
@@ -27,10 +27,10 @@ import {
   NEVER_ABORTED,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import { capturedText } from "./replay-evidence-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { seg } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { capturedText } from "./replay-evidence-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { seg } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

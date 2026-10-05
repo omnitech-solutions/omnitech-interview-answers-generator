@@ -6,27 +6,27 @@
 // before the job exists; job creation and resume are locked to the active
 // session; pause and end cancel in-flight jobs and fail closed.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { TaskState } from "./core/index.js";
-import { SessionError } from "./errors.js";
+import type { TaskState } from "./core/index";
+import { SessionError } from "./errors";
 import {
   createSessionJob,
   FencedSessionWrites,
   reserveJobId,
   resumeSessionJob,
   sessionJobResumeGuard,
-} from "./fenced-writes.js";
+} from "./fenced-writes";
 import {
   type Fixture,
   type Person,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
 import {
   claimSessions,
   releaseLease,
   renewLease,
   type SessionClaim,
-} from "./session-claim.js";
+} from "./session-claim";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

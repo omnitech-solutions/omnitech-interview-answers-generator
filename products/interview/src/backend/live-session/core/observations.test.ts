@@ -7,7 +7,7 @@ import {
   decideObservation,
   emptyLedger,
   type ObservationLedger,
-} from "./index.js";
+} from "./index";
 
 const control: ControlStatus = {
   state: "active",

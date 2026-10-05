@@ -5,8 +5,8 @@ import {
   opaqueIdSchema,
   WIRE_VERSION,
   wireVersionSchema,
-} from "./ids.js";
-import { ACTIVE_SESSION_LIMITS } from "./limits.js";
+} from "./ids";
+import { ACTIVE_SESSION_LIMITS } from "./limits";
 
 // Identity comes only from the session credential (rule:identity-from-credential),
 // so an observation never carries any. Every schema is strict, and

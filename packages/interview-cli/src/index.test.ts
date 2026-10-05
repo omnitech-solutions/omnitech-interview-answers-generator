@@ -39,14 +39,14 @@ vi.mock("@omnitech/interview-api-client", () => ({
 vi.mock("@omnitech/interview-playground-control", () => ({
   createPlaygroundControlClient,
 }));
-vi.mock("./config.js", () => ({
+vi.mock("./config", () => ({
   configPath: "/tmp/config.json",
   readConfig,
   writeConfig: vi.fn(),
 }));
 
 const { createConfiguredClient, createConfiguredPlaygroundControlClient } =
-  await import("./index.js");
+  await import("./index");
 
 beforeEach(() => {
   vi.clearAllMocks();

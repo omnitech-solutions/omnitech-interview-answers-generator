@@ -1,16 +1,16 @@
-import OpenAI from "openai";
-import {
-  createOpenAIModelPort,
-  createLmStudioModelPort,
-} from "@omnitech-assistant/providers";
 import type {
   AiEvent,
   AiExecution,
   AiExecutionRequest,
   ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
-import { createChatCompletions } from "./chat-completions.js";
-import { parseStructuredOutput } from "./structured-output.js";
+import {
+  createLmStudioModelPort,
+  createOpenAIModelPort,
+} from "@omnitech-assistant/providers";
+import OpenAI from "openai";
+import { createChatCompletions } from "./chat-completions";
+import { parseStructuredOutput } from "./structured-output";
 
 export interface OpenAiAdapterOptions {
   id: string;
@@ -163,4 +163,4 @@ export function createOpenAiModelAdapter(
 export {
   createOpenAiCatalogAdapter,
   type OpenAiCatalogAdapterOptions,
-} from "./catalog.js";
+} from "./catalog";

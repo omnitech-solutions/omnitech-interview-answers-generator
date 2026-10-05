@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createBackoff } from "./backoff.js";
+import { createBackoff } from "./backoff";
 
 describe("backoff", () => {
   it("doubles the ceiling each failure and caps it", () => {

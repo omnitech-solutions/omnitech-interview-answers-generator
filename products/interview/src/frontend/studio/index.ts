@@ -1,2 +1,2 @@
-export type { StudioProps } from "./studio.js";
-export { Studio } from "./studio.js";
+export type { StudioProps } from "./studio";
+export { Studio } from "./studio";

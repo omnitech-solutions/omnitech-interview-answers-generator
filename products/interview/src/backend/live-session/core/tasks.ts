@@ -13,7 +13,7 @@ import {
   type TaskPolicy,
   type TraceEvent,
   type Utterance,
-} from "./ports.js";
+} from "./ports";
 
 // Task ids are `${TASK_ID_PREFIX}-${taskKey}`: named after the question's own
 // source, so a rebuilt run names a task as the live run did.

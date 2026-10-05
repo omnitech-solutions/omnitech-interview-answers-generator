@@ -13,7 +13,7 @@ import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
+} from "../../assistant-profile";
 import {
   BUCKET,
   BURSTS,
@@ -27,14 +27,14 @@ import {
   runResult,
   scriptedGateway,
   solutionFor,
-} from "./coding-fixture.js";
-import { createCodingStage } from "./coding-stage.js";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
+} from "./coding-fixture";
+import { createCodingStage } from "./coding-stage";
+import { createInterviewSessionPolicy } from "./interview-policy";
 import {
   type AnyRow,
   type Fixture,
   startFixture,
-} from "./live-session-fixture.js";
+} from "./live-session-fixture";
 import {
   buildProcessor,
   type CollectedTrace,
@@ -44,9 +44,9 @@ import {
   NEVER_ABORTED,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { SessionCodeRunner } from "./session-run.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import type { SessionCodeRunner } from "./session-run";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

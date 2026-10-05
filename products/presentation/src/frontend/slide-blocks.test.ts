@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSlideBlocks, serializeSlideBlocks } from "./slide-blocks.js";
+import { parseSlideBlocks, serializeSlideBlocks } from "./slide-blocks";
 
 describe("presentation slide blocks", () => {
   it("parses supported XML blocks and preserves their text", () => {

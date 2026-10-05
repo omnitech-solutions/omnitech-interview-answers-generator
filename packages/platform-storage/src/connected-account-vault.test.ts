@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ConnectedAccountVault } from "./connected-account-vault.js";
+import { ConnectedAccountVault } from "./connected-account-vault";
 
 describe("ConnectedAccountVault", () => {
   it("round-trips a token without storing plaintext", () => {

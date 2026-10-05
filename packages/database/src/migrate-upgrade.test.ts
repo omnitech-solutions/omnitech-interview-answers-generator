@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { createPlatformDatabase, type PlatformDatabase } from "./connection.js";
-import { migrateDatabase } from "./migrate.js";
+import { createPlatformDatabase, type PlatformDatabase } from "./connection";
+import { migrateDatabase } from "./migrate";
 import {
   createMigratingApplicationDatabase,
   type DisposablePostgres,
   startDisposablePostgres,
-} from "./test-support/postgres.js";
+} from "./test-support/postgres";
 
 const stream = fileURLToPath(new URL("../drizzle", import.meta.url));
 

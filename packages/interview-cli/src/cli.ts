@@ -11,18 +11,18 @@ import {
   saveAnswerRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
-  parsePlaygroundPatch,
   type PlaygroundAnswerLanguage,
   type PlaygroundPatch,
+  parsePlaygroundPatch,
 } from "@omnitech/interview-playground-control";
 import { Command } from "commander";
 
-import { configPath, writeConfig } from "./config.js";
+import { configPath, writeConfig } from "./config";
 import {
   createConfiguredBriefingClient,
   createConfiguredClient,
   createConfiguredPlaygroundControlClient,
-} from "./index.js";
+} from "./index";
 
 type OutputFormat = "json" | "text";
 

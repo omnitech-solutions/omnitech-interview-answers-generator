@@ -20,7 +20,7 @@ const queryMock = vi.fn(
     ),
 );
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({ query: queryMock }));
-const { createClaudeRuntimeAdapter } = await import("./index.js");
+const { createClaudeRuntimeAdapter } = await import("./index");
 const profile = {
   id: "test",
   version: 1,

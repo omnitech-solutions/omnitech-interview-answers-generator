@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { disposablePostgres } from "../assistant/workspace-fixture.js";
-import { briefPrompt, createBriefsApi } from "./api.js";
+import { disposablePostgres } from "../assistant/workspace-fixture";
+import { briefPrompt, createBriefsApi } from "./api";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const brief = {

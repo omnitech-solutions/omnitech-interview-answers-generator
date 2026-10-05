@@ -1,4 +1,4 @@
-import type { Language } from "./schemas.js";
+import type { Language } from "./schemas";
 
 export interface AnswerWorkflowDefinition {
   codeFence: string;

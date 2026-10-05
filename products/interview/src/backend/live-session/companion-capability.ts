@@ -12,7 +12,7 @@ import type {
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import type { LiveCompanionCapability } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
+import { firstRow, inOwnerScope, type OwnerScope } from "./scope";
 
 // True when the owner's last report is newer than `minIntervalMs` (database
 // clock), so a report loop cannot hammer the row.

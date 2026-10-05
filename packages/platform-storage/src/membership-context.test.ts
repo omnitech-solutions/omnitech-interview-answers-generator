@@ -8,7 +8,7 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { PlatformRepository } from "./platform-repository.js";
+import { PlatformRepository } from "./platform-repository";
 
 // fixture_member is NOSUPERUSER NOBYPASSRLS, so forced row-level security on
 // tenant_memberships binds it exactly as it binds the app role.

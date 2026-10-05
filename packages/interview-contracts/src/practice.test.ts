@@ -11,7 +11,7 @@ import {
   rehearsalScore,
   rehearsalSessionInputSchema,
   rehearsalSessionSchema,
-} from "./index.js";
+} from "./index";
 
 describe("rehearsal contract", () => {
   it("scores ten per check, minus three per reveal, within 0..100", () => {

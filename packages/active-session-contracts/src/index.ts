@@ -33,7 +33,7 @@ export {
   type SessionControlState,
   sessionControlStateSchema,
   validateIngestMessage,
-} from "./control.js";
+} from "./control";
 export {
   CREDENTIAL_PREFIX,
   CREDENTIAL_RANDOM_BYTES,
@@ -44,7 +44,7 @@ export {
   generateCredential,
   hashCredential,
   hashesEqual,
-} from "./credential.js";
+} from "./credential";
 export {
   type CaptureSource,
   captureSourceSchema,
@@ -52,8 +52,8 @@ export {
   opaqueIdSchema,
   WIRE_VERSION,
   wireVersionSchema,
-} from "./ids.js";
-export { ACTIVE_SESSION_LIMITS, type ActiveSessionLimits } from "./limits.js";
+} from "./ids";
+export { ACTIVE_SESSION_LIMITS, type ActiveSessionLimits } from "./limits";
 export {
   COMPANION_FEATURE_CAPTURE_REQUEST,
   COMPANION_FEATURES_HEADER,
@@ -61,7 +61,7 @@ export {
   type CompanionDeclaration,
   formatCompanionFeatures,
   parseCompanionDeclaration,
-} from "./negotiation.js";
+} from "./negotiation";
 export {
   type CaptureGap,
   captureGapSchema,
@@ -83,8 +83,8 @@ export {
   transcriptFinalSchema,
   validateObservation,
   validateWireMessage,
-} from "./observation.js";
+} from "./observation";
 export {
   detectScreenshotMediaType,
   type ScreenshotMediaType,
-} from "./screenshot.js";
+} from "./screenshot";

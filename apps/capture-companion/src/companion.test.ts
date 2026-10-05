@@ -1,19 +1,19 @@
 import type { CaptureRequest } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
-import { CompanionError } from "./errors.js";
+import { CompanionError } from "./errors";
 import {
   acceptedAck,
   FAKE_CREDENTIAL,
   fakeStudio,
   type RecordedRequest,
   refusedAck,
-} from "./fixture/fake-studio.js";
-import { speechUnavailableDevice } from "./fixture/fakes.js";
+} from "./fixture/fake-studio";
+import { speechUnavailableDevice } from "./fixture/fakes";
 import {
   createFixtureCompanion,
   type FixtureCompanionOptions,
-} from "./fixture/index.js";
-import { VirtualClock } from "./fixture/virtual-clock.js";
+} from "./fixture/index";
+import { VirtualClock } from "./fixture/virtual-clock";
 
 const MARKER = "SYNTHETIC-TRANSCRIPT-MARKER";
 

@@ -8,8 +8,8 @@ import {
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ConnectedAccountVault } from "./connected-account-vault.js";
-import { PlatformRepository } from "./platform-repository.js";
+import { ConnectedAccountVault } from "./connected-account-vault";
+import { PlatformRepository } from "./platform-repository";
 
 // The repository runs as fixture_member, a NOSUPERUSER NOBYPASSRLS role, so
 // installations are read under the same forced row-level security as the app.

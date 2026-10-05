@@ -9,15 +9,15 @@
 // but a content-free tombstone.
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { fakeRunner, QUESTION, scriptedGateway } from "../coding-fixture.js";
-import { PNG_BYTES } from "../live-session-fixture.js";
+import { fakeRunner, QUESTION, scriptedGateway } from "../coding-fixture";
+import { PNG_BYTES } from "../live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   settle,
-} from "../processor-fixture.js";
-import { type Started, startWorld, type World } from "./world.js";
+} from "../processor-fixture";
+import { type Started, startWorld, type World } from "./world";
 
 let world: World<typeof fixture>;
 beforeAll(async () => {

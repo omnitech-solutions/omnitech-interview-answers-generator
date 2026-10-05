@@ -16,11 +16,11 @@ import {
   RunRepository,
 } from "@omnitech-assistant/storage-postgres";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { guidedProse, withoutMarkdown } from "../../answer-fixture.js";
-import { createInterviewAdapter, interviewPatchJsonSchema } from "./adapter.js";
-import { interviewRunVersions } from "./prompt.js";
-import { InterviewWorkspaceRepository } from "./workspace.js";
-import { disposablePostgres } from "./workspace-fixture.js";
+import { guidedProse, withoutMarkdown } from "../../answer-fixture";
+import { createInterviewAdapter, interviewPatchJsonSchema } from "./adapter";
+import { interviewRunVersions } from "./prompt";
+import { InterviewWorkspaceRepository } from "./workspace";
+import { disposablePostgres } from "./workspace-fixture";
 
 const scope = {
   tenantId: "combined",

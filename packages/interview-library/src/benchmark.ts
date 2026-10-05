@@ -7,7 +7,7 @@ import type {
   LibrarySearchQuery,
 } from "@omnitech/interview-contracts";
 
-import { OramaLibrarySearchIndex } from "./index.js";
+import { OramaLibrarySearchIndex } from "./index";
 
 const itemCount = 1_000;
 const sectionsPerItem = 10;

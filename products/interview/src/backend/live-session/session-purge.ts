@@ -27,19 +27,15 @@ import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 import { enterTenant } from "@omnitech/database";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
-import { assertUuid, SessionError } from "./errors.js";
-import { decodeDraftKey, type WorkspaceDraftKey } from "./mapping.js";
-import { inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
-import type { SessionTarget } from "./session-claim.js";
-import {
-  cancelSessionJobs,
-  namedJobs,
-  type SessionJobs,
-} from "./session-jobs.js";
-import { lockSession } from "./session-record.js";
-import { transitionLocked } from "./status-transition.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
+import { assertUuid, SessionError } from "./errors";
+import { decodeDraftKey, type WorkspaceDraftKey } from "./mapping";
+import { inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import type { SessionTarget } from "./session-claim";
+import { cancelSessionJobs, namedJobs, type SessionJobs } from "./session-jobs";
+import { lockSession } from "./session-record";
+import { transitionLocked } from "./status-transition";
 
 // Runs `work` in an actor-scoped transaction for the session owner with the
 // purge setting on. Both the actor scope and the setting are transaction-local.

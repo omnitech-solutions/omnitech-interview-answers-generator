@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { guideSaying } from "../answer-fixture.js";
+import { guideSaying } from "../answer-fixture";
 
 // The host's model: one structured reply per call.
 const generate = vi.fn();
@@ -12,7 +12,7 @@ const {
   conceptExplanationSystemPrompt,
   generateExplanation,
   generateInterviewAnswer,
-} = await import("./services.js");
+} = await import("./services");
 
 const commentedExample = `## Talking points
 \`\`\`typescript

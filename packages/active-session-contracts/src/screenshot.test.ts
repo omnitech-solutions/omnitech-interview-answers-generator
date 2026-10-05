@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectScreenshotMediaType } from "./screenshot.js";
+import { detectScreenshotMediaType } from "./screenshot";
 
 const bytes = (...values: number[]) => new Uint8Array(values);
 const ascii = (text: string) => new TextEncoder().encode(text);

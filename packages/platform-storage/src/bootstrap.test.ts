@@ -23,7 +23,7 @@ async function bootstrap(env: Record<string, string> = {}) {
   vi.stubEnv("DATABASE_URL", pg.memberUrl);
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
   vi.resetModules();
-  await import("./bootstrap.js");
+  await import("./bootstrap");
 }
 
 async function installedProducts(slug: string) {

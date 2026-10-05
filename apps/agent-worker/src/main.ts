@@ -22,10 +22,10 @@ import {
   createSessionWorker,
   type SessionCodeRunner,
 } from "@omnitech/product-interview/session-worker";
-import { runAgentWorker } from "./index.js";
-import { defaultStagingBase, sweepStagingBase } from "./session-agent-port.js";
-import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway.js";
-import { runSessionLoop, sessionWorkerId } from "./session-loop.js";
+import { runAgentWorker } from "./index";
+import { defaultStagingBase, sweepStagingBase } from "./session-agent-port";
+import { createSessionGateway, SESSION_AGENT_FLAG } from "./session-gateway";
+import { runSessionLoop, sessionWorkerId } from "./session-loop";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AiPolicyRefusedError, parseStructuredOutput } from "./index.js";
+import { AiPolicyRefusedError, parseStructuredOutput } from "./index";
 
 describe("structured output contract", () => {
   const schema = {

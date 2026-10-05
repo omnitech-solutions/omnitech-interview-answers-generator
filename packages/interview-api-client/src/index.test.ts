@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createInterviewApiClient, InterviewApiError } from "./index.js";
+import { createInterviewApiClient, InterviewApiError } from "./index";
 
 describe("createInterviewApiClient", () => {
   it("hides the API path, bearer token and tenant from callers", async () => {

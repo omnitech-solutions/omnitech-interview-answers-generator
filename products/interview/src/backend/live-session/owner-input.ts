@@ -22,11 +22,11 @@ import { sql } from "drizzle-orm";
 import {
   OWNER_INPUT_SOURCE_ID,
   OWNER_MICROPHONE_SOURCE_ID,
-} from "../db/live-session.js";
-import { canonicalJson } from "./canonical-json.js";
-import { assertUuid, SessionError } from "./errors.js";
-import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
-import { lockSession, type SessionRecord } from "./session-record.js";
+} from "../db/live-session";
+import { canonicalJson } from "./canonical-json";
+import { assertUuid, SessionError } from "./errors";
+import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope";
+import { lockSession, type SessionRecord } from "./session-record";
 
 // The stored body of an `owner.input` observation: the validated request
 // without its id (the id is the observation's event id).

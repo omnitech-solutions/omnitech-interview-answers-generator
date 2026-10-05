@@ -3,7 +3,7 @@ import {
   getProviderConfiguration,
   signIntegrationState,
   verifyIntegrationState,
-} from "./oauth.js";
+} from "./oauth";
 
 describe("provider configuration", () => {
   afterEach(() => vi.unstubAllEnvs());

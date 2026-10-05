@@ -1,7 +1,7 @@
 // Lease and fence model (rule:fenced-current-publish; ADR-0011 Fencing). A
 // per-session counter fence rises on every acquire, so a restarted or slow
 // worker holding an older fence can never publish over its successor.
-import type { SessionStatus } from "./status.js";
+import type { SessionStatus } from "./status";
 
 export type Lease = {
   fence: number;

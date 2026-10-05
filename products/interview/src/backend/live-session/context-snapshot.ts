@@ -11,7 +11,7 @@
 // Errors carry a code only, never content.
 import { createHash } from "node:crypto";
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
-import { selectCandidateFragments } from "../briefing/selection.js";
+import { selectCandidateFragments } from "../briefing/selection";
 
 export type SourceKind =
   | "candidate"

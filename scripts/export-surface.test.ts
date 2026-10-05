@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
 import { expect, it } from "vitest";
-import { parse, repoRoot, walk } from "./guard-support.js";
+import { parse, repoRoot, walk } from "./guard-support";
 
 interface SurfaceRow {
   entrypoints: number;
@@ -83,48 +83,48 @@ const exportStarReasons: ReadonlyArray<{
 }> = [
   {
     file: "packages/database/src/test-support/index.ts",
-    modules: ["./postgres.js", "./schema.js"],
+    modules: ["./postgres", "./schema"],
     reason:
       "test-only entrypoint: the fixture's two modules are its whole surface",
   },
   {
     file: "packages/platform-api/src/index.ts",
-    modules: ["./router.js"],
+    modules: ["./router"],
     reason: "the package is one router module; the barrel is that module",
   },
   {
     file: "packages/platform-integrations/src/index.ts",
-    modules: ["./oauth.js"],
+    modules: ["./oauth"],
     reason: "the package is one OAuth module; the barrel is that module",
   },
   {
     file: "packages/platform-storage/src/index.ts",
     modules: [
-      "./connected-account-vault.js",
-      "./agent-job-repository.js",
-      "./platform-repository.js",
-      "./document-artifact-repository.js",
+      "./connected-account-vault",
+      "./agent-job-repository",
+      "./platform-repository",
+      "./document-artifact-repository",
     ],
     reason:
       "the repository entrypoint is the union of its four repository modules; the counted names follow the barrel so growth still fails",
   },
   {
     file: "packages/platform-storage/src/schema/index.ts",
-    modules: ["./ai.js", "./platform.js"],
+    modules: ["./ai", "./platform"],
     reason: "the schema entrypoint is the union of the two schema files",
   },
   {
     file: "products/interview/src/backend/assistant-entry.ts",
     modules: [
-      "./assistant/adapter.js",
-      "./assistant/prompt.js",
-      "./assistant/workspace.js",
+      "./assistant/adapter",
+      "./assistant/prompt",
+      "./assistant/workspace",
     ],
     reason: "the assistant entrypoint is the union of its three modules",
   },
   {
     file: "products/interview/src/backend/session-worker-entry.ts",
-    modules: ["./live-session/worker-entry.js"],
+    modules: ["./live-session/worker-entry"],
     reason: "the worker entrypoint is the live-session worker module",
   },
 ];
@@ -190,10 +190,7 @@ interface FileSurface {
 }
 
 const sourceCandidates = (from: string, specifier: string) => {
-  const base = `${from.slice(0, from.lastIndexOf("/"))}/${specifier}`.replace(
-    /\.js$/,
-    "",
-  );
+  const base = `${from.slice(0, from.lastIndexOf("/"))}/${specifier}`;
   return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`];
 };
 

@@ -1,11 +1,7 @@
 import type { AiExecutionGateway, AiUsage } from "@omnitech/ai-contracts";
 import type { DocumentField } from "@omnitech/interview-contracts";
 import { describe, expect, it, vi } from "vitest";
-import {
-  generateDocumentValues,
-  outputWeight,
-  planBatches,
-} from "./generate.js";
+import { generateDocumentValues, outputWeight, planBatches } from "./generate";
 
 const fields: DocumentField[] = [
   {

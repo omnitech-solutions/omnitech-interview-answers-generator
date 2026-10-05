@@ -34,14 +34,14 @@ import {
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { z } from "zod";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
-import { briefingScope } from "../briefing-access.js";
-import { SessionError, type SessionErrorCode } from "./errors.js";
-import { type IngestOptions, ingestObservation } from "./ingest.js";
-import { isProcessingPolicy, isRetentionMode } from "./mapping.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { OwnerScope } from "./scope.js";
-import { MAX_PAGE } from "./session-reads.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { briefingScope } from "../briefing-access";
+import { SessionError, type SessionErrorCode } from "./errors";
+import { type IngestOptions, ingestObservation } from "./ingest";
+import { isProcessingPolicy, isRetentionMode } from "./mapping";
+import { ActiveSessionRepository } from "./repository";
+import type { OwnerScope } from "./scope";
+import { MAX_PAGE } from "./session-reads";
 
 const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
 

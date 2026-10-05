@@ -1,4 +1,4 @@
-import { opaqueIdSchema } from "./ids.js";
+import { opaqueIdSchema } from "./ids";
 
 // Wire negotiation (ADR-0020). The acknowledgement objects are strict, so a new
 // field is not additive for a reader that does not know it. A companion

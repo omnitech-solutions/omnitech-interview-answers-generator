@@ -11,7 +11,7 @@ import {
   SESSION_AGENT_CODEX_PROFILE,
   SESSION_AGENT_MIN_TURNS,
   SessionGatewayConfigError,
-} from "./session-gateway.js";
+} from "./session-gateway";
 
 const REMOTE = {
   AI_BASE_URL: "https://models.example.test/v1",

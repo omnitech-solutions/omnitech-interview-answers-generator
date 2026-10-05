@@ -6,7 +6,7 @@ import {
   LIVE_OWNER_SKILLS,
 } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { SKILL_POLICY } from "./assist-stage.js";
+import { SKILL_POLICY } from "./assist-stage";
 
 describe("owner skills", () => {
   it("offers OpenCluely's nine skills under their names", () => {

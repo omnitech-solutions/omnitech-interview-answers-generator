@@ -21,7 +21,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { DockerCodeRunner } from "./index.js";
+import { DockerCodeRunner } from "./index";
 
 // ---- the documented resource bounds (a looser value must fail) -------------
 const PLAIN_BOUNDS = {

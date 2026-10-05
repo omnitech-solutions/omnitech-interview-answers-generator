@@ -6,23 +6,23 @@
 // draft's employer material and candidate preferences are read with the draft
 // revision recorded.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { matrixSha256 } from "./context-snapshot.js";
-import { SessionError } from "./errors.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { matrixSha256 } from "./context-snapshot";
+import { SessionError } from "./errors";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   seedBriefingDraft,
   seedMatrixProfile,
   startSessionForPerson,
-} from "./processor-fixture.js";
+} from "./processor-fixture";
 import {
   CANDIDATE_PREFERENCES,
   SYNTHETIC_MATRIX,
-} from "./replay-fixture-matrix.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./replay-fixture-matrix";
+import { ActiveSessionRepository } from "./repository";
 import {
   loadSessionContext,
   SessionContextUnavailable,
-} from "./session-context.js";
+} from "./session-context";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

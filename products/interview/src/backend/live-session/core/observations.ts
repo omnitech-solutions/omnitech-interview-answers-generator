@@ -8,7 +8,7 @@ import {
   type RefusalCode,
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
-import { ingestRefusal, type SessionStatus } from "./status.js";
+import { ingestRefusal, type SessionStatus } from "./status";
 
 type AcceptedAck = {
   version: typeof WIRE_VERSION;

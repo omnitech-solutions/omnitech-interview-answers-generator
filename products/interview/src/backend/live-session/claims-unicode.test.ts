@@ -3,9 +3,9 @@
 // a quote cut mid-word. Synthetic matrix only.
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { createAssistStage } from "./assist-stage.js";
-import { type Claim, figuresOf, verifyClaims } from "./claims.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
+import { createAssistStage } from "./assist-stage";
+import { type Claim, figuresOf, verifyClaims } from "./claims";
+import { buildContextSnapshot } from "./context-snapshot";
 
 const MATRIX = {
   candidate: { name: "Candidate" },

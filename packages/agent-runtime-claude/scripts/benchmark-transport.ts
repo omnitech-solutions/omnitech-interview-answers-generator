@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentProfile } from "@omnitech/agent-runtime-contracts";
-import { createClaudeRuntimeAdapter } from "../src/index.js";
+import { createClaudeRuntimeAdapter } from "../src/index";
 
 if (process.env["BENCHMARK_LIVE"] !== "1")
   throw new Error("Set BENCHMARK_LIVE=1 for live provider calls.");

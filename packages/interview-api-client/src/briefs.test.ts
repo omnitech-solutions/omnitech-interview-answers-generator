@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createBriefsClient } from "./briefs.js";
+import { createBriefsClient } from "./briefs";
 
 const brief = {
   id: "b1",

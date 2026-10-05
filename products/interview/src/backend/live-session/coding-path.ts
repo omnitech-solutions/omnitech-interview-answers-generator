@@ -18,37 +18,37 @@
 // waits for any of this: it is a separate action that dispatches first, and at
 // most one model call per session is in flight.
 import { runResultSchema } from "@omnitech/interview-contracts";
-import type { CodingBrief } from "./assist-stage.js";
-import { type CodeStates, codeStates, type RunFacts } from "./code-states.js";
+import type { CodingBrief } from "./assist-stage";
+import { type CodeStates, codeStates, type RunFacts } from "./code-states";
 import {
   type CodingSolution,
   type CodingStage,
   type FailedAttempt,
   type PriorSolution,
-} from "./coding-stage.js";
-import type { Task } from "./core/index.js";
+} from "./coding-stage";
+import type { Task } from "./core/index";
 import {
   type AgentOutcome,
   decideEscalation,
   requestAgentJob,
-} from "./escalation.js";
+} from "./escalation";
 import {
   beginDispatch,
   type Dispatch,
   type DispatchDeps,
-} from "./session-dispatch.js";
+} from "./session-dispatch";
 import {
   buildSessionDraft,
   sessionDraftEffect,
   type WorkspaceOutcome,
-} from "./session-drafts.js";
+} from "./session-drafts";
 import {
   type CodingCandidate,
   capturedFor,
   noteSolution,
   type SessionCodeRunner,
   type SessionRun,
-} from "./session-run.js";
+} from "./session-run";
 
 // The report kept on the action: names and statuses only, never output.
 const MAX_STORED_TESTS = 50;

@@ -1,8 +1,8 @@
 import JSZip from "jszip";
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
-import type { PresentationDocument } from "../domain/index.js";
-import { exportPresentation } from "./index.js";
+import type { PresentationDocument } from "../domain/index";
+import { exportPresentation } from "./index";
 
 const document: PresentationDocument = {
   id: "document",

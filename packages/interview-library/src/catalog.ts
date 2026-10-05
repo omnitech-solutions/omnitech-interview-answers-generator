@@ -1,10 +1,10 @@
 import type { LibraryItemInput } from "@omnitech/interview-contracts";
 
-import { coreInterviewLibrarySeed } from "./seed.js";
-import { laravelLibrarySeed } from "./seed-laravel.js";
-import { phpLibrarySeed } from "./seed-php.js";
-import { symfonyLibrarySeed } from "./seed-symfony.js";
-import { withSeedUsageExample } from "./seed-usage.js";
+import { coreInterviewLibrarySeed } from "./seed";
+import { laravelLibrarySeed } from "./seed-laravel";
+import { phpLibrarySeed } from "./seed-php";
+import { symfonyLibrarySeed } from "./seed-symfony";
+import { withSeedUsageExample } from "./seed-usage";
 
 export const interviewLibrarySeed: LibraryItemInput[] = [
   ...coreInterviewLibrarySeed,

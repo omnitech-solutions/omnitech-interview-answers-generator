@@ -5,7 +5,7 @@ import {
   createAuthorizationUrl,
   exchangeAuthorizationCode,
   type OAuthProviderConfiguration,
-} from "./index.js";
+} from "./index";
 
 // A stand-in OAuth provider: its token and userinfo endpoints answer from
 // `provider`, and every request it receives is recorded.

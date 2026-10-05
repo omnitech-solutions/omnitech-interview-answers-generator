@@ -12,28 +12,25 @@ import {
   emptyTaskState,
   openTaskSummaries,
   type Segment,
-} from "./core/index.js";
-import { decideBaseline, isBackchannel, isFiller } from "./interview-policy.js";
+} from "./core/index";
+import { decideBaseline, isBackchannel, isFiller } from "./interview-policy";
 import {
   ABSENT_FRAMEWORK,
   CANDIDATE_PREFERENCES,
   CANDIDATE_PREFERENCES_NONE,
   SYNTHETIC_MATRIX,
-} from "./replay-fixture-matrix.js";
-import {
-  ALL_REPLAY_SETS,
-  allReplayFixtureTexts,
-} from "./replay-fixture-sets.js";
-import { LIVE_CODING, LIVE_CODING_EXPECT } from "./replay-fixtures-coding.js";
-import { HAZARD_FIXTURES } from "./replay-fixtures-hazards.js";
-import { MANAGER_FIXTURE } from "./replay-fixtures-manager.js";
+} from "./replay-fixture-matrix";
+import { ALL_REPLAY_SETS, allReplayFixtureTexts } from "./replay-fixture-sets";
+import { LIVE_CODING, LIVE_CODING_EXPECT } from "./replay-fixtures-coding";
+import { HAZARD_FIXTURES } from "./replay-fixtures-hazards";
+import { MANAGER_FIXTURE } from "./replay-fixtures-manager";
 import {
   allFixtureTexts,
   FIXTURE_PLACEHOLDERS,
   FIXTURE_SOURCES,
   RECRUITER_SCREEN,
   type ReplayPhase,
-} from "./session-replay-fixtures.js";
+} from "./session-replay-fixtures";
 
 const MONEY_PATTERNS: readonly RegExp[] = [
   /[$€£¥]\s?\d/,

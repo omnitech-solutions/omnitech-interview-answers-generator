@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { WorkspaceError } from "./assistant/workspace.js";
-import { generateChecked } from "./structured.js";
+import { WorkspaceError } from "./assistant/workspace";
+import { generateChecked } from "./structured";
 
 const scope = { tenantId: "t", actorId: "a", productId: "p" };
 const schema = z.strictObject({

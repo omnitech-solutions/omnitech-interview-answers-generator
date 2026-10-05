@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CompanionError } from "../errors.js";
-import { FAKE_CREDENTIAL, fakeStudio } from "./fake-studio.js";
+import { CompanionError } from "../errors";
+import { FAKE_CREDENTIAL, fakeStudio } from "./fake-studio";
 import {
   createFixtureCompanion,
   replayInputOf,
@@ -8,8 +8,8 @@ import {
   replaySet,
   sourceForRole,
   VirtualClock,
-} from "./index.js";
-import type { ReplaySet } from "./replayer.js";
+} from "./index";
+import type { ReplaySet } from "./replayer";
 
 // A synthetic, content-free-of-real-names script in the shape the Interview
 // product's replay sets use: two phases, both roles, one ASR correction.

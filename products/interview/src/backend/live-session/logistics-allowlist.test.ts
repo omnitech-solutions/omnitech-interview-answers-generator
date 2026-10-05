@@ -3,9 +3,9 @@
 // figure-like survives, whatever its spelling.
 import type { CandidateMatrix } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { type Claim, verifyClaims } from "./claims.js";
-import { buildContextSnapshot } from "./context-snapshot.js";
-import { hasUnapprovedLogisticsFigure } from "./logistics-figures.js";
+import { type Claim, verifyClaims } from "./claims";
+import { buildContextSnapshot } from "./context-snapshot";
+import { hasUnapprovedLogisticsFigure } from "./logistics-figures";
 
 const MATRIX = {
   candidate: { name: "Candidate" },

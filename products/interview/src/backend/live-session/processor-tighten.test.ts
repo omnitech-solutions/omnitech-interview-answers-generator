@@ -9,16 +9,16 @@ import {
   runResult,
   scriptedGateway,
   solutionFor,
-} from "./coding-fixture.js";
-import type { AgentEscalationPort } from "./escalation.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+} from "./coding-fixture";
+import type { AgentEscalationPort } from "./escalation";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { SessionCodeRunner } from "./session-run.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import type { SessionCodeRunner } from "./session-run";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

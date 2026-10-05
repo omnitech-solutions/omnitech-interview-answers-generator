@@ -15,7 +15,7 @@ import {
   type Person,
   PNG_BYTES,
   startFixture,
-} from "./live-session-fixture.js";
+} from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
@@ -23,11 +23,11 @@ import {
   seedMatrixProfile,
   settle,
   startSessionForPerson,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { createSessionRoutes } from "./routes.js";
-import { purgeSession } from "./session-purge.js";
-import { RECRUITER_SCREEN } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { createSessionRoutes } from "./routes";
+import { purgeSession } from "./session-purge";
+import { RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 const CANARY = `canary-${randomUUID()}-secret`;
 

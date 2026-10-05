@@ -2,15 +2,15 @@
 // (S3): the action is recorded as failed, so the next tick retries the same
 // task revision within the bound and exactly one draft is published.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
   createFakeGateway,
   NEVER_ABORTED,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

@@ -31,8 +31,8 @@ import {
   enterTenant,
   roleBypassesRowLevelSecurityMessage,
   verifyDatabaseRole,
-} from "./connection.js";
-import { withTenant } from "./with-tenant.js";
+} from "./connection";
+import { withTenant } from "./with-tenant";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const actorId = "22222222-2222-4222-8222-222222222222";

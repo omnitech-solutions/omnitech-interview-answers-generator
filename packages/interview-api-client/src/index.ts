@@ -1,33 +1,18 @@
 import type {
-  GenerateRequest,
-  GeneratedAnswer,
   ExplanationRequest,
+  GeneratedAnswer,
   GeneratedExplanation,
+  GenerateRequest,
   RouteRequest,
   RouteResult,
   RunRequest,
   RunResult,
   SaveAnswerRequest,
   SavedAnswer,
-  SaveExplanationRequest,
   SavedExplanation,
+  SaveExplanationRequest,
 } from "@omnitech/interview-contracts";
 
-export { createBriefingClient } from "./briefing.js";
-export {
-  type BriefsClient,
-  type BriefsClientOptions,
-  createBriefsClient,
-} from "./briefs.js";
-export {
-  createRehearsalClient,
-  type RehearsalClient,
-} from "./rehearsal.js";
-export {
-  createPlanClient,
-  type PlanClient,
-  type PlanClientOptions,
-} from "./plan.js";
 export type {
   BriefingArtifact,
   BriefingArtifactSummary,
@@ -36,7 +21,22 @@ export type {
   BriefingProfileRevision,
   BriefingProfileSummary,
   SavedBriefingRevision,
-} from "./briefing.js";
+} from "./briefing";
+export { createBriefingClient } from "./briefing";
+export {
+  type BriefsClient,
+  type BriefsClientOptions,
+  createBriefsClient,
+} from "./briefs";
+export {
+  createPlanClient,
+  type PlanClient,
+  type PlanClientOptions,
+} from "./plan";
+export {
+  createRehearsalClient,
+  type RehearsalClient,
+} from "./rehearsal";
 
 export interface InterviewApiClientOptions {
   baseUrl: string;
@@ -133,16 +133,16 @@ export function createInterviewApiClient(
 }
 
 export type {
-  GenerateRequest,
-  GeneratedAnswer,
   ExplanationRequest,
+  GeneratedAnswer,
   GeneratedExplanation,
+  GenerateRequest,
   RouteRequest,
   RouteResult,
   RunRequest,
   RunResult,
   SaveAnswerRequest,
   SavedAnswer,
-  SaveExplanationRequest,
   SavedExplanation,
+  SaveExplanationRequest,
 } from "@omnitech/interview-contracts";

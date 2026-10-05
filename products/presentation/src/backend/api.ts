@@ -10,15 +10,15 @@ import {
 } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { z } from "zod";
-import { PresentationService } from "../application/index.js";
+import { PresentationService } from "../application/index";
 import {
   PresentationConflictError,
   PresentationNotFoundError,
   PresentationThemeNotFoundError,
-} from "../domain/index.js";
-import { ExportRefusedError } from "../export/index.js";
-import { PresentationRepository } from "../repositories/index.js";
-import { importPowerPointTheme } from "../theme-import.js";
+} from "../domain/index";
+import { ExportRefusedError } from "../export/index";
+import { PresentationRepository } from "../repositories/index";
+import { importPowerPointTheme } from "../theme-import";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),

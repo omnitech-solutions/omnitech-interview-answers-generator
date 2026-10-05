@@ -1,15 +1,11 @@
 import { z } from "zod";
-import {
-  isoTimestampSchema,
-  opaqueIdSchema,
-  wireVersionSchema,
-} from "./ids.js";
+import { isoTimestampSchema, opaqueIdSchema, wireVersionSchema } from "./ids";
 import {
   type MessageValidation,
   observationSchema,
   validateObservation,
   validateWireMessage,
-} from "./observation.js";
+} from "./observation";
 
 export const sessionControlStateSchema = z.enum([
   "active",

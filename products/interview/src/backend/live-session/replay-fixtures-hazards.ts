@@ -8,13 +8,13 @@
 // re-derives those facts so the description cannot drift from the policy.
 // Segments alternate speakers so consecutive same-speaker lines never coalesce
 // two questions into one utterance by accident.
-import { ABSENT_FRAMEWORK } from "./replay-fixture-matrix.js";
+import { ABSENT_FRAMEWORK } from "./replay-fixture-matrix";
 import {
   candidate,
   createScript,
   interviewer,
   type ReplayPhase,
-} from "./session-replay-fixtures.js";
+} from "./session-replay-fixtures";
 
 type ReplayExpect = {
   // One line saying what the set shows.

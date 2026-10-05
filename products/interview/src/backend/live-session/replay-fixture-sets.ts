@@ -5,14 +5,11 @@ import {
   CANDIDATE_PREFERENCES,
   CANDIDATE_PREFERENCES_NONE,
   matrixTexts,
-} from "./replay-fixture-matrix.js";
-import { LIVE_CODING } from "./replay-fixtures-coding.js";
-import { HAZARD_FIXTURES } from "./replay-fixtures-hazards.js";
-import { MANAGER_FIXTURE } from "./replay-fixtures-manager.js";
-import {
-  RECRUITER_SCREEN,
-  type ReplayPhase,
-} from "./session-replay-fixtures.js";
+} from "./replay-fixture-matrix";
+import { LIVE_CODING } from "./replay-fixtures-coding";
+import { HAZARD_FIXTURES } from "./replay-fixtures-hazards";
+import { MANAGER_FIXTURE } from "./replay-fixtures-manager";
+import { RECRUITER_SCREEN, type ReplayPhase } from "./session-replay-fixtures";
 
 export const ALL_REPLAY_SETS: Readonly<
   Record<string, { phases: readonly ReplayPhase[] }>

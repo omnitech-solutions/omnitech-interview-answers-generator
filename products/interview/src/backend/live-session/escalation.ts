@@ -26,12 +26,12 @@
 // job later produces stays untrusted until a later fenced publish (a result
 // publisher is built in a later loop); nothing here reads it, and a pause or end
 // cancels the job through the same actions that name it.
-import type { CodingBrief } from "./assist-stage.js";
-import type { CodingSolution, Escalation } from "./coding-stage.js";
-import type { ProcessingPolicy, Task } from "./core/index.js";
-import { reserveJobId, type SessionJobRequest } from "./fenced-writes.js";
-import type { SessionStorePort } from "./processor-ports.js";
-import type { SessionRun } from "./session-run.js";
+import type { CodingBrief } from "./assist-stage";
+import type { CodingSolution, Escalation } from "./coding-stage";
+import type { ProcessingPolicy, Task } from "./core/index";
+import { reserveJobId, type SessionJobRequest } from "./fenced-writes";
+import type { SessionStorePort } from "./processor-ports";
+import type { SessionRun } from "./session-run";
 
 const AGENT_ACTION_KIND = "agent-solve";
 

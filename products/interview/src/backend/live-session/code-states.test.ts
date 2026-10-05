@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CodeFacts, codeStates } from "./code-states.js";
+import { type CodeFacts, codeStates } from "./code-states";
 
 const passing = (...names: string[]) => ({
   exitCode: 0,

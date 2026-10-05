@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { briefingDraftSchema, candidateMatrixSchema } from "./briefing.js";
+import { briefingDraftSchema, candidateMatrixSchema } from "./briefing";
 
 it("accepts a synthetic matrix with known nested role fields and preserves extensions", () => {
   const matrix = candidateMatrixSchema.parse({

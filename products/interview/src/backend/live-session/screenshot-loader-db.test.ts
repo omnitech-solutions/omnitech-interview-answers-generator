@@ -4,19 +4,19 @@
 // session is the retryable "closed" answer, and another owner's or another
 // tenant's id is refused as not found (ADR-0016 Decision 3).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
   screenshot,
   startFixture,
-} from "./live-session-fixture.js";
-import { snapshotProvenanceId } from "./owner-input.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./live-session-fixture";
+import { snapshotProvenanceId } from "./owner-input";
+import { ActiveSessionRepository } from "./repository";
 import {
   createSessionScreenshotLoader,
   ScreenshotLoadError,
-} from "./screenshot-loader.js";
+} from "./screenshot-loader";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

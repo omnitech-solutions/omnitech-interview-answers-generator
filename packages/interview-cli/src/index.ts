@@ -1,15 +1,15 @@
+import type { BriefingClient } from "@omnitech/interview-api-client";
 import {
   createBriefingClient,
   createInterviewApiClient,
 } from "@omnitech/interview-api-client";
-import type { BriefingClient } from "@omnitech/interview-api-client";
 import {
   createPlaygroundControlClient,
   type PlaygroundControlClient,
 } from "@omnitech/interview-playground-control";
 
-import { readConfig } from "./config.js";
-import type { InterviewAnswersClient } from "./public-types.js";
+import { readConfig } from "./config";
+import type { InterviewAnswersClient } from "./public-types";
 
 export interface CreateConfiguredClientOptions {
   token?: string;
@@ -100,23 +100,6 @@ export async function createConfiguredPlaygroundControlClient(
   });
 }
 
-export { configPath, readConfig, writeConfig } from "./config.js";
-export type {
-  GeneratedInterviewAnswer,
-  GeneratedInterviewExplanation,
-  InterviewAnswersClient,
-  InterviewLanguage,
-  InterviewLanguageSelection,
-  InterviewRouteResult,
-  InterviewRunResult,
-  SavedInterviewAnswer,
-  SavedInterviewExplanation,
-} from "./public-types.js";
-export {
-  createPlaygroundControlClient,
-  parsePlaygroundPatch,
-  PlaygroundControlError,
-} from "@omnitech/interview-playground-control";
 export type {
   PlaygroundAnswer,
   PlaygroundAnswerLanguage,
@@ -128,3 +111,20 @@ export type {
   PlaygroundSnapshot,
   PlaygroundValue,
 } from "@omnitech/interview-playground-control";
+export {
+  createPlaygroundControlClient,
+  PlaygroundControlError,
+  parsePlaygroundPatch,
+} from "@omnitech/interview-playground-control";
+export { configPath, readConfig, writeConfig } from "./config";
+export type {
+  GeneratedInterviewAnswer,
+  GeneratedInterviewExplanation,
+  InterviewAnswersClient,
+  InterviewLanguage,
+  InterviewLanguageSelection,
+  InterviewRouteResult,
+  InterviewRunResult,
+  SavedInterviewAnswer,
+  SavedInterviewExplanation,
+} from "./public-types";

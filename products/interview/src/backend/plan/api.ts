@@ -14,9 +14,9 @@ import {
   type WorkspaceDatabasePort,
   WorkspaceError,
   type WorkspaceScope,
-} from "../assistant/workspace.js";
-import { BriefingRepository } from "../briefing/repository.js";
-import { InterviewPlanRepository, type StoredPlanItem } from "./repository.js";
+} from "../assistant/workspace";
+import { BriefingRepository } from "../briefing/repository";
+import { InterviewPlanRepository, type StoredPlanItem } from "./repository";
 
 const prefix = "/api/interview/plan";
 

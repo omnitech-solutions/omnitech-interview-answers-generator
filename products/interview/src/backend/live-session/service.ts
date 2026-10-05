@@ -17,13 +17,13 @@ import type {
   LiveOwnerLanguage,
   LiveOwnerSkill,
 } from "@omnitech/interview-contracts";
-import type { AssistDraft, AssistPrompt, AssistStage } from "./assist-stage.js";
-import { type AssistValidation } from "./assist-stage.js";
-import { summarizeClaims } from "./claims.js";
-import type { Task } from "./core/index.js";
-import type { SessionStorePort } from "./processor-ports.js";
-import type { SessionContext } from "./session-context.js";
-import { capturedFor, type SessionRun } from "./session-run.js";
+import type { AssistDraft, AssistPrompt, AssistStage } from "./assist-stage";
+import { type AssistValidation } from "./assist-stage";
+import { summarizeClaims } from "./claims";
+import type { Task } from "./core/index";
+import type { SessionStorePort } from "./processor-ports";
+import type { SessionContext } from "./session-context";
+import { capturedFor, type SessionRun } from "./session-run";
 
 export type AssistPlan =
   | {

@@ -26,20 +26,20 @@ import { z } from "zod";
 import {
   INTERVIEW_ASSISTANT_PROFILE,
   INTERVIEW_PRODUCT_ID,
-} from "../../assistant-profile.js";
+} from "../../assistant-profile";
 import {
   createInterviewAdapter,
   interviewPatchJsonSchema,
-} from "../assistant/adapter.js";
-import { interviewRunVersions } from "../assistant/prompt.js";
+} from "../assistant/adapter";
+import { interviewRunVersions } from "../assistant/prompt";
 import {
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
-} from "../assistant/workspace.js";
-import { createBriefingApi } from "../briefing/api.js";
-import { createBriefsApi } from "../briefs/api.js";
-import { createPlanApi } from "../plan/api.js";
-import { createRehearsalApi, rehearsalStatus } from "../rehearsal/api.js";
+} from "../assistant/workspace";
+import { createBriefingApi } from "../briefing/api";
+import { createBriefsApi } from "../briefs/api";
+import { createPlanApi } from "../plan/api";
+import { createRehearsalApi, rehearsalStatus } from "../rehearsal/api";
 
 const NEW_QUESTION = "New interview question";
 // The Workspace id prefix of a session-owned draft (live-session/session-drafts.ts).

@@ -1,5 +1,5 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
-import type { WorkspaceScope } from "./assistant/workspace.js";
+import type { WorkspaceScope } from "./assistant/workspace";
 
 /** Resolve private product scope only after the host authenticates the session. */
 export function briefingScope(

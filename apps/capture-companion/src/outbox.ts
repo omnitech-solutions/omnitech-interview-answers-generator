@@ -6,8 +6,8 @@ import type {
   CaptureSource,
   Observation,
 } from "@omnitech/active-session-contracts";
-import { type Clock, isoAt } from "./clock.js";
-import { captureGapMessage } from "./messages.js";
+import { type Clock, isoAt } from "./clock";
+import { captureGapMessage } from "./messages";
 
 export type OutboxEntry = {
   message: Observation;

@@ -12,7 +12,7 @@ import {
 import { eq, getTableName, is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import * as schema from "./schema.js";
+import * as schema from "./schema";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

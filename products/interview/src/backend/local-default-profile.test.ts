@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { loadLocalDefaultProfile } from "./local-default-profile.js";
+import { loadLocalDefaultProfile } from "./local-default-profile";
 
 it("loads the local default matrix without embedding private data in source", async () => {
   const directory = await mkdtemp(join(tmpdir(), "briefing-default-"));

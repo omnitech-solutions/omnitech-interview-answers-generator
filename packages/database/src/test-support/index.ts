@@ -1,2 +1,2 @@
-export * from "./postgres.js";
-export * from "./schema.js";
+export * from "./postgres";
+export * from "./schema";

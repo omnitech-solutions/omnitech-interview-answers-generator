@@ -18,7 +18,7 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
     ),
 }));
 
-const { createClaudeRuntimeAdapter } = await import("./index.js");
+const { createClaudeRuntimeAdapter } = await import("./index");
 
 it("emits one terminal outcome when the SDK throws after success", async () => {
   const events = [];

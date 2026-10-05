@@ -12,7 +12,7 @@ import {
   Raw,
   routeScreen,
   sampleDocument,
-} from "./fake-api.js";
+} from "./fake-api";
 
 const doc = "/api/presentation/v1/documents/doc-1";
 const jobs = "/api/platform/v1/agent-jobs";

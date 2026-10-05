@@ -1,9 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import {
-  createPlatformDatabase,
-  type PlatformDatabase,
-} from "../connection.js";
+import { createPlatformDatabase, type PlatformDatabase } from "../connection";
 
 const docker = promisify(execFile);
 

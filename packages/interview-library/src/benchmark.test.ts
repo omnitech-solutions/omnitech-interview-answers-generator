@@ -15,7 +15,7 @@ it("reports warm-search and restore timings for the deterministic corpus", async
   const before = await benchmarkDirectories();
   const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
-  await import("./benchmark.js");
+  await import("./benchmark");
 
   expect(log).toHaveBeenCalledTimes(1);
   const report = JSON.parse(String(log.mock.calls[0]?.[0]));

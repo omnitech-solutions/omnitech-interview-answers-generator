@@ -3,9 +3,9 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import type {
   WorkspaceDatabasePort,
   WorkspaceScope,
-} from "../assistant/workspace.js";
-import { disposablePostgres } from "../assistant/workspace-fixture.js";
-import { createBriefingApi } from "./api.js";
+} from "../assistant/workspace";
+import { disposablePostgres } from "../assistant/workspace-fixture";
+import { createBriefingApi } from "./api";
 
 let pg: Awaited<ReturnType<typeof disposablePostgres>>;
 const scope = {

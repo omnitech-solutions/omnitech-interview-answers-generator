@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { REFUSAL_CODES } from "./control.js";
-import { WIRE_VERSION } from "./ids.js";
-import { buildWireSchema, COMPANION_MESSAGE_KINDS } from "./wire-schema.js";
+import { REFUSAL_CODES } from "./control";
+import { WIRE_VERSION } from "./ids";
+import { buildWireSchema, COMPANION_MESSAGE_KINDS } from "./wire-schema";
 
 const schemaPath = join(
   dirname(fileURLToPath(import.meta.url)),

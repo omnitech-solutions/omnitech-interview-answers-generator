@@ -4,16 +4,16 @@
 // (handover, or pause then resume) matches the live run: same drafts, same
 // task revisions.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
   type StartedFor,
   startSessionFor,
-} from "./processor-fixture.js";
-import { capturedText } from "./replay-evidence-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./processor-fixture";
+import { capturedText } from "./replay-evidence-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

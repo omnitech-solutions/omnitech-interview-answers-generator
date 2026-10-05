@@ -12,7 +12,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import {
   DocumentArtifactRepository,
   MAX_DOCUMENT_ARTIFACT_BYTES,
-} from "./document-artifact-repository.js";
+} from "./document-artifact-repository";
 
 let pg: DisposablePostgres;
 let member: PlatformDatabase;

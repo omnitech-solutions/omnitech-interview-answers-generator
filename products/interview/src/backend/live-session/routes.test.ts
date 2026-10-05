@@ -16,7 +16,7 @@ import {
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { deriveLiveModel } from "../../frontend/studio/live/session-state.js";
+import { deriveLiveModel } from "../../frontend/studio/live/session-state";
 import {
   type Fixture,
   type Person,
@@ -24,8 +24,8 @@ import {
   screenshot,
   startFixture,
   transcript,
-} from "./live-session-fixture.js";
-import { createSessionRoutes } from "./routes.js";
+} from "./live-session-fixture";
+import { createSessionRoutes } from "./routes";
 
 let fx: Fixture;
 let slug = "";

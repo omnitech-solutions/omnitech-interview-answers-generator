@@ -11,17 +11,17 @@ import {
 import { liveCaptureStateSchema } from "@omnitech/interview-contracts";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
   PNG_BYTES,
   screenshot,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { createSessionRoutes } from "./routes.js";
-import { purgeSession } from "./session-purge.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { createSessionRoutes } from "./routes";
+import { purgeSession } from "./session-purge";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

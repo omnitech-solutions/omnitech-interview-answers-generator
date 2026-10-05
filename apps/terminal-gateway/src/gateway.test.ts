@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { startTerminalGateway, type TerminalGateway } from "./index.js";
+import { startTerminalGateway, type TerminalGateway } from "./index";
 
 const jobId = "3f2b8c1e-4d5a-4e6f-8a9b-0c1d2e3f4a5b";
 const tenantId = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d";

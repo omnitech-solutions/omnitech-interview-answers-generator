@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StateModel } from "./state.js";
+import { StateModel } from "./state";
 
 describe("state model", () => {
   it("is connecting until a source listens", () => {

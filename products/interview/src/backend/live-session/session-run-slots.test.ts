@@ -8,7 +8,7 @@ import {
   occupySlot,
   releaseSlot,
   type SessionRun,
-} from "./session-run.js";
+} from "./session-run";
 
 const newRun = (): SessionRun =>
   createRun(

@@ -11,11 +11,8 @@ import {
   nonGeneralFigures,
   supportTerms,
   verifyClaims,
-} from "./claims.js";
-import {
-  buildContextSnapshot,
-  type ContextSnapshot,
-} from "./context-snapshot.js";
+} from "./claims";
+import { buildContextSnapshot, type ContextSnapshot } from "./context-snapshot";
 
 const MATRIX = {
   candidate: { name: "Candidate" },

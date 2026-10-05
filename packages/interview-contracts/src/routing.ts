@@ -1,5 +1,5 @@
-import type { LanguageSelection, RouteResult } from "./schemas.js";
-import { listWorkflows } from "./workflows.js";
+import type { LanguageSelection, RouteResult } from "./schemas";
+import { listWorkflows } from "./workflows";
 
 const DECLARED: readonly {
   language: RouteResult["language"];

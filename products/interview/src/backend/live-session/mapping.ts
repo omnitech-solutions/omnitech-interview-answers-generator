@@ -1,8 +1,8 @@
 // Mapping between the database's underscore values and the neutral core's forms
 // (device_only <-> device-only, delete_at_end <-> delete-at-end). Only this
 // layer knows both; the core imports neither the database nor this file.
-import type { ProcessingPolicy } from "./core/index.js";
-import { SessionError } from "./errors.js";
+import type { ProcessingPolicy } from "./core/index";
+import { SessionError } from "./errors";
 
 export type RetentionMode = "delete-at-end" | "thirty-days" | "until-deleted";
 

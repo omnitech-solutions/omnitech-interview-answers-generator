@@ -10,7 +10,7 @@ export {
   dispatchKey,
   emptyDispatchLedger,
   recordDispatchOutcome,
-} from "./dispatch.js";
+} from "./dispatch";
 export {
   acquireLease,
   canPublish,
@@ -19,13 +19,13 @@ export {
   type Lease,
   type PublishSuppression,
   renewLease,
-} from "./lease.js";
+} from "./lease";
 export {
   decideObservation,
   dedupKey,
   emptyLedger,
   type ObservationLedger,
-} from "./observations.js";
+} from "./observations";
 export {
   type Clock,
   HANDLE_PATTERN,
@@ -37,7 +37,7 @@ export {
   type TaskPolicy,
   type TraceEvent,
   type Utterance,
-} from "./ports.js";
+} from "./ports";
 export {
   acceptsDispatch,
   ingestRefusal,
@@ -47,7 +47,7 @@ export {
   type StatusCommand,
   tightenPolicy,
   transitionStatus,
-} from "./status.js";
+} from "./status";
 export {
   applyVerdict,
   deferredTopics,
@@ -62,7 +62,7 @@ export {
   TASK_ID_PREFIX,
   type Task,
   type TaskState,
-} from "./tasks.js";
+} from "./tasks";
 export {
   applyTranscriptFinal,
   coalesceSegments,
@@ -71,4 +71,4 @@ export {
   isSuperseded,
   type Segment,
   type TranscriptView,
-} from "./transcript.js";
+} from "./transcript";

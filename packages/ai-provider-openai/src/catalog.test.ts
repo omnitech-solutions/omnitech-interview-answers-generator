@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createOpenAiCatalogAdapter } from "./index.js";
+import { createOpenAiCatalogAdapter } from "./index";
 
 const context = {
   tenantId: "t",

@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { sweepStagingBase } from "./session-agent-port.js";
+import { sweepStagingBase } from "./session-agent-port";
 
 let root: string;
 beforeEach(async () => {

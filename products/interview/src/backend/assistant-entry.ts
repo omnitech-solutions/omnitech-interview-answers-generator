@@ -1,3 +1,3 @@
-export * from "./assistant/adapter.js";
-export * from "./assistant/prompt.js";
-export * from "./assistant/workspace.js";
+export * from "./assistant/adapter";
+export * from "./assistant/prompt";
+export * from "./assistant/workspace";

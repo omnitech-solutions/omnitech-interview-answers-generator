@@ -9,7 +9,7 @@ import {
   type InterviewDraft,
   type InterviewEvidence,
   WorkspaceError,
-} from "./workspace.js";
+} from "./workspace";
 export interface EvidenceAuthority {
   authorizeEvidence(
     scope: Scope,

@@ -13,7 +13,7 @@ import {
   isWithinEnvelopeByteLimit,
   validateIngestMessage,
 } from "@omnitech/active-session-contracts";
-import { CompanionError } from "./errors.js";
+import { CompanionError } from "./errors";
 
 export type FetchInit = {
   method: "POST";

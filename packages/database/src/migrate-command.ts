@@ -1,5 +1,5 @@
-import { createPlatformDatabase } from "./connection.js";
-import { migrateDatabase } from "./migrate.js";
+import { createPlatformDatabase } from "./connection";
+import { migrateDatabase } from "./migrate";
 
 const database = createPlatformDatabase();
 try {

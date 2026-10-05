@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { pathToFileURL } from "node:url";
 import { type WebSocket, WebSocketServer } from "ws";
-import { renderEvent } from "./render-event.js";
+import { renderEvent } from "./render-event";
 
 export interface TerminalGatewayOptions {
   // 0 picks a free port.

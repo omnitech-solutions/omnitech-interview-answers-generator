@@ -2,7 +2,7 @@ import type { PlatformDatabase } from "@omnitech/database";
 import { withTenant } from "@omnitech/database";
 import { candidateMatrixSchema } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
-import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
+import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 
 export class DocumentContextNotFound extends Error {
   constructor() {

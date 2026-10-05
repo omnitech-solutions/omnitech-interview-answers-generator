@@ -11,19 +11,19 @@ import {
   InterviewWorkspaceRepository,
   interviewDraftSchema,
   type WorkspaceScope,
-} from "../assistant/workspace.js";
-import type { CodingBrief } from "./assist-stage.js";
-import type { CodeStates } from "./code-states.js";
-import type { CodingSolution } from "./coding-stage.js";
-import type { TaskState } from "./core/index.js";
-import { FencedSessionWrites } from "./fenced-writes.js";
+} from "../assistant/workspace";
+import type { CodingBrief } from "./assist-stage";
+import type { CodeStates } from "./code-states";
+import type { CodingSolution } from "./coding-stage";
+import type { TaskState } from "./core/index";
+import { FencedSessionWrites } from "./fenced-writes";
 import {
   type Fixture,
   type Person,
   startFixture,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { claimSessions, type SessionClaim } from "./session-claim.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { claimSessions, type SessionClaim } from "./session-claim";
 import {
   buildSessionDraft,
   sessionArtifactId,
@@ -32,9 +32,9 @@ import {
   sessionProposalId,
   sessionWorkspaceId,
   workspaceTransaction,
-} from "./session-drafts.js";
-import { createDatabaseStorePort } from "./session-ports.js";
-import { asSessionPurge } from "./session-purge.js";
+} from "./session-drafts";
+import { createDatabaseStorePort } from "./session-ports";
+import { asSessionPurge } from "./session-purge";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

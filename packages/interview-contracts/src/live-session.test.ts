@@ -13,7 +13,7 @@ import {
   liveSessionViewSchema,
   liveStreamResponseSchema,
   liveWithheldResultSchema,
-} from "./live-session.js";
+} from "./live-session";
 
 const ID = "6f1c1d1e-2b0f-4f43-9a55-7d6f3c0c9a10";
 const view = {

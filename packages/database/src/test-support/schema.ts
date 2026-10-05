@@ -1,6 +1,6 @@
 import { is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
-import type { PlatformDatabase } from "../connection.js";
+import type { PlatformDatabase } from "../connection";
 
 // Every Drizzle table a schema module exports.
 export function tablesOf(module: Record<string, unknown>): PgTable[] {

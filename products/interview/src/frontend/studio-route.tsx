@@ -10,7 +10,7 @@ import {
 // The studio module (editor, highlighter, assistant) is imported only in the
 // browser, after mount, so the server never evaluates it.
 const StudioPage = lazy(() =>
-  import("./studio/studio-page.js").then(({ StudioPage }) => ({
+  import("./studio/studio-page").then(({ StudioPage }) => ({
     default: StudioPage,
   })),
 );
@@ -18,7 +18,7 @@ const StudioPage = lazy(() =>
 // The chromeless overlay (/live/overlay): only the live session card, a page of
 // its own with its own session store. It never loads the studio module.
 const OverlayPage = lazy(() =>
-  import("./studio/live/overlay/overlay-page.js").then(({ OverlayPage }) => ({
+  import("./studio/live/overlay/overlay-page").then(({ OverlayPage }) => ({
     default: OverlayPage,
   })),
 );

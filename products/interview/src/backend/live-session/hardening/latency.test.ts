@@ -14,20 +14,17 @@
 // by one agreed rehearsal against a real provider with the packaged companion.
 import * as fixture from "@omnitech/capture-companion/fixture";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { INTERVIEW_SESSION_FAST_PROFILE } from "../../../assistant-profile.js";
+import { INTERVIEW_SESSION_FAST_PROFILE } from "../../../assistant-profile";
 import {
   buildProcessor,
   createFakeGateway,
   NEVER_ABORTED,
-} from "../processor-fixture.js";
-import { capturedLines } from "../replay-evidence-fixture.js";
-import { expectedPacedDrafts } from "../replay-expected-drafts.js";
-import { ALL_REPLAY_SETS } from "../replay-fixture-sets.js";
-import type {
-  FixtureSegment,
-  ReplayPhase,
-} from "../session-replay-fixtures.js";
-import { startWorld, type World } from "./world.js";
+} from "../processor-fixture";
+import { capturedLines } from "../replay-evidence-fixture";
+import { expectedPacedDrafts } from "../replay-expected-drafts";
+import { ALL_REPLAY_SETS } from "../replay-fixture-sets";
+import type { FixtureSegment, ReplayPhase } from "../session-replay-fixtures";
+import { startWorld, type World } from "./world";
 
 const SETTLE_MS = 1_500;
 const TICK_MS = 100;

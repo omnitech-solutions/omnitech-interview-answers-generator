@@ -1,8 +1,8 @@
 import type { Observation } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
-import { VirtualClock } from "./fixture/virtual-clock.js";
-import { screenSnapshotMessage, transcriptFinalMessage } from "./messages.js";
-import { Outbox } from "./outbox.js";
+import { VirtualClock } from "./fixture/virtual-clock";
+import { screenSnapshotMessage, transcriptFinalMessage } from "./messages";
+import { Outbox } from "./outbox";
 
 function transcript(
   outbox: Outbox,

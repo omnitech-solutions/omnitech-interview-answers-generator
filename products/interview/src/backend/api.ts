@@ -27,13 +27,13 @@ import {
 import { readBoundedJson } from "@omnitech/platform-contracts";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
-import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace.js";
-import { LibraryIndexUnavailableError } from "./library-service.js";
+import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
+import { LibraryIndexUnavailableError } from "./library-service";
 import {
   bundleReactPreview,
   PreviewCompileError,
   PreviewImportRefusedError,
-} from "./react-preview.js";
+} from "./react-preview";
 import {
   answerRepository,
   codeRunner,
@@ -42,9 +42,9 @@ import {
   generateInterviewAnswer,
   libraryRepository,
   libraryService,
-} from "./services.js";
-import type { StructuredGenerate } from "./structured.js";
-import { playgroundControlStore } from "./workspace-control.js";
+} from "./services";
+import type { StructuredGenerate } from "./structured";
+import { playgroundControlStore } from "./workspace-control";
 
 type ApiEnvironment = {
   Variables: {

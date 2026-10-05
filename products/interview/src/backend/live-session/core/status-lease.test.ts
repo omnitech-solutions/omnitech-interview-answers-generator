@@ -12,7 +12,7 @@ import {
   type StatusCommand,
   tightenPolicy,
   transitionStatus,
-} from "./index.js";
+} from "./index";
 
 describe("stop authority (rule:owner-starts-and-resumes)", () => {
   const ACTORS: StatusActor[] = [

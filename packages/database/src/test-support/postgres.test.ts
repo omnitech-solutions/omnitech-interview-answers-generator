@@ -20,7 +20,7 @@ const failWith = (error: Error & { code?: string | number; stderr?: string }) =>
 
 it("names Docker and the way around it when the docker command is missing", async () => {
   failWith(Object.assign(new Error("spawn docker ENOENT"), { code: "ENOENT" }));
-  const { startDisposablePostgres } = await import("./postgres.js");
+  const { startDisposablePostgres } = await import("./postgres");
   await expect(startDisposablePostgres()).rejects.toThrow(
     /These tests need Docker.*not installed or not on PATH.*pnpm test:no-docker/,
   );
@@ -36,7 +36,7 @@ it("names the daemon when docker is installed but not running", async () => {
         "Cannot connect to the Docker daemon at unix:///var/run/docker.sock",
     }),
   );
-  const { startDisposablePostgres } = await import("./postgres.js");
+  const { startDisposablePostgres } = await import("./postgres");
   await expect(startDisposablePostgres()).rejects.toThrow(
     /These tests need Docker.*Docker daemon did not answer \(Cannot connect/,
   );

@@ -6,8 +6,8 @@ import {
   acknowledgementSchema,
   REFUSAL_CODES,
   validateIngestMessage,
-} from "./control.js";
-import { buildCorpusManifest, COMPANION_MESSAGE_KINDS } from "./wire-schema.js";
+} from "./control";
+import { buildCorpusManifest, COMPANION_MESSAGE_KINDS } from "./wire-schema";
 
 const corpusRoot = join(
   dirname(fileURLToPath(import.meta.url)),

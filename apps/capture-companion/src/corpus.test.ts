@@ -10,8 +10,8 @@ import {
   validateIngestMessage,
 } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
-import { CompanionError } from "./errors.js";
-import { FAKE_CREDENTIAL, fakeStudio } from "./fixture/fake-studio.js";
+import { CompanionError } from "./errors";
+import { FAKE_CREDENTIAL, fakeStudio } from "./fixture/fake-studio";
 import {
   capabilityReportMessage,
   captureFailureMessage,
@@ -20,8 +20,8 @@ import {
   screenSnapshotMessage,
   sourceDisconnectedMessage,
   transcriptFinalMessage,
-} from "./messages.js";
-import { createWireClient } from "./wire-client.js";
+} from "./messages";
+import { createWireClient } from "./wire-client";
 
 const corpusRoot = join(
   dirname(fileURLToPath(import.meta.url)),

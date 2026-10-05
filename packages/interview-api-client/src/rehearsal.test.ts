@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRehearsalClient } from "./rehearsal.js";
+import { createRehearsalClient } from "./rehearsal";
 
 const input = {
   format: "coding" as const,

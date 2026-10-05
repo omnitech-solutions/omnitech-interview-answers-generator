@@ -15,17 +15,17 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../assistant-profile.js";
-import { type Fixture, startFixture } from "./live-session-fixture.js";
+} from "../../assistant-profile";
+import { type Fixture, startFixture } from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
   NEVER_ABORTED,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import { CANNED_DRAFT, RECRUITER_SCREEN } from "./session-replay-fixtures.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import { CANNED_DRAFT, RECRUITER_SCREEN } from "./session-replay-fixtures";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

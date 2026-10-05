@@ -25,7 +25,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { createInterviewBackend } from "./interview-backend.js";
+import { createInterviewBackend } from "./interview-backend";
 
 // The AI gateway is the provider boundary: it records what the product asks
 // for and answers with a listing of one model.

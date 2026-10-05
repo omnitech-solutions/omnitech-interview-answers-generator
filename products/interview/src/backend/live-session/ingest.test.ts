@@ -4,7 +4,7 @@
 // acknowledgement, screenshots accepted by leading bytes into owner-private
 // artifacts, and ended or purging sessions refusing everything.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ingestObservation } from "./ingest.js";
+import { ingestObservation } from "./ingest";
 import {
   type Fixture,
   type Person,
@@ -13,8 +13,8 @@ import {
   screenshot,
   startFixture,
   transcript,
-} from "./live-session-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
+} from "./live-session-fixture";
+import { ActiveSessionRepository } from "./repository";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

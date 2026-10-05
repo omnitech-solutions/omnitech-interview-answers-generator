@@ -3,13 +3,9 @@
 // security suite (db/live-session-security.test.ts) runs them for real.
 import type { DatabaseClient, PlatformDatabase } from "@omnitech/database";
 import { expect, it } from "vitest";
-import { withCredentialLookup } from "./credential-lookup.js";
-import {
-  asSessionWorker,
-  CLAIM_COLUMNS,
-  CLAIM_SELECT,
-} from "./session-claim.js";
-import { asSessionPurge } from "./session-purge.js";
+import { withCredentialLookup } from "./credential-lookup";
+import { asSessionWorker, CLAIM_COLUMNS, CLAIM_SELECT } from "./session-claim";
+import { asSessionPurge } from "./session-purge";
 
 function fakeDatabase() {
   const statements: { text: string; values: unknown[] | undefined }[] = [];

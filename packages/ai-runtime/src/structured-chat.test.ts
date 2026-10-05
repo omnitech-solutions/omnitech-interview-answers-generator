@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createAiExecutionGateway, createGatewayModelPort } from "./index.js";
+import { createAiExecutionGateway, createGatewayModelPort } from "./index";
+
 const context = {
   tenantId: "t",
   userId: "a",

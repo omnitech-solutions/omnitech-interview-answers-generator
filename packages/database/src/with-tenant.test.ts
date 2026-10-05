@@ -5,12 +5,12 @@ import {
   createPlatformDatabase,
   type PlatformDatabase,
   roleBypassesRowLevelSecurityMessage,
-} from "./connection.js";
+} from "./connection";
 import {
   type DisposablePostgres,
   startDisposablePostgres,
-} from "./test-support/postgres.js";
-import { withTenant } from "./with-tenant.js";
+} from "./test-support/postgres";
+import { withTenant } from "./with-tenant";
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

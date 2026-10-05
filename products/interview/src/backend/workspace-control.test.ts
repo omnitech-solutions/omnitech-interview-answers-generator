@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { guidedProse } from "../answer-fixture.js";
+import { guidedProse } from "../answer-fixture";
 
 async function freshStore() {
   vi.resetModules();

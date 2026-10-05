@@ -9,7 +9,7 @@ import {
   stagedImages,
   TOOL_REFUSED_FAILURE,
 } from "@omnitech/agent-runtime-contracts";
-import { restoreOptional, strictSchema } from "./strict-schema.js";
+import { restoreOptional, strictSchema } from "./strict-schema";
 
 // Wire shape pinned against `codex app-server generate-ts` from CLI 0.160.0.
 type Message = {

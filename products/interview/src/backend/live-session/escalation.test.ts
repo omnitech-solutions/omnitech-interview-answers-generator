@@ -8,7 +8,7 @@
 // is the real PostgresAgentJobRepository on the disposable database.
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { INTERVIEW_SESSION_DEVICE_PROFILE } from "../../assistant-profile.js";
+import { INTERVIEW_SESSION_DEVICE_PROFILE } from "../../assistant-profile";
 import {
   BURSTS,
   fakeRunner,
@@ -17,25 +17,25 @@ import {
   runResult,
   scriptedGateway,
   solutionFor,
-} from "./coding-fixture.js";
-import { createCodingStage } from "./coding-stage.js";
-import { type AgentEscalationPort, decideEscalation } from "./escalation.js";
-import type { SessionJobRequest } from "./fenced-writes.js";
-import { createInterviewSessionPolicy } from "./interview-policy.js";
+} from "./coding-fixture";
+import { createCodingStage } from "./coding-stage";
+import { type AgentEscalationPort, decideEscalation } from "./escalation";
+import type { SessionJobRequest } from "./fenced-writes";
+import { createInterviewSessionPolicy } from "./interview-policy";
 import {
   type AnyRow,
   type Fixture,
   startFixture,
-} from "./live-session-fixture.js";
+} from "./live-session-fixture";
 import {
   buildProcessor,
   collectTraces,
   type FakeGateway,
   settle,
   startSessionFor,
-} from "./processor-fixture.js";
-import { ActiveSessionRepository } from "./repository.js";
-import type { SessionCodeRunner } from "./session-run.js";
+} from "./processor-fixture";
+import { ActiveSessionRepository } from "./repository";
+import type { SessionCodeRunner } from "./session-run";
 
 describe("decideEscalation", () => {
   const base = {

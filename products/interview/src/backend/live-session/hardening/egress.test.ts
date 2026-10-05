@@ -17,12 +17,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_SESSION_DEVICE_PROFILE,
   INTERVIEW_SESSION_FAST_PROFILE,
-} from "../../../assistant-profile.js";
-import { buildProcessor, collectTraces, settle } from "../processor-fixture.js";
-import { ActiveSessionRepository } from "../repository.js";
-import { CANNED_DRAFT, RECRUITER_SCREEN } from "../session-replay-fixtures.js";
-import { type EgressGuard, installEgressGuard } from "./egress-guard.js";
-import { startWorld, type World } from "./world.js";
+} from "../../../assistant-profile";
+import { buildProcessor, collectTraces, settle } from "../processor-fixture";
+import { ActiveSessionRepository } from "../repository";
+import { CANNED_DRAFT, RECRUITER_SCREEN } from "../session-replay-fixtures";
+import { type EgressGuard, installEgressGuard } from "./egress-guard";
+import { startWorld, type World } from "./world";
 
 let world: World<typeof fixture>;
 let repo: ActiveSessionRepository;

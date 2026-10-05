@@ -3,7 +3,7 @@ import {
   type DocumentField,
   documentFieldsSchema,
   validateDocumentValues,
-} from "./documents.js";
+} from "./documents";
 
 const fields: DocumentField[] = [
   {

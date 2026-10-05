@@ -11,7 +11,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AiPolicyRefusedError } from "@omnitech/ai-contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sweepStagingBase } from "./session-agent-port.js";
+import { sweepStagingBase } from "./session-agent-port";
 import {
   AGENT_PROFILE_ID,
   ANSWERS_PROFILE_ID,
@@ -28,7 +28,7 @@ import {
   settle,
   solution,
   until,
-} from "./session-e2e-support.js";
+} from "./session-e2e-support";
 
 const harnesses: Harness[] = [];
 const make = async (...args: Parameters<typeof createHarness>) => {

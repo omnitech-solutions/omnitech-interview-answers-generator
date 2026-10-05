@@ -1,7 +1,7 @@
 // The capture companion's platform-neutral core. The macOS app (macos/) is the
 // same loop in Swift; this TypeScript core is what the fixture companion and
 // the conformance tests run. It imports only active-session-contracts.
-export { type Backoff, type BackoffOptions, createBackoff } from "./backoff.js";
+export { type Backoff, type BackoffOptions, createBackoff } from "./backoff";
 export {
   assessCapability,
   type CapabilityBlocker,
@@ -9,25 +9,25 @@ export {
   type CapabilityVerdict,
   type DeviceCapability,
   probeCapability,
-} from "./capability.js";
-export type { CaptureDriver, CaptureOnceResult } from "./capture-driver.js";
-export { type Clock, isoAt, systemClock } from "./clock.js";
+} from "./capability";
+export type { CaptureDriver, CaptureOnceResult } from "./capture-driver";
+export { type Clock, isoAt, systemClock } from "./clock";
 export {
   Companion,
   type CompanionOptions,
   type ScreenshotInput,
   type TranscriptInput,
-} from "./companion.js";
+} from "./companion";
 export {
   type ControlTransition,
   SourceSelection,
   StudioControl,
-} from "./control.js";
+} from "./control";
 export {
   CompanionError,
   type CompanionErrorCode,
-} from "./errors.js";
-export { type LocalStopDeps, stopLocally } from "./local-stop.js";
+} from "./errors";
+export { type LocalStopDeps, stopLocally } from "./local-stop";
 export {
   capabilityReportMessage,
   captureGapMessage,
@@ -35,13 +35,13 @@ export {
   screenSnapshotMessage,
   sourceDisconnectedMessage,
   transcriptFinalMessage,
-} from "./messages.js";
-export { type Allocation, Outbox, type OutboxEntry } from "./outbox.js";
+} from "./messages";
+export { type Allocation, Outbox, type OutboxEntry } from "./outbox";
 export {
   recordSourceLoss,
   type SourceLossDeps,
   type SourceLossReason,
-} from "./source-loss.js";
+} from "./source-loss";
 export {
   type CompanionNotice,
   type CompanionPhase,
@@ -49,7 +49,7 @@ export {
   type SourcePhase,
   StateModel,
   type TerminalPhase,
-} from "./state.js";
+} from "./state";
 export {
   createWireClient,
   type FetchInit,
@@ -58,4 +58,4 @@ export {
   type SendOutcome,
   type WireClient,
   type WireClientOptions,
-} from "./wire-client.js";
+} from "./wire-client";

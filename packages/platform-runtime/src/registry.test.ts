@@ -9,7 +9,7 @@ import {
   DuplicateRouteError,
   ProductRegistry,
   ProductUnavailableError,
-} from "./registry.js";
+} from "./registry";
 
 const manifest: ProductManifest = {
   schemaVersion: 1,

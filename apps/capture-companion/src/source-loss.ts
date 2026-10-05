@@ -3,10 +3,10 @@
 // (source.disconnected plus a capture.gap), and shows it. It never returns to
 // "listening" for that source by itself.
 import type { CaptureSource } from "@omnitech/active-session-contracts";
-import type { CaptureDriver } from "./capture-driver.js";
-import { captureGapMessage, sourceDisconnectedMessage } from "./messages.js";
-import type { Outbox } from "./outbox.js";
-import type { StateModel } from "./state.js";
+import type { CaptureDriver } from "./capture-driver";
+import { captureGapMessage, sourceDisconnectedMessage } from "./messages";
+import type { Outbox } from "./outbox";
+import type { StateModel } from "./state";
 
 export type SourceLossReason = "permission-revoked" | "device-lost";
 
