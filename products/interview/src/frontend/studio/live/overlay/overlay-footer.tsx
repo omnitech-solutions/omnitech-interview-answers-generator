@@ -4,7 +4,6 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
-import { latestRefusalReason } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD_ID } from "./build-id";
 import { FOCUS_INPUT_EVENT } from "./panels/commands";
@@ -26,14 +25,17 @@ const REFUSAL_REASONS: Record<string, string> = {
   target: "the task to attach it to was not valid",
 };
 
-export const failureNote = (code: SessionErrorCode): string =>
+// `reason` is the refused request's own (CommandResult.reason), never a global.
+export const failureNote = (
+  code: SessionErrorCode,
+  reason?: string | null,
+): string =>
   code === "unavailable"
     ? UNAVAILABLE_NOTE
     : code === "invalid_input"
-      ? `The server refused that capture (invalid_input${(() => {
-          const reason = latestRefusalReason();
-          return reason ? `: ${REFUSAL_REASONS[reason] ?? reason}` : "";
-        })()}). The session is unchanged; the next capture tries again.`
+      ? `The server refused that capture (invalid_input${
+          reason ? `: ${REFUSAL_REASONS[reason] ?? reason}` : ""
+        }). The session is unchanged; the next capture tries again.`
       : code === "status_refused"
         ? "The session is not taking captures now (status_refused). Resume it or start a new one."
         : `That didn’t work (${code}). The session is unchanged.`;

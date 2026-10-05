@@ -2,7 +2,7 @@
 // provenance), the two action slots, the approach or answer, the collapsible
 // solution and the collapsed Transcript and Activity rows. All text from the
 // session is rendered as inert text.
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../../icon";
 import type { TaskView } from "../session-tasks";
 import { TASK_KIND } from "../shared/task-kind";
@@ -46,10 +46,16 @@ export function TaskHead({
   task,
   number,
   chips,
+  revision = task.currentRevision,
+  revisions = null,
 }: {
   task: TaskView;
   number: number;
   chips: ProvenanceChip[];
+  // The revision on show (the task's current one unless an older was chosen),
+  // and the control that chooses it.
+  revision?: number;
+  revisions?: ReactNode;
 }) {
   const kind = TASK_KIND[task.kind];
   const current = task.constraints.filter((c) => c.status === "current");
@@ -58,8 +64,18 @@ export function TaskHead({
     <div className="ov-task-head" data-testid="task-head">
       <div className="ov-task-line">
         <span className="ov-tag ov-mono" data-testid="task-tag">
-          T{number} · rev {task.currentRevision}
+          T{number} · rev {revision}
+          {task.revisions.length > 1 ? ` of ${task.revisions.length}` : ""}
         </span>
+        {revisions}
+        {revision !== task.currentRevision && (
+          <span
+            className="ov-muted ov-nowrap"
+            data-testid="ov-earlier-revision"
+          >
+            viewing an earlier revision · current is rev {task.currentRevision}
+          </span>
+        )}
         <span className="ov-task-title" data-testid="task-title">
           {heading.title}
         </span>
@@ -78,14 +94,14 @@ export function TaskHead({
               key={constraint.text}
               className="ov-pill ov-constraint"
               title={
-                constraint.sinceRevision !== task.currentRevision
+                constraint.sinceRevision !== revision
                   ? `${constraint.text} (from rev ${constraint.sinceRevision})`
                   : constraint.text
               }
             >
               <Icon name="rule" />
               <span>{constraint.text}</span>
-              {constraint.sinceRevision !== task.currentRevision && (
+              {constraint.sinceRevision !== revision && (
                 <span className="ov-mono ov-faint ov-nowrap">
                   from rev {constraint.sinceRevision}
                 </span>

@@ -22,6 +22,7 @@ import { type AssistValidation } from "./assist-stage";
 import { summarizeClaims } from "./claims";
 import type { Task } from "./core/index";
 import type { SessionStorePort } from "./processor-ports";
+import type { ScreenshotText } from "./screenshot-text";
 import type { SessionContext } from "./session-context";
 import { capturedFor, type SessionRun } from "./session-run";
 
@@ -80,6 +81,10 @@ export async function planAssist(
     deviceOnly: boolean;
     // How many screenshots travel with the call (0: none).
     imageCount?: number;
+    // The text read from those screenshots on the device (screenshotTextFor).
+    screenshotText?: readonly ScreenshotText[];
+    // Screenshots whose image the owner's setting withheld and with no text.
+    withheldNoText?: readonly string[];
     // The owner's closed hints for this task (hintsFor).
     hints?: { skill?: LiveOwnerSkill; language?: LiveOwnerLanguage };
   },
@@ -92,18 +97,37 @@ export async function planAssist(
   // An open coding task carries its exercise (the brief read from the screen)
   // as provenance for the figures of its follow-ups.
   const exercise = exerciseFor(run, task);
-  const prepared = stage.prepare({
-    taskId: task.taskId,
-    revision: task.revision,
-    captured,
-    context,
-    deviceOnly,
-    imageCount: input.imageCount ?? 0,
-    ...(input.hints?.skill ? { skill: input.hints.skill } : {}),
-    ...(input.hints?.language ? { language: input.hints.language } : {}),
-  });
+  // [SAFETY] The texts the call carries are sized against the room the prompt
+  // really has: while it is too large the newest text is dropped (never cut).
+  // Its image still travels when it was sent; a text that stood alone is
+  // reported as withheld, so the model never answers from a part it lacks.
+  const texts = deviceOnly ? [] : [...(input.screenshotText ?? [])];
+  const withheld = deviceOnly ? [] : [...(input.withheldNoText ?? [])];
+  let prepared: ReturnType<typeof stage.prepare>;
+  for (;;) {
+    prepared = stage.prepare({
+      taskId: task.taskId,
+      revision: task.revision,
+      captured,
+      context,
+      deviceOnly,
+      imageCount: input.imageCount ?? 0,
+      // [SAFETY] Text read from a screenshot travels beside its image, or alone
+      // when the owner's setting withheld the image (D35); a device-only
+      // session sends neither to an agent.
+      ...(texts.length > 0 ? { screenshotText: texts } : {}),
+      ...(withheld.length > 0 ? { withheldNoText: withheld } : {}),
+      ...(input.hints?.skill ? { skill: input.hints.skill } : {}),
+      ...(input.hints?.language ? { language: input.hints.language } : {}),
+    });
+    const dropped = prepared.ok ? undefined : texts.pop();
+    if (prepared.ok || dropped === undefined) break;
+    if (dropped.image === null) withheld.push(dropped.label);
+  }
   if (!prepared.ok)
     return { outcome: "prompt_too_large", byteCount: prepared.byteCount };
+  const screenBased =
+    (input.imageCount ?? 0) > 0 || texts.length > 0 || withheld.length > 0;
 
   const { snapshot } = context;
   const pinned = snapshot.profile
@@ -120,6 +144,7 @@ export async function planAssist(
       stage.validate(raw, {
         snapshot,
         captured: captured.map((line) => line.text),
+        screenBased,
         ...(exercise.length > 0 ? { exercise } : {}),
       }),
     resultFor: (draft, meta) => ({

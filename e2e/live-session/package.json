@@ -1,0 +1,23 @@
+{
+  "name": "@omnitech/e2e-live-session",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:browser": "node scripts/run.mjs",
+    "test:browser:install": "playwright install chromium webkit",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint src tests scripts"
+  },
+  "dependencies": {
+    "@omnitech/agent-runtime-contracts": "workspace:*",
+    "@omnitech/database": "workspace:*",
+    "@omnitech/interview-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

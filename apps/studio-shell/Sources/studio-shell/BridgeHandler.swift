@@ -16,16 +16,24 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
     let model: ShellModel
     private let capture: ShellCapture
     private let setPinned: (Bool) -> Void
+    // See-through masks only the compact window: its page alone may report hit regions.
+    private let isCompactView: (WKWebView?) -> Bool
     // The one entry every presentation command goes through (the same one the menu and keys use).
     private let engine: HandsFreeEngine
     private let perform: (PresentationCommand) -> PresentationState
     // One capture at a time; a second request while one runs is a visible loss.
     private let gate = CaptureGate()
+    // Recognition outside a capture (recognizeText): one at a time, a second is `busy`.
+    private let recognitionGate = CaptureGate()
+    // Previews of every display are rationed (single-flight, minimum interval).
+    private let previewThrottle = PreviewThrottle<[(display: DisplayInfo, jpeg: Data)]>(
+        now: { ProcessInfo.processInfo.systemUptime })
     private let watcher: ScreenWatcher
     private let watchSampler: ShellScreenSampler
 
     init(
         model: ShellModel, capture: ShellCapture, engine: HandsFreeEngine, setPinned: @escaping (Bool) -> Void,
+        isCompactView: @escaping (WKWebView?) -> Bool,
         perform: @escaping (PresentationCommand) -> PresentationState
     ) {
         self.engine = engine
@@ -35,10 +43,11 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         watchSampler = ShellScreenSampler(capture: capture)
         watcher = ScreenWatcher(sampler: watchSampler)
         self.setPinned = setPinned
+        self.isCompactView = isCompactView
     }
 
     // Wired by the app: where watch events and status go (every hosted page).
-    var onWatchChange: (Int, Int) -> Void {
+    var onWatchChange: (Int, Int, DisplayInfo?) -> Void {
         get { watcher.onChange }
         set { watcher.onChange = newValue }
     }
@@ -79,6 +88,9 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
             setPinned(pinned)
             replyHandler(pinned, nil)
         case .success(.presentation(let command)):
+            // [GUARD] A hit-region report from any other hosted view (Settings, the main window)
+            // is refused: it would mask the compact window with another page's rectangles.
+            if case .setHitRegions = command, !isCompactView(message.webView) { return replyHandler(false, nil) }
             let state = perform(command)
             replyHandler(HostReply.tookEffect(command, state), nil)
         case .success(.screenWatchStart(let request)):
@@ -91,35 +103,109 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         case .success(.screenWatchStop):
             watcher.stop()
             replyHandler(nil, nil)
-        case .success(.openExternal(let url)):
-            NSWorkspace.shared.open(url)
-            replyHandler(nil, nil)
-        case .success(.captureScreen(let request, let displayId)):
-            // Sampled now, before any await and before the panel can take focus.
-            let sample = capture.sample()
+        case .success(.recognizeText(_, let base64)):
+            // The image stays in this call: it is decoded, read and dropped, never stored or logged.
             let ticket = model.epoch.ticket()
             let senderView = message.webView
             Task { @MainActor in
-                // One capture in flight; a repeat while one runs is a visible loss.
-                let reply: Any? = await self.gate.run {
+                // [GUARD] One recognition at a time: N parallel `.accurate` runs would hold N images.
+                guard let outcome = await self.recognitionGate.run({ await self.capture.recognizer.recognize(base64: base64) })
+                else { return replyHandler(HostReply.failure("busy"), nil) }
+                guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
+                    return replyHandler(nil, "stale")
+                }
+                replyHandler(HostReply.recognition(outcome), nil)
+            }
+        case .success(.listDisplays(thumbnails: false)):
+            // The displays by name and the pin, no capture: so no Screen Recording needed either.
+            let infos = Displays.infos()
+            let pin = capture.pin.snapshot(available: infos.map(\.id))
+            replyHandler(
+                HostReply.displayListWithoutThumbnails(infos, pinnedDisplayId: pin.id, pinFallback: pin.fallback), nil)
+        case .success(.listDisplays(thumbnails: true)):
+            // Owner-visible previews: not capture input, so the browser gate does not apply (a
+            // known exception: they show every display, other apps included, plan 7.0s T34),
+            // but Screen Recording does, and they are rationed: single-flight with a minimum
+            // interval, the previous result answering a repeat. Held by the page in memory only.
+            guard CGPreflightScreenCaptureAccess() else { return replyHandler(HostReply.failure("permission-denied"), nil) }
+            let ticket = model.epoch.ticket()
+            let senderView = message.webView
+            switch previewThrottle.begin() {
+            case .busy: return replyHandler(HostReply.failure("busy"), nil)
+            case .reuse(let previews):
+                let pinNow = capture.pin.snapshot(available: Displays.infos().map(\.id))
+                return replyHandler(HostReply.displayList(previews, pinnedDisplayId: pinNow.id, pinFallback: pinNow.fallback), nil)
+            case .run: break
+            }
+            Task { @MainActor in
+                let previews = await self.capture.previews()
+                self.previewThrottle.finish(previews)
+                guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
+                    return replyHandler(nil, "stale")
+                }
+                let pin = self.capture.pin.snapshot(available: Displays.infos().map(\.id))
+                replyHandler(
+                    previews.map { HostReply.displayList($0, pinnedDisplayId: pin.id, pinFallback: pin.fallback) }
+                        ?? HostReply.failure("capture-failed"), nil)
+            }
+        case .success(.setCaptureDisplay(let id)):
+            let infos = Displays.infos()
+            guard capture.pin.set(id, available: infos.map(\.id)) else {
+                return replyHandler(HostReply.failure("display-unavailable"), nil)
+            }
+            replyHandler(HostReply.captureDisplaySet(infos.first { $0.id == id }), nil)
+        case .success(.openExternal(let url)):
+            NSWorkspace.shared.open(url)
+            replyHandler(nil, nil)
+        case .success(.captureScreen(let request, let displayId, let intent)):
+            // Sampled now, before any await and before the panel can take focus.
+            let sample = capture.sample(intent: intent)
+            let ticket = model.epoch.ticket()
+            let senderView = message.webView
+            Task { @MainActor in
+                // One capture in flight; a repeat while one runs is a visible loss. The slot covers
+                // only the frame: recognition (below) runs after it is released, so a slow Vision
+                // run never holds the next capture.
+                let captured: (reply: [String: Any]?, result: ShellCapture.Result?)? = await self.gate.run {
                     // Screen Recording is asked for once per launch; afterwards a
                     // missing grant is a plain typed refusal.
-                    // [SAFETY] Only a browser in front is captured.
-                    let frontId = sample.focusedPid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
-                    guard BrowserFocus.allows(bundleId: frontId) else { return HostReply.failure(BrowserFocus.refusal) }
+                    // [SAFETY] Only a browser is captured: the one in front, or (for the person's
+                    // own request) the last one focused, and only while it has an on-screen window.
+                    // Otherwise say what was in front.
+                    guard sample.focusedPid != nil else {
+                        return (HostReply.failure(BrowserFocus.refusal, frontApp: sample.frontAppName), nil)
+                    }
                     let granted = CGPreflightScreenCaptureAccess()
                     guard granted else {
                         if self.gate.shouldPromptForAccess(granted: false) { _ = CGRequestScreenCaptureAccess() }
-                        return HostReply.failure("permission-denied")
+                        return (HostReply.failure("permission-denied"), nil)
                     }
                     let result = await self.capture.capture(request, displayId: displayId, sample: sample)
-                    // [SAFETY] A navigation, sign-out or rebind since receipt, or a
-                    // page no longer at Studio's origin, drops the frame.
-                    guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else { return nil }
-                    return HostReply.capture(result.outcome, screenAccessGranted: true, displayId: result.displayId)
-                } ?? HostReply.failure("capture-failed")
-                if reply == nil { return replyHandler(nil, "stale") }
-                replyHandler(reply, nil)
+                    return (nil, result)
+                }
+                // Another capture is already running (a repeat press, or Auto's own).
+                guard let captured else { return replyHandler(HostReply.failure("busy"), nil) }
+                if let refusal = captured.reply { return replyHandler(refusal, nil) }
+                guard let result = captured.result else { return replyHandler(nil, "stale") }
+                // [SAFETY] A navigation, sign-out or rebind since receipt, or a
+                // page no longer at Studio's origin, drops the frame.
+                guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
+                    return replyHandler(nil, "stale")
+                }
+                // The text is read from the very bytes the page receives, within a hard budget.
+                // Any failure (timeout, unavailable) leaves the capture without `ocr`.
+                var ocr: OcrText?
+                if case .image(let jpeg, _) = result.outcome,
+                    case .recognized(let text) = await self.capture.recognizer.recognize(
+                        jpeg, within: ShellCapture.captureOcrBudget)
+                { ocr = text }
+                guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
+                    return replyHandler(nil, "stale")
+                }
+                replyHandler(
+                    HostReply.capture(
+                        result.outcome, screenAccessGranted: true, displayId: result.displayId, ocr: ocr,
+                        display: result.display, pinned: result.pinned, pinFallback: result.pinFallback), nil)
             }
         }
     }

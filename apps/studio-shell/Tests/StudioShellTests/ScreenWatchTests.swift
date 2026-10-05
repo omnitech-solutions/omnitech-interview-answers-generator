@@ -58,7 +58,7 @@ func screenWatchTests(_ t: Harness) async {
         let watcher = ScreenWatcher(sampler: sampler, now: { clock })
         var events: [Int] = []
         var statuses: [ScreenWatchStatus] = []
-        watcher.onChange = { _, bits in events.append(bits) }
+        watcher.onChange = { _, bits, _ in events.append(bits) }
         watcher.onStatus = { statuses.append($0) }
 
         sampler.last = .permissionDenied

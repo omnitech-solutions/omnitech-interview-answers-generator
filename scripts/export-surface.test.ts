@@ -61,7 +61,35 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/database": { entrypoints: 3, names: 26 },
   "@omnitech/interview-api-client": { entrypoints: 1, names: 32 },
   "@omnitech/interview-answers-cli": { entrypoints: 1, names: 28 },
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 329 },
+  // +2 (T24): liveCaptureDisplaySchema and LiveCaptureDisplay, the stored display label of a screenshot.
+  // +8 (T22a, D35): the per-session "Screenshots to the model" setting
+  // (LIVE_SCREENSHOT_SEND_MODES, liveScreenshotSendSchema, LiveScreenshotSend,
+  // liveSessionScreenshotSendRequestSchema for its route body), what left the
+  // device per screenshot (LIVE_SCREENSHOT_SENT, liveScreenshotSentSchema,
+  // LiveScreenshotSent) and the bounded text-coverage numbers the shell
+  // measures (liveOcrMetricsSchema; the metrics types ride with them).
+  // +2 (T33): HIT_REGION_LIMITS and HitRegion (hit regions); recorded here by T32.
+  // +2 (T32): STUDIO_HOST_FRONT_APP_MAX and StudioHostCaptureIntent (capture intent and the front app name).
+  // The remaining growth of this release (T37 gives every name a reason):
+  // - live-session.ts: LIVE_CODE_LIMITS, LiveCodeTest/liveCodeTestSchema and
+  //   LiveCodeDiagnostic(+Schema) bound what a stored solve-code result keeps of
+  //   the runner's report; LIVE_OCR_LIMITS, liveOcrBlockSchema/LiveOcrBlock bound
+  //   and shape the on-device text of one image; LiveRevisionReason(+Schema) says
+  //   why an owner-made task revision exists; liveTaskIdSchema is the one task-id
+  //   alphabet every route accepts; liveTaskScreenshotsResponseSchema is the
+  //   screenshots-of-a-task reply the client parses.
+  // - studio-host.ts: the StudioHostDisplay* family (id, list and select
+  //   results, isStudioHostDisplay/isStudioHostDisplayId), StudioHostImage and
+  //   StudioHostOcr are the wire shapes of display choice and image/text
+  //   capture, shared by the shell bridge and the browser host; displayLabel
+  //   and isStudioHostDisplay turn a host display into the closed stored label
+  //   and validate one off the wire.
+  // - Four host types nothing outside the package used (StudioHostPinFallback,
+  //   StudioHostOcrMetrics, StudioHostDisplayPreview,
+  //   StudioHostTextRecognitionResult) are no longer exported: -4 (T37).
+  // - LIVE_SCREENSHOT_SENT stays exported with its schema; no consumer outside
+  //   the package reads the tuple yet (live-session.ts is another worker's file).
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 365 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

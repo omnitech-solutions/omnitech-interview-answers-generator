@@ -2,6 +2,10 @@
 // thing that needs the owner when it is not. Pure. Browser security requires a
 // click to share a screen again, and the line says so rather than pretending
 // Auto could do it.
+import {
+  type CaptureProblemReason,
+  captureProblemLine,
+} from "../shared/capture-problem";
 import { AUTO_BLOCK_TEXT, type AutoBlock } from "./auto-gate";
 
 export type AutoLineInput = {
@@ -31,7 +35,9 @@ export type AutoLineInput = {
   intervalSec?: number;
   lastAnalyzedAgoMs?: number | null;
   // The host refused to capture; the one thing to fix.
-  screenProblem?: "permission-denied" | "display-changed" | null;
+  screenProblem?: CaptureProblemReason | null;
+  // The application in front, for a no-focused-window problem.
+  screenFrontApp?: string | null;
   // Automatic analyses made this session, and the limit.
   autoCount?: number;
   autoMax?: number;
@@ -44,10 +50,10 @@ export type AutoLine = {
   tone: "ok" | "problem" | "wait";
 };
 
-const SCREEN_PROBLEM = {
+const SCREEN_PROBLEM: Partial<Record<CaptureProblemReason, string>> = {
   "permission-denied": "Grant Screen Recording to the app",
   "display-changed": "the display changed. Choose the capture area again",
-} as const;
+};
 
 const seconds = (ms: number): string =>
   `${Math.max(0, Math.round(ms / 1000))} s`;
@@ -81,8 +87,15 @@ export function autoLine(input: AutoLineInput): AutoLine | null {
     return { tone: "problem", text: `Auto · ${input.micError}` };
   if (input.screenProblem && !input.deviceOnly)
     return {
-      tone: "problem",
-      text: `Auto · ${SCREEN_PROBLEM[input.screenProblem]}`,
+      // A browser that is simply not in front clears by itself.
+      tone: input.screenProblem === "no-focused-window" ? "wait" : "problem",
+      text: `Auto · ${
+        SCREEN_PROBLEM[input.screenProblem] ??
+        captureProblemLine(input.screenProblem, {
+          intent: "auto",
+          frontApp: input.screenFrontApp,
+        })
+      }`,
     };
   if (input.wantsScreen && !input.deviceOnly && !input.sharing)
     return {

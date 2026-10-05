@@ -5,16 +5,19 @@
 // error never carries the response body or any session content
 // (rule:id-only-traces): a code is all a screen may show.
 import {
+  type LiveCaptureDisplay,
   type LiveCaptureRequest,
   type LiveCaptureState,
   type LiveCompanionCapability,
   type LiveCredential,
   type LiveHeardRequest,
+  type LiveOcrBlock,
   type LiveOwnerInputRequest,
   type LiveOwnerLanguageHint,
   type LiveOwnerSkillHint,
   type LiveProcessingPolicy,
   type LiveRetentionMode,
+  type LiveScreenshotSend,
   type LiveSessionChoicesResponse,
   type LiveSessionErrorCode,
   type LiveSessionListResponse,
@@ -22,6 +25,7 @@ import {
   type LiveSessionStartResponse,
   type LiveSessionView,
   type LiveStreamResponse,
+  type LiveTaskScreenshotsResponse,
   liveCaptureStateSchema,
   liveCompanionCapabilityResponseSchema,
   liveCredentialRenewResponseSchema,
@@ -33,6 +37,7 @@ import {
   liveSessionResponseSchema,
   liveSessionStartResponseSchema,
   liveStreamResponseSchema,
+  liveTaskScreenshotsResponseSchema,
 } from "@omnitech/interview-contracts";
 import type { z } from "zod";
 import { studioFetch } from "../studio-fetch";
@@ -54,11 +59,19 @@ export type SessionErrorCode =
 export class SessionApiError extends Error {
   readonly code: SessionErrorCode;
   readonly status: number;
-  constructor(code: SessionErrorCode, status: number) {
+  // The server's fixed refusal word (X-Refusal-Reason), never content; carried
+  // on THIS error so one request's reason can never show on another's failure.
+  readonly reason: string | null;
+  constructor(
+    code: SessionErrorCode,
+    status: number,
+    reason: string | null = null,
+  ) {
     super(code);
     this.name = "SessionApiError";
     this.code = code;
     this.status = status;
+    this.reason = reason;
   }
 }
 
@@ -97,6 +110,11 @@ export type SessionClient = {
     sessionId: string,
     retention: LiveRetentionMode,
   ): Promise<LiveSessionView>;
+  // D35: POST .../screenshot-send; applies to the next model call.
+  setScreenshotSend(
+    sessionId: string,
+    screenshotSend: LiveScreenshotSend,
+  ): Promise<LiveSessionView>;
   // 202: the session is purging; the returned view says so.
   deleteSession(sessionId: string): Promise<LiveSessionView>;
   // The owner's own request for assistance (Analyze latest capture, a typed
@@ -107,10 +125,28 @@ export type SessionClient = {
   ): Promise<void>;
   // One heard phrase (hands-free Auto), to the same input route.
   sendHeard(sessionId: string, input: LiveHeardRequest): Promise<void>;
-  // Capture and analyze: one multipart request carrying the frame the browser
-  // just took (already cropped to the owner's region) and its hints. This is the
-  // one function that knows the route's wire shape.
+  // Capture and analyze: one multipart request carrying the frames the browser
+  // just took (already cropped to the owner's region), in the order the owner
+  // chose, and their hints. With a target it is ONE new revision of that task;
+  // without, ONE new task. This is the one function that knows the route's wire
+  // shape.
   sendCapture(sessionId: string, input: CaptureUpload): Promise<void>;
+  // Regenerate one task revision: a new revision of the same task from the same
+  // sources (no new context). One request id per call.
+  regenerate(
+    sessionId: string,
+    requestId: string,
+    target: { taskId: string; revision: number },
+  ): Promise<void>;
+  // The screenshots a task's revisions rest on, oldest first: ids, S-ordinals,
+  // times, the engine that read each one's text, never image bytes or text.
+  listTaskScreenshots(
+    sessionId: string,
+    taskId: string,
+  ): Promise<LiveTaskScreenshotsResponse>;
+  // Where an image is fetched from (an <img> source): the owner's own
+  // screenshot route. The client never fetches the bytes itself.
+  screenshotUrl(sessionId: string, artifactId: string): string;
   // Ask the native companion to capture once; the answer is the request's state.
   sendCaptureRequest(
     sessionId: string,
@@ -127,32 +163,36 @@ export type SessionClient = {
 // tab title.
 type CaptureUpload = {
   requestId: string;
-  image: Blob;
+  // One to LIVE_OWNER_INPUT_MAX_SNAPSHOTS images, in the owner's order.
+  images: readonly Blob[];
+  // Text read from each image on the device, aligned by index (null: none).
+  ocr?: readonly (LiveOcrBlock | null)[];
+  // The display each image was captured on, aligned by index (null: unknown).
+  // A label only; sent when at least one entry is known.
+  display?: readonly (LiveCaptureDisplay | null)[];
   label?: string;
   target?: { taskId: string; revision: number };
   skill?: LiveOwnerSkillHint | undefined;
   language?: LiveOwnerLanguageHint | undefined;
 };
 
-// The server's refusal reason for the latest failed request (a fixed word from
-// the X-Refusal-Reason header, never content), so a message can say WHICH check
-// failed rather than a generic "invalid".
-let lastRefusalReason: string | null = null;
-export const latestRefusalReason = (): string | null => lastRefusalReason;
-
 async function errorFrom(response: Response): Promise<SessionApiError> {
-  lastRefusalReason = response.headers.get("x-refusal-reason");
+  // The server's refusal word (a fixed word, never content) says WHICH check
+  // failed rather than a generic "invalid".
+  const reason = response.headers.get("x-refusal-reason");
   try {
     const body = liveSessionErrorBodySchema.safeParse(await response.json());
     if (body.success)
-      return new SessionApiError(body.data.error.code, response.status);
+      return new SessionApiError(body.data.error.code, response.status, reason);
   } catch {
     // Not JSON: fall through to the status.
   }
   // No contract body: the status alone still says missing or signed out.
-  if (response.status === 404) return new SessionApiError("not_found", 404);
-  if (response.status === 401) return new SessionApiError("unauthorized", 401);
-  return new SessionApiError("invalid_response", response.status);
+  if (response.status === 404)
+    return new SessionApiError("not_found", 404, reason);
+  if (response.status === 401)
+    return new SessionApiError("unauthorized", 401, reason);
+  return new SessionApiError("invalid_response", response.status, reason);
 }
 
 export function createSessionClient(
@@ -282,6 +322,13 @@ export function createSessionClient(
       );
       return session;
     },
+    async setScreenshotSend(sessionId, screenshotSend) {
+      const { session } = await read(
+        await post(at(sessionId, "/screenshot-send"), { screenshotSend }),
+        liveSessionResponseSchema,
+      );
+      return session;
+    },
     async shortenRetention(sessionId, retention) {
       const { session } = await read(
         await post(at(sessionId, "/retention"), { retention }),
@@ -312,12 +359,39 @@ export function createSessionClient(
       if (input.skill) form.set("skill", input.skill);
       if (input.language) form.set("language", input.language);
       if (input.label) form.set("label", input.label);
-      form.set("image", input.image, "capture.jpg");
+      for (const image of input.images)
+        form.append("image", image, "capture.jpg");
+      if (input.ocr && input.ocr.some((block) => block !== null))
+        form.set("ocr", JSON.stringify(input.ocr));
+      if (input.display && input.display.some((entry) => entry !== null))
+        form.set("display", JSON.stringify(input.display));
       // No content-type header: the browser adds the multipart boundary.
       await read(
         await send(at(sessionId, "/capture"), { method: "POST", body: form }),
         liveOwnerCaptureResponseSchema,
       );
+    },
+    async regenerate(sessionId, requestId, target) {
+      await read(
+        await post(at(sessionId, "/input"), {
+          requestId,
+          operation: "regenerate",
+          target,
+          snapshots: [],
+        } satisfies LiveOwnerInputRequest),
+        liveOwnerInputResponseSchema,
+      );
+    },
+    async listTaskScreenshots(sessionId, taskId) {
+      return read(
+        await send(
+          at(sessionId, `/tasks/${encodeURIComponent(taskId)}/screenshots`),
+        ),
+        liveTaskScreenshotsResponseSchema,
+      );
+    },
+    screenshotUrl(sessionId, artifactId) {
+      return at(sessionId, `/screenshots/${encodeURIComponent(artifactId)}`);
     },
     async sendCaptureRequest(sessionId, request) {
       return read(

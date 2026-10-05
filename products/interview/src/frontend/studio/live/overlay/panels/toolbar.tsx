@@ -1,105 +1,204 @@
-// The toolbar, drawn from the tables in toolbar-config.ts: the capture button
-// with its mode menu, the microphone, the answer style, the model chip, the pane
-// toggles, click-through and the shortcut list. It holds no session logic:
-// every control calls the one panel session.
+// The toolbar, drawn from the tables in toolbar-config.ts: the capture control
+// (capture button with its screen-target chevron, and the mode menu), the
+// microphone, the answer style, the model chip, the pane toggles, See-through and
+// the shortcut list. It holds no session logic: every control calls the one
+// panel session.
 //
-// [SAFETY] Nothing here hides a window or conceals capture; click-through only
-// lets the mouse reach the page underneath, and the window stays visible.
+// [SAFETY] Nothing here conceals capture; See-through only lets the mouse reach
+// the page underneath over empty glass, and the window stays visible.
 import type { PresentationHost } from "@omnitech/interview-contracts";
-import { useEffect, useState } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "../../../icon";
+import { displaySelectionAvailable } from "../../host-adapter";
+import { useCaptureSource } from "../../host-display";
 import { nativeChord, shortcutsFor } from "../../shared/shortcuts";
 import { SKILLS } from "../../shared/skills";
 import { DEFAULT_SKILL } from "./commands";
+import { captureButtonTitle } from "./display-picker-model";
+import { canPassThrough } from "./hit-regions";
+import type { PanelGlass } from "./panel-glass";
 import type { PanelSession } from "./panel-views";
 import { Popover } from "./popover";
-import { hasCapability } from "./presentation-host";
+import { ScreenPicker } from "./screen-picker";
 import type { Panes } from "./single-panel";
 import {
   captureControl,
   captureMenuItems,
   captureModeOf,
-  hideBlockedReason,
   PANES,
-  WINDOW_CONTROLS,
-  type WindowControlAction,
+  SEE_THROUGH_CONTROL,
+  seeThroughTitle,
 } from "./toolbar-config";
+import { MIC_HELD_TEXT } from "./use-engine";
+import { WindowDots } from "./window-dots";
+import type { PanelWindowMode } from "./window-mode";
 
 type Tone = "green" | "red" | "neutral";
 
-// green: interaction on. red: interaction off, or recording.
+// green: the window takes clicks. red: recording.
 function pillTone(s: PanelSession): { tone: Tone; label: string } {
   if (!s.open) return { tone: "neutral", label: "Ended" };
   if (s.live.mic === "listening") return { tone: "red", label: "Recording" };
-  if (s.interaction === false) return { tone: "red", label: "Interaction off" };
-  return { tone: "green", label: "Interaction on" };
+  return { tone: "green", label: "Live" };
 }
 
-type MenuId = "mode" | "skill" | "keys";
+type MenuId = "mode" | "skill" | "screen" | "keys";
 
 // What the one window gives the toolbar.
 type WindowControls = {
   panes: Panes;
   presentation: PresentationHost;
+  glass: PanelGlass;
+  windowMode: PanelWindowMode;
   // A menu is open: the window keeps room below the bar for it.
   onMenuOpen(open: boolean): void;
 };
 
-// The window's own controls. Red hides it, which is only offered where the
-// shell can bring it back (a native window) and only while the session is not
-// capturing or listening; otherwise it stays disabled, with its reason, so the
-// window can never be made invisible while it works, or without a way back.
-export function WindowDots({
-  panes,
-  presentation,
-  dimmed,
-  hideBlocked,
+// The capture button: capture, or Stop while work runs, with the status dot.
+// The Mini player draws the same one. Where the host can choose a screen, its
+// tooltip also names the target, and a right-click or ArrowDown opens the
+// screen-target menu (`onOpenTargets`), as the chevron beside it does.
+export function CaptureButton({
+  s,
+  onOpenTargets,
+  menuOpen,
+  buttonRef,
 }: {
-  panes: Panes;
-  presentation: PresentationHost;
-  dimmed: boolean;
-  // Why hide is refused right now (capturing or listening), or null.
-  hideBlocked: string | null;
+  s: PanelSession;
+  onOpenTargets?: () => void;
+  // The screen menu is open (the button names the menu it opens).
+  menuOpen?: boolean;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
 }) {
-  const recoverable = hasCapability(presentation, "always-on-top");
-  const run: Record<WindowControlAction, () => void> = {
-    hide: () => void presentation.setVisible(false),
-    collapse: () => panes.setAll(false),
-    expand: () => panes.setAll(true),
-  };
+  const status = pillTone(s);
+  const control = captureControl(Boolean(s.phase));
+  const source = useCaptureSource();
+  const chord = nativeChord("analyze");
+  const title =
+    displaySelectionAvailable() && !control.stop
+      ? captureButtonTitle(control.title, source, chord)
+      : `${control.title} · ${chord}`;
   return (
-    <div
-      className="pn-dots"
-      role="group"
-      aria-label="Window controls"
-      data-dimmed={dimmed ? "true" : undefined}
-    >
-      {WINDOW_CONTROLS.map((control) => {
-        const hide = control.action === "hide";
-        const unavailable = hide && (!recoverable || hideBlocked !== null);
-        return (
-          <button
-            key={control.id}
-            type="button"
-            className="pn-window-dot"
-            data-colour={control.colour}
-            data-testid={`pn-dot-${control.id}`}
-            aria-label={control.label}
-            title={
-              hide && hideBlocked !== null
-                ? hideBlocked
-                : unavailable
-                  ? "Only the Mac app can hide its window and bring it back"
-                  : control.title
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`pn-split-main${onOpenTargets ? " pn-joined" : ""}`}
+        aria-label={control.label}
+        {...(onOpenTargets
+          ? {
+              "aria-haspopup": "menu" as const,
+              "aria-expanded": menuOpen === true,
             }
-            disabled={unavailable}
-            onClick={run[control.action]}
-          >
-            <span aria-hidden="true">{control.glyph}</span>
-          </button>
-        );
-      })}
-    </div>
+          : {})}
+        title={title}
+        disabled={!s.open || s.phase === "capturing"}
+        onClick={() => s.press("capture")}
+        {...(onOpenTargets
+          ? {
+              onContextMenu: (event: MouseEvent) => {
+                event.preventDefault();
+                onOpenTargets();
+              },
+              onKeyDown: (event: KeyboardEvent) => {
+                if (event.key !== "ArrowDown") return;
+                event.preventDefault();
+                onOpenTargets();
+              },
+            }
+          : {})}
+      >
+        <span className="pn-icon-dot">
+          <Icon
+            name={control.stop ? "stop_circle" : "screenshot_monitor"}
+            filled
+          />
+          <span
+            className="pn-dot"
+            data-tone={status.tone}
+            title={status.label}
+            aria-hidden="true"
+            data-testid="pn-dot"
+          />
+        </span>
+      </button>
+      {/* The state the dot colours, outside the button so the button's name
+          stays its action. */}
+      <span className="pn-sr" role="status" data-testid="pn-status">
+        {status.label}
+      </span>
+    </>
+  );
+}
+
+export function MicButton({ s }: { s: PanelSession }) {
+  const recording = s.live.mic === "listening";
+  // ONE predicate (the engine's micAction) decides the label and the press: a
+  // held session shows the control disabled with the reason, never a label
+  // the press would contradict.
+  const held = s.micHeld;
+  const name = recording ? "Stop microphone" : "Start microphone";
+  return (
+    <button
+      type="button"
+      className="pn-bar-button pn-icon-button pn-mic-button"
+      aria-label={name}
+      title={
+        held
+          ? `${name} · ${MIC_HELD_TEXT.replace(/\.$/, "")}`
+          : `${name} · ${nativeChord("listening")}`
+      }
+      aria-pressed={recording}
+      data-mic={s.live.mic}
+      data-held={held ? "true" : undefined}
+      disabled={!s.open || held}
+      onClick={() => s.press("toggle-mic")}
+    >
+      <Icon name={recording ? "mic" : "mic_off"} filled={recording} />
+      {recording && (
+        <span
+          className="pn-level"
+          aria-hidden="true"
+          data-testid="pn-level"
+          data-active={s.live.interim === "" ? undefined : "true"}
+        >
+          <i />
+          <i />
+          <i />
+        </span>
+      )}
+    </button>
+  );
+}
+
+// The one See-through switch: clear glass, and (where the shell can) pass-through
+// over empty glass. The Mini player draws the same one.
+export function SeeThroughButton({
+  glass,
+  passThrough,
+}: {
+  glass: PanelGlass;
+  passThrough: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="pn-bar-button pn-icon-button"
+      data-testid="pn-see-through"
+      aria-label={SEE_THROUGH_CONTROL.label}
+      aria-pressed={glass.clear}
+      title={seeThroughTitle(glass.clear, passThrough)}
+      onClick={glass.toggle}
+    >
+      <Icon name={SEE_THROUGH_CONTROL.icon} />
+    </button>
   );
 }
 
@@ -110,16 +209,20 @@ export function Toolbar({
   s: PanelSession;
   controls: WindowControls;
 }) {
-  const status = pillTone(s);
-  const recording = s.live.mic === "listening";
   const control = captureControl(Boolean(s.phase));
   const [menu, setMenu] = useState<MenuId | null>(null);
+  const [dotPopup, setDotPopup] = useState(false);
   const onMenuOpen = controls.onMenuOpen;
-  useEffect(() => onMenuOpen(menu !== null), [menu, onMenuOpen]);
+  const anyOpen = menu !== null || dotPopup;
+  useEffect(() => onMenuOpen(anyOpen), [anyOpen, onMenuOpen]);
   const toggle = (id: MenuId) => (open: boolean) => setMenu(open ? id : null);
   const skill = SKILLS.find((option) => option.id === s.skill)?.label ?? "";
   const mode = captureModeOf(s.auto.on);
-  const clickThrough = s.interaction === false;
+  const passThrough = canPassThrough(controls.presentation);
+  // Escape from the screen menu gives focus back to where it was opened from:
+  // the capture button (right-click, ArrowDown) or the chevron.
+  const captureRef = useRef<HTMLButtonElement>(null);
+  const openedFromCapture = useRef(false);
   return (
     <div
       className="pn-pill"
@@ -128,39 +231,38 @@ export function Toolbar({
       data-testid="pn-pill"
     >
       <WindowDots
-        panes={controls.panes}
+        s={s}
         presentation={controls.presentation}
-        dimmed={clickThrough}
-        hideBlocked={hideBlockedReason(s)}
+        windowMode={controls.windowMode}
+        onPopup={setDotPopup}
       />
       <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
-        <button
-          type="button"
-          className="pn-split-main"
-          aria-label={control.label}
-          title={`${control.title} · ${nativeChord("analyze")}`}
-          disabled={!s.open || s.phase === "capturing"}
-          onClick={() => s.press("capture")}
-        >
-          <span className="pn-icon-dot">
-            <Icon
-              name={control.stop ? "stop_circle" : "screenshot_monitor"}
-              filled
-            />
-            <span
-              className="pn-dot"
-              data-tone={status.tone}
-              title={status.label}
-              aria-hidden="true"
-              data-testid="pn-dot"
-            />
-          </span>
-        </button>
-        {/* The state the dot colours, outside the button so the button's name
-            stays its action. */}
-        <span className="pn-sr" role="status" data-testid="pn-status">
-          {status.label}
-        </span>
+        <CaptureButton
+          s={s}
+          buttonRef={captureRef}
+          menuOpen={menu === "screen"}
+          {...(displaySelectionAvailable()
+            ? {
+                onOpenTargets: () => {
+                  openedFromCapture.current = true;
+                  setMenu("screen");
+                },
+              }
+            : {})}
+        />
+        {displaySelectionAvailable() && (
+          <ScreenPicker
+            s={s}
+            open={menu === "screen"}
+            onOpenChange={(open) => {
+              if (!open) openedFromCapture.current = false;
+              toggle("screen")(open);
+            }}
+            returnFocus={() =>
+              openedFromCapture.current ? captureRef.current : null
+            }
+          />
+        )}
         <Popover
           open={menu === "mode"}
           onOpenChange={toggle("mode")}
@@ -214,30 +316,7 @@ export function Toolbar({
           }
         </Popover>
       </div>
-      <button
-        type="button"
-        className="pn-bar-button pn-icon-button pn-mic-button"
-        aria-label={recording ? "Stop microphone" : "Start microphone"}
-        title={`${recording ? "Stop microphone" : "Start microphone"} · ${nativeChord("listening")}`}
-        aria-pressed={recording}
-        data-mic={s.live.mic}
-        disabled={!s.open}
-        onClick={() => s.press("toggle-mic")}
-      >
-        <Icon name={recording ? "mic" : "mic_off"} filled={recording} />
-        {recording && (
-          <span
-            className="pn-level"
-            aria-hidden="true"
-            data-testid="pn-level"
-            data-active={s.live.interim === "" ? undefined : "true"}
-          >
-            <i />
-            <i />
-            <i />
-          </span>
-        )}
-      </button>
+      <MicButton s={s} />
       <Popover
         open={menu === "skill"}
         onOpenChange={toggle("skill")}
@@ -307,24 +386,7 @@ export function Toolbar({
           <Icon name={pane.icon} />
         </button>
       ))}
-      {s.interaction !== null && (
-        <button
-          type="button"
-          className="pn-bar-button pn-icon-button"
-          aria-label="Click-through"
-          aria-pressed={clickThrough}
-          title={
-            clickThrough
-              ? `Click-through on · ${nativeChord("click-through")} to interact`
-              : `Interactive · ${nativeChord("click-through")} for click-through`
-          }
-          onClick={() =>
-            void controls.presentation.setInteractionMode(clickThrough)
-          }
-        >
-          <Icon name="desktop_windows" />
-        </button>
-      )}
+      <SeeThroughButton glass={controls.glass} passThrough={passThrough} />
       <Popover
         open={menu === "keys"}
         onOpenChange={toggle("keys")}
@@ -337,21 +399,12 @@ export function Toolbar({
       >
         {() => (
           <ul className="pn-keys-list">
-            {shortcutsFor("native").map((shortcut) => {
-              // Registered by the shell only while the window takes the mouse.
-              const off = clickThrough && shortcut.requiresInteractive === true;
-              return (
-                <li
-                  key={shortcut.id}
-                  aria-disabled={off ? "true" : undefined}
-                  data-disabled={off ? "true" : undefined}
-                >
-                  <span>{shortcut.label}</span>
-                  <kbd>{shortcut.chord}</kbd>
-                  {off && <small>Only while interactive</small>}
-                </li>
-              );
-            })}
+            {shortcutsFor("native").map((shortcut) => (
+              <li key={shortcut.id}>
+                <span>{shortcut.label}</span>
+                <kbd>{shortcut.chord}</kbd>
+              </li>
+            ))}
           </ul>
         )}
       </Popover>

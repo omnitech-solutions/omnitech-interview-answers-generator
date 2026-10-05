@@ -448,6 +448,8 @@ export function createSessionStore(
     ...(deps.submitFollowUp ? { submitFollowUp: deps.submitFollowUp } : {}),
     ...(deps.submitHeard ? { submitHeard: deps.submitHeard } : {}),
     ...(deps.solveTask ? { solveTask: deps.solveTask } : {}),
+    ...(deps.regenerateTask ? { regenerateTask: deps.regenerateTask } : {}),
+    ...(deps.applyContext ? { applyContext: deps.applyContext } : {}),
     async refresh() {
       failures = 0;
       halted = false;

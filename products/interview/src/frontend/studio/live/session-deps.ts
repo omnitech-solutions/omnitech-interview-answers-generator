@@ -5,6 +5,7 @@ import type {
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import type {
+  ApplyContextInput,
   CaptureInput,
   CompanionCaptureInput,
   OwnerHints,
@@ -61,6 +62,16 @@ export type OwnerInputPort = {
     sessionId: string,
     target: TaskTarget,
     hints?: OwnerHints,
+  ): Promise<void>;
+  // Regenerate one task revision (a new revision of the same task, same
+  // sources). Idempotent: the same task revision always carries the same
+  // request id.
+  regenerateTask?(sessionId: string, target: TaskTarget): Promise<void>;
+  // Apply staged images as one request (see ApplyContextInput).
+  applyContext?(
+    sessionId: string,
+    target: TaskTarget | null,
+    input: ApplyContextInput,
   ): Promise<void>;
   // Hands-free Auto: one final phrase the browser heard, by its own request id
   // (a retry of the same phrase reuses it). Never logged or stored here.

@@ -5,14 +5,28 @@
 // fetches or decides anything; they read the one panel session.
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
+import { captureProblem } from "../../shared/capture-problem";
+import { CaptureProblemBanner } from "../../shared/capture-problem-banner";
 import { copyText } from "../../shared/copy-text";
 import {
   type MissingContextActionId,
   MissingContextStrip,
 } from "../../shared/missing-context-strip";
+import { revisionLine } from "../../shared/revisions";
+import { RevisionsControl } from "../../shared/revisions-control";
+import {
+  ScreenshotsArea,
+  ScreenshotsToggle,
+  useAreaId,
+} from "../../shared/screenshots-area";
 import { nativeChord } from "../../shared/shortcuts";
 import { STAGE_PRESENTATION } from "../../shared/task-card-model";
 import { taskLabel } from "../../shared/task-target";
+import { useTraySurface } from "../../shared/use-screenshot-tray";
+import {
+  actionsVersion,
+  useScreenshotsView,
+} from "../../shared/use-screenshots-view";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { CodeCard, TextCard } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
@@ -65,7 +79,7 @@ function missingUnavailable(
 
 export function AnswerPane({ s }: { s: PanelSession }) {
   const { card } = s;
-  const task = s.selected;
+  const task = s.shown;
   const view = task ? answerView(task) : null;
   // The one error line can be dismissed; a different message shows again.
   const [dismissed, setDismissed] = useState<string | null>(null);
@@ -78,8 +92,42 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   const stopped =
     !s.phase && card && task && card.answerText === null && stoppedByYou(task);
   const newest = taskLabel(s.model.tasks.length);
+  const shots = useScreenshotsView({
+    tray: s.tray,
+    tenant: s.tenant,
+    sessionId: s.session?.id ?? null,
+    taskId: s.selected?.taskId ?? null,
+    taskLabel: card?.label ?? null,
+    version: actionsVersion(s.snapshot.actions),
+    policy: s.session?.processingPolicy ?? null,
+  });
+  const areaId = useAreaId();
+  useTraySurface(s.tray);
+  const area = (
+    <ScreenshotsArea
+      view={shots}
+      id={areaId}
+      variant="native"
+      captureUnavailable={s.captureUnavailable}
+      onAdd={(intent) => void s.stage(intent)}
+    />
+  );
   return (
     <div className="pn-card pn-analysis-text" data-testid="pn-answer-pane">
+      {s.captureProblem && (
+        <CaptureProblemBanner
+          problem={s.captureProblem}
+          onDismiss={s.dismissCaptureProblem}
+          {...(s.captureProblemAction
+            ? { onAction: s.captureProblemAction }
+            : {})}
+        />
+      )}
+      {s.noQuestionLine && !showSteps && (
+        <p className="pn-muted" role="status" data-testid="pn-no-question">
+          {s.noQuestionLine}
+        </p>
+      )}
       {showSteps ? (
         <ol
           className="pn-steps"
@@ -119,7 +167,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
           <div className="pn-empty-sub">
             {s.auto.on
               ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
-              : "Open the problem in your browser, then analyse the screen. Spoken questions are answered without pressing anything."}
+              : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."}
           </div>
           <button
             type="button"
@@ -128,16 +176,40 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             onClick={() => s.press("capture")}
           >
             <Icon name="screenshot_monitor" />
-            Analyze screen
+            {s.auto.on ? "Analyze screen" : "Capture screenshot"}
             <kbd>{nativeChord("analyze")}</kbd>
           </button>
+          {!s.open && (
+            <p className="pn-muted" role="status" data-testid="pn-capture-off">
+              {captureProblem("session-ended").title}.{" "}
+              {captureProblem("session-ended").fix}
+            </p>
+          )}
+          {s.tray.items.length > 0 && area}
         </div>
       ) : (
         <div className="pn-scroll" data-testid="pn-answer">
           <div className="pn-task-line" data-testid="pn-task-line">
             <span className="pn-task-id">
-              {card.label} · rev {card.revision}
+              {card.label} ·{" "}
+              {s.selected && card.revisionCount > 1
+                ? revisionLine(s.selected, card.revision).label
+                : `rev ${card.revision}`}
             </span>
+            {s.selected && (
+              <RevisionsControl
+                task={s.selected}
+                selected={card.revision}
+                variant="native"
+                onPick={s.pickRevision}
+              />
+            )}
+            {card.revision !== card.currentRevision && (
+              <span className="pn-earlier" data-testid="pn-earlier-revision">
+                viewing an earlier revision · current is rev{" "}
+                {card.currentRevision}
+              </span>
+            )}
             {card.snapshotLabel && <span>from {card.snapshotLabel}</span>}
             {card.earlier && (
               <>
@@ -153,7 +225,13 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 </button>
               </>
             )}
+            <ScreenshotsToggle
+              view={shots}
+              variant="native"
+              controls={areaId}
+            />
           </div>
+          {area}
           <div className="pn-problem-head">
             <h2 className="pn-problem" data-testid="pn-problem">
               {card.name}
@@ -274,7 +352,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
 
 export function CodePane({ s }: { s: PanelSession }) {
   const { card } = s;
-  const task = s.selected;
+  const task = s.shown;
   const pending = stepsShown(s);
   const writing = card?.stages[1].state === "running";
   const seconds = useElapsed(writing, card?.taskId);
@@ -285,13 +363,13 @@ export function CodePane({ s }: { s: PanelSession }) {
       <div className="pn-codecol" data-testid="pn-code-pane">
         {example && <TextCard text={example} />}
         <CodeCard
-          language={card.code.language}
-          text={card.code.text}
+          code={card.code}
+          constraints={card.constraints}
           badges={card.badges}
           copy={{
             label: "Copy code",
             copied: copying.copied === "code",
-            onCopy: () => void copying.copy("code", card.code?.text ?? ""),
+            onCopy: (text) => void copying.copy("code", text),
           }}
         />
       </div>

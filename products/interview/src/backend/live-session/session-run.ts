@@ -38,11 +38,13 @@ import type { CodeRunner } from "@omnitech/code-runner";
 import {
   LIVE_OWNER_HINT_AUTO,
   LIVE_OWNER_SOLVE_TEXT,
+  type LiveOcrBlock,
   type LiveOwnerInputRequest,
   type LiveOwnerLanguage,
   type LiveOwnerLanguageHint,
   type LiveOwnerSkill,
   type LiveOwnerSkillHint,
+  liveOcrBlockSchema,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
 import {
@@ -66,6 +68,7 @@ import {
   type ProcessingPolicy,
   processUtterance,
   type RememberedRevision,
+  type RevisionReason,
   restoreTasks,
   TASK_ID_PREFIX,
   type Task,
@@ -84,6 +87,12 @@ import {
 } from "./owner-input";
 import type { SessionStorePort } from "./processor-ports";
 import type { OwnerScope } from "./scope";
+import {
+  OCR_PROMPT_MAX_BYTES,
+  ocrLooksCutOff,
+  ocrPromptBytes,
+  type ScreenshotText,
+} from "./screenshot-text";
 import type { SessionClaim } from "./session-claim";
 import type { SessionContext } from "./session-context";
 import type { StoredAction, StoredObservation } from "./session-reads";
@@ -170,7 +179,18 @@ export type SessionRun = {
   solutions: Map<string, PriorSolution>;
   // Screen snapshots this run has replayed, by provenance id (the media type
   // the companion declared; the loader re-detects it from the bytes).
-  snapshots: Map<string, { mediaType: string }>;
+  // Replayed screenshots by provenance id: the declared media type, the
+  // session's S{n} (rank among every screen snapshot replayed), and the text
+  // read on the device when there is any (never logged, never in a trace).
+  snapshots: Map<
+    string,
+    {
+      mediaType: string;
+      ordinal: number;
+      ocr?: LiveOcrBlock;
+    }
+  >;
+  snapshotsSeen: number;
   // Owner inputs (ADR-0016) by provenance id, with the typed text they carry,
   // and those replayed but not yet applied to the task state.
   ownerInputs: Map<
@@ -292,6 +312,7 @@ export function createRun(
     coding: new Map(),
     solutions: new Map(),
     snapshots: new Map(),
+    snapshotsSeen: 0,
     ownerInputs: new Map(),
     pendingInputs: [],
     slots: { assist: emptySlot(), coding: emptySlot() },
@@ -487,7 +508,8 @@ export async function seedFromActions(
       if (
         action.suppressionReason !== "session_paused" &&
         action.suppressionReason !== "session_not_active" &&
-        action.suppressionReason !== "policy_changed"
+        action.suppressionReason !== "policy_changed" &&
+        action.suppressionReason !== "setting_changed"
       )
         run.settled.add(key);
     } else if (action.dispatchStatus === "failed")
@@ -595,13 +617,26 @@ export async function replayObservations(
 // rests on it can name it as an attachment. Only the declared media type is
 // kept; the pixels are loaded, verified and staged later, by the loader.
 function noteSnapshot(run: SessionRun, stored: StoredObservation): void {
-  const body = (stored.content as { body?: unknown }).body;
+  run.snapshotsSeen += 1;
+  const { body, ocr } = stored.content as { body?: unknown; ocr?: unknown };
   const parsed = screenSnapshotSchema.shape.content.safeParse(body);
   if (!parsed.success || stored.screenshotArtifactId === null) return;
+  const read = ocrOf(ocr);
   run.snapshots.set(
     snapshotProvenanceId(run.claim.sessionId, stored.sourceId, stored.eventId),
-    { mediaType: parsed.data.mediaType },
+    {
+      mediaType: parsed.data.mediaType,
+      ordinal: run.snapshotsSeen,
+      ...(read ? { ocr: read } : {}),
+    },
   );
+}
+
+// The stored text of a screenshot, when it is well formed (it is checked when
+// stored; a malformed value is simply no text).
+function ocrOf(value: unknown): LiveOcrBlock | null {
+  const parsed = liveOcrBlockSchema.safeParse(value);
+  return parsed.success && parsed.data.text !== "" ? parsed.data : null;
 }
 
 // Queues a replayed owner input. One already part of a remembered task
@@ -686,6 +721,52 @@ export function attachmentsFor(run: SessionRun, task: Task): AgentAttachment[] {
     }));
 }
 
+// Why an input aimed at an existing task revises it. Added context is a
+// screenshot attached to the task; a plain re-run is a regeneration; anything
+// else (a typed follow-up, a solve request) is a follow-up.
+function revisionReasonOf(input: LiveOwnerInputRequest): RevisionReason {
+  if (input.operation === "regenerate") return "regenerate";
+  if (input.operation === "analyze" && input.snapshots.length > 0)
+    return "added-screenshot";
+  return "follow_up";
+}
+
+// The text read from the screenshots a task revision's call carries, in the
+// order the images are attached (the model sees them as screenshot-1..N), with
+// the session's S{n} and the mechanical cut-off hint. Newest first within the
+// prompt budget: a whole text is kept or left out, never cut. Images without
+// text are simply absent.
+export function screenshotTextFor(
+  run: SessionRun,
+  attachments: readonly AgentAttachment[],
+): ScreenshotText[] {
+  const found = attachments.flatMap((attachment, index) => {
+    const known = run.snapshots.get(attachment.id);
+    return known?.ocr
+      ? [
+          {
+            image: attachment.name,
+            label: `S${known.ordinal}`,
+            text: known.ocr.text,
+            cutOff: ocrLooksCutOff(known.ocr.text),
+            index,
+          },
+        ]
+      : [];
+  });
+  let budget = OCR_PROMPT_MAX_BYTES;
+  const kept = new Set<number>();
+  for (const entry of [...found].reverse()) {
+    const bytes = ocrPromptBytes(entry.text);
+    if (bytes > budget) continue;
+    budget -= bytes;
+    kept.add(entry.index);
+  }
+  return found
+    .filter((entry) => kept.has(entry.index))
+    .map(({ index: _index, ...entry }) => entry);
+}
+
 // Applies one queued owner input to the task state. An owner input is never a
 // transcript segment: an analyze or typed question opens its own task (named
 // after its request id, so a rebuilt run names it the same), and an input aimed
@@ -697,13 +778,24 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
   const target = input.target
     ? run.tasks.tasks[input.target.taskId]
     : undefined;
-  // [SAFETY] "Solve" is bound to the revision the owner saw: a task that has
-  // moved on since is left alone (the owner asks again for the new one).
-  if (input.operation === "solve") {
+  // [SAFETY] "Solve" and "regenerate" are bound to the revision the owner saw:
+  // a task that has moved on since is left alone (the owner asks again for the
+  // new one), and a regeneration never opens a task of its own.
+  // The same rule holds for a screenshot added to a task: two presses of "Add
+  // screenshot" aimed at revision N inside the processor's latency window make
+  // revision N+1 once, never N+2 as well (the second finds the task moved on).
+  if (
+    input.operation === "solve" ||
+    input.operation === "regenerate" ||
+    (input.operation === "analyze" && input.target)
+  ) {
     const latest = target?.revisions[target.revisions.length - 1]?.revision;
     if (!target || latest !== input.target?.revision) {
       run.processed.add(provenanceId);
-      run.trace({ event: "owner-input.stale-solve", outcome: "skipped" });
+      run.trace({
+        event: `owner-input.stale-${input.operation}`,
+        outcome: "skipped",
+      });
       return;
     }
   }
@@ -730,7 +822,11 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
     utterance,
     "substantive",
     target
-      ? { kind: "revise", taskId: target.taskId, reason: "follow_up" }
+      ? {
+          kind: "revise",
+          taskId: target.taskId,
+          reason: revisionReasonOf(input),
+        }
       : { kind: "open", taskKey: `i.${input.requestId}` },
     idsOf(run),
   );

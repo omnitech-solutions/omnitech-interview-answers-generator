@@ -7,6 +7,8 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { CAPTURE_UPDATE_LINE } from "../companion-capability";
 import { usePresentation } from "../focus-presentation";
+import { CaptureProblemBanner } from "../shared/capture-problem-banner";
+import { followUpNote } from "../shared/revisions";
 import { resolveTarget, taskLabel, taskOrdinal } from "../shared/task-target";
 import { AutoStatus } from "./auto-status";
 import { CommandBar } from "./command-bar";
@@ -30,9 +32,12 @@ export function HandsFreeBar({
   hf,
   onStartRemote,
   autoControl = true,
+  chords = true,
 }: {
   hf: HandsFree;
   onStartRemote(): void;
+  // False on the web Live page, which binds no Alt chord.
+  chords?: boolean;
   // False where another control (the band's Manual/Auto switch) owns Auto.
   autoControl?: boolean;
 }) {
@@ -44,6 +49,7 @@ export function HandsFreeBar({
   return (
     <>
       <CommandBar
+        chords={chords}
         status={
           !hf.open
             ? "ended"
@@ -123,9 +129,11 @@ export function HandsFreeBar({
 export function HandsFreeCapture({
   hf,
   menuOpen = hf.captureMenu,
+  chord = true,
 }: {
   hf: HandsFree;
   menuOpen?: boolean;
+  chord?: boolean;
 }) {
   const { model, share, selected, captures, tasks, support } = hf;
   if (!hf.owns)
@@ -192,6 +200,7 @@ export function HandsFreeCapture({
   const number = selected ? taskOrdinal(tasks, selected.taskId) : null;
   return (
     <CaptureStrip
+      chord={chord}
       share={{ status: share.status, kind: share.kind, stream: share.stream }}
       masked={!isFull(hf.prefs.mask)}
       last={capture}
@@ -232,11 +241,23 @@ export function HandsFreeNote({ hf }: { hf: HandsFree }) {
     hf.note ??
     hf.share.message ??
     (hf.deviceOnly && hf.live.auto ? null : dictation.error);
-  if (!text) return null;
+  const banner = hf.captureProblem && (
+    <CaptureProblemBanner
+      problem={hf.captureProblem}
+      onDismiss={hf.dismissCaptureProblem}
+      {...(hf.captureProblemAction
+        ? { onAction: hf.captureProblemAction }
+        : {})}
+    />
+  );
+  if (!text) return banner || null;
   return (
-    <p className="ov-note" role="alert">
-      {hf.note === failureNote("unavailable") ? UNAVAILABLE_NOTE : text}
-    </p>
+    <>
+      {banner}
+      <p className="ov-note" role="alert">
+        {hf.note === failureNote("unavailable") ? UNAVAILABLE_NOTE : text}
+      </p>
+    </>
   );
 }
 
@@ -249,8 +270,15 @@ export function HandsFreeFollowUp({ hf }: { hf: HandsFree }) {
   const label = resolved
     ? `Add context to ${resolved.targetLabel}, or ask a follow-up`
     : "Type a follow-up";
+  // An older revision is on show: say where the follow-up really goes.
+  const note = hf.selected ? followUpNote(hf.selected, hf.revision) : null;
   return (
     <>
+      {note && (
+        <p className="ov-muted" role="status" data-testid="ov-followup-note">
+          {note}
+        </p>
+      )}
       {hf.owns && dictation.state === "listening" && (
         <ListeningHint
           level={dictation.level}
@@ -276,7 +304,13 @@ export function HandsFreeFollowUp({ hf }: { hf: HandsFree }) {
 
 // The region editors and the settings popover. Shown by whichever view is on
 // top (the card when there is one, else the band).
-export function HandsFreeDialogs({ hf }: { hf: HandsFree }) {
+export function HandsFreeDialogs({
+  hf,
+  chords = true,
+}: {
+  hf: HandsFree;
+  chords?: boolean;
+}) {
   const { prefs, selected, support } = hf;
   return (
     <>
@@ -334,9 +368,12 @@ export function HandsFreeDialogs({ hf }: { hf: HandsFree }) {
       )}
       {hf.settingsOpen && (
         <SettingsPopover
+          shortcuts={chords}
           settings={prefs.settings}
           onChange={prefs.setSettings}
           onClose={() => hf.setSettingsOpen(false)}
+          session={hf.session}
+          actions={hf.actions}
         />
       )}
     </>
@@ -413,7 +450,7 @@ function BandView({ hf }: { hf: HandsFree }) {
   // context" and "Add another screenshot" open it first when it is collapsed,
   // and the focus is asked for once the box is on screen.
   const focusWhenShown = useRef(false);
-  const problem = hf.note ?? hf.share.message;
+  const problem = hf.captureProblem ?? hf.note ?? hf.share.message;
   useEffect(() => {
     if (problem) setCollapsed(false);
   }, [problem]);
@@ -485,18 +522,28 @@ function BandView({ hf }: { hf: HandsFree }) {
           <HandsFreeBar
             hf={hf}
             autoControl={false}
+            chords={false}
             onStartRemote={() => openStartPage("tab")}
           />
           {!collapsed && (
             <>
-              <HandsFreeCapture hf={hf} />
+              <HandsFreeCapture hf={hf} chord={false} />
+              {hf.noQuestionLine && (
+                <p
+                  className="ov-muted"
+                  role="status"
+                  data-testid="ov-no-question"
+                >
+                  {hf.noQuestionLine}
+                </p>
+              )}
               <HandsFreeNote hf={hf} />
               <HandsFreeFollowUp hf={hf} />
             </>
           )}
         </>
       )}
-      {dialogs && <HandsFreeDialogs hf={hf} />}
+      {dialogs && <HandsFreeDialogs hf={hf} chords={false} />}
     </section>
   );
 }

@@ -17,6 +17,7 @@ export const COMMANDS = [
   "skill.prev",
   "session.clear",
   "chat.focus",
+  "see-through.toggle",
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -89,6 +90,13 @@ export const COMMAND_KEYS: readonly CommandKey[] = [
     code: "KeyF",
     shift: true,
     label: "Focus the chat",
+  },
+  {
+    command: "see-through.toggle",
+    keys: "Alt+Shift+I",
+    code: "KeyI",
+    shift: true,
+    label: "See-through on or off",
   },
 ];
 

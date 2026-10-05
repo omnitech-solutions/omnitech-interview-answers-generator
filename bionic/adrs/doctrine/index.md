@@ -39,6 +39,16 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0016/screenshot-attachments-fail-closed | rule:screenshot-attachments-fail-closed | A screenshot reaches a provider only as an owner-scoped, frozen, size- and dimension-bounded attachment on a runtime whose image input a test proves; otherwise the action is refused, never answered text-only. | ADR-0016 | Accepted | decided | run-bound |
 | ADR-0016/two-action-slots-fenced | rule:two-action-slots-fenced | Short assistance and coding hold separate slots, each with its own action, abort signal, and handle; a superseded revision is cancelled and its result is never published. | ADR-0016 | Accepted | decided | run-bound |
 | ADR-0016/worker-local-tool-less-inference | rule:worker-local-tool-less-inference | Session actions reach agents only through the gateway's existing AgentExecutionPort, tool-less and structured; a runtime that cannot prove tool-less operation is refused, and Next.js never launches an agent. | ADR-0016 | Accepted | decided | run-bound |
+| ADR-0017/one-overlay-route-any-host | rule:one-overlay-route-any-host | The overlay card is one self-contained route that every host loads (the PiP window, the in-tab card, a standalone window, a native web view); a host adds no second implementation. | ADR-0017 | Accepted | decided | not-run-bound |
+| ADR-0017/provider-isolation-by-capability | rule:provider-isolation-by-capability | A session attempt keeps no provider history and gives the model no tools or shared host state, by capability: Claude by no tools, no persistence and no settings, Codex by a per-attempt home holding only a private copy of its sign-in. | ADR-0017 | Accepted | decided | not-run-bound |
+| ADR-0018/analyze-captures-fresh | rule:analyze-captures-fresh | Analyze examines a frame taken when the owner presses it, never a stored older one; a frame the owner supplies or requests enters the session only through an owner-authenticated route. | ADR-0018 | Accepted | decided | not-run-bound |
+| ADR-0018/companion-fulfils-never-creates | rule:companion-fulfils-never-creates | A companion credential may fulfil a pending capture request the owner made but can neither create nor widen one; an analysis exists only because the owner asked for it. | ADR-0018 | Accepted | decided | not-run-bound |
+| ADR-0018/mask-applied-before-send | rule:mask-applied-before-send | A capture region is applied where the frame is taken, in the browser or in the companion, so pixels outside it never leave the device. | ADR-0018 | Accepted | decided | not-run-bound |
+| ADR-0018/no-concealment | rule:no-concealment | The overlay has no mode that hides it from, or disguises it for, other participants' screen capture; it states that it is visible. | ADR-0018 | Accepted | decided | not-run-bound |
+| ADR-0019/host-frames-take-the-owner-route | rule:host-frames-take-the-owner-route | A frame from a host adapter enters Studio only as the page's own post to the owner-authenticated capture route, so masking, locality, staleness and persistence stay Studio's. | ADR-0019 | Accepted | decided | not-run-bound |
+| ADR-0019/native-shell-hosts-the-one-route | rule:native-shell-hosts-the-one-route | A native shell hosts the one overlay route and fulfils host capabilities through the versioned studio-host contract; it owns no session state, creates no assist request and calls no model. | ADR-0019 | Accepted | decided | not-run-bound |
+| ADR-0019/shell-credential-in-keychain | rule:shell-credential-in-keychain | A shell stores a pairing credential only in the Keychain, never sends or logs it, and loads only Studio's own origin in its web view. | ADR-0019 | Accepted | decided | not-run-bound |
+| ADR-0019/shell-no-concealment | rule:shell-no-concealment | A shell window keeps the default screen-capture sharing type, offers no hiding or disguise, and states that it is visible. | ADR-0019 | Accepted | decided | not-run-bound |
 
 ## active-session-locality — no-applicable-invariant
 
@@ -107,6 +117,7 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0014/one-terminal-outcome | rule:one-terminal-outcome | Each logical execution publishes exactly one terminal outcome; each claimed attempt publishes at most one closing outcome, including an awaiting-input suspension. | ADR-0014 | Accepted | decided | run-bound |
 | ADR-0014/provider-history-isolation | rule:provider-history-isolation | Provider history and model-readable files are isolated per owner; a session cannot read another tenant's history or shared credentials. | ADR-0014 | Accepted | decided | run-bound |
 | ADR-0014/worker-owned-isolated-sessions | rule:worker-owned-isolated-sessions | The worker bounds provider processes, and each persistent session is bound to one tenant, actor, job, and runtime profile; only the current lease claim may resume it. | ADR-0014 | Accepted | decided | run-bound |
+| ADR-0017/vendor-schema-stays-in-the-adapter | rule:vendor-schema-stays-in-the-adapter | A vendor's structured-output constraints are met inside the adapter that needs them: the product schema is unchanged and the answer is converted back. | ADR-0017 | Accepted | decided | not-run-bound |
 
 ## agent-worker — no-applicable-invariant
 
@@ -125,11 +136,12 @@ _Basis legend — the mechanical fact measured behind each rule: **run-bound** (
 | ADR-0010/generation-limits-are-configured | rule:generation-limits-are-configured | The call cap, fields per call, tries, field length, worker concurrency and lease are deployment settings with defaults and bounds; a value out of bounds stops startup and names the setting. | ADR-0010 | Accepted | decided | not-run-bound |
 | ADR-0010/generation-stops-with-its-reader | rule:generation-stops-with-its-reader | Generation progress reaches the page as a stream, a document is saved only when complete, and generation stops with its reader. | ADR-0010 | Accepted | decided | not-run-bound |
 | ADR-0010/parallel-document-generation | rule:parallel-document-generation | A document is written in at most the configured number of structured calls, one call when the template fits within one call's field budget, each over contiguous model-filled fields in template order, through AiExecutionGateway against a template revision and an immutable candidate-profile revision. | ADR-0010 | Accepted | decided | not-run-bound |
-| ADR-0015/complete-revision-publish | rule:complete-revision-publish | Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated generation identity cannot publish a second revision. | ADR-0015 | Proposed | decided | run-bound |
-| ADR-0015/exact-owned-batches | rule:exact-owned-batches | Each model batch owns a disjoint, contiguous set of template fields and must return exactly those keys with string values before its result can enter progress or a document. | ADR-0015 | Proposed | decided | run-bound |
-| ADR-0015/immutable-generation-identity | rule:immutable-generation-identity | A generation binds its owner, selected target, template and profile revisions, source selection, requested fields, and base document revision before model work begins. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/complete-revision-publish | rule:complete-revision-publish | Only a complete, structurally validated field snapshot may be saved; progress remains provisional, and a stale revision or repeated request key cannot publish a second revision. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/exact-owned-batches | rule:exact-owned-batches | Each model batch owns a disjoint, contiguous set of model-filled template fields and must return exactly those keys with string values before its result enters progress or a document. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/immutable-generation-identity | rule:immutable-generation-identity | A keyed generation reserves its owner, selected inputs, and captured source digest before model work and checkpoints only validated, fingerprinted batches; legacy unkeyed requests retain existing selection and revision guards. | ADR-0015 | Proposed | decided | run-bound |
 | ADR-0015/measured-document-grouping | rule:measured-document-grouping | Grouping is selected from same-input, same-machine trials of one, three, and five model groups that record visible-field time, total time, calls, tokens, cost, and failures. | ADR-0015 | Proposed | decided | run-bound |
 | ADR-0015/source-facts-own-authority | rule:source-facts-own-authority | Direct-source candidate, candidacy, and interview values remain authoritative; missing facts stay blank, while generated prose is a draft and never updates source preferences or profile facts. | ADR-0015 | Proposed | decided | run-bound |
+| ADR-0015/unverified-claims-remain-drafts | rule:unverified-claims-remain-drafts | Model-owned prose remains visibly unverified until candidate confirmation creates an immutable confirmed revision; edits, regeneration, and restore reset confirmation. | ADR-0015 | Proposed | decided | run-bound |
 
 ## Exempt ADRs (0)
 
@@ -139,7 +151,7 @@ _None._
 
 _Freshness is the deterministic input digests below; no wall-clock timestamp enters this file._
 
-- `adr_frontmatter_sha256`: `491163e798d5ba17f3ff50fe68a151d553d9bb126ab1cc2bd3e753621b5a794c`
+- `adr_frontmatter_sha256`: `79516f51af34707a74dfd8243f7cc6bfc78fe46d1106fe3444464e325581b4c5`
 - `governs_from`: `None`
 - `invariants_sha256`: `57179ec45e978a0ccce122a1a659de4748a13c0b5afdc3c9eaf2bf8d06696201`
 - `observations_sha256`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`

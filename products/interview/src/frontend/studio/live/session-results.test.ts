@@ -206,6 +206,83 @@ describe("code results", () => {
     expect(parseCodeResult(42)).toBeNull();
   });
 
+  it("parses an old-shape result: no coverage, messages or diagnostics", () => {
+    const code = parseCodeResult(codeResult({ coverage: undefined }));
+    expect(code?.coverage).toEqual([]);
+    expect(code?.tests.results).toEqual([{ name: "allows", status: "passed" }]);
+    expect(code?.syntax).toEqual({
+      checked: true,
+      clean: true,
+      diagnostics: [],
+    });
+    expect(code?.testCode).toBe("it('allows', () => {});");
+  });
+
+  it("parses coverage, per-test message and location, and diagnostics", () => {
+    const code = parseCodeResult(
+      codeResult({
+        coverage: [
+          { constraintIndex: 0, testName: "allows" },
+          { constraintIndex: 2, testName: "allows" },
+        ],
+        tests: {
+          total: 2,
+          passed: 1,
+          failed: 1,
+          skipped: 0,
+          results: [
+            {
+              name: "blocks",
+              status: "failed",
+              message: "expected false, got true",
+              location: { editor: "tests", line: 7 },
+            },
+            { name: "allows", status: "passed" },
+          ],
+        },
+        syntax: {
+          checked: true,
+          clean: false,
+          diagnostics: [{ line: 3, column: 5, message: "Unexpected token" }],
+        },
+      }),
+    );
+    expect(code?.coverage).toHaveLength(2);
+    expect(code?.tests.results[0]).toEqual({
+      name: "blocks",
+      status: "failed",
+      message: "expected false, got true",
+      location: { editor: "tests", line: 7 },
+    });
+    expect(code?.syntax.diagnostics).toEqual([
+      { line: 3, column: 5, message: "Unexpected token" },
+    ]);
+    expect(code?.notes).toBe("A sliding window per client.");
+    expect(code?.repair).toEqual({ attempted: false, succeeded: false });
+  });
+
+  it("drops a result whose test location is malformed", () => {
+    expect(
+      parseCodeResult(
+        codeResult({
+          tests: {
+            total: 1,
+            passed: 0,
+            failed: 1,
+            skipped: 0,
+            results: [
+              {
+                name: "x",
+                status: "failed",
+                location: { editor: "elsewhere", line: 1 },
+              },
+            ],
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("reads an agent job record", () => {
     expect(
       parseAgentResult({
@@ -253,6 +330,23 @@ describe("observation content", () => {
       }),
     ).toMatchObject({ text: "Hi" });
     expect(parseTranscriptContent({ speaker: "s", text: 5 })).toBeNull();
+    // The wire carries whole milliseconds: the schema stays strict.
+    expect(
+      parseTranscriptContent({
+        speaker: "s",
+        text: "Hi",
+        startMs: 1234,
+        endMs: 1234,
+      }),
+    ).not.toBeNull();
+    expect(
+      parseTranscriptContent({
+        speaker: "s",
+        text: "Hi",
+        startMs: 1234.5,
+        endMs: 1234.5,
+      }),
+    ).toBeNull();
     expect(
       parseSnapshotContent({
         windowLabel: "Editor",

@@ -21,6 +21,8 @@ export const STUDIO_HOST_CAPABILITIES = [
   "hotkeys",
   "open-external",
   "screen-watch",
+  "text-recognition",
+  "display-selection",
 ] as const;
 export type StudioHostCapability = (typeof STUDIO_HOST_CAPABILITIES)[number];
 
@@ -34,7 +36,14 @@ export type StudioHostCaptureRequest = {
   // that is now capturing a different display refuses with "capture-failed"
   // rather than apply the region to it.
   displayId?: StudioHostDisplayId | undefined;
+  // Why the capture was asked for. "explicit" is the person's own press (the
+  // capture button, the hotkey, Add screenshot): the shell may then capture the
+  // last focused browser even when another app is in front. Absent means
+  // automatic, which looks only while a browser is in front.
+  intent?: StudioHostCaptureIntent | undefined;
 };
+
+export type StudioHostCaptureIntent = "explicit" | "auto";
 
 // A display identifier is the system's display number (CGDirectDisplayID): an
 // unsigned 32-bit integer, echoed back unchanged and carrying no content.
@@ -47,6 +56,48 @@ export const isStudioHostDisplayId = (
   value >= 0 &&
   value <= 0xffff_ffff;
 
+// Which display a frame came from (user request, D32). The name is the system's
+// display name, never a window title or an address. `index` is 1-based in the
+// system's screen order, out of `count` displays.
+export type StudioHostDisplay = {
+  id: StudioHostDisplayId;
+  name: string;
+  index: number;
+  count: number;
+};
+
+// [GUARD] A closed object: exactly these four keys with sane values.
+export const isStudioHostDisplay = (
+  value: unknown,
+): value is StudioHostDisplay => {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const display = value as Partial<StudioHostDisplay>;
+  const { id, name, index, count } = display;
+  return (
+    Object.keys(value).length === 4 &&
+    isStudioHostDisplayId(id) &&
+    typeof name === "string" &&
+    name.length <= 64 &&
+    typeof index === "number" &&
+    typeof count === "number" &&
+    Number.isInteger(index) &&
+    Number.isInteger(count) &&
+    index >= 1 &&
+    index <= count
+  );
+};
+
+// "Display 2 of 3", or just the name when it is the only display.
+export const displayLabel = (display: StudioHostDisplay): string =>
+  display.count > 1
+    ? `Display ${display.index} of ${display.count}`
+    : display.name;
+
+// Why a pin was dropped (closed): the pinned display is gone, so capture follows
+// the last-focused browser again.
+type StudioHostPinFallback = "display-unavailable";
+
 // Why a capture produced nothing. "no-focused-window" is never widened to the
 // whole display.
 export const STUDIO_HOST_CAPTURE_FAILURES = [
@@ -54,9 +105,36 @@ export const STUDIO_HOST_CAPTURE_FAILURES = [
   "no-focused-window",
   "capture-failed",
   "unsupported",
+  // Another capture was already running; this one was refused, not queued.
+  "busy",
 ] as const;
 export type StudioHostCaptureFailure =
   (typeof STUDIO_HOST_CAPTURE_FAILURES)[number];
+
+// On-device text of one image (decision D31): Apple Vision in the native shell.
+// Machine-read, so it may contain errors. `text` is in reading order and bounded
+// (20,000 characters); `truncated` says it was cut at a line boundary.
+export type StudioHostOcr = {
+  engine: "vision";
+  text: string;
+  // Mean recognition confidence, 0..1.
+  confidence: number;
+  truncated: boolean;
+  // Where the text sits in the frame (D35), measured from Vision's text boxes
+  // on a 32x32 grid: numbers only, each 0..1 except `boxes`. Optional so an
+  // older shell, which sends none, still works (the server then sends images).
+  metrics?: StudioHostOcrMetrics | undefined;
+};
+
+type StudioHostOcrMetrics = {
+  // Fraction of the frame touched by a text box.
+  coverage: number;
+  meanConfidence: number;
+  // Area fraction of the largest rectangle no text box touches.
+  largestGap: number;
+  // Number of non-empty text boxes.
+  boxes: number;
+};
 
 export type StudioHostCaptureResult =
   | {
@@ -65,8 +143,27 @@ export type StudioHostCaptureResult =
       base64: string;
       // The display the frame was taken from, when the shell can name it.
       displayId?: StudioHostDisplayId | undefined;
+      // The same display, named for an indicator; absent when the shell cannot say.
+      display?: StudioHostDisplay | undefined;
+      // True when the person pinned capture to a display ("display-selection").
+      pinned?: boolean | undefined;
+      // Present once, on the first capture after a pin was dropped.
+      pinFallback?: StudioHostPinFallback | undefined;
+      // The text read from these same bytes before they were handed over. Absent
+      // when recognition was unavailable or ran out of time: the capture itself
+      // never waits on it or fails because of it.
+      ocr?: StudioHostOcr | undefined;
     }
-  | { ok: false; reason: StudioHostCaptureFailure };
+  | {
+      ok: false;
+      reason: StudioHostCaptureFailure;
+      // On "no-focused-window": the NAME of the application that was in front
+      // (at most STUDIO_HOST_FRONT_APP_MAX characters), so the page can say what
+      // to leave. Never a window title or an address.
+      frontApp?: string | undefined;
+    };
+
+export const STUDIO_HOST_FRONT_APP_MAX = 64;
 
 // Key presses the shell registered system-wide, passed to the page as events.
 // "capture-analyze" is the original; the dotted names are the typed command set
@@ -81,7 +178,46 @@ export type StudioHostHotkey =
   | "skill.next"
   | "skill.prev"
   | "session.clear"
-  | "chat.focus";
+  | "chat.focus"
+  | "see-through.toggle";
+
+// An image as the page holds it from a capture (or a crop it encoded itself).
+export type StudioHostImage = {
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+  base64: string;
+};
+
+type StudioHostTextRecognitionResult =
+  | ({ ok: true } & StudioHostOcr)
+  | {
+      ok: false;
+      reason: "too-large" | "unreadable" | "timeout" | "unavailable";
+    };
+
+// A small owner-visible preview of one display (320 px long edge at most), for a
+// picker only. The page holds it in memory; it is never capture input.
+type StudioHostDisplayPreview = {
+  display: StudioHostDisplay;
+  // Absent when the list was asked with `thumbnails: false` (no capture taken).
+  thumbnail?: { mediaType: "image/jpeg"; base64: string } | undefined;
+};
+
+export type StudioHostDisplayListResult =
+  | {
+      ok: true;
+      displays: StudioHostDisplayPreview[];
+      // The pin in force; null follows the browser. The shell re-checks a saved
+      // pin against the live displays first. Absent from an older shell.
+      pinnedDisplayId?: StudioHostDisplayId | null | undefined;
+      // The saved pin's display is gone: dropped, reported once (as a capture does).
+      pinFallback?: StudioHostPinFallback | undefined;
+    }
+  | { ok: false; reason: "permission-denied" | "capture-failed" };
+
+// The pin now in force: `display` is present exactly when pinned.
+export type StudioHostDisplaySelectResult =
+  | { ok: true; pinned: boolean; display?: StudioHostDisplay | undefined }
+  | { ok: false; reason: "display-unavailable" };
 
 export type StudioHost = {
   readonly version: typeof STUDIO_HOST_VERSION;
@@ -90,10 +226,26 @@ export type StudioHost = {
   captureScreen(
     request: StudioHostCaptureRequest,
   ): Promise<StudioHostCaptureResult>;
+  // Each display, the pin in force and, unless `thumbnails` is false, a preview
+  // of each ("display-selection"). With `thumbnails: false` nothing is captured,
+  // so the page may ask on mount to show the pin.
+  listDisplays?(request?: {
+    thumbnails?: boolean;
+  }): Promise<StudioHostDisplayListResult>;
+  // Pins capture (Manual and Auto) to a display; null follows the last-focused
+  // browser again ("display-selection").
+  setCaptureDisplay?(
+    displayId: StudioHostDisplayId | null,
+  ): Promise<StudioHostDisplaySelectResult>;
   // Keeps the window above others; resolves to the state now in force.
   pinOnTop(pinned: boolean): Promise<boolean>;
   // Opens an http(s) address in the person's default browser.
   openExternal(url: string): Promise<void>;
+  // Reads the text of an image on the device, when the shell can ("text-recognition").
+  // A refusal is a typed result, never a throw. Only the image's type and bytes cross.
+  recognizeText?(
+    image: StudioHostImage,
+  ): Promise<StudioHostTextRecognitionResult>;
   // Returns the remover.
   onHotkey(listener: (hotkey: StudioHostHotkey) => void): () => void;
   // The window presentation, when the shell offers one (below).
@@ -138,7 +290,12 @@ export type ScreenWatchResult =
   | { ok: true }
   | { ok: false; reason: ScreenWatchFailure };
 
-export type ScreenWatchEvent = { at: number; bits: number };
+export type ScreenWatchEvent = {
+  at: number;
+  bits: number;
+  // The display the settled change was seen on, when the shell can say.
+  display?: StudioHostDisplay | undefined;
+};
 
 export type ScreenWatchHost = {
   start(options: ScreenWatchOptions): Promise<ScreenWatchResult>;
@@ -182,6 +339,8 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
     hotkeys: "onHotkey",
     "open-external": "openExternal",
     "screen-watch": "screenWatch",
+    "text-recognition": "recognizeText",
+    "display-selection": "listDisplays",
   };
   const capabilities = new Set<StudioHostCapability>();
   for (const name of host.capabilities as unknown[]) {
@@ -205,11 +364,28 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
 // Presentation changes window behaviour only; it never touches the session.
 export const PRESENTATION_CAPABILITIES = [
   "always-on-top",
-  // Interaction mode: the window accepts clicks, or passes them to the one beneath.
-  "click-through",
+  // Retired: the whole-window click-through (old shells advertised "click-through").
+  // See-through works by region ("hit-regions"); the shell refuses to make the whole
+  // window inert, and a page ignores the old name.
   "all-spaces",
+  // The page reports the rectangles of its painted surfaces (setHitRegions); the
+  // window takes the mouse over them and passes it to the page underneath
+  // everywhere else.
+  "hit-regions",
 ] as const;
 export type PresentationCapability = (typeof PRESENTATION_CAPABILITIES)[number];
+
+// One rectangle of the window's content, in CSS px from its top-left corner.
+export type HitRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+// What the shell accepts in one report (HitRegions.swift states the same
+// numbers): at most `maxRects` rectangles, each side at most `maxSide`.
+export const HIT_REGION_LIMITS = { maxRects: 64, maxSide: 20000 } as const;
 
 export type PresentationHost = {
   readonly capabilities: readonly PresentationCapability[];
@@ -219,8 +395,8 @@ export type PresentationHost = {
   openSettings(): Promise<boolean>;
   closeSettings(): Promise<boolean>;
   setVisible(visible: boolean): Promise<boolean>;
-  // Interaction mode: true when the window takes clicks. A host without
-  // "click-through" is always true and refuses to change it.
+  // Interaction mode: true when the window takes clicks. It is always true: the
+  // shell refuses `setInteractionMode(false)` (the whole-window click-through is retired).
   interactionMode(): boolean;
   setInteractionMode(on: boolean): Promise<boolean>;
   // Returns the remover.
@@ -235,8 +411,17 @@ export type PresentationHost = {
   // `height` fits the window to its content from the top edge; without one the
   // window returns to the height it had before.
   setWindowSize?(size: { width: number; height?: number }): Promise<boolean>;
+  // Full screen of the one window: it fills the visible frame of the display it
+  // is on (not a macOS Space) and `false` restores the frame it had. The shell
+  // reports nothing back; the page owns the mode.
+  setFullScreen?(on: boolean): Promise<boolean>;
   // Quits the app (the Settings window's Quit button).
   quit?(): Promise<boolean>;
+  // The rectangles of every painted or interactive surface. The window takes
+  // the mouse only over them; `null` makes the whole window interactive again.
+  // The shell falls back to interactive when reports stop, so a page repeats
+  // its report while it wants pass-through.
+  setHitRegions?(regions: readonly HitRegion[] | null): Promise<boolean>;
 };
 
 export const PRESENTATION_APP_MODES = ["expanded", "minified"] as const;
@@ -293,8 +478,20 @@ export function negotiatePresentation(
             inner.setWindowSize?.(size) ?? Promise.resolve(false),
         }
       : {}),
+    ...(typeof inner.setFullScreen === "function"
+      ? {
+          setFullScreen: (on: boolean) =>
+            inner.setFullScreen?.(on) ?? Promise.resolve(false),
+        }
+      : {}),
     ...(typeof inner.quit === "function"
       ? { quit: () => inner.quit?.() ?? Promise.resolve(false) }
+      : {}),
+    ...(typeof inner.setHitRegions === "function"
+      ? {
+          setHitRegions: (regions: readonly HitRegion[] | null) =>
+            inner.setHitRegions?.(regions) ?? Promise.resolve(false),
+        }
       : {}),
   };
 }

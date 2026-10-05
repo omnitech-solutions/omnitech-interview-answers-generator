@@ -11,10 +11,6 @@ private func sender(
     SenderFacts(isMainFrame: main, scheme: scheme, host: host, port: port, isIntendedWebView: ours)
 }
 
-private func window(_ pid: Int32, layer: Int = 0, side: Double = 800) -> WindowCandidate {
-    WindowCandidate(ownerPid: pid, layer: layer, isOnScreen: true, width: side, height: side)
-}
-
 @MainActor
 func bridgeTrustTests(_ t: Harness) async {
     await t.test("only the main frame of the intended web view at the exact Studio origin is trusted") {
@@ -54,12 +50,6 @@ func bridgeTrustTests(_ t: Harness) async {
         t.expectEqual(FocusSampling.sample(frontmost: own, ownPid: own, lastOther: 300), 300, "the shell is not the focus")
         t.expectEqual(FocusSampling.sample(frontmost: nil, ownPid: own, lastOther: 300), 300)
         t.expectEqual(FocusSampling.sample(frontmost: own, ownPid: own, lastOther: nil), nil, "none, never widened")
-
-        let windows = [window(own, side: 2000), window(200, side: 500), window(200, side: 900), window(200, layer: 25, side: 3000)]
-        t.expectEqual(FocusSampling.choose(sampledPid: 200, ownPid: own, windows: windows), 2, "largest layer-0 window of the sampled app")
-        t.expectEqual(FocusSampling.choose(sampledPid: own, ownPid: own, windows: windows), nil, "the shell's own window is refused")
-        t.expectEqual(FocusSampling.choose(sampledPid: nil, ownPid: own, windows: windows), nil)
-        t.expectEqual(FocusSampling.choose(sampledPid: 999, ownPid: own, windows: windows), nil, "no windows, no widening")
     }
 
     await t.test("a region is bound to the display it was defined for") {
@@ -75,6 +65,6 @@ func bridgeTrustTests(_ t: Harness) async {
         for forbidden in ["asc_", "keychain", "Authorization", "credential", "fetch(", "XMLHttpRequest"] {
             t.expect(!source.lowercased().contains(forbidden.lowercased()), forbidden)
         }
-        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch"])
+        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch", "text-recognition", "display-selection"])
     }
 }

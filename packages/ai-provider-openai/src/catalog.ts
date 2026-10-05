@@ -1,11 +1,11 @@
-import {
-  createLmStudioModels,
-  createOpenRouterModels,
-} from "@omnitech-assistant/providers";
 import type {
   AiAccessContext,
   ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+import {
+  createLmStudioModels,
+  createOpenRouterModels,
+} from "@omnitech-assistant/providers";
 
 export interface OpenAiCatalogAdapterOptions {
   // The gateway target this adapter serves.

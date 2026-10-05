@@ -23,3 +23,10 @@ artifact_prefix: ""        # OPTIONAL. ^[A-Z][A-Z0-9]{1,9}$ or blank. Blank/abse
 # NEVER put secrets/tokens/keys here — this file is meant to be shared. Secrets live in ~/.crux/ (the user-home directory).
 # Full contract: <docs_dir>/AGENTS.md §14; resolved via the plugin's bionic-config CLI
 # (e.g. `python3 "${CRUX_PLUGIN_ROOT}/scripts/bionic-config.py"`).
+
+# Project-local arch extractor. Crux has no Drizzle reader, so bionic/arch/data-model.md
+# is rendered from the latest committed drizzle-kit snapshot by this function. Crux runs
+# it ONLY with CRUX_ARCH_ALLOW_OVERRIDES=1: use `pnpm docs:arch` / `pnpm docs:arch:check`,
+# or export the flag, otherwise data-model regenerates as a stub and shows false drift.
+arch_extractors:
+  data-model: tools/crux/arch/drizzle_data_model.py:extract_data_model

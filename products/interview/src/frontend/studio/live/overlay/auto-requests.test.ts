@@ -20,7 +20,7 @@ const fetcher = async (url: string, init?: RequestInit) => {
   return new Response(
     JSON.stringify({
       input: { requestId: "r", sequence: 1 },
-      snapshot: { sourceId: "s", eventId: "e" },
+      snapshots: [{ sourceId: "s", eventId: "e" }],
     }),
     { status: 202, headers: { "content-type": "application/json" } },
   );

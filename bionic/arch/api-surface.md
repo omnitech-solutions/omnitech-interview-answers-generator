@@ -82,4 +82,4 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
-- 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 117, 122, 140, 141, 153, 207, 210, 216, 246; `products/interview/src/backend/live-session/hardening/world.ts` line 172.
+- 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 172.

@@ -13,12 +13,16 @@ import { useLiveSession } from "../../use-live-session";
 import { installHostSurface, isNativeSurface } from "../host-surface";
 import { tellHost } from "../overlay-url";
 import { useAutoSession } from "./auto-session";
+import { canPassThrough, useHitRegions } from "./hit-regions";
+import { glassAttributes, usePanelGlass } from "./panel-glass";
 import type { NativeWindowPage } from "./panel-owner";
 import { SettingsPanel, Toasts } from "./panel-views";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
 import { SinglePanel, usePanes } from "./single-panel";
+import { SeeThroughButton } from "./toolbar";
 import { usePanelSession } from "./use-panel-session";
+import { usePanelWindowMode } from "./window-mode";
 
 const WINDOW_TITLE: Record<NativeWindowPage, string> = {
   single: "Live session",
@@ -30,10 +34,16 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
   const presentation = useMemo(() => selectPresentation(), []);
   const { snapshot, actions } = useLiveSession();
   const panes = usePanes();
+  const glass = usePanelGlass();
+  const windowMode = usePanelWindowMode(presentation);
+  const look = glassAttributes(glass);
   // Auto (the one preference) watches the screen while the analysis shows.
   const s = usePanelSession(panel, presentation, {
     watchScreen: panel === "single" && panes.shown.analysis,
+    toggleSeeThrough: glass.toggle,
   });
+  // See-through on: the shell takes the mouse only over the surfaces reported here.
+  useHitRegions(presentation, panel === "single" && glass.clear);
   const access = overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
   const opened = useRef(false);
@@ -67,7 +77,12 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
 
   if (access !== "ok")
     return (
-      <div className="pn-root" data-panel={panel} data-access={access}>
+      <div
+        className="pn-root"
+        data-panel={panel}
+        data-access={access}
+        {...look}
+      >
         <p className="pn-card pn-unavailable" role="alert">
           <Icon name={access === "signed-out" ? "lock" : "warning"} />
           {access === "signed-out"
@@ -78,7 +93,12 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
     );
   if (!snapshot.session)
     return (
-      <div className="pn-root" data-panel={panel} data-testid="pn-empty">
+      <div
+        className="pn-root"
+        data-panel={panel}
+        data-testid="pn-empty"
+        {...look}
+      >
         <div
           className={panel === "single" ? "pn-pill" : "pn-card"}
           aria-busy={snapshot.hydration !== "ready"}
@@ -112,14 +132,33 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
               Try again
             </button>
           )}
+          {/* Clear glass chosen earlier can be turned off with no session. */}
+          {native && panel === "single" && (
+            <SeeThroughButton
+              glass={glass}
+              passThrough={canPassThrough(presentation)}
+            />
+          )}
         </div>
       </div>
     );
 
   return (
-    <div className="pn-root" data-panel={panel} data-testid="pn-root">
+    <div
+      className="pn-root"
+      data-panel={panel}
+      data-testid="pn-root"
+      data-window-mode={panel === "single" ? windowMode.mode : undefined}
+      {...look}
+    >
       {panel === "single" ? (
-        <SinglePanel s={s} panes={panes} presentation={presentation} />
+        <SinglePanel
+          s={s}
+          panes={panes}
+          presentation={presentation}
+          glass={glass}
+          windowMode={windowMode}
+        />
       ) : (
         <SettingsPanel s={s} presentation={presentation} />
       )}

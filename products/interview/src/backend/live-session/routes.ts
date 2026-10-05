@@ -26,8 +26,12 @@ import {
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import {
+  LIVE_OCR_LIMITS,
+  LIVE_OWNER_INPUT_MAX_SNAPSHOTS,
   LIVE_SESSION_ERROR_STATUS,
   liveSessionListQuerySchema,
+  liveSessionScreenshotSendRequestSchema,
+  liveTaskIdSchema,
   maxOwnerCaptureBytes,
   SESSION_LIST_DEFAULT_PAGE,
 } from "@omnitech/interview-contracts";
@@ -61,8 +65,9 @@ const MAX_JSON_BYTES = 16 * 1024;
 // framing; anything larger is refused before it is parsed.
 const MULTIPART_OVERHEAD_BYTES = 8 * 1024;
 
-// Room for the capture route's text fields and multipart framing.
-const CAPTURE_FIELDS_BYTES = 16 * 1024;
+// Room for the capture route's text fields and multipart framing, and for the
+// `ocr` field: JSON-escaped text takes at most six bytes a character.
+const CAPTURE_FIELDS_BYTES = 16 * 1024 + LIVE_OCR_LIMITS.maxTextPerRequest * 6;
 
 type Status = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 503;
 
@@ -438,6 +443,20 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     });
   });
 
+  // The screenshots a task's revisions rest on: ids, ordinals and times only;
+  // an image is fetched through the screenshot route below. The task id is
+  // checked before the database, and a foreign session is an unknown one.
+  app.get(`${base}/:sessionId/tasks/:taskId/screenshots`, async (c) => {
+    const taskId = liveTaskIdSchema.safeParse(c.req.param("taskId"));
+    if (!taskId.success) throw new SessionError("invalid_input");
+    const screenshots = await repository.listTaskScreenshots(
+      c.get("scope"),
+      c.req.param("sessionId"),
+      taskId.data,
+    );
+    return c.json({ taskId: taskId.data, screenshots });
+  });
+
   app.get(`${base}/:sessionId/screenshots/:artifactId`, async (c) => {
     const download = await repository.readScreenshot(
       c.get("scope"),
@@ -494,7 +513,8 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
     try {
       bytes = await boundedBytes(
         c.req.raw,
-        maxOwnerCaptureBytes + CAPTURE_FIELDS_BYTES,
+        maxOwnerCaptureBytes * LIVE_OWNER_INPUT_MAX_SNAPSHOTS +
+          CAPTURE_FIELDS_BYTES,
       );
     } catch (error) {
       if (error instanceof BodyTooLarge)
@@ -502,7 +522,7 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       throw error;
     }
     const fields: Record<string, unknown> = {};
-    let image: Uint8Array | undefined;
+    const images: Uint8Array[] = [];
     try {
       const form = await new Request("http://capture.invalid/", {
         method: "POST",
@@ -511,28 +531,43 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       }).formData();
       for (const [name, value] of form.entries()) {
         if (name === "image") {
-          if (!(value instanceof File) || image) throw new Error("image");
-          image = new Uint8Array(await value.arrayBuffer());
+          if (!(value instanceof File)) throw new Error("image");
+          // More than the limit is refused whole before any image is read.
+          if (images.length >= LIVE_OWNER_INPUT_MAX_SNAPSHOTS)
+            throw new SessionError("invalid_input", [], "image_count");
+          images.push(new Uint8Array(await value.arrayBuffer()));
           continue;
         }
         // Text fields only, each once; an empty one is an absent one.
         if (typeof value !== "string" || name in fields)
           throw new Error("field");
         if (value === "") continue;
+        // The on-device text of the images, one JSON list; its shape and
+        // bounds are the contract's to judge.
+        if (name === "ocr" || name === "display") {
+          try {
+            fields[name] = JSON.parse(value);
+          } catch {
+            throw new SessionError("invalid_input", [], name);
+          }
+          continue;
+        }
         fields[name] =
           name === "targetRevision" && /^[0-9]{1,7}$/.test(value)
             ? Number(value)
             : value;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof SessionError) throw error;
       throw new SessionError("invalid_input", [], "body");
     }
-    if (!image) throw new SessionError("invalid_input", [], "no_image");
+    if (images.length === 0)
+      throw new SessionError("invalid_input", [], "no_image");
     const capture = await repository.submitOwnerCapture(
       c.get("scope"),
       c.req.param("sessionId"),
       fields,
-      image,
+      images,
     );
     return c.json(capture, 202);
   });
@@ -582,6 +617,19 @@ export function createSessionRoutes(options: SessionRoutesOptions) {
       c.get("scope"),
       c.req.param("sessionId"),
       body.data.processingPolicy as never,
+    );
+    return c.json({ session });
+  });
+
+  app.post(`${base}/:sessionId/screenshot-send`, async (c) => {
+    const body = liveSessionScreenshotSendRequestSchema.safeParse(
+      await jsonBody(c.req.raw),
+    );
+    if (!body.success) throw new SessionError("invalid_input");
+    const session = await repository.setScreenshotSend(
+      c.get("scope"),
+      c.req.param("sessionId"),
+      body.data.screenshotSend,
     );
     return c.json({ session });
   });

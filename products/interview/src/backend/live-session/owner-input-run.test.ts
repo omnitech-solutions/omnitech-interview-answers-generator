@@ -288,6 +288,30 @@ describe("a follow-up input", () => {
     ]);
   });
 
+  it("applies one of two add-screenshot presses aimed at the same revision, never both", async () => {
+    const { run, taskId } = await spokenTask();
+    await replay(run, [
+      shot("s1"),
+      shot("s2"),
+      input("r-a", {
+        operation: "analyze",
+        target: { taskId, revision: 1 },
+        snapshots: [{ sourceId: "screen", eventId: "s1" }],
+      }),
+      input("r-b", {
+        operation: "analyze",
+        target: { taskId, revision: 1 },
+        snapshots: [{ sourceId: "screen", eventId: "s2" }],
+      }),
+    ]);
+    // Both are handled (the second is skipped); only one revision results.
+    expect(processOwnerInputs(run)).toBe(2);
+    const task = run.tasks.tasks[taskId];
+    expect(task?.revision).toBe(2);
+    expect(task?.revisions[1]?.basedOn).toContain("input/r-a");
+    expect(traces).toContain("owner-input.stale-analyze:skipped");
+  });
+
   it("opens a new task when it targets nothing the run knows", async () => {
     const run = newRun();
     await replay(run, [
@@ -324,6 +348,96 @@ describe("a follow-up input", () => {
     }));
     expect(processOwnerInputs(run)).toBe(1);
     expect(run.tasks.tasks[taskId]?.revision).toBe(2);
+  });
+});
+
+describe("a regenerate input and added screenshots", () => {
+  const ids = ["a", "b", "c", "d", "e"];
+  const refs = (list: string[]) =>
+    list.map((eventId) => ({ sourceId: "screen", eventId }));
+  async function screenshotTask() {
+    const run = newRun();
+    await replay(run, [
+      ...ids.map(shot),
+      spoken("q1", "Can you implement a rate limiter in TypeScript?"),
+      input("r-1", { operation: "analyze", snapshots: refs(["a", "b"]) }),
+    ]);
+    processOwnerInputs(run);
+    return { run, taskId: "task-i.r-1" };
+  }
+
+  it("is a new revision of the SAME task with reason regenerate, resting on the same sources", async () => {
+    const { run, taskId } = await screenshotTask();
+    await replay(run, [
+      input("r-2", {
+        operation: "regenerate",
+        target: { taskId, revision: 1 },
+        snapshots: [],
+      }),
+    ]);
+    expect(processOwnerInputs(run)).toBe(1);
+    const task = run.tasks.tasks[taskId] as never as {
+      revision: number;
+      revisions: { reason: string; basedOn: string[] }[];
+    };
+    expect(Object.keys(run.tasks.tasks)).toEqual([taskId]);
+    expect(task.revision).toBe(2);
+    expect(task.revisions[1]?.reason).toBe("regenerate");
+    expect(task.revisions[1]?.basedOn).toEqual(["input/r-2"]);
+    // Every screenshot the task rests on travels again, oldest first.
+    expect(attachmentsFor(run, task as never).map((a) => a.id)).toEqual([
+      `snap/${SESSION}/screen/a`,
+      `snap/${SESSION}/screen/b`,
+    ]);
+  });
+
+  it("is skipped, not applied, when the task has moved on or is unknown", async () => {
+    const { run, taskId } = await screenshotTask();
+    await replay(run, [
+      input("r-2", {
+        operation: "regenerate",
+        target: { taskId, revision: 1 },
+        snapshots: [],
+      }),
+      input("r-3", {
+        operation: "regenerate",
+        target: { taskId, revision: 1 },
+        snapshots: [],
+      }),
+      input("r-4", {
+        operation: "regenerate",
+        target: { taskId: "task-nope", revision: 1 },
+        snapshots: [],
+      }),
+    ]);
+    // The unknown target waits one pass (an utterance may still be settling).
+    processOwnerInputs(run);
+    processOwnerInputs(run);
+    expect(run.pendingInputs).toHaveLength(0);
+    expect(run.tasks.tasks[taskId]?.revision).toBe(2);
+    expect(Object.keys(run.tasks.tasks)).toEqual([taskId]);
+    expect(run.processed.has("input/r-3")).toBe(true);
+  });
+
+  it("makes one revision with reason added-screenshot for several attached images, all of the task's images travelling (newest four)", async () => {
+    const { run, taskId } = await screenshotTask();
+    await replay(run, [
+      input("r-2", {
+        operation: "analyze",
+        target: { taskId, revision: 1 },
+        snapshots: refs(["c", "d", "e"]),
+      }),
+    ]);
+    processOwnerInputs(run);
+    const task = run.tasks.tasks[taskId] as never as {
+      revision: number;
+      revisions: { reason: string }[];
+    };
+    expect(task.revision).toBe(2);
+    expect(task.revisions[1]?.reason).toBe("added-screenshot");
+    expect(attachmentsFor(run, task as never).map((a) => a.id)).toEqual(
+      ["b", "c", "d", "e"].map((id) => `snap/${SESSION}/screen/${id}`),
+    );
   });
 });
 
@@ -422,6 +536,36 @@ describe("restart", () => {
       attachmentsFor(rebuilt, rebuilt.tasks.tasks["task-i.r-1"] as never),
     ).toHaveLength(1);
   });
+
+  it.each(["policy_changed", "setting_changed", "session_paused"])(
+    "leaves a %s suppression unsettled so the rebuilt run dispatches it again",
+    async (reason) => {
+      const row = (suppressionReason: string): StoredAction => ({
+        id: "a1",
+        taskId: "task-i.r-1",
+        taskRevision: 1,
+        actionKind: "draft-answer",
+        dispatchStatus: "suppressed",
+        attempt: 1,
+        fenceAtDispatch: 1,
+        jobId: null,
+        jobCreated: false,
+        sourceEventIds: ["input/r-1"],
+        result: null,
+        shown: false,
+        suppressionReason,
+        createdAt: "x",
+        updatedAt: "x",
+      });
+      const rebuilt = newRun();
+      await seedFromActions(rebuilt, storeOf([]), [row(reason)]);
+      expect(rebuilt.settled.size).toBe(0);
+      // A final suppression still settles.
+      const final = newRun();
+      await seedFromActions(final, storeOf([]), [row("assistance_disabled")]);
+      expect(final.settled.size).toBe(1);
+    },
+  );
 
   it("applies an input that was never recorded, exactly as the live run did", async () => {
     const rows = [

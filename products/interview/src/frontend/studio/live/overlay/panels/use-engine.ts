@@ -13,7 +13,7 @@ import type {
   EngineStartRefusal,
   EngineState,
 } from "@omnitech/interview-contracts";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export function engineHost(): EngineHost | null {
   if (typeof window === "undefined") return null;
@@ -37,12 +37,47 @@ const settle = async (
   }
 };
 
+// What a press of the microphone control does, and whether the engine is held.
+// ONE predicate: the label, the disabled state and the press all read it.
+//  - "held": the session is paused (or the engine is held): nothing starts or
+//    stops; the control says "Resume the session first".
+//  - "stop": the engine listens and its microphone is listening.
+//  - "restart": the engine runs but its microphone is starting, lost, denied or
+//    unavailable: a press stops it and starts it again.
+//  - "start": no engine is running (or it refused): a press starts it.
+export type MicAction = "stop" | "start" | "restart" | "held";
+
+export function micAction(input: {
+  wanted: boolean;
+  paused: boolean;
+  refused: EngineStartRefusal | null;
+  state: EngineState | null;
+}): MicAction {
+  if (input.wanted && (input.paused || input.state?.paused === true))
+    return "held";
+  if (input.refused !== null || input.state?.listening !== true) return "start";
+  return input.state.sources.microphone === "listening" ? "stop" : "restart";
+}
+
+export const MIC_HELD_TEXT = "Resume the session first.";
+
 export type EngineView = {
   present: boolean;
   state: EngineState | null;
   refused: EngineStartRefusal | null;
   // The engine is the listener: the browser recogniser must stay off.
   listening: boolean;
+  // The microphone control (Alt+R, "Stop microphone"): the engine's own state,
+  // not the browser's. `micOn` flips only when the engine reports it, and
+  // `micPending` is true while a stop or start is awaiting that report.
+  micOn: boolean;
+  micPending: boolean;
+  // What a press does (see micAction), and the held flag the label reads.
+  micAction: MicAction;
+  micHeld: boolean;
+  // Auto is on for an open session: the engine is the listener the press drives.
+  wanted: boolean;
+  toggleMic(): void;
 };
 
 export function useEngine(input: {
@@ -56,9 +91,27 @@ export function useEngine(input: {
   const [state, setState] = useState<EngineState | null>(null);
   const [refused, setRefused] = useState<EngineStartRefusal | null>(null);
   const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
   const sourcesKey = input.sources.join(",");
-  const paused = useRef(input.paused);
-  paused.current = input.paused;
+  const [micPending, setMicPending] = useState(false);
+  const micPendingRef = useRef(false);
+  const latest = useRef({ input, state, host, refused });
+  latest.current = { input, state, host, refused };
+
+  // [SAFETY] Every host call goes through ONE promise chain: the shell's own
+  // wait is a poll, not a queue, so a start sent before an earlier stop was
+  // answered could run first. `generation` moves with every start and stop of
+  // the effect below: a reply from a superseded run is dropped.
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const generation = useRef(0);
+  const enqueue = useCallback(<T>(call: () => Promise<T>): Promise<T> => {
+    const next = chain.current.then(call, call);
+    chain.current = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }, []);
 
   useEffect(() => {
     if (!host) return;
@@ -67,42 +120,116 @@ export function useEngine(input: {
 
   useEffect(() => {
     if (!host || !input.wanted || !input.sessionId) return;
+    generation.current += 1;
+    const mine = generation.current;
     let alive = true;
     setRefused(null);
+    startingRef.current = true;
     setStarting(true);
-    void settle(() =>
-      host.start({
-        sessionId: input.sessionId as string,
-        sources: sourcesKey.split(",").filter(Boolean) as never,
-      }),
+    void enqueue(() =>
+      settle(() =>
+        host.start({
+          sessionId: input.sessionId as string,
+          sources: sourcesKey.split(",").filter(Boolean) as never,
+        }),
+      ),
     ).then((reply) => {
-      if (!alive) return;
+      if (!alive || generation.current !== mine) return;
+      startingRef.current = false;
       setStarting(false);
       if (reply.ok) setState(reply.engine);
       else setRefused(reply.reason);
     });
     return () => {
       alive = false;
+      startingRef.current = false;
       setStarting(false);
-      void settle(() => host.stop()).then((reply) => {
+      generation.current += 1;
+      const stopping = generation.current;
+      void enqueue(() => settle(() => host.stop())).then((reply) => {
+        // A newer run began meanwhile: its state is not this stop's to set.
+        if (generation.current !== stopping) return;
         if (reply.ok) setState(reply.engine);
       });
     };
-  }, [host, input.wanted, input.sessionId, sourcesKey]);
+  }, [host, input.wanted, input.sessionId, sourcesKey, enqueue]);
 
   // The session's pause is mirrored to the engine.
   useEffect(() => {
     if (!host || !input.wanted || (!state?.listening && !state?.paused)) return;
     if (input.paused === state.paused) return;
-    void settle(() => (input.paused ? host.pause() : host.resume())).then(
-      (reply) => reply.ok && setState(reply.engine),
-    );
-  }, [host, input.wanted, input.paused, state?.listening, state?.paused]);
+    const mine = generation.current;
+    void enqueue(() =>
+      settle(() => (input.paused ? host.pause() : host.resume())),
+    ).then((reply) => {
+      if (reply.ok && generation.current === mine) setState(reply.engine);
+    });
+  }, [
+    host,
+    input.wanted,
+    input.paused,
+    state?.listening,
+    state?.paused,
+    enqueue,
+  ]);
 
+  // [SAFETY] One press, one host call sequence, none while one is pending. The
+  // action is micAction's: stop a listening engine, start a stopped or refused
+  // one, restart one whose microphone is not listening, and do nothing while
+  // held. The label follows the reply, never the press.
+  const toggleMic = useCallback(() => {
+    const now = latest.current;
+    const engine = now.host;
+    if (!engine || !now.input.sessionId || !now.input.wanted) return;
+    if (micPendingRef.current || startingRef.current) return;
+    const action = micAction({
+      wanted: now.input.wanted,
+      paused: now.input.paused,
+      refused: now.refused,
+      state: now.state,
+    });
+    if (action === "held") return;
+    const sessionId = now.input.sessionId;
+    const sources = [...now.input.sources];
+    micPendingRef.current = true;
+    setMicPending(true);
+    const mine = generation.current;
+    const begin = () => settle(() => engine.start({ sessionId, sources }));
+    void enqueue(async (): Promise<EngineReply> => {
+      if (action === "stop") return settle(() => engine.stop());
+      if (action === "restart") await settle(() => engine.stop());
+      return begin();
+    }).then((reply) => {
+      micPendingRef.current = false;
+      setMicPending(false);
+      if (generation.current !== mine) return;
+      if (reply.ok) {
+        setState(reply.engine);
+        if (action !== "stop") setRefused(null);
+      } else if (action !== "stop") setRefused(reply.reason);
+    });
+  }, [enqueue]);
+
+  const action = micAction({
+    wanted: input.wanted && input.sessionId !== null,
+    paused: input.paused,
+    refused,
+    state,
+  });
   return {
     present: host !== null,
     state,
     refused,
+    micOn:
+      host !== null &&
+      refused === null &&
+      state?.listening === true &&
+      state.sources.microphone === "listening",
+    micPending,
+    micAction: action,
+    micHeld: host !== null && action === "held",
+    wanted: input.wanted && input.sessionId !== null,
+    toggleMic,
     listening:
       host !== null &&
       input.wanted &&
@@ -114,7 +241,8 @@ export function useEngine(input: {
 // One short line for the pill and status: what the engine needs or hears.
 export function engineLine(view: EngineView): string | null {
   if (!view.present) return null;
-  if (view.refused) return `Engine could not start (${view.refused}).`;
+  if (view.refused)
+    return `Engine could not start (${view.refused}). Press the microphone to try again.`;
   const state = view.state;
   if (!state) return null;
   if (state.hint) return state.hint;
@@ -124,4 +252,35 @@ export function engineLine(view: EngineView): string | null {
   if (state.listening && state.lastHeardAgeSeconds !== null)
     return `Listening · heard ${state.lastHeardAgeSeconds}s ago`;
   return state.listening ? "Listening" : null;
+}
+
+// Only what the owner has to act on (a refusal, a hint, a lost or denied
+// microphone), for the status strip: the steady "Listening" line is not one.
+export function engineNeeds(view: EngineView): string | null {
+  if (!view.present || !view.wanted) return null;
+  if (view.refused) return engineLine(view);
+  const state = view.state;
+  if (!state) return null;
+  const mic = state.sources.microphone;
+  if (state.hint || mic === "permission-denied" || mic === "lost")
+    return engineLine(view);
+  return null;
+}
+
+// The microphone press: the engine when it is the listener's owner (present,
+// Auto on: including a refused engine, whose press starts it again), else the
+// browser's dictation (Manual, unchanged). Never both.
+export function pressMic(view: EngineView, dictation: () => void): void {
+  if (view.present && view.wanted) view.toggleMic();
+  else dictation();
+}
+
+// The microphone state both controllers report: the engine's own denial, its
+// listening microphone, else the browser dictation's state.
+export function engineMic(
+  view: EngineView,
+  fallback: "off" | "listening" | "denied",
+): "off" | "listening" | "denied" {
+  if (view.state?.sources.microphone === "permission-denied") return "denied";
+  return view.micOn ? "listening" : fallback;
 }

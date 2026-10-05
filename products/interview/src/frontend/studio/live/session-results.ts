@@ -5,6 +5,12 @@
 // extra fields are ignored, and anything that does not parse is null. A screen
 // shows nothing rather than a guess (rule:inert-draft-rendering: whatever these
 // return is plain text for the screen to render inertly).
+import {
+  type LiveCodeDiagnostic,
+  type LiveCodeTest,
+  liveCodeDiagnosticSchema,
+  liveCodeTestSchema,
+} from "@omnitech/interview-contracts";
 import { z } from "zod";
 
 // ---- Answers (action kind "draft-answer") ---------------------------------
@@ -146,10 +152,6 @@ export function parseAnswerResult(raw: unknown): AnswerResult | null {
 
 // ---- Code (action kind "solve-code") ---------------------------------------
 
-const testSchema = z.object({
-  name: z.string(),
-  status: z.enum(["passed", "failed", "skipped"]),
-});
 const workspaceSchema = z.union([
   z.object({
     published: z.literal(true),
@@ -171,6 +173,16 @@ const codeSchema = z.object({
   usageCode: z.string().optional(),
   testCode: z.string(),
   notes: z.string().optional(),
+  // constraintIndex -> the name of the test that covers it.
+  coverage: z
+    .array(
+      z.object({
+        constraintIndex: z.number().int().min(0),
+        testName: z.string(),
+      }),
+    )
+    .max(MAX_ITEMS)
+    .optional(),
   // Three DISTINCT states; none implies another (code-states.ts).
   states: z.object({
     generated: z.boolean(),
@@ -184,7 +196,7 @@ const codeSchema = z.object({
       passed: z.number().int(),
       failed: z.number().int(),
       skipped: z.number().int(),
-      results: z.array(testSchema).max(100),
+      results: z.array(liveCodeTestSchema).max(100),
     })
     .optional(),
   run: z
@@ -196,7 +208,12 @@ const codeSchema = z.object({
     })
     .optional(),
   syntax: z
-    .object({ checked: z.boolean(), clean: z.boolean().nullable() })
+    .object({
+      checked: z.boolean(),
+      clean: z.boolean().nullable(),
+      // Absent on results stored before diagnostics were kept.
+      diagnostics: z.array(liveCodeDiagnosticSchema).max(50).optional(),
+    })
     .optional(),
   repair: z
     .object({ attempted: z.boolean(), succeeded: z.boolean() })
@@ -213,16 +230,23 @@ export type CodeResult = {
   usageCode: string;
   testCode: string;
   notes: string;
+  // Which test the solution names for each stated constraint.
+  coverage: { constraintIndex: number; testName: string }[];
   states: CodeStatesView;
   tests: {
     total: number;
     passed: number;
     failed: number;
     skipped: number;
-    results: { name: string; status: "passed" | "failed" | "skipped" }[];
+    // Capped by the server; the counts above are the whole run's.
+    results: LiveCodeTest[];
   };
   runner: { available: boolean; timedOut: boolean; durationMs: number | null };
-  syntax: { checked: boolean; clean: boolean | null };
+  syntax: {
+    checked: boolean;
+    clean: boolean | null;
+    diagnostics: LiveCodeDiagnostic[];
+  };
   repair: { attempted: boolean; succeeded: boolean };
   // The earlier revision this solution replaces, if any.
   replacesRevision: number | null;
@@ -240,6 +264,7 @@ export function parseCodeResult(raw: unknown): CodeResult | null {
     usageCode: data.usageCode ?? "",
     testCode: data.testCode,
     notes: data.notes ?? "",
+    coverage: data.coverage ?? [],
     states: data.states,
     tests: data.tests ?? {
       total: 0,
@@ -253,7 +278,11 @@ export function parseCodeResult(raw: unknown): CodeResult | null {
       timedOut: data.run?.timedOut ?? false,
       durationMs: data.run?.durationMs ?? null,
     },
-    syntax: data.syntax ?? { checked: false, clean: null },
+    syntax: {
+      checked: data.syntax?.checked ?? false,
+      clean: data.syntax?.clean ?? null,
+      diagnostics: data.syntax?.diagnostics ?? [],
+    },
     repair: data.repair ?? { attempted: false, succeeded: false },
     replacesRevision: data.replacesRevision ?? null,
     workspace: data.workspace ?? null,

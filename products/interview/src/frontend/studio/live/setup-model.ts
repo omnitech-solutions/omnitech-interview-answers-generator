@@ -5,10 +5,12 @@ import type {
   LiveCaptureSource,
   LiveProcessingPolicy,
   LiveRetentionMode,
+  LiveScreenshotSend,
   LiveSessionChoicesResponse,
   LiveSessionStartRequest,
 } from "@omnitech/interview-contracts";
 import type { SessionErrorCode } from "./session-client";
+import { DEFAULT_SCREENSHOT_SEND } from "./shared/screenshot-send";
 
 type ProfileChoice = LiveSessionChoicesResponse["profiles"][number];
 
@@ -37,6 +39,8 @@ export type SetupForm = {
   // "none", or "<profileId>@<revision>".
   matrix: string;
   policy: LiveProcessingPolicy;
+  // D35: which of a screenshot reaches the model (sent with the start request).
+  screenshotSend: LiveScreenshotSend;
   retention: LiveRetentionMode;
 };
 
@@ -66,6 +70,7 @@ export function initialForm(host: SetupHost): SetupForm {
     // answers). The owner can switch to Device only before start; a remembered
     // choice overrides this. After start it can only be tightened (ADR-0012).
     policy: "permitted-remote",
+    screenshotSend: DEFAULT_SCREENSHOT_SEND,
     retention: "delete-at-end",
   };
 }
@@ -131,6 +136,13 @@ export function buildStartRequest(
     liveAssistance: strict ? false : form.assistance,
     retention: form.retention,
   };
+  // Only a choice that differs from the default is sent (absent = Always), and
+  // never for a device-only session, which sends no image whatever it says.
+  if (
+    form.screenshotSend !== DEFAULT_SCREENSHOT_SEND &&
+    form.policy !== "device-only"
+  )
+    request.screenshotSend = form.screenshotSend;
   if (form.target.kind === "rehearsal") {
     request.rehearsal = { runId: rehearsalRunId, strict };
   } else {

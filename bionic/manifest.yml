@@ -99,3 +99,16 @@ observation:
   stale_days: 90
   next_survey_number: 1
   survey_stub_days: 1
+
+# Arch concern strict gate (docs/AGENTS.md §4). Each concern named here must have
+# a recorded verdict of `populated` or the derive fails with exit 1 (always
+# checked, no flag). All four are produced today. data-model comes from the
+# project extractor (`arch_extractors` in .bionic.yml), which only runs with
+# CRUX_ARCH_ALLOW_OVERRIDES=1: a derive without it records data-model as a stub
+# and trips this gate instead of passing silently.
+arch:
+  require:
+    - data-model
+    - api-surface
+    - module-graph
+    - decision-index

@@ -24,3 +24,7 @@ _Each ADR bound to the promptbooks and runs whose artifacts reference it. Regene
 | ADR-0017 | no | — | — |
 | ADR-0018 | no | — | — |
 | ADR-0019 | no | — | — |
+| ADR-0020 | no | — | — |
+| ADR-0021 | no | — | — |
+| ADR-0022 | no | — | — |
+| ADR-0023 | no | — | — |

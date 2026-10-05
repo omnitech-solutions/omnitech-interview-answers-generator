@@ -177,10 +177,15 @@ describe("Add context", () => {
 });
 
 describe("Add another screenshot", () => {
-  it("captures the source for the task on show and the revision clears the strip", async () => {
+  it("stages the capture on the device; Apply sends it for the task on show and the revision clears the strip", async () => {
     installCaptureHost();
     await open();
     await press("Add another screenshot");
+    await flush();
+    // Manual stages: nothing is sent until Apply.
+    expect(journey.captures).toHaveLength(0);
+    expect(screen.getByTestId("staged-1")).toHaveTextContent("Not sent yet");
+    fireEvent.click(screen.getByTestId("apply-screenshots"));
     await flush();
     expect(journey.captures).toHaveLength(1);
     expect(journey.captures[0]).toMatchObject({
@@ -211,6 +216,12 @@ describe("Add another screenshot", () => {
     await flush();
     await flush();
     expect(host).toHaveBeenCalledTimes(1);
+    // One staged image; a double Apply is one request.
+    expect(journey.captures).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("apply-screenshots"));
+    fireEvent.click(screen.getByTestId("apply-screenshots"));
+    await flush();
+    await flush();
     expect(journey.captures).toHaveLength(1);
   });
 
@@ -234,9 +245,67 @@ describe("Add another screenshot", () => {
     await open();
     await press("Add another screenshot");
     await flush();
-    expect(alerts()).toContain("Couldn’t capture the shared source");
+    expect(alerts()).toContain("Screen Recording is off for Interview Studio");
     expect(journey.captures).toEqual([]);
     expect(strip()).toHaveTextContent("Examples");
+  });
+
+  it("a capture problem is a banner with the fix and its action, until the next capture works", async () => {
+    const openExternal = vi.fn(async () => undefined);
+    let working = false;
+    const captureScreen = installCaptureHost(
+      {
+        capabilities: ["capture-screen", "open-external"],
+        openExternal,
+      },
+      async () =>
+        working
+          ? {
+              ok: true,
+              mediaType: "image/jpeg",
+              base64: btoa("\xff\xd8\xff\xe0JFIF"),
+            }
+          : { ok: false, reason: "permission-denied" },
+    );
+    await open();
+    await press("Add another screenshot");
+    await flush();
+    const banner = screen.getByTestId("capture-problem");
+    expect(banner).toHaveAttribute("data-reason", "permission-denied");
+    expect(screen.getByTestId("capture-problem-fix")).toHaveTextContent(
+      "Screen & System Audio Recording",
+    );
+    // Add another screenshot is the person's own press: an explicit capture.
+    expect(captureScreen).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: "explicit" }),
+    );
+    fireEvent.click(screen.getByTestId("capture-problem-action"));
+    expect(openExternal).toHaveBeenCalledWith(
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    );
+    // It stays through other work, and goes when a capture succeeds.
+    await press("Add another screenshot");
+    await flush();
+    expect(screen.getByTestId("capture-problem")).toBeVisible();
+    working = true;
+    await press("Add another screenshot");
+    await flush();
+    expect(screen.queryByTestId("capture-problem")).toBeNull();
+  });
+
+  it("a capture problem can be dismissed", async () => {
+    installCaptureHost({}, async () => ({
+      ok: false,
+      reason: "capture-failed",
+    }));
+    await open();
+    await press("Add another screenshot");
+    await flush();
+    expect(screen.getByTestId("capture-problem-title")).toHaveTextContent(
+      "The capture failed",
+    );
+    fireEvent.click(screen.getByTestId("capture-problem-dismiss"));
+    expect(screen.queryByTestId("capture-problem")).toBeNull();
   });
 
   it("is unavailable, with the reason, in a device-only session", async () => {

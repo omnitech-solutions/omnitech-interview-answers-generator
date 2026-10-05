@@ -2,5 +2,6 @@
 
 _Source: `products/interview/src/frontend/studio/live/pip-document.ts` (header-comment fallback)_
 
-Document Picture-in-Picture helpers: the API handle, and copying the page's
-styles into the new document so the float looks like Studio.
+Document Picture-in-Picture: the API handle. The float's content is the
+overlay route loaded in an iframe (float-host.tsx), so nothing is copied
+into the window.

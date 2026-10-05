@@ -3,6 +3,7 @@
 // capture not blocking the next tick, and the decision itself.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AUTO_BACKOFF } from "./auto-backoff";
 import { AUTO_MAX_PER_SESSION, AUTO_MIN_GAP_MS } from "./auto-gate";
 import type { FrameHash } from "./auto-hash";
 import {
@@ -258,6 +259,88 @@ describe("heard speech", () => {
     expect(onManualFinal).not.toHaveBeenCalled();
   });
 
+  it("never starts a browser recogniser while the native engine owns the microphone (Alt+R)", async () => {
+    installRecognition();
+    const view = mount({ engineListening: true });
+    await advance(100);
+    act(() => view.result.current.toggleListening());
+    act(() => view.result.current.toggleListening());
+    expect(FakeRecognition.instances).toHaveLength(0);
+  });
+
+  it("Manual with the native engine present: the press still toggles browser dictation", async () => {
+    installRecognition();
+    window.localStorage.setItem("interview-studio.live.auto.t", "off");
+    const view = mount({ engineListening: true });
+    act(() => view.result.current.toggleListening());
+    expect(FakeRecognition.instances).toHaveLength(1);
+    expect(view.result.current.mic).toBe("listening");
+    act(() => view.result.current.toggleListening());
+    expect(view.result.current.mic).toBe("off");
+  });
+
+  describe("native engine present (the web view's own microphone prompt)", () => {
+    const getUserMedia = vi.fn(async () => ({ getTracks: () => [] }));
+    class FakeAudio {
+      createMediaStreamSource() {
+        return { connect() {} };
+      }
+      createAnalyser() {
+        return { fftSize: 0, getByteTimeDomainData() {} };
+      }
+      close() {}
+    }
+    beforeEach(() => {
+      getUserMedia.mockClear();
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: { getUserMedia },
+      });
+      (window as unknown as { AudioContext: unknown }).AudioContext = FakeAudio;
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, "mediaDevices");
+      Reflect.deleteProperty(window, "AudioContext");
+    });
+
+    it("Auto on and the engine not listening yet (or refused): no recogniser, no getUserMedia, however long it waits", async () => {
+      installRecognition();
+      mount({ nativeEngine: true, engineListening: false });
+      await advance(30_000);
+      expect(FakeRecognition.instances).toHaveLength(0);
+      expect(getUserMedia).not.toHaveBeenCalled();
+    });
+
+    it("Auto on and the engine listening: unchanged, nothing started", async () => {
+      installRecognition();
+      mount({ nativeEngine: true, engineListening: true });
+      await advance(30_000);
+      expect(FakeRecognition.instances).toHaveLength(0);
+      expect(getUserMedia).not.toHaveBeenCalled();
+    });
+
+    it("an explicit press with Auto off still falls back to browser dictation, without the getUserMedia meter", async () => {
+      installRecognition();
+      window.localStorage.setItem("interview-studio.live.auto.t", "off");
+      const view = mount({ nativeEngine: true, engineListening: false });
+      await advance(5_000);
+      expect(FakeRecognition.instances).toHaveLength(0);
+      act(() => view.result.current.toggleListening());
+      await advance(100);
+      expect(FakeRecognition.instances).toHaveLength(1);
+      expect(view.result.current.mic).toBe("listening");
+      expect(getUserMedia).not.toHaveBeenCalled();
+    });
+
+    it("a web host (no engine): Auto starts dictation and its meter as before", async () => {
+      installRecognition();
+      mount({ nativeEngine: false, engineListening: false });
+      await advance(100);
+      expect(FakeRecognition.instances).toHaveLength(1);
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("with Auto off, dictation is the typed draft and nothing is submitted", async () => {
     installRecognition();
     window.localStorage.setItem("interview-studio.live.auto.t", "off");
@@ -268,5 +351,34 @@ describe("heard speech", () => {
     await advance(1_000);
     expect(onManualFinal).toHaveBeenCalledWith("typed words");
     expect(submitHeard).not.toHaveBeenCalled();
+  });
+});
+
+describe("back-off after a no-question result (D36)", () => {
+  it("holds a small change, then captures on a substantial change; a real result resumes normal watching", async () => {
+    const view = mount({ lastResultNoQuestion: true });
+    await advance(8_100);
+    expect(capture).toHaveBeenCalledTimes(1);
+    // 4..15 bits of change, past the 15 s gap: held while the result stays no-question.
+    hash = [0, (1 << AUTO_CHANGE_BITS) - 1];
+    await advance(AUTO_MIN_GAP_MS + 8_000);
+    expect(capture).toHaveBeenCalledTimes(1);
+    // A substantial change goes through.
+    hash = FAR;
+    await advance(8_000);
+    expect(capture).toHaveBeenCalledTimes(2);
+    // The next result was a real task: the same small change is analysed again.
+    view.rerender(base({ lastResultNoQuestion: false }));
+    hash = [0, (1 << AUTO_CHANGE_BITS) - 1];
+    await advance(AUTO_MIN_GAP_MS + 8_000);
+    expect(capture).toHaveBeenCalledTimes(3);
+  });
+
+  it("captures a small change once the cooldown has passed", async () => {
+    mount({ lastResultNoQuestion: true });
+    await advance(8_100);
+    hash = [0, (1 << AUTO_CHANGE_BITS) - 1];
+    await advance(AUTO_BACKOFF.noQuestionCooldownMs + 8_000);
+    expect(capture).toHaveBeenCalledTimes(2);
   });
 });

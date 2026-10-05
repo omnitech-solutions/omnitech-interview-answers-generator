@@ -26,11 +26,11 @@ func bridgeScriptTests(_ t: Harness) async {
         t.expectEqual(context.evaluateScript("window.studioHost.version")?.toInt32(), 1)
         t.expectEqual(context.evaluateScript("window.studioHost.hostKind")?.toString(), "native-macos")
         t.expectEqual(context.evaluateScript("window.studioHost.capabilities.join(',')")?.toString(),
-            "capture-screen,pin-on-top,hotkeys,open-external,screen-watch")
+            "capture-screen,pin-on-top,hotkeys,open-external,screen-watch,text-recognition,display-selection")
         let narrowed = page(capabilities: [.captureScreen])
         t.expectEqual(narrowed.evaluateScript("window.studioHost.capabilities.join(',')")?.toString(), "capture-screen")
         // The names are the TypeScript contract's: keep the two in step.
-        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch"])
+        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch", "text-recognition", "display-selection"])
         t.expectEqual(HostBridge.version, 1)
     }
 

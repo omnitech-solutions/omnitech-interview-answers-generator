@@ -7,6 +7,7 @@
 // Responses are plain objects (unknown fields are stripped, so the server can
 // add a field without breaking an older client); requests are strict.
 import { z } from "zod";
+import { editorLocationSchema } from "./guide";
 
 export const SESSION_LIST_MAX_PAGE = 100;
 export const SESSION_LIST_DEFAULT_PAGE = 20;
@@ -35,6 +36,28 @@ export const liveProcessingPolicySchema = z.enum([
 ]);
 export type LiveProcessingPolicy = z.infer<typeof liveProcessingPolicySchema>;
 
+// D35: what of a screenshot the owner lets reach a model, a per-session choice.
+// always: the image and its on-screen text (the default; sessions recorded
+// before the setting read as this). text-only-when-text: the image is withheld
+// only when the server judges the on-screen text carries the whole frame (see
+// the image gate); any doubt sends the image. never: no image reaches a model;
+// the on-screen text still does unless the session is device-only. A
+// device-only session sends neither, whatever this says.
+export const LIVE_SCREENSHOT_SEND_MODES = [
+  "always",
+  "text-only-when-text",
+  "never",
+] as const;
+export const liveScreenshotSendSchema = z.enum(LIVE_SCREENSHOT_SEND_MODES);
+export type LiveScreenshotSend = z.infer<typeof liveScreenshotSendSchema>;
+
+// What of one screenshot left the device for one revision's model call, as it
+// happened at dispatch: the image (with its text when read), its text only, or
+// nothing.
+export const LIVE_SCREENSHOT_SENT = ["image", "text-only", "none"] as const;
+export const liveScreenshotSentSchema = z.enum(LIVE_SCREENSHOT_SENT);
+export type LiveScreenshotSent = z.infer<typeof liveScreenshotSentSchema>;
+
 export const liveCaptureSourceSchema = z.enum([
   "microphone",
   "application-audio",
@@ -55,6 +78,8 @@ export const liveSessionViewSchema = z.object({
   status: liveSessionStatusSchema,
   retention: liveRetentionModeSchema,
   processingPolicy: liveProcessingPolicySchema,
+  // D35; absent reads as "always".
+  screenshotSend: liveScreenshotSendSchema.optional(),
   createdAt: isoTime,
   // The duration cap: the session ends by itself at this instant.
   expiresAt: isoTime,
@@ -125,6 +150,8 @@ export type LiveCredential = z.infer<typeof liveCredentialSchema>;
 // POST .../sessions
 export const liveSessionStartRequestSchema = z.strictObject({
   processingPolicy: liveProcessingPolicySchema,
+  // D35; omitted: "always".
+  screenshotSend: liveScreenshotSendSchema.optional(),
   captureSources: z.array(liveCaptureSourceSchema).min(1).max(3),
   liveAssistance: z.boolean().optional(),
   retention: liveRetentionModeSchema.optional(),
@@ -177,6 +204,11 @@ export const liveCredentialRenewResponseSchema = z.object({
 export const liveSessionPolicyRequestSchema = z.strictObject({
   processingPolicy: liveProcessingPolicySchema,
 });
+// POST .../sessions/:id/screenshot-send  ->  { session } (the owner may change it
+// either way at any time; it applies to the next model call).
+export const liveSessionScreenshotSendRequestSchema = z.strictObject({
+  screenshotSend: liveScreenshotSendSchema,
+});
 export const liveSessionRetentionRequestSchema = z.strictObject({
   retention: liveRetentionModeSchema,
 });
@@ -197,7 +229,16 @@ const wireId = z
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
 // A request id becomes part of a task's id, so it is shorter than a wire id.
+// It has no "." because the extra images of a capture are named
+// `${requestId}.${n}`: with the dot reserved, no request id can collide with
+// another request's extra-image event id.
 const ownerInputId = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_:-]+$/);
+// A capture request's id names no snapshot, so it keeps the wider alphabet.
+const captureRequestId = z
   .string()
   .min(1)
   .max(64)
@@ -263,19 +304,23 @@ export const liveOwnerHintFields = {
   language: liveOwnerLanguageHintSchema.optional(),
 };
 
+// A task id is an opaque server-made string; this is the alphabet and length
+// every route and request that names one accepts.
+export const liveTaskIdSchema = z
+  .string()
+  .min(1)
+  .max(160)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+
 export const liveOwnerInputRequestSchema = z
   .strictObject({
     requestId: ownerInputId,
     ...liveOwnerHintFields,
-    operation: z.enum(["analyze", "follow-up", "solve"]),
+    operation: z.enum(["analyze", "follow-up", "solve", "regenerate"]),
     // When the input is about an existing task revision the owner can see.
     target: z
       .strictObject({
-        taskId: z
-          .string()
-          .min(1)
-          .max(160)
-          .regex(/^[A-Za-z0-9._:-]+$/),
+        taskId: liveTaskIdSchema,
         revision: z.number().int().min(1).max(1_000_000),
       })
       .optional(),
@@ -291,9 +336,10 @@ export const liveOwnerInputRequestSchema = z
       context.addIssue({ code: "custom", path: ["text"] });
     if (input.operation === "follow-up" && input.snapshots.length > 0)
       context.addIssue({ code: "custom", path: ["snapshots"] });
-    // "solve" (generate the solution code): bound to ONE task revision the
-    // owner can see, with no free text and no images of its own.
-    if (input.operation === "solve") {
+    // "solve" (generate the solution code) and "regenerate" (a new revision of
+    // the same task from the same sources): bound to ONE task revision the
+    // owner can see, with no free text and no images of their own.
+    if (input.operation === "solve" || input.operation === "regenerate") {
       if (input.target === undefined)
         context.addIssue({ code: "custom", path: ["target"] });
       if (input.text !== undefined)
@@ -329,10 +375,62 @@ export const liveOwnerInputResponseSchema = z.object({
 });
 
 // Capture and analyze: POST .../sessions/:id/capture, multipart/form-data with
-// a file part `image` and these text fields. The image is stored privately and
-// analysed in the same request's `owner.input`.
+// one to LIVE_OWNER_INPUT_MAX_SNAPSHOTS file parts `image` (each up to
+// maxOwnerCaptureBytes) and these text fields. The images are stored privately
+// and analysed in the same request's one `owner.input`.
 export const maxOwnerCaptureBytes = 2 * 1024 * 1024;
+// The smallest side, in pixels, of an image the server accepts: a crop below
+// it is refused (invalid_input, reason image_dimensions). The crop tool
+// enforces the same number.
+export const LIVE_OWNER_CAPTURE_MIN_SIDE = 32;
 export const LIVE_OWNER_CAPTURE_MAX_LABEL_CHARS = 80;
+// On-device text recognition of one image (the client reads it before sending):
+// plain text, bounded per image and per request, never trimmed silently beyond
+// the cap (a longer one refuses the request). Stored with the screenshot's
+// observation and never returned to the browser: only `engine` comes back.
+export const LIVE_OCR_ENGINES = ["vision", "tesseract"] as const;
+export const LIVE_OCR_LIMITS = {
+  maxTextPerImage: 20_000,
+  maxTextPerRequest: 60_000,
+} as const;
+// Where the text sits in the frame, measured by the native recogniser from the
+// text boxes on a coarse grid (D35). Numbers only. Evidence for the image gate;
+// absent means unknown, and unknown always sends the image.
+export const liveOcrMetricsSchema = z.strictObject({
+  // Fraction of the frame touched by a text box.
+  coverage: z.number().min(0).max(1),
+  meanConfidence: z.number().min(0).max(1),
+  // Area fraction of the largest rectangle no text box touches.
+  largestGap: z.number().min(0).max(1),
+  boxes: z.number().int().min(0).max(100_000),
+});
+export type LiveOcrMetrics = z.infer<typeof liveOcrMetricsSchema>;
+export const liveOcrBlockSchema = z.strictObject({
+  engine: z.enum(LIVE_OCR_ENGINES),
+  text: z.string().max(LIVE_OCR_LIMITS.maxTextPerImage),
+  confidence: z.number().min(0).max(1).optional(),
+  metrics: liveOcrMetricsSchema.optional(),
+});
+export type LiveOcrBlock = z.infer<typeof liveOcrBlockSchema>;
+
+// Which display a screenshot was captured on, as the studio host reports it,
+// stored with the screenshot's observation. A closed label: never the numeric
+// display id (it names hardware across sessions), so a stored screenshot can
+// say "Display 2 of 3" without identifying the machine.
+export const liveCaptureDisplaySchema = z
+  .strictObject({
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .regex(/^[^\p{C}]+$/u),
+    index: z.number().int().min(1).max(1_000),
+    count: z.number().int().min(1).max(1_000),
+  })
+  .refine((display) => display.index <= display.count);
+export type LiveCaptureDisplay = z.infer<typeof liveCaptureDisplaySchema>;
+
 export const liveOwnerCaptureRequestSchema = z.strictObject({
   requestId: ownerInputId,
   operation: z.literal("analyze"),
@@ -351,13 +449,34 @@ export const liveOwnerCaptureRequestSchema = z.strictObject({
     .max(LIVE_OWNER_CAPTURE_MAX_LABEL_CHARS)
     .regex(/^[^\p{C}]+$/u)
     .optional(),
+  // One entry per image, in the order the images are sent (null: not read).
+  ocr: z
+    .array(liveOcrBlockSchema.nullable())
+    .max(LIVE_OWNER_INPUT_MAX_SNAPSHOTS)
+    .refine(
+      (blocks) =>
+        blocks.reduce((total, block) => total + (block?.text.length ?? 0), 0) <=
+        LIVE_OCR_LIMITS.maxTextPerRequest,
+    )
+    .optional(),
+  // One entry per image, in the order the images are sent (null: unknown).
+  display: z
+    .array(liveCaptureDisplaySchema.nullable())
+    .max(LIVE_OWNER_INPUT_MAX_SNAPSHOTS)
+    .optional(),
 });
 export type LiveOwnerCaptureRequest = z.infer<
   typeof liveOwnerCaptureRequestSchema
 >;
+// One request may carry up to LIVE_OWNER_INPUT_MAX_SNAPSHOTS `image` parts (a
+// task's added context): all or nothing, one `owner.input`, one revision.
+// `snapshots` names the stored images in the order sent.
 export const liveOwnerCaptureResponseSchema = z.object({
   input: liveOwnerInputResponseSchema.shape.input,
-  snapshot: z.object({ sourceId: z.string(), eventId: z.string() }),
+  snapshots: z
+    .array(z.object({ sourceId: z.string(), eventId: z.string() }))
+    .min(1)
+    .max(LIVE_OWNER_INPUT_MAX_SNAPSHOTS),
 });
 export type LiveOwnerCaptureResponse = z.infer<
   typeof liveOwnerCaptureResponseSchema
@@ -389,14 +508,14 @@ export const liveCaptureRegionSchema = z
 export type LiveCaptureRegion = z.infer<typeof liveCaptureRegionSchema>;
 export const liveCaptureRequestSchema = z
   .strictObject({
-    requestId: ownerInputId,
+    requestId: captureRequestId,
     mode: liveCaptureModeSchema,
     region: liveCaptureRegionSchema.optional(),
     // The screen selection the region was drawn against (the companion's token,
     // read from the companion capability). A region is bound to it: it is never
     // applied after the source changes. Omitted, Studio binds the region to the
     // selection the companion last declared at submission.
-    selection: ownerInputId.optional(),
+    selection: captureRequestId.optional(),
     targetTaskId: z
       .string()
       .min(1)
@@ -470,6 +589,11 @@ export const liveObservationSchema = z.object({
     occurredAt: z.string(),
     sourceSequence: z.number().int().nonnegative(),
     body: z.unknown(),
+    // On a screenshot whose text was read on the device: which engine read it.
+    // The text itself is never sent to the browser.
+    ocr: z.object({ engine: z.enum(LIVE_OCR_ENGINES) }).optional(),
+    // On an owner capture screenshot: the display it came from (a label only).
+    display: liveCaptureDisplaySchema.optional(),
   }),
   screenshotArtifactId: z.string().nullable(),
 });
@@ -542,12 +666,46 @@ export type LiveMissingContextItem = z.infer<
 >;
 export type LiveMissingContext = readonly LiveMissingContextItem[];
 
+// What a stored solve-code result keeps of the runner's report, bounded. The
+// message and diagnostics are about generated code (the same content class as
+// the code itself): stored and shown, never logged. stdout, stderr and per-test
+// durations are not stored at all.
+export const LIVE_CODE_LIMITS = {
+  tests: 50,
+  testName: 200,
+  testMessage: 300,
+  diagnostics: 20,
+  diagnosticMessage: 200,
+} as const;
+export const liveCodeTestSchema = z.object({
+  name: z.string().max(LIVE_CODE_LIMITS.testName),
+  status: z.enum(["passed", "failed", "skipped"]),
+  message: z.string().max(LIVE_CODE_LIMITS.testMessage).optional(),
+  location: editorLocationSchema.optional(),
+});
+export type LiveCodeTest = z.infer<typeof liveCodeTestSchema>;
+export const liveCodeDiagnosticSchema = z.object({
+  line: z.number().int().positive(),
+  column: z.number().int().positive().optional(),
+  message: z.string().max(LIVE_CODE_LIMITS.diagnosticMessage),
+});
+export type LiveCodeDiagnostic = z.infer<typeof liveCodeDiagnosticSchema>;
+
 // The screen snapshot observation an action analysed, named by the same
 // (sourceId, eventId) pair the stream's observations carry. Ids only.
 const liveSourceSnapshotSchema = z.object({
   sourceId: z.string(),
   eventId: z.string(),
 });
+
+// Why a task revision exists when the owner's own input made it: a plain
+// re-run, or a screenshot added to the task. Absent for every other revision.
+export const LIVE_REVISION_REASONS = [
+  "regenerate",
+  "added-screenshot",
+] as const;
+export const liveRevisionReasonSchema = z.enum(LIVE_REVISION_REASONS);
+export type LiveRevisionReason = z.infer<typeof liveRevisionReasonSchema>;
 
 export const liveActionSchema = z.object({
   id: z.uuid(),
@@ -571,9 +729,24 @@ export const liveActionSchema = z.object({
   // Context the draft says it could not see; lifted from result.missingContext.
   // Absent or empty means nothing missing or not assessed.
   missingContext: liveMissingContextSchema.optional(),
+  // D36: the result says the capture showed no interview question (derived
+  // from the stored category). Absent otherwise; such an action is not a task.
+  noQuestion: z.literal(true).optional(),
+  // D35: what of each screenshot the revision's model call carried, by the
+  // session's S{n} ordinal, as it happened at dispatch. Absent on a revision
+  // built without screenshots, on a failed one, and on rows recorded before this.
+  screenshotsSent: z
+    .array(
+      z.object({
+        ordinal: z.number().int().min(1),
+        sent: liveScreenshotSentSchema,
+      }),
+    )
+    .optional(),
   // The screenshots the task revision rests on, oldest first; absent for a
   // revision built on speech alone and for rows recorded before this field.
   sourceSnapshots: z.array(liveSourceSnapshotSchema).optional(),
+  revisionReason: liveRevisionReasonSchema.optional(),
   shown: z.boolean(),
   suppressionReason: z.string().nullable(),
   createdAt: isoTime,
@@ -610,6 +783,44 @@ export const liveStreamResponseSchema = z.object({
   serverNow: isoTime,
 });
 export type LiveStreamResponse = z.infer<typeof liveStreamResponseSchema>;
+
+// GET .../sessions/:id/tasks/:taskId/screenshots: the screenshots a task's
+// revisions rest on, oldest first, as ids, ordinals and times only. Fetch an
+// image through the existing screenshot route with its artifactId.
+const liveTaskScreenshotSchema = z.object({
+  // The session's S{n}: rank among its screen.snapshot observations.
+  ordinal: z.number().int().min(1),
+  sourceId: z.string(),
+  eventId: z.string(),
+  sequence: z.number().int().nonnegative(),
+  capturedAt: isoTime,
+  // null once the image is purged or withheld.
+  artifactId: z.string().nullable(),
+  // Which engine read the screenshot's text on the device; null: not read. The
+  // text is never returned.
+  ocrEngine: z.enum(LIVE_OCR_ENGINES).nullable(),
+  // The display the screenshot was captured on; null or absent: not recorded.
+  display: liveCaptureDisplaySchema.nullable().optional(),
+  // The task revisions this screenshot fed, ascending.
+  revisions: z.array(z.number().int().min(1)).min(1),
+  // D35: what left the device for this screenshot, per revision whose call
+  // finished (ascending); a revision with no entry has no record.
+  sentByRevision: z
+    .array(
+      z.object({
+        revision: z.number().int().min(1),
+        sent: liveScreenshotSentSchema,
+      }),
+    )
+    .optional(),
+});
+export const liveTaskScreenshotsResponseSchema = z.object({
+  taskId: z.string(),
+  screenshots: z.array(liveTaskScreenshotSchema),
+});
+export type LiveTaskScreenshotsResponse = z.infer<
+  typeof liveTaskScreenshotsResponseSchema
+>;
 
 // ---- Setup choices --------------------------------------------------------
 

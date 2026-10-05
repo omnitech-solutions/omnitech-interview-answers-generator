@@ -122,6 +122,12 @@ public enum ScreenWatchSample: Equatable, Sendable {
 @MainActor
 public protocol ScreenWatchSampler: AnyObject {
     func sample(_ request: ScreenWatchRequest) async -> ScreenWatchSample
+    // The display the last sample came from, when known.
+    var lastDisplay: DisplayInfo? { get }
+}
+
+extension ScreenWatchSampler {
+    public var lastDisplay: DisplayInfo? { nil }
 }
 
 // [DOMAIN] Runs the sampler on an interval and turns settled changes into
@@ -138,7 +144,7 @@ public final class ScreenWatcher {
     public private(set) var status = ScreenWatchStatus.idle
 
     // `at` is wall-clock milliseconds, for the page to order events by.
-    public var onChange: (_ at: Int, _ bits: Int) -> Void = { _, _ in }
+    public var onChange: (_ at: Int, _ bits: Int, _ display: DisplayInfo?) -> Void = { _, _, _ in }
     public var onStatus: (ScreenWatchStatus) -> Void = { _ in }
 
     public init(sampler: ScreenWatchSampler, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
@@ -186,7 +192,7 @@ public final class ScreenWatcher {
         case .grid(let grid):
             guard let hash = PerceptualHash.difference(grid) else { return }
             if let event = detector.observe(hash: hash, now: now()) {
-                onChange(Int(Date().timeIntervalSince1970 * 1000), event.bits)
+                onChange(Int(Date().timeIntervalSince1970 * 1000), event.bits, sampler.lastDisplay)
             }
         }
     }

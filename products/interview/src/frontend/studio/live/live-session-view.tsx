@@ -6,6 +6,7 @@ import type {
 import {
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -15,21 +16,30 @@ import { ActivityTab } from "./activity-tab";
 import type { BannerAction, BannerHost } from "./banner-copy";
 import { presentation, usePresentation } from "./focus-presentation";
 import { studioHostInfo } from "./host-adapter";
+import { HandsFreeContext } from "./overlay/hands-free-context";
 import { HandsFreeBand } from "./overlay/hands-free-controls";
 import { PairingPanel } from "./pairing-panel";
 import { SessionBanners } from "./session-banner-list";
 import { SessionBar } from "./session-bar";
 import { sourcesNeedAttention } from "./session-bar-model";
-import type { SessionActions } from "./session-snapshot";
+import type { SessionActions, SessionCommand } from "./session-snapshot";
 import type { LiveViewModel } from "./session-state";
 import { type SessionTabId, SessionTabs } from "./session-tabs";
 import { transcriptLabels } from "./session-transcript";
 import { copyText } from "./shared/copy-text";
+import { pickOf, taskAtRevision } from "./shared/revisions";
 import { taskCardModel } from "./shared/task-card-model";
 import { selectedTask } from "./shared/task-target";
 import { useMissingContext } from "./shared/use-missing-context";
+import { actionsVersion } from "./shared/use-screenshots-view";
 import { SourcesTab } from "./sources-tab";
-import { IdleState, TaskPanel, TaskSelector } from "./task-panels";
+import {
+  IdleState,
+  StagingOnly,
+  TaskPanel,
+  TaskSelector,
+  type WebScreenshots,
+} from "./task-panels";
 import { TranscriptTab } from "./transcript-tab";
 import {
   type CompanionCapabilityState,
@@ -62,6 +72,7 @@ export function LiveSessionPanel() {
           stream={snapshot}
           actions={actions}
           busy={snapshot.pending.length > 0}
+          pending={snapshot.pending}
           commandError={snapshot.commandError}
           pairing={<PairingPanel />}
           capability={capability}
@@ -83,6 +94,7 @@ export function LiveSessionBody({
   stream,
   actions,
   busy,
+  pending = [],
   commandError,
   pairing,
   capability,
@@ -99,6 +111,7 @@ export function LiveSessionBody({
   };
   actions: SessionActions;
   busy: boolean;
+  pending?: readonly SessionCommand[];
   commandError: string | null;
   pairing: ReactNode;
   // The companion's last capability report; omitted when none was read.
@@ -115,7 +128,7 @@ export function LiveSessionBody({
   // null follows the newest task; an id pins an earlier one. The pin is the
   // presentation's, shared with the card and the follow-up box, so a follow-up
   // or an added screenshot goes to the task on show.
-  const { pinnedTaskId: pinned } = usePresentation();
+  const { pinnedTaskId: pinned, revisionPicks } = usePresentation();
   const setPinned = presentation.pin;
   const [toast, setToast] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -133,10 +146,29 @@ export function LiveSessionBody({
     actions: stream.actions,
     observations: stream.observations,
     selectedTaskId: pinned,
+    revisionPicks,
     deviceOnly: session.processingPolicy === "device-only",
   });
   const { missing, dismiss } = useMissingContext(session.id, card);
   const missingActions = useMissingContextActions(dismiss);
+  // The screenshots area needs the page's one hands-free controller (it owns the
+  // share the staged captures come from); without one the area is not drawn.
+  const hf = useContext(HandsFreeContext);
+  const screenshots: WebScreenshots | undefined = hf
+    ? {
+        tray: hf.tray,
+        tenant: hf.tenant,
+        sessionId: session.id,
+        version: actionsVersion(stream.actions),
+        policy: session.processingPolicy,
+        onAdd: (intent) => void hf.stage(intent),
+        unavailable: !hf.open
+          ? "The session is not taking captures now."
+          : !hf.owns
+            ? "Another Studio window owns the screen. Add the screenshot there."
+            : null,
+      }
+    : undefined;
 
   // A result that arrives is announced, once, without moving focus.
   useEffect(() => {
@@ -232,17 +264,27 @@ export function LiveSessionBody({
                 }
               />
               <TaskPanel
-                task={selected}
+                task={taskAtRevision(selected, card.revision)}
                 card={card}
                 session={session}
                 policy={model.locality?.policy ?? null}
                 onCopy={copy}
                 onBackToNow={() => setPinned(null)}
+                onPickRevision={(revision) =>
+                  presentation.pickRevision(
+                    selected.taskId,
+                    pickOf(selected, revision),
+                  )
+                }
                 missing={missing ? { items: missing, ...missingActions } : null}
+                {...(screenshots ? { screenshots } : {})}
               />
             </>
           ) : (
-            <IdleState model={model} />
+            <>
+              <IdleState model={model} />
+              <StagingOnly {...(screenshots ? { screenshots } : {})} />
+            </>
           )}
         </div>
         <div ref={tabsTop} className="live-rail">
@@ -257,6 +299,7 @@ export function LiveSessionBody({
                 sessionId={session.id}
                 sessionStart={session.createdAt}
                 labels={labels}
+                revisionPicks={revisionPicks}
               />
             )}
             {tab === "activity" && (
@@ -270,6 +313,7 @@ export function LiveSessionBody({
                 pairing={pairing}
                 pairingOpen={pairingOpen}
                 onPair={() => setPairingOpen(true)}
+                pending={pending}
                 {...(capability ? { capability } : {})}
               />
             )}

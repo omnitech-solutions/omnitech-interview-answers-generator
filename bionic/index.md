@@ -1,14 +1,20 @@
 # docs/omnitech-interview-answers-generator
 
-_Last updated: 2026-10-04_
+_Last updated: 2026-10-05_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
-## Research (3 sources, 9 synthesis pages)
+## Research (9 sources, 9 synthesis pages)
 
 See [[research/index]].
 
-### Sources (3)
+### Sources (9)
+- [[research/sources/drizzle-orm-schema-declaration]] — Drizzle schema declaration: pgTable, pgSchema, columns, indexes — `2026-10-05` — #drizzle #schema #postgres
+- [[research/sources/drizzle-orm-migrations]] — Drizzle migrations fundamentals and the five approaches — `2026-10-05` — #drizzle #migrations
+- [[research/sources/drizzle-kit-generate]] — drizzle-kit generate: snapshot diff, folder-per-migration layout, --custom — `2026-10-05` — #drizzle-kit #migrations #snapshot
+- [[research/sources/drizzle-kit-migrate]] — drizzle-kit migrate: applied-migrations log table — `2026-10-05` — #drizzle-kit #migrations
+- [[research/sources/drizzle-orm-row-level-security]] — Drizzle RLS: withRLS, pgRole, pgPolicy, entities.roles — `2026-10-05` — #drizzle #rls #policies
+- [[research/sources/drizzle-orm-transactions]] — Drizzle transactions: tx, rollback, savepoints, isolation options — `2026-10-05` — #drizzle #transactions
 - [[research/sources/swift-concurrency-agent-skill]] — Swift Concurrency agent skill (AvdLee, MIT), pinned by commit — `2026-10-04` — #swift #concurrency #agent-skill
 - [[research/sources/vercel-composition-patterns]] — Vercel React composition patterns skill — `2026-10-04` — #react #composition #agent-skill
 - [[research/sources/vercel-react-best-practices]] — Vercel React and Next.js performance rules skill — `2026-10-04` — #react #nextjs #performance #agent-skill
@@ -23,7 +29,7 @@ See [[research/index]].
 - [[research/references/ai-execution-boundaries]] — direct model vs agent runtime; on-device profile — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-briefings-runbook]] — behavioural briefing pack operator runbook — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/interview-library]] — Interview Library (Knowledge view) taxonomy, search, API, failure boundaries — sources: 0 — `last_reviewed: 2026-10-02`
-- [[research/references/technology-references]] — layer-to-reference map: React, Swift, Next.js, Hono, Drizzle, Postgres, AI, review — sources: 3 — `last_reviewed: 2026-10-04`
+- [[research/references/technology-references]] — layer-to-reference map: React, Swift, Next.js, Hono, Drizzle, Postgres, AI, review — sources: 9 — `last_reviewed: 2026-10-05`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
 ## ADRs (24)

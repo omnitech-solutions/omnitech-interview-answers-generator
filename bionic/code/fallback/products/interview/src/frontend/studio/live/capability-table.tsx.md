@@ -9,8 +9,9 @@ recognition (ADR-0012 "Locality by stage"), in both
 policies; the row says "On this Mac, in the companion" only
 when the companion's last report says on-device recognition
 is available, and otherwise the true state
-Screenshots    stored by ingest for the owner; no stage reads them
-today (session-run.ts), so there is no model step to place
+Screenshots    stored for the owner. Only when the owner presses Analyze
+is a capture sent, to the selected vision-capable model
+(ADR-0016); device-only refuses it and never sends one
 Answer drafts  device-only: the on-device model (text-only); remote: the
 gateway (ADR-0012/device-only-enforced-twice)
 Coding drafts  device-only: refused, coding inference needs a remote model

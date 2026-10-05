@@ -34,6 +34,9 @@ Crux is the only development workflow (ADR-0001).
 - Before reviewing or writing React, Next.js, Swift, Hono, Drizzle or Postgres code,
   use the `technology-references` skill (map:
   `bionic/research/references/technology-references.md`).
+- Before regenerating, checking drift on, or touching anything under `bionic/arch/`,
+  `bionic/code/` or a generated index, use the `bionic-regeneration` skill (never
+  hand-edit generated files).
 - Documentation lives only in `bionic/`. Never hand-edit its regenerated parts
   (`code/`, `arch/`).
 - Project skills live once in `.agents/skills/`; `.claude/skills` and

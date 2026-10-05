@@ -17,7 +17,14 @@
 // `runner_unavailable` - it never claims tests passed. The prose draft never
 // waits for any of this: it is a separate action that dispatches first, and at
 // most one model call per session is in flight.
-import { runResultSchema } from "@omnitech/interview-contracts";
+import {
+  LIVE_CODE_LIMITS,
+  type LiveCodeDiagnostic,
+  type LiveCodeTest,
+  liveCodeDiagnosticSchema,
+  liveCodeTestSchema,
+  runResultSchema,
+} from "@omnitech/interview-contracts";
 import type { CodingBrief } from "./assist-stage";
 import { type CodeStates, codeStates, type RunFacts } from "./code-states";
 import {
@@ -51,7 +58,56 @@ import {
 } from "./session-run";
 
 // The report kept on the action: names and statuses only, never output.
-const MAX_STORED_TESTS = 50;
+const MAX_STORED_TESTS = LIVE_CODE_LIMITS.tests;
+
+// [SAFETY] A runner message or diagnostic is text about generated code: kept
+// bounded and whitespace-normalised, stored with the result and never logged.
+// The bound is in UTF-16 units (the schemas' unit) but the cut falls on a code
+// point, so a surrogate pair is never split into a lone surrogate.
+export const boundedText = (text: string, max: number): string => {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  let kept = "";
+  for (const point of flat) {
+    if (kept.length + point.length > max - 1) break;
+    kept += point;
+  }
+  return `${kept}\u2026`;
+};
+
+// What the result stores of one reported test: name, status and, when the
+// runner gave them, a bounded message and the failing line. Never stdout,
+// stderr or a duration.
+function storedTest(test: {
+  name: string;
+  status: LiveCodeTest["status"];
+  message?: string | undefined;
+  location?: LiveCodeTest["location"] | undefined;
+}): LiveCodeTest {
+  const message = boundedText(test.message ?? "", LIVE_CODE_LIMITS.testMessage);
+  return liveCodeTestSchema.parse({
+    name: boundedText(test.name, LIVE_CODE_LIMITS.testName),
+    status: test.status,
+    ...(message ? { message } : {}),
+    ...(test.location ? { location: test.location } : {}),
+  });
+}
+
+function storedDiagnostics(
+  found: readonly {
+    line: number;
+    column?: number | undefined;
+    message: string;
+  }[],
+): LiveCodeDiagnostic[] {
+  return found.slice(0, LIVE_CODE_LIMITS.diagnostics).map((each) =>
+    liveCodeDiagnosticSchema.parse({
+      line: each.line,
+      ...(each.column === undefined ? {} : { column: each.column }),
+      message: boundedText(each.message, LIVE_CODE_LIMITS.diagnosticMessage),
+    }),
+  );
+}
 
 type Generated =
   | { kind: "solution"; solution: CodingSolution }
@@ -62,7 +118,10 @@ type Generated =
 type Verification = {
   run: RunFacts;
   durationMs: number | null;
-  syntax: { clean: boolean } | null;
+  syntax: { clean: boolean; diagnostics: LiveCodeDiagnostic[] } | null;
+  // Per-test detail for the stored result only. The repair prompt and the agent
+  // request read run.tests (names and statuses), never these messages.
+  stored: LiveCodeTest[];
 };
 
 // One generation: prepare the prompt, make the call, validate the output.
@@ -106,9 +165,10 @@ async function verify(
   runner: SessionCodeRunner | undefined,
   solution: CodingSolution,
 ): Promise<Verification> {
-  if (!runner) return { run: null, durationMs: null, syntax: null };
+  if (!runner) return { run: null, durationMs: null, syntax: null, stored: [] };
   let run: RunFacts = null;
   let durationMs: number | null = null;
+  let stored: LiveCodeTest[] = [];
   try {
     const result = runResultSchema.parse(
       await runner.runAll({
@@ -124,9 +184,10 @@ async function verify(
       timedOut: result.timedOut,
       tests: (result.tests ?? []).map(({ name, status }) => ({ name, status })),
     };
+    stored = (result.tests ?? []).slice(0, MAX_STORED_TESTS).map(storedTest);
     durationMs = result.durationMs;
   } catch {
-    return { run: null, durationMs: null, syntax: null };
+    return { run: null, durationMs: null, syntax: null, stored: [] };
   }
   let syntax: Verification["syntax"] = null;
   if (runner.checkSyntax) {
@@ -142,12 +203,13 @@ async function verify(
           checked.exitCode === 0 &&
           !checked.timedOut &&
           (checked.diagnostics ?? []).length === 0,
+        diagnostics: storedDiagnostics(checked.diagnostics ?? []),
       };
     } catch {
       syntax = null;
     }
   }
-  return { run, durationMs, syntax };
+  return { run, durationMs, syntax, stored };
 }
 
 const statesOf = (
@@ -326,7 +388,7 @@ export async function dispatchCoding(
         passed: count("passed"),
         failed: count("failed"),
         skipped: count("skipped"),
-        results: tests.slice(0, MAX_STORED_TESTS),
+        results: verification.stored,
       },
       run: {
         available: verification.run !== null,
@@ -337,6 +399,7 @@ export async function dispatchCoding(
       syntax: {
         checked: verification.syntax !== null,
         clean: verification.syntax?.clean ?? null,
+        diagnostics: verification.syntax?.diagnostics ?? [],
       },
       repair: { attempted: repairAttempted, succeeded: repairSucceeded },
       // Whether an agent job was requested for this solution (the validated

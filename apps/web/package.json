@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
-    "dev": "next dev --hostname 127.0.0.1",
+    "build": "node scripts/copy-ocr-assets.mjs && next build",
+    "dev": "node scripts/copy-ocr-assets.mjs && next dev --hostname 127.0.0.1",
     "lint": "biome lint app src",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "next typegen && tsc --noEmit",

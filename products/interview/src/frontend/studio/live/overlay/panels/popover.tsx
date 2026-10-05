@@ -28,6 +28,9 @@ type PopoverProps = {
   kind: "menu" | "dialog";
   panelClassName: string;
   testId?: string;
+  // Where Escape or Tab gives focus back: another element, or null for the
+  // trigger itself.
+  returnFocus?: () => HTMLElement | null;
   // The panel's content; `close` shuts it and gives focus back to the button.
   children(close: () => void): ReactNode;
 };
@@ -54,8 +57,10 @@ export function Popover(props: PopoverProps) {
   // Closing by Escape or Tab returns to the button; a press elsewhere moves
   // focus where the person pointed, which is left alone.
   const closeToButton = () => {
+    // The target is read before closing: closing may reset what it depends on.
+    const target = props.returnFocus?.() ?? button.current;
     close();
-    button.current?.focus();
+    target?.focus();
   };
   const onPanelKey = (event: KeyboardEvent) => {
     if (event.nativeEvent.isComposing) return;

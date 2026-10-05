@@ -222,6 +222,179 @@ describe("generated, tests passed and fully verified stay distinct", () => {
   });
 });
 
+describe("the code block of the card", () => {
+  const failed = {
+    name: "blocks",
+    status: "failed",
+    message: "expected false, got true",
+    location: { editor: "tests", line: 7 },
+  };
+
+  it("lists the files that have text, with the main app's file names", () => {
+    const model = card([
+      answer("a"),
+      code("a", codeResult({ usageCode: "allow()" })),
+    ]);
+    expect(model?.code?.files).toEqual([
+      {
+        id: "solution",
+        name: "solution.ts",
+        text: "export const allow = () => true;",
+      },
+      { id: "usage", name: "usage.ts", text: "allow()" },
+      {
+        id: "tests",
+        name: "solution.test.ts",
+        text: "it('allows', () => {});",
+      },
+    ]);
+    expect(model?.code?.text).toBe("export const allow = () => true;");
+  });
+
+  it("omits empty files and falls back to plain names for an unknown language", () => {
+    const model = card([
+      answer("a"),
+      code(
+        "a",
+        codeResult({ usageCode: "  ", testCode: "", language: "cobol" }),
+      ),
+    ]);
+    expect(model?.code?.files).toEqual([
+      {
+        id: "solution",
+        name: "solution",
+        text: "export const allow = () => true;",
+      },
+    ]);
+  });
+
+  it("maps constraints to tests and carries failure message and location", () => {
+    const model = card([
+      answer("a"),
+      code(
+        "a",
+        codeResult({
+          coverage: [
+            { constraintIndex: 2, testName: "allows" },
+            { constraintIndex: 0, testName: "allows" },
+            { constraintIndex: 1, testName: "blocks" },
+          ],
+          tests: {
+            total: 2,
+            passed: 1,
+            failed: 1,
+            skipped: 0,
+            results: [failed, { name: "allows", status: "passed" }],
+          },
+        }),
+      ),
+    ]);
+    expect(model?.code?.tests?.results).toEqual([
+      { ...failed, covers: [1] },
+      { name: "allows", status: "passed", covers: [0, 2] },
+    ]);
+  });
+
+  it("takes the counts from the server, not from a capped list", () => {
+    const model = card([
+      answer("a"),
+      code(
+        "a",
+        codeResult({
+          tests: {
+            total: 80,
+            passed: 70,
+            failed: 7,
+            skipped: 3,
+            results: Array.from({ length: 50 }, (_, index) => ({
+              name: `t${index}`,
+              status: "passed",
+            })),
+          },
+        }),
+      ),
+    ]);
+    expect(model?.code?.tests).toMatchObject({
+      generated: true,
+      total: 80,
+      passed: 70,
+      failed: 7,
+      skipped: 3,
+    });
+    expect(model?.code?.tests?.results).toHaveLength(50);
+  });
+
+  it("claims no test result when no runner answered", () => {
+    const model = card([
+      answer("a"),
+      code(
+        "a",
+        codeResult({
+          states: {
+            generated: true,
+            testsPassed: false,
+            fullyVerified: false,
+            reasons: ["runner_unavailable"],
+          },
+          tests: undefined,
+          run: {
+            available: false,
+            exitCode: null,
+            timedOut: false,
+            durationMs: null,
+          },
+        }),
+      ),
+    ]);
+    expect(model?.code?.tests).toBeNull();
+    expect(model?.code?.reasons).toEqual([
+      "The test runner was not available, so no tests ran.",
+    ]);
+  });
+
+  it("gives the reasons from the one table, and none once fully verified", () => {
+    expect(card([answer("a"), code("a")])?.code?.reasons).toEqual([
+      "A stated constraint has no test of its own.",
+    ]);
+    const verified = codeResult({
+      states: {
+        generated: true,
+        testsPassed: true,
+        fullyVerified: true,
+        reasons: [],
+      },
+    });
+    expect(card([answer("a"), code("a", verified)])?.code?.reasons).toEqual([]);
+  });
+
+  it("exposes diagnostics, repair and notes", () => {
+    const model = card([
+      answer("a"),
+      code(
+        "a",
+        codeResult({
+          syntax: {
+            checked: true,
+            clean: false,
+            diagnostics: [{ line: 3, message: "Unexpected token" }],
+          },
+          repair: { attempted: true, succeeded: false },
+        }),
+      ),
+    ]);
+    expect(model?.code).toMatchObject({
+      syntax: { checked: true, clean: false },
+      diagnostics: [{ line: 3, message: "Unexpected token" }],
+      repair: { attempted: true, succeeded: false },
+      notes: "A sliding window per client.",
+    });
+  });
+
+  it("has no code block before a solution exists", () => {
+    expect(card([answer("a")])?.code).toBeNull();
+  });
+});
+
 describe("screenshot numbers", () => {
   const shots = (sequences: number[]) => sequences.map((n) => snapshot(n));
   const ref = (n: number) => ({ sourceId: "screen", eventId: `evt-${n}` });

@@ -297,7 +297,9 @@ describe("experience answer", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector("a[href='https://x.test']")).toBeNull();
     expect(
-      screen.getByText(/<img src="https:\/\/x.test\/p.png"/),
+      within(screen.getByTestId("task-panel")).getByText(
+        /<img src="https:\/\/x.test\/p.png"/,
+      ),
     ).toBeVisible();
   });
 

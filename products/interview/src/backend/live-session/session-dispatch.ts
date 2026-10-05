@@ -31,6 +31,11 @@ import type { PublishEffect } from "./fenced-writes";
 import { sessionGatewayContext } from "./gateway-context";
 import type { InterviewSessionPolicy } from "./interview-policy";
 import type { SessionStorePort } from "./processor-ports";
+import {
+  outcomeCounts,
+  planScreenshots,
+  type ScreenshotPlan,
+} from "./screenshot-send";
 import { planAssist } from "./service";
 import {
   attachmentsFor,
@@ -105,6 +110,9 @@ export type DispatchOptions = {
   attachments?: readonly AgentAttachment[];
 };
 
+// What the dispatch will really send of those screenshots (D35): decided from
+// the owner's stored setting at the moment the standing was read.
+
 type DispatchDetail = Record<string, string | number | boolean>;
 
 // One recorded, standing-checked dispatch. Every method that ends the dispatch
@@ -118,6 +126,9 @@ export type Dispatch = {
   readonly profileId: string;
   readonly processingPolicy: ProcessingPolicy;
   readonly deviceOnly: boolean;
+  // D35: the images, texts and per-screenshot outcomes this dispatch sends,
+  // from the owner's stored setting (a dispatch without screenshots: empty).
+  readonly screenshots: ScreenshotPlan;
   // Any mode but "running" means this dispatch began under a standing that is
   // gone: its result is never published (rule:pause-end-suppression).
   stopped(): boolean;
@@ -304,16 +315,31 @@ export async function beginDispatch(
   // uses the device profile alone; a stage without one is refused
   // (rule:unlisted-stage-refused), and there is never a fallback.
   const deviceOnly = standing.processingPolicy === "device-only";
-  if (imageAttachments.length > 0) {
+  // [SAFETY] The setting is the one the server stored, read just now with the
+  // standing; the page's claim is never consulted. A device-only session
+  // refuses images below exactly as before, whatever the setting.
+  const screenshots = planScreenshots(
+    run,
+    imageAttachments,
+    standing.screenshotSend ?? "always",
+    standing.processingPolicy,
+  );
+  if (imageAttachments.length > 0 && deviceOnly) {
     // [SAFETY] Screenshots fail closed (ADR-0016): a device-only session never
-    // sends an image to an agent runtime, and with no vision profile the
-    // dispatch is refused - it is never answered text-only and never falls
-    // back to another profile.
-    if (deviceOnly || deps.visionProfileId === undefined) {
-      const reason = deviceOnly ? "vision_device_only" : "vision_unavailable";
+    // sends an image to an agent runtime, and the dispatch is refused - it is
+    // never answered text-only and never falls back to another profile.
+    run.settled.add(key);
+    if (!stopped()) await settle("vision_device_only");
+    finish("dispatch.refused", "vision-device-only");
+    return null;
+  }
+  if (screenshots.images.length > 0) {
+    // Images that really travel need the vision profile; with none the dispatch
+    // is refused, never answered without them and never moved to another profile.
+    if (deps.visionProfileId === undefined) {
       run.settled.add(key);
-      if (!stopped()) await settle(reason);
-      finish("dispatch.refused", reason.replace(/_/g, "-"));
+      if (!stopped()) await settle("vision_unavailable");
+      finish("dispatch.refused", "vision-unavailable");
       return null;
     }
     profileId = deps.visionProfileId;
@@ -351,6 +377,18 @@ export async function beginDispatch(
       finish("dispatch.suppressed", "assistance_disabled");
       return false;
     }
+    if (
+      imageAttachments.length > 0 &&
+      (current.screenshotSend ?? "always") !==
+        (standing.screenshotSend ?? "always")
+    ) {
+      // [SAFETY] The owner changed what may be sent after this dispatch decided:
+      // nothing goes out under the old setting. The key stays unsettled, so the
+      // next tick dispatches it afresh under the setting now in force.
+      await settle("setting_changed");
+      finish("dispatch.suppressed", "setting_changed");
+      return false;
+    }
     if (current.processingPolicy !== standing.processingPolicy) {
       // [SAFETY] The session tightened after this dispatch chose its profile:
       // nothing more goes out under the old policy. The key stays unsettled,
@@ -373,6 +411,7 @@ export async function beginDispatch(
     profileId: chosenProfile,
     processingPolicy: standing.processingPolicy,
     deviceOnly,
+    screenshots,
     stopped,
     trace: finish,
     noteBytesIn(count) {
@@ -394,7 +433,7 @@ export async function beginDispatch(
       const sent = prompt.attachments ?? [];
       // [SAFETY] Images only ever ride a dispatch that began with them (and so
       // with the vision profile).
-      if (sent.length > 0 && imageAttachments.length === 0) {
+      if (sent.length > 0 && screenshots.images.length === 0) {
         run.settled.add(key);
         await settle("vision_unavailable");
         finish("dispatch.refused", "vision-unavailable");
@@ -551,6 +590,9 @@ export async function dispatchTask(
   const hints = hintsFor(run, task);
   const d = await beginDispatch(run, task, deps, stage, { attachments });
   if (d === null) return;
+  // D35: what of those screenshots this call carries, by the owner's stored
+  // setting: images (renamed screenshot-1..K), texts, withheld notes, outcomes.
+  const { images, texts, withheldNoText, outcomes } = d.screenshots;
 
   // The pinned context is read once per run through the store port; a failed
   // read is a retryable outcome (the stage never answers from a stale or
@@ -559,7 +601,9 @@ export async function dispatchTask(
     store,
     stage,
     deviceOnly: d.deviceOnly,
-    imageCount: attachments.length,
+    imageCount: images.length,
+    screenshotText: texts,
+    withheldNoText,
     hints,
   });
   if (d.stopped()) return;
@@ -576,7 +620,7 @@ export async function dispatchTask(
   // The one gateway call.
   const called = await d.call({
     ...plan.prompt,
-    ...(attachments.length > 0 ? { attachments } : {}),
+    ...(images.length > 0 ? { attachments: images } : {}),
   });
   if (!called.ok) return;
 
@@ -608,12 +652,17 @@ export async function dispatchTask(
           },
         }
       : checked.draft;
+  // What of each screenshot left the device, recorded with the result at the
+  // moment of publish (the call is over): ordinals and closed words only.
   const published = await d.publish(
-    plan.resultFor(draft, {
-      profileId: d.profileId,
-      processingPolicy: d.processingPolicy,
-    }),
-    { detail: plan.detailFor(draft) },
+    {
+      ...plan.resultFor(draft, {
+        profileId: d.profileId,
+        processingPolicy: d.processingPolicy,
+      }),
+      ...(outcomes.length > 0 ? { screenshotsSent: outcomes } : {}),
+    },
+    { detail: { ...plan.detailFor(draft), ...outcomeCounts(outcomes) } },
   );
   if (published) noteCodingTask(run, task, draft);
 }

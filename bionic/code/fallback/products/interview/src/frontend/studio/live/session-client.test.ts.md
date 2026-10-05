@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/live/session-client.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A later failure without a reason carries none: no module-global leak.

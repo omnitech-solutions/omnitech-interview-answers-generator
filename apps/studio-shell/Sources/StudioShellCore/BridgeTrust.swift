@@ -58,16 +58,6 @@ public enum FocusSampling {
         guard let frontmost else { return lastOther }
         return frontmost == ownPid ? lastOther : frontmost
     }
-
-    // The window to capture, never one of the shell's own.
-    public static func choose(sampledPid: Int32?, ownPid: Int32, windows: [WindowCandidate]) -> Int? {
-        guard let sampledPid, sampledPid != ownPid else { return nil }
-        let others = windows.map {
-            $0.ownerPid == ownPid
-                ? WindowCandidate(ownerPid: -1, layer: $0.layer, isOnScreen: false, width: 0, height: 0) : $0
-        }
-        return FocusedWindow.choose(frontmostPid: sampledPid, windows: others)
-    }
 }
 
 // [SAFETY] A region is normalised to one display. A request that names a

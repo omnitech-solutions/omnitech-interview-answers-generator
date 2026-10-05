@@ -9,13 +9,14 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Any ".next-e2e*" directory is skipped by prefix below.
 const ignored = new Set(["node_modules", "dist", ".next", ".turbo", ".data"]);
 // The fixture's own definition; tests elsewhere reach it by package name.
 const definition = "packages/database/src/test-support/";
 
 function sources(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (ignored.has(entry.name)) return [];
+    if (ignored.has(entry.name) || entry.name.startsWith(".next-e2e")) return [];
     const path = join(directory, entry.name);
     if (entry.isDirectory()) return sources(path);
     return /\.(ts|tsx)$/.test(entry.name) && !entry.name.endsWith(".d.ts")

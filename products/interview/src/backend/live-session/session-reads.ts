@@ -5,12 +5,22 @@
 // same as one that does not exist.
 import type { PlatformDatabase } from "@omnitech/database";
 import {
+  type LiveCaptureDisplay,
   type LiveMissingContext,
+  type LiveRevisionReason,
+  type LiveScreenshotSent,
+  liveCaptureDisplaySchema,
   liveGeneratedBySchema,
+  liveRevisionReasonSchema,
+  liveScreenshotSentSchema,
 } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
-import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session";
+import {
+  OWNER_INPUT_SOURCE_ID,
+  SESSION_SCREENSHOT_ARTIFACT_TYPE,
+} from "../db/live-session";
 import { assertUuid, SessionError } from "./errors";
 import { sanitizeMissingContext } from "./missing-context";
 import { parseSnapshotProvenanceId } from "./owner-input";
@@ -76,7 +86,8 @@ export async function listObservations(
     afterSequence?: number;
     limit?: number;
     // The browser's stream never carries the owner's own inputs back to it
-    // (they are DB-side only); the worker reads every kind.
+    // (they are DB-side only) and never the text read from a screenshot (only
+    // the engine that read it); the worker reads every kind, with the text.
     excludeOwnerInput?: boolean;
   } = {},
 ): Promise<StoredObservation[]> {
@@ -103,12 +114,150 @@ export async function listObservations(
       eventId: String(row["event_id"]),
       kind: String(row["kind"]),
       receivedAt: new Date(row["received_at"] as string).toISOString(),
-      content: row["content"],
+      content: options.excludeOwnerInput
+        ? withoutOcrText(row["content"])
+        : row["content"],
       screenshotArtifactId: row["screenshot_artifact_id"]
         ? String(row["screenshot_artifact_id"])
         : null,
     }));
   });
+}
+
+// [SAFETY] The text read from a screenshot stays server-side: the browser's copy
+// of the observation keeps only which engine read it.
+function withoutOcrText(content: unknown): unknown {
+  const ocr = (content as { ocr?: { engine?: unknown } } | null)?.ocr;
+  if (!ocr) return content;
+  return { ...(content as object), ocr: { engine: ocr.engine } };
+}
+
+// The stored display label, re-checked on the way out (a row is never trusted
+// to hold the shape); anything else is no display.
+export function storedDisplay(value: unknown): LiveCaptureDisplay | null {
+  // A malformed stored string is no display, never a throw.
+  let decoded = value;
+  if (typeof value === "string") {
+    try {
+      decoded = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  const parsed = liveCaptureDisplaySchema.safeParse(decoded);
+  return parsed.success ? parsed.data : null;
+}
+
+// A screenshot a task rests on: ids, ordinal and time only, never image bytes.
+export type TaskScreenshot = {
+  ordinal: number;
+  sourceId: string;
+  eventId: string;
+  sequence: number;
+  capturedAt: string;
+  artifactId: string | null;
+  // The engine that read the screenshot's text on the device; null when none.
+  // The text itself is never returned.
+  ocrEngine: "vision" | "tesseract" | null;
+  // The display it was captured on (a label); null: not recorded.
+  display: LiveCaptureDisplay | null;
+  revisions: number[];
+  // D35: what left the device for this screenshot, per revision whose call
+  // finished; a revision with no entry has no record. Ascending by revision.
+  sentByRevision?: { revision: number; sent: LiveScreenshotSent }[];
+};
+
+// The screenshots any revision of one task was built on, oldest first. The link
+// is session_actions.source_event_ids (the snap/ provenance ids) joined to the
+// session's screen.snapshot observations; the ordinal is the rank among ALL the
+// session's snapshots by sequence (the S{n} the browser shows), so it is
+// computed before the join narrows to the task.
+export async function listTaskScreenshots(
+  database: PlatformDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  taskId: string,
+): Promise<TaskScreenshot[]> {
+  assertUuid(sessionId);
+  return inOwnerScope(database, scope, async (tx) => {
+    if (!(await readSession(tx, scope, sessionId)))
+      throw new SessionError("not_found");
+    const rows = await rowsOf<Record<string, unknown>>(
+      tx,
+      sql`SELECT o.ordinal, o.source_id, o.event_id, o.sequence, o.received_at,
+                 o.screenshot_artifact_id, o.ocr_engine, o.display,
+                 array_agg(DISTINCT a.task_revision
+                           ORDER BY a.task_revision) AS revisions
+          FROM (SELECT sequence, source_id, event_id, received_at,
+                       screenshot_artifact_id, session_id, tenant_id,
+                       owner_user_id, content->'ocr'->>'engine' AS ocr_engine,
+                       content->'display' AS display,
+                       row_number() OVER (ORDER BY sequence)::int AS ordinal
+                FROM interview.session_observations
+                WHERE tenant_id = ${scope.tenantId}::uuid
+                  AND owner_user_id = ${scope.actorId}::uuid
+                  AND session_id = ${sessionId}::uuid
+                  AND kind = 'screen.snapshot') o
+          JOIN interview.session_actions a
+            ON a.tenant_id = o.tenant_id AND a.owner_user_id = o.owner_user_id
+           AND a.session_id = o.session_id AND a.task_id = ${taskId}
+           AND 'snap/' || a.session_id || '/' || o.source_id || '/' || o.event_id
+               = ANY(a.source_event_ids)
+          GROUP BY o.ordinal, o.source_id, o.event_id, o.sequence,
+                   o.received_at, o.screenshot_artifact_id, o.ocr_engine,
+                   o.display
+          ORDER BY o.sequence`,
+    );
+    const recorded = await rowsOf<Record<string, unknown>>(
+      tx,
+      sql`SELECT task_revision, result->'screenshotsSent' AS sent
+          FROM interview.session_actions
+          WHERE tenant_id = ${scope.tenantId}::uuid
+            AND owner_user_id = ${scope.actorId}::uuid
+            AND session_id = ${sessionId}::uuid AND task_id = ${taskId}
+            AND dispatch_status = 'succeeded'
+            AND result->'screenshotsSent' IS NOT NULL
+          ORDER BY task_revision, created_at`,
+    );
+    // ordinal -> revision -> outcome (the later action of a revision wins).
+    const sentOf = new Map<number, Map<number, LiveScreenshotSent>>();
+    for (const entry of recorded) {
+      const list = screenshotsSentOf({ screenshotsSent: entry["sent"] });
+      for (const { ordinal, sent } of list ?? []) {
+        const byRevision = sentOf.get(ordinal) ?? new Map();
+        byRevision.set(Number(entry["task_revision"]), sent);
+        sentOf.set(ordinal, byRevision);
+      }
+    }
+    return rows.map((row) => ({
+      ...sentByRevisionOf(sentOf.get(Number(row["ordinal"]))),
+      ordinal: Number(row["ordinal"]),
+      sourceId: String(row["source_id"]),
+      eventId: String(row["event_id"]),
+      sequence: Number(row["sequence"]),
+      capturedAt: new Date(row["received_at"] as string).toISOString(),
+      artifactId: row["screenshot_artifact_id"]
+        ? String(row["screenshot_artifact_id"])
+        : null,
+      ocrEngine:
+        row["ocr_engine"] === "vision" || row["ocr_engine"] === "tesseract"
+          ? row["ocr_engine"]
+          : null,
+      display: storedDisplay(row["display"]),
+      revisions: (row["revisions"] as unknown[]).map(Number),
+    }));
+  });
+}
+
+function sentByRevisionOf(
+  byRevision: Map<number, LiveScreenshotSent> | undefined,
+): Pick<TaskScreenshot, "sentByRevision"> {
+  if (!byRevision || byRevision.size === 0) return {};
+  return {
+    sentByRevision: [...byRevision]
+      .sort(([a], [b]) => a - b)
+      .map(([revision, sent]) => ({ revision, sent })),
+  };
 }
 
 export type StoredAction = {
@@ -136,6 +285,15 @@ export type StoredAction = {
   generatedBy?: { runtime: string; model: string };
   // Display metadata lifted from result.missingContext, sanitised.
   missingContext?: LiveMissingContext;
+  // D35: what of each screenshot the revision's call carried (by S{n}),
+  // lifted from the stored result; absent when none was recorded.
+  screenshotsSent?: { ordinal: number; sent: LiveScreenshotSent }[];
+  // D36: the result is the closed category no-question (a capture showing
+  // nothing to answer). Derived at read time from the stored result; absent
+  // otherwise, so a later revision that finds a question clears it.
+  noQuestion?: true;
+  // Why the revision exists when the owner's input made it (browser feed only).
+  revisionReason?: LiveRevisionReason;
   shown: boolean;
   suppressionReason: string | null;
   createdAt: string;
@@ -161,11 +319,63 @@ function missingContextOf(result: unknown): LiveMissingContext | undefined {
   );
 }
 
+// The per-screenshot outcome the dispatch recorded with its result, when well
+// formed (a malformed or absent value is simply no record).
+export function screenshotsSentOf(
+  result: unknown,
+): { ordinal: number; sent: LiveScreenshotSent }[] | undefined {
+  const parsed = z
+    .array(
+      z.strictObject({
+        ordinal: z.number().int().min(1),
+        sent: liveScreenshotSentSchema,
+      }),
+    )
+    .max(100)
+    .safeParse(
+      (result as { screenshotsSent?: unknown } | null)?.screenshotsSent,
+    );
+  return parsed.success && parsed.data.length > 0 ? parsed.data : undefined;
+}
+
+function noQuestionOf(result: unknown): true | undefined {
+  return (result as { category?: unknown } | null)?.category === "no-question"
+    ? true
+    : undefined;
+}
+
 // Column that gives the browser's feed the snapshot provenance ids only: the
 // spoken segment ids and owner input ids in source_event_ids stay server-side.
 export const SNAPSHOT_EVENT_IDS = sql`ARRAY(
     SELECT source_id FROM unnest(source_event_ids) WITH ORDINALITY AS u(source_id, n)
     WHERE source_id LIKE 'snap/%' ORDER BY n) AS snapshot_event_ids`;
+
+// Column that tells the browser WHY a task revision exists when the owner's own
+// input made it: the newest owner input the revision rests on that no earlier
+// revision of the task did (a regeneration, or a screenshot added to the task).
+// The input's content stays server-side; only the closed word leaves.
+export const REVISION_REASON = sql`(
+    SELECT CASE o.content->'body'->>'operation'
+             WHEN 'regenerate' THEN 'regenerate'
+             WHEN 'analyze' THEN CASE WHEN o.content->'body'->'target' IS NOT NULL
+                                      THEN 'added-screenshot' END
+           END
+    FROM interview.session_observations o
+    WHERE session_actions.task_revision > 1
+      AND o.tenant_id = session_actions.tenant_id
+      AND o.owner_user_id = session_actions.owner_user_id
+      AND o.session_id = session_actions.session_id
+      AND o.source_id = ${OWNER_INPUT_SOURCE_ID}
+      AND 'input/' || o.event_id = ANY(session_actions.source_event_ids)
+      AND NOT EXISTS (
+        SELECT 1 FROM interview.session_actions p
+        WHERE p.tenant_id = session_actions.tenant_id
+          AND p.owner_user_id = session_actions.owner_user_id
+          AND p.session_id = session_actions.session_id
+          AND p.task_id = session_actions.task_id
+          AND p.task_revision < session_actions.task_revision
+          AND 'input/' || o.event_id = ANY(p.source_event_ids))
+    ORDER BY o.sequence DESC LIMIT 1) AS revision_reason`;
 
 function sourceSnapshotsOf(
   row: Record<string, unknown>,
@@ -192,7 +402,10 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     : (row["result"] ?? null);
   const generatedBy = generatedByOf(result);
   const missingContext = missingContextOf(result);
+  const noQuestion = noQuestionOf(result);
+  const screenshotsSent = screenshotsSentOf(result);
   const sourceSnapshots = sourceSnapshotsOf(row);
+  const reason = liveRevisionReasonSchema.safeParse(row["revision_reason"]);
   return {
     id: String(row["id"]),
     taskId: String(row["task_id"]),
@@ -206,7 +419,10 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     result,
     ...(generatedBy === undefined ? {} : { generatedBy }),
     ...(missingContext === undefined ? {} : { missingContext }),
+    ...(noQuestion === undefined ? {} : { noQuestion }),
+    ...(screenshotsSent === undefined ? {} : { screenshotsSent }),
     ...(sourceSnapshots === undefined ? {} : { sourceSnapshots }),
+    ...(reason.success ? { revisionReason: reason.data } : {}),
     shown: Boolean(row["shown"]),
     suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),

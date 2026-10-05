@@ -1700,8 +1700,10 @@
 }
 :root[data-panel-host="native"] :is(.ov-card, .ov-menu, .pn-card, .pn-pill, .pn-toast) {
   background: var(--ov-bg);
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  /* The panel's own tokens when inside a panel root (clear glass sets it to
+     none), the card look elsewhere. */
+  backdrop-filter: var(--pn-blur-card, blur(28px) saturate(1.6));
+  -webkit-backdrop-filter: var(--pn-blur-card, blur(28px) saturate(1.6));
 }
 :root[data-panel-host="native"] .ov-sheet {
   background: rgba(0, 0, 0, 0.45);
@@ -1742,4 +1744,57 @@
 }
 :root[data-panel-host="native"] .ov-capture .ov-capture-label {
   display: none;
+}
+
+/* ---- Revisions control on the card (see shared/revisions-control.tsx) ---- */
+.ov-rev .pn-popover {
+  position: relative;
+  display: inline-flex;
+}
+.ov-rev-menu {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  top: calc(100% + 6px);
+  min-width: 220px;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--ov-bg);
+  backdrop-filter: var(--pn-blur-menu, blur(30px));
+  box-shadow: var(--ov-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ov-rev-menu:focus {
+  outline: none;
+}
+.ov-rev-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ov-text);
+}
+.ov-rev-item:hover,
+.ov-rev-item:focus-visible {
+  background: var(--ov-line);
+  outline: none;
+}
+.ov-rev-label {
+  display: block;
+  font-size: 13px;
+}
+.ov-rev-sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ov-muted);
+}
+.ov-rev-item[data-outdated] [data-mark="outdated"] {
+  color: var(--pn-warn, #ffb454);
 }

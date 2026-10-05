@@ -1,6 +1,6 @@
 # Decision index
 
-_Accepted, non-archived decisions (11), projected from `adrs/index.md`. ADR references are footnotes, never inline._
+_Accepted, non-archived decisions (15), projected from `adrs/index.md`. ADR references are footnotes, never inline._
 
 | # | decision | date | ref |
 |---|---|---|---|
@@ -15,6 +15,10 @@ _Accepted, non-archived decisions (11), projected from `adrs/index.md`. ADR refe
 | 9 | Keep Active Session data private to the actor and enforce locality before dispatch | 2026-10-03 | [^d9] |
 | 10 | Pause rather than end an Active Session on credential expiry or companion stop | 2026-10-03 | [^d10] |
 | 11 | Use worker-owned agent sessions with one terminal outcome | 2026-10-03 | [^d11] |
+| 12 | Run Active Session assistance on the worker executor with screenshots and two action slots | 2026-10-03 | [^d12] |
+| 13 | Host the Active Session overlay as one route and isolate providers without emptying their home | 2026-10-03 | [^d13] |
+| 14 | Capture on demand with masks and owner-requested companion captures | 2026-10-04 | [^d14] |
+| 15 | Host the overlay in a native shell through one host adapter | 2026-10-04 | [^d15] |
 
 [^d1]: ADR-0000
 [^d2]: ADR-0001
@@ -27,3 +31,7 @@ _Accepted, non-archived decisions (11), projected from `adrs/index.md`. ADR refe
 [^d9]: ADR-0012
 [^d10]: ADR-0013
 [^d11]: ADR-0014
+[^d12]: ADR-0016
+[^d13]: ADR-0017
+[^d14]: ADR-0018
+[^d15]: ADR-0019

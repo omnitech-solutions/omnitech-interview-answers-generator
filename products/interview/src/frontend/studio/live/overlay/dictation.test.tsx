@@ -44,3 +44,60 @@ describe("dictation across a session switch", () => {
     expect(result.current.state).toBe("idle");
   });
 });
+
+describe("the level meter", () => {
+  it("start, stop, start again before the first getUserMedia resolves: the first stream is stopped, only the newest meter is kept", async () => {
+    const tracks = [vi.fn(), vi.fn()];
+    const gates: ((stream: unknown) => void)[] = [];
+    let asked = 0;
+    const getUserMedia = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          const mine = asked++;
+          gates.push(() =>
+            resolve({ getTracks: () => [{ stop: tracks[mine] }] }),
+          );
+        }),
+    );
+    const original = navigator.mediaDevices;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    class FakeContext {
+      createAnalyser() {
+        return { fftSize: 0, getByteTimeDomainData: () => undefined };
+      }
+      createMediaStreamSource() {
+        return { connect: () => undefined };
+      }
+      close() {
+        return Promise.resolve();
+      }
+    }
+    (window as unknown as { AudioContext: unknown }).AudioContext = FakeContext;
+    try {
+      const { result } = renderHook(() =>
+        useDictation({ deviceOnly: false, onFinal: vi.fn() }),
+      );
+      act(() => result.current.start());
+      act(() => result.current.stop());
+      act(() => result.current.start());
+      expect(getUserMedia).toHaveBeenCalledTimes(2);
+      await act(async () => gates[0]?.(null));
+      // The older attempt's stream is closed as soon as it arrives.
+      expect(tracks[0]).toHaveBeenCalledTimes(1);
+      expect(tracks[1]).not.toHaveBeenCalled();
+      await act(async () => gates[1]?.(null));
+      expect(tracks[1]).not.toHaveBeenCalled();
+      act(() => result.current.stop());
+      expect(tracks[1]).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: original,
+      });
+      delete (window as unknown as { AudioContext?: unknown }).AudioContext;
+    }
+  });
+});

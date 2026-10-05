@@ -93,7 +93,7 @@ const isReader = (path: string) =>
 
 /** Reads in production source, config and scripts. */
 export function productionEnvReads(): EnvRead[] {
-  return ["apps", "packages", "products", "scripts"].flatMap((root) =>
+  return ["apps", "packages", "products", "scripts", "e2e"].flatMap((root) =>
     walk(root, sourcePattern).filter(isReader).flatMap(envReadsIn),
   );
 }

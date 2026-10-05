@@ -8,7 +8,15 @@
 // solution replaces the earlier one in the session draft; and a restart finds
 // the owed solution from the stored actions.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -155,7 +163,11 @@ describe("a coding task owes a second solve-code action", () => {
     });
     expect(result.tests).toMatchObject({ total: 1, passed: 1, failed: 0 });
     expect(result.run).toMatchObject({ available: true, exitCode: 0 });
-    expect(result.syntax).toEqual({ checked: true, clean: true });
+    expect(result.syntax).toEqual({
+      checked: true,
+      clean: true,
+      diagnostics: [],
+    });
     expect(result.repair).toEqual({ attempted: false, succeeded: false });
     expect(result.replacesRevision).toBeNull();
     expect(result.workspace).toMatchObject({
@@ -699,4 +711,110 @@ describe("restart safety", () => {
     ]);
     expect((await first.draft()).value.answer.code).toContain("CODE-CANARY-1");
   }, 90_000);
+});
+
+// ---- what the result keeps of the runner's report -----------------------------
+
+describe("stored test and syntax detail", () => {
+  const LONG = `FAIL-MSG ${"expected   a\n\tgot b ".repeat(60)}`;
+  const failing = () =>
+    runResult({
+      exitCode: 1,
+      stdout: "SECRET-STDOUT-TEXT",
+      stderr: "SECRET-STDERR-TEXT",
+      durationMs: 777,
+      tests: [
+        {
+          name: "t0",
+          status: "failed",
+          durationMs: 31,
+          message: LONG,
+          location: { editor: "tests", line: 4 },
+        },
+        { name: "t1", status: "passed", durationMs: 5 },
+      ],
+    });
+  const diagnostics = Array.from({ length: 30 }, (_, index) => ({
+    line: index + 1,
+    column: 2,
+    message: `DIAG-${index} ${"x".repeat(400)}`,
+  }));
+
+  it("keeps a bounded message and location per failing test and bounded diagnostics, never output or durations, and never logs them", async () => {
+    const spies = (["log", "info", "warn", "error", "debug"] as const).map(
+      (method) => vi.spyOn(console, method).mockImplementation(() => {}),
+    );
+    const base = fakeRunner(failing);
+    const checkSyntax = vi.fn(async () =>
+      runResult({ exitCode: 1, diagnostics }),
+    );
+    const w = await world("code-detail", {
+      codeRunner: { runAll: base.runAll, checkSyntax },
+    });
+    await w.ingestor.ingest(QUESTION);
+    await settle(w.processor);
+
+    const result = (await solveActions(w))[0]?.result as AnyRow;
+    const results = result.tests.results as AnyRow[];
+    expect(results[0]).toMatchObject({
+      name: "t0",
+      status: "failed",
+      location: { editor: "tests", line: 4 },
+    });
+    expect(results[0].message.length).toBeLessThanOrEqual(300);
+    expect(results[0].message.endsWith("\u2026")).toBe(true);
+    expect(results[0].message).not.toMatch(/\s{2}|[\n\t]/);
+    // A passing test has no message and no location; keys are only these.
+    expect(results[1]).toEqual({ name: "t1", status: "passed" });
+    for (const row of results)
+      expect(
+        Object.keys(row).every((key) =>
+          ["name", "status", "message", "location"].includes(key),
+        ),
+      ).toBe(true);
+    expect(result.tests).toMatchObject({ total: 2, passed: 1, failed: 1 });
+
+    expect(result.syntax.checked).toBe(true);
+    expect(result.syntax.clean).toBe(false);
+    expect(result.syntax.diagnostics).toHaveLength(20);
+    expect(result.syntax.diagnostics[0]).toMatchObject({ line: 1, column: 2 });
+    expect(result.syntax.diagnostics[0].message.length).toBeLessThanOrEqual(
+      200,
+    );
+
+    // The stored result (what the browser feed returns) has no output text and
+    // no durations inside tests.
+    const stored = JSON.stringify(result);
+    expect(stored).not.toContain("SECRET-STDOUT-TEXT");
+    expect(stored).not.toContain("SECRET-STDERR-TEXT");
+    expect(JSON.stringify(result.tests)).not.toContain("durationMs");
+    // Distinct states: failed tests never read as fully verified.
+    expect(result.states).toMatchObject({
+      testsPassed: false,
+      fullyVerified: false,
+    });
+
+    // Never in a trace, the repair prompt or a console call.
+    expect(JSON.stringify(w.trace.events)).not.toContain("FAIL-MSG");
+    expect(JSON.stringify(w.trace.events)).not.toContain("DIAG-");
+    for (const request of w.gateway.requests)
+      expect(request.task.prompt).not.toContain("FAIL-MSG");
+    for (const spy of spies) {
+      expect(JSON.stringify(spy.mock.calls)).not.toContain("FAIL-MSG");
+      expect(JSON.stringify(spy.mock.calls)).not.toContain("DIAG-");
+      spy.mockRestore();
+    }
+  }, 60_000);
+
+  it("stores a runner's plain report (no message, no location, no diagnostics) in the old shape plus an empty diagnostics list", async () => {
+    const { runner } = fakeRunner();
+    const w = await world("code-detail-plain", { codeRunner: runner });
+    await w.ingestor.ingest(QUESTION);
+    await settle(w.processor);
+    const result = (await solveActions(w))[0]?.result as AnyRow;
+    expect(result.tests.results).toEqual([
+      { name: expect.stringMatching(/^t\d+$/), status: "passed" },
+    ]);
+    expect(result.syntax.diagnostics).toEqual([]);
+  }, 60_000);
 });

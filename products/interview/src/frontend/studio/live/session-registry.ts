@@ -67,6 +67,12 @@ export function getSessionStore(tenant: string): SessionStore {
   return store;
 }
 
+// The fetch the stores use (a test's, else the studio's own), for a read that
+// is not part of the store's stream, such as a task's screenshots list.
+export function sessionFetch(): StoreDeps["fetch"] {
+  return overrides.fetch ?? studioFetch;
+}
+
 // The tenant slug the page belongs to (/t/<slug>/…), as studioFetch reads it.
 export function tenantFromLocation(): string {
   const slug = /^\/t\/([^/]+)/.exec(window.location.pathname)?.[1];

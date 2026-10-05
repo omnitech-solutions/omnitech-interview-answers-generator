@@ -13,6 +13,7 @@ const task = (title: string | null): TaskView =>
     kind: "programming-challenge",
     title,
     currentRevision: 2,
+    revisions: [{ revision: 1 }, { revision: 2 }],
     constraints: [
       { text: "No sorting allowed", status: "current", sinceRevision: 1 },
       { text: "Old rule", status: "superseded", sinceRevision: 1 },

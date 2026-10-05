@@ -124,6 +124,7 @@ const ignoredDirectories = new Set([
   "node_modules",
   "dist",
   ".next",
+  ".next-e2e",
   ".turbo",
   "drizzle",
 ]);
@@ -133,7 +134,11 @@ const testSupport =
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (ignoredDirectories.has(entry.name)) return [];
+    if (
+      ignoredDirectories.has(entry.name) ||
+      entry.name.startsWith(".next-e2e")
+    )
+      return [];
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
     return /\.(ts|tsx|mts)$/.test(entry.name) && !entry.name.endsWith(".d.ts")

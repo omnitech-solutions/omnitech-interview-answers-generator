@@ -429,15 +429,17 @@ describe("transcript rows", () => {
     expect(new Set(keys).size).toBe(3);
   });
 
-  it("drops observations whose content is malformed", () => {
+  it("shows an observation whose content is malformed as a placeholder, never silence", () => {
     const broken = {
       ...transcript(1, "x"),
       content: stored(1, { speaker: 3 }),
     };
-    expect(model(online(), [broken]).transcript).toEqual([]);
+    expect(model(online(), [broken]).transcript.map((row) => row.type)).toEqual(
+      ["unreadable"],
+    );
   });
 
-  it("marks where each task revision began, before the next line heard", () => {
+  it("marks where a task began with ONE row, however many revisions it has", () => {
     const rows = model(
       online(),
       [
@@ -459,15 +461,23 @@ describe("transcript rows", () => {
         }),
       ],
     ).transcript;
-    expect(
-      rows.map((r) =>
-        r.type === "new-task" ? `task rev ${r.revision}` : r.type,
-      ),
-    ).toEqual(["utterance", "task rev 1", "utterance", "task rev 2"]);
-    expect(rows[3]).toMatchObject({ revised: true });
-    expect(rows[1]).toMatchObject({
-      revised: false,
+    expect(rows.map((r) => r.type)).toEqual(["utterance", "task", "utterance"]);
+    const task = rows[1];
+    expect(task).toMatchObject({
+      type: "task",
       kind: "experience-question",
+      currentRevision: 2,
+    });
+    if (task?.type !== "task") throw new Error("expected the task row");
+    expect(task.revisions.map((r) => [r.revision, r.cause])).toEqual([
+      [1, "First answer"],
+      [2, "Follow-up"],
+    ]);
+    // Revision 2 has no draft yet: its own state, never revision 1's text.
+    expect(task.revisions[0]?.text.text).not.toBeNull();
+    expect(task.revisions[1]?.text).toEqual({
+      text: null,
+      note: "Drafting…",
     });
   });
 });

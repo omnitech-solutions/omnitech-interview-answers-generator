@@ -13,6 +13,7 @@
 // What it does not do: the Workspace draft write of a coding publish (a
 // database effect, covered by the database suites) and row security.
 import { randomUUID } from "node:crypto";
+import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
 import { OWNER_INPUT_SOURCE_ID } from "../db/live-session";
 import { buildContextSnapshot } from "./context-snapshot";
 import {
@@ -31,6 +32,7 @@ import type { SessionView } from "./session-record";
 
 export type MemoryWorldOptions = {
   processingPolicy?: "device-only" | "permitted-remote";
+  screenshotSend?: LiveScreenshotSend;
   liveAssistance?: boolean;
 };
 
@@ -38,6 +40,7 @@ type MemoryState = {
   status: "active" | "paused" | "ended" | "purging";
   policy: "device-only" | "permitted-remote";
   liveAssistance: boolean;
+  screenshotSend: LiveScreenshotSend;
   fence: number;
   holderId: string | null;
   processedThrough: number;
@@ -55,6 +58,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
     status: "active",
     policy: options.processingPolicy ?? "permitted-remote",
     liveAssistance: options.liveAssistance ?? true,
+    screenshotSend: options.screenshotSend ?? "always",
     fence: 0,
     holderId: null,
     processedThrough: 0,
@@ -131,6 +135,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
       id: sessionId,
       status: state.status,
       processingPolicy: state.policy,
+      screenshotSend: state.screenshotSend,
       liveAssistance: state.liveAssistance,
       purged: state.purged,
     }) as unknown as SessionView;
@@ -214,6 +219,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
         outcome: "standing",
         status: state.status,
         processingPolicy: state.policy,
+        screenshotSend: state.screenshotSend,
         liveAssistance: state.liveAssistance,
         fence: state.fence,
       };

@@ -2,6 +2,66 @@
 
 _Append-only. Newest first._
 
+## [2026-10-05] journal | decision: File Drizzle docs as research sources and extend the technology-references router
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-05T03:13-06:00. Refs: [[research/references/technology-references]]
+
+## [2026-10-05] skill | revised .agents/skills/technology-references/
+
+Drizzle now routes to the six filed `drizzle-*` research source pages plus the three invariants, with a per-layer line (generate through `db:generate`, then `pnpm docs:arch` and `docs:arch:check`); no rule text added. Self-test: every named script and path checked against the repo; router not run on a live task.
+
+## [2026-10-05] ingest | drizzle-orm-transactions
+
+Drizzle ORM - Transactions (official Drizzle docs, https://orm.drizzle.team/docs/transactions). Raw `research/raw/2026-10-05/drizzle-orm-transactions/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | drizzle-orm-row-level-security
+
+Drizzle ORM - Row-Level Security (RLS) (official Drizzle docs, https://orm.drizzle.team/docs/rls). Raw `research/raw/2026-10-05/drizzle-orm-row-level-security/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | drizzle-kit-migrate
+
+Drizzle ORM - `migrate` (official Drizzle docs, https://orm.drizzle.team/docs/drizzle-kit-migrate). Raw `research/raw/2026-10-05/drizzle-kit-migrate/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | drizzle-kit-generate
+
+Drizzle ORM - `generate` (official Drizzle docs, https://orm.drizzle.team/docs/drizzle-kit-generate). Raw `research/raw/2026-10-05/drizzle-kit-generate/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | drizzle-orm-migrations
+
+Drizzle ORM - Migrations (official Drizzle docs, https://orm.drizzle.team/docs/migrations). Raw `research/raw/2026-10-05/drizzle-orm-migrations/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | drizzle-orm-schema-declaration
+
+Drizzle ORM - Schema (official Drizzle docs, https://orm.drizzle.team/docs/sql-schema-declaration). Raw `research/raw/2026-10-05/drizzle-orm-schema-declaration/` (HTML, markdown, metadata, PROVENANCE.md; docs site unversioned, repo pins drizzle-orm and drizzle-kit 1.0.0-rc.4). Synthesis: `research/references/technology-references` (Drizzle row). Index, registry and master rollup updated.
+
+## [2026-10-05] ingest | oakoss drizzle-orm skill rejected
+
+Checked `oakoss/agent-skills` skills/drizzle-orm at commit 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad: no LICENSE file, MIT claimed in frontmatter and README but root package.json says ISC; generic content with no RLS or roles guidance. Nothing captured; recorded under Considered and not filed in `research/references/technology-references`.
+
+## [2026-10-05] journal | decision: Move the Drizzle data model to Crux's arch_extractors seam
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-05T02:49-06:00. Refs: [[research/references/technology-references]]
+
+## [2026-10-05] skill | revised .agents/skills/bionic-regeneration/
+
+Known gaps rewritten after the Drizzle data-model moved to Crux's arch_extractors override (`tools/crux/arch/drizzle_data_model.py`, `pnpm docs:arch`); the earlier Prisma projection is retired. Self-test: real derive then `docs:arch:check` exit 0, guard tests pass. Forge log: `.agents/skills/forge-log.md`.
+
+## [2026-10-05] journal | decision: Revise bionic-regeneration after the data-model projection
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-05T01:48-06:00. Refs: [[research/references/technology-references]]
+
+## [2026-10-05] skill | revised .agents/skills/bionic-regeneration/
+
+Known gaps updated after the data-model concern was populated through a committed Drizzle-to-Prisma projection (`pnpm db:projection`, then derive-arch). Self-test: real derive-arch reported data-model populated with no strict failures. Forge log: `.agents/skills/forge-log.md`.
+
+## [2026-10-05] journal | decision: Forge the bionic-regeneration skill
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-05T01:31-06:00. Refs: [[research/references/technology-references]]
+
+## [2026-10-05] skill | authored .agents/skills/bionic-regeneration/
+
+Gap: no project procedure for checking and regenerating the derived parts of bionic/ (arch, code, ADR indexes) or for what never to hand-edit. Path `.agents/skills/bionic-regeneration/SKILL.md`; self-test closed-with-caveats (read-only checks ran on the live tree and found real drift; repair path deferred). Forge log: `.agents/skills/forge-log.md`.
+
 ## [2026-10-04] journal | decision: File technology reference skills and forge the technology-references router
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-04T20:30-06:00. Refs: [[research/references/technology-references]]

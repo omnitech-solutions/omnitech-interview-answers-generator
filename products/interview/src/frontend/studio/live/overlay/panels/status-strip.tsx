@@ -18,6 +18,10 @@ import { useElapsed } from "./use-elapsed";
 
 type Strip = {
   state: StripState | null;
+  // What the native engine needs from the owner (refusal reason, hint, lost or
+  // denied microphone); null when nothing.
+  engine: string | null;
+
   chips: ReturnType<typeof taskChips>;
 };
 
@@ -41,16 +45,17 @@ export function useStrip(s: PanelSession): Strip | null {
     finished: finishedWork(newest, label, s.model.serverNowMs),
   });
   const chips = taskChips(tasks, s.selected?.taskId);
-  return state || chips.length > 1 ? { state, chips } : null;
+  const engine = s.engineNeeds;
+  return state || engine || chips.length > 1 ? { state, engine, chips } : null;
 }
 
 export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
-  const { state, chips } = strip;
+  const { state, engine, chips } = strip;
   const act: Record<StripActionId, () => void> = {
     stop: () => void s.stop(),
     resume: () =>
       void s.actions.resume().then((result) => {
-        if (!result.ok) s.notify(failureNote(result.code));
+        if (!result.ok) s.notify(failureNote(result.code, result.reason));
       }),
   };
   return (
@@ -72,6 +77,16 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
           </span>
           {state.sub && <span className="pn-strip-sub">{state.sub}</span>}
         </>
+      )}
+      {engine && (
+        <span
+          className="pn-strip-sub pn-strip-engine"
+          role="status"
+          data-testid="pn-engine-line"
+        >
+          <Icon name="warning" />
+          {engine}
+        </span>
       )}
       <span className="pn-fill" />
       {chips.length > 1 && (

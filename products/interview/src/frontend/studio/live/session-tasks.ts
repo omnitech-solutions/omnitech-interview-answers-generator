@@ -5,6 +5,7 @@
 // constraints come from the coding briefs of its revisions.
 import type {
   LiveAction,
+  LiveRevisionReason,
   LiveSessionStatus,
 } from "@omnitech/interview-contracts";
 import {
@@ -50,7 +51,7 @@ const KIND_OF_CATEGORY: Record<string, TaskKind> = {
   other: "other",
 };
 
-type TaskRevisionView = {
+export type TaskRevisionView = {
   revision: number;
   current: boolean;
   // The latest run per action kind, in the order drafts, code, agent.
@@ -61,6 +62,12 @@ type TaskRevisionView = {
   answer: AnswerResult | null;
   code: CodeResult | null;
   agent: AgentResult | null;
+  // Why the owner's own input made this revision (regenerate, added
+  // screenshot), as the server recorded it; null for any other revision.
+  reason: LiveRevisionReason | null;
+  // The capture behind this revision showed no interview question (D36): the
+  // server's flag on its draft-answer action, never inferred from the text.
+  noQuestion: boolean;
   firstSeenAt: string;
 };
 
@@ -103,6 +110,14 @@ export type TaskView = {
   } | null;
   // The current revision's solution is held because the draft was edited.
   heldResult: boolean;
+  // EVERY revision showed no interview question: never a real task, so
+  // deriveTasks leaves it out (see deriveNoQuestionTasks). A real task whose
+  // newest revision found none keeps this false; read the revision's own flag.
+  noQuestion: boolean;
+  // Where the task sits in numbering: when it first counted as a real task
+  // (its first revision that is not a no-question one). Equals firstSeenAt
+  // for every task that was real from the start.
+  realSince: string;
   firstSeenAt: string;
 };
 
@@ -151,6 +166,8 @@ function revisionView(
       answer && shows(answerRun) ? parseAnswerResult(answer.result) : null,
     code: code && shows(codeRun) ? parseCodeResult(code.result) : null,
     agent: agent ? parseAgentResult(agent.result) : null,
+    reason: actions.find((a) => a.revisionReason)?.revisionReason ?? null,
+    noQuestion: answer?.noQuestion === true,
     firstSeenAt: actions
       .map((a) => a.createdAt)
       .sort((x, y) => Date.parse(x) - Date.parse(y))[0] as string,
@@ -159,7 +176,7 @@ function revisionView(
 
 // Constraints across revisions: a later brief's list is the truth; an earlier
 // constraint it no longer lists is superseded, not deleted.
-function constraintHistory(
+export function constraintHistory(
   revisions: readonly TaskRevisionView[],
 ): ConstraintView[] {
   const briefs = revisions
@@ -191,7 +208,7 @@ function constraintHistory(
   return [...seen.values()];
 }
 
-export function deriveTasks(
+function buildTasks(
   actions: readonly LiveAction[],
   sessionStatus: LiveSessionStatus,
 ): TaskView[] {
@@ -223,7 +240,9 @@ export function deriveTasks(
         .reverse()
         .map(pick)
         .find((value) => value !== null) ?? null;
-    const answer = newest((r) => r.answer);
+    // A no-question revision never replaces what an earlier real revision
+    // answered: that answer stays (Outdated), the new revision just says so.
+    const answer = newest((r) => (r.noQuestion ? null : r.answer));
     const code = newest((r) => r.code);
     const coding =
       code !== null ||
@@ -244,7 +263,8 @@ export function deriveTasks(
       revisions,
       current,
       answer,
-      answerStale: answer !== null && current.answer === null,
+      answerStale:
+        answer !== null && (current.answer === null || current.noQuestion),
       code,
       codeStale: code !== null && current.code === null,
       constraints: constraintHistory(revisions),
@@ -260,10 +280,53 @@ export function deriveTasks(
             }
           : null,
       heldResult: current.codeRun?.state === "held-conflict",
+      // Never real: every revision showed no interview question. A real task
+      // whose NEWEST revision found none stays a task (D34/D36); that
+      // revision alone is labelled "No question found".
+      noQuestion: revisions.every((r) => r.noQuestion),
+      realSince: (revisions.find((r) => !r.noQuestion) ?? current).firstSeenAt,
       firstSeenAt: revisions[0]?.firstSeenAt as string,
     });
   }
-  return tasks.sort(
-    (a, b) => Date.parse(a.firstSeenAt) - Date.parse(b.firstSeenAt),
-  );
+  return tasks;
+}
+
+// The tasks, oldest first, REAL ones only (D36): a task whose current revision
+// showed no interview question is not one. This is the one place that rule
+// lives; ordinals, "newest", chips, targets and every other surface read this
+// list. Order is by when a task started counting, so a no-question task that
+// a follow-up later turns real takes the next number at that moment and no
+// existing number moves.
+export function deriveTasks(
+  actions: readonly LiveAction[],
+  sessionStatus: LiveSessionStatus,
+): TaskView[] {
+  return partitionTasks(buildTasks(actions, sessionStatus)).real;
+}
+
+// One build, split in two (the stream derive needs both lists).
+export function partitionTasks(built: readonly TaskView[]): {
+  real: TaskView[];
+  noQuestion: TaskView[];
+} {
+  // Accepted limit (T36 finding 8): an in-flight first capture counts as a
+  // real task until it is classified, so its progress steps can show.
+  return {
+    real: built
+      .filter((task) => !task.noQuestion)
+      .sort((a, b) => Date.parse(a.realSince) - Date.parse(b.realSince)),
+    noQuestion: built
+      .filter((task) => task.noQuestion)
+      .sort((a, b) => Date.parse(a.firstSeenAt) - Date.parse(b.firstSeenAt)),
+  };
+}
+
+export const buildTaskViews = buildTasks;
+
+// The captures that showed no interview question, oldest first.
+export function deriveNoQuestionTasks(
+  actions: readonly LiveAction[],
+  sessionStatus: LiveSessionStatus,
+): TaskView[] {
+  return partitionTasks(buildTasks(actions, sessionStatus)).noQuestion;
 }

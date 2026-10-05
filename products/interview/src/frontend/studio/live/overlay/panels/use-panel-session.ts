@@ -18,15 +18,32 @@ import {
 } from "../../focus-presentation";
 import { nativeCaptureAvailable, onHostHotkey } from "../../host-adapter";
 import { isOpenSession } from "../../session-deps";
+import {
+  type CaptureProblemReason,
+  captureProblem,
+  cleanFrontApp,
+  isCaptureProblemReason,
+} from "../../shared/capture-problem";
+import { noQuestionStatus } from "../../shared/no-question";
+import { pickOf, taskAtRevision } from "../../shared/revisions";
+import type { TrayIntent } from "../../shared/screenshot-tray";
+import { nativeChord } from "../../shared/shortcuts";
 import { SKILLS } from "../../shared/skills";
 import { taskCardModel } from "../../shared/task-card-model";
 import { resolveTarget, targetOf } from "../../shared/task-target";
 import { useMissingContext } from "../../shared/use-missing-context";
+import {
+  lastGrabDisplay,
+  type ScreenshotTray,
+  useScreenshotTray,
+} from "../../shared/use-screenshot-tray";
+import { useCaptureProblem } from "../../use-capture-problem";
 import { useLiveSession } from "../../use-live-session";
+import { newestResultIsNoQuestion } from "../auto-backoff";
 import { loadAutoPreferred, saveAutoPreferred } from "../auto-prefs";
+import { type CaptureFailure, captureFailureOf } from "../capture-failure";
 import { loadMask, loadSettings } from "../capture-prefs";
-import { FrameError } from "../capture-source";
-import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
+import { FULL } from "../mask-geometry";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
 import { useAutoMode } from "../use-auto-mode";
@@ -46,9 +63,16 @@ import {
 import { openPanelBus, type PanelMessage, type PanelState } from "./panel-bus";
 import { type SystemLine, taskMarkers } from "./panel-model";
 import { type NativeWindowPage, useOwnsSession } from "./panel-owner";
-import { useInteractionMode } from "./presentation-host";
-import { autoLimits } from "./toolbar-config";
-import { engineHost, engineLine, useEngine } from "./use-engine";
+import { autoLimits, HIDDEN_TOAST } from "./toolbar-config";
+import {
+  engineHost,
+  engineLine,
+  engineMic,
+  engineNeeds,
+  MIC_HELD_TEXT,
+  pressMic,
+  useEngine,
+} from "./use-engine";
 
 export const TOAST_MS = 3_000;
 const MAX_LINES = 40;
@@ -58,11 +82,9 @@ export type Toast = { key: number; title: string; detail: string };
 const skillLabel = (skill: LiveOwnerSkill): string =>
   SKILLS.find((option) => option.id === skill)?.label ?? skill;
 export const TOAST_TEXT = {
-  interaction: (on: boolean): Omit<Toast, "key"> => ({
-    title: `Interaction Mode: ${on ? "ON" : "OFF"}`,
-    detail: on
-      ? "Green dot, Interact with window like scroll, copy, move"
-      : "Red dot shows interaction mode is off",
+  hiddenPaused: (): Omit<Toast, "key"> => ({
+    title: HIDDEN_TOAST,
+    detail: `${nativeChord("show-hide")}, the menu-bar item or the Dock icon shows the window; then Resume`,
   }),
   recording: (): Omit<Toast, "key"> => ({
     title: "Start/Stop Recording",
@@ -75,10 +97,6 @@ export const TOAST_TEXT = {
   copied: (what: string): Omit<Toast, "key"> => ({
     title: `Copied ${what}`,
     detail: "",
-  }),
-  skillCurrent: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
-    title: `Current Skill - ${skillLabel(skill)}`,
-    detail: "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)",
   }),
 };
 export const RECORDING_LINE =
@@ -98,7 +116,7 @@ export function usePanelSession(
   presentation: PresentationHost,
   // True while the analysis is on screen: Auto then watches the screen on an
   // interval and analyzes it when it changes. Off, captures wait for the hotkey.
-  options: { watchScreen?: boolean } = {},
+  options: { watchScreen?: boolean; toggleSeeThrough?: () => void } = {},
 ) {
   const { snapshot, actions, model } = useLiveSession();
   const tenant = snapshot.tenant;
@@ -110,12 +128,12 @@ export function usePanelSession(
   const owns = useOwnsSession(panel, tenant);
   const prefs = useCapturePrefs(tenant);
   const share = useScreenShare();
+  const issue = useCaptureProblem();
   const companionCapture = useCompanionCapture(
     actions,
     sessionId,
     snapshot.actions.length,
   );
-  const interaction = useInteractionMode(presentation);
 
   // ---- Lines, toasts, notes -------------------------------------------------
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -197,6 +215,35 @@ export function usePanelSession(
   sessionNow.current = sessionId;
 
   const capturing = useRef(false);
+  // The screenshot tray lives beside the task selection (below); capture reads
+  // it through this ref.
+  const trayRef = useRef<ScreenshotTray | null>(null);
+  // Show a refusal here AND in every other panel (the analysis panel is where
+  // the person is looking, but the capture may run in the bar's document).
+  function showNote(text: string | null) {
+    setNoteState(text);
+    if (text) bus.post({ type: "note", text });
+  }
+  // Why a capture did not work: a banner in every panel until it is dismissed or
+  // the next capture works, and (for the person's own press) a toast. Auto shows
+  // it in its status line and the banner, never as a toast.
+  function raise(
+    failure: CaptureFailure | { reason: CaptureProblemReason },
+    intent: "manual" | "auto",
+  ) {
+    const frontApp = "frontApp" in failure ? failure.frontApp : null;
+    const state = { reason: failure.reason, intent, frontApp };
+    issue.show(state);
+    bus.post({ type: "problem", problem: state });
+    if (intent === "manual") {
+      const text = captureProblem(failure.reason, { intent, frontApp });
+      toast({ title: text.title, detail: text.fix });
+    }
+  }
+  function resolveProblem() {
+    issue.clear();
+    bus.post({ type: "problem", problem: null });
+  }
   // `attach`: the screen is more of the problem already on show (a second
   // screenshot after scrolling), not a new problem.
   async function grabAndAnalyze(
@@ -213,76 +260,117 @@ export function usePanelSession(
       capturing.current = false;
     }
   }
-  async function captureOnce(label: string | undefined, attach: boolean) {
+  // Manual: the frame is taken and STAGED on the device (nothing is sent) until
+  // the person presses Apply in the Screenshots tray.
+  async function stageFrame(intent: TrayIntent): Promise<boolean> {
+    if (capturing.current) return false;
+    // Refused BEFORE a real screenshot is taken when the tray cannot keep it
+    // (Apply in flight, tray full): the reason is shown, nothing is captured.
+    const refusal = trayRef.current?.stageRefusal();
+    if (refusal) {
+      setNote(refusal);
+      return false;
+    }
+    capturing.current = true;
+    try {
+      const frame = await takeFrame(undefined);
+      const tray = trayRef.current;
+      if (!frame || !tray) return false;
+      return tray.stage(
+        {
+          blob: frame.blob,
+          label: frame.label,
+          display: lastGrabDisplay(nativeCaptureAvailable()),
+        },
+        intent,
+      );
+    } finally {
+      capturing.current = false;
+    }
+  }
+  // One fresh frame of the shared screen, or null with the reason shown. The
+  // frame is taken: from here the caller sends or stages it.
+  async function takeFrame(label: string | undefined) {
     const origin = sessionNow.current;
     const here = () => sessionNow.current === origin;
-    // Show a refusal here AND in every other panel (the analysis panel is where
-    // the person is looking, but the capture may run in the bar's document).
-    const setNote = (text: string | null) => {
-      setNoteState(text);
-      if (text) bus.post({ type: "note", text });
-    };
-    setNote(null);
+    showNote(null);
     setStopped(false);
+    // A named label means Auto asked; a press (button, hotkey, Add screenshot) is manual.
+    const intent = label === undefined ? "manual" : "auto";
     if (latest.current.deviceOnly) {
-      setNote(DEVICE_ONLY_ANALYZE);
-      return false;
+      raise({ reason: "device-only" }, intent);
+      return null;
     }
     // A native host captures without a gesture; a browser needs the person to
     // share a window first (Settings, on the panel that owns capture).
     if (share.status !== "sharing") {
-      if (!nativeCaptureAvailable() || !(await share.start())) {
-        setNote("Share a window, tab or screen first (Settings).");
-        return false;
+      if (!nativeCaptureAvailable()) {
+        raise({ reason: "share-needed" }, intent);
+        return null;
+      }
+      if (!(await share.start())) {
+        raise({ reason: "capture-failed" }, intent);
+        return null;
       }
     }
     setGrabbing(true);
     try {
-      const frame = await share.grab(latest.current.mask);
-      if (!here()) return false;
-      // The frame is taken: from here it is sending (the analyze command is
-      // pending), not capturing, and Stop has work to cancel.
-      setGrabbing(false);
-      // A capture is a new analysis that replaces the one on show, and is never
-      // attached to the previous task by accident (a heard question and a screen
-      // of another problem would be merged). Attaching is only ever asked for.
-      const onShow = attach ? selectedRef.current : undefined;
-      const result = await actions.analyzeCapture({
-        image: frame.blob,
-        label: label ?? (attach ? "Added screen" : frame.label),
-        ...(onShow
-          ? {
-              target: {
-                taskId: onShow.taskId,
-                revision: onShow.currentRevision,
-              },
-            }
-          : {}),
-        ...latest.current.hints,
-      });
-      if (!result.ok && here()) setNote(failureNote(result.code));
-      return result.ok;
+      const frame = await share.grab(
+        latest.current.mask,
+        intent === "manual" ? "explicit" : "auto",
+      );
+      if (!here()) return null;
+      // A capture that works ends the earlier problem.
+      resolveProblem();
+      return frame;
     } catch (error) {
-      // An automatic capture with no browser in front just waits for one.
-      const quiet =
-        label !== undefined &&
-        error instanceof FrameError &&
-        error.code === "no-focused-window";
-      if (here() && !quiet)
-        setNote(
-          error instanceof FrameError && error.code === "display-changed"
-            ? "Your display changed, so the capture area was cleared. Choose the area again."
-            : error instanceof FrameError && error.code === "no-focused-window"
-              ? "Capture only runs while Chrome or Safari is in front. Switch to your browser and press ⌘⇧S."
-              : error instanceof FrameError &&
-                  error.code === "permission-denied"
-                ? "Screen Recording is off for this app. Turn on Interview Studio in System Settings → Privacy & Security → Screen & System Audio Recording, then reopen it."
-                : "Couldn’t capture. Check the share and try again.",
-        );
-      return false;
+      const failure = captureFailureOf(error);
+      // An automatic capture with no browser in front just waits for one (its
+      // status line says so).
+      const quiet = intent === "auto" && failure.reason === "no-focused-window";
+      if (here() && !quiet) {
+        // The stored area belonged to another display: drop it, ask again.
+        if (failure.reason === "display-changed") prefs.setMask(FULL);
+        raise(failure, intent);
+      }
+      return null;
     } finally {
       setGrabbing(false);
     }
+  }
+  async function captureOnce(label: string | undefined, attach: boolean) {
+    const origin = sessionNow.current;
+    const here = () => sessionNow.current === origin;
+    const frame = await takeFrame(label);
+    if (!frame) return false;
+    // A capture is a new analysis that replaces the one on show, and is never
+    // attached to the previous task by accident (a heard question and a screen
+    // of another problem would be merged). Attaching is only ever asked for.
+    const onShow = attach ? selectedRef.current : undefined;
+    const result = await actions.analyzeCapture({
+      image: frame.blob,
+      ...(frame.ocr ? { ocr: frame.ocr } : {}),
+      label: label ?? (attach ? "Added screen" : frame.label),
+      ...(onShow
+        ? {
+            target: {
+              taskId: onShow.taskId,
+              revision: onShow.currentRevision,
+            },
+          }
+        : {}),
+      ...latest.current.hints,
+    });
+    if (!result.ok && here()) {
+      // A paused or ended session refuses captures: say so with the fix.
+      if (result.code === "status_refused")
+        raise(
+          { reason: pausedRef.current ? "session-paused" : "session-ended" },
+          label === undefined ? "manual" : "auto",
+        );
+      else showNote(failureNote(result.code, result.reason));
+    }
+    return result.ok;
   }
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
@@ -293,6 +381,7 @@ export function usePanelSession(
   const engineListening = engineHost() !== null && !engineRefused;
   const auto = useAutoMode({
     engineListening,
+    nativeEngine: engineHost() !== null,
     tenant,
     sessionId,
     // Only the owner listens and watches.
@@ -309,6 +398,7 @@ export function usePanelSession(
     sample: share.sample,
     mask: prefs.mask,
     busy: grabbing || snapshot.pending.includes("analyze"),
+    lastResultNoQuestion: newestResultIsNoQuestion(snapshot.actions),
     capture: () => grabAndAnalyze(AUTO_CAPTURE_LABEL),
     submitHeard: actions.submitHeard,
     resume: actions.resume,
@@ -361,18 +451,14 @@ export function usePanelSession(
   useEffect(() => {
     setEngineRefused(engine.refused !== null);
   }, [engine.refused]);
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
 
   // What every panel shows: the owner's real state, or the owner's last report.
   const live: PanelState = owns
     ? {
         auto: auto.on,
-        mic:
-          engine.state?.sources.microphone === "permission-denied"
-            ? ("denied" as const)
-            : engine.listening &&
-                engine.state?.sources.microphone === "listening"
-              ? ("listening" as const)
-              : auto.mic,
+        mic: engineMic(engine, auto.mic),
         interim: engine.state?.speech ?? auto.dictation.interim,
         sharing: share.status === "sharing",
         phase: localPhase,
@@ -406,7 +492,7 @@ export function usePanelSession(
     if (!result.ok) {
       // The work was not stopped: the panels keep saying what is running.
       setStopped(false);
-      setNote(failureNote(result.code));
+      setNote(failureNote(result.code, result.reason));
     }
   }
   const press = useCallback(
@@ -415,19 +501,28 @@ export function usePanelSession(
         bus.post({ type: "command", command });
         return;
       }
-      if (command === "toggle-mic") auto.toggleListening();
+      if (command === "toggle-mic") {
+        // Held (session paused): the press changes nothing, and says why.
+        if (engineRef.current.micHeld) setNote(MIC_HELD_TEXT);
+        else pressMic(engineRef.current, auto.toggleListening);
+      }
       // Adding a screen to the problem on show never stops the work in flight.
-      else if (command === "attach") void grabAndAnalyze(undefined, true);
+      // In Manual it is only staged: Apply in the tray is what generates.
+      else if (command === "attach")
+        void (manual() ? stageFrame("add") : grabAndAnalyze(undefined, true));
       // While work is running the capture control is "Stop"; pressed again it
-      // captures the screen as a new task.
+      // captures the screen as a new task (Manual: stages it as a new problem).
       else if (phaseRef.current) void stopAnalysis();
-      else void grabAndAnalyze();
+      else void (manual() ? stageFrame("new") : grabAndAnalyze());
     },
     // grabAndAnalyze reads share.status from the render that made this callback
     // (benign: share.start() is idempotent) and the rest through refs;
     // stopAnalysis reads refs; auto.toggleListening is stable.
     [owns, bus, auto.toggleListening],
   );
+  // Manual stages a capture, but only where the tray is on screen.
+  const manual = () =>
+    !liveRef.current.auto && trayRef.current?.hasSurface() === true;
   const pressRef = useRef(press);
   pressRef.current = press;
 
@@ -441,10 +536,23 @@ export function usePanelSession(
           bus.post({ type: "state", state: liveRef.current });
       } else if (message.type === "command") {
         if (ownsRef.current && open_.current) pressRef.current(message.command);
+        // The session is over: say why nothing happened, never ignore the press.
+        else if (ownsRef.current && message.command !== "toggle-mic")
+          raise({ reason: "session-ended" }, "manual");
       } else if (message.type === "clear") {
         if (message.sessionId === sessionNow.current) clearMemory(false);
       } else if (message.type === "note") {
         setNote(message.text);
+      } else if (message.type === "problem") {
+        // Another document's capture problem (or its end): shown here too.
+        const next = message.problem;
+        if (next === null) issue.clear();
+        else if (isCaptureProblemReason(next.reason))
+          issue.show({
+            reason: next.reason,
+            intent: next.intent === "auto" ? "auto" : "manual",
+            frontApp: cleanFrontApp(next.frontApp),
+          });
       } else if (message.type === "session") {
         // Handled by the auto-session hook of this document.
       } else if (message.sessionId === sessionNow.current) {
@@ -462,6 +570,8 @@ export function usePanelSession(
   ownsRef.current = owns;
   const open_ = useRef(open);
   open_.current = open;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   // Settings, the region and the Auto preference changed in another panel.
   const autoRef = useRef(auto);
@@ -500,14 +610,29 @@ export function usePanelSession(
 
   // ---- Commands -----------------------------------------------------------------
   // Every command, from the in-page keymap or a host hotkey, runs here once.
-  const interactionRef = useRef(interaction);
-  interactionRef.current = interaction;
+  const seeThroughRef = useRef(options.toggleSeeThrough);
+  seeThroughRef.current = options.toggleSeeThrough;
   const settingsRef = useRef(prefs.settings);
   settingsRef.current = prefs.settings;
   const selectedRef = useRef<typeof selected>(undefined);
   const run = useCallback(
     async (command: Command) => {
-      if (!open_.current) return;
+      // These two need no open session: clear glass chosen earlier must be
+      // turnable off on an ended view, and the chat box focus is only a focus.
+      if (command === "chat.focus") {
+        window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+        return;
+      }
+      if (command === "see-through.toggle") {
+        seeThroughRef.current?.();
+        return;
+      }
+      if (!open_.current) {
+        // A capture command on a session that is over says so, never nothing.
+        if (command === "capture.analyze")
+          raise({ reason: "session-ended" }, "manual");
+        return;
+      }
       switch (command) {
         case "auto.toggle":
           setAuto(!liveRef.current.auto);
@@ -529,18 +654,12 @@ export function usePanelSession(
             { taskId: task.taskId, revision: task.currentRevision },
             latest.current.hints,
           );
-          if (!result.ok) setNote(failureNote(result.code));
+          if (!result.ok) setNote(failureNote(result.code, result.reason));
           return;
         }
         case "skill.next":
         case "skill.prev": {
-          // Skills change only in interaction mode; otherwise this says which
-          // one is current.
           const current = settingsRef.current.skill ?? DEFAULT_SKILL;
-          if (interactionRef.current === false) {
-            toast(TOAST_TEXT.skillCurrent(current));
-            return;
-          }
           prefs.setSettings({
             ...settingsRef.current,
             skill: cycleSkill(current, command === "skill.next" ? 1 : -1),
@@ -549,9 +668,6 @@ export function usePanelSession(
         }
         case "session.clear":
           clearMemory(true);
-          return;
-        case "chat.focus":
-          window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
           return;
       }
     },
@@ -596,12 +712,6 @@ export function usePanelSession(
     lastSkill.current = skill;
     toast(TOAST_TEXT.skillChanged(skill));
   }, [skill, toast]);
-  const lastMode = useRef(interaction);
-  useEffect(() => {
-    if (lastMode.current === interaction) return;
-    lastMode.current = interaction;
-    if (interaction !== null) toast(TOAST_TEXT.interaction(interaction));
-  }, [interaction, toast]);
   // Recording starts or stops (here or in the owner's document): the toast and,
   // when it starts, the chat's system line.
   const recording = live.mic === "listening";
@@ -639,7 +749,7 @@ export function usePanelSession(
           text: text.trim(),
           at,
         });
-      } else setNote(failureNote(result.code));
+      } else setNote(failureNote(result.code, result.reason));
       return result;
     },
     [actions, addLine, bus],
@@ -650,11 +760,22 @@ export function usePanelSession(
   // transcript or the chips. The pin is the shared presentation's (the web page
   // reads the same one): a new task does not move it, and Back to now clears it.
   // Choosing only changes what is shown; the other task keeps running.
-  const { pinnedTaskId: pinned } = usePresentation();
+  const { pinnedTaskId: pinned, revisionPicks } = usePresentation();
   const setPinned = focus.pin;
   const resolved = resolveTarget(tasks, pinned);
   const selected = resolved?.task;
   selectedRef.current = selected;
+  // The staging tray (Manual stages here, Apply generates; Auto adds on request).
+  const tray = useScreenshotTray({
+    actions,
+    sessionId,
+    target: resolved?.target ?? null,
+    deviceOnly,
+    screenshotSend: session?.screenshotSend,
+    hints,
+    mode: live.auto ? "auto" : "manual",
+  });
+  trayRef.current = tray;
   // The one description of the task on show, shared with the web page; and the
   // lines between the conversation's own (a task starting, a task stopped).
   const card = useMemo(
@@ -664,10 +785,23 @@ export function usePanelSession(
         actions: snapshot.actions,
         observations: snapshot.observations,
         selectedTaskId: pinned,
+        revisionPicks,
         deviceOnly,
       }),
-    [tasks, snapshot.actions, snapshot.observations, pinned, deviceOnly],
+    [
+      tasks,
+      snapshot.actions,
+      snapshot.observations,
+      pinned,
+      revisionPicks,
+      deviceOnly,
+    ],
   );
+  // The task as it stood at the revision on show: what the answer and code
+  // panes read. `selected` stays the task itself, whose current revision is
+  // what a follow-up, a solve or an added screenshot goes to.
+  const shown =
+    selected && card ? taskAtRevision(selected, card.revision) : undefined;
   const markers = useMemo(
     () =>
       taskMarkers({
@@ -675,8 +809,15 @@ export function usePanelSession(
         actions: snapshot.actions,
         observations: snapshot.observations,
         deviceOnly,
+        noQuestion: model.noQuestion,
       }),
-    [tasks, snapshot.actions, snapshot.observations, deviceOnly],
+    [
+      tasks,
+      snapshot.actions,
+      snapshot.observations,
+      deviceOnly,
+      model.noQuestion,
+    ],
   );
   const setSkill = useCallback(
     (next: LiveOwnerSkill) =>
@@ -726,7 +867,6 @@ export function usePanelSession(
     prefs,
     share,
     live,
-    interaction,
     entries,
     system,
     clearedAt,
@@ -735,8 +875,20 @@ export function usePanelSession(
     setDraft,
     note,
     notify: setNote,
+    // Why the last capture did not work (a banner until dismissed or the next
+    // capture works), and the button it offers when this host can do it.
+    captureProblem: issue.problem,
+    captureProblemAction: issue.onAction,
+    dismissCaptureProblem: resolveProblem,
     toasts,
     selected,
+    shown,
+    revisionPicks,
+    // View-only: which revision of a task is on show (see focus-presentation).
+    pickRevision: (revision: number) => {
+      if (selected)
+        focus.pickRevision(selected.taskId, pickOf(selected, revision));
+    },
     card,
     markers,
     // The task a follow-up or an added screen is about, with its label ("T2").
@@ -745,8 +897,22 @@ export function usePanelSession(
     setSkill,
     stop: stopAnalysis,
     auto: autoNow,
+    // Set while the newest capture found no question (D36); never a task.
+    noQuestionLine: noQuestionStatus(
+      newestResultIsNoQuestion(snapshot.actions),
+      live.auto,
+    ),
     missing,
     dismissMissing,
+    tray,
+    // Stage one capture on the device (the tray's Add screenshot).
+    stage: stageFrame,
+    // Why Add screenshot cannot capture here now (the tray adds its own).
+    captureUnavailable: !open
+      ? "The session is not taking captures now."
+      : !owns
+        ? "Another Studio window owns the screen. Add the screenshot there."
+        : null,
     phase,
     press,
     setAuto,
@@ -755,6 +921,13 @@ export function usePanelSession(
     run: runOnce,
     engine,
     engineLine: engineLine(engine),
+    // What the owner must act on (refusal, hint, lost or denied mic), or null.
+    engineNeeds: owns ? engineNeeds(engine) : null,
+    // The microphone control is held with the session: one predicate, the
+    // engine's own (a non-owner window reads the same from the session state).
+    micHeld: owns
+      ? engine.micHeld
+      : engineHost() !== null && live.auto && paused,
     dictationError: owns ? auto.dictation.error : null,
     dictationSupported: auto.dictation.supported,
     engineAvailable: engineListening,

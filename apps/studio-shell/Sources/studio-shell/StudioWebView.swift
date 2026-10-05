@@ -98,7 +98,8 @@ enum StudioWebView {
         configuration.websiteDataStore = .default()
         let script = WKUserScript(
             source: HostBridgeScript.source(
-                capabilities: HostCapability.allCases, engineObject: EngineBridge.pageObjectSource,
+                capabilities: HostCapability.offered(textRecognitionAvailable: VisionTextObserver.available),
+                engineObject: EngineBridge.pageObjectSource,
                 engineEmit: EngineBridge.pageEmitSource),
             injectionTime: .atDocumentStart, forMainFrameOnly: true)
         configuration.userContentController.addUserScript(script)

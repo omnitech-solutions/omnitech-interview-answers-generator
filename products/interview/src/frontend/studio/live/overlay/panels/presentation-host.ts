@@ -6,7 +6,6 @@ import type {
   PresentationCapability,
   PresentationHost,
 } from "@omnitech/interview-contracts";
-import { useEffect, useState } from "react";
 import { nativePresentation } from "./native-adapter";
 
 // The tab card and an ordinary browser window: nothing to open or move.
@@ -30,14 +29,3 @@ export const hasCapability = (
   host: PresentationHost,
   capability: PresentationCapability,
 ): boolean => host.capabilities.includes(capability);
-
-// Interaction mode as the host reports it, following its changes.
-export function useInteractionMode(host: PresentationHost): boolean | null {
-  const supported = hasCapability(host, "click-through");
-  const [mode, setMode] = useState(() => host.interactionMode());
-  useEffect(() => {
-    setMode(host.interactionMode());
-    return host.onInteractionMode(setMode);
-  }, [host]);
-  return supported ? mode : null;
-}

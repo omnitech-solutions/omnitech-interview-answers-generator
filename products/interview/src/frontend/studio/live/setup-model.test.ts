@@ -173,3 +173,38 @@ describe("start errors", () => {
     );
   });
 });
+
+describe("screenshotSend in the start request (D35)", () => {
+  const ready = (over: Partial<SetupForm> = {}): SetupForm => ({
+    ...initialForm("mac"),
+    target: { kind: "rehearsal" },
+    consent: true,
+    ...over,
+  });
+
+  it("defaults to Always and sends no field for it", () => {
+    expect(initialForm("mac").screenshotSend).toBe("always");
+    expect(buildStartRequest(ready(), "run", [])).not.toHaveProperty(
+      "screenshotSend",
+    );
+  });
+
+  it.each(["text-only-when-text", "never"] as const)(
+    "sends %s as chosen",
+    (screenshotSend) => {
+      expect(
+        buildStartRequest(ready({ screenshotSend }), "run", []),
+      ).toMatchObject({ screenshotSend });
+    },
+  );
+
+  it("sends none for a device-only session", () => {
+    expect(
+      buildStartRequest(
+        ready({ policy: "device-only", screenshotSend: "never" }),
+        "run",
+        [],
+      ),
+    ).not.toHaveProperty("screenshotSend");
+  });
+});

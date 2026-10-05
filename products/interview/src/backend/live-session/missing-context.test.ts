@@ -15,7 +15,7 @@ import { CANNED_DRAFT } from "./session-replay-fixtures";
 const stage = createAssistStage();
 const snapshot = buildContextSnapshot({ matrix: null, profile: null });
 const validate = (raw: unknown) =>
-  stage.validate(raw, { snapshot, captured: [] });
+  stage.validate(raw, { snapshot, captured: [], screenBased: true });
 
 describe("missingContext schema", () => {
   it("accepts closed kinds with optional plain notes", () => {

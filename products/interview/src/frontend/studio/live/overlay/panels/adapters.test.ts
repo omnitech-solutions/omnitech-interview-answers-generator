@@ -13,7 +13,12 @@ function fakeNative(): PresentationHost & { mode: boolean } {
   const listeners = new Set<(on: boolean) => void>();
   const host = {
     mode: true,
-    capabilities: ["multi-panel", "click-through", "bogus"] as never,
+    capabilities: [
+      "multi-panel",
+      "hit-regions",
+      "click-through",
+      "bogus",
+    ] as never,
     openSettings: async () => true,
     closeSettings: async () => true,
     setVisible: async () => true,
@@ -78,8 +83,8 @@ describe("native adapter", () => {
     };
     (window as { studioHost?: unknown }).studioHost = { presentation: bridge };
     const host = nativePresentation() as PresentationHost;
-    // "multi-panel" belonged to the removed per-panel windows and is dropped.
-    expect(host.capabilities).toEqual(["click-through"]);
+    // "multi-panel" belonged to the removed per-panel windows and the retired "click-through" is no longer known: both are dropped.
+    expect(host.capabilities).toEqual(["hit-regions"]);
     await expect(host.closeSettings()).resolves.toBe(false);
   });
   it("passes the optional extras through only when the shell has them", async () => {
@@ -88,6 +93,7 @@ describe("native adapter", () => {
     const bare = nativePresentation() as PresentationHost;
     expect(bare.quit).toBeUndefined();
     expect(bare.setWindowSize).toBeUndefined();
+    expect(bare.setFullScreen).toBeUndefined();
     let quits = 0;
     bridge.quit = async () => {
       quits += 1;
@@ -96,7 +102,11 @@ describe("native adapter", () => {
     bridge.setWindowSize = async () => {
       throw new Error("boom");
     };
+    bridge.setFullScreen = async () => {
+      throw new Error("boom");
+    };
     const full = nativePresentation() as PresentationHost;
+    await expect(full.setFullScreen?.(true)).resolves.toBe(false);
     await expect(full.quit?.()).resolves.toBe(true);
     expect(quits).toBe(1);
     await expect(full.setWindowSize?.({ width: 500 })).resolves.toBe(false);
@@ -105,7 +115,7 @@ describe("native adapter", () => {
     const bridge = fakeNative();
     (window as { studioHost?: unknown }).studioHost = { presentation: bridge };
     const host = selectPresentation();
-    expect(hasCapability(host, "click-through")).toBe(true);
+    expect(hasCapability(host, "hit-regions")).toBe(true);
     const seen: boolean[] = [];
     host.onInteractionMode((on) => seen.push(on));
     await host.setInteractionMode(false);

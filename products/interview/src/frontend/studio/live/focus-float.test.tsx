@@ -414,7 +414,7 @@ describe("the card", () => {
       before,
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Back to now" })[0] as HTMLElement,
+      screen.getAllByRole("button", { name: /^Back to / })[0] as HTMLElement,
     );
     await settle();
     expect(presentation.get().pinnedTaskId).toBeNull();

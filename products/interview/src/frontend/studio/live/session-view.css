@@ -434,3 +434,61 @@
   opacity: 0.55;
   cursor: default;
 }
+
+/* ---- Revisions control (one component; see shared/revisions-control.tsx) ---- */
+.live-rev .pn-popover {
+  position: relative;
+  display: inline-flex;
+}
+.live-rev-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 240px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.live-rev-menu:focus {
+  outline: none;
+}
+.live-rev-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.live-rev-item:hover,
+.live-rev-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.live-rev-item[aria-checked="true"] {
+  background: var(--accent-soft);
+}
+.live-rev-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.live-rev-item[data-outdated] [data-mark="outdated"] {
+  color: var(--amber);
+}
+.live-rev-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}

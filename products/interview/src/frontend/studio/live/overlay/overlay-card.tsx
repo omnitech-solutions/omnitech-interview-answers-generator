@@ -15,6 +15,8 @@ import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { cardSize, presentation, usePresentation } from "../focus-presentation";
 import type { ActivityKey } from "../session-banners";
+import { pickOf, taskAtRevision } from "../shared/revisions";
+import { RevisionsControl } from "../shared/revisions-control";
 import { idleCopy } from "../task-panels";
 import { useSessionDraftLink } from "../workspace-handoff";
 import { claimCaptureTrigger } from "./capture-trigger";
@@ -87,7 +89,7 @@ function CardView({
   onLeave,
   hf,
 }: CardProps & { hf: HandsFree }) {
-  const { snapshot, actions, model, selected, tasks, newest } = hf;
+  const { snapshot, actions, model, selected, revision, tasks, newest } = hf;
   const presented = usePresentation();
   // One component, two sizes: the same instance stays mounted when the size
   // changes, so typed text and open menus survive. Only the tab card resizes;
@@ -122,8 +124,10 @@ function CardView({
   ].includes(model.activity.key);
   const connected = model.companion.status === "online";
   const coding = selected?.kind === "programming-challenge";
-  const answer = selected ? approach(selected) : null;
-  const code = selected ? solution(selected) : null;
+  // Everything about the task below is the task at the revision on show.
+  const shown = selected ? taskAtRevision(selected, revision) : undefined;
+  const answer = shown ? approach(shown) : null;
+  const code = shown ? solution(shown) : null;
 
   function onShortcut(event: React.KeyboardEvent) {
     const shortcut = shortcutOf(event);
@@ -361,6 +365,15 @@ function CardView({
           )}
           <HandsFreeCapture hf={hf} />
           <div className="ov-body">
+            {hf.noQuestionLine && (
+              <p
+                className="ov-muted"
+                role="status"
+                data-testid="ov-no-question"
+              >
+                {hf.noQuestionLine}
+              </p>
+            )}
             {viewingEarlier && (
               <div className="ov-earlier" role="status">
                 <Icon name="history" />
@@ -404,6 +417,20 @@ function CardView({
                   <TaskHead
                     task={selected}
                     number={number}
+                    revision={revision}
+                    revisions={
+                      <RevisionsControl
+                        task={selected}
+                        selected={revision}
+                        variant="card"
+                        onPick={(next) =>
+                          presentation.pickRevision(
+                            selected.taskId,
+                            pickOf(selected, next),
+                          )
+                        }
+                      />
+                    }
                     chips={provenance(
                       selected,
                       snapshot.observations,
@@ -412,8 +439,16 @@ function CardView({
                   />
                   <Slots
                     slots={[
-                      slotView("ANSWER SLOT", selected.current.answerRun, true),
-                      slotView("CODE SLOT", selected.current.codeRun, coding),
+                      slotView(
+                        "ANSWER SLOT",
+                        shown?.current.answerRun ?? null,
+                        true,
+                      ),
+                      slotView(
+                        "CODE SLOT",
+                        shown?.current.codeRun ?? null,
+                        coding,
+                      ),
                     ]}
                   />
                   {answer && (
@@ -423,22 +458,20 @@ function CardView({
                       numbered={coding}
                     />
                   )}
-                  {!coding && selected.answer && (
+                  {!coding && shown?.answer && (
                     <div className="ov-solution-actions">
-                      {answerSummary(selected.answer) !== "" && (
+                      {answerSummary(shown.answer) !== "" && (
                         <span
                           className="ov-muted"
                           data-testid="ov-verification"
                         >
-                          {answerSummary(selected.answer)}
+                          {answerSummary(shown.answer)}
                         </span>
                       )}
                       <button
                         type="button"
                         className="ov-button"
-                        onClick={() =>
-                          selected.answer && copy(selected.answer.draft)
-                        }
+                        onClick={() => shown.answer && copy(shown.answer.draft)}
                       >
                         <Icon name="content_copy" />
                         Copy answer

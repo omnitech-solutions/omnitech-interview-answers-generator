@@ -1,8 +1,8 @@
 // Transcript rows: what the Transcript tab lists, in the order things happened.
 // Utterances carry the label of the capture source they arrived on (never a
 // speaker identity); screenshots, capture gaps and disconnects are rows of
-// their own; and a "new task" row marks where each task revision first got
-// work. Pure.
+// their own; and ONE row per task marks where the task first got work and
+// carries what it said at each revision. Pure.
 import type {
   LiveAction,
   LiveCaptureSource,
@@ -16,6 +16,12 @@ import {
 } from "./session-results";
 import { SOURCE_LABEL, type SourceIndex, sourceIndex } from "./session-sources";
 import type { TaskKind, TaskView } from "./session-tasks";
+import type { NoQuestionNote } from "./shared/no-question";
+import {
+  type RevisionText,
+  revisionCause,
+  revisionText,
+} from "./shared/revisions";
 import {
   type SnapshotRef,
   snapshotLabelOf,
@@ -44,6 +50,7 @@ export type TranscriptRow =
       superseded: boolean;
       correctsEventId: string | null;
     }
+  | { type: "unreadable"; sequence: number; receivedAt: string }
   | {
       type: "screenshot";
       sequence: number;
@@ -71,19 +78,42 @@ export type TranscriptRow =
       reason: string;
     }
   | {
-      type: "new-task";
-      taskId: string;
-      // 1-based, in creation order: "T1".
-      ordinal: number;
-      revision: number;
-      kind: TaskKind;
-      // The revision after the first: a changed or follow-up task.
-      revised: boolean;
+      // Captures that showed no interview question: a note, never a task.
+      // Consecutive ones (screenshots between them aside) share one row.
+      type: "no-question";
       at: string;
+      notes: NoQuestionNote[];
+    }
+  | {
+      type: "task";
+      taskId: string;
+      // 1-based, in the order tasks became real (realSince): "T1".
+      ordinal: number;
+      kind: TaskKind;
+      // When the task's first work began: where the row sits.
+      at: string;
+      currentRevision: number;
+      // Every revision's own text, oldest first. The row shows the one the
+      // person chose (see selectedRevisionOf); revisions never add rows.
+      revisions: {
+        revision: number;
+        at: string;
+        cause: string;
+        text: RevisionText;
+      }[];
     };
 
 const segmentKey = (ids: { sourceId: string; eventId: string }): string =>
   `${ids.sourceId}\u0000${ids.eventId}`;
+
+// [SAFETY] A known row whose content cannot be read is shown as a placeholder,
+// never dropped (a silent gap reads as "nothing was heard"). Its content is not
+// shown or logged.
+const unreadable = (observation: LiveObservation): TranscriptRow => ({
+  type: "unreadable",
+  sequence: observation.sequence,
+  receivedAt: observation.receivedAt,
+});
 
 function observationRow(
   observation: LiveObservation,
@@ -93,7 +123,7 @@ function observationRow(
   const { sequence, receivedAt } = observation;
   if (observation.kind === "transcript.final") {
     const content = parseTranscriptContent(observation.content.body);
-    if (!content) return null;
+    if (!content) return unreadable(observation);
     const source = index.sourceOf(observation);
     return {
       type: "utterance",
@@ -111,7 +141,7 @@ function observationRow(
   }
   if (observation.kind === "screen.snapshot") {
     const content = parseSnapshotContent(observation.content.body);
-    if (!content) return null;
+    if (!content) return unreadable(observation);
     return {
       type: "screenshot",
       sequence,
@@ -124,7 +154,7 @@ function observationRow(
   }
   if (observation.kind === "capture.gap") {
     const content = parseGapContent(observation.content.body);
-    if (!content) return null;
+    if (!content) return unreadable(observation);
     return {
       type: "gap",
       sequence,
@@ -137,7 +167,7 @@ function observationRow(
   }
   if (observation.kind === "source.disconnected") {
     const content = parseDisconnectedContent(observation.content.body);
-    if (!content) return null;
+    if (!content) return unreadable(observation);
     return {
       type: "disconnect",
       sequence,
@@ -156,6 +186,7 @@ const timeOf = (iso: string) => Date.parse(iso) || 0;
 export function transcriptRows(
   observations: readonly LiveObservation[],
   tasks: readonly TaskView[],
+  noQuestion: readonly NoQuestionNote[] = [],
 ): TranscriptRow[] {
   const index = sourceIndex(observations);
   const corrected = new Set<string>();
@@ -191,29 +222,67 @@ export function transcriptRows(
 
   // A task row goes before the first observation received after the task's
   // first work began, so it reads where the question was asked.
-  const marks: Extract<TranscriptRow, { type: "new-task" }>[] = tasks.flatMap(
-    (task) =>
-      task.revisions.map((revision) => ({
-        type: "new-task" as const,
-        taskId: task.taskId,
-        ordinal: taskOrdinal(tasks, task.taskId) ?? 0,
+  const marks: Extract<TranscriptRow, { type: "task" }>[] = tasks.map(
+    (task) => ({
+      type: "task" as const,
+      taskId: task.taskId,
+      ordinal: taskOrdinal(tasks, task.taskId) ?? 0,
+      kind: task.kind,
+      at: task.firstSeenAt,
+      currentRevision: task.currentRevision,
+      revisions: task.revisions.map((revision) => ({
         revision: revision.revision,
-        kind: task.kind,
-        revised: revision.revision > (task.revisions[0]?.revision ?? 0),
         at: revision.firstSeenAt,
+        cause: revisionCause(task, revision),
+        text: revisionText(revision),
       })),
+    }),
   );
-  marks.sort((a, b) => timeOf(a.at) - timeOf(b.at));
+  const notes: Extract<TranscriptRow, { type: "no-question" }>[] =
+    noQuestion.map((note) => ({
+      type: "no-question" as const,
+      at: note.at,
+      notes: [note],
+    }));
+  const placed: ((typeof marks)[number] | (typeof notes)[number])[] = [
+    ...marks,
+    ...notes,
+  ];
+  placed.sort((a, b) => timeOf(a.at) - timeOf(b.at));
   const merged: TranscriptRow[] = [];
   let next = 0;
   for (const row of rows) {
     const rowTime = "receivedAt" in row ? timeOf(row.receivedAt) : 0;
-    while (next < marks.length && timeOf(marks[next]?.at as string) <= rowTime)
-      merged.push(marks[next++] as TranscriptRow);
+    while (
+      next < placed.length &&
+      timeOf(placed[next]?.at as string) <= rowTime
+    )
+      merged.push(placed[next++] as TranscriptRow);
     merged.push(row);
   }
-  while (next < marks.length) merged.push(marks[next++] as TranscriptRow);
-  return merged;
+  while (next < placed.length) merged.push(placed[next++] as TranscriptRow);
+  return joinNotes(merged);
+}
+
+// Consecutive no-question notes share one row: only screenshots (one per
+// capture, so always between them under Auto) may sit between them. Anything
+// else, a heard line or a real task, starts a new group.
+function joinNotes(rows: readonly TranscriptRow[]): TranscriptRow[] {
+  const out: TranscriptRow[] = [];
+  let open: Extract<TranscriptRow, { type: "no-question" }> | null = null;
+  for (const row of rows) {
+    if (row.type === "no-question") {
+      if (open) open.notes.push(...row.notes);
+      else {
+        open = { ...row, notes: [...row.notes] };
+        out.push(open);
+      }
+      continue;
+    }
+    if (row.type !== "screenshot") open = null;
+    out.push(row);
+  }
+  return out;
 }
 
 // The screenshot numbers the Transcript shows: "S1" beside each screenshot and

@@ -4,15 +4,23 @@
 // app) every function here reports "no host" and the page behaves as before.
 import {
   isScreenWatchHost,
+  isStudioHostDisplay,
   isStudioHostDisplayId,
+  type LiveOcrBlock,
   negotiateStudioHost,
   type ScreenWatchHost,
+  type StudioHostCaptureIntent,
   type StudioHostCaptureRequest,
+  type StudioHostDisplay,
   type StudioHostDisplayId,
+  type StudioHostDisplayListResult,
   type StudioHostHotkey,
   type StudioHostInfo,
 } from "@omnitech/interview-contracts";
+import { noteCaptureResult, noteSource } from "./host-display";
 import { FULL, isFull, type Rect } from "./overlay/mask-geometry";
+import { cleanFrontApp } from "./shared/capture-problem";
+import { ocrBlockForHostCapture } from "./shared/text-recognizer";
 
 declare global {
   interface Window {
@@ -114,7 +122,13 @@ export async function fitFrame(
 }
 
 export type HostFrame =
-  | { ok: true; blob: Blob; masked: boolean }
+  | {
+      ok: true;
+      blob: Blob;
+      masked: boolean;
+      // The text the shell read from these bytes (with its metrics), when it did.
+      ocr: LiveOcrBlock | null;
+    }
   | {
       ok: false;
       reason:
@@ -122,21 +136,52 @@ export type HostFrame =
         | "permission-denied"
         | "no-focused-window"
         | "display-changed"
+        | "busy"
+        | "timeout"
         | "failed";
+      // On "no-focused-window": the name of the application that was in front.
+      frontApp?: string;
     };
 
+// How long the page waits for the shell to answer one capture. The shell's own
+// budget is a few seconds (capture, then on-device text); past this the shell
+// is not answering, and the person is told so instead of watching a spinner.
+export const HOST_CAPTURE_TIMEOUT_MS = 20_000;
+
+async function withinTimeout<T>(call: Promise<T>): Promise<T | "timeout"> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      call,
+      new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), HOST_CAPTURE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Asks the host for one fresh image. The host crops to the region before it
-// encodes; nothing here is stored.
+// encodes; nothing here is stored. `intent` "explicit" is the person's own press
+// (the shell may then use the last focused browser); the default, "auto", looks
+// only while a browser is in front.
 export async function captureThroughHost(
   mask: Rect = FULL,
+  intent: StudioHostCaptureIntent = "auto",
 ): Promise<HostFrame> {
   const info = studioHostInfo();
   if (!info || !info.capabilities.has("capture-screen"))
     return { ok: false, reason: "unavailable" };
   let result: Awaited<ReturnType<typeof info.host.captureScreen>>;
-  const request = captureRequestFor(mask, knownDisplayId);
+  const request = {
+    ...captureRequestFor(mask, knownDisplayId),
+    ...(intent === "explicit" ? { intent } : {}),
+  };
   try {
-    result = await info.host.captureScreen(request);
+    const answer = await withinTimeout(info.host.captureScreen(request));
+    if (answer === "timeout") return { ok: false, reason: "timeout" };
+    result = answer;
   } catch {
     return { ok: false, reason: "failed" };
   }
@@ -152,21 +197,31 @@ export async function captureThroughHost(
   }
   if (result.ok && isStudioHostDisplayId(result.displayId))
     knownDisplayId = result.displayId;
-  if (!result.ok)
+  noteCaptureResult(result);
+  if (!result.ok) {
+    if (result.reason === "no-focused-window") {
+      const frontApp = cleanFrontApp(result.frontApp);
+      return {
+        ok: false,
+        reason: "no-focused-window",
+        ...(frontApp ? { frontApp } : {}),
+      };
+    }
     return {
       ok: false,
       reason:
-        result.reason === "permission-denied" ||
-        result.reason === "no-focused-window"
+        result.reason === "permission-denied" || result.reason === "busy"
           ? result.reason
           : "failed",
     };
+  }
   try {
     const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
     return {
       ok: true,
       blob: await fitFrame(new Blob([bytes], { type: result.mediaType })),
       masked: !isFull(mask),
+      ocr: ocrBlockForHostCapture(result.ocr),
     };
   } catch {
     return { ok: false, reason: "failed" };
@@ -189,4 +244,119 @@ export function openExternalThroughHost(url: string): boolean {
   if (!info?.capabilities.has("open-external")) return false;
   void info.host.openExternal(url).catch(() => undefined);
   return true;
+}
+
+// Whether the host can open an address in the person's own apps (for the one
+// Screen Recording settings address, see capture-problem.ts).
+export const canOpenExternalThroughHost = (): boolean =>
+  studioHostInfo()?.capabilities.has("open-external") ?? false;
+
+// ---- Which display to capture (D33, "display-selection") ----------------------
+
+export function displaySelectionAvailable(): boolean {
+  return studioHostInfo()?.capabilities.has("display-selection") ?? false;
+}
+
+// One display as the picker draws it: the thumbnail is already a data: URL, held
+// by the component that asked and dropped when the menu closes.
+export type DisplayChoice = {
+  display: StudioHostDisplay;
+  thumbnailSrc: string;
+};
+
+// The pin the shell reports with a listing, handed to the page's source state.
+// Only a uint32 or null is believed; an older shell says nothing and nothing changes.
+function notePinFrom(result: StudioHostDisplayListResult & { ok: true }): void {
+  const { pinnedDisplayId } = result;
+  if (pinnedDisplayId === undefined) return;
+  if (pinnedDisplayId !== null && !isStudioHostDisplayId(pinnedDisplayId))
+    return;
+  noteSource({
+    kind: "pin",
+    pinnedId: pinnedDisplayId,
+    display: result.displays
+      .map((entry) => entry.display)
+      .find((d) => isStudioHostDisplay(d) && d.id === pinnedDisplayId),
+    pinFallback: result.pinFallback,
+  });
+}
+
+// Reads the shell's pin without a preview being captured (`thumbnails: false`),
+// so it may run on mount, before any menu is open. Never throws; failure leaves
+// the state as it was.
+export async function syncHostPin(): Promise<void> {
+  const info = studioHostInfo();
+  if (!info?.capabilities.has("display-selection") || !info.host.listDisplays)
+    return;
+  try {
+    const result = await info.host.listDisplays({ thumbnails: false });
+    if (result.ok) notePinFrom(result);
+  } catch {
+    // The picker still lists on demand; the pin shows after the first capture.
+  }
+}
+
+export type DisplayListing =
+  | { ok: true; displays: DisplayChoice[] }
+  | { ok: false; reason: "permission-denied" | "capture-failed" };
+
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+// Previews of every display, or an honest reason. A shell that answers with
+// anything unexpected is a failure, never a half-drawn menu. [SAFETY] Nothing
+// is kept or logged here: the thumbnails belong to the caller.
+export async function listHostDisplays(): Promise<DisplayListing> {
+  const info = studioHostInfo();
+  if (!info?.capabilities.has("display-selection") || !info.host.listDisplays)
+    return { ok: false, reason: "capture-failed" };
+  try {
+    const result = await info.host.listDisplays();
+    if (!result.ok)
+      return {
+        ok: false,
+        reason:
+          result.reason === "permission-denied"
+            ? "permission-denied"
+            : "capture-failed",
+      };
+    notePinFrom(result);
+    const displays: DisplayChoice[] = [];
+    for (const preview of result.displays) {
+      const { thumbnail } = preview;
+      if (
+        !isStudioHostDisplay(preview.display) ||
+        thumbnail?.mediaType !== "image/jpeg" ||
+        typeof thumbnail.base64 !== "string" ||
+        !BASE64.test(thumbnail.base64)
+      )
+        return { ok: false, reason: "capture-failed" };
+      displays.push({
+        display: preview.display,
+        thumbnailSrc: `data:image/jpeg;base64,${thumbnail.base64}`,
+      });
+    }
+    return { ok: true, displays };
+  } catch {
+    return { ok: false, reason: "capture-failed" };
+  }
+}
+
+// Pins capture to a display, or null to follow the browser again. The shell's
+// answer is the source of truth and is echoed to the page's copy of it.
+export async function setHostCaptureDisplay(
+  displayId: StudioHostDisplayId | null,
+): Promise<"ok" | "display-unavailable" | "failed"> {
+  const info = studioHostInfo();
+  if (
+    !info?.capabilities.has("display-selection") ||
+    !info.host.setCaptureDisplay
+  )
+    return "failed";
+  try {
+    const result = await info.host.setCaptureDisplay(displayId);
+    noteSource({ kind: "select", result });
+    return result.ok ? "ok" : "display-unavailable";
+  } catch {
+    return "failed";
+  }
 }

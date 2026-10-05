@@ -2,5 +2,6 @@
 
 _Source: `products/interview/src/backend/api.ts` (header-comment fallback)_
 
-[GUARD] A pushed answer becomes a Workspace answer: its guide must be valid,
-and its Markdown is the guide's rendering, never the pushed text.
+Request bounds. The JSON bound covers every route; the code-execution routes
+(/run, /run-all, /syntax-check, /react-preview) hand the body to a container
+or the bundler, so they take a tighter body and per-field caps.

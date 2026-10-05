@@ -2,6 +2,7 @@
 // person stops it (here or from the browser's own control) or the card goes
 // away. The preview is the stream itself, shown locally and never uploaded.
 
+import type { StudioHostCaptureIntent } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureThroughHost, nativeCaptureAvailable } from "../host-adapter";
 import { holdAwake } from "../keep-awake";
@@ -102,13 +103,16 @@ export function useScreenShare(ready = true) {
     current.stop();
   }, [release]);
 
-  const grab = useCallback((mask: Rect): Promise<Frame> => {
-    const current = handle.current;
-    if (!current) return Promise.reject(new ShareError("failed"));
-    return isNativeShare(current)
-      ? current.grab(mask)
-      : grabFrame(current, mask);
-  }, []);
+  const grab = useCallback(
+    (mask: Rect, intent: StudioHostCaptureIntent = "auto"): Promise<Frame> => {
+      const current = handle.current;
+      if (!current) return Promise.reject(new ShareError("failed"));
+      return isNativeShare(current)
+        ? current.grab(mask, intent)
+        : grabFrame(current, mask);
+    },
+    [],
+  );
 
   // A hash of the current frame inside the region, for Auto's interval: the
   // browser share's video, or (native host) one fresh host capture, hashed here
@@ -125,7 +129,11 @@ export function useScreenShare(ready = true) {
     if (!nativeCaptureAvailable()) return null;
     const frame = await captureThroughHost(mask);
     if (!frame.ok)
-      throw Object.assign(new Error(frame.reason), { code: frame.reason });
+      throw Object.assign(new Error(frame.reason), {
+        code: frame.reason,
+        frontApp:
+          frame.reason === "no-focused-window" ? frame.frontApp : undefined,
+      });
     return hashImage(frame.blob);
   }, []);
 

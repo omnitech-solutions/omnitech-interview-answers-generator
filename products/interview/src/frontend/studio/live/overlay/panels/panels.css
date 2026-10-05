@@ -4,6 +4,14 @@
    shell draws the window frame). They reuse the overlay's --ov-* tokens by
    redeclaring them on .pn-root, so a panel document needs nothing else. */
 .pn-root {
+  /* One stacking scale for the window. The toolbar sits above the strip and the
+     panes so a popover hanging from it (a child of the toolbar's own stacking
+     context) is never painted under them; the popover is the top of the toolbar's
+     context. Glass or clear mode does not change any of it. */
+  --pn-z-panes: 0;
+  --pn-z-strip: 1;
+  --pn-z-toolbar: 10;
+  --pn-z-popover: 30;
   /* The design's tokens: the glass of every surface, its radius, the control
      height and the status colours. Everything below reads these. */
   --pn-glass: rgba(30, 30, 34, 0.8);
@@ -17,11 +25,27 @@
   --pn-chip-strong: rgba(255, 255, 255, 0.1);
   --pn-hair: rgba(255, 255, 255, 0.08);
   --pn-ring: 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --pn-control-line: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  --pn-blur-control: blur(12px);
+  --pn-blur-menu: blur(30px);
+  --pn-blur-bar: blur(24px);
+  --pn-blur-card: blur(28px) saturate(1.6);
+  --pn-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  /* Where text sits, in either look: never less tint than this, so words are
+     never drawn straight onto an arbitrary desktop. */
+  --pn-min-tint: rgba(22, 22, 26, 0.18);
+  /* The ONE knob for reading islands in clear glass (see the clear block). */
+  --pn-text-bed: rgba(22, 22, 26, 0.5);
+  /* Menus and popovers read over any page text, so in clear glass they sit on a
+     dense bed (never below .85). */
+  --pn-menu-bed: rgba(22, 22, 26, 0.9);
+  --pn-bed: transparent;
   --pn-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
   --pn-accent: #2f6fe4;
   --pn-link: #8fb0ff;
   --pn-ok: #6ddc93;
   --pn-warn: #f5c56b;
+  --pn-bad: #ff8a8a;
   --pn-danger: #e5484d;
   --pn-go: #34c759;
   --ov-bg: var(--pn-glass);
@@ -45,7 +69,7 @@
   font-size: 12px;
   line-height: 1.45;
   color: var(--ov-text);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  text-shadow: var(--pn-text-shadow);
   background: #2a2a2e;
 }
 .pn-root *,
@@ -105,6 +129,7 @@
 /* ---- Bar ---- */
 .pn-pill {
   position: relative;
+  z-index: var(--pn-z-toolbar);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -315,7 +340,6 @@
   gap: 8px;
 }
 .pn-codecard {
-  background: rgba(24, 24, 28, 0.78);
   padding: 8px 10px;
   min-height: 0;
   overflow: auto;
@@ -517,8 +541,12 @@
 .pn-single-foot .ov-button {
   color: var(--ov-text);
 }
-/* One note, not two: the chat shows it; the analysis pane beside it stays quiet. */
-.pn-single-pane[data-which="analysis"] .pn-note {
+/* One note, not two: while the chat pane is on screen it shows the note and the
+   analysis pane beside it stays quiet. With the chat hidden the analysis pane
+   keeps it, so a note is never lost. */
+.pn-single-body:has(> [data-which="chat"])
+  > [data-which="analysis"]
+  .pn-note {
   display: none;
 }
 .pn-start {
@@ -693,9 +721,9 @@
   font-size: 12px;
   font-weight: 500;
   background: var(--pn-glass-fill);
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  box-shadow: var(--pn-control-line);
+  -webkit-backdrop-filter: var(--pn-blur-control);
+  backdrop-filter: var(--pn-blur-control);
   transition: background 0.12s;
 }
 .pn-pill .pn-bar-button:hover:not(:disabled),
@@ -780,8 +808,7 @@
 }
 
 /* The window controls: macOS-sized dots in the macOS colours, kept coloured
-   when the window is not key (our own, not the system's greyed ones). They dim
-   only while the window ignores the mouse. */
+   when the window is not key (our own, not the system's greyed ones). */
 .pn-dots {
   display: inline-flex;
   align-items: center;
@@ -825,9 +852,6 @@
 .pn-window-dot:disabled {
   opacity: 0.45;
   cursor: default;
-}
-.pn-dots[data-dimmed="true"] {
-  opacity: 0.5;
 }
 @media (prefers-reduced-motion: reduce) {
   .pn-pill .pn-bar-button,
@@ -888,13 +912,13 @@
   position: absolute;
   left: 0;
   top: calc(100% + 8px);
-  z-index: 30;
+  z-index: var(--pn-z-popover);
   width: 290px;
   padding: 5px;
   border-radius: 10px;
   background: var(--pn-glass-menu);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  backdrop-filter: var(--pn-blur-menu);
+  -webkit-backdrop-filter: var(--pn-blur-menu);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), var(--pn-ring);
   display: flex;
   flex-direction: column;
@@ -946,6 +970,69 @@
   font-size: 11.5px;
   opacity: 0.7;
   line-height: 1.3;
+}
+/* The screen picker: a pin dot on the round button, the display rows with their
+   live thumbnails, and the label of where the last capture came from. */
+.pn-pin-dot {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pn-link);
+  box-shadow: 0 0 0 1.5px rgba(30, 30, 34, 0.95);
+}
+/* The screen-target chevron is the capture button's other half: joined to it,
+   one pill. */
+.pn-split-main.pn-joined {
+  border-radius: calc(var(--pn-control) / 2) 0 0 calc(var(--pn-control) / 2);
+}
+.pn-popover:has(> .pn-screen-button) {
+  margin-left: -3px;
+}
+.pn-pill .pn-screen-button,
+.pn-screen-button {
+  position: relative;
+  width: 20px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 0 calc(var(--pn-control) / 2) calc(var(--pn-control) / 2) 0;
+}
+.pn-display-menu {
+  width: 320px;
+  /* Tied to the window height: rows beyond it scroll instead of being cut off
+     at the window edge (each display row is ~154 px). */
+  max-height: calc(100vh - 84px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pn-display-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+}
+.pn-display-thumb {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: var(--pn-control-line);
+}
+.pn-display-notice {
+  padding: 7px 9px;
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+.pn-display-notice small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
 }
 .pn-keys {
   left: auto;
@@ -1038,6 +1125,8 @@
 
 /* ---- The status strip ---- */
 .pn-strip {
+  position: relative;
+  z-index: var(--pn-z-strip);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1045,8 +1134,8 @@
   padding: 7px 12px;
   border-radius: 11px;
   background: var(--pn-glass);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: var(--pn-blur-bar);
+  -webkit-backdrop-filter: var(--pn-blur-bar);
   box-shadow: var(--pn-ring);
 }
 .pn-strip[data-tone="amber"] {
@@ -1323,8 +1412,8 @@
   padding: 14px 16px;
   border-radius: var(--pn-radius);
   background: var(--pn-glass);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: var(--pn-blur-bar);
+  -webkit-backdrop-filter: var(--pn-blur-bar);
   box-shadow: var(--pn-ring);
 }
 .pn-ended-title {
@@ -1378,23 +1467,6 @@
   }
 }
 
-/* Click-through is a hint, not a control: the window ignores the mouse, so the
-   banner cannot take a click. */
-.pn-clickthrough {
-  position: absolute;
-  left: 50%;
-  bottom: 56px;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 7px 12px;
-  border-radius: 10px;
-  background: rgba(20, 20, 24, 0.92);
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14);
-  font-size: 12px;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pn-spinner,
   .pn-level[data-active="true"] i,
@@ -1402,4 +1474,318 @@
   .ov-clock-dot {
     animation: none;
   }
+}
+
+
+/* ---- Transparent background ----
+   data-glass="clear" on the panel root (the toolbar's Transparent background
+   switch) lets the page underneath show through. Every glass token the default
+   block defines is overridden here, so no surface keeps its tinted fill or its
+   blur. Readability stays: a hairline on panes and controls, a stronger text
+   shadow, and text containers never below --pn-min-tint. The window dots and
+   the footer keep drawing, so the window is never invisible. */
+.pn-root[data-glass="clear"] {
+  --pn-glass: rgba(22, 22, 26, 0.22);
+  --pn-glass-menu: var(--pn-menu-bed);
+  --pn-glass-code: rgba(22, 22, 26, 0.22);
+  --pn-glass-fill: rgba(255, 255, 255, 0.05);
+  --pn-glass-fill-hover: rgba(255, 255, 255, 0.16);
+  --pn-chip: rgba(255, 255, 255, 0.1);
+  --pn-chip-strong: rgba(255, 255, 255, 0.16);
+  --pn-hair: rgba(255, 255, 255, 0.28);
+  --pn-ring: 0 0 0 1px rgba(255, 255, 255, 0.28);
+  --pn-control-line: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  --pn-blur-control: none;
+  --pn-blur-menu: none;
+  --pn-blur-bar: none;
+  --pn-blur-card: none;
+  --pn-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  --pn-text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.9);
+  --pn-bed: var(--pn-text-bed);
+}
+.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"] {
+  background: rgba(80, 60, 20, 0.4);
+}
+/* Reading beds. Panes and bars stay near-clear (alpha <= .22, no blur); text
+   sits on small islands that carry --pn-text-bed (.5), the least tint that keeps
+   body text at WCAG 4.5:1 even over a pure white desktop (white text, worst case
+   about 113/255 behind it once the pane glass is counted). The drawer and its
+   handle are surfaces, not text islands: they keep only --pn-min-tint. */
+.pn-root[data-glass="clear"]
+  :is(
+    .pn-row,
+    .pn-task-chip,
+    .pn-head,
+    .pn-task-line,
+    .pn-problem-head,
+    .pn-answer,
+    .pn-constraints,
+    .pn-empty,
+    .pn-steps,
+    .pn-muted,
+    .pn-strip-main,
+    .pn-strip-sub,
+    .pn-codecard-head,
+    .pn-code-line,
+    .pn-codecard-pre,
+    .pn-ended-stats li,
+    .pn-test-row,
+    .pn-tests-counts,
+    .pn-tests-honesty,
+    .pn-tests-note
+  ) {
+  background-image: linear-gradient(var(--pn-bed), var(--pn-bed));
+  box-shadow: inset 0 0 0 1px var(--pn-hair);
+}
+.pn-root[data-glass="clear"] :is(.pn-tests-drawer, .pn-tests-handle) {
+  background-image: linear-gradient(var(--pn-min-tint), var(--pn-min-tint));
+  box-shadow: inset 0 0 0 1px var(--pn-hair);
+}
+/* The revisions popover is drawn by overlay.css with the card fill; in clear
+   glass it takes the menu fill (the legibility floor for popovers). */
+.pn-root[data-glass="clear"] .ov-rev-menu {
+  background: var(--pn-glass-menu);
+}
+.pn-root[data-glass="clear"] .pn-single-foot {
+  box-shadow: var(--pn-ring);
+}
+
+/* ---- Window dots' popups, the Mini player and Full screen ---- */
+.pn-quit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.pn-quit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+.pn-quit-confirm {
+  background: rgba(214, 62, 52, 0.9);
+  color: #fff;
+}
+.pn-mini-pill {
+  align-self: stretch;
+  width: auto;
+}
+.pn-mini-back {
+  font-weight: 600;
+}
+.pn-mini-card,
+.pn-mini-foot {
+  flex: none;
+  padding: 8px 12px;
+  border-radius: 11px;
+  background: var(--pn-glass);
+  backdrop-filter: var(--pn-blur-bar);
+  -webkit-backdrop-filter: var(--pn-blur-bar);
+  box-shadow: var(--pn-ring);
+}
+.pn-mini-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.pn-mini-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.pn-mini-name,
+.pn-mini-headline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-mini-headline {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.pn-mini-stage {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ov-muted);
+  white-space: nowrap;
+}
+.pn-mini-actions,
+.pn-mini-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pn-mini-foot {
+  padding: 4px 12px;
+}
+.pn-mini-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ov-amber, #f5c04a);
+}
+/* Full screen: the extra width goes to every pane, and the footer and the dots
+   stay where they are. */
+.pn-root[data-window-mode="full"] .pn-single-body > [data-which="code"] {
+  flex: 1 1 420px;
+}
+
+/* ---- The code pane's Tests drawer (left edge), file tabs and problems ---- */
+.pn-codecard-split {
+  display: flex;
+  gap: 8px;
+}
+.pn-codemain {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pn-tests-handle {
+  flex: 0 0 18px;
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pn-chip);
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.04em;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  text-shadow: var(--pn-text-shadow);
+}
+.pn-tests-handle:hover {
+  background: var(--pn-chip-strong);
+}
+.pn-tests-drawer {
+  flex: 0 0 45%;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--pn-glass-fill);
+  box-shadow: inset 0 0 0 1px var(--pn-hair);
+}
+.pn-tests-drawer[hidden] {
+  display: none;
+}
+.pn-tests-counts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 11.5px;
+}
+.pn-tests-honesty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--pn-warn);
+}
+.pn-tests-note {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--pn-warn);
+}
+.pn-tests-list,
+.pn-problems ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+}
+.pn-test-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pn-test-name > [data-tone] {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.pn-test-name > [data-tone="green"] {
+  color: var(--pn-ok);
+}
+.pn-test-name > [data-tone="red"] {
+  color: var(--pn-bad);
+}
+.pn-test-covers,
+.pn-test-failure {
+  padding-left: 18px;
+  color: var(--ov-muted);
+  overflow-wrap: anywhere;
+}
+.pn-test-failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.pn-linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ov-accent);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.pn-file-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.pn-file-tab {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pn-chip);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pn-file-tab[aria-pressed="true"] {
+  background: var(--pn-chip-strong);
+  font-weight: 600;
+}
+.pn-code-line {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  color: var(--pn-warn);
+}
+.pn-problems {
+  margin-top: 8px;
+}
+.pn-approach-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+.pn-approach-note summary {
+  cursor: pointer;
+}
+.pn-line-hit {
+  background: rgba(245, 192, 74, 0.28);
+}
+
+/* ---- Revisions control in the task line: the shared popover, the one .pn-menu ---- */
+.pn-revisions {
+  display: inline-flex;
+}
+.pn-revisions .pn-menu {
+  left: 0;
+}
+.pn-menu-item[data-outdated] [data-mark="outdated"] {
+  color: var(--pn-warn);
 }

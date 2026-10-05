@@ -2,6 +2,7 @@
 // It has the shape of the browser's ShareHandle so the strip, the mask chip and
 // Analyze work unchanged; it differs in having no live stream (the host captures
 // one fresh image per press) and in taking its own frames. Nothing is kept.
+import type { StudioHostCaptureIntent } from "@omnitech/interview-contracts";
 import { captureThroughHost } from "../host-adapter";
 import {
   type Frame,
@@ -12,7 +13,8 @@ import {
 import type { Rect } from "./mask-geometry";
 
 export type NativeShareHandle = ShareHandle & {
-  grab(mask: Rect): Promise<Frame>;
+  // `intent` "explicit" is the person's own press; the default is automatic.
+  grab(mask: Rect, intent?: StudioHostCaptureIntent): Promise<Frame>;
 };
 
 // [SAFETY] The label names the kind of source and whether a region applied,
@@ -37,15 +39,14 @@ export function startNativeShare(): NativeShareHandle {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    async grab(mask) {
-      const frame = await captureThroughHost(mask);
+    async grab(mask, intent = "auto") {
+      const frame = await captureThroughHost(mask, intent);
       if (!frame.ok)
         throw new FrameError(
-          frame.reason === "display-changed" ||
-            frame.reason === "permission-denied" ||
-            frame.reason === "no-focused-window"
-            ? frame.reason
-            : "not-ready",
+          frame.reason === "failed" ? "capture-failed" : frame.reason,
+          frame.reason === "no-focused-window"
+            ? (frame.frontApp ?? null)
+            : null,
         );
       return {
         blob: frame.blob,
@@ -54,6 +55,7 @@ export function startNativeShare(): NativeShareHandle {
         width: 0,
         height: 0,
         masked: frame.masked,
+        ocr: frame.ocr,
       };
     },
   };

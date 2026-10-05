@@ -98,6 +98,81 @@ export function assertAcceptsOwnerInput(
     throw new SessionError("status_refused");
 }
 
+// The newest revision the task has an action row for, or null when it has none.
+async function newestStoredRevision(
+  tx: TenantDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  taskId: string,
+): Promise<number | null> {
+  const row = await firstRow<{ newest: number | null }>(
+    tx,
+    sql`SELECT max(task_revision)::int AS newest
+        FROM interview.session_actions
+        WHERE tenant_id = ${scope.tenantId}::uuid
+          AND owner_user_id = ${scope.actorId}::uuid
+          AND session_id = ${sessionId}::uuid
+          AND task_id = ${taskId}`,
+  );
+  return row?.newest ?? null;
+}
+
+// [SAFETY] A request aimed at a task revision the owner saw is refused when the
+// task has moved on (a newer revision has an action), so a double-click or a
+// stale page never stacks a second revision. A task with no action yet is not
+// judged here (the processor settles it). `mustExist` (solve, regenerate) is
+// stricter: the target must be the task's newest stored revision exactly, so a
+// task that does not exist or a revision it never had is `not_found`. A press
+// that lands before the newest revision has an action is caught later, by
+// the processor, which applies the same latest-revision rule (session-run).
+export async function assertTargetNotStale(
+  tx: TenantDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  target: { taskId: string; revision: number },
+  options: { mustExist?: boolean } = {},
+): Promise<void> {
+  const newest = await newestStoredRevision(
+    tx,
+    scope,
+    sessionId,
+    target.taskId,
+  );
+  if (newest === null) {
+    if (options.mustExist) throw new SessionError("not_found");
+    return;
+  }
+  if (newest > target.revision)
+    throw new SessionError("status_refused", [], "stale_target");
+  if (options.mustExist && newest < target.revision)
+    throw new SessionError("not_found");
+}
+
+// [SAFETY] A device-only session never sends an image to an agent, so a task
+// that rests on a screenshot cannot be regenerated there (the dispatcher would
+// refuse it with the same reason); a spoken-only task can.
+async function assertRegenerableHere(
+  tx: TenantDatabase,
+  scope: OwnerScope,
+  sessionId: string,
+  row: SessionRecord,
+  taskId: string,
+): Promise<void> {
+  if (row.policy !== "device-only") return;
+  const shot = await firstRow<{ found: number }>(
+    tx,
+    sql`SELECT 1 AS found FROM interview.session_actions
+        WHERE tenant_id = ${scope.tenantId}::uuid
+          AND owner_user_id = ${scope.actorId}::uuid
+          AND session_id = ${sessionId}::uuid
+          AND task_id = ${taskId}
+          AND EXISTS (SELECT 1 FROM unnest(source_event_ids) AS s(id)
+                      WHERE s.id LIKE 'snap/%')
+        LIMIT 1`,
+  );
+  if (shot) throw new SessionError("status_refused", [], "vision_device_only");
+}
+
 export const sameBody = (a: unknown, b: unknown): boolean =>
   canonicalJson(a) === canonicalJson(b);
 
@@ -226,7 +301,9 @@ async function storeHeard(
     const sequence = Number(counts?.max_sequence ?? 0) + 1;
     // Media time is the time since the session was created, so utterances
     // coalesce and order as they would from a companion.
-    const atMs = Math.max(0, row.nowMs - row.createdAt.getTime());
+    // The transcript wire carries whole milliseconds (the page's schema is
+    // strict): round at this boundary, never below zero.
+    const atMs = Math.max(0, Math.round(row.nowMs - row.createdAt.getTime()));
     const ack: OwnerInputAck = { requestId, sequence };
     await tx.execute(sql`
       INSERT INTO interview.session_observations
@@ -276,6 +353,23 @@ export async function storeOwnerInput(
       const storedBody = (stored.content as { body?: unknown }).body;
       if (!sameBody(storedBody, body)) throw new SessionError("invalid_input");
       return { requestId, sequence: Number(stored.sequence) };
+    }
+
+    if (
+      (body.operation === "regenerate" || body.operation === "solve") &&
+      body.target
+    ) {
+      await assertTargetNotStale(tx, scope, sessionId, body.target, {
+        mustExist: true,
+      });
+      if (body.operation === "regenerate")
+        await assertRegenerableHere(
+          tx,
+          scope,
+          sessionId,
+          row,
+          body.target.taskId,
+        );
     }
 
     // [SAFETY] Exact snapshot ids, validated against THIS session's own

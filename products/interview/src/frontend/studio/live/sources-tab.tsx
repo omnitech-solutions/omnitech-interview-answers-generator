@@ -16,9 +16,11 @@ import {
   shorterRetentions,
 } from "./ended-summary";
 import { ageLabel, companionContact, companionImpact } from "./session-format";
-import type { SessionActions } from "./session-snapshot";
+import type { SessionActions, SessionCommand } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
+import { ScreenshotSendControl } from "./shared/screenshot-send-control";
+import { useScreenshotSend } from "./shared/use-screenshot-send";
 import { shownHealth } from "./source-health";
 import {
   CAPABILITY_LOADING,
@@ -189,6 +191,7 @@ export function SourcesTab({
   pairingOpen,
   onPair,
   capability = CAPABILITY_LOADING,
+  pending = [],
 }: {
   model: LiveViewModel;
   session: LiveSessionView;
@@ -200,10 +203,18 @@ export function SourcesTab({
   onPair(): void;
   // The companion's last capability report, read by the panel.
   capability?: CompanionCapabilityState;
+  // The store's pending commands: a remount during a save keeps the
+  // Screenshots control locked while the POST is out.
+  pending?: readonly SessionCommand[];
 }) {
   const speech: SpeechState | null =
     capability.status === "ready" ? speechState(capability.capability) : null;
   const locality = model.locality;
+  const send = useScreenshotSend({
+    session,
+    pending,
+    save: actions.setScreenshotSend,
+  });
   const shorter = shorterRetentions(session.retention);
   return (
     <>
@@ -264,6 +275,21 @@ export function SourcesTab({
           )}
         </section>
       )}
+      <section className="live-block" aria-label="Screenshots to the model">
+        <h4>Screenshots to the model</h4>
+        <p className="live-note">
+          Each screenshot says what was sent. A change applies to the next model
+          call.
+        </p>
+        <ScreenshotSendControl
+          variant="web"
+          value={send.value}
+          saving={send.saving}
+          failure={send.failure}
+          disabledReason={send.disabledReason}
+          onChange={send.choose}
+        />
+      </section>
       <section className="live-block" aria-label="Retention">
         <h4>Retention</h4>
         <p>

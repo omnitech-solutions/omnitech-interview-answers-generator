@@ -2,6 +2,7 @@
 // by the contract and wrapped so a failing bridge call is a refusal (false),
 // never an exception in a window.
 import {
+  type HitRegion,
   negotiatePresentation,
   type PresentationHost,
 } from "@omnitech/interview-contracts";
@@ -72,8 +73,22 @@ export function nativePresentation(): PresentationHost | null {
             attempt(() => host.setWindowSize?.(size) ?? Promise.resolve(false)),
         }
       : {}),
+    ...(host.setFullScreen
+      ? {
+          setFullScreen: (on: boolean) =>
+            attempt(() => host.setFullScreen?.(on) ?? Promise.resolve(false)),
+        }
+      : {}),
     ...(host.quit
       ? { quit: () => attempt(() => host.quit?.() ?? Promise.resolve(false)) }
+      : {}),
+    ...(host.setHitRegions
+      ? {
+          setHitRegions: (regions: readonly HitRegion[] | null) =>
+            attempt(
+              () => host.setHitRegions?.(regions) ?? Promise.resolve(false),
+            ),
+        }
       : {}),
   };
 }

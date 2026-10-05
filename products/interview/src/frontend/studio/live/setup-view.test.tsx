@@ -795,3 +795,50 @@ describe("Footer", () => {
     );
   });
 });
+
+describe("Screenshots to the model (D35)", () => {
+  it("offers the three options with Always chosen, and sends no field for the default", async () => {
+    await open();
+    const group = screen.getByRole("radiogroup", {
+      name: "Screenshots to the model",
+    });
+    expect(
+      within(group)
+        .getAllByRole("radio")
+        .map((radio) => (radio as HTMLInputElement).checked),
+    ).toEqual([true, false, false]);
+    pickInterview();
+    consent();
+    fireEvent.click(start());
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0]).not.toHaveProperty("screenshotSend");
+  });
+
+  it("puts the chosen value in the start request", async () => {
+    await open();
+    pickInterview();
+    consent();
+    fireEvent.click(screen.getByRole("radio", { name: /Never send images/ }));
+    fireEvent.click(start());
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0]).toMatchObject({
+      processingPolicy: "permitted-remote",
+      screenshotSend: "never",
+    });
+  });
+
+  it("is disabled with the reason for a device-only start, and sends no value", async () => {
+    await open();
+    pickInterview();
+    consent();
+    fireEvent.click(screen.getByRole("radio", { name: /Text only when/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
+    for (const radio of within(
+      screen.getByRole("radiogroup", { name: "Screenshots to the model" }),
+    ).getAllByRole("radio"))
+      expect(radio).toBeDisabled();
+    expect(screen.getByTestId("screenshot-send-status")).toHaveTextContent(
+      "This session is device-only",
+    );
+  });
+});

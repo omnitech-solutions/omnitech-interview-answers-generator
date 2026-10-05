@@ -33,6 +33,49 @@ public final class CaptureGate {
     }
 }
 
+// [DOMAIN] The owner's display previews (listDisplays with thumbnails) are rendered
+// from EVERY display, non-browser apps included, so they are rationed: one run in
+// flight, and no new run until `minimumInterval` after the last one finished. A
+// request inside that window is answered with the previous result (kept in memory
+// for at most that window) or, when there is none, as busy. [SAFETY] This bounds how
+// often the page can read other apps' pixels; it is not the browser gate (previews
+// are the owner's own picker, see plan 7.0s T34).
+@MainActor
+public final class PreviewThrottle<Value> {
+    public enum Begin {
+        case run
+        case reuse(Value)
+        case busy
+    }
+
+    public static var defaultInterval: TimeInterval { 2.5 }
+    private let minimumInterval: TimeInterval
+    private let now: () -> TimeInterval
+    private var inFlight = false
+    private var last: (at: TimeInterval, value: Value)?
+
+    public init(minimumInterval: TimeInterval = PreviewThrottle.defaultInterval, now: @escaping () -> TimeInterval) {
+        self.minimumInterval = minimumInterval
+        self.now = now
+    }
+
+    public func begin() -> Begin {
+        if inFlight { return .busy }
+        if let last {
+            if now() - last.at < minimumInterval { return .reuse(last.value) }
+            self.last = nil
+        }
+        inFlight = true
+        return .run
+    }
+
+    // Ends a run started by `begin`; a nil value (a failed capture) is not kept.
+    public func finish(_ value: Value?) {
+        inFlight = false
+        last = value.map { (now(), $0) }
+    }
+}
+
 // [DOMAIN] Bounds a captured frame before it is encoded: the long edge is capped
 // so a Retina window never becomes a multi-megabyte image.
 public enum FrameSize {

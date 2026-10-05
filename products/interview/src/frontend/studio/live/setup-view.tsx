@@ -47,6 +47,7 @@ import {
   LocalityRow,
   MatrixRow,
   RetentionRow,
+  ScreenshotSendRow,
   SetupSection,
   TargetSection,
 } from "./setup-sections";
@@ -362,6 +363,11 @@ export function SetupView({
               speechState(report).blocksSpeech
             }
             onChange={(policy) => patch({ policy })}
+          />
+          <ScreenshotSendRow
+            value={form.screenshotSend}
+            deviceOnly={form.policy === "device-only"}
+            onChange={(screenshotSend) => patch({ screenshotSend })}
           />
           <RetentionRow
             value={form.retention}

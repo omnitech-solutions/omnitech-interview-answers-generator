@@ -1,10 +1,10 @@
-import OpenAI from "openai";
+import type { AiUsage } from "@omnitech/ai-contracts";
 import {
   loopbackChatURL,
   readOpenAIChunks,
   requestLmStudio,
 } from "@omnitech-assistant/providers";
-import type { AiUsage } from "@omnitech/ai-contracts";
+import OpenAI from "openai";
 
 // The chat-completions transport behind the adapter's execute and stream: the
 // OpenAI client for a keyed endpoint, or LM Studio's anonymous loopback

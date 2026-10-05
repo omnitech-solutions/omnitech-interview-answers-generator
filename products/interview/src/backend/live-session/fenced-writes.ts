@@ -11,6 +11,7 @@
 // exists (rule:action-before-job).
 import { randomUUID } from "node:crypto";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
+import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import {
@@ -71,6 +72,9 @@ export type DispatchStandingOutcome =
       outcome: "standing";
       status: SessionStatus;
       processingPolicy: ProcessingPolicy;
+      // D35: read with the policy, per dispatch, never from the page. Absent
+      // (an older store or fake) reads as "always".
+      screenshotSend?: LiveScreenshotSend;
       liveAssistance: boolean;
       fence: number;
     }
@@ -476,6 +480,7 @@ export class FencedSessionWrites {
         outcome: "standing",
         status: row.status,
         processingPolicy: row.policy,
+        screenshotSend: row.screenshotSend,
         liveAssistance: row.sources?.liveAssistance === true,
         fence: row.fence,
       };

@@ -10,6 +10,8 @@ import {
   type TranscriptLabels,
   type TranscriptRow,
 } from "./session-transcript";
+import { noQuestionLines } from "./shared/no-question";
+import { selectedRevisionOf } from "./shared/revisions";
 import { TASK_KIND } from "./shared/task-kind";
 import { taskLabel } from "./shared/task-target";
 
@@ -37,11 +39,13 @@ function Row({
   sessionId,
   start,
   labels,
+  revisionPicks,
 }: {
   row: TranscriptRow;
   sessionId: string;
   start: string;
   labels: TranscriptLabels;
+  revisionPicks: Readonly<Record<string, number>>;
 }) {
   switch (row.type) {
     case "utterance":
@@ -64,6 +68,15 @@ function Row({
             )}
           </div>
           <p className="live-line-text">{row.text}</p>
+        </li>
+      );
+    case "unreadable":
+      return (
+        <li className="live-line live-event amber" data-testid="transcript-row">
+          <Icon name="warning" />
+          <span>
+            {clockLabel(row.receivedAt, start)} · A line could not be shown
+          </span>
         </li>
       );
     case "screenshot": {
@@ -108,20 +121,55 @@ function Row({
           </span>
         </li>
       );
-    case "new-task": {
-      const task = taskLabel(row.ordinal);
-      const shot = labels.taskSnapshot(row.taskId);
+    case "no-question":
       return (
         <li
-          className="live-line live-event accent"
-          data-testid="transcript-row"
+          className="live-line live-event live-no-question"
+          data-testid="transcript-note"
         >
-          <Icon name={TASK_KIND[row.kind].icon} />
+          <Icon name="visibility_off" />
           <span>
-            {row.revised
-              ? `${task} revised · rev ${row.revision}`
-              : `${shot ? `${shot} analysed → ` : ""}${task} started · ${TASK_KIND[row.kind].label.toLowerCase()}`}
+            {clockLabel(row.at, start)} ·{" "}
+            {noQuestionLines(
+              row.notes.map((note) =>
+                note.snapshot ? labels.snapshot(note.snapshot) : null,
+              ),
+            ).join(" · ")}
           </span>
+        </li>
+      );
+    case "task": {
+      const task = taskLabel(row.ordinal);
+      const shot = labels.taskSnapshot(row.taskId);
+      const revision = selectedRevisionOf(row, revisionPicks);
+      const shown = row.revisions.find((each) => each.revision === revision);
+      return (
+        <li
+          className="live-line accent"
+          data-testid="transcript-row"
+          data-task-row={row.taskId}
+        >
+          <div className="live-line-meta live-event">
+            <Icon name={TASK_KIND[row.kind].icon} />
+            <span>
+              {shot ? `${shot} analysed → ` : ""}
+              {task} started · {TASK_KIND[row.kind].label.toLowerCase()}
+            </span>
+            {row.revisions.length > 1 && shown && (
+              <span className="live-chip neutral" data-testid="task-row-rev">
+                rev {revision} of {row.revisions.length} · {shown.cause}
+              </span>
+            )}
+          </div>
+          {shown && (
+            <p
+              className="live-line-text"
+              data-testid="task-row-text"
+              data-pending={shown.text.text === null || undefined}
+            >
+              {shown.text.text ?? shown.text.note}
+            </p>
+          )}
         </li>
       );
     }
@@ -131,20 +179,26 @@ function Row({
 const keyOf = (row: TranscriptRow): string =>
   row.type === "utterance"
     ? `${row.sourceId}:${row.eventId}`
-    : row.type === "new-task"
-      ? `task-${row.taskId}-${row.revision}`
-      : `${row.type}-${row.sequence}`;
+    : row.type === "task"
+      ? `task-${row.taskId}`
+      : row.type === "no-question"
+        ? `no-question-${row.notes[0]?.taskId}`
+        : `${row.type}-${row.sequence}`;
 
 export function TranscriptTab({
   rows,
   sessionId,
   sessionStart,
   labels = NO_LABELS,
+  revisionPicks = {},
 }: {
   rows: readonly TranscriptRow[];
   sessionId: string;
   sessionStart: string;
   labels?: TranscriptLabels;
+  // The older revision of a task the person is viewing; its row shows that
+  // revision's text. A task with no entry shows its current one.
+  revisionPicks?: Readonly<Record<string, number>>;
 }) {
   if (rows.length === 0)
     return (
@@ -166,6 +220,7 @@ export function TranscriptTab({
             sessionId={sessionId}
             start={sessionStart}
             labels={labels}
+            revisionPicks={revisionPicks}
           />
         ))}
       </ol>

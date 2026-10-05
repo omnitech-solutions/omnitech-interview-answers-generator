@@ -45,6 +45,7 @@ const validate = (
 ) =>
   stage.validate(raw, {
     snapshot,
+    screenBased: true,
     captured: extra.captured ?? ["What is the time complexity?"],
     ...(extra.exercise ? { exercise: extra.exercise } : {}),
   });

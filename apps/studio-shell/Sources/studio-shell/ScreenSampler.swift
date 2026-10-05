@@ -14,38 +14,34 @@ import StudioShellCore
 @MainActor
 final class ShellScreenSampler: ScreenWatchSampler {
     private let capture: ShellCapture
-    private let ownPid = ProcessInfo.processInfo.processIdentifier
+    // The display the last sample came from, reported with a change event.
+    private(set) var lastDisplay: DisplayInfo?
 
     init(capture: ShellCapture) { self.capture = capture }
 
     func sample(_ request: ScreenWatchRequest) async -> ScreenWatchSample {
         guard CGPreflightScreenCaptureAccess() else { return .permissionDenied }
-        let focus = capture.sample()
-        let frontId = focus.focusedPid.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
-        // [SAFETY] Only a browser in front is looked at.
-        guard BrowserFocus.allows(bundleId: frontId) else { return .noWindow }
+        // [SAFETY] Auto looks only while a browser is in front: the policy answers nil otherwise.
+        let focus = capture.sample(intent: .auto)
+        guard focus.focusedPid != nil else { return .noWindow }
         guard let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         else { return .noWindow }
         let filter: SCContentFilter
         let configuration = SCStreamConfiguration()
         switch request.mode {
         case .focusedWindow:
-            let candidates = content.windows.map {
-                WindowCandidate(
-                    ownerPid: $0.owningApplication?.processID ?? -1, layer: $0.windowLayer,
-                    isOnScreen: $0.isOnScreen, width: $0.frame.width, height: $0.frame.height)
-            }
-            guard let index = FocusSampling.choose(sampledPid: focus.focusedPid, ownPid: ownPid, windows: candidates)
-            else { return .noWindow }
-            filter = SCContentFilter(desktopIndependentWindow: content.windows[index])
+            guard let window = capture.window(in: content.windows, for: focus) else { return .noWindow }
+            filter = SCContentFilter(desktopIndependentWindow: window)
         case .region:
             // A region defined for another display is never remapped.
-            let current = UInt32(CGMainDisplayID())
+            let current = UInt32(focus.displayId)
             if let wanted = request.displayId, wanted != current { return .displayChanged }
             guard let display = content.displays.first(where: { $0.displayID == current }), let region = request.region
             else { return .displayChanged }
-            let own = content.windows.filter { $0.owningApplication?.processID == ownPid }
-            filter = SCContentFilter(display: display, excludingWindows: own)
+            // [SAFETY] Only the browser's windows are rendered, exactly as an explicit capture.
+            let browser = ShellCapture.browserWindows(in: content.windows, ids: focus.windowIds)
+            guard !browser.isEmpty else { return .noWindow }
+            filter = SCContentFilter(display: display, including: browser)
             let whole = filter.contentRect.size
             configuration.sourceRect = CGRect(
                 x: region.x * whole.width, y: region.y * whole.height,
@@ -57,6 +53,7 @@ final class ShellScreenSampler: ScreenWatchSampler {
         configuration.queueDepth = 1
         guard let image = await ShareableContent.screenshot(filter: filter, configuration: configuration)
         else { return .noWindow }
+        lastDisplay = capture.info(focus.displayId)
         return Self.grid(image).map(ScreenWatchSample.grid) ?? .noWindow
     }
 

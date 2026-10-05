@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ICON_PATHS } from "../../../icons.generated";
 import { nativeChord } from "../../shared/shortcuts";
 import { AUTO_MAX_PER_SESSION } from "../auto-gate";
 import {
@@ -11,10 +12,15 @@ import {
   captureMenuItems,
   captureModeOf,
   footerButtons,
-  hideBlockedReason,
+  GREEN_MENU_GRACE_MS,
+  GREEN_MENU_HOVER_MS,
+  MINI_SIZE,
   PANES,
   phaseLabel,
+  SEE_THROUGH_CONTROL,
+  seeThroughTitle,
   WINDOW_CONTROLS,
+  WINDOW_MODES,
   windowWidthFor,
 } from "./toolbar-config";
 
@@ -82,6 +88,35 @@ describe("footer buttons", () => {
       footerButtons(live, wording).map((button) => button.label);
     expect(labels("short")).toEqual(["Pause", "End"]);
     expect(labels("session")).toEqual(["Pause session", "End session"]);
+  });
+});
+
+describe("See-through control", () => {
+  it("is one named toolbar switch with an icon from the icon set", () => {
+    expect(SEE_THROUGH_CONTROL).toMatchObject({
+      label: "See-through",
+      icon: "contrast",
+    });
+    expect(Object.keys(ICON_PATHS)).toContain(SEE_THROUGH_CONTROL.icon);
+  });
+
+  it("has a tooltip that says exactly what is on, with the key only where the shell can pass clicks", () => {
+    const withShell = (on: boolean) => seeThroughTitle(on, true);
+    expect(withShell(true)).toMatch(/is on/);
+    expect(withShell(true)).toMatch(
+      /clicks on empty glass reach the page underneath/,
+    );
+    expect(withShell(true)).toMatch(
+      /Toolbar, panes and menus still take clicks/,
+    );
+    expect(withShell(true)).toContain("⌘⇧I");
+    expect(withShell(false)).toMatch(/is off/);
+    expect(withShell(false)).toContain("⌘⇧I");
+    const web = seeThroughTitle(true, false);
+    expect(web).toMatch(/background is clear/);
+    expect(web).not.toMatch(/clicks/);
+    expect(web).not.toContain("⌘");
+    expect(seeThroughTitle(false, false)).not.toContain("⌘");
   });
 });
 
@@ -159,7 +194,7 @@ describe("panes and shortcuts", () => {
   it("takes chords from the one shortcut table", () => {
     expect(nativeChord("analyze")).toBe("⌘⇧S");
     expect(nativeChord("listening")).toBe("⌥R");
-    expect(nativeChord("click-through")).toBe("⌘⇧I");
+    expect(nativeChord("see-through")).toBe("⌘⇧I");
     // An id outside the table does not compile; forced past the types it fails
     // loudly instead of answering an empty chord.
     expect(() => nativeChord("nothing" as never)).toThrow();
@@ -211,11 +246,11 @@ describe("the ended footer", () => {
 });
 
 describe("window controls", () => {
-  it("are red, yellow and green, each with a glyph, a name and an action", () => {
+  it("are red quit, yellow hide and green size, each with a glyph, a name and an action", () => {
     expect(WINDOW_CONTROLS.map((c) => [c.colour, c.glyph, c.action])).toEqual([
-      ["red", "×", "hide"],
-      ["yellow", "−", "collapse"],
-      ["green", "+", "expand"],
+      ["red", "×", "quit"],
+      ["yellow", "−", "hide"],
+      ["green", "+", "size"],
     ]);
     for (const control of WINDOW_CONTROLS) {
       expect(control.label).not.toBe("");
@@ -223,17 +258,39 @@ describe("window controls", () => {
     }
   });
 
-  it("tells the person how the hidden window comes back", () => {
-    expect(WINDOW_CONTROLS[0].title).toContain(nativeChord("show-hide"));
+  it("tells the person how the hidden window comes back and that a live session pauses", () => {
+    const hide = WINDOW_CONTROLS[1].title;
+    expect(hide).toContain(nativeChord("show-hide"));
+    expect(hide).toContain("pauses first");
+  });
+
+  it("the green name says both the click and the hover", () => {
+    expect(WINDOW_CONTROLS[2].label).toBe(
+      "Full screen: click. Hold the pointer here for more window sizes",
+    );
+    expect(GREEN_MENU_HOVER_MS).toBe(1000);
+    expect(GREEN_MENU_GRACE_MS).toBeLessThan(GREEN_MENU_HOVER_MS);
   });
 });
 
-describe("hiding the window", () => {
-  it("is refused, with the reason, only while the session is capturing or listening", () => {
-    expect(hideBlockedReason({ open: true, paused: false })).toBe(
-      "Pause the session to hide the window",
-    );
-    expect(hideBlockedReason({ open: true, paused: true })).toBeNull();
-    expect(hideBlockedReason({ open: false, paused: false })).toBeNull();
+describe("window sizes", () => {
+  it("are exactly Normal, Mini player and Full screen, each with a hint", () => {
+    expect(WINDOW_MODES.map((mode) => [mode.id, mode.label])).toEqual([
+      ["normal", "Normal"],
+      ["mini", "Mini player"],
+      ["full", "Full screen"],
+    ]);
+    for (const mode of WINDOW_MODES) expect(mode.hint).not.toBe("");
+  });
+
+  it("the Mini player is a fixed card and Full screen leaves sizing to the shell", () => {
+    const by = Object.fromEntries(WINDOW_MODES.map((mode) => [mode.id, mode]));
+    expect(by["mini"]?.size).toEqual({ kind: "fixed", ...MINI_SIZE });
+    expect(MINI_SIZE.width).toBe(440);
+    expect(MINI_SIZE.height).toBe(190);
+    expect(by["full"]?.size.kind).toBe("fill-display");
+    expect(by["normal"]?.size.kind).toBe("fit-panes");
+    expect(by["mini"]?.view).toBe("mini");
+    expect(by["normal"]?.needs).toBeNull();
   });
 });

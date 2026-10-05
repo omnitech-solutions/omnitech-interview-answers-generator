@@ -1,10 +1,3 @@
-import { scopeSchema } from "@omnitech-assistant/contracts";
-import type {
-  ModelInfo,
-  ModelPart,
-  ModelPort,
-  Scope,
-} from "@omnitech-assistant/contracts";
 import {
   type AiAccessContext,
   type AiEvent,
@@ -21,6 +14,13 @@ import {
   MAX_TASK_ATTACHMENTS,
   type ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+import type {
+  ModelInfo,
+  ModelPart,
+  ModelPort,
+  Scope,
+} from "@omnitech-assistant/contracts";
+import { scopeSchema } from "@omnitech-assistant/contracts";
 
 /**
  * Where a profile's model runs, as its configuration declares it. Never

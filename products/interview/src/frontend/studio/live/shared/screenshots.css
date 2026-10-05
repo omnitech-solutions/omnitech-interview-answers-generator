@@ -1,0 +1,419 @@
+/* The Screenshots area (shared/screenshots-area.tsx) for the native answer pane
+   and the web task panel. The web page defines --text/--muted/--border/--accent;
+   the native window does not, so every colour falls back to the panel's glass
+   look. The viewer is portalled to <body> and is always dark. */
+.ss {
+  --ss-text: var(--text, rgba(255, 255, 255, 0.95));
+  --ss-muted: var(--muted, rgba(255, 255, 255, 0.68));
+  --ss-line: var(--border, rgba(255, 255, 255, 0.16));
+  --ss-fill: var(--subtle, rgba(255, 255, 255, 0.08));
+  --ss-fill-hover: var(--hover, rgba(255, 255, 255, 0.16));
+  --ss-accent: var(--accent, #2f6fe4);
+  --ss-on-accent: var(--on-accent, #fff);
+  --ss-bad: var(--red, #ff8a8a);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--ss-line);
+  border-radius: 10px;
+  background: var(--ss-fill);
+  color: var(--ss-text);
+  font-size: 12px;
+  min-width: 0;
+}
+.ss-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ss-title {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ss-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ss-meta,
+.ss-keys {
+  margin: 0;
+  color: var(--ss-muted);
+  font-size: 11px;
+}
+.ss-error {
+  margin: 0;
+  color: var(--ss-bad);
+  font-size: 11.5px;
+}
+.ss-count {
+  min-width: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--ss-accent, #2f6fe4);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+.ss-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(245, 197, 107, 0.2);
+  color: var(--amber, #f5c56b);
+  font-size: 10.5px;
+}
+
+/* Strip: small thumbnails in one row; a native overflow scroll, with arrows. */
+.ss-strip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.ss-strip,
+.ss-staged {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 2px 6px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  min-width: 0;
+  flex: 1;
+}
+.ss-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: none;
+  width: 96px;
+  scroll-snap-align: start;
+}
+.ss-item.staged {
+  width: 124px;
+  padding: 4px;
+  border: 1px dashed var(--ss-line);
+  border-radius: 8px;
+}
+.ss-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--ss-line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: zoom-in;
+}
+.ss-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ss-thumb-empty {
+  font-size: 10px;
+  color: var(--ss-muted);
+}
+.ss-caption {
+  display: flex;
+  flex-direction: column;
+  font-size: 10.5px;
+  color: var(--ss-muted);
+}
+.ss-caption strong {
+  color: var(--ss-text);
+}
+.ss-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.ss-btn,
+.ss-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--ss-fill-hover);
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.ss-icon {
+  width: 24px;
+  padding: 0;
+}
+.ss-btn:disabled,
+.ss-icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ss-btn.primary {
+  background: var(--ss-accent);
+  color: var(--ss-on-accent);
+  font-weight: 600;
+}
+.ss-btn[aria-pressed="true"],
+.ss-btn[data-on] {
+  outline: 1.5px solid var(--ss-accent);
+}
+/* A native radio is the control (arrow keys, one tab stop); the label draws it. */
+.ss-radio {
+  position: relative;
+}
+.ss-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.ss-radio:focus-within {
+  outline: 2px solid var(--ss-accent, #8fb0ff);
+  outline-offset: 1px;
+}
+.ss-radio[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ss :is(button, input, ul):focus-visible,
+.ss-viewer :is(button, input, div):focus-visible {
+  outline: 2px solid var(--ss-accent, #8fb0ff);
+  outline-offset: 1px;
+}
+
+/* Viewer (portalled to <body>, above the native window's own stacking). */
+.ss-viewer-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.6);
+}
+/* Clear glass: the scrim dims the desktop less (set from the panel root's
+   attribute by image-viewer.tsx); the dialog itself stays dense to be legible. */
+.ss-viewer-scrim[data-glass="clear"] {
+  background: rgba(0, 0, 0, 0.2);
+}
+.ss-viewer {
+  --ss-muted: rgba(255, 255, 255, 0.7);
+  --ss-line: rgba(255, 255, 255, 0.18);
+  --ss-fill-hover: rgba(255, 255, 255, 0.16);
+  --ss-accent: #5b8def;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(960px, 100%);
+  max-height: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: #1c1c20;
+  color: #fff;
+  font-size: 12px;
+}
+.ss-viewer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ss-viewer-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ss-zoom {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ss-viewer-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: min(60vh, 560px);
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  touch-action: none;
+}
+.ss-viewer-stage:not([data-fit]) {
+  cursor: grab;
+}
+.ss-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  user-select: none;
+}
+/* Zoomed, the image is drawn at the model's size: a flex item would otherwise
+   shrink back to the stage width (flex-shrink 1, min-width auto). */
+.ss-viewer-stage:not([data-fit]) img {
+  flex: none;
+  max-width: none;
+  max-height: none;
+}
+
+/* Crop. */
+.ss-crop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ss-crop-stage {
+  position: relative;
+  align-self: center;
+  max-width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+.ss-crop-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 50vh;
+  user-select: none;
+}
+.ss-crop-box {
+  position: absolute;
+  border: 1.5px solid #5b8def;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  cursor: move;
+}
+.ss-crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 1.5px solid #5b8def;
+  border-radius: 3px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+[data-handle="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+[data-handle="n"] { left: 50%; top: 0; cursor: ns-resize; }
+[data-handle="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
+[data-handle="e"] { left: 100%; top: 50%; cursor: ew-resize; }
+[data-handle="se"] { left: 100%; top: 100%; cursor: nwse-resize; }
+[data-handle="s"] { left: 50%; top: 100%; cursor: ns-resize; }
+[data-handle="sw"] { left: 0; top: 100%; cursor: nesw-resize; }
+[data-handle="w"] { left: 0; top: 50%; cursor: ew-resize; }
+.ss-crop-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ss-crop-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10.5px;
+  color: var(--ss-muted);
+}
+.ss-crop-fields input {
+  width: 72px;
+  padding: 3px 6px;
+  border: 1px solid var(--ss-line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-strip,
+  .ss-staged {
+    scroll-behavior: auto;
+  }
+}
+
+/* "Screenshots to the model" (shared/screenshot-send-control.tsx): a radio
+   group with a plain description under each option. The web pages define
+   --text/--muted/--border/--accent; the native Settings window does not, so
+   every colour falls back to the panel's glass look. */
+.ssc {
+  --ssc-text: var(--text, rgba(255, 255, 255, 0.95));
+  --ssc-muted: var(--muted, rgba(255, 255, 255, 0.68));
+  --ssc-line: var(--border, rgba(255, 255, 255, 0.16));
+  --ssc-accent: var(--accent, #2f6fe4);
+  --ssc-bad: var(--red, #ff8a8a);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  color: var(--ssc-text);
+}
+.ssc-legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ssc-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 1px solid var(--ssc-line);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12.5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ssc-option.on {
+  border-color: var(--ssc-accent);
+}
+.ssc-option:focus-within {
+  outline: 2px solid var(--ssc-accent);
+  outline-offset: 1px;
+}
+.ssc-option input {
+  grid-row: 1 / span 2;
+  margin: 2px 0 0;
+  accent-color: var(--ssc-accent);
+}
+.ssc-label {
+  font-weight: 600;
+}
+.ssc-desc {
+  grid-column: 2;
+  color: var(--ssc-muted);
+  font-size: 11.5px;
+}
+.ssc:disabled .ssc-option {
+  opacity: 0.6;
+  cursor: default;
+}
+.ssc-status {
+  margin: 0;
+  color: var(--ssc-muted);
+  font-size: 11.5px;
+}
+.ssc-status.bad {
+  color: var(--ssc-bad);
+}

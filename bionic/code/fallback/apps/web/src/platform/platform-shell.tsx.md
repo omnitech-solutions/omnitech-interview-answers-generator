@@ -2,5 +2,5 @@
 
 _Source: `apps/web/src/platform/platform-shell.tsx` (header-comment fallback)_
 
-The tenant's frame around its products. Each product brings its own
-navigation and settings; the frame applies the member's preferences.
+Products ask the shell to change the member's theme through this event; the
+shell is the one owner of the document theme and of its saved preference.

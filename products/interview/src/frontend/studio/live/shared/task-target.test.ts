@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { presentation } from "../focus-presentation";
 import { deriveTasks } from "../session-tasks";
 import { action, minutesAfter } from "../testing/session-fixtures";
 import { answerResult } from "../testing/session-result-fixtures";
+import { selectedRevisionOf } from "./revisions";
 import {
   resolveTarget,
   selectedTask,
@@ -68,6 +70,22 @@ describe("the target of a follow-up or an added screenshot", () => {
       revision: 4,
     });
     expect(resolveTarget(tasks, "t2")?.targetLabel).toBe("T2");
+  });
+
+  it("stays the current revision while an older one is viewed (view-only picks)", () => {
+    presentation.pickRevision("t2", 3);
+    try {
+      expect(
+        selectedRevisionOf(tasks[1] as never, presentation.get().revisionPicks),
+      ).toBe(3);
+      // The pick is not an input of the rule: the follow-up still goes to rev 4.
+      expect(resolveTarget(tasks, "t2")?.target).toEqual({
+        taskId: "t2",
+        revision: 4,
+      });
+    } finally {
+      presentation.reset();
+    }
   });
 
   it("falls to the newest task when none is pinned", () => {

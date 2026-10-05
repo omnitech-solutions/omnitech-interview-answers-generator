@@ -116,7 +116,8 @@ export function createSessionActions(context: CommandContext): SessionActions {
         // [SAFETY] A failure of the session left behind says nothing about this one.
         if (scope === "global" || live(bound))
           context.set({ commandError: code });
-        return { ok: false, code };
+        const reason = error instanceof SessionApiError ? error.reason : null;
+        return { ok: false, code, ...(reason ? { reason } : {}) };
       } finally {
         inFlight.delete(key);
         finish(op);
@@ -235,6 +236,18 @@ export function createSessionActions(context: CommandContext): SessionActions {
           await client.tightenPolicy(sessionIdOf(bound), "device-only"),
         );
       }),
+    setScreenshotSend: (value) =>
+      run(
+        "screenshot-send",
+        async (bound) => {
+          applied(
+            bound,
+            await client.setScreenshotSend(sessionIdOf(bound), value),
+          );
+        },
+        "session",
+        value,
+      ),
     shortenRetention: (retention) =>
       run("shorten", async (bound) => {
         applied(
@@ -333,6 +346,30 @@ export function createSessionActions(context: CommandContext): SessionActions {
         },
         "session",
         `${target.taskId}@${target.revision}`,
+      ),
+    regenerate: (target) =>
+      run(
+        "regenerate",
+        async (bound) => {
+          const send = context.regenerateTask;
+          if (!send) throw new SessionApiError("unavailable", 0);
+          await send(sessionIdOf(bound), target);
+          restartIfLive(bound);
+        },
+        "session",
+        `${target.taskId}@${target.revision}`,
+      ),
+    applyContext: (target, input) =>
+      run(
+        "apply-context",
+        async (bound) => {
+          const send = context.applyContext;
+          if (!send) throw new SessionApiError("unavailable", 0);
+          await send(sessionIdOf(bound), target, input);
+          restartIfLive(bound);
+        },
+        "session",
+        `${target ? `${target.taskId}@${target.revision}` : ""}|${input.requestId}`,
       ),
     // Not a `run` command: phrases arrive back to back and each is its own
     // request, so none may share another's in-flight call, and heard speech

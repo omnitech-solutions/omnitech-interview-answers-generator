@@ -13,7 +13,7 @@ import type { MissingContextActionId } from "./shared/missing-context-strip";
 // Straight from the click: the browser asks for a source only inside a gesture.
 async function attachScreenshot(hf: HandsFree): Promise<void> {
   if (hf.share.status !== "sharing" && !(await hf.share.start())) return;
-  await hf.analyze({ kind: "attach" }, "share");
+  await hf.analyze({ kind: "attach" }, "share", true);
 }
 
 export function useMissingContextActions(dismiss: () => void) {

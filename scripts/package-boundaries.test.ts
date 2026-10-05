@@ -7,8 +7,26 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const workspaceRoots = ["apps", "packages", "products"];
-const ignoredDirectories = new Set(["node_modules", "dist", ".next", ".turbo"]);
+const workspaceRoots = ["apps", "packages", "products", "e2e"];
+const ignoredDirectories = new Set([
+  "node_modules",
+  "dist",
+  ".next",
+  ".next-e2e",
+  ".turbo",
+]);
+
+// The only relative imports that leave a package. Each names the importing
+// file, the resolved target (no extension) and why no public entrypoint can do.
+type DeepImportAllowance = { file: string; target: string; reason: string };
+const deepImportAllowances: readonly DeepImportAllowance[] = [
+  {
+    file: "e2e/live-session/src/stack/stack.ts",
+    target: "apps/agent-worker/src/main",
+    reason:
+      "the e2e harness runs the real worker from source with a scripted runtime: the only seam, see e2e/live-session/README.md",
+  },
+];
 
 type WorkspacePackage = {
   name: string;
@@ -186,9 +204,23 @@ describe("package boundaries", () => {
 
   it("imports other packages only through their exports map", () => {
     const violations: string[] = [];
+    const used = new Set<DeepImportAllowance>();
     for (const pkg of packages) {
       for (const found of workspaceImports(pkg, byName)) {
         if (found.specifier.startsWith(".")) {
+          const allowance = deepImportAllowances.find(
+            (entry) =>
+              entry.file === found.file &&
+              entry.target ===
+                relative(
+                  repoRoot,
+                  resolve(repoRoot, dirname(found.file), found.specifier),
+                ),
+          );
+          if (allowance) {
+            used.add(allowance);
+            continue;
+          }
           violations.push(
             `${pkg.name}: ${found.file}:${found.line} imports ${found.specifier}, a relative path out of its package [public entrypoints only]`,
           );
@@ -204,6 +236,11 @@ describe("package boundaries", () => {
       }
     }
     expect(violations).toEqual([]);
+    // An allowance whose import is gone must be deleted, not left behind.
+    expect(
+      deepImportAllowances.filter((entry) => !used.has(entry)),
+      "stale deep-import allowance: remove it",
+    ).toEqual([]);
   });
 
   it("lets only apps/agent-worker reach the cross-tenant worker repository", () => {
@@ -667,7 +704,11 @@ function workspaceImports(
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (ignoredDirectories.has(entry.name)) return [];
+    if (
+      ignoredDirectories.has(entry.name) ||
+      entry.name.startsWith(".next-e2e")
+    )
+      return [];
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
     return /\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")

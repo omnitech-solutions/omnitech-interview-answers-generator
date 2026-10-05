@@ -17,6 +17,7 @@ const ignoredDirectories = new Set([
   "node_modules",
   "dist",
   ".next",
+  ".next-e2e",
   ".turbo",
   "drizzle",
   ".data",
@@ -38,7 +39,11 @@ export function walk(directory: string, pattern: RegExp): string[] {
   const root = join(repoRoot, directory);
   const visit = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (ignoredDirectories.has(entry.name)) return [];
+      if (
+        ignoredDirectories.has(entry.name) ||
+        entry.name.startsWith(".next-e2e")
+      )
+        return [];
       const path = join(dir, entry.name);
       if (entry.isDirectory()) return visit(path);
       return pattern.test(entry.name) && !entry.name.endsWith(".d.ts")

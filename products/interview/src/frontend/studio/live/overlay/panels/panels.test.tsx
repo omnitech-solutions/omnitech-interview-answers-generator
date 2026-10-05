@@ -194,13 +194,12 @@ describe("toolbar", () => {
     for (const gone of [/Remote/, /Visible window/, /companion/i])
       expect(bar).not.toHaveTextContent(gone);
   });
-  it("follows the skill and goes red when interaction is off", async () => {
+  it("never goes red for the old whole-window interaction state: nothing is inert any more", async () => {
     const host = nativeHost();
     await show("single", "&host=native");
     await host.set(false);
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "red");
-    await host.set(true);
     expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
+    expect(screen.getByTestId("pn-status")).toHaveTextContent("Live");
   });
 });
 
@@ -293,6 +292,14 @@ describe("analysis", () => {
       phase: "analyzing",
       note: null,
       auto: { on: false },
+      snapshot: { actions: [] },
+      tenant: "t",
+      tray: {
+        items: [],
+        open: false,
+        attach: () => () => undefined,
+        recognition: { states: new Map() },
+      },
       model: { activity: { key: "idle", text: "" }, tasks: [] },
     } as unknown as PanelSession;
     render(<AnswerPanel s={session} />);
@@ -312,6 +319,14 @@ describe("analysis", () => {
       phase: "analyzing",
       note: null,
       auto: { on: false },
+      snapshot: { actions: [] },
+      tenant: "t",
+      tray: {
+        items: [],
+        open: false,
+        attach: () => () => undefined,
+        recognition: { states: new Map() },
+      },
       model: { activity: { key: "drafting", text: "" }, tasks: [] },
     } as unknown as PanelSession;
     render(<AnswerPanel s={session} />);
@@ -464,18 +479,6 @@ describe("settings", () => {
 describe("toasts", () => {
   // The window draws them unless the shell does; each text is exact.
   const toasts = () => screen.getByTestId("pn-toasts");
-  it("says Interaction Mode ON and OFF with the exact words", async () => {
-    const host = nativeHost();
-    await show("single", "&host=native");
-    await host.set(false);
-    expect(toasts()).toHaveTextContent("Interaction Mode: OFF");
-    expect(toasts()).toHaveTextContent("Red dot shows interaction mode is off");
-    await host.set(true);
-    expect(toasts()).toHaveTextContent("Interaction Mode: ON");
-    expect(toasts()).toHaveTextContent(
-      "Green dot, Interact with window like scroll, copy, move",
-    );
-  });
   it("says Skill changed to - <Skill> when a skill is picked", async () => {
     await show("single");
     await act(async () => {
@@ -487,7 +490,7 @@ describe("toasts", () => {
     expect(toasts()).not.toHaveTextContent(/small tab/);
     expect(document.querySelector(".pn-toast-detail")).toBeNull();
   });
-  it("says Current Skill when interaction mode is off and the skill is not changed", async () => {
+  it("changes the skill on its key even if an old shell reports its whole-window interaction as off", async () => {
     const host = nativeHost();
     await show("single", "&host=native");
     await host.set(false);
@@ -495,36 +498,37 @@ describe("toasts", () => {
       fireEvent.keyDown(window, { altKey: true, code: "BracketRight" });
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(toasts()).toHaveTextContent(
-      "Current Skill - Data Structures & Algorithms",
-    );
-    expect(toasts()).toHaveTextContent(
-      "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)",
-    );
-    expect(
-      window.localStorage.getItem(
-        "interview-studio.live.capture-settings.local",
-      ),
-    ).toBeNull();
+    expect(toasts()).toHaveTextContent("Skill changed to - System Design");
+    expect(toasts()).not.toHaveTextContent(/Current Skill/);
   });
   it("auto-hides after about three seconds", async () => {
-    const host = nativeHost();
+    nativeHost();
     await show("single", "&host=native");
-    await host.set(false);
+    await act(async () => {
+      fireEvent.keyDown(window, { altKey: true, code: "BracketRight" });
+      await vi.advanceTimersByTimeAsync(0);
+    });
     expect(toasts()).toBeVisible();
     await act(() => vi.advanceTimersByTimeAsync(TOAST_MS + 50));
     expect(screen.queryByTestId("pn-toasts")).toBeNull();
   });
   it("does not draw them when the shell does (nativeToasts), and draws its own otherwise", async () => {
-    const host = nativeHost({ nativeToasts: true });
+    const skillKey = () =>
+      act(async () => {
+        fireEvent.keyDown(window, { altKey: true, code: "BracketRight" });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    nativeHost({ nativeToasts: true });
     await show("single", "&host=native");
-    await host.set(false);
+    await skillKey();
     expect(screen.queryByTestId("pn-toasts")).toBeNull();
     cleanup();
-    const own = nativeHost();
+    // The same key within the claim window is one press.
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    nativeHost();
     await show("single", "&host=native");
-    await own.set(false);
-    expect(toasts()).toHaveTextContent("Interaction Mode: OFF");
+    await skillKey();
+    expect(toasts()).toHaveTextContent("Skill changed to");
   });
 });
 

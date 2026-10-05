@@ -66,8 +66,10 @@ describe("LiveSessionPanel", () => {
       "data-variant",
       "header",
     );
+    // The answer is on the task panel and, as the task's one row, in the
+    // transcript.
     expect(
-      screen.getByText(
+      within(screen.getByTestId("task-panel")).getByText(
         "I led the migration at Example Corp and kept the service up.",
       ),
     ).toBeVisible();

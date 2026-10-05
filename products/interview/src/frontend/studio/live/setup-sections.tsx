@@ -3,6 +3,7 @@
 import type {
   LiveProcessingPolicy,
   LiveRetentionMode,
+  LiveScreenshotSend,
   LiveSessionChoicesResponse,
 } from "@omnitech/interview-contracts";
 import type { ReactNode } from "react";
@@ -15,6 +16,11 @@ import {
   type LineState,
 } from "./setup-hosts";
 import { matrixOptions, type SetupHost, type SetupTarget } from "./setup-model";
+import {
+  DEVICE_ONLY_REASON,
+  SCREENSHOT_SEND_TITLE,
+} from "./shared/screenshot-send";
+import { ScreenshotSendControl } from "./shared/screenshot-send-control";
 import type { SetupChoices } from "./use-setup-choices";
 
 // A numbered section with its heading; `id` names it for the controls inside.
@@ -447,6 +453,35 @@ const RETENTION_OPTIONS = RETENTION_MODES.map((mode) => ({
   value: mode,
   label: RETENTION_LABEL[mode],
 }));
+
+// D35: what of each screenshot reaches the model, chosen before the session
+// starts (it goes in the start request) and changeable during it. A device-only
+// choice disables it with the reason: no image is ever sent then.
+export function ScreenshotSendRow({
+  value,
+  deviceOnly,
+  onChange,
+}: {
+  value: LiveScreenshotSend;
+  deviceOnly: boolean;
+  onChange(value: LiveScreenshotSend): void;
+}) {
+  return (
+    <SettingRow
+      icon="screenshot_monitor"
+      title={SCREENSHOT_SEND_TITLE}
+      note="Choose what of each screenshot goes to the model. You can change this during the session, and each screenshot says what was sent."
+      control={null}
+    >
+      <ScreenshotSendControl
+        variant="web"
+        value={value}
+        onChange={onChange}
+        disabledReason={deviceOnly ? DEVICE_ONLY_REASON : null}
+      />
+    </SettingRow>
+  );
+}
 
 export function RetentionRow({
   value,

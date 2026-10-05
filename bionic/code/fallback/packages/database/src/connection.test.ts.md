@@ -2,4 +2,4 @@
 
 _Source: `packages/database/src/connection.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+Tenant-scoped paths refuse a superuser, so they run as the member role.

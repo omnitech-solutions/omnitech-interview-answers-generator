@@ -53,7 +53,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     func rebuild() {
         menu.removeAllItems()
-        // The dot says interaction mode: green ON, red OFF.
+        // The dot says the window takes clicks: green (always, now that See-through works by region).
         let interactive = actions.presentation().interaction.isInteractive
         item.button?.attributedTitle = NSAttributedString(
             string: " ●", attributes: [.foregroundColor: interactive ? NSColor.systemGreen : NSColor.systemRed])
@@ -111,8 +111,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
         // Window
         add(keyed(pstate.hidden ? "Show Window" : "Hide Window", keys[.toggleVisibility]), #selector(toggleVisibility), enabled: paired)
-        let mode = add(keyed("Interaction Mode", keys[.toggleInteraction]), #selector(toggleInteraction), enabled: true)
-        mode.state = pstate.interaction.isInteractive ? .on : .off
+        add(keyed("See-through", keys[.toggleInteraction]), #selector(toggleInteraction), enabled: paired)
         add("Settings", #selector(openSettings), enabled: paired)
         let shortcuts = add("Global Shortcuts", #selector(toggleHotkeys), enabled: true)
         shortcuts.state = pstate.hotkeysEnabled ? .on : .off
@@ -154,7 +153,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     @objc private func clearSession() { actions.send(.sessionClear) }
     @objc private func toggleMode() { actions.present(.toggleAppMode) }
     @objc private func toggleVisibility() { actions.present(.toggleVisible) }
-    @objc private func toggleInteraction() { actions.present(.toggleInteractionMode) }
+    @objc private func toggleInteraction() { actions.send(.seeThroughToggle) }
     @objc private func openSettings() { actions.present(.openSettings) }
     @objc private func toggleHotkeys() { actions.present(.setHotkeysEnabled(!actions.presentation().hotkeysEnabled)) }
     @objc private func connect() { actions.connect() }

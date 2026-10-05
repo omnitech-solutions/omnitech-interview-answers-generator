@@ -30,6 +30,16 @@ export type PanelMessage =
   // A notice the owner wants every panel to show (a refused capture, say), so a
   // failure is never visible only in the one document that happened to run it.
   | { type: "note"; text: string }
+  // Why the owner's last capture did not work, or null when it works again:
+  // every panel shows the same banner. A closed reason and an app NAME only.
+  | {
+      type: "problem";
+      problem: {
+        reason: string;
+        intent: "manual" | "auto";
+        frontApp: string | null;
+      } | null;
+    }
   // A panel just opened and asks the owner to say its state again.
   | { type: "hello" }
   // The panel that started the session (auto-session) tells the others.

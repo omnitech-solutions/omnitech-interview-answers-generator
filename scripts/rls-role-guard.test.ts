@@ -39,6 +39,16 @@ const bypassOptIns: readonly Allowance[] = [
     file: "packages/database/src/role-check.test.ts",
     reason: "proves an opted-in handle is served and unopted handles are not",
   },
+  {
+    file: "e2e/live-session/src/helpers/sql.ts",
+    reason:
+      "reads as the disposable database's owner, plus one write (moveClock) that runs with triggers off (session_replication_role = replica), on the disposable fixture database only; the stack under test never uses this handle",
+  },
+  {
+    file: "e2e/live-session/src/helpers/footprint.ts",
+    reason:
+      "read-only row counts as the disposable database's owner (proving a purge removed everything, across tables a member would need tenant context to read); the stack under test never uses this handle",
+  },
 ];
 
 const ownerUrlUses: readonly Allowance[] = [
@@ -60,11 +70,27 @@ const ownerUrlUses: readonly Allowance[] = [
     file: "apps/agent-worker/src/main.test.ts",
     reason: "proves the worker refuses to boot on a superuser DATABASE_URL",
   },
+  {
+    file: "e2e/live-session/src/helpers/sql.ts",
+    reason:
+      "reads, plus one write (moveClock) that runs with triggers off (session_replication_role = replica), on the browser suite's disposable fixture database only; the app, worker and bootstrap under test run as the member role",
+  },
+  {
+    file: "e2e/live-session/src/helpers/footprint.ts",
+    reason:
+      "read-only counts on the browser suite's disposable database to prove purges; the app, worker and bootstrap under test run as the member role",
+  },
 ];
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const scannedRoots = ["apps", "packages", "products", "scripts"];
-const ignoredDirectories = new Set(["node_modules", "dist", ".next", ".turbo"]);
+const scannedRoots = ["apps", "packages", "products", "scripts", "e2e"];
+const ignoredDirectories = new Set([
+  "node_modules",
+  "dist",
+  ".next",
+  ".next-e2e",
+  ".turbo",
+]);
 const ownerUrlLike = /owner.*url/i;
 const appConnectionNames = new Set([
   "DATABASE_URL",
@@ -73,7 +99,11 @@ const appConnectionNames = new Set([
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (ignoredDirectories.has(entry.name)) return [];
+    if (
+      ignoredDirectories.has(entry.name) ||
+      entry.name.startsWith(".next-e2e")
+    )
+      return [];
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
     return /\.(ts|tsx|mts)$/.test(entry.name) && !entry.name.endsWith(".d.ts")

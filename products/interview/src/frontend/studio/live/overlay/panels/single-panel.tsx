@@ -12,12 +12,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { nativeChord } from "../../shared/shortcuts";
 import { Footer, failureNote } from "../overlay-footer";
 import { AUTO_SESSION } from "./auto-session";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
+import { MiniPlayer } from "./mini-player";
 import { openPanelBus } from "./panel-bus";
+import type { PanelGlass } from "./panel-glass";
 import {
   AnswerPanel,
   ChatPanel,
@@ -30,6 +31,7 @@ import { Toolbar } from "./toolbar";
 import {
   ALL_PANES_SHOWN,
   BARE_WIDTH,
+  MINI_SIZE,
   PANES,
   type PaneId,
   type PaneState,
@@ -38,13 +40,12 @@ import {
   WINDOW_PAD,
   windowWidthFor,
 } from "./toolbar-config";
+import type { PanelWindowMode } from "./window-mode";
 
 export type Panes = {
   shown: PaneState;
   toggle(pane: PaneId): void;
   show(pane: PaneId): void;
-  // Every pane at once: the window controls' collapse (none) and expand (all).
-  setAll(shown: boolean): void;
 };
 
 // Which panes of the one window are showing. All of them to begin with: the code
@@ -55,10 +56,6 @@ export function usePanes(): Panes {
     shown,
     toggle: (pane) => setShown((now) => ({ ...now, [pane]: !now[pane] })),
     show: (pane) => setShown((now) => ({ ...now, [pane]: true })),
-    setAll: (all) =>
-      setShown(
-        Object.fromEntries(PANES.map((pane) => [pane.id, all])) as PaneState,
-      ),
   };
 }
 
@@ -66,10 +63,14 @@ export function SinglePanel({
   s,
   panes,
   presentation,
+  glass,
+  windowMode,
 }: {
   s: PanelSession;
   panes: Panes;
   presentation: PresentationHost;
+  glass: PanelGlass;
+  windowMode: PanelWindowMode;
 }) {
   const { shown, show } = panes;
   // What each pane shows. The ids and sizes live in PANES.
@@ -88,7 +89,7 @@ export function SinglePanel({
     setStarting(true);
     const result = await s.actions.start(AUTO_SESSION);
     setStarting(false);
-    if (!result.ok) return s.notify(failureNote(result.code));
+    if (!result.ok) return s.notify(failureNote(result.code, result.reason));
     startedHere.current = true;
   }
   // Tell the other windows (Settings) which session this one just started.
@@ -122,19 +123,27 @@ export function SinglePanel({
   const stripShown = strip !== null && !ended;
   const [menuOpen, setMenuOpen] = useState(false);
   const anyPane = PANES.some((pane) => shown[pane.id]);
-  const clickThrough = s.interaction === false;
+  const mode = windowMode.mode;
 
   // The shell widens or narrows the window about its centre to fit what shows,
   // never narrower than the toolbar. With no pane showing, the window is only as
   // tall as its rows (and the room a menu needs), so the footer sits right under
   // the toolbar.
   useLayoutEffect(() => {
+    // Full screen is the shell's: any size request would leave it.
+    if (mode === "full") return;
+    // The Mini player is a fixed card, taller while a menu hangs from it.
+    if (mode === "mini") {
+      void presentation.setWindowSize?.({
+        width: MINI_SIZE.width,
+        height: menuOpen ? MINI_SIZE.menuHeight : MINI_SIZE.height,
+      });
+      return;
+    }
     const root = document.querySelector<HTMLElement>(".pn-root");
     const rows = [...(root?.children ?? [])].filter(
       (row): row is HTMLElement =>
-        row instanceof HTMLElement &&
-        !row.classList.contains("pn-toasts") &&
-        !row.classList.contains("pn-clickthrough"),
+        row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
     );
     const fit = () => {
       const pill = root?.querySelector<HTMLElement>(".pn-pill");
@@ -161,13 +170,30 @@ export function SinglePanel({
     const watch = new ResizeObserver(fit);
     for (const row of rows) watch.observe(row);
     return () => watch.disconnect();
-  }, [shown, anyPane, ended, menuOpen, stripShown, presentation]);
+  }, [shown, anyPane, ended, menuOpen, stripShown, presentation, mode]);
+
+  if (mode === "mini")
+    return (
+      <MiniPlayer
+        s={s}
+        presentation={presentation}
+        glass={glass}
+        windowMode={windowMode}
+        onMenuOpen={setMenuOpen}
+      />
+    );
 
   return (
     <>
       <Toolbar
         s={s}
-        controls={{ panes, presentation, onMenuOpen: setMenuOpen }}
+        controls={{
+          panes,
+          presentation,
+          glass,
+          windowMode,
+          onMenuOpen: setMenuOpen,
+        }}
       />
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {anyPane && (
@@ -204,16 +230,6 @@ export function SinglePanel({
           onFailure={(code) => s.notify(failureNote(code))}
         />
       </div>
-      {clickThrough && (
-        <p
-          className="pn-clickthrough"
-          role="status"
-          data-testid="pn-clickthrough"
-        >
-          Click-through is on. Clicks reach the page underneath. Press{" "}
-          {nativeChord("click-through")} to interact.
-        </p>
-      )}
     </>
   );
 }

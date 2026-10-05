@@ -431,6 +431,12 @@ describe("heard speech (ADR-0022)", () => {
       speaker: "microphone",
       text: input.text,
     });
+    // Whole milliseconds: the page's transcript schema requires integers, so a
+    // fractional time would drop the row from the Transcript tab.
+    const { startMs, endMs } = stored[0].content.body;
+    expect(Number.isInteger(startMs)).toBe(true);
+    expect(Number.isInteger(endMs)).toBe(true);
+    expect(startMs).toBeGreaterThanOrEqual(0);
     // A resend returns the same acknowledgement and stores nothing more.
     expect(
       await repo.submitOwnerInput(world.scope, world.session.id, input),

@@ -50,9 +50,12 @@ export function ownerInputDeps(
   | "submitFollowUp"
   | "submitHeard"
   | "solveTask"
+  | "regenerateTask"
+  | "applyContext"
 > {
   const client = createSessionClient(tenant, fetcher);
   const solveIds = new Map<string, string>();
+  const regenerateIds = new Map<string, string>();
   const send = (sessionId: string, input: LiveOwnerInputRequest) =>
     client.sendOwnerInput(sessionId, input);
   return {
@@ -74,7 +77,8 @@ export function ownerInputDeps(
     async analyzeCapture(sessionId, input) {
       await client.sendCapture(sessionId, {
         requestId: requestId(),
-        image: input.image,
+        images: [input.image],
+        ...(input.ocr ? { ocr: [input.ocr] } : {}),
         ...(input.label ? { label: input.label } : {}),
         ...(input.target ? { target: input.target } : {}),
         ...hintFields(input),
@@ -120,6 +124,35 @@ export function ownerInputDeps(
         target,
         ...hintFields(hints),
         snapshots: [],
+      });
+    },
+    async regenerateTask(sessionId, target) {
+      // One request id per task revision, like solve: a repeat is the server's
+      // idempotent resend, and a revision that moved on is refused as stale.
+      const key = `${sessionId}/${target.taskId}/${target.revision}`;
+      let id = regenerateIds.get(key);
+      if (!id) {
+        id = requestId();
+        regenerateIds.set(key, id);
+      }
+      await client.regenerate(sessionId, id, target);
+    },
+    async applyContext(sessionId, target, input) {
+      // No image: a plain regeneration of the target. Images: one capture
+      // request (a new revision of the target, or a new task without one).
+      if (input.images.length === 0) {
+        if (!target) throw new SessionApiError("invalid_input", 0);
+        await client.regenerate(sessionId, input.requestId, target);
+        return;
+      }
+      await client.sendCapture(sessionId, {
+        requestId: input.requestId,
+        images: input.images,
+        ...(input.ocr ? { ocr: input.ocr } : {}),
+        ...(input.display ? { display: input.display } : {}),
+        ...(input.label ? { label: input.label } : {}),
+        ...(target ? { target } : {}),
+        ...hintFields(input),
       });
     },
     async submitFollowUp(sessionId, text, target, hints) {

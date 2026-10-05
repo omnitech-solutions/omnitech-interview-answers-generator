@@ -2,4 +2,4 @@
 
 _Source: `packages/agent-runtime-claude/src/index.test.ts` (header-comment fallback)_
 
-What the SDK was last given, and what a tool-less scenario makes it emit.
+What the SDK was last given, and what a scenario makes it emit.

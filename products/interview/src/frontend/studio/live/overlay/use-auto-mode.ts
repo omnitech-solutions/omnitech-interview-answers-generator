@@ -10,8 +10,10 @@
 import type { ScreenWatchHost } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nativeCaptureAvailable, screenWatchHost } from "../host-adapter";
+import { noteSource } from "../host-display";
 import { holdAwake } from "../keep-awake";
 import type { CommandResult } from "../session-snapshot";
+import { holdAfterNoQuestion } from "./auto-backoff";
 import {
   AUTO_MAX_PER_SESSION,
   type AutoBlock,
@@ -29,6 +31,7 @@ import {
   saveAutoInterval,
   saveAutoPreferred,
 } from "./auto-prefs";
+import { type CaptureFailure, sampleFailureOf } from "./capture-failure";
 import { useDictation } from "./dictation";
 import type { Rect } from "./mask-geometry";
 
@@ -61,6 +64,10 @@ export type AutoModeInput = {
   mask: Rect;
   // A capture or analysis is in flight (a press, an auto capture, a request).
   busy: boolean;
+  // The newest published analysis result showed no interview question (D36):
+  // Auto then waits for a substantial change or a cooldown before capturing
+  // again. A manual capture never reads this.
+  lastResultNoQuestion?: boolean;
   // Takes the fresh capture and analyses it; true when it was sent.
   capture(): Promise<boolean>;
   submitHeard(text: string, requestId: string): Promise<CommandResult>;
@@ -70,6 +77,11 @@ export type AutoModeInput = {
   // Another listener (the native engine) posts the transcripts, so this one
   // stays off: only one may.
   engineListening?: boolean;
+  // The host embeds a native engine (present, whether or not it is listening
+  // or refused right now). The page then NEVER starts browser dictation or the
+  // getUserMedia meter by itself: that raises the web view's own microphone
+  // prompt and makes a second listener. Only an explicit press may.
+  nativeEngine?: boolean;
   // The host's screen watch; defaults to the one `window.studioHost` offers.
   // null forces the browser sampler.
   screenWatch?: ScreenWatchHost | null | undefined;
@@ -153,6 +165,8 @@ export function useAutoMode(input: AutoModeInput) {
     deviceOnly: input.deviceOnly,
     bindingKey: input.sessionId,
     persistent: on,
+    meter: input.nativeEngine !== true,
+    inApp: input.nativeEngine === true,
     onFinal: (phrase) => {
       // [SAFETY] Auto on (live, or as the owner stored it) submits what was
       // heard; only with Auto off does it become a typed draft.
@@ -168,6 +182,7 @@ export function useAutoMode(input: AutoModeInput) {
     !input.paused &&
     !micOverride &&
     dictation.supported &&
+    input.nativeEngine !== true &&
     input.engineListening !== true;
   const dictationRef = useRef(dictation);
   dictationRef.current = dictation;
@@ -188,6 +203,12 @@ export function useAutoMode(input: AutoModeInput) {
     const timer = setInterval(ensure, LISTEN_CHECK_MS);
     return () => clearInterval(timer);
   }, [wantListening]);
+  // [SAFETY] A paused session (the window hidden, Pause, the yellow dot) holds
+  // no open microphone: any dictation, a Manual press included, ends with it.
+  useEffect(() => {
+    if (input.paused && dictationRef.current.state !== "idle")
+      dictationRef.current.stop();
+  }, [input.paused]);
   // Turning Auto off ends the listening it started.
   useEffect(() => {
     if (!on && dictationRef.current.state === "listening")
@@ -195,6 +216,10 @@ export function useAutoMode(input: AutoModeInput) {
     if (!on) setMicOverride(false);
   }, [on]);
   const toggleListening = useCallback(() => {
+    // [SAFETY] With Auto on, the native engine owns the microphone: callers
+    // route the press to the engine; this never starts a second (browser)
+    // recogniser. With Auto off (Manual) dictation is the browser's, as before.
+    if (onRef.current && latest.current.engineListening === true) return;
     const current = dictationRef.current;
     if (onRef.current) {
       if (current.state === "listening") {
@@ -218,9 +243,9 @@ export function useAutoMode(input: AutoModeInput) {
     at: null,
   });
   const [lastAnalyzedAt, setLastAnalyzedAt] = useState<number | null>(null);
-  const [screenProblem, setScreenProblem] = useState<
-    "permission-denied" | "display-changed" | null
-  >(null);
+  const [screenProblem, setScreenProblem] = useState<CaptureFailure | null>(
+    null,
+  );
   const [intervalSec, setIntervalState] = useState(() =>
     loadAutoInterval(input.tenant),
   );
@@ -290,12 +315,8 @@ export function useAutoMode(input: AutoModeInput) {
       hash = await now.sample(now.mask);
       setScreenProblem(null);
     } catch (error) {
-      const reason = (error as { code?: string } | null)?.code;
-      setScreenProblem(
-        reason === "permission-denied" || reason === "display-changed"
-          ? reason
-          : null,
-      );
+      // Shown in Auto's status line (no toast): the reason and what to do.
+      setScreenProblem(sampleFailureOf(error));
       return;
     }
     if (!hash) return;
@@ -306,6 +327,18 @@ export function useAutoMode(input: AutoModeInput) {
         lastHash: analyzed.current.hash,
         lastAnalyzedAtMs: analyzed.current.at,
         heartbeat: heartbeatRef.current,
+      })
+    ) {
+      setBlock(null);
+      return;
+    }
+    if (
+      holdAfterNoQuestion({
+        hash,
+        nowMs: clock(),
+        lastHash: analyzed.current.hash,
+        lastAnalyzedAtMs: analyzed.current.at,
+        lastResultNoQuestion: now.lastResultNoQuestion === true,
       })
     ) {
       setBlock(null);
@@ -377,7 +410,10 @@ export function useAutoMode(input: AutoModeInput) {
           retry = setTimeout(() => void begin(), WATCH_RETRY_MS);
         return;
       }
-      removeListener = host.onChange(() => void tickRef.current());
+      removeListener = host.onChange((event) => {
+        noteSource({ kind: "watch", display: event?.display });
+        void tickRef.current();
+      });
     };
     void begin();
     return () => {
@@ -430,7 +466,7 @@ export function useAutoMode(input: AutoModeInput) {
         ownerPaused,
         resumeFailed,
         micDenied: dictation.denied,
-        micUnsupported: !dictation.supported,
+        micUnsupported: !dictation.supported && input.nativeEngine !== true,
         engine: input.engineListening === true,
         micError:
           heardError === null
@@ -446,7 +482,8 @@ export function useAutoMode(input: AutoModeInput) {
         intervalSec,
         lastAnalyzedAgoMs:
           lastAnalyzedAt === null ? null : clock() - lastAnalyzedAt,
-        screenProblem,
+        screenProblem: screenProblem?.reason ?? null,
+        screenFrontApp: screenProblem?.frontApp ?? null,
         autoCount,
         autoMax: AUTO_MAX_PER_SESSION,
         block,

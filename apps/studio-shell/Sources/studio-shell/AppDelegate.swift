@@ -47,10 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         handler = BridgeHandler(
             model: model, capture: ShellCapture(), engine: engine,
             setPinned: { [weak self] pinned in self?.surface.setPinned(pinned) },
+            isCompactView: { [weak self] view in view != nil && view === self?.surface.compactView },
             perform: { [weak self] command in self?.present(command) ?? PresentationState.initial })
-        handler.onWatchChange = { [weak self] at, bits in
+        handler.onWatchChange = { [weak self] at, bits, display in
             guard let self else { return }
-            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchChange(at: at, bits: bits), completionHandler: nil) }
+            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchChange(at: at, bits: bits, display: display), completionHandler: nil) }
         }
         handler.onWatchStatus = { [weak self] status in
             guard let self else { return }
@@ -208,8 +209,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // is not on screen.
     private func send(_ command: HostCommand) {
         guard model.location != nil else { return }
+        // [SAFETY] The whole-window click-through is retired (the controller refuses OFF), but if
+        // anything ever left the window not interactive, the See-through key and menu item restore
+        // it natively before sending the intent: a page that is no longer reachable cannot.
+        if command == .seeThroughToggle, !controller.state.interaction.isInteractive {
+            present(.setInteractionMode(true))
+        }
+        // Hidden: show the form it was hidden from (never a different one), then read the new state.
+        if !controller.state.mainWindowShown, !controller.state.compactShown { present(.setVisible(true)) }
         let state = controller.state
-        if !state.mainWindowShown, !state.compactShown { present(.setAppMode(.minified)) }
         guard let view = state.mainWindowShown ? surface.mainWindowView : surface.compactView else { return }
         if view.isLoading || view.url == nil {
             pending[ObjectIdentifier(view), default: []].append(command)
@@ -286,9 +294,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuToggleMode() { present(.toggleAppMode) }
 
-    // Clicking the Dock icon with nothing showing expands the app.
+    // Clicking the Dock icon with nothing showing expands the app, or shows the
+    // window the yellow dot hid.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag, controller.state.appMode == .expanded { present(.setAppMode(.expanded)) }
+        if !flag {
+            if controller.state.appMode == .expanded { present(.setAppMode(.expanded)) }
+            else if controller.state.hidden { present(.setVisible(true)) }
+        }
         return true
     }
 

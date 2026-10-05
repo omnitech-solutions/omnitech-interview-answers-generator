@@ -7,7 +7,10 @@
 // [SAFETY] The label sent with a frame says only what KIND of source it is
 // ("Window", "Tab", "Screen") and whether a region was applied. It is never the
 // title of a window or tab.
-import { maxOwnerCaptureBytes } from "@omnitech/interview-contracts";
+import {
+  type LiveOcrBlock,
+  maxOwnerCaptureBytes,
+} from "@omnitech/interview-contracts";
 import { cropPixels, fitSize, isFull, type Rect } from "./mask-geometry";
 
 export const MAX_LONG_SIDE = 1920;
@@ -36,7 +39,13 @@ export class FrameError extends Error {
       | "encode-failed"
       | "display-changed"
       | "permission-denied"
-      | "no-focused-window",
+      | "no-focused-window"
+      | "busy"
+      | "timeout"
+      | "unavailable"
+      | "capture-failed",
+    // The application that was in front, from the shell, for no-focused-window.
+    readonly frontApp: string | null = null,
   ) {
     super(code);
   }
@@ -136,6 +145,8 @@ export type Frame = {
   width: number;
   height: number;
   masked: boolean;
+  // Text the native shell read from this frame (D35 metrics included).
+  ocr?: LiveOcrBlock | null;
 };
 
 function encode(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {

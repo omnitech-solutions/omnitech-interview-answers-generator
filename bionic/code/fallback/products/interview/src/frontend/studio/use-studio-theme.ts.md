@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/frontend/studio/use-studio-theme.ts` (header-comment fallback)_
 
-The studio's light/dark theme, remembered in this browser.
+The platform shell owns the document theme (and the member's saved
+preference). The studio follows `data-theme` and asks the shell to change it.

@@ -350,6 +350,18 @@ files directly — nothing generates them.
 Development work follows crux: decisions, research, the journal, promptbooks,
 and invariants live in `bionic/` (see `bionic/AGENTS.md` and `USER_GUIDE.md`).
 
+Regenerate or check the architecture map with `pnpm docs:arch` and
+`pnpm docs:arch:check` (dry run). `bionic/arch/data-model.md` comes from the
+project extractor `tools/crux/arch/drizzle_data_model.py`, which Crux runs only
+when `CRUX_ARCH_ALLOW_OVERRIDES=1`; the scripts set it (and find the Crux plugin
+through `CRUX_PLUGIN_ROOT`, else the newest install under
+`~/.claude/plugins/cache/crux/crux`). Any derive-arch, audit-docs or
+check-drift run without that flag regenerates data-model as a stub and reports
+false drift, so use the scripts, or prefix a single command
+(`CRUX_ARCH_ALLOW_OVERRIDES=1 <command>`). Never `export` it in a shell profile:
+the flag lets Crux run a repository's own Python, so a profile export would do
+that in every repository you derive in, including untrusted checkouts.
+
 ## Workspace structure
 
 ### Applications
@@ -406,6 +418,8 @@ pnpm test
 pnpm test:coverage
 pnpm test:no-docker
 pnpm test:integration
+pnpm test:browser:install
+pnpm test:browser
 pnpm build
 pnpm --filter @omnitech/interview-library benchmark
 pnpm hooks:run:pre-commit
@@ -419,3 +433,15 @@ suites that do not need Docker. `pnpm test:integration` runs the real-provider
 checks (`*.integration.test.ts`, never part of `pnpm test`); set
 `ACTIVE_SESSION_AGENT_INTEGRATION` to `claude-code` or `codex`, the runtime
 signed in on this machine.
+
+`pnpm test:browser` runs the live-session browser suite (`e2e/live-session`,
+Playwright; never part of `pnpm verify`). It needs a running Docker daemon (a
+disposable PostgreSQL) and the Playwright browsers, downloaded once with
+`pnpm test:browser:install`; without either it stops with a message naming the
+fix. It drives the real built web app and agent worker against a scripted model,
+and checks each covered control by its real effect; pending claims are listed in
+`e2e/live-session/src/claims/claims.ts`. `E2E_HEADED=1` shows the browser,
+`E2E_STRICT=1` makes claims still marked `pending` fail the run, `E2E_REBUILD=1`
+forces a fresh `next build`, `E2E_BROWSER_CHANNEL=chrome` uses the installed
+Google Chrome for the Chromium project, and `E2E_DIST_DIR=.next-e2e-<name>` gives
+a parallel run its own build directory. See `e2e/live-session/README.md`.

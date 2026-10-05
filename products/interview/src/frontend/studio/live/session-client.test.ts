@@ -192,3 +192,157 @@ describe("session client", () => {
     });
   });
 });
+
+describe("screenshots on the answer page", () => {
+  const T = { taskId: "task-a", revision: 2 };
+  const ack = { input: { requestId: "r-1", sequence: 3 } };
+
+  it("sends several images in order with one target, one request id and the text aligned by index", async () => {
+    const { client, calls } = clientWith(
+      jsonResponse(
+        {
+          ...ack,
+          snapshots: [
+            { sourceId: "studio.owner-capture", eventId: "r-1" },
+            { sourceId: "studio.owner-capture", eventId: "r-1.2" },
+          ],
+        },
+        202,
+      ),
+    );
+    await client.sendCapture(SESSION_ID, {
+      requestId: "r-1",
+      images: [new Blob(["one"]), new Blob(["two"])],
+      ocr: [{ engine: "vision", text: "hello" }, null],
+      target: T,
+    });
+    expect(calls[0]?.url).toBe(`${base}/${SESSION_ID}/capture`);
+    const form = calls[0]?.init?.body as FormData;
+    expect(form.getAll("image")).toHaveLength(2);
+    expect(
+      await Promise.all(form.getAll("image").map((f) => (f as File).text())),
+    ).toEqual(["one", "two"]);
+    expect(form.get("requestId")).toBe("r-1");
+    expect(form.get("targetTaskId")).toBe("task-a");
+    expect(form.get("targetRevision")).toBe("2");
+    expect(JSON.parse(String(form.get("ocr")))).toEqual([
+      { engine: "vision", text: "hello" },
+      null,
+    ]);
+  });
+
+  it("sends the display list aligned with the images, and no field when none is known", async () => {
+    const response = () =>
+      jsonResponse(
+        {
+          ...ack,
+          snapshots: [
+            { sourceId: "studio.owner-capture", eventId: "r-1" },
+            { sourceId: "studio.owner-capture", eventId: "r-1.2" },
+          ],
+        },
+        202,
+      );
+    const { client, calls } = clientWith(response(), response());
+    const display = { name: "Studio Display", index: 2, count: 3 };
+    await client.sendCapture(SESSION_ID, {
+      requestId: "r-1",
+      images: [new Blob(["one"]), new Blob(["two"])],
+      display: [display, null],
+    });
+    expect(
+      JSON.parse(String((calls[0]?.init?.body as FormData).get("display"))),
+    ).toEqual([display, null]);
+    await client.sendCapture(SESSION_ID, {
+      requestId: "r-2",
+      images: [new Blob(["one"]), new Blob(["two"])],
+      display: [null, null],
+    });
+    expect((calls[1]?.init?.body as FormData).has("display")).toBe(false);
+  });
+
+  it("sends no ocr field when no image was read, and no target for a new task", async () => {
+    const { client, calls } = clientWith(
+      jsonResponse(
+        {
+          ...ack,
+          snapshots: [{ sourceId: "studio.owner-capture", eventId: "r-1" }],
+        },
+        202,
+      ),
+    );
+    await client.sendCapture(SESSION_ID, {
+      requestId: "r-1",
+      images: [new Blob(["one"])],
+      ocr: [null],
+    });
+    const form = calls[0]?.init?.body as FormData;
+    expect(form.has("ocr")).toBe(false);
+    expect(form.has("targetTaskId")).toBe(false);
+  });
+
+  it("regenerates with the target and no text, and lists a task's screenshots through the contract", async () => {
+    const listing = {
+      taskId: "task-a",
+      screenshots: [
+        {
+          ordinal: 3,
+          sourceId: "s",
+          eventId: "e",
+          sequence: 5,
+          capturedAt: "2026-10-05T10:00:00.000Z",
+          artifactId: "art 1",
+          ocrEngine: null,
+          display: { name: "Studio Display", index: 1, count: 2 },
+          revisions: [1, 2],
+        },
+      ],
+    };
+    const { client, calls } = clientWith(
+      jsonResponse(ack, 202),
+      jsonResponse(listing),
+      jsonResponse({ taskId: "task-a", screenshots: [{ bad: true }] }),
+    );
+    await client.regenerate(SESSION_ID, "r-1", T);
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      requestId: "r-1",
+      operation: "regenerate",
+      target: T,
+      snapshots: [],
+    });
+    expect(await client.listTaskScreenshots(SESSION_ID, "task a")).toEqual(
+      listing,
+    );
+    expect(calls[1]?.url).toBe(
+      `${base}/${SESSION_ID}/tasks/task%20a/screenshots`,
+    );
+    await expect(
+      client.listTaskScreenshots(SESSION_ID, "task-a"),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+    expect(client.screenshotUrl(SESSION_ID, "art/1")).toBe(
+      `${base}/${SESSION_ID}/screenshots/art%2F1`,
+    );
+  });
+
+  it("surfaces the fixed code and the refusal reason of a stale or device-only refusal", async () => {
+    const { client } = clientWith(
+      jsonResponse({ error: { code: "status_refused" } }, 409, {
+        "x-refusal-reason": "stale_target",
+      }),
+    );
+    const failure = await client
+      .regenerate(SESSION_ID, "r-1", T)
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(SessionApiError);
+    expect((failure as SessionApiError).reason).toBe("stale_target");
+    // A later failure without a reason carries none: no module-global leak.
+    const later = clientWith(
+      jsonResponse({ error: { code: "not_found" } }, 404),
+    );
+    const second = await later.client
+      .regenerate(SESSION_ID, "r-2", T)
+      .catch((error: unknown) => error);
+    expect((second as SessionApiError).reason).toBeNull();
+    expect((failure as SessionApiError).reason).toBe("stale_target");
+  });
+});

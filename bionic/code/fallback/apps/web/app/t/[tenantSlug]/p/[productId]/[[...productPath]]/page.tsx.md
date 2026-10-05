@@ -2,5 +2,5 @@
 
 _Source: `apps/web/app/t/[tenantSlug]/p/[productId]/[[...productPath]]/page.tsx` (header-comment fallback)_
 
-[SAFETY] Membership, installation and permission resolve before any
-product code loads (ADR-0004); every miss is a 404.
+Lets a browser offer "Install app" for Interview Studio's live overlay
+(ADR-0019). Other products declare nothing.

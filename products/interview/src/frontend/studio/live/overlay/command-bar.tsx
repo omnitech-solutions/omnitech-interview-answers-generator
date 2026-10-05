@@ -23,7 +23,10 @@ const STATUS_LABEL: Record<BarStatus, string> = {
   paused: "Paused",
   ended: "Ended",
 };
-const tip = (text: string, id: ShortcutId) => `${text} (${shortcutKeys(id)})`;
+const tipWith =
+  (chords: boolean) =>
+  (text: string, id: ShortcutId): string =>
+    chords ? `${text} (${shortcutKeys(id)})` : text;
 
 export function CommandBar({
   status,
@@ -34,7 +37,11 @@ export function CommandBar({
   onDictate,
   onSettings,
   auto,
+  chords = true,
 }: {
+  // False where the page binds no Alt chord (the web Live page): a tooltip
+  // names only what works there.
+  chords?: boolean;
   status: BarStatus;
   dictation: DictationState;
   skill: LiveOwnerSkill | undefined;
@@ -46,6 +53,7 @@ export function CommandBar({
   auto?: { on: boolean; mic: "listening" | "denied" | "off"; onToggle(): void };
 }) {
   const listening = dictation === "listening";
+  const tip = tipWith(chords);
   return (
     <div
       className="ov-bar"

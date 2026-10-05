@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/db/schema.test.ts` (header-comment fallback)_
 
-Native Node ESM (as the agent worker loads it) must evaluate the module.
+_No leading comment block found._

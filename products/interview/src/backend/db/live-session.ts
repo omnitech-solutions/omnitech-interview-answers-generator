@@ -55,6 +55,12 @@ export const retentionModes = [
   "thirty_days",
   "until_deleted",
 ] as const;
+// Stored as the contract's words (liveScreenshotSendSchema).
+export const screenshotSendModes = [
+  "always",
+  "text-only-when-text",
+  "never",
+] as const;
 export const processingPolicies = ["device_only", "permitted_remote"] as const;
 export const observationKinds = [
   "transcript.final",
@@ -99,6 +105,8 @@ export const activeSessions = interview.table.withRLS(
     retentionMode: text("retention_mode").notNull().default("delete_at_end"),
     // Recorded at start; only the session row decides it (ADR-0012 locality).
     processingPolicy: text("processing_policy").notNull(),
+    // D35: what of a screenshot may reach a model; changes only by the owner.
+    screenshotSend: text("screenshot_send").notNull().default("always"),
     // Per-session counter: every lease acquire raises it (ADR-0011 Fencing).
     fence: bigint("fence", { mode: "number" }).notNull().default(0),
     leaseHolderId: text("lease_holder_id"),
@@ -192,6 +200,10 @@ export const activeSessions = interview.table.withRLS(
     check(
       "active_sessions_policy_check",
       inList("processing_policy", processingPolicies),
+    ),
+    check(
+      "active_sessions_screenshot_send_check",
+      inList("screenshot_send", screenshotSendModes),
     ),
     check("active_sessions_fence_check", sql`fence >= 0`),
     check(

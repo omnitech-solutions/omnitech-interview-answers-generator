@@ -19,6 +19,7 @@ import {
   getSessionStore,
   resetSessionStores,
 } from "../session-registry";
+import { NO_QUESTION_STATUS } from "../shared/no-question";
 import {
   action,
   jsonResponse,
@@ -27,6 +28,7 @@ import {
   snapshot,
   streamPage,
 } from "../testing/session-fixtures";
+import { answerResult } from "../testing/session-result-fixtures";
 import { createTestServer } from "../testing/session-test-server";
 import {
   FakeRecognition,
@@ -192,6 +194,43 @@ describe("the Studio live view hosts hands-free", () => {
     );
     // The page's other panels stay below it.
     expect(screen.getByTestId("live-panel")).toBeInTheDocument();
+  });
+
+  it("prints no Alt shortcut: the page binds none, so no control, tooltip or settings list claims one", async () => {
+    await openStudioView();
+    const text = (node: Element) =>
+      `${node.textContent} ${[...node.querySelectorAll("[title]")]
+        .map((each) => each.getAttribute("title"))
+        .join(" ")}`;
+    expect(text(band())).not.toMatch(/Alt\+/);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await settle();
+    expect(screen.getByTestId("settings-popover")).toBeInTheDocument();
+    expect(text(screen.getByTestId("settings-popover"))).not.toMatch(/Alt\+/);
+  });
+
+  it("says so when the newest capture had no question (Manual line, then the Auto holding line)", async () => {
+    await openStudioView([
+      action({
+        taskId: "x1",
+        noQuestion: true,
+        result: answerResult({ category: "no-question", draft: "Nothing." }),
+        createdAt: minutesAfter(0),
+      }),
+    ]);
+    expect(screen.getByTestId("ov-no-question")).toHaveTextContent(
+      NO_QUESTION_STATUS.manual,
+    );
+    fireEvent.click(screen.getByTestId("auto-toggle"));
+    await settle();
+    expect(screen.getByTestId("ov-no-question")).toHaveTextContent(
+      NO_QUESTION_STATUS.auto,
+    );
+  });
+
+  it("shows no no-question line when there is none", async () => {
+    await openStudioView();
+    expect(screen.queryByTestId("ov-no-question")).toBeNull();
   });
 
   it("owns Auto when it is the only document: listens, and says so", async () => {

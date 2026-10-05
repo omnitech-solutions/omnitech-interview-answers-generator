@@ -23,6 +23,7 @@ import {
   type Fixture,
   type Person,
   PNG_BYTES,
+  pngOf,
   screenshot,
   startFixture,
 } from "./live-session-fixture";
@@ -30,15 +31,6 @@ import { ActiveSessionRepository } from "./repository";
 import { createSessionRoutes } from "./routes";
 import { purgeSession } from "./session-purge";
 
-// A header-valid PNG of the given size (the loader reads dimensions only).
-export function pngOf(width: number, height: number, salt = 0): Uint8Array {
-  const bytes = new Uint8Array(33 + salt);
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
-  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
-  new DataView(bytes.buffer).setUint32(16, width);
-  new DataView(bytes.buffer).setUint32(20, height);
-  return bytes;
-}
 const IMAGE = pngOf(640, 480);
 
 let fx: Fixture;
@@ -105,7 +97,7 @@ const capture = (
     world.scope,
     world.id,
     { requestId: "c-1", operation: "analyze", ...fields },
-    image,
+    [image],
   );
 const refused = async (promise: Promise<unknown>) => {
   await expect(promise).rejects.toMatchObject({ code: "invalid_input" });
@@ -129,7 +121,7 @@ describe("storing a capture", () => {
     });
     expect(ack).toEqual({
       input: { requestId: "c-1", sequence: 2 },
-      snapshot: { sourceId: OWNER_CAPTURE_SOURCE_ID, eventId: "c-1" },
+      snapshots: [{ sourceId: OWNER_CAPTURE_SOURCE_ID, eventId: "c-1" }],
     });
     const stored = await rows(world.id);
     expect(
@@ -220,7 +212,7 @@ describe("storing a capture", () => {
         other.scope,
         owner.id,
         { requestId: "c-1", operation: "analyze" },
-        IMAGE,
+        [IMAGE],
       ),
     ).rejects.toMatchObject({ code: "not_found" });
     await repo.controlSession(owner.scope, owner.id, "end");
@@ -459,7 +451,7 @@ describe("POST .../capture", () => {
     const body = liveOwnerCaptureResponseSchema.parse(await response.json());
     expect(body).toEqual({
       input: { requestId: "rt-1", sequence: 2 },
-      snapshot: { sourceId: OWNER_CAPTURE_SOURCE_ID, eventId: "rt-1" },
+      snapshots: [{ sourceId: OWNER_CAPTURE_SOURCE_ID, eventId: "rt-1" }],
     });
     const again = await send(
       world.id,

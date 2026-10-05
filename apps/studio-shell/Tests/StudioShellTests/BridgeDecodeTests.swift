@@ -10,13 +10,48 @@ private func call(_ method: String, _ params: [String: Any] = [:], v: Any = 1) -
 func bridgeDecodeTests(_ t: Harness) async {
     await t.test("captureScreen decodes each mode; a region is exact") {
         t.expectEqual(call("captureScreen", ["mode": "focused-window"]),
-            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .focusedWindow, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
+            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .focusedWindow, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil, intent: .auto)))
         t.expectEqual(call("captureScreen", ["mode": "display"]),
-            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .display, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
+            .success(.captureScreen(CaptureRequest(requestId: "r", mode: .display, expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil, intent: .auto)))
         let region: [String: Any] = ["x": 0.1, "y": 0.2, "width": 0.5, "height": 0.4]
         t.expectEqual(call("captureScreen", ["mode": "region", "region": region]),
             .success(.captureScreen(CaptureRequest(
-                requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4), expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil)))
+                requestId: "r", mode: .region, region: CaptureRegion(x: 0.1, y: 0.2, width: 0.5, height: 0.4), expiresAt: HostCallDecoder.pageRequestExpiry), displayId: nil, intent: .auto)))
+    }
+
+    await t.test("params must be absent or an object, and booleans are real booleans everywhere") {
+        func raw(_ method: String, _ params: Any?) -> Result<HostCall, HostCallError> {
+            var body: [String: Any] = ["v": 1, "method": method]
+            if let params { body["params"] = params }
+            return HostCallDecoder.decode(body, requestId: "r")
+        }
+        t.expectEqual(raw("screenWatchStop", nil), .success(.screenWatchStop), "absent params are fine")
+        t.expectEqual(raw("screenWatchStop", [String: Any]()), .success(.screenWatchStop))
+        for bad: Any in ["x", [1, 2], NSNull(), 5] {
+            t.expectEqual(raw("screenWatchStop", bad), .failure(.invalidParameters), "\(bad) is not an object")
+        }
+        t.expectEqual(call("listDisplays", ["thumbnails": false]), .success(.listDisplays(thumbnails: false)))
+        t.expectEqual(call("listDisplays", ["thumbnails": 0]), .failure(.invalidParameters), "0 is not false")
+        t.expectEqual(call("pinOnTop", ["pinned": true]), .success(.pinOnTop(true)))
+        t.expectEqual(call("pinOnTop", ["pinned": 1]), .failure(.invalidParameters), "1 is not true")
+        t.expectEqual(call("pinOnTop", ["pinned": 0]), .failure(.invalidParameters))
+        t.expectEqual(call("presentation", ["op": "setVisible", "visible": 1]), .failure(.invalidParameters))
+    }
+
+    await t.test("previews are rationed: one in flight, a repeat inside the interval gets the previous result or busy") {
+        var clock = 100.0
+        let throttle = PreviewThrottle<Int>(minimumInterval: 2.5, now: { clock })
+        guard case .run = throttle.begin() else { return t.expect(false, "first run") }
+        guard case .busy = throttle.begin() else { return t.expect(false, "single flight") }
+        throttle.finish(7)
+        clock += 1
+        if case .reuse(let value) = throttle.begin() { t.expectEqual(value, 7) } else { t.expect(false, "inside the interval: reuse") }
+        clock += 2
+        guard case .run = throttle.begin() else { return t.expect(false, "after the interval a new run is allowed") }
+        throttle.finish(nil)
+        // A failed run keeps nothing, and does not rate-limit the retry.
+        guard case .run = throttle.begin() else { return t.expect(false, "a failed run is retried") }
+        throttle.finish(nil)
     }
 
     await t.test("a region outside the unit square, empty, missing or unexpected is refused") {
@@ -42,7 +77,7 @@ func bridgeDecodeTests(_ t: Harness) async {
         t.expectEqual(call("captureScreen", ["mode": "region", "region": region, "displayId": 69_733_378]),
             .success(.captureScreen(
                 CaptureRequest(requestId: "r", mode: .region, region: CaptureRegion(x: 0, y: 0, width: 0.5, height: 0.5), expiresAt: HostCallDecoder.pageRequestExpiry),
-                displayId: 69_733_378)))
+                displayId: 69_733_378, intent: .auto)))
         for bad: Any in [-1, 1.5, "7", true, 4_294_967_296] {
             t.expectEqual(call("captureScreen", ["mode": "region", "region": region, "displayId": bad]),
                 .failure(.invalidParameters), "\(bad)")

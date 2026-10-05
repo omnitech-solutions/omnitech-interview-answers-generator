@@ -46,6 +46,7 @@ export function spies() {
     renewCredential: vi.fn(ok),
     tightenLocality: vi.fn(ok),
     shortenRetention: vi.fn(ok),
+    setScreenshotSend: vi.fn(ok),
   };
 }
 

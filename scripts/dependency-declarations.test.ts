@@ -76,7 +76,7 @@ function readManifest(dir: string): Manifest {
 
 function workspaces(): Workspace[] {
   const dirs = ["."];
-  for (const root of ["apps", "packages", "products"]) {
+  for (const root of ["apps", "packages", "products", "e2e"]) {
     for (const file of walk(root, /^package\.json$/)) {
       if (file.split("/").length === 3)
         dirs.push(file.replace(/\/package\.json$/, ""));
@@ -120,6 +120,8 @@ function usesOf(workspace: Workspace): Use[] {
     // build-time, not shipped runtime.
     const production =
       workspace.dir !== "." &&
+      // A browser-test package ships nothing: all of it is test support.
+      !workspace.dir.startsWith("e2e/") &&
       !isTestSupportPath(file) &&
       !/\/scripts\//.test(file);
     return importSites(parse(file))

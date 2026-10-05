@@ -2,20 +2,20 @@
 // products, artifacts and audit events.
 import { sql } from "drizzle-orm";
 import {
-  pgSchema,
-  text,
-  uuid,
-  timestamp,
   boolean,
   bytea,
+  check,
+  foreignKey,
+  index,
   integer,
   jsonb,
-  index,
-  foreignKey,
-  primaryKey,
-  unique,
-  check,
   pgPolicy,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const platform = pgSchema("platform");

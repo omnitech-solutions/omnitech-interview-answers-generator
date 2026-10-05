@@ -47,6 +47,10 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
                 MainActor.assumeIsolated { self?.reassert() }
             })
         }
+        // [SAFETY] Quitting leaves no window ignoring the mouse.
+        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.compact?.setHitRegions(nil) }
+        })
     }
 
     // MARK: render
@@ -106,6 +110,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
 
     var compactView: WKWebView? { compact?.webView }
     func setCompactSize(width: Double, height: Double?) { compact?.setSize(width: CGFloat(width), height: height.map { CGFloat($0) }) }
+    func setCompactFullScreen(_ on: Bool) { compact?.setFullScreen(on) }
+    // See-through: only the one window is masked; Settings and the main window take every click.
+    func setHitRegions(_ regions: [HitRect]?) { compact?.setHitRegions(regions) }
     var mainWindowView: WKWebView? { mainView }
     var anchorWindow: NSWindow? { main?.isVisible == true ? main : compact?.panel }
 
@@ -162,7 +169,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         } else if let mainView {
             load(mainView, .main, onlyIfBlank: true)
         }
-        // The main window is an ordinary window: showing it activates the app.
+        // The main window is an ordinary window: showing it activates the app, but only when it
+        // is not already key and visible (a repeated render must never steal the keyboard back).
+        if let main, main.isKeyWindow, main.isVisible, NSApp.isActive { return }
         NSApp.activate(ignoringOtherApps: true)
         main?.makeKeyAndOrderFront(nil)
     }
@@ -187,10 +196,17 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     let panel: StudioPanel
     let webView: WKWebView
     private let onFrame: (CGRect) -> Void
+    // The whole-window state (old pages) and the region decision (See-through);
+    // the window ignores the mouse when either says so.
+    private var interactive = true
+    private var hitIgnores = false
+    private var hitTracker: HitRegionTracker?
+    private let topInset: Double
 
     init(kind: WindowKind, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.webView = webView
         self.onFrame = onFrame
+        topInset = kind == .compact ? 16 : 0
         // [DOMAIN] A titled window with its title bar hidden and the content drawn
         // under it: macOS gives edge-resize, dragging and a proper key window to a
         // titled window, but not to a .borderless one (which could not be resized
@@ -288,12 +304,27 @@ final class PanelWindow: NSObject, NSWindowDelegate {
 
     // The height the window had before it was fitted to its content.
     private var tallHeight: CGFloat?
+    private var fullScreen = FullScreenFrame()
+
+    // Fill the visible frame of the display the window is on, or put back the
+    // frame it had. Core's FullScreenFrame remembers and clamps; the footer and
+    // the dots stay on screen because the window is only as big as the display.
+    func setFullScreen(_ on: Bool) {
+        guard let area = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
+        if on {
+            panel.setFrame(fullScreen.enter(from: panel.frame, visible: area, min: panel.minSize), display: true, animate: true)
+        } else if let back = fullScreen.leave(in: area) {
+            panel.setFrame(back, display: true, animate: true)
+        }
+    }
 
     // Take this size. Width changes are even about the window's centre so the
     // toolbar at the top does not move; a height fits the window to its content
     // from the top edge (remembering the old height), and none restores it. The
     // result stays inside the display.
     func setSize(width requested: CGFloat, height requestedHeight: CGFloat?) {
+        // Any other size leaves full screen first, back to the frame it had.
+        if fullScreen.isOn { setFullScreen(false) }
         var frame = panel.frame
         let visible = (panel.screen ?? NSScreen.main)?.visibleFrame
         let width = min(max(requested, panel.minSize.width), visible.map { $0.width - 16 } ?? requested)
@@ -320,7 +351,24 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         panel.setFrame(frame, display: true, animate: true)
     }
 
-    func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }
+    func setInteractive(_ on: Bool) {
+        interactive = on
+        applyMouse()
+    }
+
+    private func applyMouse() { panel.ignoresMouseEvents = !interactive || hitIgnores }
+
+    // nil (or a report that never comes) leaves the window interactive.
+    func setHitRegions(_ regions: [HitRect]?) {
+        if hitTracker == nil {
+            guard regions != nil else { return }
+            hitTracker = HitRegionTracker(panel: panel, topInset: topInset) { [weak self] ignores in
+                self?.hitIgnores = ignores
+                self?.applyMouse()
+            }
+        }
+        hitTracker?.set(regions)
+    }
 
     // [SAFETY] Over any app, Space and full-screen window (PanelWindowTraits).
     func show(pinned: Bool) {
@@ -331,12 +379,17 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         }
         panel.hidesOnDeactivate = traits.hidesOnDeactivate
         panel.orderFrontRegardless()
+        hitTracker?.resume()
     }
 
-    func hide() { panel.orderOut(nil) }
+    func hide() {
+        hitTracker?.suspend()
+        panel.orderOut(nil)
+    }
 
-    func windowDidMove(_ notification: Notification) { onFrame(panel.frame) }
-    func windowDidEndLiveResize(_ notification: Notification) { onFrame(panel.frame) }
+    // The full-screen frame is never saved as the window's own frame.
+    func windowDidMove(_ notification: Notification) { if !fullScreen.isOn { onFrame(panel.frame) } }
+    func windowDidEndLiveResize(_ notification: Notification) { if !fullScreen.isOn { onFrame(panel.frame) } }
 }
 
 // Over the toolbar: a drag moves the window; a plain click is handed on to the

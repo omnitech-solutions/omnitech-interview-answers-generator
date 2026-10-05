@@ -16,6 +16,8 @@ sources; the references live in the research wiki.
    - `bionic/research/sources/vercel-composition-patterns.md`
    - `bionic/research/sources/vercel-react-best-practices.md`
    - `bionic/research/sources/swift-concurrency-agent-skill.md`
+   - the `bionic/research/sources/drizzle-*.md` pages (schema, migrations,
+     row-level security, transactions)
    Each points to its immutable capture under `bionic/research/raw/`, where the
    full rule files are.
 
@@ -33,9 +35,13 @@ so in your report.
    keep config-driven typed tables, explicit variants, and lifted state.
 2. Native Swift and WKWebView: read the shell's `Package.swift` for language mode
    and isolation first, then the matching concurrency reference file only.
-3. Next.js, Hono, Zod, Drizzle, PostgreSQL: use the official docs URL in the map
-   at the version in `package.json` or `compose.yaml`; no vetted skill exists.
-4. AI and Anthropic SDK: use the `claude-api` skill and
+3. Next.js, Hono, Zod, PostgreSQL: use the official docs URL in the map at the
+   version in `package.json` or `compose.yaml`; no vetted skill exists.
+4. Drizzle changes: read the matching `drizzle-*` source pages and the three
+   invariants the map row lists; generate the migration through the
+   `@omnitech/database` `db:generate` script (never `push`); finish with
+   `pnpm docs:arch`, then `pnpm docs:arch:check`.
+5. AI and Anthropic SDK: use the `claude-api` skill and
    `.agents/skills/ai-provider-maintainer`; products call `AiExecutionGateway`.
-5. Security and review: run `security-review` and `code-review` on the diff, then
+6. Security and review: run `security-review` and `code-review` on the diff, then
    `pnpm verify`; cite the map's supported ADR or invariant in findings.

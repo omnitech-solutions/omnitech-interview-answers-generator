@@ -19,6 +19,13 @@ public enum HostCapability: String, CaseIterable, Sendable {
     case hotkeys
     case openExternal = "open-external"
     case screenWatch = "screen-watch"
+    case textRecognition = "text-recognition"
+    case displaySelection = "display-selection"
+
+    // What the shell tells the page it can do: text recognition only where Vision answers.
+    public static func offered(textRecognitionAvailable: Bool) -> [HostCapability] {
+        allCases.filter { $0 != .textRecognition || textRecognitionAvailable }
+    }
 }
 
 // [DOMAIN] An intent the shell sends to the pages. The page decides what it
@@ -33,6 +40,9 @@ public enum HostCommand: Equatable, Sendable {
     case sessionClear
     // Put the cursor in the chat input; the page owns the input.
     case chatFocus
+    // ⌘⇧I, the menu-bar item: flip the page's See-through control (the page owns
+    // the state; the shell only learns of it through setHitRegions).
+    case seeThroughToggle
 
     // The typed command names pages subscribe to (`onHotkey`).
     public var wireName: String {
@@ -45,13 +55,14 @@ public enum HostCommand: Equatable, Sendable {
         case .skillPrevious: "skill.prev"
         case .sessionClear: "session.clear"
         case .chatFocus: "chat.focus"
+        case .seeThroughToggle: "see-through.toggle"
         }
     }
 }
 
 public enum HostCall: Equatable, Sendable {
     // displayId binds a region to the display it was defined for (nil: the main display, as before).
-    case captureScreen(CaptureRequest, displayId: UInt32?)
+    case captureScreen(CaptureRequest, displayId: UInt32?, intent: CaptureIntent)
     case pinOnTop(Bool)
     case openExternal(URL)
     // The typed presentation commands (window.studioHost.presentation).
@@ -59,6 +70,13 @@ public enum HostCall: Equatable, Sendable {
     // window.studioHost.screenWatch: Studio decides, the shell only watches.
     case screenWatchStart(ScreenWatchRequest)
     case screenWatchStop
+    // The image as the page holds it from a capture: a media type and its base64 text.
+    case recognizeText(mediaType: String, base64: String)
+    // Owner-visible previews of each display (never capture input).
+    // `thumbnails: false` lists the displays and the pin with no preview (no capture).
+    case listDisplays(thumbnails: Bool)
+    // Pins capture to one display; nil follows the last-focused browser again.
+    case setCaptureDisplay(UInt32?)
 }
 
 public enum HostCallError: Error, Equatable, Sendable {
@@ -81,16 +99,24 @@ public enum HostCallDecoder {
             return .failure(.unsupportedVersion)
         }
         guard let method = message["method"] as? String, method.count <= 32 else { return .failure(.malformed) }
-        let params = message["params"] as? [String: Any] ?? [:]
+        // [GUARD] `params` is absent or an object: a string, array or null is a refusal, never an empty object.
+        var params: [String: Any] = [:]
+        if let raw = message["params"] {
+            guard let object = raw as? [String: Any] else { return .failure(.invalidParameters) }
+            params = object
+        }
         // [GUARD] Each method takes exactly its own keys; an extra key is a refusal, not ignored.
         let allowed: Set<String>
         switch method {
-        case "captureScreen": allowed = ["mode", "region", "displayId"]
+        case "captureScreen": allowed = ["mode", "region", "displayId", "intent"]
         case "pinOnTop": allowed = ["pinned"]
         case "openExternal": allowed = ["url"]
-        case "presentation": allowed = ["op", "visible", "on", "mode", "enabled", "width", "height"]
+        case "presentation": allowed = ["op", "visible", "on", "mode", "enabled", "width", "height", "regions"]
         case "screenWatchStart": allowed = ["mode", "region", "displayId", "intervalMs"]
         case "screenWatchStop": allowed = []
+        case "recognizeText": allowed = ["mediaType", "base64"]
+        case "listDisplays": allowed = ["thumbnails"]
+        case "setCaptureDisplay": allowed = ["displayId"]
         default: return .failure(.unknownMethod)
         }
         guard Set(params.keys).isSubset(of: allowed) else { return .failure(.invalidParameters) }
@@ -99,12 +125,32 @@ public enum HostCallDecoder {
             return ScreenWatchDecoder.decodeStart(params).map { .success(.screenWatchStart($0)) }
                 ?? .failure(.invalidParameters)
         case "screenWatchStop": return .success(.screenWatchStop)
+        case "listDisplays":
+            // [GUARD] Only a real boolean; absent means previews, as before.
+            guard params["thumbnails"] != nil else { return .success(.listDisplays(thumbnails: true)) }
+            guard let flag = strictBool(params["thumbnails"]) else { return .failure(.invalidParameters) }
+            return .success(.listDisplays(thumbnails: flag))
+        case "setCaptureDisplay":
+            // [GUARD] The key is required: a plain uint32, or null to follow the browser.
+            guard let raw = params["displayId"] else { return .failure(.invalidParameters) }
+            if raw is NSNull { return .success(.setCaptureDisplay(nil)) }
+            guard let value = number(raw), value >= 0, value <= Double(UInt32.max), value == value.rounded() else {
+                return .failure(.invalidParameters)
+            }
+            return .success(.setCaptureDisplay(UInt32(value)))
+        case "recognizeText":
+            // [GUARD] Exactly a known image type and a non-empty string within the byte bound.
+            guard let mediaType = params["mediaType"] as? String, TextRecognizer.mediaTypes.contains(mediaType),
+                let base64 = params["base64"] as? String, !base64.isEmpty,
+                base64.utf8.count <= TextRecognizer.maxBase64Characters
+            else { return .failure(.invalidParameters) }
+            return .success(.recognizeText(mediaType: mediaType, base64: base64))
         case "captureScreen": return decodeCapture(params, requestId: requestId)
         case "pinOnTop":
-            guard let pinned = params["pinned"] as? Bool else { return .failure(.invalidParameters) }
+            guard let pinned = strictBool(params["pinned"]) else { return .failure(.invalidParameters) }
             return .success(.pinOnTop(pinned))
         case "openExternal":
-            guard let text = params["url"] as? String, let url = externalURL(text) else {
+            guard let text = params["url"] as? String, let url = externalURL(text) ?? screenRecordingSettingsURL(text) else {
                 return .failure(.invalidParameters)
             }
             return .success(.openExternal(url))
@@ -119,7 +165,8 @@ public enum HostCallDecoder {
         guard let op = params["op"] as? String else { return .failure(.invalidParameters) }
         let needs: [String: Set<String>] = [
             "openSettings": [], "closeSettings": [], "setVisible": ["visible"], "setInteractionMode": ["on"],
-            "setAppMode": ["mode"], "setHotkeysEnabled": ["enabled"], "quit": [],
+            "setAppMode": ["mode"], "setHotkeysEnabled": ["enabled"], "setFullScreen": ["on"], "quit": [],
+            "setHitRegions": ["regions"],
         ]
         // The window size takes a width and, optionally, a height.
         if op == "setWindowSize" {
@@ -138,7 +185,11 @@ public enum HostCallDecoder {
         guard let required = needs[op], Set(params.keys).subtracting(["op"]) == required else {
             return .failure(.invalidParameters)
         }
-        func bool(_ key: String) -> Bool? { params[key] as? Bool }
+        func bool(_ key: String) -> Bool? { strictBool(params[key]) }
+        // [GUARD] The report of painted rectangles is bounded by HitRegions.decode.
+        if op == "setHitRegions" {
+            return HitRegions.decode(params["regions"]).map { .presentation(.setHitRegions($0)) }
+        }
         let command: PresentationCommand?
         switch op {
         case "openSettings": command = .openSettings
@@ -146,6 +197,7 @@ public enum HostCallDecoder {
         case "setVisible": command = bool("visible").map(PresentationCommand.setVisible)
         case "setInteractionMode": command = bool("on").map(PresentationCommand.setInteractionMode)
         case "setAppMode": command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
+        case "setFullScreen": command = bool("on").map(PresentationCommand.setFullScreen)
         case "quit": command = .quitApp
         default: command = bool("enabled").map(PresentationCommand.setHotkeysEnabled)
         }
@@ -154,6 +206,11 @@ public enum HostCallDecoder {
     }
 
     private static func decodeCapture(_ params: [String: Any], requestId: String) -> Result<HostCall, HostCallError> {
+        // [GUARD] Absent means auto; only the two known words are accepted.
+        let rawIntent = params["intent"]
+        guard rawIntent == nil || rawIntent is String, let intent = CaptureIntent(wire: rawIntent as? String) else {
+            return .failure(.invalidParameters)
+        }
         guard let modeText = params["mode"] as? String, let mode = CaptureMode(rawValue: modeText) else {
             return .failure(.invalidParameters)
         }
@@ -168,7 +225,7 @@ public enum HostCallDecoder {
         }
         guard mode == .region else {
             return rawRegion == nil || rawRegion is NSNull
-                ? .success(.captureScreen(CaptureRequest(requestId: requestId, mode: mode, expiresAt: Self.pageRequestExpiry), displayId: nil))
+                ? .success(.captureScreen(CaptureRequest(requestId: requestId, mode: mode, expiresAt: Self.pageRequestExpiry), displayId: nil, intent: intent))
                 : .failure(.invalidParameters)
         }
         guard let fields = rawRegion as? [String: Any],
@@ -180,17 +237,33 @@ public enum HostCallDecoder {
         return .success(.captureScreen(CaptureRequest(
             requestId: requestId, mode: .region,
             region: CaptureRegion(x: x, y: y, width: width, height: height),
-            expiresAt: Self.pageRequestExpiry), displayId: displayId))
+            expiresAt: Self.pageRequestExpiry), displayId: displayId, intent: intent))
     }
 
     // A page-initiated capture is not a companion request: the bridge bounds it by its own
     // single-flight ticket and timeout, so the wire expiry is a fixed far-future placeholder.
     public static let pageRequestExpiry = "9999-12-31T23:59:59.000Z"
 
+    // [GUARD] The one boolean reader: only a real JavaScript boolean (a CFBoolean). A number 0 or 1
+    // is also an NSNumber and `as? Bool` would accept it.
+    private static func strictBool(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return nil }
+        return number.boolValue
+    }
+
     // JavaScript numbers arrive as NSNumber; Bool is an NSNumber too and is not a number here.
     private static func number(_ value: Any?) -> Double? {
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         return number.doubleValue
+    }
+
+    // [SAFETY] The one system address the page may open besides http(s): the macOS
+    // Screen Recording privacy pane, matched exactly. It is allowed only through
+    // openExternal, never for a page navigation, and no other settings pane is.
+    public static let screenRecordingSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+
+    public static func screenRecordingSettingsURL(_ text: String) -> URL? {
+        text == screenRecordingSettings ? URL(string: text) : nil
     }
 
     public static func externalURL(_ text: String) -> URL? {
@@ -220,13 +293,21 @@ public enum HostReply {
     // `displayId` names the display the pixels came from, so a page can carry it
     // back with a later region request and the shell can refuse a changed display.
     public static func capture(
-        _ outcome: CaptureOutcome, screenAccessGranted: Bool, displayId: UInt32? = nil
+        _ outcome: CaptureOutcome, screenAccessGranted: Bool, displayId: UInt32? = nil, ocr: OcrText? = nil,
+        display: DisplayInfo? = nil, pinned: Bool = false, pinFallback: PinFallback? = nil
     ) -> [String: Any] {
         switch outcome {
         case .image(let jpeg, _):
             // The application name stays here: the page labels a frame by kind only.
             var reply: [String: Any] = ["ok": true, "mediaType": "image/jpeg", "base64": jpeg.base64EncodedString()]
             if let displayId { reply["displayId"] = Int(displayId) }
+            // Additive: absent whenever recognition timed out or is unavailable.
+            if let ocr { reply["ocr"] = ocr.wire }
+            // Additive: which display the frame came from and whether the person pinned it;
+            // `pinFallback` says a pin was dropped (its display is gone), once.
+            if let display { reply["display"] = display.wire }
+            reply["pinned"] = pinned
+            if let pinFallback { reply["pinFallback"] = pinFallback.rawValue }
             return reply
         case .lost(let loss):
             if !screenAccessGranted { return failure("permission-denied") }
@@ -234,7 +315,57 @@ public enum HostReply {
         }
     }
 
+    // One entry per display: its closed info and a small JPEG preview (type and bytes only),
+    // plus the pin in force (`null` follows the browser) and, once, why a pin was dropped.
+    public static func displayList(
+        _ entries: [(display: DisplayInfo, jpeg: Data)], pinnedDisplayId: UInt32? = nil, pinFallback: PinFallback? = nil
+    ) -> [String: Any] {
+        var reply: [String: Any] = [
+            "pinnedDisplayId": pinnedDisplayId.map { Int($0) as Any } ?? NSNull(),
+            "ok": true,
+            "displays": entries.map { entry in
+                [
+                    "display": entry.display.wire,
+                    "thumbnail": ["mediaType": "image/jpeg", "base64": entry.jpeg.base64EncodedString()],
+                ] as [String: Any]
+            },
+        ]
+        if let pinFallback { reply["pinFallback"] = pinFallback.rawValue }
+        return reply
+    }
+
+    // The same reply with no previews: the displays by name and the pin.
+    public static func displayListWithoutThumbnails(
+        _ displays: [DisplayInfo], pinnedDisplayId: UInt32?, pinFallback: PinFallback?
+    ) -> [String: Any] {
+        var reply = displayList([], pinnedDisplayId: pinnedDisplayId, pinFallback: pinFallback)
+        reply["displays"] = displays.map { ["display": $0.wire] as [String: Any] }
+        return reply
+    }
+
+    // The pin now in force: `display` is present exactly when pinned.
+    public static func captureDisplaySet(_ display: DisplayInfo?) -> [String: Any] {
+        var reply: [String: Any] = ["ok": true, "pinned": display != nil]
+        if let display { reply["display"] = display.wire }
+        return reply
+    }
+
+    public static func recognition(_ outcome: TextRecognitionOutcome) -> [String: Any] {
+        switch outcome {
+        case .recognized(let text): ["ok": true].merging(text.wire) { $1 }
+        case .failed(let reason): failure(reason.rawValue)
+        }
+    }
+
     public static func failure(_ reason: String) -> [String: Any] { ["ok": false, "reason": reason] }
+
+    // Additive: `no-focused-window` may name the application that was in front (a name
+    // only, bounded; never a window title or an address) so the page can say what to leave.
+    public static func failure(_ reason: String, frontApp: String?) -> [String: Any] {
+        var reply = failure(reason)
+        if reason == BrowserFocus.refusal, let name = FrontAppName.sanitize(frontApp) { reply["frontApp"] = name }
+        return reply
+    }
     public static func screenWatchStarted(_ failure: ScreenWatchFailure?) -> [String: Any] {
         failure.map { Self.failure($0.rawValue) } ?? ["ok": true]
     }
@@ -321,7 +452,10 @@ public enum HostBridgeScript {
               var params = { width: Number(size && size.width) };
               if (size && size.height !== undefined) params.height = Number(size.height);
               return op("setWindowSize", params);
-            }
+            },
+            setFullScreen: function (on) { return op("setFullScreen", { on: !!on }); },
+            // The rectangles of every painted surface; null makes the whole window interactive.
+            setHitRegions: function (regions) { return op("setHitRegions", { regions: regions === null || regions === undefined ? null : regions }); }
           });
           function call(method, params) {
             return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });
@@ -331,10 +465,35 @@ public enum HostBridgeScript {
             hostKind: "\(HostBridge.hostKind)",
             capabilities: Object.freeze([\(names)]),
             captureScreen: function (request) { return call("captureScreen", request); },
+            // Owner-visible previews of each display; a refusal is a typed result.
+            // `{ thumbnails: false }` lists the displays and the pin without previews.
+            listDisplays: function (request) {
+              var params = request && request.thumbnails === false ? { thumbnails: false } : {};
+              return call("listDisplays", params).then(
+                function (reply) { return reply; },
+                function () { return { ok: false, reason: "capture-failed" }; });
+            },
+            // null (or nothing) follows the last-focused browser again.
+            setCaptureDisplay: function (displayId) {
+              var wanted = displayId === null || displayId === undefined ? null : Number(displayId);
+              return call("setCaptureDisplay", { displayId: wanted }).then(
+                function (reply) { return reply; },
+                function () { return { ok: false, reason: "display-unavailable" }; });
+            },
             pinOnTop: function (pinned) { return call("pinOnTop", { pinned: !!pinned }); },
             openExternal: function (url) { return call("openExternal", { url: String(url) }); },
             \(engineMember)presentation: presentation,
             screenWatch: screenWatch,
+            // Only the image's type and text cross; a refusal for size is typed here, the rest by the shell.
+            recognizeText: function (image) {
+              var base64 = image && typeof image.base64 === "string" ? image.base64 : "";
+              if (base64.length > \(TextRecognizer.maxBase64Characters)) {
+                return Promise.resolve({ ok: false, reason: "too-large" });
+              }
+              return call("recognizeText", { mediaType: String(image && image.mediaType), base64: base64 }).then(
+                function (reply) { return reply; },
+                function () { return { ok: false, reason: "unreadable" }; });
+            },
             onHotkey: function (listener) {
               if (typeof listener !== "function") return function () {};
               listeners.push(listener);
@@ -352,6 +511,7 @@ public enum HostBridgeScript {
           Object.defineProperty(window, "__studioHostScreenWatchChange", {
             value: function (event) {
               var e = { at: Number(event.at), bits: Number(event.bits) };
+              if (event.display) e.display = event.display;
               watchListeners.slice().forEach(function (listener) { try { listener(e); } catch (x) {} });
             },
             configurable: false
@@ -385,8 +545,12 @@ public enum HostBridgeScript {
     }
 
     // One settled change in the watched screen: only a time and a bit count.
-    public static func emitScreenWatchChange(at: Int, bits: Int) -> String {
-        "window.__studioHostScreenWatchChange && window.__studioHostScreenWatchChange({at:\(at),bits:\(bits)});"
+    public static func emitScreenWatchChange(at: Int, bits: Int, display: DisplayInfo? = nil) -> String {
+        var event: [String: Any] = ["at": at, "bits": bits]
+        if let display { event["display"] = display.wire }
+        let json = (try? JSONSerialization.data(withJSONObject: event, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return "window.__studioHostScreenWatchChange && window.__studioHostScreenWatchChange(\(json));"
     }
 
     public static func emitScreenWatchStatus(_ status: ScreenWatchStatus) -> String {

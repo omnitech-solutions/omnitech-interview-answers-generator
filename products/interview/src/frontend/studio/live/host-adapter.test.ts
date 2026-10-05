@@ -4,12 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   captureRequestFor,
   captureThroughHost,
+  displaySelectionAvailable,
   forgetHostDisplay,
+  HOST_CAPTURE_TIMEOUT_MS,
+  listHostDisplays,
   nativeCaptureAvailable,
   onHostHotkey,
   openExternalThroughHost,
+  setHostCaptureDisplay,
   shareMenuCopy,
+  syncHostPin,
 } from "./host-adapter";
+import { captureSourceNow, resetCaptureSource } from "./host-display";
 import { FrameError } from "./overlay/capture-source";
 import { FULL } from "./overlay/mask-geometry";
 import { startNativeShare } from "./overlay/native-share";
@@ -107,6 +113,59 @@ describe("with a native host", () => {
       }),
     });
     expect(await captureThroughHost()).toEqual({ ok: false, reason: "failed" });
+  });
+
+  it("sends the intent only for an explicit capture; the default is automatic", async () => {
+    const host = installHost();
+    await captureThroughHost();
+    expect(host.captureScreen).toHaveBeenLastCalledWith({ mode: "display" });
+    await captureThroughHost(FULL, "explicit");
+    expect(host.captureScreen).toHaveBeenLastCalledWith({
+      mode: "display",
+      intent: "explicit",
+    });
+  });
+
+  it("carries the name of the app in front, cleaned, with a no-focused-window refusal", async () => {
+    installHost({
+      captureScreen: async () => ({
+        ok: false,
+        reason: "no-focused-window",
+        frontApp: " Claude\u202e",
+      }),
+    });
+    expect(await captureThroughHost()).toEqual({
+      ok: false,
+      reason: "no-focused-window",
+      frontApp: "Claude",
+    });
+    installHost({
+      captureScreen: async () => ({
+        ok: false,
+        reason: "permission-denied",
+        frontApp: "Claude",
+      }),
+    });
+    expect(await captureThroughHost()).toEqual({
+      ok: false,
+      reason: "permission-denied",
+    });
+  });
+
+  it("reports a busy shell and a shell that never answers", async () => {
+    installHost({
+      captureScreen: async () => ({ ok: false, reason: "busy" }),
+    });
+    expect(await captureThroughHost()).toEqual({ ok: false, reason: "busy" });
+    vi.useFakeTimers();
+    try {
+      installHost({ captureScreen: () => new Promise(() => undefined) });
+      const pending = captureThroughHost();
+      await vi.advanceTimersByTimeAsync(HOST_CAPTURE_TIMEOUT_MS + 1);
+      expect(await pending).toEqual({ ok: false, reason: "timeout" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("forwards hotkeys and external links", () => {
@@ -223,6 +282,207 @@ describe("the display a region belongs to", () => {
     expect(host.captureScreen).toHaveBeenLastCalledWith({
       mode: "region",
       region: { x: 0, y: 0, width: 0.5, height: 0.5 },
+    });
+  });
+});
+
+// ---- Display selection (D33) ----------------------------------------------------
+
+const D1 = { id: 1, name: "Built-in", index: 1, count: 2 };
+const D2 = { id: 2, name: "DELL", index: 2, count: 2 };
+function installPicker(over: Record<string, unknown> = {}) {
+  type Fn = ReturnType<typeof vi.fn>;
+  const host = installHost({
+    capabilities: ["capture-screen", "display-selection"],
+    listDisplays: vi.fn(async () => ({
+      ok: true,
+      displays: [
+        {
+          display: D1,
+          thumbnail: { mediaType: "image/jpeg", base64: JPEG_BASE64 },
+        },
+      ],
+    })),
+    setCaptureDisplay: vi.fn(async () => ({
+      ok: true,
+      pinned: true,
+      display: D2,
+    })),
+    ...over,
+  });
+  return host as unknown as Record<
+    "captureScreen" | "listDisplays" | "setCaptureDisplay",
+    Fn
+  >;
+}
+
+describe("display selection", () => {
+  afterEach(() => resetCaptureSource());
+
+  it("is offered only with the capability", () => {
+    expect(displaySelectionAvailable()).toBe(false);
+    installHost();
+    expect(displaySelectionAvailable()).toBe(false);
+    installPicker();
+    expect(displaySelectionAvailable()).toBe(true);
+  });
+
+  it("lists displays with data: URL thumbnails", async () => {
+    installPicker();
+    expect(await listHostDisplays()).toEqual({
+      ok: true,
+      displays: [
+        { display: D1, thumbnailSrc: `data:image/jpeg;base64,${JPEG_BASE64}` },
+      ],
+    });
+  });
+
+  it("reads the pin with no thumbnails, once, and feeds the source state", async () => {
+    const host = installPicker({
+      listDisplays: vi.fn(async () => ({
+        ok: true,
+        displays: [{ display: D2 }],
+        pinnedDisplayId: 2,
+      })),
+    });
+    await syncHostPin();
+    expect(host.listDisplays).toHaveBeenCalledWith({ thumbnails: false });
+    expect(captureSourceNow()).toMatchObject({ pinned: true, pinnedId: 2 });
+  });
+
+  it("believes only a uint32 or null pin, and an older shell's silence changes nothing", async () => {
+    installPicker({
+      listDisplays: vi.fn(async () => ({
+        ok: true,
+        displays: [],
+        pinnedDisplayId: "2",
+      })),
+    });
+    await syncHostPin();
+    expect(captureSourceNow().pinned).toBe(false);
+    installPicker();
+    await syncHostPin();
+    expect(captureSourceNow().pinned).toBe(false);
+    installPicker({ listDisplays: vi.fn(async () => ({ ok: false })) });
+    await syncHostPin();
+    expect(captureSourceNow().pinned).toBe(false);
+  });
+
+  it("a listing with thumbnails also reports the pin it carries", async () => {
+    installPicker({
+      listDisplays: vi.fn(async () => ({
+        ok: true,
+        displays: [
+          {
+            display: D1,
+            thumbnail: { mediaType: "image/jpeg", base64: JPEG_BASE64 },
+          },
+        ],
+        pinnedDisplayId: 1,
+      })),
+    });
+    await listHostDisplays();
+    expect(captureSourceNow()).toMatchObject({ pinned: true, pinnedId: 1 });
+  });
+
+  it.each([
+    [
+      "a refusal",
+      { ok: false, reason: "permission-denied" },
+      "permission-denied",
+    ],
+    ["an unknown reason", { ok: false, reason: "weird" }, "capture-failed"],
+    [
+      "a thumbnail that is not base64 JPEG",
+      {
+        ok: true,
+        displays: [
+          {
+            display: D1,
+            thumbnail: { mediaType: "image/jpeg", base64: '"><script>' },
+          },
+        ],
+      },
+      "capture-failed",
+    ],
+    [
+      "a display that is not one",
+      {
+        ok: true,
+        displays: [
+          {
+            display: { id: "x" },
+            thumbnail: { mediaType: "image/jpeg", base64: "AA" },
+          },
+        ],
+      },
+      "capture-failed",
+    ],
+  ])("reports %s honestly", async (_name, answer, reason) => {
+    installPicker({ listDisplays: vi.fn(async () => answer) });
+    expect(await listHostDisplays()).toEqual({ ok: false, reason });
+  });
+
+  it("turns a throwing bridge into a failure, and no host into one too", async () => {
+    installPicker({
+      listDisplays: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+    });
+    expect(await listHostDisplays()).toEqual({
+      ok: false,
+      reason: "capture-failed",
+    });
+    delete window.studioHost;
+    expect(await listHostDisplays()).toEqual({
+      ok: false,
+      reason: "capture-failed",
+    });
+    expect(await setHostCaptureDisplay(1)).toBe("failed");
+  });
+
+  it("pins, and reports a display that is gone", async () => {
+    const host = installPicker();
+    expect(await setHostCaptureDisplay(2)).toBe("ok");
+    expect(host.setCaptureDisplay).toHaveBeenCalledWith(2);
+    host.setCaptureDisplay.mockResolvedValueOnce({
+      ok: false,
+      reason: "display-unavailable",
+    });
+    expect(await setHostCaptureDisplay(2)).toBe("display-unavailable");
+    host.setCaptureDisplay.mockRejectedValueOnce(new Error("boom"));
+    expect(await setHostCaptureDisplay(null)).toBe("failed");
+  });
+
+  it("feeds the capture source from a capture result", async () => {
+    const host = installPicker({
+      captureScreen: vi.fn(async () => ({
+        ok: true,
+        mediaType: "image/jpeg",
+        base64: JPEG_BASE64,
+        display: D2,
+        pinned: true,
+      })),
+    });
+    await captureThroughHost();
+    expect(captureSourceNow()).toMatchObject({
+      display: D2,
+      pinned: true,
+      pinnedId: 2,
+    });
+    // A pin dropped by the shell is reported once on a capture.
+    host.captureScreen.mockResolvedValueOnce({
+      ok: true,
+      mediaType: "image/jpeg",
+      base64: JPEG_BASE64,
+      display: D1,
+      pinned: false,
+      pinFallback: "display-unavailable",
+    });
+    await captureThroughHost();
+    expect(captureSourceNow()).toMatchObject({
+      pinned: false,
+      pinDropped: true,
     });
   });
 });

@@ -65,3 +65,19 @@ describe("stored action sourceSnapshots", () => {
     );
   });
 });
+
+describe("stored action noQuestion (D36)", () => {
+  it("is derived from the stored category, never stored, and absent otherwise", () => {
+    expect(
+      toStoredAction(row({ category: "no-question", draft: "x" })).noQuestion,
+    ).toBe(true);
+    for (const result of [
+      { category: "other", draft: "x" },
+      { category: "coding" },
+      { draft: "x" },
+      { withheld: { count: 1 } },
+      null,
+    ])
+      expect(toStoredAction(row(result))).not.toHaveProperty("noQuestion");
+  });
+});

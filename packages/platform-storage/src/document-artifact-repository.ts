@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  enterTenant,
   type PlatformDatabase,
   type TenantDatabase,
-  enterTenant,
 } from "@omnitech/database";
 import { sql } from "drizzle-orm";
 

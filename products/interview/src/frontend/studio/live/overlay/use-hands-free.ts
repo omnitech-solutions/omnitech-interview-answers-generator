@@ -19,18 +19,25 @@ import type { SessionErrorCode } from "../session-client";
 import { isOpenSession } from "../session-deps";
 import { isRunInFlight } from "../session-runs";
 import { copyText } from "../shared/copy-text";
+import { noQuestionStatus } from "../shared/no-question";
+import { selectedRevisionOf } from "../shared/revisions";
+import type { TrayIntent } from "../shared/screenshot-tray";
 import { selectedTask, type TaskTarget, targetOf } from "../shared/task-target";
+import {
+  lastGrabDisplay,
+  type ScreenshotTray,
+  useScreenshotTray,
+} from "../shared/use-screenshot-tray";
+import { useCaptureProblem } from "../use-capture-problem";
 import { useCompanionCapability } from "../use-companion-capability";
 import { useLiveSession } from "../use-live-session";
+import { newestResultIsNoQuestion } from "./auto-backoff";
 import { loadAutoPreferred, saveAutoPreferred } from "./auto-prefs";
+import { captureFailureOf } from "./capture-failure";
 import { loadMask, loadSettings } from "./capture-prefs";
-import { FrameError } from "./capture-source";
+import type { Frame } from "./capture-source";
 import { FULL } from "./mask-geometry";
-import {
-  type AnalyzeChoice,
-  type AnalyzeVia,
-  DEVICE_ONLY_ANALYZE,
-} from "./overlay-capture";
+import { type AnalyzeChoice, type AnalyzeVia } from "./overlay-capture";
 import { failureNote } from "./overlay-footer";
 import { type ChatEntry, captureList } from "./overlay-model";
 import {
@@ -40,7 +47,12 @@ import {
   type PanelState,
 } from "./panels/panel-bus";
 import { type OwnerKind, useOwnsSession } from "./panels/panel-owner";
-import { engineHost, useEngine } from "./panels/use-engine";
+import {
+  engineHost,
+  engineMic,
+  pressMic,
+  useEngine,
+} from "./panels/use-engine";
 import { takeAnnouncement } from "./share-handoff";
 import { useAutoMode } from "./use-auto-mode";
 import { useCapturePrefs } from "./use-capture-prefs";
@@ -66,7 +78,7 @@ export type HandsFree = ReturnType<typeof useHandsFree>;
 
 export function useHandsFree(kind: OwnerKind) {
   const { snapshot, actions, model } = useLiveSession();
-  const { pinnedTaskId } = usePresentation();
+  const { pinnedTaskId, revisionPicks } = usePresentation();
   const tenant = snapshot.tenant;
   const session = snapshot.session;
   const sessionKey = session?.id ?? null;
@@ -78,6 +90,8 @@ export function useHandsFree(kind: OwnerKind) {
   const prefs = useCapturePrefs(tenant);
   // A share from "Start hands-free" is adopted once a session is open here.
   const share = useScreenShare(open);
+  // Why the last capture did not work: a banner until dismissed or the next capture works.
+  const issue = useCaptureProblem();
 
   const [captureMenu, setCaptureMenu] = useState(false);
   const [maskOpen, setMaskOpen] = useState(false);
@@ -129,6 +143,9 @@ export function useHandsFree(kind: OwnerKind) {
   const tasks = model.tasks;
   const newest = tasks[tasks.length - 1];
   const selected = selectedTask(tasks, pinnedTaskId);
+  // The revision on show (view-only); a follow-up still goes to the task's
+  // current one, through `selected`.
+  const revision = selected ? selectedRevisionOf(selected, revisionPicks) : 0;
   const hints = {
     skill: prefs.settings.skill ?? ("auto" as const),
     language: prefs.settings.language ?? ("auto" as const),
@@ -137,9 +154,9 @@ export function useHandsFree(kind: OwnerKind) {
   const sessionNow = useRef(sessionKey);
   sessionNow.current = sessionKey;
 
-  const fail = useCallback((code: SessionErrorCode) => {
+  const fail = useCallback((code: SessionErrorCode, reason?: string) => {
     if (code === "unavailable") setUnavailable(true);
-    setNote(failureNote(code));
+    setNote(failureNote(code, reason));
   }, []);
   const copy = useCallback(async (text: string) => {
     setNote(
@@ -151,6 +168,7 @@ export function useHandsFree(kind: OwnerKind) {
 
   // ---- Capturing --------------------------------------------------------------
   const capturing = useRef(false);
+  const trayRef = useRef<ScreenshotTray | null>(null);
   // A fresh frame of the shared source, cropped to the owner's region here, then
   // sent through the capture route. `label` names an automatic capture; true
   // when the frame was sent.
@@ -169,58 +187,114 @@ export function useHandsFree(kind: OwnerKind) {
       capturing.current = false;
     }
   }
+  // One fresh frame of the shared source cropped to the owner's region, or null
+  // with the reason shown. From here the caller sends it or stages it.
+  async function grabShared(
+    here: () => boolean,
+    intent: "explicit" | "auto" = "explicit",
+  ): Promise<Frame | null> {
+    setGrabbing(true);
+    try {
+      const frame = await share.grab(prefs.mask, intent);
+      if (!here()) return null;
+      // A capture that works ends the earlier problem.
+      issue.clear();
+      return frame;
+    } catch (error) {
+      if (!here()) return null;
+      const failure = captureFailureOf(error);
+      // The stored area belonged to another display: drop it, ask again.
+      if (failure.reason === "display-changed") prefs.setMask(FULL);
+      // Auto with no browser in front just waits for one (its status line says so).
+      if (intent === "auto" && failure.reason === "no-focused-window")
+        return null;
+      issue.show({
+        // A browser share that cannot be read any more is a lost source.
+        reason:
+          failure.reason === "capture-failed" && !nativeCaptureAvailable()
+            ? "source-lost"
+            : failure.reason,
+        intent: intent === "auto" ? "auto" : "manual",
+        frontApp: failure.frontApp,
+      });
+      return null;
+    } finally {
+      setGrabbing(false);
+    }
+  }
   async function grabAndSend(
     attach: TaskTarget | undefined,
     label: string | undefined,
     here: () => boolean,
   ): Promise<boolean> {
-    setGrabbing(true);
-    try {
-      const frame = await share.grab(prefs.mask);
-      if (!here()) return false;
-      // The frame is taken: from here it is sending, not capturing.
-      setGrabbing(false);
-      setFlash({
-        url:
-          typeof URL.createObjectURL === "function"
-            ? URL.createObjectURL(frame.blob)
-            : null,
-        width: frame.width,
-        height: frame.height,
-        bytes: frame.blob.size,
-      });
-      const result = await actions.analyzeCapture({
-        image: frame.blob,
-        label: label ?? frame.label,
-        target: attach,
-        ...hints,
-      });
-      if (!result.ok && here()) fail(result.code);
-      return result.ok;
-    } catch (error) {
-      if (!here()) return false;
-      if (error instanceof FrameError && error.code === "display-changed") {
-        // The stored area belonged to another display: drop it, ask again.
-        prefs.setMask(FULL);
-        setNote(
-          "Your display changed, so the capture area was cleared. Choose the area again.",
-        );
-        return false;
-      }
-      setNote(
-        error instanceof FrameError && error.code === "too-large"
-          ? "That frame is too large to send. Choose a smaller region."
-          : error instanceof FrameError && error.code === "not-ready"
-            ? "The shared source isn’t ready yet. Try again in a moment."
-            : "Couldn’t capture the shared source. Share it again.",
-      );
+    const frame = await grabShared(
+      here,
+      label === undefined ? "explicit" : "auto",
+    );
+    if (!frame) return false;
+    setFlash({
+      url:
+        typeof URL.createObjectURL === "function"
+          ? URL.createObjectURL(frame.blob)
+          : null,
+      width: frame.width,
+      height: frame.height,
+      bytes: frame.blob.size,
+    });
+    const result = await actions.analyzeCapture({
+      image: frame.blob,
+      ...(frame.ocr ? { ocr: frame.ocr } : {}),
+      label: label ?? frame.label,
+      target: attach,
+      ...hints,
+    });
+    if (!result.ok && here()) fail(result.code, result.reason);
+    return result.ok;
+  }
+  // Manual: the frame is STAGED on the device (nothing is sent) until Apply in
+  // the Screenshots tray.
+  async function stageShare(
+    intent: TrayIntent,
+    here: () => boolean,
+  ): Promise<boolean> {
+    if (capturing.current) return false;
+    // Refused BEFORE a real screenshot is taken when the tray cannot keep it.
+    const refusal = trayRef.current?.stageRefusal();
+    if (refusal) {
+      setNote(refusal);
       return false;
+    }
+    capturing.current = true;
+    try {
+      const frame = await grabShared(here);
+      if (!frame || !trayRef.current) return false;
+      return trayRef.current.stage(
+        {
+          blob: frame.blob,
+          label: frame.label,
+          display: lastGrabDisplay(share.kind === "This Mac"),
+        },
+        intent,
+      );
     } finally {
-      setGrabbing(false);
+      capturing.current = false;
     }
   }
+  // The tray's Add screenshot: straight from the click (a browser asks for a
+  // source only inside a gesture), asking for one first when none is shared.
+  async function stage(intent: TrayIntent): Promise<boolean> {
+    if (share.status !== "sharing" && !(await share.start())) return false;
+    const origin = sessionNow.current;
+    return stageShare(intent, () => sessionNow.current === origin);
+  }
   // Capture & analyze: a FRESH frame of the shared source, or the companion's.
-  async function analyze(choice: AnalyzeChoice, via: AnalyzeVia) {
+  // `staging`: the person asked from the capture control or the answer page, so
+  // Manual stages the frame in the tray (a menu choice always sends now).
+  async function analyze(
+    choice: AnalyzeChoice,
+    via: AnalyzeVia,
+    staging = false,
+  ) {
     setNote(null);
     // The session this capture was asked for: its outcome is shown only while
     // that is still the one on screen.
@@ -250,10 +324,13 @@ export function useHandsFree(kind: OwnerKind) {
         sourceId: stored.sourceId,
         eventId: stored.eventId,
       });
-      if (!result.ok && here()) fail(result.code);
+      if (!result.ok && here()) fail(result.code, result.reason);
       return;
     }
-    await shareCapture(attach, undefined, here);
+    // Manual only stages the frame; Apply in the tray is what generates.
+    if (staging && !liveRef.current.auto && trayRef.current?.hasSurface())
+      await stageShare(choice.kind === "attach" ? "add" : "new", here);
+    else await shareCapture(attach, undefined, here);
   }
   // Auto: the screen changed and settled. The same fresh capture a press takes,
   // as a new task, named in the transcript as automatic.
@@ -272,10 +349,11 @@ export function useHandsFree(kind: OwnerKind) {
   // new task, or choose a source first.
   function captureNow() {
     if (deviceOnly) {
-      setNote(DEVICE_ONLY_ANALYZE);
+      issue.show({ reason: "device-only", intent: "manual", frontApp: null });
       return;
     }
-    if (share.status === "sharing") void analyze({ kind: "new" }, "share");
+    if (share.status === "sharing")
+      void analyze({ kind: "new" }, "share", true);
     else setCaptureMenu(true);
   }
   // Stop what is running now (session-wide stop-work, ADR-0011): in-flight work
@@ -285,7 +363,8 @@ export function useHandsFree(kind: OwnerKind) {
     setNote(null);
     const origin = sessionNow.current;
     const result = await actions.stopWork();
-    if (origin === sessionNow.current && !result.ok) fail(result.code);
+    if (origin === sessionNow.current && !result.ok)
+      fail(result.code, result.reason);
     return result;
   }
   async function startSharing() {
@@ -302,7 +381,7 @@ export function useHandsFree(kind: OwnerKind) {
     );
     if (origin !== sessionNow.current) return result;
     if (result.ok) addEntry("Typed", text.trim());
-    else fail(result.code);
+    else fail(result.code, result.reason);
     return result;
   }
 
@@ -314,6 +393,7 @@ export function useHandsFree(kind: OwnerKind) {
   const engineListening = engineHost() !== null && !engineRefused;
   const auto = useAutoMode({
     engineListening,
+    nativeEngine: engineHost() !== null,
     tenant,
     sessionId: sessionKey,
     // Only the owner listens and watches.
@@ -329,6 +409,7 @@ export function useHandsFree(kind: OwnerKind) {
       grabbing ||
       pending.includes("analyze") ||
       companionCapture.progress?.phase === "asking",
+    lastResultNoQuestion: newestResultIsNoQuestion(snapshot.actions),
     capture: () => autoCapture(),
     submitHeard: actions.submitHeard,
     resume: actions.resume,
@@ -353,6 +434,8 @@ export function useHandsFree(kind: OwnerKind) {
   useEffect(() => {
     setEngineRefused(engine.refused !== null);
   }, [engine.refused]);
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   // The shell mounts this before any session exists. Setup's "Start hands-free"
   // (or another window) turns the preference on in the meantime, so it is read
   // again when a session opens here.
@@ -403,7 +486,7 @@ export function useHandsFree(kind: OwnerKind) {
   const live: PanelState = owns
     ? {
         auto: auto.on,
-        mic: auto.mic,
+        mic: engineMic(engine, auto.mic),
         interim: auto.dictation.interim,
         sharing: share.status === "sharing",
         phase,
@@ -411,6 +494,17 @@ export function useHandsFree(kind: OwnerKind) {
     : mirror;
   const liveRef = useRef(live);
   liveRef.current = live;
+  // The staging tray (Manual stages here, Apply generates; Auto adds on request).
+  const tray = useScreenshotTray({
+    actions,
+    sessionId: sessionKey,
+    target: targetOf(selected),
+    deviceOnly,
+    screenshotSend: session?.screenshotSend,
+    hints,
+    mode: live.auto ? "auto" : "manual",
+  });
+  trayRef.current = tray;
   const ownsRef = useRef(owns);
   ownsRef.current = owns;
   const openRef = useRef(open);
@@ -439,7 +533,8 @@ export function useHandsFree(kind: OwnerKind) {
           bus.post({ type: "state", state: liveRef.current });
       } else if (message.type === "command") {
         if (!ownsRef.current || !openRef.current) return;
-        if (message.command === "toggle-mic") autoRef.current.toggleListening();
+        if (message.command === "toggle-mic")
+          pressMic(engineRef.current, autoRef.current.toggleListening);
         else captureRef.current();
       }
     });
@@ -472,7 +567,8 @@ export function useHandsFree(kind: OwnerKind) {
   // A press in a document that does not own the microphone asks the owner.
   const press = useCallback((command: "capture" | "toggle-mic") => {
     if (!ownsRef.current) busRef.current?.post({ type: "command", command });
-    else if (command === "toggle-mic") autoRef.current.toggleListening();
+    else if (command === "toggle-mic")
+      pressMic(engineRef.current, autoRef.current.toggleListening);
     else captureRef.current();
   }, []);
   // The host's system-wide key: only the owner acts, so one press is one capture.
@@ -503,12 +599,17 @@ export function useHandsFree(kind: OwnerKind) {
     share,
     auto,
     live,
+    noQuestionLine: noQuestionStatus(
+      newestResultIsNoQuestion(snapshot.actions),
+      live.auto,
+    ),
     setAuto,
     press,
     // Selection and what a capture needs.
     tasks,
     newest,
     selected,
+    revision,
     captures,
     capability,
     support,
@@ -519,6 +620,9 @@ export function useHandsFree(kind: OwnerKind) {
     unavailable,
     note,
     setNote,
+    captureProblem: issue.problem,
+    captureProblemAction: issue.onAction,
+    dismissCaptureProblem: issue.clear,
     fail,
     copy,
     followText,
@@ -534,6 +638,8 @@ export function useHandsFree(kind: OwnerKind) {
     settingsOpen,
     setSettingsOpen,
     analyze,
+    tray,
+    stage,
     captureNow,
     working,
     stopping,

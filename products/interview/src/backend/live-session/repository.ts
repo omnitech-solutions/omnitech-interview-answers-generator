@@ -10,11 +10,16 @@ import {
   type CaptureSource,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
-import { liveSessionStartRequestSchema } from "@omnitech/interview-contracts";
+import {
+  type LiveScreenshotSend,
+  liveScreenshotSendSchema,
+  liveSessionStartRequestSchema,
+} from "@omnitech/interview-contracts";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
+import { activeSessions } from "../db/live-session";
 import { readCaptureRequest, submitCaptureRequest } from "./capture-request";
 import { getCompanionCapability } from "./companion-capability";
 import {
@@ -58,6 +63,7 @@ import {
   getSessionJob,
   listActions,
   listObservations,
+  listTaskScreenshots,
   readScreenshot,
 } from "./session-reads";
 import {
@@ -81,6 +87,8 @@ export type StartSessionInput = {
   // broaden them (ADR-0011 Wire contract).
   captureSources: readonly CaptureSource[];
   liveAssistance?: boolean;
+  // D35: what of a screenshot may reach a model; defaults to "always".
+  screenshotSend?: LiveScreenshotSend;
   // Defaults to delete at end (rule:retention-modes).
   retention?: RetentionMode;
   // An opaque run id minted by the client and the strict flag, immutable once
@@ -264,14 +272,14 @@ export class ActiveSessionRepository {
           tx,
           sql`INSERT INTO interview.active_sessions (
                 tenant_id, owner_user_id, status, retention_mode,
-                processing_policy, credential_hash, credential_expires_at,
-                sources, rehearsal_run_id, strict, interview_id, candidacy_id,
+                processing_policy, screenshot_send, credential_hash,
+                credential_expires_at, sources, rehearsal_run_id, strict, interview_id, candidacy_id,
                 profile_id, profile_revision, workspace_draft_id, expires_at)
               VALUES (
                 ${scope.tenantId}::uuid, ${scope.actorId}::uuid,
                 ${started.status}, ${retentionToDb(retention)},
-                ${policyToDb(policy)}, ${credential.hash},
-                ${credential.expiresAt.toISOString()}::timestamptz,
+                ${policyToDb(policy)}, ${input.screenshotSend ?? "always"},
+                ${credential.hash}, ${credential.expiresAt.toISOString()}::timestamptz,
                 ${JSON.stringify({ captureSources, liveAssistance })}::jsonb,
                 ${input.rehearsal?.runId ?? null}, ${strict},
                 ${links.interviewId}::uuid, ${links.candidacyId}::uuid,
@@ -519,6 +527,40 @@ export class ActiveSessionRepository {
     return tightened;
   }
 
+  // D35: the owner's choice of what of a screenshot may reach a model. It may
+  // change either way at any time (it only ever limits what is sent), applies
+  // to the next model call, and a device-only session sends nothing whatever it
+  // says. Only the owner's scoped transaction can write it; the worker's claim
+  // changes lease and fence columns only.
+  async setScreenshotSend(
+    scope: OwnerScope,
+    sessionId: string,
+    requested: LiveScreenshotSend,
+  ): Promise<SessionView> {
+    assertUuid(sessionId);
+    if (!liveScreenshotSendSchema.safeParse(requested).success)
+      throw new SessionError("invalid_input");
+    return inOwnerScope(this.database, scope, async (tx) => {
+      const row = await lockSession(tx, scope, sessionId);
+      if (!row || row.purgedAt !== null) throw new SessionError("not_found");
+      if (row.status === "ended" || row.status === "purging")
+        throw new SessionError("status_refused");
+      if (requested !== row.screenshotSend)
+        await tx
+          .update(activeSessions)
+          .set({ screenshotSend: requested })
+          .where(
+            and(
+              eq(activeSessions.tenantId, scope.tenantId),
+              eq(activeSessions.ownerUserId, scope.actorId),
+              eq(activeSessions.id, sessionId),
+            ),
+          );
+      const after = await readSession(tx, scope, sessionId);
+      return toView(after as SessionRecord);
+    });
+  }
+
   // Only the owner shortens retention, never lengthens it
   // (rule:owner-chooses-retention).
   async shortenRetention(
@@ -591,9 +633,9 @@ export class ActiveSessionRepository {
     scope: OwnerScope,
     sessionId: string,
     fields: unknown,
-    image: Uint8Array,
+    images: readonly Uint8Array[],
   ) {
-    return storeOwnerCapture(this.database, scope, sessionId, fields, image);
+    return storeOwnerCapture(this.database, scope, sessionId, fields, images);
   }
   // The owner's one-shot "capture now" for the native companion
   // (capture-request.ts): one pending request per session.
@@ -628,6 +670,9 @@ export class ActiveSessionRepository {
   }
   getSessionChoices(scope: OwnerScope) {
     return getSessionChoices(this.database, scope);
+  }
+  listTaskScreenshots(scope: OwnerScope, sessionId: string, taskId: string) {
+    return listTaskScreenshots(this.database, scope, sessionId, taskId);
   }
   readScreenshot(scope: OwnerScope, sessionId: string, artifactId: string) {
     return readScreenshot(this.database, scope, sessionId, artifactId);

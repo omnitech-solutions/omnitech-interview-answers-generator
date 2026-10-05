@@ -35,7 +35,7 @@ const MESSAGES: Record<SessionErrorCode, string> = {
   purge_incomplete: "The Active Session purge final check did not pass.",
 };
 
-// Why an input was refused: a fixed vocabulary, never content, so a client (and a
+// Why an input was refused (invalid_input, or status_refused for the last two): a fixed vocabulary, never content, so a client (and a
 // log line) can say WHICH check failed instead of a generic "invalid".
 export type InvalidReason =
   | "fields"
@@ -46,7 +46,14 @@ export type InvalidReason =
   | "image_type"
   | "image_unreadable"
   | "image_dimensions"
-  | "target";
+  | "image_count"
+  | "ocr"
+  | "display"
+  | "target"
+  // status_refused reasons: the task has a newer revision than the one named,
+  // and an image cannot be sent in a device-only session.
+  | "stale_target"
+  | "vision_device_only";
 
 export class SessionError extends Error {
   readonly reason: InvalidReason | undefined;

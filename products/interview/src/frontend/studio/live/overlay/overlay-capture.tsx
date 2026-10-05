@@ -6,6 +6,7 @@
 import { useEffect, useId, useRef } from "react";
 import { Icon } from "../../icon";
 import { shareMenuCopy } from "../host-adapter";
+import { DEVICE_ONLY_ANALYZE } from "../shared/capture-problem";
 import { shortcutsFor } from "../shared/shortcuts";
 import type { SourceKind } from "./capture-source";
 import { LocalPreview } from "./local-preview";
@@ -28,8 +29,8 @@ const ANALYZE_CHORD =
   shortcutsFor("web").find((shortcut) => shortcut.intent === "capture.analyze")
     ?.chord ?? "";
 
-export const DEVICE_ONLY_ANALYZE =
-  "Device-only mode never sends a screenshot to an assistant.";
+export { DEVICE_ONLY_ANALYZE };
+
 const EXPIRED_NOTE =
   "The companion did not answer within 20 s. Is it running with the screen source selected?";
 
@@ -87,6 +88,8 @@ function progressText(progress: CaptureProgress | null): string | null {
 }
 
 export type CaptureStripProps = {
+  // False where the page binds no Alt chord (the web Live page).
+  chord?: boolean;
   share: {
     status: "idle" | "starting" | "sharing";
     kind: SourceKind | null;
@@ -210,7 +213,8 @@ export function CaptureStrip(props: CaptureStripProps) {
   const stopWork = props.stopWork ?? null;
   const busy = phase !== null;
   const disabled = unavailable || busy || deviceOnly || asking;
-  const analyzeChord = ANALYZE_CHORD;
+  // Printed only where the page binds it (the card, the panels).
+  const analyzeChord = props.chord === false ? "" : ANALYZE_CHORD;
   const progressNote = progressText(progress);
 
   return (
@@ -293,7 +297,7 @@ export function CaptureStrip(props: CaptureStripProps) {
             title={
               deviceOnly
                 ? DEVICE_ONLY_ANALYZE
-                : `Capture a fresh frame now and analyze it (${analyzeChord})`
+                : `Capture a fresh frame now and analyze it${analyzeChord ? ` (${analyzeChord})` : ""}`
             }
             onClick={() => onMenuOpenChange(!menuOpen)}
           >
@@ -303,7 +307,9 @@ export function CaptureStrip(props: CaptureStripProps) {
               : phase === "analyzing"
                 ? "Analyzing…"
                 : "Capture & analyze"}
-            {!busy && <kbd className="ov-kbd">{analyzeChord}</kbd>}
+            {!busy && analyzeChord && (
+              <kbd className="ov-kbd">{analyzeChord}</kbd>
+            )}
           </button>
         )}
       </div>

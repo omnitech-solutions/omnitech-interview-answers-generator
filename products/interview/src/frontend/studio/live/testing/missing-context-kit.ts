@@ -181,7 +181,7 @@ export function startJourney(
           requestId: String(fields["requestId"]),
           sequence: number + 10,
         },
-        snapshot: { sourceId: "screen", eventId: `evt-${number}` },
+        snapshots: [{ sourceId: "screen", eventId: `evt-${number}` }],
       },
       202,
     );

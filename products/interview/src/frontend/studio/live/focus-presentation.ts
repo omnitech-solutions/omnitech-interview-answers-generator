@@ -23,6 +23,10 @@ export type Presentation = {
   float: FloatState;
   // null follows the newest task; an id pins an earlier one.
   pinnedTaskId: string | null;
+  // Per task: the OLDER revision the person chose to view. A task with no entry
+  // shows its current revision and follows whichever arrives next. View-only:
+  // nothing here reaches the server, and a follow-up targets the current one.
+  revisionPicks: Readonly<Record<string, number>>;
 };
 
 const INITIAL: Presentation = {
@@ -30,6 +34,7 @@ const INITIAL: Presentation = {
   previousMode: "full",
   float: "closed",
   pinnedTaskId: null,
+  revisionPicks: {},
 };
 
 let state: Presentation | null = null;
@@ -48,7 +53,8 @@ function update(patch: Partial<Presentation>) {
     next.mode === before.mode &&
     next.previousMode === before.previousMode &&
     next.float === before.float &&
-    next.pinnedTaskId === before.pinnedTaskId
+    next.pinnedTaskId === before.pinnedTaskId &&
+    next.revisionPicks === before.revisionPicks
   )
     return;
   state = next;
@@ -74,6 +80,15 @@ export const presentation = {
   },
   setFloat: (float: FloatState) => update({ float }),
   pin: (taskId: string | null) => update({ pinnedTaskId: taskId }),
+  // An older revision to view, or null to follow the task's newest again.
+  pickRevision(taskId: string, revision: number | null) {
+    const { revisionPicks } = current();
+    if ((revisionPicks[taskId] ?? null) === revision) return;
+    const { [taskId]: _dropped, ...rest } = revisionPicks;
+    update({
+      revisionPicks: revision === null ? rest : { ...rest, [taskId]: revision },
+    });
+  },
   // Layout back to Full with no float and no pin. Never a session command.
   reset() {
     const changed =

@@ -2,6 +2,6 @@
 
 _Source: `products/interview/src/frontend/studio/live/focus-float.test.tsx` (header-comment fallback)_
 
-The Focus presentation and the floating (Document Picture-in-Picture) host,
-over the real store with a scripted service and a mocked
-window.documentPictureInPicture.
+The overlay card in the tab, and the floating host that loads the chromeless
+overlay route in a Document Picture-in-Picture window, over the real store
+with a scripted service and a mocked window.documentPictureInPicture.

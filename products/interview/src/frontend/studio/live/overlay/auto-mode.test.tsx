@@ -96,7 +96,7 @@ function serve(session: ReturnType<typeof sessionView>) {
     return jsonResponse(
       {
         input: { requestId: "r", sequence: 9 },
-        snapshot: { sourceId: "browser", eventId: "evt-9" },
+        snapshots: [{ sourceId: "browser", eventId: "evt-9" }],
       },
       202,
     );
@@ -396,7 +396,7 @@ describe("screen changed → one analyze", () => {
       jsonResponse(
         {
           input: { requestId: "r", sequence: 9 },
-          snapshot: { sourceId: "b", eventId: "e" },
+          snapshots: [{ sourceId: "b", eventId: "e" }],
         },
         202,
       ),

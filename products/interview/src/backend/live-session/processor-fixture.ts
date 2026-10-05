@@ -311,6 +311,9 @@ export type ProcessorBuild = {
   codeRunner?: SessionProcessorPorts["codeRunner"];
   runnerDeviceLocal?: boolean;
   agentEscalation?: SessionProcessorPorts["agentEscalation"];
+  // The profile a screenshot dispatch is bound to (without it, images are
+  // refused as vision_unavailable).
+  visionProfileId?: string;
   // The job repository the store port creates and cancels jobs through.
   jobs?: NonNullable<Parameters<typeof createDatabaseStorePort>[1]>["jobs"];
   // How many of a session's newest actions a rebuilt run is seeded from.
@@ -348,6 +351,9 @@ export function buildProcessor(fx: Fixture, build: ProcessorBuild) {
       : { runnerDeviceLocal: build.runnerDeviceLocal }),
     ...(build.agentEscalation
       ? { agentEscalation: build.agentEscalation }
+      : {}),
+    ...(build.visionProfileId
+      ? { visionProfileId: build.visionProfileId }
       : {}),
   };
   return createSessionProcessor(ports, {

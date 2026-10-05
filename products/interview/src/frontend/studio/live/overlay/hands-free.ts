@@ -8,14 +8,19 @@
 import { nativeCaptureAvailable } from "../host-adapter";
 import { ShareError, startShare } from "./capture-source";
 import { startNativeShare } from "./native-share";
+import { engineHost } from "./panels/use-engine";
 import { dropParkedShare, parkShare } from "./share-handoff";
 
 export type HandsFreeOutcome = {
   screen: "shared" | "skipped" | "cancelled" | "unsupported" | "failed";
-  mic: "allowed" | "denied" | "unavailable";
+  // "engine": the shell's native engine owns the microphone; the page asks none.
+  mic: "allowed" | "denied" | "unavailable" | "engine";
 };
 
 async function askMicrophone(): Promise<HandsFreeOutcome["mic"]> {
+  // [SAFETY] A native shell's engine listens: the page's getUserMedia would only
+  // raise the web view's own microphone prompt.
+  if (engineHost() !== null) return "engine";
   const media = navigator.mediaDevices;
   if (!media || typeof media.getUserMedia !== "function") return "unavailable";
   try {
@@ -60,7 +65,7 @@ export const releaseHandsFree = dropParkedShare;
 
 export function handsFreeSummary(outcome: HandsFreeOutcome): string {
   const gaps: string[] = [];
-  if (outcome.mic !== "allowed")
+  if (outcome.mic !== "allowed" && outcome.mic !== "engine")
     gaps.push(
       outcome.mic === "denied"
         ? "the microphone wasn’t allowed"

@@ -2,5 +2,5 @@
 
 _Source: `packages/agent-runtime-claude/src/index.ts` (header-comment fallback)_
 
-Text as the model writes it (partial messages); the finished message then
-repeats it, so a run that streamed does not forward the whole text again.
+The SDK's result subtype as the typed failure reason, only when it is one of
+the closed vocabulary; any other subtype carries no reason (never free text).

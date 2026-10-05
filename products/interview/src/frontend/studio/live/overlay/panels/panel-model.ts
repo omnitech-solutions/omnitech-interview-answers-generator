@@ -9,7 +9,18 @@ import type { IconName } from "../../../icon";
 import { OWNER_STOPPED } from "../../session-runs";
 import type { LiveViewModel } from "../../session-state";
 import type { TaskView } from "../../session-tasks";
-import { type TaskCard, taskCardModel } from "../../shared/task-card-model";
+import { type NoQuestionNote, noQuestionLines } from "../../shared/no-question";
+import {
+  revisionText,
+  selectedRevisionOf,
+  taskAtRevision,
+} from "../../shared/revisions";
+import {
+  snapshotLabelOf,
+  snapshotOrdinals,
+  type TaskCard,
+  taskCardModel,
+} from "../../shared/task-card-model";
 import { taskName } from "../../shared/task-name";
 import { taskLabel, taskOrdinal } from "../../shared/task-target";
 import { type ApproachItem, approach, type ChatEntry } from "../overlay-model";
@@ -209,6 +220,8 @@ export type PanelRow = {
   text: string;
   at: number;
   icon?: IconName;
+  // Only on a no-question marker: its screenshot label (null when unknown).
+  noteLabel?: string | null;
   // The assistant's formatted answer: its lines and fenced code blocks.
   items?: readonly ApproachItem[];
   // The task an assistant answer belongs to: choosing the row shows that task.
@@ -249,6 +262,9 @@ type TaskMarker = {
   at: number;
   icon: IconName;
   text: string;
+  // A capture with no question (D36): its screenshot label, if known. Runs of
+  // these share one row (see joinNotes).
+  note?: { label: string | null };
 };
 
 export function taskMarkers(input: {
@@ -256,8 +272,22 @@ export function taskMarkers(input: {
   actions: readonly LiveAction[];
   observations: readonly LiveObservation[];
   deviceOnly: boolean;
+  noQuestion?: readonly NoQuestionNote[];
 }): TaskMarker[] {
-  return input.tasks.flatMap((task) => {
+  const ordinals = snapshotOrdinals(input.observations);
+  const notes: TaskMarker[] = (input.noQuestion ?? []).map((note) => {
+    const label = note.snapshot
+      ? snapshotLabelOf(note.snapshot, ordinals)
+      : null;
+    return {
+      key: `m-nq-${note.taskId}`,
+      at: Date.parse(note.at) || 0,
+      icon: "visibility_off" as const,
+      text: noQuestionLines([label])[0] as string,
+      note: { label },
+    };
+  });
+  const tasks = input.tasks.flatMap((task) => {
     const card = taskCardModel({ ...input, selectedTaskId: task.taskId });
     if (!card) return [];
     const started: TaskMarker = {
@@ -288,6 +318,30 @@ export function taskMarkers(input: {
           },
         ];
   });
+  return [...tasks, ...notes];
+}
+
+// Consecutive no-question markers (nothing else between them) become one row,
+// collapsed by the shared rule.
+function joinNotes(rows: PanelRow[]): PanelRow[] {
+  const out: PanelRow[] = [];
+  let run: { row: PanelRow; labels: (string | null)[] } | null = null;
+  for (const row of rows) {
+    if (row.kind === "marker" && row.noteLabel !== undefined) {
+      if (run) {
+        run.labels.push(row.noteLabel);
+        run.row.text = noQuestionLines(run.labels).join(" · ");
+        run.row.at = row.at;
+      } else {
+        run = { row: { ...row }, labels: [row.noteLabel] };
+        out.push(run.row);
+      }
+      continue;
+    }
+    run = null;
+    out.push(row);
+  }
+  return out;
 }
 
 // A stage's label has no ellipsis; the row adds it and a timer.
@@ -327,6 +381,8 @@ export function panelRows(
   // Rows at or before this time were cleared (session.clear).
   since = 0,
   markers: readonly TaskMarker[] = [],
+  // Per task, the older revision on show (view-only; see focus-presentation).
+  revisionPicks: Readonly<Record<string, number>> = {},
 ): PanelRow[] {
   const heard: PanelRow[] = model.transcript.flatMap((row) =>
     row.type === "utterance" && !row.superseded
@@ -350,22 +406,35 @@ export function panelRows(
       text: entry.text,
       at: entry.at,
     }));
-  // One thread per task: the row is replaced in place as the task moves from
-  // drafting to solutioning to its answer, and across its revisions.
+  // One row per task, however many revisions it has: its text is the revision
+  // on show, replaced in place as the task moves from drafting to solutioning
+  // to its answer and as another revision is chosen. A revision with no text
+  // says what its run is doing or why nothing was published, never another
+  // revision's words.
   const assistant: PanelRow[] = model.tasks.flatMap((task) => {
-    const shown = approach(task);
+    const revision = selectedRevisionOf(task, revisionPicks);
+    const own = task.revisions.find((each) => each.revision === revision);
+    if (!own) return [];
+    const view = { ...taskAtRevision(task, revision), answer: own.answer };
+    const shown = approach(view);
     const first = shown?.items.find((item) => item.kind === "line");
-    const stage = taskStage(task);
-    if (!(shown && first) && !stage) return [];
+    const stage = taskStage(view);
+    const note = own.answerRun ? revisionText(own).note : null;
+    if (!(shown && first) && !stage && !note) return [];
     const last = task.revisions[task.revisions.length - 1];
+    const label = `Studio · ${taskLabel(taskOrdinal(model.tasks, task.taskId) ?? 1)}`;
     return [
       {
         key: `a-${task.taskId}`,
         taskId: task.taskId,
         kind: "assistant" as const,
-        label: `Studio · ${taskLabel(taskOrdinal(model.tasks, task.taskId) ?? 1)}`,
+        label: task.revisions.length > 1 ? `${label} · rev ${revision}` : label,
         text:
-          shown && first ? shown.items.map((item) => item.text).join("\n") : "",
+          shown && first
+            ? shown.items.map((item) => item.text).join("\n")
+            : stage
+              ? ""
+              : (note ?? ""),
         ...(shown && first ? { items: shown.items } : {}),
         ...(stage ? { stage } : {}),
         at: Date.parse(last?.firstSeenAt ?? "") || 0,
@@ -386,11 +455,13 @@ export function panelRows(
     text: marker.text,
     icon: marker.icon,
     at: marker.at,
+    ...(marker.note ? { noteLabel: marker.note.label } : {}),
   }));
-  return [...heard, ...mine, ...assistant, ...lines, ...between]
-    .filter((row) => row.kind === "system" || row.at > since)
-    .sort((a, b) => a.at - b.at)
-    .slice(-PANEL_ROWS);
+  return joinNotes(
+    [...heard, ...mine, ...assistant, ...lines, ...between]
+      .filter((row) => row.kind === "system" || row.at > since)
+      .sort((a, b) => a.at - b.at),
+  ).slice(-PANEL_ROWS);
 }
 
 // The follow-up box says which task its text is about: the one on show.

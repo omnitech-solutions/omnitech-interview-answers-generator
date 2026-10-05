@@ -1,0 +1,2 @@
+ALTER TABLE "interview"."active_sessions" ADD COLUMN "screenshot_send" text DEFAULT 'always' NOT NULL;--> statement-breakpoint
+ALTER TABLE "interview"."active_sessions" ADD CONSTRAINT "active_sessions_screenshot_send_check" CHECK (screenshot_send IN ('always', 'text-only-when-text', 'never'));

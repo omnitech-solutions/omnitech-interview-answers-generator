@@ -28,6 +28,10 @@ graph TD
   ADR_0017["ADR-0017"]
   ADR_0018["ADR-0018"]
   ADR_0019["ADR-0019"]
+  ADR_0020["ADR-0020"]
+  ADR_0021["ADR-0021"]
+  ADR_0022["ADR-0022"]
+  ADR_0023["ADR-0023"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
@@ -38,6 +42,10 @@ graph TD
   ADR_0018 -.-> ADR_0016
   ADR_0019 -.-> ADR_0017
   ADR_0019 -.-> ADR_0018
+  ADR_0020 -.-> ADR_0019
+  ADR_0021 -.-> ADR_0018
+  ADR_0022 -.-> ADR_0018
+  ADR_0023 -.-> ADR_0005
 ```
 
 ## Lineage table
@@ -64,20 +72,31 @@ graph TD
 | ADR-0017 | Host the Active Session overlay as one route and isolate providers without emptying their home | Accepted | — | ADR-0016 | — |
 | ADR-0018 | Capture on demand with masks and owner-requested companion captures | Accepted | — | ADR-0016 | — |
 | ADR-0019 | Host the overlay in a native shell through one host adapter | Accepted | — | ADR-0017, ADR-0018 | — |
+| ADR-0020 | Sign in to Studio from the native shell through a one-time handoff | Proposed | — | ADR-0019 | — |
+| ADR-0021 | Negotiate companion capture requests and report their failures | Proposed | — | ADR-0018 | — |
+| ADR-0022 | Allow owner-enabled hands-free listening and automatic capture | Proposed | — | ADR-0018 | — |
+| ADR-0023 | Use the query builder by default and check the database role on every tenant-scoped path | Proposed | — | ADR-0005 | — |
 
 ## Topic clusters
 
 ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cluster to find the current decision on a topic.
 
-- **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016, ADR-0017, ADR-0018, ADR-0019
+- **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022
 - **agents** — ADR-0001, ADR-0007, ADR-0010, ADR-0014, ADR-0016, ADR-0017
 - **ai** — ADR-0007, ADR-0009, ADR-0010, ADR-0014
 - **architecture** — ADR-0002, ADR-0004
+- **capture** — ADR-0018, ADR-0021, ADR-0022
+- **companion** — ADR-0018, ADR-0021
 - **contracts** — ADR-0008, ADR-0011
 - **documents** — ADR-0009, ADR-0010, ADR-0015
+- **drizzle** — ADR-0005, ADR-0023
 - **interview** — ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0015
-- **overlay** — ADR-0017, ADR-0018, ADR-0019
+- **native** — ADR-0019, ADR-0020
+- **oauth** — ADR-0006, ADR-0020
+- **overlay** — ADR-0017, ADR-0018, ADR-0019, ADR-0022
 - **performance** — ADR-0010, ADR-0015
-- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013, ADR-0018, ADR-0019
+- **postgresql** — ADR-0005, ADR-0023
+- **privacy** — ADR-0007, ADR-0009, ADR-0011, ADR-0012, ADR-0013, ADR-0018, ADR-0019, ADR-0020, ADR-0022
 - **process** — ADR-0000, ADR-0001
-- **security** — ADR-0005, ADR-0006
+- **security** — ADR-0005, ADR-0006, ADR-0023
+- **tenancy** — ADR-0005, ADR-0023

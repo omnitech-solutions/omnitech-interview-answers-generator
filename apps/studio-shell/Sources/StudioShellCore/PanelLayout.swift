@@ -55,6 +55,32 @@ public enum PanelLayout {
     }
 }
 
+// [DOMAIN] Full screen of the one window: it fills the display's visible frame
+// (menu bar and Dock stay, no macOS Space) and remembers the frame it left so
+// turning it off, or any other size change, puts it back. Entering twice keeps
+// the first remembered frame. Both frames pass through `PanelLayout.fit`, so the
+// window is never off-screen.
+public struct FullScreenFrame: Equatable, Sendable {
+    public private(set) var remembered: CGRect?
+
+    public init() {}
+
+    public var isOn: Bool { remembered != nil }
+
+    public mutating func enter(from current: CGRect, visible: CGRect, min minimum: CGSize) -> CGRect {
+        if remembered == nil { remembered = current }
+        return PanelLayout.fit(visible, in: visible, min: minimum)
+    }
+
+    // The frame to go back to, clamped onto the display it is on now (no minimum:
+    // the window may have been fitted below its resize minimum, as the bare
+    // toolbar is), or nil when full screen was not on.
+    public mutating func leave(in area: CGRect) -> CGRect? {
+        defer { remembered = nil }
+        return remembered.map { PanelLayout.fit($0, in: area, min: .zero) }
+    }
+}
+
 // [DOMAIN] Saved frames are stored as "x,y,w,h" and only restored when they are
 // sane and still reachable on a connected display; otherwise the default wins.
 public enum PanelFrameCodec {

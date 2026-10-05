@@ -2,8 +2,10 @@
 // typed follow-up. Types only: the closed lists and labels live in the
 // contracts package.
 import type {
+  LiveCaptureDisplay,
   LiveCaptureMode,
   LiveCaptureRegion,
+  LiveOcrBlock,
   LiveOwnerLanguageHint,
   LiveOwnerSkillHint,
 } from "@omnitech/interview-contracts";
@@ -20,6 +22,24 @@ export type CaptureInput = OwnerHints & {
   image: Blob;
   label?: string | undefined;
   target?: { taskId: string; revision: number } | undefined;
+  // The text the shell read from this frame on the device, with its metrics.
+  ocr?: LiveOcrBlock | null | undefined;
+};
+
+// "Apply" on the answer page: the images the owner staged on the device (already
+// cropped, in the order they chose), sent as ONE request. `requestId` is the
+// dedup key: the caller makes one per Apply and reuses it for a retry. With a
+// target the result is one new revision of that task; without, one new task
+// (at least one image). `ocr` is the text read from each image on the device,
+// aligned by index (null: none); `display` is the label of the display each
+// image came from, aligned the same way.
+export type ApplyContextInput = OwnerHints & {
+  requestId: string;
+  images: readonly Blob[];
+  ocr?: readonly (LiveOcrBlock | null)[] | undefined;
+  // The display each image was captured on, aligned by index (null: unknown).
+  display?: readonly (LiveCaptureDisplay | null)[] | undefined;
+  label?: string | undefined;
 };
 
 // Asking the native companion to capture once: the focused window, a region of

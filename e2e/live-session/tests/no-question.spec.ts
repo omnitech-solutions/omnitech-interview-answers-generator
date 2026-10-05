@@ -1,0 +1,262 @@
+// A capture with no interview question (D36) is a NOTE, never a task: no T
+// number, no chip, no answer bubble. The server still holds the capture and its
+// result (category no-question); the page says so in one muted line, three or
+// more in a row collapse into one, Back goes to the newest REAL task, Auto holds
+// after one until the screen really changes, and Manual never holds.
+import type { Page } from "@playwright/test";
+import { expect, test } from "../src/fixtures/panel-test";
+import { startSessionViaApi } from "../src/helpers/api";
+import { db } from "../src/helpers/sql";
+import { say, settled, taskIdsOf } from "../src/helpers/tasks";
+import { SCRIPTED } from "../src/stack/scenarios";
+
+const NOTE = (n: number) => `S${n} captured: no question found`;
+const AUTO_LINE =
+  "No question on screen. Auto is holding until the screen changes.";
+const MANUAL_LINE = "No question found in the last capture.";
+
+// Eight row flags -> a known difference hash (see the shim). Flipping one row
+// moves the hash 8 bits (Auto's hold applies below 16), three rows 24 bits.
+const BASE = Array.from({ length: 8 }, () => true);
+const flip = (rows: number[]) =>
+  BASE.map((on, row) => (rows.includes(row) ? !on : on));
+
+const answers = async (id: string) =>
+  (await db.actionCategories(id)).filter((category) => category !== null);
+
+// The web page: a share, then a capture that sends now (the menu choice).
+async function captureViaMenu(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /^Capture & analyze/ }).click();
+  await page
+    .getByRole("menuitem", { name: /^New task from a fresh capture/ })
+    .click();
+}
+
+test("web no-question capture: a note in the transcript and nothing else; no task, no chip, no number, and the server holds a no-question result", async ({
+  live,
+  control,
+  page,
+}) => {
+  await control.scenario("no-question");
+  await live.goto();
+  const session = await live.startRehearsal();
+  await live.useManual();
+  await live.shareScreen();
+
+  await captureViaMenu(page);
+
+  // The server held the capture and its result, and its category says no
+  // question was found; the model was called once, with the image.
+  await expect
+    .poll(async () => await answers(session.id))
+    .toEqual(["no-question"]);
+  expect(
+    (await db.observations(session.id)).filter(
+      (o) => o.kind === "screen.snapshot" && o.screenshot_artifact_id,
+    ),
+  ).toHaveLength(1);
+  expect(await control.calls()).toHaveLength(1);
+  expect((await control.calls())[0]).toMatchObject({ images: 1 });
+
+  // The page shows no task: no article, no chip, the idle state; the note is in
+  // the transcript, and the draft sentence is never repeated.
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Detected tasks" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("live-idle")).toBeVisible();
+  await page.getByRole("tab", { name: "Transcript" }).click();
+  const note = page.getByTestId("transcript-note");
+  await expect(note).toHaveCount(1);
+  await expect(note).toContainText(NOTE(1));
+  await expect(note).not.toContainText("T1");
+  await expect(page.locator("[data-task-row]")).toHaveCount(0);
+  await expect(page.getByText(SCRIPTED.noQuestion)).toHaveCount(0);
+});
+
+test("web no-question notes collapse: one or two stay as notes, the third turns them into one 'captures with no question' line", async ({
+  live,
+  control,
+  page,
+}) => {
+  await control.scenario("no-question");
+  await live.goto();
+  const session = await live.startRehearsal();
+  await live.useManual();
+  await live.shareScreen();
+  await page.getByRole("tab", { name: "Transcript" }).click();
+  const note = page.getByTestId("transcript-note");
+
+  await captureViaMenu(page);
+  await expect(note).toContainText(NOTE(1));
+  await captureViaMenu(page);
+  await expect(note).toContainText(`${NOTE(1)} · ${NOTE(2)}`);
+  await expect(note).toHaveCount(1);
+  await captureViaMenu(page);
+  await expect(note).toHaveText(/3 captures with no question/);
+  await expect(note).toHaveCount(1);
+  expect(await answers(session.id)).toEqual([
+    "no-question",
+    "no-question",
+    "no-question",
+  ]);
+  await expect(page.getByRole("article")).toHaveCount(0);
+});
+
+test("web no-question after real tasks: Back goes to the newest REAL task, never to a task the note would have been", async ({
+  live,
+  control,
+  page,
+}) => {
+  await control.scenario("plain-answer");
+  const started = await startSessionViaApi();
+  await live.goto();
+  await live.useManual();
+  const credential = started.response.credential.value;
+  await say(credential, "What is a closure in JavaScript?");
+  await settled(started.id, 1);
+  await say(credential, "What is the event loop?");
+  await settled(started.id, 2);
+  // Look at the earlier task, then capture a screen with no question.
+  await live.chip(1).click();
+  await expect(live.task(1)).toBeVisible();
+  await control.scenario("no-question");
+  await live.shareScreen();
+  await captureViaMenu(page);
+  await expect
+    .poll(async () => (await answers(started.id)).at(-1))
+    .toBe("no-question");
+
+  // Still two tasks, T1 still on show, and Back goes to T2 (not a T3).
+  await expect(
+    page.getByRole("group", { name: "Detected tasks" }).getByRole("button"),
+  ).toHaveCount(2);
+  await expect(live.task(1)).toBeVisible();
+  await page.getByRole("button", { name: "Back to T2" }).click();
+  await expect(live.task(2)).toBeVisible();
+  await expect(page.getByRole("article", { name: /^Task 3:/ })).toHaveCount(0);
+  expect(taskIdsOf(await db.actions(started.id)).length).toBe(3);
+});
+
+test("@native native no-question in Manual: the pane says what the last capture found, the chat gets a note, there is no task; a manual capture is always posted (Manual never holds)", async ({
+  openPanel,
+  control,
+}) => {
+  await control.scenario("no-question");
+  const { page, id, analyze, host } = await openPanel({ auto: "off" });
+  const apply = page.getByTestId("apply-screenshots");
+
+  await analyze.click();
+  await apply.click();
+
+  await expect(page.getByTestId("pn-no-question")).toHaveText(MANUAL_LINE);
+  await expect.poll(async () => await answers(id)).toEqual(["no-question"]);
+  const marker = page.getByTestId("pn-marker");
+  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveText(NOTE(1));
+  // No task anywhere: no chat answer, no chip group, the empty pane.
+  await expect(page.getByRole("button", { name: /^Studio · T/ })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("group", { name: "Tasks" })).toHaveCount(0);
+  await expect(page.getByTestId("pn-analysis-empty")).toBeVisible();
+
+  // Manual does not hold: a second press is a second capture, a second model
+  // call and a second note; a third collapses them.
+  await analyze.click();
+  await apply.click();
+  await expect.poll(async () => (await control.calls()).length).toBe(2);
+  await expect(marker).toHaveText(`${NOTE(1)} · ${NOTE(2)}`);
+  await analyze.click();
+  await apply.click();
+  await expect.poll(async () => (await control.calls()).length).toBe(3);
+  await expect(marker).toHaveText(/3 captures with no question/);
+  await expect(marker).toHaveCount(1);
+  expect((await host.calls("captureScreen")).length).toBe(3);
+
+  // A real question after them is T1 (the notes took no number).
+  await control.scenario("plain-answer");
+  await analyze.click();
+  await apply.click();
+  await expect(
+    page.getByRole("button", { name: /^Studio · T1/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "Tasks" })).toHaveCount(0);
+});
+
+test("@native native no-question and Back: with an earlier task on show, a no-question capture leaves Back pointing at the newest real task", async ({
+  openPanel,
+  control,
+}) => {
+  await control.scenario("plain-answer");
+  const started = await startSessionViaApi();
+  const { page, id, analyze } = await openPanel({
+    auto: "off",
+    sessionId: started.id,
+  });
+  const credential = started.response.credential.value;
+  await say(credential, "What is a closure in JavaScript?");
+  await settled(id, 1);
+  await say(credential, "What is the event loop?");
+  await settled(id, 2);
+  await page
+    .getByRole("group", { name: "Tasks" })
+    .getByRole("button", { name: /^T1 · / })
+    .click();
+  await expect(page.getByTestId("pn-earlier")).toBeVisible();
+
+  await control.scenario("no-question");
+  await analyze.click();
+  await page.getByTestId("apply-screenshots").click();
+  await expect.poll(async () => (await answers(id)).at(-1)).toBe("no-question");
+
+  // No third task or chip; Back says T2, and goes there.
+  await expect(
+    page.getByRole("group", { name: "Tasks" }).getByRole("button"),
+  ).toHaveCount(2);
+  const back = page.getByRole("button", { name: "Back to T2" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page.getByTestId("pn-task-line")).toContainText("T2");
+  await expect(page.getByTestId("pn-earlier")).toHaveCount(0);
+});
+
+test("@native native Auto after a no-question capture: it holds through a small change and captures again only for a substantial one", async ({
+  openPanel,
+  control,
+}) => {
+  await control.scenario("no-question");
+  const { page, id, host } = await openPanel({ auto: "on" });
+  await expect(page.getByText("Auto · watching the screen")).toBeVisible();
+  await host.setFramePattern(BASE);
+
+  // The first frame is always analysed; it shows no question.
+  await host.fireScreenChange(40);
+  await expect.poll(async () => (await control.calls()).length).toBe(1);
+  await expect(page.getByTestId("pn-no-question")).toHaveText(AUTO_LINE);
+  await expect.poll(async () => await answers(id)).toEqual(["no-question"]);
+  expect(await db.actions(id).then(taskIdsOf)).toHaveLength(1);
+
+  // A small change (one row of eight: 8 bits of 64) is a new frame, but Auto
+  // holds: the shell is asked for the frame to compare, the model is not.
+  await host.setFramePattern(flip([2]));
+  const sampled = (await host.calls("captureScreen")).length;
+  await host.fireScreenChange(12);
+  await expect
+    .poll(async () => (await host.calls("captureScreen")).length)
+    .toBeGreaterThan(sampled);
+
+  // A substantial change (three rows: 24 bits) is captured and analysed again.
+  await host.setFramePattern(flip([1, 2, 3]));
+  await host.fireScreenChange(40);
+  // (Auto's rate limit may make it wait for its next check.)
+  await expect
+    .poll(async () => (await control.calls()).length, { timeout: 40_000 })
+    .toBe(2);
+  // Exactly two analyses in all: the small change never reached the model.
+  await expect
+    .poll(async () => await answers(id))
+    .toEqual(["no-question", "no-question"]);
+  await expect(page.getByTestId("pn-no-question")).toHaveText(AUTO_LINE);
+  await expect(page.getByTestId("pn-marker")).toHaveCount(1);
+});

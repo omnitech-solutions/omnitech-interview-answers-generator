@@ -14,7 +14,10 @@ import {
   useState,
 } from "react";
 import { Icon } from "../../../icon";
+import { followUpNote } from "../../shared/revisions";
+import { ScreenshotSendControl } from "../../shared/screenshot-send-control";
 import { SKILLS } from "../../shared/skills";
+import { useScreenshotSend } from "../../shared/use-screenshot-send";
 import { BUILD_ID } from "../build-id";
 import type { ApproachItem } from "../overlay-model";
 import { AnswerPane, CodePane } from "./answer-pane";
@@ -171,7 +174,14 @@ function Row({
 }
 
 export function ChatPanel({ s }: { s: PanelSession }) {
-  const rows = panelRows(s.model, s.entries, s.system, s.clearedAt, s.markers);
+  const rows = panelRows(
+    s.model,
+    s.entries,
+    s.system,
+    s.clearedAt,
+    s.markers,
+    s.revisionPicks,
+  );
   // A follow-up is on its way to the server: the reply is not here yet.
   const answering = s.snapshot.pending.includes("follow-up");
   const recording = s.live.mic === "listening";
@@ -281,6 +291,11 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           <span>{s.note}</span>
         </p>
       )}
+      {s.selected && s.card && followUpNote(s.selected, s.card.revision) && (
+        <p className="pn-muted" role="status" data-testid="pn-followup-note">
+          {followUpNote(s.selected, s.card.revision)}
+        </p>
+      )}
       <form className="pn-compose" onSubmit={submit}>
         <input
           className="pn-input"
@@ -315,6 +330,28 @@ export function ChatPanel({ s }: { s: PanelSession }) {
 }
 
 // ---- Settings ---------------------------------------------------------------
+
+// D35: where the processing policy lives, so do the related privacy choices.
+function PrivacySettings({ s }: { s: PanelSession }) {
+  const send = useScreenshotSend({
+    session: s.session,
+    pending: s.snapshot.pending,
+    save: s.actions.setScreenshotSend,
+  });
+  return (
+    <>
+      <div className="pn-label">Privacy</div>
+      <ScreenshotSendControl
+        variant="native"
+        value={send.value}
+        saving={send.saving}
+        failure={send.failure}
+        disabledReason={send.disabledReason}
+        onChange={send.choose}
+      />
+    </>
+  );
+}
 
 export function SettingsPanel({
   s,
@@ -402,6 +439,7 @@ export function SettingsPanel({
             ))}
           </select>
         </label>
+        {s.session && <PrivacySettings s={s} />}
         <p className="pn-footer">
           Visible window · shows in screen shares ·{" "}
           <span data-testid="pn-build">Build {BUILD_ID}</span>

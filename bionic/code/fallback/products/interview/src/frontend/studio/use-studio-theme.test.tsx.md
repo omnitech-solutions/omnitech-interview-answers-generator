@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/use-studio-theme.test.tsx` (header-comment fallback)_
 
-_No leading comment block found._
+The shell, not the hook, owns the DOM attribute and the saved choice.

@@ -6,11 +6,13 @@ import type {
   LiveCredential,
   LiveObservation,
   LiveRetentionMode,
+  LiveScreenshotSend,
   LiveSessionStartRequest,
   LiveSessionSummary,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import type {
+  ApplyContextInput,
   CaptureInput,
   CompanionCaptureInput,
   OwnerHints,
@@ -28,10 +30,13 @@ export type SessionCommand =
   | "revoke"
   | "tighten"
   | "shorten"
+  | "screenshot-send"
   | "delete"
   | "analyze"
   | "follow-up"
   | "solve"
+  | "regenerate"
+  | "apply-context"
   | "capture-request"
   | "switch";
 
@@ -80,9 +85,12 @@ export type CaptureRequestResult =
   | { ok: true; state: LiveCaptureState }
   | { ok: false; code: SessionErrorCode };
 
+// A failure carries the fixed code and, when the server gave one, its refusal
+// reason (a fixed word such as stale_target, vision_device_only or
+// image_count, never content).
 export type CommandResult =
   | { ok: true }
-  | { ok: false; code: SessionErrorCode };
+  | { ok: false; code: SessionErrorCode; reason?: string };
 
 // What the UI may do. Each command updates the snapshot from the server's
 // response; a failure is returned as a code (and held in commandError).
@@ -102,6 +110,9 @@ export type SessionActions = {
   tightenLocality(): Promise<CommandResult>;
   // Shorten only: the server answers retention_lengthening_refused otherwise.
   shortenRetention(retention: LiveRetentionMode): Promise<CommandResult>;
+  // D35: which of a screenshot reaches the model, changeable either way at any
+  // time; it applies to the next model call. The saved value is the session's.
+  setScreenshotSend(value: LiveScreenshotSend): Promise<CommandResult>;
   deleteSession(): Promise<CommandResult>;
   // Owner input: thin calls to the session deps. "unavailable" when the server
   // has no such route; "invalid_input" for an empty follow-up.
@@ -127,6 +138,17 @@ export type SessionActions = {
   // Generate the solution code for one task revision (the coding stage). One
   // request per revision: asking again for the same one is the same request.
   solveTask(target: TaskTarget, hints?: OwnerHints): Promise<CommandResult>;
+  // Regenerate one task revision: a new revision of the SAME task from the same
+  // sources and screenshots. The same revision asked twice is one request.
+  regenerate(target: TaskTarget): Promise<CommandResult>;
+  // Apply the images staged on the device as ONE request: with a target, one new
+  // revision of that task (a plain regeneration when there are no images);
+  // with null, one new task from the images. An identical request (same target
+  // and request id) in flight is the same call.
+  applyContext(
+    target: TaskTarget | null,
+    input: ApplyContextInput,
+  ): Promise<CommandResult>;
   // Hands-free Auto: one heard phrase, idempotent by `requestId`. A failure is
   // returned, never held as the session's command error.
   submitHeard(text: string, requestId: string): Promise<CommandResult>;

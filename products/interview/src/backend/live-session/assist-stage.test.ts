@@ -12,6 +12,7 @@ import {
   createAssistStage,
   DEVICE_MAX_PROMPT_BYTES,
   MAX_CAPTURED_CHARS,
+  NO_QUESTION_DRAFT,
   STAR_ELEMENTS,
 } from "./assist-stage";
 import { LEAVING_REASON_PLACEHOLDER } from "./claims";
@@ -297,7 +298,7 @@ const output = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 const check = (raw: unknown, snapshot = SNAPSHOT, captured: string[] = []) =>
-  stage.validate(raw, { snapshot, captured });
+  stage.validate(raw, { snapshot, captured, screenBased: true });
 const violationsOf = (
   raw: unknown,
   snapshot = SNAPSHOT,
@@ -995,5 +996,108 @@ describe("spoken-figure hazard (7b)", () => {
       ["Did you cut latency by 85% in that migration?"],
     );
     expect(violations).toContain("claims.0:spoken_figure");
+  });
+});
+
+// D36: a capture with nothing to answer is reported, never answered.
+describe("no-question category", () => {
+  const noQuestion = (overrides: Record<string, unknown> = {}) =>
+    output({
+      category: "no-question",
+      draft: "The screen shows a code editor with no question.",
+      ...overrides,
+    });
+
+  it("is a closed category and the stage's JSON schema offers it", () => {
+    expect(ASSIST_CATEGORIES).toContain("no-question");
+    expect(ASSIST_CATEGORIES).toContain("other");
+    const prepared = promptOf(stage.prepare(input("x")));
+    expect(JSON.stringify(prepared.schema)).toContain("no-question");
+  });
+
+  it("accepts it with empty claims and null blocks, with no sections", () => {
+    const result = check(noQuestion());
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) {
+      expect(result.draft.category).toBe("no-question");
+      expect(result.draft.sections).toEqual([]);
+    }
+  });
+
+  it("stores a constant draft and discards the model's own", () => {
+    const result = check(
+      noQuestion({
+        draft: "You have 12 years of experience and a 90k salary.",
+      }),
+    );
+    expect(result.ok && result.draft.draft).toBe(NO_QUESTION_DRAFT);
+  });
+
+  it("rejects no-question on a call that carried no screen", () => {
+    const result = stage.validate(noQuestion(), {
+      snapshot: SNAPSHOT,
+      captured: [],
+      screenBased: false,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      violations: expect.arrayContaining(["category:unexpected"]),
+    });
+  });
+
+  it("drops missingContext: there is no task to supply context to", () => {
+    const result = check(
+      noQuestion({ missingContext: [{ kind: "constraints" }] }),
+    );
+    expect(result.ok && result.draft.missingContext).toBeFalsy();
+  });
+
+  it.each([
+    ["claims", { claims: [migrationClaim] }, "claims:unexpected"],
+    [
+      "star",
+      {
+        star: {
+          situation: { text: "", claimIndexes: [] },
+          task: { text: "", claimIndexes: [] },
+          action: { text: "", claimIndexes: [] },
+          result: { text: "", claimIndexes: [] },
+          missing: ["situation", "task", "action", "result"],
+        },
+      },
+      "star:unexpected",
+    ],
+    [
+      "logistics",
+      { logistics: { found: [], missing: ["notice-period"] } },
+      "logistics:unexpected",
+    ],
+    [
+      "codingBrief",
+      {
+        codingBrief: {
+          language: "typescript",
+          restatement: "Anything.",
+          constraints: [],
+        },
+      },
+      "codingBrief:unexpected",
+    ],
+  ])("rejects %s on a no-question result", (_name, extra, code) => {
+    expect(violationsOf(noQuestion(extra))).toContain(code);
+  });
+
+  it("leaves other unchanged: it still needs no structure and keeps grounding", () => {
+    expect(check(output({ category: "other" }))).toMatchObject({ ok: true });
+  });
+
+  it("routes an unreadable or empty screen to no-question in the image policy, with no quoting", () => {
+    const { system } = promptOf(
+      stage.prepare(input("x", SNAPSHOT, { imageCount: 1 })),
+    );
+    expect(system).toContain("category no-question");
+    expect(system).toContain("never quoting or paraphrasing");
+    expect(system).toContain("this assistant's own interface");
+    expect(system).not.toContain("with the category other");
   });
 });

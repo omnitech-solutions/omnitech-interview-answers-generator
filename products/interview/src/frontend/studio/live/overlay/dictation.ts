@@ -49,6 +49,9 @@ export const DICTATION_NOTE =
 export const DICTATION_MESSAGES = {
   unsupported:
     "This browser has no dictation. Use Chrome or Edge, or type the follow-up.",
+  // The Mac app's own window: Chrome or Edge is no advice there.
+  unsupportedInApp:
+    "Dictation is not available in this window. Type the follow-up instead.",
   deviceOnlyUnsupported:
     "Device-only mode needs on-device dictation, which this browser can’t do, so dictation is off. Type the follow-up instead.",
   deviceOnlyUnavailable:
@@ -168,8 +171,16 @@ export function useDictation({
   deviceOnly,
   bindingKey = null,
   persistent = false,
+  meter = true,
+  inApp = false,
   onFinal,
 }: {
+  // The page runs inside the Mac app: the unsupported message does not send
+  // the person to another browser.
+  inApp?: boolean;
+  // The level meter opens the microphone a second time (getUserMedia). A native
+  // host's engine owns the microphone, so it asks for none: no extra prompt.
+  meter?: boolean;
   // Hands-free Auto: listening carries on through silence timeouts and errors
   // that retrying can fix (restarting with a growing wait), and only stops for
   // one that cannot be fixed by retrying (permission, no microphone).
@@ -207,6 +218,8 @@ export function useDictation({
   final.current = onFinal;
   const keepAlive = useRef(persistent);
   keepAlive.current = persistent;
+  const wantsMeter = useRef(meter);
+  wantsMeter.current = meter;
   const supported = recognitionCtor() !== null;
 
   const endMeter = useCallback(() => {
@@ -331,13 +344,19 @@ export function useDictation({
       setHeard(false);
       setState("listening");
       // Best effort: a refusal here (no permission) is dictation's own error.
-      void startMeter(setLevel).then(
-        (end) => {
-          if (wanted.current) stopMeter.current = end;
-          else end();
-        },
-        () => undefined,
-      );
+      // Each meter belongs to the attempt that opened it: one that resolves after
+      // a stop (and maybe a new start) closes its own stream, never leaks.
+      const meterAttempt = attempt.current;
+      if (wantsMeter.current)
+        void startMeter(setLevel).then(
+          (end) => {
+            if (wanted.current && meterAttempt === attempt.current) {
+              stopMeter.current?.();
+              stopMeter.current = end;
+            } else end();
+          },
+          () => undefined,
+        );
     },
     [endMeter],
   );
@@ -345,7 +364,11 @@ export function useDictation({
   const start = useCallback(() => {
     const Ctor = recognitionCtor();
     if (!Ctor) {
-      setError(DICTATION_MESSAGES.unsupported);
+      setError(
+        inApp
+          ? DICTATION_MESSAGES.unsupportedInApp
+          : DICTATION_MESSAGES.unsupported,
+      );
       return;
     }
     const rec = new Ctor();
@@ -363,7 +386,7 @@ export function useDictation({
         else begin(rec);
       },
     );
-  }, [deviceOnly, begin]);
+  }, [deviceOnly, begin, inApp]);
 
   const toggle = useCallback(() => {
     if (wanted.current) stop();

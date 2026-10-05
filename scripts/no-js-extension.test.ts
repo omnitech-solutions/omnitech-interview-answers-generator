@@ -18,7 +18,7 @@ interface JsExtensionAllowance {
 
 const allowed: readonly JsExtensionAllowance[] = [];
 
-const scannedRoots = ["apps", "packages", "products", "scripts"];
+const scannedRoots = ["apps", "packages", "products", "scripts", "e2e"];
 const scannedRootFiles = ["vitest.config.ts", "vitest.package.config.ts"];
 const typescriptSource = /\.(ts|tsx|mts)$/;
 

@@ -20,9 +20,61 @@ import {
   type MissingContextActionId,
   MissingContextStrip,
 } from "./shared/missing-context-strip";
+import { revisionLine } from "./shared/revisions";
+import { RevisionsControl } from "./shared/revisions-control";
+import type { TrayIntent } from "./shared/screenshot-tray";
+import {
+  ScreenshotsArea,
+  ScreenshotsToggle,
+  useAreaId,
+} from "./shared/screenshots-area";
 import { STAGE_PRESENTATION, type TaskCard } from "./shared/task-card-model";
 import { TASK_KIND } from "./shared/task-kind";
 import { taskLabel, taskOrdinal } from "./shared/task-target";
+import {
+  type ScreenshotTray,
+  useTraySurface,
+} from "./shared/use-screenshot-tray";
+import { useScreenshotsView } from "./shared/use-screenshots-view";
+
+// What the web page hands the screenshots area: the one tray (Manual stages,
+// Apply generates), where the stored list is read from and how a capture is
+// staged. Absent when this page cannot capture (no hands-free controller).
+export type WebScreenshots = {
+  tray: ScreenshotTray;
+  tenant: string;
+  sessionId: string | null;
+  version: string | number;
+  policy: LiveProcessingPolicy | null;
+  onAdd(intent: TrayIntent): void;
+  unavailable: string | null;
+};
+
+// The area under a task, or, with no task yet, the tray of a new problem once
+// something is staged.
+export function StagingOnly({ screenshots }: { screenshots?: WebScreenshots }) {
+  const view = useScreenshotsView({
+    tray: screenshots?.tray ?? null,
+    tenant: screenshots?.tenant ?? "",
+    sessionId: screenshots?.sessionId ?? null,
+    taskId: null,
+    taskLabel: null,
+    version: screenshots?.version ?? 0,
+    policy: screenshots?.policy ?? null,
+  });
+  const id = useAreaId();
+  useTraySurface(screenshots?.tray ?? null);
+  if (!screenshots || !view || view.tray.items.length === 0) return null;
+  return (
+    <ScreenshotsArea
+      view={view}
+      id={id}
+      variant="web"
+      captureUnavailable={screenshots.unavailable}
+      onAdd={screenshots.onAdd}
+    />
+  );
+}
 
 export type Idle = { icon: IconName; title: string; detail: string };
 const IDLE: Partial<Record<ActivityKey, Idle>> = {
@@ -173,7 +225,13 @@ function StageTiles({
   );
 }
 
-function EarlierTaskBanner({ onBack }: { onBack(): void }) {
+function EarlierTaskBanner({
+  newest,
+  onBack,
+}: {
+  newest: string;
+  onBack(): void;
+}) {
   return (
     <div className="live-banner earlier" role="status">
       <Icon name="history" />
@@ -181,7 +239,7 @@ function EarlierTaskBanner({ onBack }: { onBack(): void }) {
         Viewing an earlier task. Studio still tracks the newest one.
       </span>
       <button type="button" className="live-banner-action" onClick={onBack}>
-        Back to now
+        Back to {newest}
       </button>
     </div>
   );
@@ -194,8 +252,12 @@ export function TaskPanel({
   policy,
   onCopy,
   onBackToNow,
+  onPickRevision,
   missing = null,
+  screenshots,
 }: {
+  // The task at the revision on show (see taskAtRevision); `revisions` and
+  // `currentRevision` are still the task's own.
   task: TaskView;
   // The one derivation of this task's identity, stages and model.
   card: TaskCard;
@@ -203,6 +265,8 @@ export function TaskPanel({
   policy: LiveProcessingPolicy | null;
   onCopy(text: string): void;
   onBackToNow(): void;
+  // View-only: show another revision of this task.
+  onPickRevision(revision: number): void;
   // What the model could not see and what the person can do about it; null
   // when nothing is missing or the person said it looks complete.
   missing?: {
@@ -210,17 +274,35 @@ export function TaskPanel({
     onAction(id: MissingContextActionId): void;
     unavailable: Partial<Record<MissingContextActionId, string>>;
   } | null;
+  screenshots?: WebScreenshots;
 }) {
+  const shots = useScreenshotsView({
+    tray: screenshots?.tray ?? null,
+    tenant: screenshots?.tenant ?? "",
+    sessionId: screenshots?.sessionId ?? null,
+    taskId: task.taskId,
+    taskLabel: card.label,
+    version: screenshots?.version ?? 0,
+    policy: screenshots?.policy ?? null,
+  });
+  const areaId = useAreaId();
+  useTraySurface(screenshots?.tray ?? null);
   const noticed = noticesFor(task, policy).length > 0;
   const meta = [
-    `${card.label} · rev ${card.revision}`,
+    `${card.label} · ${
+      card.revisionCount > 1
+        ? revisionLine(task, card.revision).label
+        : `rev ${card.revision}`
+    }`,
     card.snapshotLabel ? `from screenshot ${card.snapshotLabel}` : null,
   ]
     .filter((part) => part !== null)
     .join(" · ");
   return (
     <>
-      {card.earlier && <EarlierTaskBanner onBack={onBackToNow} />}
+      {card.earlier && (
+        <EarlierTaskBanner newest={card.newestLabel} onBack={onBackToNow} />
+      )}
       <article
         key={card.taskId}
         className="live-task"
@@ -234,7 +316,31 @@ export function TaskPanel({
             {card.kind.label}
           </span>
           <span className="live-note">{meta}</span>
+          <RevisionsControl
+            task={task}
+            selected={card.revision}
+            variant="web"
+            onPick={onPickRevision}
+          />
+          {card.revision !== card.currentRevision && (
+            <span className="live-note" data-testid="earlier-revision">
+              Viewing an earlier revision. The current one is rev{" "}
+              {card.currentRevision}.
+            </span>
+          )}
+          {shots && (
+            <ScreenshotsToggle view={shots} variant="web" controls={areaId} />
+          )}
         </header>
+        {shots && screenshots && (
+          <ScreenshotsArea
+            view={shots}
+            id={areaId}
+            variant="web"
+            captureUnavailable={screenshots.unavailable}
+            onAdd={screenshots.onAdd}
+          />
+        )}
         <h3 className="live-task-name">{card.name}</h3>
         <ModelLine card={card} answer={task.answer} />
         <StageTiles card={card} noticed={noticed} />

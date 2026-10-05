@@ -1,5 +1,7 @@
 // Capture settings: the active skill and the coding language, both sent as
 // hints with every analyze and follow-up, and the shortcut list.
+
+import type { LiveSessionView } from "@omnitech/interview-contracts";
 import {
   LIVE_OWNER_LANGUAGE_LABELS,
   LIVE_OWNER_LANGUAGES,
@@ -9,6 +11,9 @@ import {
   type LiveOwnerSkill,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef } from "react";
+import type { SessionActions } from "../session-snapshot";
+import { ScreenshotSendControl } from "../shared/screenshot-send-control";
+import { useScreenshotSend } from "../shared/use-screenshot-send";
 import type { CaptureSettings } from "./capture-prefs";
 import { SHORTCUTS } from "./overlay-shortcuts";
 import { closeOnEscape, useDismiss } from "./use-dismiss";
@@ -17,11 +22,25 @@ export function SettingsPopover({
   settings,
   onChange,
   onClose,
+  session = null,
+  actions,
+  shortcuts = true,
 }: {
+  // False where the page binds no Alt chord: the list is not printed there.
+  shortcuts?: boolean;
   settings: CaptureSettings;
   onChange(next: CaptureSettings): void;
   onClose(): void;
+  // D35: with a session, its "Screenshots to the model" choice sits here.
+  session?: LiveSessionView | null;
+  actions?: Pick<SessionActions, "setScreenshotSend">;
 }) {
+  const send = useScreenshotSend({
+    session,
+    save:
+      actions?.setScreenshotSend ??
+      (async () => ({ ok: false, code: "unavailable" })),
+  });
   const root = useRef<HTMLDivElement>(null);
   useDismiss(root, true, onClose);
   useEffect(() => root.current?.focus(), []);
@@ -80,19 +99,31 @@ export function SettingsPopover({
         language gets an answer without generated code. Both choices are sent as
         hints with every capture and follow-up.
       </p>
-      <div className="ov-shortcuts" aria-label="Shortcuts">
-        <div className="ov-field-label">Shortcuts</div>
-        {SHORTCUTS.map((shortcut) => (
-          <div key={shortcut.id} className="ov-shortcut">
-            <kbd>{shortcut.keys}</kbd>
-            <span>{shortcut.label}</span>
+      {session && actions && (
+        <ScreenshotSendControl
+          variant="native"
+          value={send.value}
+          saving={send.saving}
+          failure={send.failure}
+          disabledReason={send.disabledReason}
+          onChange={send.choose}
+        />
+      )}
+      {shortcuts && (
+        <div className="ov-shortcuts" aria-label="Shortcuts">
+          <div className="ov-field-label">Shortcuts</div>
+          {SHORTCUTS.map((shortcut) => (
+            <div key={shortcut.id} className="ov-shortcut">
+              <kbd>{shortcut.keys}</kbd>
+              <span>{shortcut.label}</span>
+            </div>
+          ))}
+          <div className="ov-shortcut">
+            <kbd>Esc</kbd>
+            <span>Close a menu</span>
           </div>
-        ))}
-        <div className="ov-shortcut">
-          <kbd>Esc</kbd>
-          <span>Close a menu</span>
         </div>
-      </div>
+      )}
     </div>
   );
 }

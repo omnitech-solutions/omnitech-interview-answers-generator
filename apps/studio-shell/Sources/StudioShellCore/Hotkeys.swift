@@ -5,9 +5,10 @@ import Foundation
 // its own registered combination, never other keystrokes). Option+Shift+letter
 // matches the card's own Alt+Shift+A, so the key does the same thing in and out
 // of the window. The modifier values are Carbon's. Skill cycling (Cmd+Up/Down)
-// is registered only while interaction mode is ON, so Cmd+Arrow keeps working
-// in other apps the rest of the time. Every other key stays registered while the
-// window ignores the mouse: Cmd+Shift+I is the way back from click-through.
+// is registered only while interaction mode is ON (the shell's whole-window
+// state, always ON now that the page's See-through works by region), so
+// Cmd+Arrow keeps working in other apps the rest of the time. Cmd+Shift+I flips
+// the page's See-through control.
 public struct HotkeyBinding: Equatable, Sendable {
     public enum Action: String, Sendable {
         case captureAnalyze, solutionGenerate, toggleAuto, toggleVisibility, toggleInteraction, toggleMic, clearSession
@@ -82,7 +83,8 @@ public enum HotkeyRouting {
         case .toggleMic: return .intent(.transcribeToggle)
         case .clearSession: return .intent(.sessionClear)
         case .toggleVisibility: return .present(.toggleVisible)
-        case .toggleInteraction: return .present(.toggleInteractionMode)
+        // ⌘⇧I flips the page's See-through control (clear glass and region pass-through).
+        case .toggleInteraction: return .intent(.seeThroughToggle)
         case .toggleMode: return .present(.toggleAppMode)
         case .bringToFront: return .present(.bringToFront)
         case .showChat: return .intent(.chatFocus)

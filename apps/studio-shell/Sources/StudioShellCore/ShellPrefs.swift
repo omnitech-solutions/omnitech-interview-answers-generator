@@ -102,6 +102,12 @@ public struct ShellPrefs {
         nonmutating set { store.set(newValue.rawValue, forKey: "appMode2") }
     }
 
+    // The display capture is pinned to; nil follows the last-focused browser.
+    public var captureDisplay: UInt32? {
+        get { store.string(forKey: "capture.display").flatMap { UInt32($0) } }
+        nonmutating set { store.set(newValue.map { String($0) }, forKey: "capture.display") }
+    }
+
     // The compact window and Settings each remember where they were put.
     public func savedFrame(_ kind: WindowKind, displays: [CGRect]) -> CGRect? {
         PanelFrameCodec.restoreFrame(store.string(forKey: Self.frameKey(kind)), minSize: kind.minSize, displays: displays)

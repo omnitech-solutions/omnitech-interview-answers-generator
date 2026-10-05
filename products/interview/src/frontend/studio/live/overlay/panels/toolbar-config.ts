@@ -85,36 +85,41 @@ export function captureMenuItems(input: {
   ];
 }
 
-// ---- Window controls ------------------------------------------------------------
+// ---- Window controls and sizes ----------------------------------------------------
 
 // The three always-coloured dots at the toolbar's left, as the Mac draws its
-// window controls but glass-transparent. Red hides the window (the show/hide
-// chord and the menu-bar item bring it back), yellow collapses to the bare
-// toolbar, green shows every pane. The hex values live in panels.css by `colour`.
+// window controls but glass-transparent. Yellow hides the window (pausing the
+// session first when it is capturing or listening); the show/hide chord, the
+// menu-bar item and the Dock icon bring it back. Red quits the app after a
+// confirmation. Green toggles full screen on a click and opens the window-size
+// menu (WINDOW_MODES) when the pointer rests on it. The hex values live in
+// panels.css by `colour`.
 export const WINDOW_CONTROLS = [
+  {
+    id: "quit",
+    label: "Quit Interview Studio",
+    title:
+      "Quit the app. Your session stays on the server; capture and listening stop here",
+    colour: "red",
+    glyph: "×",
+    action: "quit",
+  },
   {
     id: "hide",
     label: "Hide window",
-    title: `Hide the window · ${nativeChord("show-hide")} or the menu-bar item shows it again`,
-    colour: "red",
-    glyph: "×",
+    title: `Hide the window. A live session pauses first · ${nativeChord("show-hide")}, the menu-bar item or the Dock icon shows it again`,
+    colour: "yellow",
+    glyph: "−",
     action: "hide",
   },
   {
-    id: "collapse",
-    label: "Collapse to toolbar",
-    title: "Hide every pane and keep only the toolbar",
-    colour: "yellow",
-    glyph: "−",
-    action: "collapse",
-  },
-  {
-    id: "expand",
-    label: "Show all panes",
-    title: "Show the chat, the answer and the code",
+    id: "size",
+    label: "Full screen: click. Hold the pointer here for more window sizes",
+    title:
+      "Click for full screen. Hold the pointer here for Normal, Mini player and Full screen",
     colour: "green",
     glyph: "+",
-    action: "expand",
+    action: "size",
   },
 ] as const satisfies readonly {
   id: string;
@@ -122,21 +127,66 @@ export const WINDOW_CONTROLS = [
   title: string;
   colour: "red" | "yellow" | "green";
   glyph: string;
-  action: "hide" | "collapse" | "expand";
+  action: "quit" | "hide" | "size";
 }[];
 export type WindowControlAction = (typeof WINDOW_CONTROLS)[number]["action"];
 
-// Why the red dot cannot hide the window now, or null when it can. A window
-// that is capturing or listening stays on screen: the person is told to pause
-// first, so what is being captured is never out of sight.
-export function hideBlockedReason(session: {
-  open: boolean;
-  paused: boolean;
-}): string | null {
-  return session.open && !session.paused
-    ? "Pause the session to hide the window"
-    : null;
-}
+// How long the pointer rests on the green dot before its menu opens, and how
+// long the menu waits after the pointer leaves the dot and the menu.
+export const GREEN_MENU_HOVER_MS = 1000;
+export const GREEN_MENU_GRACE_MS = 300;
+
+export const QUIT_CONFIRMATION = {
+  question: "Quit Interview Studio?",
+  detail: "Your session stays on the server; capture and listening stop here.",
+  cancel: "Cancel",
+  confirm: "Quit",
+} as const;
+
+export const HIDDEN_TOAST = "Paused while hidden";
+
+// The one window's sizes. `size` is the page's request to the shell: fit the
+// panes that show, a fixed card (with the height it takes while a menu is
+// open), or fill the display. `view` picks what is drawn; `needs` is the bridge
+// method the host must offer.
+export const MINI_SIZE = { width: 440, height: 190, menuHeight: 330 } as const;
+export const WINDOW_MODES = [
+  {
+    id: "normal",
+    label: "Normal",
+    hint: "The toolbar with the chat, answer and code panes",
+    size: { kind: "fit-panes" },
+    view: "panel",
+    needs: null,
+  },
+  {
+    id: "mini",
+    label: "Mini player",
+    hint: "A small always-on-top card with the essentials",
+    size: { kind: "fixed", ...MINI_SIZE },
+    view: "mini",
+    needs: "setWindowSize",
+  },
+  {
+    id: "full",
+    label: "Full screen",
+    hint: `Fill this display with every pane · Esc leaves`,
+    size: { kind: "fill-display" },
+    view: "panel",
+    needs: "setFullScreen",
+  },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  hint: string;
+  size:
+    | { kind: "fit-panes" }
+    | { kind: "fixed"; width: number; height: number; menuHeight: number }
+    | { kind: "fill-display" };
+  view: "panel" | "mini";
+  needs: "setWindowSize" | "setFullScreen" | null;
+}[];
+export type WindowModeId = (typeof WINDOW_MODES)[number]["id"];
 
 // ---- Panes --------------------------------------------------------------------
 
@@ -201,6 +251,49 @@ export const WINDOW_PAD = PAD;
 // A menu opened from the toolbar needs this much window below it, even when no
 // pane is showing.
 export const POPOVER_ROOM = 340;
+
+// ---- The See-through control ------------------------------------------------------
+
+// ONE switch for everything that lets the page underneath show and work: ON makes
+// the glass behind the panes, strip, toolbar and footer clear (panels.css, keyed
+// on data-glass="clear" on the panel root) AND, where the shell can (the
+// "hit-regions" capability), passes the mouse to the app underneath wherever the
+// window is empty glass; every painted surface keeps taking clicks (hit-regions.ts).
+// OFF is the normal glass and the whole window takes the mouse. Text keeps its
+// floor of tint and shadow, and the window, its dots and the footer stay visible.
+export const SEE_THROUGH_CONTROL = {
+  label: "See-through",
+  icon: "contrast",
+} as const satisfies { label: string; icon: IconName };
+
+// The tooltip says exactly what is on, and what pressing it does.
+export function seeThroughTitle(on: boolean, passThrough: boolean): string {
+  const chord = nativeChord("see-through");
+  const hotkey = passThrough ? ` · ${chord}` : "";
+  if (on)
+    return passThrough
+      ? `See-through is on: the background is clear and clicks on empty glass reach the page underneath. Toolbar, panes and menus still take clicks. Press to turn off${hotkey}`
+      : `See-through is on: the background is clear and text stays readable. Press to turn off`;
+  return passThrough
+    ? `See-through is off. Press to make the background clear, and let clicks on empty glass reach the page underneath${hotkey}`
+    : "See-through is off. Press to make the background clear. Text stays readable";
+}
+
+// ---- The screen picker -----------------------------------------------------------
+
+// The chevron attached to the capture button, shown only when the host
+// advertises "display-selection" (the native panel). Its menu's first row follows
+// the browser; the rest pin capture to one display. The chevron's name and the
+// capture button's tooltip add the current choice (display-picker-model.ts).
+export const SCREEN_CONTROL = {
+  label: "Screen to capture",
+  followLabel: "Follow my browser",
+  followSub: "Capture the display your browser is on",
+} as const satisfies {
+  label: string;
+  followLabel: string;
+  followSub: string;
+};
 
 // ---- The capture control ------------------------------------------------------
 

@@ -149,6 +149,24 @@ describe("the one status line", () => {
       "Auto · Grant Screen Recording to the app",
     );
   });
+  it("names the app in front, and the chord, while no browser is", () => {
+    expect(
+      text({ screenProblem: "no-focused-window", screenFrontApp: "Claude" }),
+    ).toBe(
+      "Auto · Claude is in front. Press ⌘⇧S while Chrome or Safari is in front, or click the browser first.",
+    );
+    expect(text({ screenProblem: "no-focused-window" })).toMatch(
+      /^Auto · No browser is in front\./,
+    );
+  });
+  it("says what a shell that does not answer or a failed capture needs", () => {
+    expect(text({ screenProblem: "timeout" })).toMatch(
+      /The shell did not answer/,
+    );
+    expect(text({ screenProblem: "capture-failed" })).toMatch(
+      /The capture failed/,
+    );
+  });
   it("needs no browser share when the host captures", () => {
     expect(text({ sharing: true })).not.toMatch(/Share/);
   });

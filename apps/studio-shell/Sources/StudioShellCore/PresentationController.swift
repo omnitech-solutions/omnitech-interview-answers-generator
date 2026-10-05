@@ -10,8 +10,9 @@ import Foundation
 // `packages/interview-contracts` (`studio-host`).
 enum PresentationCapability: String, CaseIterable, Sendable {
     case alwaysOnTop = "always-on-top"
-    case clickThrough = "click-through"
     case allSpaces = "all-spaces"
+    // The page reports its painted rectangles; the window takes the mouse only over them.
+    case hitRegions = "hit-regions"
 }
 
 // The standalone app (expanded: the main window) or its minified form (the one
@@ -35,6 +36,12 @@ public enum PresentationCommand: Equatable, Sendable {
     // The one window: this size (points). It widens or narrows about its centre; a
     // height fits it to its content from the top edge, none restores the old height.
     case setWindowSize(width: Double, height: Double?)
+    // The one window fills the visible frame of its display (not a macOS Space),
+    // or goes back to the frame it had. The page owns the mode; nothing is reported back.
+    case setFullScreen(Bool)
+    // The page's painted rectangles (window content coordinates); nil makes the whole
+    // window interactive. Not part of PresentationState: pages are not told about it.
+    case setHitRegions([HitRect]?)
     case bringToFront
     // The Settings window's Quit: ends the app.
     case quitApp
@@ -52,7 +59,9 @@ public struct PresentationState: Equatable, Sendable {
         appMode: .expanded, settingsOpen: false, hidden: false,
         interaction: InteractionState(), hotkeysEnabled: true)
 
-    public var mainWindowShown: Bool { appMode == .expanded }
+    // Hidden applies to whichever window is current, so the yellow dot's Hide works in the
+    // expanded form too, and showing again returns to the same form (never a different one).
+    public var mainWindowShown: Bool { appMode == .expanded && !hidden }
     public var compactShown: Bool { appMode == .minified && !hidden }
     public var settingsShown: Bool { compactShown && settingsOpen }
 
@@ -82,6 +91,10 @@ public protocol PresentationSurface: AnyObject {
     // The one-window view: take this size, widening or narrowing evenly about the
     // window's centre so the toolbar at its top stays where it is.
     func setCompactSize(width: Double, height: Double?)
+    // Fill the display the one window is on, or restore the frame it had.
+    func setCompactFullScreen(_ on: Bool)
+    // The one window takes the mouse only inside these rectangles (nil: everywhere).
+    func setHitRegions(_ regions: [HitRect]?)
 }
 
 // [DOMAIN] The reducer: command -> new state -> persist -> render. All the
@@ -96,10 +109,13 @@ public final class PresentationController {
 
     public init(prefs: ShellPrefs) {
         self.prefs = prefs
-        // Settings is on demand: it never reopens by itself.
+        // Settings is on demand: it never reopens by itself. The whole-window click-through
+        // of earlier builds (kept for old pages that still call setInteractionMode) is NOT
+        // restored: the launch always takes clicks, so a stale saved "off" can never leave
+        // the window inert. See-through is the page's control, by region (HitRegions).
         state = PresentationState(
             appMode: prefs.appMode, settingsOpen: false, hidden: false,
-            interaction: prefs.interaction, hotkeysEnabled: true)
+            interaction: InteractionState(), hotkeysEnabled: true)
     }
 
     @discardableResult
@@ -118,25 +134,40 @@ public final class PresentationController {
         case .closeSettings:
             next.settingsOpen = false
         case .setVisible(let visible):
+            // Hide keeps the mode it hid from; show brings that same mode back.
             next.hidden = !visible
-            if visible { next.appMode = .minified }
         case .toggleVisible:
             next.hidden.toggle()
-            if !next.hidden { next.appMode = .minified }
         case .setInteractionMode(let on):
-            next.interaction.set(on)
+            // [SAFETY] The whole-window click-through model is retired (See-through works by
+            // region, and the page owns it): ON is honoured, OFF is refused, so no page, menu or
+            // hotkey can leave the window inert. The reply to `setInteractionMode(false)` is false.
+            if on { next.interaction.set(true) }
         case .toggleInteractionMode:
-            next.interaction.toggle()
+            // Nothing toggles the window off any more; a toggle only ever restores interaction.
+            next.interaction.set(true)
         case .setAppMode(let mode):
+            // Choosing a form on purpose shows it.
             next.appMode = mode
-            if mode == .minified { next.hidden = false }
+            next.hidden = false
         case .toggleAppMode:
             next.appMode = next.appMode.toggled
-            if next.appMode == .minified { next.hidden = false }
+            next.hidden = false
         case .setHotkeysEnabled(let on):
             next.hotkeysEnabled = on
+        // [SAFETY] Surface-only commands: the presentation state does not change, so nothing is
+        // rendered. The page repeats these (a 5 s hit-region heartbeat, every size change), and
+        // a render re-fronts windows, rebuilds the menu, pushes state to every page and (in the
+        // expanded form) re-activates the app, which stole the keyboard from the browser.
         case .setWindowSize(let width, let height):
             surface?.setCompactSize(width: width, height: height)
+            return state
+        case .setFullScreen(let on):
+            surface?.setCompactFullScreen(on)
+            return state
+        case .setHitRegions(let regions):
+            surface?.setHitRegions(regions)
+            return state
         case .bringToFront, .quitApp:
             break
         }

@@ -1,6 +1,7 @@
 // The session row as the repository reads it, and the public view of it. The
 // view never carries the credential hash (rule:credential-storage).
 import type { TenantDatabase } from "@omnitech/database";
+import type { LiveScreenshotSend } from "@omnitech/interview-contracts";
 import { sql } from "drizzle-orm";
 import type { ProcessingPolicy, SessionStatus } from "./core/index";
 import {
@@ -8,6 +9,7 @@ import {
   policyFromDb,
   type RetentionMode,
   retentionFromDb,
+  screenshotSendFromDb,
   type WorkspaceDraftKey,
 } from "./mapping";
 import { firstRow, type OwnerScope } from "./scope";
@@ -19,6 +21,8 @@ export type SessionRecord = {
   status: SessionStatus;
   retention: RetentionMode;
   policy: ProcessingPolicy;
+  // D35: what of a screenshot may reach a model; absent column reads "always".
+  screenshotSend: LiveScreenshotSend;
   fence: number;
   leaseHolderId: string | null;
   leaseExpiresAt: Date | null;
@@ -65,6 +69,7 @@ export function toRecord(row: Raw): SessionRecord {
     status: String(row["status"]) as SessionStatus,
     retention: retentionFromDb(row["retention_mode"]),
     policy: policyFromDb(row["processing_policy"]),
+    screenshotSend: screenshotSendFromDb(row["screenshot_send"]),
     fence: Number(row["fence"]),
     leaseHolderId: text(row["lease_holder_id"]),
     leaseExpiresAt: date(row["lease_expires_at"]),
@@ -137,6 +142,7 @@ export type SessionView = {
   status: SessionStatus;
   retention: RetentionMode;
   processingPolicy: ProcessingPolicy;
+  screenshotSend: LiveScreenshotSend;
   createdAt: string;
   expiresAt: string;
   credentialExpiresAt: string | null;
@@ -165,6 +171,7 @@ export function toView(record: SessionRecord): SessionView {
     status: record.status,
     retention: record.retention,
     processingPolicy: record.policy,
+    screenshotSend: record.screenshotSend,
     createdAt: record.createdAt.toISOString(),
     expiresAt: record.expiresAt.toISOString(),
     credentialExpiresAt: iso(record.credentialExpiresAt),

@@ -16,6 +16,10 @@ private final class RecordingSurface: PresentationSurface {
     var quits = 0
     var fronts = 0
     var sizes: [[Double?]] = []
+    var fullScreens: [Bool] = []
+    var hitRegions: [[HitRect]?] = []
+    func setHitRegions(_ regions: [HitRect]?) { hitRegions.append(regions) }
+    func setCompactFullScreen(_ on: Bool) { fullScreens.append(on) }
     func setCompactSize(width: Double, height: Double?) { sizes.append([width, height]) }
     func render(_ state: PresentationState) { rendered.append(state) }
     func bringToFront() { fronts += 1 }
@@ -38,24 +42,98 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(surface.sizes[1][1], 120)
         t.expect(controller.state.compactShown && controller.state.appMode == .minified, "still the one window")
     }
-    await t.test("click-through in the one window: the window stays shown, ignores the mouse, and the toggle brings it back") {
+    await t.test("full screen is forwarded to the surface and changes nothing else in the state") {
         let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
         let surface = RecordingSurface()
         controller.surface = surface
+        let before = controller.state
+        controller.perform(.setFullScreen(true))
+        controller.perform(.setFullScreen(false))
+        t.expectEqual(surface.fullScreens, [true, false])
+        t.expectEqual(controller.state, before, "the page owns the mode; the shell state is unchanged")
+    }
+    await t.test("full screen fills the visible frame, remembers the frame it left and gives it back, never off-screen") {
+        let minimum = WindowKind.compact.minSize
+        var full = FullScreenFrame()
+        let before = CGRect(x: 600, y: 100, width: 540, height: 300)
+        t.expectEqual(full.enter(from: before, visible: display, min: minimum), display, "fills the display's visible frame")
+        t.expect(full.isOn)
+        // Entering again never overwrites the frame to go back to.
+        _ = full.enter(from: display, visible: display, min: minimum)
+        t.expectEqual(full.leave(in: display), before, "restores the remembered frame")
+        t.expect(!full.isOn)
+        t.expectEqual(full.leave(in: display), nil, "nothing to restore when not in full screen")
+        // The display shrank (or the window moved to a smaller one) meanwhile: the restored frame is clamped on screen.
+        _ = full.enter(from: CGRect(x: 1300, y: 600, width: 540, height: 300), visible: display, min: minimum)
+        let small = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let back = full.leave(in: small)
+        t.expect(back.map { small.contains($0) } == true, "restored frame stays inside the display")
+        // A visible frame smaller than the minimum never shrinks the window below it.
+        var tiny = FullScreenFrame()
+        let filled = tiny.enter(from: before, visible: CGRect(x: 0, y: 0, width: 300, height: 300), min: minimum)
+        t.expect(filled.width <= 300 && filled.height <= 300, "never larger than the display")
+    }
+    await t.test("the whole-window click-through is retired: OFF and the toggle never make the window inert, ON still works") {
+        let store = MemoryStore()
+        let controller = PresentationController(prefs: ShellPrefs(store: store))
+        let surface = RecordingSurface()
+        controller.surface = surface
         t.expect(controller.state.compactShown && !controller.state.interaction.ignoresMouseEvents, "interactive by default")
+        // [SAFETY] An old page asking for OFF is refused (the reply is false) and nothing is rendered inert.
+        let refused = controller.perform(.setInteractionMode(false))
+        t.expect(refused.interaction.isInteractive, "OFF is refused")
+        t.expectEqual(HostReply.tookEffect(.setInteractionMode(false), refused), false, "the page is told it did not take effect")
         controller.perform(.toggleInteractionMode)
-        t.expect(surface.rendered.last?.compactShown == true, "still on screen while click-through")
-        t.expect(surface.rendered.last?.interaction.ignoresMouseEvents == true, "the one window follows interaction state")
-        // The hotkey that turns it back on stays registered and routed while the window ignores the mouse.
+        t.expect(controller.state.interaction.isInteractive, "a toggle only ever restores interaction")
+        t.expect(surface.rendered.allSatisfy { !$0.interaction.ignoresMouseEvents }, "no render is ever click-through")
+        t.expectEqual(surface.toasts.count, 0, "no toast for a refusal")
+        t.expectEqual(HostReply.tookEffect(.setInteractionMode(true), controller.state), true)
+        // The See-through key stays registered and routed to the page.
         let registered = HotkeyBinding.all.filter { !$0.requiresInteractive }
         t.expect(registered.contains { $0.action == .toggleInteraction && $0.label == "⌘⇧I" }, "⌘⇧I always registered")
-        t.expectEqual(HotkeyRouting.effect(for: .toggleInteraction, interactive: false), .present(.toggleInteractionMode))
-        controller.perform(.setInteractionMode(true))
-        t.expect(surface.rendered.last?.interaction.ignoresMouseEvents == false)
-        // OFF persists as OFF; the next launch starts from the saved choice.
-        let store = MemoryStore()
-        PresentationController(prefs: ShellPrefs(store: store)).perform(.setInteractionMode(false))
-        t.expect(!PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive)
+        t.expectEqual(HotkeyRouting.effect(for: .toggleInteraction, interactive: false), .intent(.seeThroughToggle))
+        // A stale saved "off" (an earlier build) never leaves the window inert at launch.
+        store.values["interactive2"] = "0"
+        t.expect(PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive,
+                 "launch is interactive whatever was saved")
+    }
+
+    await t.test("surface-only commands (hit regions, size, full screen) never render when the state is unchanged") {
+        let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
+        let surface = RecordingSurface()
+        controller.surface = surface
+        controller.perform(.setAppMode(.expanded))
+        let renders = surface.rendered.count
+        // The page's 5 s heartbeat and every size change: a render would re-activate the app (stealing
+        // the browser's keyboard), re-front windows, rebuild the menu and push state to every page.
+        var pushed = 0
+        controller.onChange = { _ in pushed += 1 }
+        for _ in 0..<5 { controller.perform(.setHitRegions([HitRect(x: 0, y: 0, width: 10, height: 10)])) }
+        controller.perform(.setWindowSize(width: 600, height: nil))
+        controller.perform(.setFullScreen(true))
+        t.expectEqual(surface.rendered.count, renders, "no render")
+        t.expectEqual(pushed, 0, "no state push")
+        t.expectEqual(surface.hitRegions.count, 5, "but the surface still got every report")
+        t.expectEqual(surface.sizes.count, 1)
+        t.expectEqual(surface.fullScreens, [true])
+        // A real state change still renders.
+        controller.perform(.setAppMode(.minified))
+        t.expectEqual(surface.rendered.count, renders + 1)
+    }
+
+    await t.test("hit regions go to the surface and change nothing in the shell state; nil takes the mask off") {
+        let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
+        let surface = RecordingSurface()
+        controller.surface = surface
+        let before = controller.state
+        let rects = [HitRect(x: 0, y: 0, width: 100, height: 40)]
+        controller.perform(.setHitRegions(rects))
+        controller.perform(.setHitRegions(nil))
+        t.expectEqual(surface.hitRegions.count, 2)
+        t.expectEqual(surface.hitRegions[0], rects)
+        t.expect(surface.hitRegions[1] == nil, "nil is passed on as nil")
+        t.expectEqual(controller.state, before, "pages are not told, the state is unchanged")
+        t.expectEqual(HostCommand.seeThroughToggle.wireName, "see-through.toggle")
     }
 
     await t.test("Settings opens beside the one window; the chat key is an intent that never touches the windows") {
@@ -172,7 +250,7 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(effect(.toggleMic), .intent(.transcribeToggle))
         t.expectEqual(effect(.clearSession), .intent(.sessionClear))
         t.expectEqual(effect(.toggleVisibility), .present(.toggleVisible))
-        t.expectEqual(effect(.toggleInteraction), .present(.toggleInteractionMode))
+        t.expectEqual(effect(.toggleInteraction), .intent(.seeThroughToggle))
         t.expectEqual(effect(.toggleMode), .present(.toggleAppMode))
         t.expectEqual(effect(.skillNext), nil)
         t.expectEqual(effect(.skillNext, true), .intent(.skillNext))
@@ -293,17 +371,34 @@ func presentationTests(_ t: Harness) async {
         controller.perform(.toggleVisible)
         t.expect(controller.state.compactShown)
 
+        // Hide and show keep the form they hid from: the expanded window hides too (it used to stay
+        // up), and showing it again returns to the expanded form, not the compact one.
+        controller.perform(.setAppMode(.expanded))
+        controller.perform(.setVisible(false))
+        t.expect(controller.state.hidden && !controller.state.mainWindowShown && !controller.state.compactShown,
+                 "yellow Hide hides the expanded window")
+        controller.perform(.setVisible(true))
+        t.expect(controller.state.mainWindowShown && controller.state.appMode == .expanded && !controller.state.compactShown,
+                 "show returns to the expanded form")
+        controller.perform(.setVisible(false))
+        controller.perform(.toggleVisible)
+        t.expect(controller.state.mainWindowShown, "the toggle shows the expanded form again")
+        // Choosing a form explicitly shows it even if it was hidden (the Dock icon path).
+        controller.perform(.setVisible(false))
+        controller.perform(.setAppMode(.expanded))
+        t.expect(controller.state.mainWindowShown && !controller.state.hidden, "an explicit mode choice un-hides")
+        controller.perform(.setAppMode(.minified))
+        t.expect(controller.state.compactShown)
+
         // Interaction mode toggles with a toast, persists, and is pushed to pages.
         surface.toasts = []
         controller.perform(.toggleInteractionMode)
-        t.expect(!controller.state.interaction.isInteractive, "default ON, so the first toggle turns it OFF")
-        t.expectEqual(surface.toasts.count, 1)
-        t.expectEqual(store.values["interactive2"], "0")
+        t.expect(controller.state.interaction.isInteractive, "the window is never made inert any more")
+        t.expectEqual(surface.toasts.count, 0, "so there is no interaction toast")
         controller.perform(.setInteractionMode(false))
-        t.expectEqual(surface.toasts.count, 1, "no toast when nothing changed")
+        t.expect(controller.state.interaction.isInteractive, "OFF is refused")
 
-        // Settings is for clicking: opening it turns interaction ON.
-        controller.perform(.setInteractionMode(false))
+        // Settings is for clicking: opening it keeps interaction ON.
         controller.perform(.openSettings)
         t.expect(controller.state.interaction.isInteractive && controller.state.settingsShown)
 
@@ -341,6 +436,12 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(decode(["op": "setWindowSize", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
         t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 5.0]), .failure(.invalidParameters), "too short is refused")
         t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
+        t.expectEqual(decode(["op": "setFullScreen", "on": true]), .success(.presentation(.setFullScreen(true))))
+        t.expectEqual(decode(["op": "setFullScreen", "on": false]), .success(.presentation(.setFullScreen(false))))
+        t.expectEqual(decode(["op": "setFullScreen", "on": "yes"]), .failure(.invalidParameters), "non-booleans are refused")
+        t.expectEqual(decode(["op": "setFullScreen", "on": 1]), .failure(.invalidParameters), "numbers are refused")
+        t.expectEqual(decode(["op": "setFullScreen"]), .failure(.invalidParameters), "the flag is required")
+        t.expectEqual(decode(["op": "setFullScreen", "on": true, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
         t.expectEqual(decode(["op": "setHotkeysEnabled", "enabled": false]), .success(.presentation(.setHotkeysEnabled(false))))
         t.expectEqual(decode(["op": "openSettings", "extra": 1]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "setInteractionMode", "on": "yes"]), .failure(.invalidParameters))
@@ -364,9 +465,9 @@ func presentationTests(_ t: Harness) async {
         """)
         context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.capabilities.join(',')")?.toString(),
-            "always-on-top,click-through,all-spaces")
+            "always-on-top,all-spaces,hit-regions")
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.nativeToasts")?.toBool(), true, "pages must not duplicate toasts")
-        for method in ["quit", "openSettings", "closeSettings", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode", "appMode", "setAppMode", "setHotkeysEnabled", "setWindowSize"] {
+        for method in ["quit", "openSettings", "closeSettings", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode", "appMode", "setAppMode", "setHotkeysEnabled", "setWindowSize", "setFullScreen", "setHitRegions"] {
             t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "function", method)
         }
         for method in ["open", "close", "focus", "openPanels", "setLayout", "opacity", "setOpacity"] {

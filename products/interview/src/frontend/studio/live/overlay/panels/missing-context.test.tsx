@@ -44,6 +44,11 @@ const press = async (name: string | RegExp) => {
   fireEvent.click(button(name));
   await flush();
 };
+// Manual stages a capture on the device; Apply is what sends it.
+const apply = async () => {
+  fireEvent.click(screen.getByTestId("apply-screenshots"));
+  await flush();
+};
 const typeAndSend = async (text: string) => {
   fireEvent.change(box(), { target: { value: text } });
   await press("Send message");
@@ -104,6 +109,32 @@ describe("the strip", () => {
     serve(startJourney({ first: undefined }));
     await open();
     expect(strip()).toBeNull();
+  });
+});
+
+describe("the Mini player", () => {
+  it("shows the same missing-context finding as a one-line hint, from the shared model", async () => {
+    (window as { studioHost?: unknown }).studioHost = {
+      presentation: {
+        capabilities: ["always-on-top"],
+        openSettings: async () => true,
+        closeSettings: async () => true,
+        setVisible: async () => true,
+        setInteractionMode: async () => true,
+        interactionMode: () => true,
+        onInteractionMode: () => () => undefined,
+        setWindowSize: async () => true,
+        setFullScreen: async () => true,
+        nativeToasts: true,
+      },
+    };
+    await open();
+    fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    expect(screen.getByTestId("pn-mini-missing")).toHaveTextContent(
+      "2 things may be missing",
+    );
+    expect(screen.getByTestId("pn-mini-name")).toHaveTextContent("T1");
   });
 });
 
@@ -236,17 +267,20 @@ describe("Add context", () => {
 });
 
 describe("Add another screenshot", () => {
-  it("captures for the task on show and the revision clears the strip", async () => {
+  it("stages the capture on the device; Apply sends it for the task on show and the revision clears the strip", async () => {
     installCaptureHost();
     await open();
     await press("Add another screenshot");
     await flush();
+    // Nothing is sent until Apply.
+    expect(journey.captures).toHaveLength(0);
+    expect(screen.getByTestId("staged-1")).toHaveTextContent("Not sent yet");
+    await apply();
     expect(journey.captures).toHaveLength(1);
     expect(journey.captures[0]).toMatchObject({
       operation: "analyze",
       targetTaskId: CUT_OFF_TASK,
       targetRevision: "1",
-      label: "Added screen",
     });
     await advance(1_500);
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T1 · rev 2");
@@ -272,6 +306,12 @@ describe("Add another screenshot", () => {
     await flush();
     await flush();
     expect(host).toHaveBeenCalledTimes(1);
+    // One staged image, nothing sent; a double Apply is one request.
+    expect(journey.captures).toHaveLength(0);
+    fireEvent.click(screen.getByTestId("apply-screenshots"));
+    fireEvent.click(screen.getByTestId("apply-screenshots"));
+    await flush();
+    await flush();
     expect(journey.captures).toHaveLength(1);
   });
 
@@ -296,7 +336,8 @@ describe("Add another screenshot", () => {
     fireEvent.change(box(), { target: { value: "keep me" } });
     await press("Add another screenshot");
     await flush();
-    expect(alerts()).toMatch("the image was not a JPEG, PNG or WebP");
+    await apply();
+    expect(alerts()).toMatch("Only JPEG, PNG or WebP");
     expect(strip()).toBeVisible();
     expect(box()).toHaveValue("keep me");
   });
@@ -318,8 +359,8 @@ describe("Add another screenshot", () => {
 describe("capture failures are not missing context", () => {
   it.each([
     ["permission-denied", /Screen Recording is off/],
-    ["no-focused-window", /Chrome or Safari is in front/],
-    ["failed", /Couldn’t capture/],
+    ["no-focused-window", /No browser window found/],
+    ["failed", /The capture failed/],
   ])(
     "%s says so in the note and leaves the strip as it was",
     async (reason, words) => {
@@ -362,7 +403,8 @@ describe("capture failures are not missing context", () => {
     await open();
     await press("Add another screenshot");
     await flush();
-    expect(alerts()).toMatch("status_refused");
+    await apply();
+    expect(alerts()).toMatch("didn't go through");
     expect(strip()).toHaveTextContent("Examples");
   });
 });
@@ -435,7 +477,7 @@ describe("reload, stop and late results", () => {
     expect(strip()).toHaveTextContent("Examples");
   });
 
-  it("stopping the revision leaves the session live and the strip on the last published revision", async () => {
+  it("a revision that publishes nothing leaves the session live and the strip on the last published revision", async () => {
     installCaptureHost();
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => {
@@ -453,10 +495,8 @@ describe("reload, stop and late results", () => {
     await open();
     fireEvent.click(button("Add another screenshot"));
     await flush();
-    // The revision is running: the one capture control now stops it.
-    await press("Stop");
-    expect(journey.controls).toEqual(["stop-work"]);
-    // The worker stopped before it published anything for that revision.
+    await apply();
+    // The request is accepted; the worker publishes nothing for that revision.
     journey.stopped = true;
     release();
     await flush();

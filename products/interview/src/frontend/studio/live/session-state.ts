@@ -27,8 +27,9 @@ import {
   type SourceStatus,
   sourceStatuses,
 } from "./session-sources";
-import { deriveTasks, type TaskView } from "./session-tasks";
+import { buildTaskViews, partitionTasks, type TaskView } from "./session-tasks";
 import { type TranscriptRow, transcriptRows } from "./session-transcript";
+import { type NoQuestionNote, noQuestionNotes } from "./shared/no-question";
 
 // The bar's dot and label.
 //   live         active and nothing wrong with capture
@@ -75,6 +76,8 @@ export type LiveViewModel = {
   banners: Banner[];
   activity: Activity;
   tasks: TaskView[];
+  // Captures that showed no interview question (D36): notes, not tasks.
+  noQuestion: NoQuestionNote[];
   runs: ActivityRun[];
   transcript: TranscriptRow[];
   locality: LocalityModel | null;
@@ -153,6 +156,7 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
       banners: [],
       activity: { key: "ended", text: "" },
       tasks: [],
+      noQuestion: [],
       runs: [],
       transcript: [],
       locality: null,
@@ -178,8 +182,10 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
     observations,
     companion.status === "online",
   );
-  const tasks = deriveTasks(actions, session.status);
-  const transcript = transcriptRows(observations, tasks);
+  const split = partitionTasks(buildTaskViews(actions, session.status));
+  const tasks = split.real;
+  const noQuestion = noQuestionNotes(split.noQuestion, actions);
+  const transcript = transcriptRows(observations, tasks, noQuestion);
   const cap = capModel(session, serverNowMs);
   const bar = barOf(session, sources, streamStale);
   const lastUtterance = [...observations]
@@ -219,6 +225,7 @@ export function deriveLiveModel(input: LiveModelInput): LiveViewModel {
       lastUtteranceAt: lastUtterance?.receivedAt ?? null,
     }),
     tasks,
+    noQuestion,
     runs,
     transcript,
     locality: localityModel(session),

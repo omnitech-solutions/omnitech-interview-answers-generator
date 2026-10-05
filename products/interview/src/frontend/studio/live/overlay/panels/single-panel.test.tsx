@@ -37,6 +37,7 @@ import {
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { GREEN_MENU_GRACE_MS, GREEN_MENU_HOVER_MS } from "./toolbar-config";
 import { TOAST_TEXT } from "./use-panel-session";
 
 const live = (extra = {}) =>
@@ -219,9 +220,7 @@ describe("capture button and mode menu", () => {
     const capture = screen.getByRole("button", { name: "Analyze screen" });
     // The state the dot colours is announced beside the button, not inside it.
     expect(capture.querySelector('[role="status"]')).toBeNull();
-    expect(screen.getByTestId("pn-status")).toHaveTextContent(
-      /Interaction on|Recording/,
-    );
+    expect(screen.getByTestId("pn-status")).toHaveTextContent(/Live|Recording/);
     expect(screen.getByTestId("pn-dot")).toHaveAttribute("aria-hidden", "true");
   });
 
@@ -290,9 +289,44 @@ describe("capture button and mode menu", () => {
 
 describe("window controls", () => {
   const dot = (id: string) => screen.getByTestId(`pn-dot-${id}`);
+  const mode = () => screen.getByTestId("pn-root").dataset["windowMode"];
+  // A host with every window operation, recording what the page asked of it in
+  // order. Toasts are drawn by the page here so they can be read.
+  function windowHost(overrides: Record<string, unknown> = {}) {
+    const calls: string[] = [];
+    const record = (name: string) =>
+      vi.fn(async (...args: unknown[]) => {
+        calls.push(
+          args.length === 0 ? name : `${name}(${JSON.stringify(args[0])})`,
+        );
+        return true;
+      });
+    const fns = {
+      setVisible: record("setVisible"),
+      setWindowSize: record("setWindowSize"),
+      setFullScreen: record("setFullScreen"),
+      quit: record("quit"),
+    };
+    const host = nativeHost({
+      capabilities: ["click-through", "always-on-top"],
+      nativeToasts: false,
+      ...fns,
+      ...overrides,
+    });
+    return { ...host, ...fns, calls };
+  }
+  const hover = async (ms: number) => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
+  const items = () =>
+    within(screen.getByRole("menu", { name: "Window size" })).getAllByRole(
+      "menuitemradio",
+    );
 
   it("draws red, yellow and green, named, in order", async () => {
-    nativeHost();
+    windowHost();
     await show();
     const dots = within(screen.getByRole("group", { name: "Window controls" }))
       .getAllByRole("button")
@@ -301,78 +335,477 @@ describe("window controls", () => {
         button.getAttribute("data-colour"),
       ]);
     expect(dots).toEqual([
-      ["Hide window", "red"],
-      ["Collapse to toolbar", "yellow"],
-      ["Show all panes", "green"],
+      ["Quit Interview Studio", "red"],
+      ["Hide window", "yellow"],
+      [
+        "Full screen: click. Hold the pointer here for more window sizes",
+        "green",
+      ],
     ]);
-  });
-
-  it("red hides a paused window through the shell, and says how it comes back", async () => {
-    serve(live({ status: "paused" }));
-    const setVisible = vi.fn(async () => true);
-    nativeHost({
-      setVisible,
-      capabilities: ["click-through", "always-on-top"],
-    });
-    await show();
     expect(dot("hide")).toHaveAttribute(
       "title",
       expect.stringContaining("⌘⇧V"),
     );
-    fireEvent.click(dot("hide"));
-    expect(setVisible).toHaveBeenCalledWith(false);
   });
 
-  it("red hides the window of an ended session too", async () => {
-    serve(live({ status: "ended", endedAt: minutesAfter(5) }));
-    const setVisible = vi.fn(async () => true);
-    nativeHost({ setVisible, capabilities: ["always-on-top"] });
-    await show();
-    expect(dot("hide")).toBeEnabled();
-    fireEvent.click(dot("hide"));
-    expect(setVisible).toHaveBeenCalledWith(false);
-  });
-
-  it("red is disabled, with the reason, while the session is capturing and listening", async () => {
-    const setVisible = vi.fn(async () => true);
-    nativeHost({ setVisible, capabilities: ["always-on-top"] });
+  it("never offers hide, quit or sizes where nothing can bring the window back or do them", async () => {
+    nativeHost();
     await show();
     expect(dot("hide")).toBeDisabled();
-    expect(dot("hide")).toHaveAttribute(
-      "title",
-      "Pause the session to hide the window",
+    expect(dot("quit")).toBeDisabled();
+    expect(dot("size")).toBeDisabled();
+  });
+
+  describe("yellow hides", () => {
+    it("pauses a capturing session first, then hides, and says it paused", async () => {
+      const host = windowHost();
+      const order: string[] = [];
+      server.on("POST /:id/control", (request) => {
+        order.push(
+          `pause:${(request as { body?: { action?: string } }).body?.action}`,
+        );
+        current = live({ status: "paused" });
+        return jsonResponse({ session: current });
+      });
+      host.setVisible.mockImplementation(async () => {
+        order.push("setVisible(false)");
+        return true;
+      });
+      await show();
+      fireEvent.click(dot("hide"));
+      await flush();
+      await flush();
+      expect(order).toEqual(["pause:pause", "setVisible(false)"]);
+      expect(screen.getByTestId("pn-toasts")).toHaveTextContent(
+        "Paused while hidden",
+      );
+    });
+
+    it("hides a session that is already paused or ended without pausing again", async () => {
+      serve(live({ status: "paused" }));
+      const control = vi.fn(() => jsonResponse({ session: current }));
+      server.on("POST /:id/control", control);
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("hide"));
+      await flush();
+      expect(host.setVisible).toHaveBeenCalledWith(false);
+      expect(control).not.toHaveBeenCalled();
+      cleanup();
+      serve(live({ status: "ended", endedAt: minutesAfter(5) }));
+      const ended = windowHost();
+      await show();
+      fireEvent.click(dot("hide"));
+      await flush();
+      expect(ended.setVisible).toHaveBeenCalledWith(false);
+    });
+
+    it("stays visible, with the reason, when the pause is refused", async () => {
+      const host = windowHost();
+      server.on("POST /:id/control", () => jsonResponse({ error: "no" }, 500));
+      await show();
+      fireEvent.click(dot("hide"));
+      await flush();
+      await flush();
+      expect(host.setVisible).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("red quits", () => {
+    it("asks first, focuses Cancel, and Cancel does nothing", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("quit"));
+      const dialog = screen.getByRole("alertdialog", {
+        name: "Quit Interview Studio?",
+      });
+      expect(dialog).toHaveTextContent(
+        "Your session stays on the server; capture and listening stop here.",
+      );
+      const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+      expect(cancel).toHaveFocus();
+      fireEvent.click(cancel);
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(host.quit).not.toHaveBeenCalled();
+    });
+
+    it("Quit calls the shell once; Escape cancels and returns focus to the dot", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("quit"));
+      fireEvent.keyDown(screen.getByRole("button", { name: "Cancel" }), {
+        key: "Escape",
+      });
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(dot("quit")).toHaveFocus();
+      expect(host.quit).not.toHaveBeenCalled();
+      fireEvent.click(dot("quit"));
+      fireEvent.click(screen.getByRole("button", { name: "Quit" }));
+      expect(host.quit).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("green", () => {
+    it("a click toggles full screen on and off, and the window says which", async () => {
+      const host = windowHost();
+      await show();
+      expect(mode()).toBe("normal");
+      fireEvent.click(dot("size"));
+      expect(host.calls).toContain("setFullScreen(true)");
+      expect(mode()).toBe("full");
+      fireEvent.click(dot("size"));
+      expect(
+        host.calls.filter((call) => call.startsWith("setFullScreen")),
+      ).toEqual(["setFullScreen(true)", "setFullScreen(false)"]);
+      expect(mode()).toBe("normal");
+    });
+
+    it("hover opens the menu after the delay and not before", async () => {
+      windowHost();
+      await show();
+      fireEvent.mouseEnter(dot("size").parentElement as HTMLElement);
+      await hover(GREEN_MENU_HOVER_MS - 1);
+      expect(screen.queryByRole("menu", { name: "Window size" })).toBeNull();
+      await hover(1);
+      expect(items().map((item) => item.textContent)).toEqual([
+        "NormalThe toolbar with the chat, answer and code panes",
+        "Mini playerA small always-on-top card with the essentials",
+        "Full screenFill this display with every pane · Esc leaves",
+      ]);
+      expect(items()[0]).toHaveAttribute("aria-checked", "true");
+      expect(dot("size")).toHaveAttribute("aria-expanded", "true");
+      expect(dot("size")).toHaveAttribute("aria-haspopup", "menu");
+    });
+
+    it("leaving before the delay cancels it; leaving the open menu closes it after a short grace", async () => {
+      windowHost();
+      await show();
+      const area = dot("size").parentElement as HTMLElement;
+      fireEvent.mouseEnter(area);
+      await hover(500);
+      fireEvent.mouseLeave(area);
+      await hover(2000);
+      expect(screen.queryByRole("menu", { name: "Window size" })).toBeNull();
+      fireEvent.mouseEnter(area);
+      await hover(GREEN_MENU_HOVER_MS);
+      fireEvent.mouseLeave(area);
+      await hover(GREEN_MENU_GRACE_MS - 1);
+      expect(screen.getByRole("menu", { name: "Window size" })).toBeVisible();
+      // Back over it before the grace ends keeps it open.
+      fireEvent.mouseEnter(area);
+      await hover(GREEN_MENU_GRACE_MS * 3);
+      expect(screen.getByRole("menu", { name: "Window size" })).toBeVisible();
+      fireEvent.mouseLeave(area);
+      await hover(GREEN_MENU_GRACE_MS);
+      expect(screen.queryByRole("menu", { name: "Window size" })).toBeNull();
+    });
+
+    it("ArrowDown and the context menu open it for keyboard and touch; Escape closes it and returns focus to the dot", async () => {
+      windowHost();
+      await show();
+      dot("size").focus();
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      expect(items()[0]).toHaveFocus();
+      fireEvent.keyDown(items()[0] as HTMLElement, { key: "ArrowDown" });
+      expect(items()[1]).toHaveFocus();
+      fireEvent.keyDown(items()[1] as HTMLElement, { key: "ArrowUp" });
+      expect(items()[0]).toHaveFocus();
+      fireEvent.keyDown(items()[0] as HTMLElement, { key: "Escape" });
+      expect(screen.queryByRole("menu", { name: "Window size" })).toBeNull();
+      expect(dot("size")).toHaveFocus();
+      fireEvent.contextMenu(dot("size"));
+      expect(screen.getByRole("menu", { name: "Window size" })).toBeVisible();
+    });
+
+    it("choosing Mini player asks for the mini size and draws the card without panes", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      fireEvent.click(items()[1] as HTMLElement);
+      expect(mode()).toBe("mini");
+      expect(host.calls).toContain(
+        `setWindowSize(${JSON.stringify({ width: 440, height: 190 })})`,
+      );
+      expect(screen.getByTestId("pn-mini-card")).toBeVisible();
+      expect(document.querySelector(".pn-single-body")).toBeNull();
+      expect(screen.queryByTestId("pn-strip")).toBeNull();
+    });
+
+    it("a click from the Mini player goes back to Normal", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      fireEvent.click(items()[1] as HTMLElement);
+      fireEvent.click(dot("size"));
+      expect(mode()).toBe("normal");
+      expect(host.setFullScreen).not.toHaveBeenCalled();
+    });
+
+    it("the menu checks the current size and Normal brings the panes and width back", async () => {
+      const host = windowHost();
+      await show();
+      // Hide the answer pane, go Mini, come back: the same panes show.
+      fireEvent.click(screen.getByRole("button", { name: "Answer" }));
+      const before = document.querySelectorAll(".pn-single-pane[data-which]");
+      expect(before).toHaveLength(2);
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      fireEvent.click(items()[1] as HTMLElement);
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      expect(items()[1]).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(items()[0] as HTMLElement);
+      expect(mode()).toBe("normal");
+      expect(
+        [...document.querySelectorAll(".pn-single-pane[data-which]")].map(
+          (pane) => pane.getAttribute("data-which"),
+        ),
+      ).toEqual(["chat", "code"]);
+      // The width is asked for again without a height (the shell restores its own).
+      const last = host.setWindowSize.mock.calls.at(-1)?.[0] as {
+        width: number;
+        height?: number;
+      };
+      expect(last.height).toBeUndefined();
+      expect(last.width).toBeGreaterThan(440);
+    });
+
+    it("Back to normal leaves the Mini player; Escape does not (D27 names only full screen)", async () => {
+      windowHost();
+      await show();
+      const toMini = () => {
+        fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+        fireEvent.click(items()[1] as HTMLElement);
+      };
+      toMini();
+      fireEvent.click(screen.getByRole("button", { name: /Back to normal/ }));
+      expect(mode()).toBe("normal");
+      toMini();
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(mode()).toBe("mini");
+    });
+
+    it("full screen keeps the dots and the footer, and Escape leaves it", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("size"));
+      expect(screen.getByTestId("pn-dot-size")).toBeVisible();
+      expect(screen.getByText(/Visible window/)).toBeVisible();
+      expect(
+        document.querySelectorAll(".pn-single-pane[data-which]"),
+      ).toHaveLength(3);
+      // The fit effect stays out of the shell's way.
+      host.setWindowSize.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: "Code" }));
+      expect(host.setWindowSize).not.toHaveBeenCalled();
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(host.setFullScreen).toHaveBeenLastCalledWith(false);
+      expect(mode()).toBe("normal");
+    });
+
+    it("Escape while typing in a field keeps full screen", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("size"));
+      const field = document.createElement("textarea");
+      document.body.append(field);
+      field.focus();
+      fireEvent.keyDown(field, { key: "Escape" });
+      expect(mode()).toBe("full");
+      field.remove();
+      expect(host.setFullScreen).not.toHaveBeenLastCalledWith(false);
+    });
+
+    it("switching from full screen to Mini restores the frame first", async () => {
+      const host = windowHost();
+      await show();
+      fireEvent.click(dot("size"));
+      host.calls.length = 0;
+      fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      fireEvent.click(items()[1] as HTMLElement);
+      expect(host.calls[0]).toBe("setFullScreen(false)");
+      expect(host.calls[1]).toMatch(/^setWindowSize/);
+      expect(mode()).toBe("mini");
+    });
+  });
+});
+
+describe("the capture split control and the microphone with a native engine", () => {
+  const engineState = {
+    v: 1,
+    pairing: "paired",
+    listening: true,
+    paused: false,
+    sources: { microphone: "listening", "system-audio": "off", screen: "off" },
+    lastHeardAgeSeconds: null,
+    hint: null,
+  };
+  function withEngine(calls: string[], over: Record<string, unknown> = {}) {
+    const ok = (name: string) => async () => (
+      calls.push(name), { ok: true, engine: engineState }
     );
-    fireEvent.click(dot("hide"));
-    expect(setVisible).not.toHaveBeenCalled();
-  });
+    (
+      window as unknown as { studioHost: { engine: unknown } }
+    ).studioHost.engine = {
+      start: ok("start"),
+      stop: ok("stop"),
+      pause: ok("pause"),
+      resume: ok("resume"),
+      status: ok("status"),
+      onEvent: () => () => undefined,
+      ...over,
+    };
+  }
 
-  it("never offers hide where nothing can bring the window back", async () => {
+  it("a held (paused) session disables the microphone control and its press never stops the engine", async () => {
+    const calls: string[] = [];
     nativeHost();
+    withEngine(calls);
+    serve(live({ status: "paused" }));
+    window.localStorage.setItem("omnitech:auto:t", "1");
     await show();
-    expect(dot("hide")).toBeDisabled();
-    expect(dot("collapse")).toBeEnabled();
+    const button = document.querySelector(".pn-mic-button") as HTMLElement;
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("data-held", "true");
+    fireEvent.click(button);
+    await flush();
+    expect(calls).not.toContain("stop");
+  });
+});
+
+describe("popovers", () => {
+  it("every toolbar popover is drawn inside the toolbar, in its stacking layer", async () => {
+    nativeHost({
+      capabilities: ["always-on-top"],
+      setWindowSize: async () => true,
+      setFullScreen: async () => true,
+      quit: async () => true,
+    });
+    await show();
+    const pill = screen.getByTestId("pn-pill");
+    const opens: [string, () => void][] = [
+      [
+        "menu",
+        () =>
+          fireEvent.click(
+            screen.getByRole("button", { name: /^Capture mode/ }),
+          ),
+      ],
+      [
+        "menu",
+        () =>
+          fireEvent.click(
+            screen.getByRole("button", { name: /^Answer style/ }),
+          ),
+      ],
+      [
+        "dialog",
+        () =>
+          fireEvent.click(
+            screen.getByRole("button", { name: "Keyboard shortcuts" }),
+          ),
+      ],
+      [
+        "menu",
+        () =>
+          fireEvent.keyDown(screen.getByTestId("pn-dot-size"), {
+            key: "ArrowDown",
+          }),
+      ],
+      ["alertdialog", () => fireEvent.click(screen.getByTestId("pn-dot-quit"))],
+    ];
+    for (const [role, open] of opens) {
+      open();
+      const panel = screen.getByRole(role);
+      expect(panel.closest(".pn-pill")).toBe(pill);
+      expect(panel).toHaveClass("pn-menu");
+    }
+  });
+});
+
+describe("the Mini player", () => {
+  const mini = async (actions: unknown[] = [], session = live()) => {
+    serve(session, actions);
+    nativeHost({
+      capabilities: ["click-through", "always-on-top"],
+      setWindowSize: async () => true,
+      setFullScreen: async () => true,
+    });
+    await show();
+    fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByTestId("pn-size-mini"));
+  };
+
+  it("shows the task's name, stage, a one-line headline and the clock, with the honest visible note", async () => {
+    await mini([
+      named(
+        "Rate limiter. Use a token bucket per client. It refills over time.",
+      ),
+    ]);
+    expect(screen.getByTestId("pn-mini-name")).toHaveTextContent("T1");
+    expect(screen.getByTestId("pn-mini-stage")).toHaveTextContent(
+      "Answer ready",
+    );
+    expect(screen.getByTestId("pn-mini-headline")).toHaveTextContent(/\.$/);
+    expect(screen.getByTestId("pn-mini-headline").textContent).not.toContain(
+      "token bucket per client",
+    );
+    expect(screen.getByText(/Visible window/)).toBeVisible();
+    expect(screen.getByTestId("ov-clock")).toBeVisible();
   });
 
-  it("yellow collapses to the bare toolbar and green shows every pane again", async () => {
-    nativeHost();
+  it("says Drafting an answer and stops the session's work for real", async () => {
+    const stopped = vi.fn(() => jsonResponse({ session: live() }));
+    serve(live(), [
+      action({
+        actionKind: "draft-answer",
+        dispatchStatus: "in_flight",
+        result: null,
+      }),
+    ]);
+    server.on("POST /:id/control", stopped);
+    nativeHost({
+      capabilities: ["always-on-top"],
+      setWindowSize: async () => true,
+      setFullScreen: async () => true,
+    });
     await show();
-    expect(document.querySelector(".pn-single-body")).not.toBeNull();
-    fireEvent.click(dot("collapse"));
-    expect(document.querySelector(".pn-single-body")).toBeNull();
-    expect(screen.getByTestId("pn-pill")).toBeVisible();
-    fireEvent.click(dot("expand"));
-    expect(
-      document.querySelectorAll(".pn-single-pane[data-which]"),
-    ).toHaveLength(3);
+    fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    expect(screen.getByTestId("pn-mini-stage")).toHaveTextContent(
+      "Drafting an answer",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stop analysis" }));
+    await flush();
+    expect(stopped).toHaveBeenCalled();
   });
 
-  it("dims while the window ignores the mouse", async () => {
-    const host = nativeHost();
+  it("pauses and resumes through the session", async () => {
+    const control = vi.fn(() => jsonResponse({ session: current }));
+    serve();
+    server.on("POST /:id/control", (request) => {
+      current = live({
+        status:
+          (request as { body?: { action?: string } }).body?.action === "pause"
+            ? "paused"
+            : "active",
+      });
+      return control();
+    });
+    nativeHost({
+      capabilities: ["always-on-top"],
+      setWindowSize: async () => true,
+      setFullScreen: async () => true,
+    });
     await show();
-    const group = screen.getByRole("group", { name: "Window controls" });
-    expect(group).not.toHaveAttribute("data-dimmed");
-    await host.set(false);
-    expect(group).toHaveAttribute("data-dimmed", "true");
+    fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await flush();
+    await flush();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeVisible();
+    expect(screen.getByTestId("ov-clock")).toHaveAttribute(
+      "data-paused",
+      "true",
+    );
   });
 });
 
@@ -454,30 +887,116 @@ describe("model chip and pane toggles", () => {
   });
 });
 
-describe("click-through", () => {
-  it("toggles through the host and shows only a hint when it is on", async () => {
-    const host = nativeHost();
-    await show();
-    expect(screen.queryByTestId("pn-clickthrough")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Click-through" }));
-    expect(host.setInteractionMode).toHaveBeenLastCalledWith(false);
-    await host.set(false);
-    const hint = screen.getByTestId("pn-clickthrough");
-    expect(hint).toHaveTextContent(
-      "Click-through is on. Clicks reach the page underneath. Press ⌘⇧I to interact.",
-    );
-    expect(within(hint).queryByRole("button")).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Click-through" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Click-through" }));
-    expect(host.setInteractionMode).toHaveBeenLastCalledWith(true);
-  });
+describe("See-through: one control, clear glass and pass-through by region", () => {
+  const hitHost = () => {
+    const setHitRegions = vi.fn(async () => true);
+    const host = nativeHost({
+      capabilities: ["hit-regions"],
+      setHitRegions,
+    });
+    return { host, setHitRegions };
+  };
 
-  it("has no button where the host cannot click through", async () => {
-    nativeHost({ capabilities: [] });
+  it("has no interactive or click-through icon: See-through is the only such control", async () => {
+    hitHost();
     await show();
     expect(screen.queryByRole("button", { name: "Click-through" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /interactive/i })).toBeNull();
+    expect(screen.queryByTestId("pn-clickthrough")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "See-through" })).toHaveLength(
+      1,
+    );
+    // Not the whole-window click-through of old: this never calls it.
+  });
+
+  it("says in its tooltip exactly what is on, with the key where the shell can pass clicks", async () => {
+    hitHost();
+    await show();
+    const button = screen.getByRole("button", { name: "See-through" });
+    expect(button).toHaveAttribute("title", expect.stringMatching(/is off/));
+    expect(button).toHaveAttribute("title", expect.stringContaining("⌘⇧I"));
+    fireEvent.click(button);
+    expect(button).toHaveAttribute(
+      "title",
+      expect.stringMatching(/clicks on empty glass reach the page underneath/),
+    );
+    expect(button).toHaveAttribute(
+      "title",
+      expect.stringMatching(/Toolbar, panes and menus still take clicks/),
+    );
+  });
+
+  it("reports its surfaces to the shell only while on, and null when turned off", async () => {
+    const { host, setHitRegions } = hitHost();
+    await show();
+    expect(setHitRegions).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "See-through" }));
+    expect(setHitRegions).toHaveBeenCalled();
+    // jsdom lays nothing out, so no surface is found: that is `null` (the
+    // window stays interactive), never an empty list.
+    const sent = setHitRegions.mock.calls as unknown[][];
+    expect(sent.at(-1)?.[0]).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "See-through" }));
+    expect(setHitRegions).toHaveBeenLastCalledWith(null);
+    expect(host.setInteractionMode).not.toHaveBeenCalled();
+  });
+
+  it("is toggled by the shell's see-through.toggle intent (⌘⇧I, the menu-bar item), the same control", async () => {
+    hitHost();
+    await show();
+    const button = screen.getByRole("button", { name: "See-through" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    await act(async () => {
+      fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyI" });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("pn-root")).toHaveAttribute(
+      "data-glass",
+      "clear",
+    );
+  });
+
+  it("toggles see-through from the shell intent even when the session is over (clear glass can be turned off)", async () => {
+    hitHost();
+    serve(live({ status: "ended", endedAt: minutesAfter(1, 9) }));
+    await show();
+    const press = async () => {
+      await act(async () => {
+        fireEvent.keyDown(window, {
+          altKey: true,
+          shiftKey: true,
+          code: "KeyI",
+        });
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+    };
+    const button = screen.getByRole("button", { name: "See-through" });
+    await press();
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    await press();
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("never marks the window inert: the dots stay live and nothing says click-through", async () => {
+    hitHost();
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "See-through" }));
+    const group = screen.getByRole("group", { name: "Window controls" });
+    expect(group).not.toHaveAttribute("data-dimmed");
+    expect(screen.queryByText(/Click-through is on/)).toBeNull();
+  });
+
+  it("is still the clear-glass switch on a host that cannot pass clicks, with no key in its tooltip", async () => {
+    nativeHost({ capabilities: [] });
+    await show();
+    const button = screen.getByRole("button", { name: "See-through" });
+    expect(button).toHaveAttribute("title", expect.not.stringContaining("⌘"));
+    fireEvent.click(button);
+    expect(screen.getByTestId("pn-root")).toHaveAttribute(
+      "data-glass",
+      "clear",
+    );
   });
 });
 
@@ -498,28 +1017,20 @@ describe("shortcut list", () => {
   });
 });
 
-describe("shortcut list while click-through is on", () => {
+describe("shortcut list", () => {
   const row = (label: string) =>
     screen.getByText(label).closest("li") as HTMLElement;
 
-  it("lists the answer-style keys as available while interactive", async () => {
+  it("lists See-through on ⌘⇧I and never greys any key out", async () => {
     nativeHost();
     await show();
     fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
-    expect(row("Previous answer style")).not.toHaveAttribute("aria-disabled");
-    expect(row("Next answer style")).not.toHaveAttribute("aria-disabled");
-  });
-
-  it("shows them disabled, with a note, because the shell registers them only while interactive", async () => {
-    const host = nativeHost();
-    await show();
-    await host.set(false);
-    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(row("See-through on or off")).toHaveTextContent("⌘⇧I");
+    expect(screen.queryByText("Click-through")).toBeNull();
     for (const label of ["Previous answer style", "Next answer style"]) {
-      expect(row(label)).toHaveAttribute("aria-disabled", "true");
-      expect(row(label)).toHaveTextContent("Only while interactive");
+      expect(row(label)).not.toHaveAttribute("aria-disabled");
+      expect(row(label)).not.toHaveTextContent("Only while interactive");
     }
-    expect(row("Analyze / stop")).not.toHaveAttribute("aria-disabled");
   });
 });
 
@@ -992,6 +1503,58 @@ describe("code pane", () => {
     expect(writeText).toHaveBeenCalledWith("export const allow = () => true;");
   });
 
+  describe("tests drawer in the window", () => {
+    const sizeHost = () => {
+      const setWindowSize = vi.fn(async (..._args: unknown[]) => true);
+      nativeHost({
+        capabilities: ["click-through", "always-on-top"],
+        setWindowSize,
+        setFullScreen: async () => true,
+      });
+      return setWindowSize;
+    };
+
+    it("opens and closes without asking the shell for another window size, and leaves the toolbar alone", async () => {
+      serve(live(), [named("Rate limiter"), solved()]);
+      const setWindowSize = sizeHost();
+      await show();
+      const toolbar = screen.getByRole("toolbar").outerHTML;
+      setWindowSize.mockClear();
+      fireEvent.click(screen.getByRole("button", { name: "Tests" }));
+      expect(screen.getByTestId("pn-tests-drawer")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Tests" }));
+      await flush();
+      expect(setWindowSize).not.toHaveBeenCalled();
+      expect(screen.getByRole("toolbar").outerHTML).toBe(toolbar);
+    });
+
+    it("is drawn in full screen and not in the Mini player", async () => {
+      serve(live(), [named("Rate limiter"), solved()]);
+      sizeHost();
+      await show();
+      fireEvent.click(screen.getByTestId("pn-dot-size"));
+      expect(screen.getByRole("button", { name: "Tests" })).toBeVisible();
+      fireEvent.keyDown(screen.getByTestId("pn-dot-size"), {
+        key: "ArrowDown",
+      });
+      fireEvent.click(screen.getByTestId("pn-size-mini"));
+      expect(screen.getByTestId("pn-mini-card")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Tests" })).toBeNull();
+      expect(screen.queryByTestId("pn-tests-drawer")).toBeNull();
+    });
+
+    it("shows the server's counts and a known run reason once opened", async () => {
+      serve(live(), [named("Rate limiter"), solved()]);
+      await show();
+      fireEvent.click(screen.getByRole("button", { name: "Tests" }));
+      expect(screen.getByLabelText("Tests: 5 of 5 passed")).toBeVisible();
+      expect(screen.getByTestId("pn-tests-notverified")).toHaveTextContent(
+        "A stated constraint has no test of its own.",
+      );
+      expect(screen.queryByRole("button", { name: /run/i })).toBeNull();
+    });
+  });
+
   it("waits for the approach while the steps show", async () => {
     serve(live(), [
       action({
@@ -1132,5 +1695,86 @@ describe("toast wording", () => {
       title: "Copied answer",
       detail: "",
     });
+  });
+});
+
+describe("See-through background", () => {
+  const KEY = "interview-studio.panel.glass.v1";
+  const root = () => screen.getByTestId("pn-root");
+  const glassButton = () => screen.getByRole("button", { name: "See-through" });
+
+  it("sets and clears data-glass on the panel root and flips aria-pressed", async () => {
+    await show();
+    expect(root()).not.toHaveAttribute("data-glass");
+    expect(glassButton()).toHaveAttribute("aria-pressed", "false");
+    expect(glassButton()).toHaveAttribute(
+      "title",
+      "See-through is off. Press to make the background clear. Text stays readable",
+    );
+    fireEvent.click(glassButton());
+    expect(root()).toHaveAttribute("data-glass", "clear");
+    expect(glassButton()).toHaveAttribute("aria-pressed", "true");
+    expect(window.localStorage.getItem(KEY)).toBe("clear");
+    fireEvent.click(glassButton());
+    expect(root()).not.toHaveAttribute("data-glass");
+    expect(glassButton()).toHaveAttribute("aria-pressed", "false");
+    expect(window.localStorage.getItem(KEY)).toBe("tinted");
+  });
+
+  it("is a real button, so Enter and Space operate it", async () => {
+    await show();
+    const button = glassButton();
+    expect(button.tagName).toBe("BUTTON");
+    button.focus();
+    expect(button).toHaveFocus();
+    // A button's click is what Enter and Space dispatch in a browser.
+    fireEvent.click(button);
+    expect(root()).toHaveAttribute("data-glass", "clear");
+  });
+
+  it("survives a reload with the attribute on the first render", async () => {
+    window.localStorage.setItem(KEY, "clear");
+    await show();
+    expect(root()).toHaveAttribute("data-glass", "clear");
+    expect(glassButton()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("follows a change made in another window", async () => {
+    await show();
+    window.localStorage.setItem(KEY, "clear");
+    await act(async () => {
+      window.dispatchEvent(new Event("storage"));
+    });
+    expect(root()).toHaveAttribute("data-glass", "clear");
+    window.localStorage.setItem(KEY, "tinted");
+    await act(async () => {
+      window.dispatchEvent(new Event("storage"));
+    });
+    expect(root()).not.toHaveAttribute("data-glass");
+  });
+
+  it("keeps working in memory when storage is blocked", async () => {
+    await show();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    fireEvent.click(glassButton());
+    expect(root()).toHaveAttribute("data-glass", "clear");
+  });
+
+  it("is on the toolbar of an ended session too", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(5) }));
+    await show();
+    fireEvent.click(glassButton());
+    expect(root()).toHaveAttribute("data-glass", "clear");
+  });
+
+  it("leaves the footer as it was: no See-through control there", async () => {
+    await show();
+    const foot = document.querySelector(".pn-single-foot") as HTMLElement;
+    expect(
+      within(foot).queryByRole("button", { name: "See-through" }),
+    ).toBeNull();
+    expect(within(foot).getByRole("button", { name: /^Pause/ })).toBeVisible();
   });
 });

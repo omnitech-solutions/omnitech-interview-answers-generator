@@ -20,6 +20,8 @@
     "test": "turbo run test",
     "test:coverage": "vitest run --coverage",
     "test:no-docker": "vitest run --project node --project react",
+    "test:browser": "pnpm --filter @omnitech/e2e-live-session run test:browser",
+    "test:browser:install": "pnpm --filter @omnitech/e2e-live-session run test:browser:install",
     "test:integration": "ACTIVE_SESSION_AGENT_INTEGRATION=${ACTIVE_SESSION_AGENT_INTEGRATION:?set it to claude-code or codex (a runtime signed in on this machine)} vitest run --project integration",
     "verify": "pnpm lint && pnpm format && pnpm typecheck && pnpm test:coverage && pnpm build && node scripts/verify-native.mjs",
     "runner:build": "docker build -t omnitech/rspec-runner:latest packages/code-runner/docker/rspec && docker build -t omnitech/pest-runner:latest packages/code-runner/docker/pest && docker build -t omnitech/vitest-runner:latest packages/code-runner/docker/vitest",
@@ -31,7 +33,9 @@
     "hooks:run:pre-commit": "lefthook run pre-commit",
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
-    "dev:stop": "node scripts/dev-stop.mjs"
+    "dev:stop": "node scripts/dev-stop.mjs",
+    "docs:arch": "node scripts/docs-arch.mjs",
+    "docs:arch:check": "node scripts/docs-arch.mjs --dry-run"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5",

@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { liveOcrBlockSchema } from "./live-session";
 import {
+  displayLabel,
+  HIT_REGION_LIMITS,
+  isStudioHostDisplay,
   isStudioHostDisplayId,
   negotiatePresentation,
   negotiateStudioHost,
+  STUDIO_HOST_CAPABILITIES,
   STUDIO_HOST_VERSION,
+  type StudioHostDisplayListResult,
+  type StudioHostOcr,
 } from "./studio-host";
 
 const bridge = (over: Record<string, unknown> = {}) => ({
@@ -109,11 +116,38 @@ describe("negotiatePresentation (the one-window presentation)", () => {
   });
 
   it("keeps the known capabilities in contract order and drops the rest", () => {
-    // "multi-panel" belonged to the removed per-panel windows.
+    // "multi-panel" belonged to the removed per-panel windows; "click-through" is retired
+    // (an old shell may still advertise it) and is dropped too.
     expect(negotiatePresentation(presentation())?.capabilities).toEqual([
       "always-on-top",
-      "click-through",
     ]);
+    expect(
+      negotiatePresentation(
+        presentation({ capabilities: ["hit-regions", "all-spaces"] }),
+      )?.capabilities,
+    ).toEqual(["all-spaces", "hit-regions"]);
+  });
+
+  it("carries setHitRegions only when the shell has it, and the wire limits are the shell's", async () => {
+    expect(
+      negotiatePresentation(presentation())?.setHitRegions,
+    ).toBeUndefined();
+    const sent: unknown[] = [];
+    const host = negotiatePresentation(
+      presentation({
+        setHitRegions: async (regions: unknown) => {
+          sent.push(regions);
+          return true;
+        },
+      }),
+    );
+    expect(
+      await host?.setHitRegions?.([{ x: 1, y: 2, width: 3, height: 4 }]),
+    ).toBe(true);
+    expect(await host?.setHitRegions?.(null)).toBe(true);
+    expect(sent).toEqual([[{ x: 1, y: 2, width: 3, height: 4 }], null]);
+    // HitRegions.swift (StudioShellCore) bounds a report by the same numbers.
+    expect(HIT_REGION_LIMITS).toEqual({ maxRects: 64, maxSide: 20000 });
   });
 
   it("requires every window method and carries the optional extras only when present", () => {
@@ -133,14 +167,17 @@ describe("negotiatePresentation (the one-window presentation)", () => {
     const bare = negotiatePresentation(presentation());
     expect(bare?.setWindowSize).toBeUndefined();
     expect(bare?.quit).toBeUndefined();
+    expect(bare?.setFullScreen).toBeUndefined();
     const full = negotiatePresentation(
       presentation({
         setWindowSize: async () => true,
+        setFullScreen: async () => true,
         quit: async () => true,
         appMode: () => "minified",
       }),
     );
     expect(typeof full?.setWindowSize).toBe("function");
+    expect(typeof full?.setFullScreen).toBe("function");
     expect(typeof full?.quit).toBe("function");
     expect(full?.appMode?.()).toBe("minified");
   });
@@ -156,5 +193,185 @@ describe("negotiatePresentation (the one-window presentation)", () => {
     ) as Record<string, unknown>;
     for (const removed of ["open", "setLayout", "setOpacity", "opacity"])
       expect(host[removed]).toBeUndefined();
+  });
+});
+
+describe("text-recognition capability", () => {
+  it("is available only when the shell lists it and offers recognizeText", () => {
+    const names = ["capture-screen", "text-recognition"];
+    expect(
+      negotiateStudioHost(
+        bridge({
+          capabilities: names,
+          recognizeText: async () => ({ ok: false, reason: "unavailable" }),
+        }),
+      )?.capabilities.has("text-recognition"),
+    ).toBe(true);
+    expect(
+      negotiateStudioHost(bridge({ capabilities: names }))?.capabilities.has(
+        "text-recognition",
+      ),
+    ).toBe(false);
+    expect(
+      negotiateStudioHost(
+        bridge({ recognizeText: async () => ({ ok: false }) }),
+      )?.capabilities.has("text-recognition"),
+    ).toBe(false);
+  });
+
+  it("passes the shell's recognizeText through negotiation untouched", async () => {
+    const result = {
+      ok: true,
+      engine: "vision",
+      text: "hello",
+      confidence: 0.9,
+      truncated: false,
+    };
+    const info = negotiateStudioHost(
+      bridge({
+        capabilities: ["text-recognition"],
+        recognizeText: async () => result,
+      }),
+    );
+    expect(
+      await info?.host.recognizeText?.({
+        mediaType: "image/png",
+        base64: "AA",
+      }),
+    ).toEqual(result);
+  });
+});
+
+describe("ocr metrics (D35)", () => {
+  // Parity with the shell: OcrMetrics.wire in apps/studio-shell
+  // (OcrMetrics.swift) sends exactly these four keys under `metrics`, and
+  // liveOcrBlockSchema accepts exactly what the shell sends.
+  const metrics = {
+    coverage: 0.5,
+    meanConfidence: 0.9,
+    largestGap: 0.1,
+    boxes: 3,
+  };
+  const block = {
+    engine: "vision",
+    text: "a",
+    confidence: 0.9,
+    truncated: false,
+  };
+
+  it("the shell's ocr block, with or without metrics, passes the request schema", () => {
+    const { truncated: _truncated, ...wire } = block;
+    expect(liveOcrBlockSchema.safeParse({ ...wire, metrics }).success).toBe(
+      true,
+    );
+    expect(liveOcrBlockSchema.safeParse(wire).success).toBe(true);
+  });
+
+  it("metrics are bounded numbers and a closed shape", () => {
+    const { truncated: _truncated, ...wire } = block;
+    for (const bad of [
+      { ...metrics, coverage: 1.01 },
+      { ...metrics, meanConfidence: -0.1 },
+      { ...metrics, largestGap: 2 },
+      { ...metrics, boxes: -1 },
+      { ...metrics, boxes: 1.5 },
+      { ...metrics, boxes: 100_001 },
+      { ...metrics, coverage: Number.NaN },
+      { ...metrics, extra: 1 },
+      { coverage: 1, meanConfidence: 1, largestGap: 0 },
+    ])
+      expect(
+        liveOcrBlockSchema.safeParse({ ...wire, metrics: bad }).success,
+      ).toBe(false);
+  });
+
+  it("the contract type carries optional metrics, so an older shell still types", () => {
+    const old: StudioHostOcr = {
+      engine: "vision",
+      text: "x",
+      confidence: 1,
+      truncated: false,
+    };
+    const next: StudioHostOcr = { ...old, metrics };
+    expect(Object.keys(next.metrics ?? {}).sort()).toEqual([
+      "boxes",
+      "coverage",
+      "largestGap",
+      "meanConfidence",
+    ]);
+  });
+});
+
+describe("capability names", () => {
+  // The Swift shell's HostCapability (StudioShellCore/HostBridge.swift) lists these
+  // same names in this order; its test pins the same literal list.
+  it("are the ones the shell advertises", () => {
+    expect([...STUDIO_HOST_CAPABILITIES]).toEqual([
+      "capture-screen",
+      "pin-on-top",
+      "hotkeys",
+      "open-external",
+      "screen-watch",
+      "text-recognition",
+      "display-selection",
+    ]);
+  });
+});
+
+describe("display indicator and selection", () => {
+  const display = { id: 2, name: "DELL U2723QE", index: 2, count: 3 };
+
+  it("accepts exactly the closed display object", () => {
+    expect(isStudioHostDisplay(display)).toBe(true);
+    expect(isStudioHostDisplay({ ...display, title: "Inbox" })).toBe(false);
+    expect(isStudioHostDisplay({ id: 2, name: "x", index: 2 })).toBe(false);
+    expect(isStudioHostDisplay({ ...display, index: 0 })).toBe(false);
+    expect(isStudioHostDisplay({ ...display, index: 4 })).toBe(false);
+    expect(isStudioHostDisplay({ ...display, id: -1 })).toBe(false);
+    expect(isStudioHostDisplay({ ...display, name: "x".repeat(65) })).toBe(
+      false,
+    );
+    expect(isStudioHostDisplay(null)).toBe(false);
+    expect(isStudioHostDisplay([display])).toBe(false);
+  });
+
+  it("labels 'Display n of m', or just the name for one display", () => {
+    expect(displayLabel(display)).toBe("Display 2 of 3");
+    expect(
+      displayLabel({ id: 1, name: "Studio Display", index: 1, count: 1 }),
+    ).toBe("Studio Display");
+  });
+
+  it("a listing may carry the pin and omit thumbnails (type-level)", () => {
+    const withPin: StudioHostDisplayListResult = {
+      ok: true,
+      displays: [{ display }],
+      pinnedDisplayId: null,
+      pinFallback: "display-unavailable",
+    };
+    const pinned: StudioHostDisplayListResult = {
+      ok: true,
+      displays: [],
+      pinnedDisplayId: 2,
+    };
+    expect(isStudioHostDisplayId(2)).toBe(true);
+    expect([withPin.ok, pinned.ok]).toEqual([true, true]);
+  });
+
+  it("offers display-selection only when its method exists", () => {
+    expect(STUDIO_HOST_CAPABILITIES).toContain("display-selection");
+    const listed = negotiateStudioHost(
+      bridge({ capabilities: ["display-selection"] }),
+    );
+    expect([...(listed?.capabilities ?? [])]).toEqual([]);
+    const withMethod = negotiateStudioHost(
+      bridge({
+        capabilities: ["display-selection"],
+        listDisplays: async () => ({ ok: true, displays: [] }),
+      }),
+    );
+    expect([...(withMethod?.capabilities ?? [])]).toEqual([
+      "display-selection",
+    ]);
   });
 });

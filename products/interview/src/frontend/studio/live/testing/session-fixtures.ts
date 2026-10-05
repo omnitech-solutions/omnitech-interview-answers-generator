@@ -188,10 +188,14 @@ export function streamPage(
 }
 
 // A JSON Response for an injected fetch.
-export function jsonResponse(body: unknown, status = 200): Response {
+export function jsonResponse(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(status === 204 ? null : JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 

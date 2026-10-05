@@ -2,4 +2,4 @@
 
 _Source: `apps/agent-worker/src/index.test.ts` (header-comment fallback)_
 
-A snapshot no central profile could produce: an arbitrary directory.
+Never yields and never ends, whatever cancel does.

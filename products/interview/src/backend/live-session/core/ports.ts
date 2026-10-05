@@ -31,7 +31,14 @@ export type SegmentClass =
   | "filler"
   | "monologue";
 
-export type RevisionReason = "constraint_changed" | "follow_up" | "correction";
+// "regenerate" re-runs a task from the same sources; "added-screenshot" is a
+// revision whose new context is a screenshot the owner attached to the task.
+export type RevisionReason =
+  | "constraint_changed"
+  | "follow_up"
+  | "correction"
+  | "regenerate"
+  | "added-screenshot";
 
 export type TaskDecision =
   | { kind: "ignore" }

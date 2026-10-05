@@ -9,15 +9,20 @@
 // code-states.ts); generated tests passing never stands in for it.
 import type {
   LiveAction,
+  LiveCodeDiagnostic,
+  LiveCodeTest,
   LiveGeneratedBy,
   LiveMissingContext,
   LiveObservation,
 } from "@omnitech/interview-contracts";
 import type { IconName } from "../../icon";
+import { FILE_NAMES } from "../../workspace/stages";
 import { solution } from "../overlay/overlay-model";
 import { STATE_REASON } from "../session-draft-facts";
+import type { CodeResult } from "../session-results";
 import type { ActivityRun, RunTone } from "../session-runs";
 import type { ConstraintView, TaskKind, TaskView } from "../session-tasks";
+import { selectedRevisionOf, taskAtRevision } from "./revisions";
 import { TASK_KIND } from "./task-kind";
 import { taskName } from "./task-name";
 import { taskLabel, taskOrdinal } from "./task-target";
@@ -135,14 +140,21 @@ function codeStage(task: TaskView, deviceOnly: boolean): StageOutcome {
   };
 }
 
+// Why a solution is not fully verified, in the app's own words; empty once the
+// server says it is.
+const reasonTexts = (result: CodeResult): string[] =>
+  result.states.fullyVerified
+    ? []
+    : result.states.reasons
+        .map((reason) => STATE_REASON[reason])
+        .filter((text): text is string => text !== undefined);
+
 function verifiedStage(task: TaskView, code: StageOutcome): StageOutcome {
   const result = task.draftCode ?? task.code;
   if (result?.states.fullyVerified) return { state: "done", detail: null };
   if (code.state === "unavailable") return code;
   if (!result) return { state: "not-established", detail: "No solution yet" };
-  const why = result.states.reasons
-    .map((reason) => STATE_REASON[reason])
-    .filter((text): text is string => text !== undefined);
+  const why = reasonTexts(result);
   return {
     state: "not-established",
     detail: why.length > 0 ? why.join(" ") : "The server did not verify it.",
@@ -181,6 +193,105 @@ export function badgesOf(task: TaskView): CardBadge[] {
   ];
 }
 
+// ---- Code files and tests -----------------------------------------------------------
+
+export type CodeFileId = "solution" | "usage" | "tests";
+export type CodeFile = { id: CodeFileId; name: string; text: string };
+export type CardTest = {
+  name: string;
+  status: LiveCodeTest["status"];
+  message?: string;
+  location?: LiveCodeTest["location"];
+  // Stated constraints (zero-based indexes) this test is named for.
+  covers?: number[];
+};
+// The generated tests' run. The counts are the server's numbers for the whole
+// run; `results` may be capped shorter, so a count is never taken from it.
+export type CardTests = {
+  generated: boolean;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  results: CardTest[];
+};
+export type CardCode = {
+  language: string;
+  // The solution, as before; `files` carries the other files too.
+  text: string;
+  revision: number | null;
+  files: CodeFile[];
+  // null: no runner answered, so no test result is claimed.
+  tests: CardTests | null;
+  // Why the solution is not fully verified (empty when it is).
+  reasons: string[];
+  syntax: { checked: boolean; clean: boolean | null };
+  diagnostics: LiveCodeDiagnostic[];
+  repair: { attempted: boolean; succeeded: boolean };
+  notes: string;
+};
+
+const GENERIC_FILE_NAMES = {
+  solution: "solution",
+  usage: "usage",
+  tests: "tests",
+};
+
+function filesOf(result: CodeResult): CodeFile[] {
+  const names =
+    FILE_NAMES[result.language as keyof typeof FILE_NAMES] ??
+    GENERIC_FILE_NAMES;
+  const files: CodeFile[] = [
+    { id: "solution", name: names.solution, text: result.code },
+    { id: "usage", name: names.usage, text: result.usageCode },
+    { id: "tests", name: names.tests, text: result.testCode },
+  ];
+  return files.filter((file) => file.text.trim() !== "");
+}
+
+function testsOf(result: CodeResult): CardTests | null {
+  if (!result.runner.available) return null;
+  const { tests } = result;
+  return {
+    generated: result.states.generated,
+    total: tests.total,
+    passed: tests.passed,
+    failed: tests.failed,
+    skipped: tests.skipped,
+    results: tests.results.map((row) => {
+      const covers = result.coverage
+        .filter((entry) => entry.testName === row.name)
+        .map((entry) => entry.constraintIndex)
+        .sort((a, b) => a - b);
+      return {
+        name: row.name,
+        status: row.status,
+        ...(row.message ? { message: row.message } : {}),
+        ...(row.location ? { location: row.location } : {}),
+        ...(covers.length > 0 ? { covers } : {}),
+      };
+    }),
+  };
+}
+
+function codeOf(task: TaskView): CardCode | null {
+  const shown = solution(task);
+  if (!shown) return null;
+  const { result } = shown;
+  return {
+    language: shown.language,
+    text: shown.code,
+    revision: shown.revision,
+    files: filesOf(result),
+    tests: testsOf(result),
+    reasons: reasonTexts(result),
+    syntax: { checked: result.syntax.checked, clean: result.syntax.clean },
+    diagnostics: result.syntax.diagnostics,
+    repair: result.repair,
+    notes: result.notes,
+  };
+}
+
 // ---- Model label ------------------------------------------------------------------
 
 const RUNTIME_LABEL: Record<string, string> = {
@@ -207,18 +318,20 @@ export function generatedByLabel(
 // ---- Missing context ----------------------------------------------------------------
 
 // What the model said it could not see for a task: from its newest succeeded
-// answer draft for the task's current revision, or none. A newer draft that
+// answer draft for the revision on show (the task's current one unless an older
+// one was chosen), or none. A newer draft that
 // reports nothing missing clears an older one's list.
 export function missingContextFor(
   actions: readonly LiveAction[],
   task: TaskView | undefined,
+  revision: number | undefined = task?.currentRevision,
 ): LiveMissingContext | null {
   if (!task) return null;
   const draft = actions
     .filter(
       (action) =>
         action.taskId === task.taskId &&
-        action.taskRevision === task.currentRevision &&
+        action.taskRevision === revision &&
         action.actionKind === "draft-answer" &&
         action.dispatchStatus === "succeeded",
     )
@@ -285,6 +398,9 @@ export type TaskCardInput = {
   observations: readonly LiveObservation[];
   // The task the person chose; null or unknown means the newest.
   selectedTaskId: string | null;
+  // Per task, the older revision the person chose to view (view-only); a task
+  // with no entry shows its current revision.
+  revisionPicks?: Readonly<Record<string, number>>;
   // The session's processing policy is device-only.
   deviceOnly: boolean;
 };
@@ -298,9 +414,15 @@ export type TaskCard = {
   snapshotLabel: string | null;
   // The task on show is not the newest one.
   earlier: boolean;
+  // "T3": the newest real task, what "Back to ..." returns to.
+  newestLabel: string;
   name: string;
   kind: { id: TaskKind; label: string; icon: IconName };
+  // The revision on show, and the task's current one (they differ only while
+  // the person views an older revision).
   revision: number;
+  currentRevision: number;
+  revisionCount: number;
   // The answer on show belongs to an older revision.
   answerStale: boolean;
   constraints: readonly ConstraintView[];
@@ -312,24 +434,29 @@ export type TaskCard = {
   // The published answer's own words; no structured sections are invented.
   answerText: string | null;
   restatement: string | null;
-  code: { language: string; text: string; revision: number | null } | null;
+  code: CardCode | null;
 };
 
 export function taskCardModel(input: TaskCardInput): TaskCard | null {
   const { tasks } = input;
-  const task =
+  const whole =
     tasks.find((each) => each.taskId === input.selectedTaskId) ??
     tasks[tasks.length - 1];
-  if (!task) return null;
-  const ordinal = taskOrdinal(tasks, task.taskId) ?? tasks.length;
+  if (!whole) return null;
+  // Everything below describes the task at the revision on show.
+  const revision = selectedRevisionOf(whole, input.revisionPicks ?? {});
+  const task = taskAtRevision(whole, revision);
+  const ordinal = taskOrdinal(tasks, whole.taskId) ?? tasks.length;
   const code = codeStage(task, input.deviceOnly);
   const outcomes: Record<StageId, StageOutcome> = {
     answer: answerStage(task),
     code,
     verified: verifiedStage(task, code),
   };
-  const shown = solution(task);
-  const own = input.actions.filter((action) => action.taskId === task.taskId);
+  const own = input.actions.filter(
+    (action) =>
+      action.taskId === task.taskId && action.taskRevision <= revision,
+  );
   return {
     taskId: task.taskId,
     ordinal,
@@ -338,10 +465,13 @@ export function taskCardModel(input: TaskCardInput): TaskCard | null {
       sourceSnapshotOf(input.actions, task.taskId),
       snapshotOrdinals(input.observations),
     ),
-    earlier: task !== tasks[tasks.length - 1],
+    earlier: whole !== tasks[tasks.length - 1],
+    newestLabel: taskLabel(tasks.length),
     name: taskName(task),
     kind: { id: task.kind, ...TASK_KIND[task.kind] },
-    revision: task.currentRevision,
+    revision,
+    currentRevision: whole.currentRevision,
+    revisionCount: whole.revisions.length,
     answerStale: task.answerStale,
     constraints: task.constraints,
     stages: [
@@ -351,11 +481,9 @@ export function taskCardModel(input: TaskCardInput): TaskCard | null {
     ],
     badges: badgesOf(task),
     modelLabel: generatedByLabel(own),
-    missingContext: missingContextFor(input.actions, task),
+    missingContext: missingContextFor(input.actions, task, revision),
     answerText: task.answer?.draft ?? null,
     restatement: task.answer?.codingBrief?.restatement ?? null,
-    code: shown
-      ? { language: shown.language, text: shown.code, revision: shown.revision }
-      : null,
+    code: codeOf(task),
   };
 }

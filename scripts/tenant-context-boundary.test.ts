@@ -12,7 +12,13 @@ import { expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scannedRoots = ["apps", "packages", "products", "scripts"];
-const ignoredDirectories = new Set(["node_modules", "dist", ".next", ".turbo"]);
+const ignoredDirectories = new Set([
+  "node_modules",
+  "dist",
+  ".next",
+  ".next-e2e",
+  ".turbo",
+]);
 const sourceFile = /\.(ts|tsx|mts|js|mjs)$/;
 // Tests and their fixtures stand in for the database package on purpose.
 const testSupport = /(\.test\.|-fixture\.|\/test-support\/|\/integration\/)/;
@@ -60,7 +66,11 @@ function scannedSources(): string[] {
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (ignoredDirectories.has(entry.name)) return [];
+    if (
+      ignoredDirectories.has(entry.name) ||
+      entry.name.startsWith(".next-e2e")
+    )
+      return [];
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(path);
     return sourceFile.test(entry.name) ? [path] : [];

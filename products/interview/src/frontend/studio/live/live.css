@@ -10,6 +10,8 @@
 @import "./overlay/code-canvas.css";
 @import "./overlay/overlay.css";
 @import "./overlay/panels/panels.css";
+@import "./shared/screenshots.css";
+@import "./shared/capture-problem.css";
 
 .live-page {
   flex: 1;
@@ -160,4 +162,9 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--pop);
+}
+
+.live-no-question {
+  color: var(--muted);
+  opacity: 0.8;
 }

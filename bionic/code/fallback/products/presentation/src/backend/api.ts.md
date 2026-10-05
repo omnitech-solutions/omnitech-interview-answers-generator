@@ -2,4 +2,5 @@
 
 _Source: `products/presentation/src/backend/api.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A request body is read as a stream against these bounds before any handler
+sees it. Images and theme files travel as base64 inside JSON.

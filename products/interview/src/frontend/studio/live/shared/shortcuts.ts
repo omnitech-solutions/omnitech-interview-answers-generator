@@ -8,7 +8,7 @@ import { COMMAND_KEYS, type Command } from "../overlay/panels/commands";
 export type NativeShortcutId =
   | "analyze"
   | "listening"
-  | "click-through"
+  | "see-through"
   | "show-hide"
   | "focus-chat"
   | "clear-session"
@@ -24,8 +24,8 @@ export type Shortcut = {
   platform: "native" | "web";
   // The typed command the key asks the page for, when it is one.
   intent?: Command;
-  // The shell registers this chord only while the window takes the mouse
-  // (Hotkeys.swift `requiresInteractive`); in click-through it does nothing.
+  // The shell registers this chord only while its whole-window interaction state
+  // is on (Hotkeys.swift `requiresInteractive`), which is always now.
   requiresInteractive?: true;
 };
 
@@ -41,7 +41,11 @@ const NATIVE: Record<NativeShortcutId, Omit<Shortcut, "id" | "platform">> = {
     chord: "⌥R",
     intent: "transcribe.toggle",
   },
-  "click-through": { label: "Click-through", chord: "⌘⇧I" },
+  "see-through": {
+    label: "See-through on or off",
+    chord: "⌘⇧I",
+    intent: "see-through.toggle",
+  },
   "show-hide": { label: "Show or hide", chord: "⌘⇧V" },
   "focus-chat": { label: "Focus chat", chord: "⌘⇧C", intent: "chat.focus" },
   "clear-session": {

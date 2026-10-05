@@ -2,9 +2,12 @@ packages:
   - apps/*
   - packages/*
   - products/*
+  - e2e/*
 allowBuilds:
   esbuild: false
   sharp: false
+  # tesseract.js's postinstall only prints a funding notice; denied explicitly.
+  tesseract.js: false
   tldjs: false
 
 catalog:

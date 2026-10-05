@@ -26,7 +26,7 @@ const icons = [
   // Live session
   "sensors", "psychology", "school", "stop_circle", "graphic_eq",
   "screenshot_monitor", "cloud_off", "wifi_off", "delete", "open_in_new",
-  "memory", "devices", "desktop_windows",
+  "memory", "devices", "desktop_windows", "monitor",
   // Overlay card
   "cloud", "open_in_full", "close_fullscreen", "center_focus_strong", "rule",
   "hearing", "keyboard", "picture_in_picture_alt", "unfold_more",

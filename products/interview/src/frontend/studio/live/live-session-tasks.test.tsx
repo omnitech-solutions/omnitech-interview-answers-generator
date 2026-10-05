@@ -88,7 +88,7 @@ describe("programming challenge", () => {
         name: /Implement a rate limiter/,
       }),
     ).toBeVisible();
-    expect(screen.getByText("T1 · rev 3")).toBeVisible();
+    expect(screen.getByText("T1 · rev 3 of 3")).toBeVisible();
     const old = screen.getByText("Single thread").closest("li");
     expect(old).toHaveClass("old");
     expect(old).toHaveTextContent("replaced at rev 3");
@@ -452,6 +452,10 @@ describe("programming challenge", () => {
   });
 });
 
+// The answer on the task panel (the transcript row repeats it).
+const onPanel = (text: string) =>
+  within(screen.getByTestId("task-panel")).getByText(text);
+
 describe("earlier tasks", () => {
   const two = () => [
     answerAction(answerResult({ draft: "First answer." }), {
@@ -466,18 +470,18 @@ describe("earlier tasks", () => {
 
   it("shows the newest task and lets the owner view an earlier one without losing their place", () => {
     show({ actions: two() });
-    expect(screen.getByText("Second answer.")).toBeVisible();
+    expect(onPanel("Second answer.")).toBeVisible();
     expect(screen.queryByText(/Viewing an earlier task/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /T1 ·/ }));
-    expect(screen.getByText("First answer.")).toBeVisible();
+    expect(onPanel("First answer.")).toBeVisible();
     expect(
       screen.getByText(
         "Viewing an earlier task. Studio still tracks the newest one.",
       ),
     ).toBeVisible();
     expect(screen.getByText("T1 · rev 1")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Back to now" }));
-    expect(screen.getByText("Second answer.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Back to T2" }));
+    expect(onPanel("Second answer.")).toBeVisible();
     expect(screen.queryByText(/Viewing an earlier task/)).toBeNull();
   });
 
@@ -500,7 +504,7 @@ describe("earlier tasks", () => {
         }),
       ],
     });
-    expect(screen.getByText("First answer.")).toBeVisible();
+    expect(onPanel("First answer.")).toBeVisible();
     expect(screen.getByText(/Viewing an earlier task/)).toBeVisible();
   });
 });

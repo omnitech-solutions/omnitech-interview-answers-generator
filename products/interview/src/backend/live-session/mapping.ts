@@ -1,6 +1,10 @@
 // Mapping between the database's underscore values and the neutral core's forms
 // (device_only <-> device-only, delete_at_end <-> delete-at-end). Only this
 // layer knows both; the core imports neither the database nor this file.
+import {
+  type LiveScreenshotSend,
+  liveScreenshotSendSchema,
+} from "@omnitech/interview-contracts";
 import type { ProcessingPolicy } from "./core/index";
 import { SessionError } from "./errors";
 
@@ -48,6 +52,13 @@ export function retentionFromDb(value: unknown): RetentionMode {
   const mode = RETENTION_FROM_DB[String(value)];
   if (!mode) throw new SessionError("invalid_input");
   return mode;
+}
+
+// D35: the stored words are the contract's. A missing or unknown value reads as
+// "always" (a row recorded before the setting; the column default).
+export function screenshotSendFromDb(value: unknown): LiveScreenshotSend {
+  const parsed = liveScreenshotSendSchema.safeParse(value);
+  return parsed.success ? parsed.data : "always";
 }
 
 export const isRetentionMode = (value: unknown): value is RetentionMode =>
