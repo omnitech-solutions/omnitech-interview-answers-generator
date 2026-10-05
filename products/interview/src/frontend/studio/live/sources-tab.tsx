@@ -3,21 +3,12 @@
 // processing runs, and the two one-way privacy controls: switch to this Mac only
 // (ADR-0012/tighten-only-locality) and shorten retention
 // (ADR-0012/owner-chooses-retention). Neither can be undone, so each confirms.
-import type {
-  LiveRetentionMode,
-  LiveSessionView,
-} from "@omnitech/interview-contracts";
+import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
-import {
-  captureRequestSupport,
-  NO_REPORT_DETAIL,
-  permissionLines,
-  reportAge,
-  type SpeechState,
-  speechState,
-} from "./companion-capability";
+import { type SpeechState, speechState } from "./companion-capability";
+import { CompanionReport } from "./companion-report";
 import {
   PROMOTED_NOTE,
   RETENTION_LABEL,
@@ -26,8 +17,9 @@ import {
 } from "./ended-summary";
 import { ageLabel, companionContact, companionImpact } from "./session-format";
 import type { SessionActions } from "./session-snapshot";
-import { CREDENTIAL_LIFETIME_TEXT, type SourceHealth } from "./session-sources";
+import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
+import { shownHealth } from "./source-health";
 import {
   CAPABILITY_LOADING,
   type CompanionCapabilityState,
@@ -38,16 +30,6 @@ const SOURCE_ICON: Record<string, IconName> = {
   "application-audio": "graphic_eq",
   screen: "screenshot_monitor",
 };
-const HEALTH: Record<SourceHealth, { text: string; tone: string }> = {
-  receiving: { text: "Receiving", tone: "green" },
-  waiting: { text: "Not receiving", tone: "neutral" },
-  disconnected: { text: "Disconnected", tone: "red" },
-  "lost-permission": { text: "Permission revoked", tone: "red" },
-  lost: { text: "Lost", tone: "red" },
-  gap: { text: "Audio was dropped", tone: "amber" },
-  "not-selected": { text: "Not selected", tone: "neutral" },
-};
-
 // What each source needs when the capture companion is not in contact. The
 // browser covers screen capture and dictation on its own; system audio needs the
 // companion.
@@ -57,8 +39,6 @@ const WITHOUT_COMPANION: Record<string, string> = {
   "application-audio": "Needs the capture companion for system audio.",
   screen: "Use Capture & analyze to share a window or screen.",
 };
-
-const NO_RECENT_CONTACT = { text: "No recent contact", tone: "neutral" };
 
 // An irreversible change behind an inline confirmation. The failure is a fixed
 // code from the server, never a message.
@@ -116,43 +96,6 @@ function ConfirmAction({
           Couldn’t change this ({failure}).
         </p>
       )}
-    </div>
-  );
-}
-
-// The companion's LAST capability report: its speech state and the OS
-// permissions it named. A report is history, not contact: it never says the
-// companion is connected (that is the row above, from the heartbeat).
-function CompanionReport({ state }: { state: CompanionCapabilityState }) {
-  if (state.status === "loading") return null;
-  if (state.status === "error")
-    return (
-      <p className="live-note" data-testid="companion-report">
-        Studio couldn’t read the companion’s last capability report just now.
-      </p>
-    );
-  const { capability } = state;
-  if (!capability)
-    return (
-      <p className="live-note" data-testid="companion-report">
-        {NO_REPORT_DETAIL}
-      </p>
-    );
-  const speech = speechState(capability);
-  return (
-    <div data-testid="companion-report">
-      <p className="live-note">
-        Last capability report ({reportAge(capability, Date.now())}):{" "}
-        {speech.detail}
-      </p>
-      <p className="live-note" data-testid="capture-request-support">
-        {captureRequestSupport(capability).line}
-      </p>
-      <p className="live-note">
-        {permissionLines(capability)
-          .map((line) => `${line.label} ${line.text}`)
-          .join(" · ")}
-      </p>
     </div>
   );
 }
@@ -218,7 +161,13 @@ function CompanionRow({
           sources, resume, end or delete the session. It lasts up to{" "}
           {CREDENTIAL_LIFETIME_TEXT} and is renewed here, by you.
         </p>
-        <CompanionReport state={capability} />
+        <CompanionReport
+          state={capability}
+          sources={model.sources
+            .filter((item) => item.selected)
+            .map((item) => item.source)}
+          showFacts
+        />
         {pairingOpen ? (
           pairing
         ) : (
@@ -260,13 +209,10 @@ export function SourcesTab({
     <>
       <ul className="live-sources" aria-label="Capture sources">
         {model.sources.map((source) => {
-          // "Receiving" was derived from earlier observations; it is only said
-          // while the companion is in contact (the bar's chips follow the same
-          // rule), never from history alone.
-          const health =
-            source.health === "receiving" && model.companion.status !== "online"
-              ? NO_RECENT_CONTACT
-              : HEALTH[source.health];
+          const health = shownHealth(
+            source,
+            model.companion.status === "online",
+          );
           return (
             <li
               key={source.source}
@@ -278,7 +224,7 @@ export function SourcesTab({
                 <div className="live-source-head">
                   <strong>{source.label}</strong>
                   <span className={`live-source-state ${health.tone}`}>
-                    {health.text}
+                    {health.label}
                   </span>
                 </div>
                 <p className="live-note">

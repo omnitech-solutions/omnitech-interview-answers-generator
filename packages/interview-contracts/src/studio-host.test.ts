@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isStudioHostDisplayId,
+  negotiatePresentation,
   negotiateStudioHost,
   STUDIO_HOST_VERSION,
 } from "./studio-host.js";
@@ -81,5 +82,69 @@ describe("isStudioHostDisplayId", () => {
     expect(isStudioHostDisplayId("69733250.2")).toBe(true);
     for (const bad of ["", "a b", "x".repeat(65), 5, undefined, "a/b"])
       expect(isStudioHostDisplayId(bad)).toBe(false);
+  });
+});
+
+describe("negotiatePresentation (the one-window presentation)", () => {
+  const presentation = (over: Record<string, unknown> = {}) => ({
+    capabilities: ["click-through", "always-on-top", "multi-panel", "bogus"],
+    nativeToasts: true,
+    openSettings: async () => true,
+    closeSettings: async () => true,
+    setVisible: async () => true,
+    interactionMode: () => true,
+    setInteractionMode: async () => true,
+    onInteractionMode: () => () => undefined,
+    ...over,
+  });
+
+  it("keeps the known capabilities in contract order and drops the rest", () => {
+    // "multi-panel" belonged to the removed per-panel windows.
+    expect(negotiatePresentation(presentation())?.capabilities).toEqual([
+      "always-on-top",
+      "click-through",
+    ]);
+  });
+
+  it("requires every window method and carries the optional extras only when present", () => {
+    expect(negotiatePresentation(null)).toBeNull();
+    expect(negotiatePresentation({})).toBeNull();
+    for (const missing of [
+      "openSettings",
+      "closeSettings",
+      "setVisible",
+      "interactionMode",
+      "setInteractionMode",
+      "onInteractionMode",
+    ])
+      expect(
+        negotiatePresentation(presentation({ [missing]: undefined })),
+      ).toBeNull();
+    const bare = negotiatePresentation(presentation());
+    expect(bare?.setWindowSize).toBeUndefined();
+    expect(bare?.quit).toBeUndefined();
+    const full = negotiatePresentation(
+      presentation({
+        setWindowSize: async () => true,
+        quit: async () => true,
+        appMode: () => "minified",
+      }),
+    );
+    expect(typeof full?.setWindowSize).toBe("function");
+    expect(typeof full?.quit).toBe("function");
+    expect(full?.appMode?.()).toBe("minified");
+  });
+
+  it("does not offer the removed panel, layout or opacity operations", () => {
+    const host = negotiatePresentation(
+      presentation({
+        open: async () => true,
+        setLayout: async () => true,
+        setOpacity: async () => true,
+        opacity: () => 0.5,
+      }),
+    ) as Record<string, unknown>;
+    for (const removed of ["open", "setLayout", "setOpacity", "opacity"])
+      expect(host[removed]).toBeUndefined();
   });
 });

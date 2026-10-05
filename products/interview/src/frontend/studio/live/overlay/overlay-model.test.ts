@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { answerAction } from "../live-view-kit";
-import { sessionView } from "../session-fixtures";
-import { answerResult } from "../session-result-fixtures";
+import { answerAction } from "../testing/live-view-kit";
+import { sessionView } from "../testing/session-fixtures";
+import { answerResult } from "../testing/session-result-fixtures";
 import { approachItems, localityChips } from "./overlay-model";
 
 const run = (profileId: string, policy = "permitted-remote") =>

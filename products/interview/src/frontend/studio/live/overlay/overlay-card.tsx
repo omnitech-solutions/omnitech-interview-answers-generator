@@ -62,8 +62,6 @@ import {
 } from "./studio-links";
 import { type HandsFree, useHandsFree } from "./use-hands-free";
 
-export { ANNOUNCE_MS, AUTO_CAPTURE_LABEL, FLASH_MS } from "./use-hands-free";
-
 type CardProps = {
   variant?: CardVariant;
   // Given when another window embeds the card (the PiP): "Back to Studio".

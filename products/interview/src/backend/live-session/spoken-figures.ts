@@ -85,7 +85,7 @@ const DURATION = /^(?:days?|weeks?|fortnights?|months?|quarters?|years?)$/;
 const A_DURATION = /^(?:days?|weeks?|fortnights?|months?|quarters?)$/;
 const MONEY =
   /^(?:k|dollars?|bucks?|pounds?|quid|euros?|usd|cad|eur|gbp|aud|grand|thousand|million|billion)$/;
-export const MONTH_NAMES =
+const MONTH_NAMES =
   "january|february|march|april|may|june|july|august|september|october|november|december";
 const MONTHS = new Set(MONTH_NAMES.split("|"));
 

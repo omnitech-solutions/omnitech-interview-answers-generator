@@ -22,7 +22,7 @@ export type RunNotice = {
 const REMOTE_ONLY_KINDS = new Set(["solve-code", "agent-solve"]);
 const POLICY_REASONS = new Set(["policy_refused", "stage_unlisted"]);
 
-export function runNotice(
+function runNotice(
   run: ActivityRun,
   policy: LiveProcessingPolicy | null,
 ): RunNotice | null {

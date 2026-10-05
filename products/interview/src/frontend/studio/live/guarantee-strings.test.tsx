@@ -19,11 +19,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
-import { LIVE, SCENARIOS } from "./live-scenarios";
-import { installScriptedService } from "./live-script-kit";
-import { minutesAfter, sessionView } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
-import { REPORTS } from "./setup-capability-fixtures";
+import { LIVE, SCENARIOS } from "./testing/live-scenarios";
+import { installScriptedService } from "./testing/live-script-kit";
+import { minutesAfter, sessionView } from "./testing/session-fixtures";
+import { REPORTS } from "./testing/setup-capability-fixtures";
 
 vi.mock("@omnitech-assistant/react", () => ({
   AssistantRoot: ({
@@ -198,7 +198,7 @@ describe("only true claims are shown", () => {
     await open("/t/local/p/interview/knowledge");
     const bar = screen.getByTestId("session-bar");
     expect(bar).toHaveTextContent("Ready");
-    expect(bar).not.toHaveTextContent(/Waiting|receiving/i);
+    expect(bar).not.toHaveTextContent(/Waiting|(?<!not )receiving/i);
     // One line says the companion is not connected; it never claims it is.
     expect(screen.getByTestId("companion-chip")).toHaveTextContent(
       "Capture companion: not connected",

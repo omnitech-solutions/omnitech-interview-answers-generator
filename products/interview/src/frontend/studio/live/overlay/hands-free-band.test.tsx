@@ -15,19 +15,19 @@ import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
 import { LiveSessionView } from "../live-view";
 import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "../session-registry";
+import {
   action,
   jsonResponse,
   minutesAfter,
   sessionView,
   snapshot,
   streamPage,
-} from "../session-fixtures";
-import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "../session-registry";
-import { createTestServer } from "../session-test-server";
+} from "../testing/session-fixtures";
+import { createTestServer } from "../testing/session-test-server";
 import {
   FakeRecognition,
   fakeStream,

@@ -3,7 +3,6 @@ import {
   type BriefingDraft,
   type BriefingProfileImport,
   briefingDraftSchema,
-  briefingProfileImportSchema,
   type CandidateMatrix,
   candidateMatrixSchema,
 } from "@omnitech/interview-contracts";

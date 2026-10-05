@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
+import { resetSessionStores } from "./session-registry";
 import {
   action,
   jsonResponse,
@@ -13,10 +14,9 @@ import {
   SESSION_ID,
   sessionView,
   streamPage,
-} from "./session-fixtures";
-import { resetSessionStores } from "./session-registry";
-import { codeResult, codingAnswer } from "./session-result-fixtures";
-import { createTestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import { codeResult, codingAnswer } from "./testing/session-result-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 // The editor is a textarea here; CodeMirror needs a real layout engine.
 vi.mock("@uiw/react-codemirror", () => ({

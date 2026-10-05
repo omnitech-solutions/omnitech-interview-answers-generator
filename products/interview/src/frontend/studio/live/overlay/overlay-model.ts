@@ -27,6 +27,7 @@ import {
 } from "../session-sources";
 import type { LiveViewModel } from "../session-state";
 import type { TaskView } from "../session-tasks";
+import { type HealthTone, SOURCE_HEALTH } from "../source-health";
 
 // ---- Captures --------------------------------------------------------------
 
@@ -425,7 +426,7 @@ export function sessionRow(
 
 export type SourceAdvice = {
   title: string;
-  tone: "green" | "amber" | "red" | "neutral";
+  tone: HealthTone;
   state: string;
   // Why, in the companion's own terms.
   reason: string;
@@ -467,29 +468,30 @@ export function sourceAdvice(
   companion: CompanionModel,
 ): SourceAdvice {
   const title = `${status.label}${status.source === "screen" ? " (companion)" : ""}`;
+  const { label: state, tone } = SOURCE_HEALTH[status.health];
   const permission = PERMISSION[status.source] ?? "the required permission";
   switch (status.health) {
     case "receiving":
       return {
         title,
-        tone: "green",
-        state: "Receiving",
+        tone,
+        state,
         reason: "Capture is arriving from the companion.",
         fix: null,
       };
     case "not-selected":
       return {
         title,
-        tone: "neutral",
-        state: "Not part of this session",
+        tone,
+        state,
         reason: "This source wasn’t turned on when the session started.",
         fix: "Start a new session with it turned on.",
       };
     case "waiting":
       return {
         title,
-        tone: "amber",
-        state: "Waiting",
+        tone,
+        state,
         reason:
           companion.status === "never-seen"
             ? "The capture companion hasn’t made contact yet."
@@ -504,16 +506,16 @@ export function sourceAdvice(
     case "disconnected":
       return {
         title,
-        tone: "amber",
-        state: "Stopped",
+        tone,
+        state,
         reason: "You stopped this source in the capture companion.",
         fix: "Start it again from the companion’s menu.",
       };
     case "lost-permission":
       return {
         title,
-        tone: "red",
-        state: "Permission revoked",
+        tone,
+        state,
         reason: `macOS no longer lets the capture companion use ${permission}.`,
         fix: `Permission revoked: allow ${permission} for the capture companion in System Settings, then restart it.`,
       };
@@ -521,8 +523,8 @@ export function sourceAdvice(
       const known = LOST_REASON[status.reason ?? ""]?.[status.source];
       return {
         title,
-        tone: "red",
-        state: "Lost",
+        tone,
+        state,
         reason:
           known?.[0] ?? "Capture stopped after an error in the companion.",
         fix: known?.[1] ?? "Restart the capture companion.",
@@ -535,8 +537,8 @@ export function sourceAdvice(
         : "";
       return {
         title,
-        tone: "amber",
-        state: "Gap",
+        tone,
+        state,
         reason: `Audio was dropped${seconds}: ${why}.`,
         fix: "Capture may already be back. If it stays quiet, restart the companion.",
       };

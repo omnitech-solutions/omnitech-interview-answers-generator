@@ -6,6 +6,7 @@ import type {
   LiveObservation,
 } from "@omnitech/interview-contracts";
 import type { IconName } from "../../../icon";
+import { OWNER_STOPPED } from "../../session-runs";
 import type { LiveViewModel } from "../../session-state";
 import type { TaskView } from "../../session-tasks";
 import { type TaskCard, taskCardModel } from "../../shared/task-card-model";
@@ -16,14 +17,14 @@ import { phaseLabel } from "./toolbar-config";
 
 // ---- Analysis ---------------------------------------------------------------
 
-export type SectionName =
+type SectionName =
   | "Input"
   | "Output"
   | "Naive"
   | "Optimal"
   | "Complexity"
   | "Approach";
-export type ApproachSection = { name: SectionName; lines: string[] };
+type ApproachSection = { name: SectionName; lines: string[] };
 
 const LEAD: [RegExp, SectionName][] = [
   [/^input\b[:\s-]*/i, "Input"],
@@ -44,9 +45,7 @@ const ORDER: SectionName[] = [
 // Groups the approach lines by what they say they are: a line that starts with
 // "Naive", "Optimal", "Complexity", "Input" or "Output" opens that section; the
 // rest are the approach. Nothing is invented: no line, no section.
-export function approachSections(
-  items: readonly ApproachItem[],
-): ApproachSection[] {
+function approachSections(items: readonly ApproachItem[]): ApproachSection[] {
   const found = new Map<SectionName, string[]>();
   const add = (name: SectionName, line: string) =>
     found.set(name, [...(found.get(name) ?? []), line]);
@@ -64,7 +63,7 @@ export function approachSections(
   });
 }
 
-export const taskSections = (task: TaskView): ApproachSection[] => {
+const taskSections = (task: TaskView): ApproachSection[] => {
   const shown = approach(task);
   return shown ? approachSections(shown.items) : [];
 };
@@ -109,12 +108,9 @@ export function answerView(task: TaskView): AnswerView {
   };
 }
 
-// The suppression reason the server records when the owner stops work.
-const OWNER_STOPPED_REASON = "owner_stopped";
-
 // The task's runs were stopped by the owner (session-wide stop-work).
 export const stoppedByYou = (task: TaskView): boolean =>
-  task.current.runs.some((run) => run.reason === OWNER_STOPPED_REASON);
+  task.current.runs.some((run) => run.reason === OWNER_STOPPED);
 
 // What the code pane says while there is no code: one sentence per state of the
 // task's code stage, never a promise the session has not made.
@@ -202,12 +198,7 @@ export function taskChips(
 
 // "heard" and "typed" are what was said; "assistant" is the reply to it;
 // "marker" is a capture or stop between them.
-export type PanelRowKind =
-  | "heard"
-  | "typed"
-  | "assistant"
-  | "system"
-  | "marker";
+type PanelRowKind = "heard" | "typed" | "assistant" | "system" | "marker";
 type SpeakerId = "interviewer" | "you" | "typed" | "heard";
 export type PanelRow = {
   key: string;
@@ -279,7 +270,7 @@ export function taskMarkers(input: {
     };
     const stoppedAt = Math.max(
       ...task.current.runs
-        .filter((run) => run.reason === OWNER_STOPPED_REASON)
+        .filter((run) => run.reason === OWNER_STOPPED)
         .map((run) => Date.parse(run.updatedAt) || 0),
       0,
     );
@@ -323,7 +314,7 @@ export function taskStage(task: TaskView): TaskStage | null {
     since: Date.parse(run.createdAt) || Date.now(),
   };
 }
-export const PANEL_ROWS = 60;
+const PANEL_ROWS = 60;
 
 // Heard speech (the server's transcript), what was typed or dictated here, and
 // the assistant's published answers, oldest first.

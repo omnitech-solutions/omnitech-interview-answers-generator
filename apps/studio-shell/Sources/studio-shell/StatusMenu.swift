@@ -2,7 +2,7 @@ import AppKit
 import StudioShellCore
 
 // The menu-bar item: a control surface besides the windows. It issues the same
-// typed presentation commands a page can (PresentationHost.perform).
+// typed presentation commands a page can (PresentationController.perform).
 @MainActor
 final class StatusMenu: NSObject, NSMenuDelegate {
     struct Actions {
@@ -23,7 +23,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         var quit: () -> Void
     }
 
-    private static let opacities = [0.3, 0.5, 0.7, 0.85, 1.0]
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let model: ShellModel
@@ -68,7 +67,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
         let paired = model.location != nil
         if model.connection == .signInRequired { add("Sign in to Studio…", #selector(signIn), enabled: true) }
-        add(actions.presentation().appMode == .expanded ? "Minify to Panels" : "Expand to Studio", #selector(toggleMode), enabled: paired)
+        add(actions.presentation().appMode == .expanded ? "Minify to Compact Window" : "Expand to Studio", #selector(toggleMode), enabled: paired)
         add("Open Studio", #selector(openStudio), enabled: paired)
         add("Open Studio in Browser", #selector(openInBrowser), enabled: paired)
 
@@ -110,51 +109,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         add(keyed("Clear Session", keys[.clearSession]), #selector(clearSession), enabled: paired)
         menu.addItem(.separator())
 
-        // Panels
-        add(keyed(pstate.allHidden ? "Show Panels" : "Hide Panels", keys[.toggleVisibility]), #selector(toggleVisibility), enabled: paired)
+        // Window
+        add(keyed(pstate.hidden ? "Show Window" : "Hide Window", keys[.toggleVisibility]), #selector(toggleVisibility), enabled: paired)
         let mode = add(keyed("Interaction Mode", keys[.toggleInteraction]), #selector(toggleInteraction), enabled: true)
         mode.state = pstate.interaction.isInteractive ? .on : .off
-        let panelsItem = NSMenuItem(title: "Panels", action: nil, keyEquivalent: "")
-        let panelsMenu = NSMenu()
-        for (index, kind) in PanelKind.allCases.enumerated() {
-            let entry = NSMenuItem(title: kind.title, action: #selector(togglePanel(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.tag = index
-            entry.state = pstate.panels.contains(kind) ? .on : .off
-            panelsMenu.addItem(entry)
-        }
-        panelsItem.submenu = panelsMenu
-        menu.addItem(panelsItem)
-        let layoutItem = NSMenuItem(title: "Layout", action: nil, keyEquivalent: "")
-        let layoutMenu = NSMenu()
-        for (index, preset) in LayoutPreset.allCases.enumerated() {
-            let title = switch preset {
-            case .compact: "Compact window"
-            case .reading: "Bar + Analysis"
-            case .all: "Panels (bar, analysis, chat)"
-            }
-            let entry = NSMenuItem(title: title, action: #selector(applyLayout(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.tag = index
-            layoutMenu.addItem(entry)
-        }
-        layoutMenu.addItem(.separator())
-        let reset = NSMenuItem(title: "Reset Layout", action: #selector(resetLayout), keyEquivalent: "")
-        reset.target = self
-        layoutMenu.addItem(reset)
-        layoutItem.submenu = layoutMenu
-        menu.addItem(layoutItem)
-        let opacityItem = NSMenuItem(title: "Opacity", action: nil, keyEquivalent: "")
-        let opacityMenu = NSMenu()
-        for (index, value) in Self.opacities.enumerated() {
-            let entry = NSMenuItem(title: "\(Int(value * 100))%", action: #selector(pickOpacity(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.tag = index
-            entry.state = abs(pstate.opacity - value) < 0.05 ? .on : .off
-            opacityMenu.addItem(entry)
-        }
-        opacityItem.submenu = opacityMenu
-        menu.addItem(opacityItem)
         add("Settings", #selector(openSettings), enabled: paired)
         let shortcuts = add("Global Shortcuts", #selector(toggleHotkeys), enabled: true)
         shortcuts.state = pstate.hotkeysEnabled ? .on : .off
@@ -195,22 +153,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     @objc private func toggleMic() { actions.send(.transcribeToggle) }
     @objc private func clearSession() { actions.send(.sessionClear) }
     @objc private func toggleMode() { actions.present(.toggleAppMode) }
-    @objc private func toggleVisibility() { actions.present(.togglePanelsVisible) }
+    @objc private func toggleVisibility() { actions.present(.toggleVisible) }
     @objc private func toggleInteraction() { actions.present(.toggleInteractionMode) }
-    @objc private func resetLayout() { actions.present(.resetLayout) }
-    @objc private func openSettings() { actions.present(.openPanel(.settings)) }
+    @objc private func openSettings() { actions.present(.openSettings) }
     @objc private func toggleHotkeys() { actions.present(.setHotkeysEnabled(!actions.presentation().hotkeysEnabled)) }
-    @objc private func togglePanel(_ sender: NSMenuItem) {
-        guard PanelKind.allCases.indices.contains(sender.tag) else { return }
-        let kind = PanelKind.allCases[sender.tag]
-        actions.present(actions.presentation().panels.contains(kind) ? .closePanel(kind) : .openPanel(kind))
-    }
-    @objc private func applyLayout(_ sender: NSMenuItem) {
-        if LayoutPreset.allCases.indices.contains(sender.tag) { actions.present(.applyLayout(LayoutPreset.allCases[sender.tag])) }
-    }
-    @objc private func pickOpacity(_ sender: NSMenuItem) {
-        if Self.opacities.indices.contains(sender.tag) { actions.present(.setOpacity(Self.opacities[sender.tag])) }
-    }
     @objc private func connect() { actions.connect() }
     @objc private func disconnect() { actions.disconnect() }
     @objc private func quit() { actions.quit() }

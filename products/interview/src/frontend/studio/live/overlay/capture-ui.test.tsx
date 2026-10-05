@@ -12,7 +12,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
-import { answerAction } from "../live-view-kit";
+import {
+  configureSessionStores,
+  resetSessionStores,
+} from "../session-registry";
+import { answerAction } from "../testing/live-view-kit";
 import {
   disconnected,
   jsonResponse,
@@ -20,13 +24,12 @@ import {
   sessionView,
   snapshot,
   streamPage,
-} from "../session-fixtures";
+} from "../testing/session-fixtures";
+import { answerResult } from "../testing/session-result-fixtures";
 import {
-  configureSessionStores,
-  resetSessionStores,
-} from "../session-registry";
-import { answerResult } from "../session-result-fixtures";
-import { createTestServer, type TestServer } from "../session-test-server";
+  createTestServer,
+  type TestServer,
+} from "../testing/session-test-server";
 import {
   FakeRecognition,
   fakeStream,

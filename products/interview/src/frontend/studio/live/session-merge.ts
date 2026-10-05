@@ -53,10 +53,7 @@ export function serverClockOffset(
 }
 
 // The server's current time as best the browser knows it.
-export function estimateServerNow(
-  offsetMs: number,
-  browserNowMs: number,
-): number {
+function estimateServerNow(offsetMs: number, browserNowMs: number): number {
   return browserNowMs + offsetMs;
 }
 

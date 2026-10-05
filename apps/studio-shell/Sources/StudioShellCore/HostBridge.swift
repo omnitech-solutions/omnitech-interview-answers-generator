@@ -48,17 +48,6 @@ public enum HostCommand: Equatable, Sendable {
         case .chatFocus: "chat.focus"
         }
     }
-
-    // The one panel that acts on an action intent; nil: every page (they mirror
-    // session-level state commands).
-    public var target: PanelKind? {
-        switch self {
-        case .captureAnalyze, .solutionGenerate: .analysis
-        case .transcribeToggle, .chatFocus: .chat
-        case .autoToggle: .pill
-        case .skillNext, .skillPrevious, .sessionClear: nil
-        }
-    }
 }
 
 public enum HostCall: Equatable, Sendable {
@@ -100,7 +89,7 @@ public enum HostCallDecoder {
         case "captureScreen": allowed = ["mode", "region", "displayId"]
         case "pinOnTop": allowed = ["pinned"]
         case "openExternal": allowed = ["url"]
-        case "presentation": allowed = ["op", "panel", "layout", "visible", "on", "mode", "enabled", "value", "width", "height"]
+        case "presentation": allowed = ["op", "visible", "on", "mode", "enabled", "width", "height"]
         case "screenWatchStart": allowed = ["mode", "region", "displayId", "intervalMs"]
         case "screenWatchStop": allowed = []
         default: return .failure(.unknownMethod)
@@ -130,9 +119,8 @@ public enum HostCallDecoder {
     private static func decodePresentation(_ params: [String: Any]) -> Result<HostCall, HostCallError> {
         guard let op = params["op"] as? String else { return .failure(.invalidParameters) }
         let needs: [String: Set<String>] = [
-            "open": ["panel"], "close": ["panel"], "focus": ["panel"], "setLayout": ["layout"],
-            "setVisible": ["visible"], "setInteractionMode": ["on"], "setAppMode": ["mode"],
-            "setHotkeysEnabled": ["enabled"], "setOpacity": ["value"], "quit": [],
+            "openSettings": [], "closeSettings": [], "setVisible": ["visible"], "setInteractionMode": ["on"],
+            "setAppMode": ["mode"], "setHotkeysEnabled": ["enabled"], "quit": [],
         ]
         // The window size takes a width and, optionally, a height.
         if op == "setWindowSize" {
@@ -151,21 +139,15 @@ public enum HostCallDecoder {
         guard let required = needs[op], Set(params.keys).subtracting(["op"]) == required else {
             return .failure(.invalidParameters)
         }
-        func panel() -> PanelKind? { (params["panel"] as? String).flatMap(PanelKind.init(rawValue:)) }
         func bool(_ key: String) -> Bool? { params[key] as? Bool }
         let command: PresentationCommand?
         switch op {
-        case "open": command = panel().map(PresentationCommand.openPanel)
-        case "close": command = panel().map(PresentationCommand.closePanel)
-        case "focus": command = panel().map(PresentationCommand.focusPanel)
-        case "setLayout": command = (params["layout"] as? String).flatMap(LayoutPreset.init(rawValue:)).map(PresentationCommand.applyLayout)
-        case "setVisible": command = bool("visible").map(PresentationCommand.setPanelsVisible)
+        case "openSettings": command = .openSettings
+        case "closeSettings": command = .closeSettings
+        case "setVisible": command = bool("visible").map(PresentationCommand.setVisible)
         case "setInteractionMode": command = bool("on").map(PresentationCommand.setInteractionMode)
         case "setAppMode": command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
         case "quit": command = .quitApp
-        case "setOpacity":
-            guard let value = number(params["value"]), value.isFinite else { return .failure(.invalidParameters) }
-            command = .setOpacity(value)
         default: command = bool("enabled").map(PresentationCommand.setHotkeysEnabled)
         }
         guard let command else { return .failure(.invalidParameters) }
@@ -226,14 +208,12 @@ public enum HostReply {
     @MainActor
     public static func tookEffect(_ command: PresentationCommand, _ state: PresentationState) -> Bool {
         switch command {
-        case .openPanel(let kind), .focusPanel(let kind): state.panels.contains(kind) && state.layout == .panels
-        case .closePanel(let kind): !state.panels.contains(kind)
-        case .setPanelsVisible(let visible): state.allHidden != visible
-        case .applyLayout(let preset): state.layout == (preset == .compact ? .compact : .panels)
+        case .openSettings: state.settingsOpen
+        case .closeSettings: !state.settingsOpen
+        case .setVisible(let visible): state.hidden != visible
         case .setInteractionMode(let on): state.interaction.isInteractive == on
         case .setAppMode(let mode): state.appMode == mode
         case .setHotkeysEnabled(let on): state.hotkeysEnabled == on
-        case .setOpacity(let value): abs(state.opacity - PanelOpacity.clamp(value)) < 0.001
         default: true
         }
     }
@@ -259,7 +239,6 @@ public enum HostReply {
     public static func screenWatchStarted(_ failure: ScreenWatchFailure?) -> [String: Any] {
         failure.map { Self.failure($0.rawValue) } ?? ["ok": true]
     }
-    public static func pinned(_ pinned: Bool) -> Bool { pinned }
 }
 
 // The script a WKUserScript injects into the main frame at document start. It
@@ -315,7 +294,7 @@ public enum HostBridgeScript {
             onStatus: function (listener) { return remover(watchStatusListeners, listener); }
           });
           // Synchronous reads come from the last state the shell pushed.
-          var shown = { mode: "expanded", panels: [], interactive: true, opacity: 1, handsFree: false };
+          var shown = { mode: "expanded", interactive: true, handsFree: false };
           function op(name, params) {
             var message = { op: name };
             Object.keys(params || {}).forEach(function (key) { message[key] = params[key]; });
@@ -325,11 +304,8 @@ public enum HostBridgeScript {
             capabilities: Object.freeze([\(PresentationCapability.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]),
             nativeToasts: true,
             quit: function () { return op("quit"); },
-            open: function (panel) { return op("open", { panel: String(panel) }); },
-            close: function (panel) { return op("close", { panel: String(panel) }); },
-            focus: function (panel) { return op("focus", { panel: String(panel) }); },
-            openPanels: function () { return shown.panels.slice(); },
-            setLayout: function (layout) { return op("setLayout", { layout: String(layout) }); },
+            openSettings: function () { return op("openSettings"); },
+            closeSettings: function () { return op("closeSettings"); },
             setVisible: function (visible) { return op("setVisible", { visible: !!visible }); },
             interactionMode: function () { return shown.interactive; },
             setInteractionMode: function (on) { return op("setInteractionMode", { on: !!on }); },
@@ -338,12 +314,10 @@ public enum HostBridgeScript {
               modeListeners.push(listener);
               return function () { modeListeners = modeListeners.filter(function (each) { return each !== listener; }); };
             },
-            // Beyond the layout contract: the app's expanded/minified form, and the global keys.
+            // The app's expanded/minified form, and the global keys.
             appMode: function () { return shown.mode; },
             setAppMode: function (mode) { return op("setAppMode", { mode: String(mode) }); },
             setHotkeysEnabled: function (enabled) { return op("setHotkeysEnabled", { enabled: !!enabled }); },
-            opacity: function () { return shown.opacity; },
-            setOpacity: function (value) { return op("setOpacity", { value: Number(value) }); },
             setWindowSize: function (size) {
               var params = { width: Number(size && size.width) };
               if (size && size.height !== undefined) params.height = Number(size.height);
@@ -395,7 +369,7 @@ public enum HostBridgeScript {
           Object.defineProperty(window, "__studioHostPresentation", {
             value: function (state) {
               var before = shown.interactive;
-              shown = { mode: String(state.mode), panels: Array.isArray(state.panels) ? state.panels.map(String) : [], interactive: !!state.interactive, opacity: Number(state.opacity) || 1, handsFree: !!state.handsFree };
+              shown = { mode: String(state.mode), interactive: !!state.interactive, handsFree: !!state.handsFree };
               if (before !== shown.interactive) {
                 modeListeners.slice().forEach(function (listener) { try { listener(shown.interactive); } catch (e) {} });
               }

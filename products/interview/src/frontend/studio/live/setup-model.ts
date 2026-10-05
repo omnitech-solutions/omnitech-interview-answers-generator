@@ -40,7 +40,7 @@ export type SetupForm = {
   retention: LiveRetentionMode;
 };
 
-export const SOURCE_ORDER: readonly LiveCaptureSource[] = [
+const SOURCE_ORDER: readonly LiveCaptureSource[] = [
   "microphone",
   "application-audio",
   "screen",

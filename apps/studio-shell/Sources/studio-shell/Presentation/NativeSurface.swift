@@ -14,8 +14,7 @@ import WebKit
 // Where a window's page loads from; nil until Studio is configured.
 enum SurfaceTarget: Hashable {
     case main
-    case compact
-    case panel(PanelKind)
+    case window(WindowKind)
 }
 
 @MainActor
@@ -24,7 +23,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     private let makeWebView: () -> WKWebView
     private let urlFor: (SurfaceTarget) -> URL?
     private let toasts = ToastPresenter()
-    private var panels: [PanelKind: PanelWindow] = [:]
+    private var settings: PanelWindow?
     private var compact: PanelWindow?
     private var main: NSWindow?
     private var mainView: WKWebView?
@@ -40,7 +39,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         self.makeWebView = makeWebView
         self.urlFor = urlFor
         super.init()
-        // [SAFETY] Panels must stay over any app, Space and full-screen window:
+        // [SAFETY] The windows must stay over any app, Space and full-screen window:
         // re-assert level and ordering whenever the active Space or app changes.
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
@@ -53,32 +52,22 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     // MARK: render
 
     func render(_ state: PresentationState) {
-        for kind in PanelKind.allCases {
-            if state.shownPanels.contains(kind) {
-                let window = panelWindow(kind)
-                window.setInteractive(state.interaction.isInteractive)
-                window.setOpacity(state.opacity)
-                window.show(pinned: pinned)
-            } else {
-                panels[kind]?.hide()
-            }
+        if state.settingsShown {
+            let window = settingsWindow()
+            window.setInteractive(state.interaction.isInteractive)
+            window.show(pinned: pinned)
+        } else {
+            settings?.hide()
         }
         if state.compactShown {
             let window = compactWindow()
             window.setInteractive(state.interaction.isInteractive)
-            window.setOpacity(state.opacity)
             window.show(pinned: pinned)
         } else {
             compact?.hide()
         }
         if state.mainWindowShown { showMain() } else { main?.orderOut(nil) }
         onRender(state)
-    }
-
-    func focus(_ panel: PanelKind) {
-        // Non-activating: the panel can take keys without taking the app's focus.
-        panels[panel]?.panel.orderFrontRegardless()
-        if model.prefs.interaction.isInteractive { panels[panel]?.panel.makeKey() }
     }
 
     // The one window takes keys for the chat input, even while it ignores the mouse
@@ -92,8 +81,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     func bringToFront() { reassert() }
 
     func reassert() {
-        for window in panels.values where window.panel.isVisible { window.show(pinned: pinned) }
-        if let compact, compact.panel.isVisible { compact.show(pinned: pinned) }
+        for window in [settings, compact] {
+            if let window, window.panel.isVisible { window.show(pinned: pinned) }
+        }
     }
 
     func setPinned(_ value: Bool) {
@@ -102,51 +92,27 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     }
 
     func toast(_ toast: Toast) {
-        // Bottom-left of the main display (the one the pill is on).
-        let screen = panels[.pill]?.panel.screen ?? NSScreen.main
+        // Bottom-left of the display the one window is on.
+        let screen = compact?.panel.screen ?? NSScreen.main
         toasts.show(toast, on: screen?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900))
     }
 
     func quit() { NSApp.terminate(nil) }
 
-    // MARK: placement
+    // MARK: windows and pages
 
     private var displays: [CGRect] { NSScreen.screens.map(\.visibleFrame) }
     private var mainArea: CGRect { NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900) }
 
-    func resetFrames() {
-        model.prefs.resetLayout()
-        for (kind, window) in panels { window.setFrame(PanelLayout.defaultFrame(kind, in: mainArea)) }
-        if let main { main.setFrame(model.prefs.mainWindowFrame(displays: displays, main: mainArea), display: true) }
-    }
-
-    func movePanels(dx: Double, dy: Double) {
-        for (kind, window) in panels where window.panel.isVisible {
-            let area = window.panel.screen?.visibleFrame ?? mainArea
-            window.setFrame(PanelLayout.nudge(window.panel.frame, dx: dx, dy: dy, in: area, min: kind.minSize))
-        }
-    }
-
-    func resizePanel(_ kind: PanelKind, dw: Double, dh: Double) {
-        guard kind.isResizable, let window = panels[kind], window.panel.isVisible else { return }
-        let area = window.panel.screen?.visibleFrame ?? mainArea
-        window.setFrame(PanelLayout.resize(window.panel.frame, dw: dw, dh: dh, in: area, min: kind.minSize))
-    }
-
-    // MARK: windows and pages
-
-    func view(for kind: PanelKind) -> WKWebView? { panels[kind]?.webView }
     var compactView: WKWebView? { compact?.webView }
     func setCompactSize(width: Double, height: Double?) { compact?.setSize(width: CGFloat(width), height: height.map { CGFloat($0) }) }
     var mainWindowView: WKWebView? { mainView }
-    var panelViews: [WKWebView] { PanelKind.allCases.compactMap { panels[$0]?.webView } }
-    var mainWindow: NSWindow? { main }
-    var anchorWindow: NSWindow? { main?.isVisible == true ? main : (panels[.pill]?.panel ?? compact?.panel) }
+    var anchorWindow: NSWindow? { main?.isVisible == true ? main : compact?.panel }
 
     // Loads every existing window from its current address (a session switch or a rebind).
     func reloadAll() {
-        for (kind, window) in panels { load(window.webView, .panel(kind)) }
-        if let compact { load(compact.webView, .compact) }
+        if let settings { load(settings.webView, .window(.settings)) }
+        if let compact { load(compact.webView, .window(.compact)) }
         if let mainView { load(mainView, .main) }
     }
 
@@ -156,31 +122,27 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         view.load(URLRequest(url: url))
     }
 
-    private func panelWindow(_ kind: PanelKind) -> PanelWindow {
-        if let existing = panels[kind] { return existing }
-        let frame = model.prefs.frame(kind, displays: displays, main: mainArea)
-        let window = PanelWindow(kind: kind, webView: makeWebView(), frame: frame) { [weak self] frame in
-            self?.model.prefs.saveFrame(kind, frame)
+    private func settingsWindow() -> PanelWindow {
+        if let settings { return settings }
+        let frame = model.prefs.frame(.settings, displays: displays, main: mainArea)
+        let window = PanelWindow(kind: .settings, webView: makeWebView(), frame: frame) { [weak self] frame in
+            self?.model.prefs.saveFrame(.settings, frame)
         }
         wireControls(window)
-        panels[kind] = window
-        load(window.webView, .panel(kind), onlyIfBlank: true)
+        settings = window
+        load(window.webView, .window(.settings), onlyIfBlank: true)
         return window
     }
 
     private func compactWindow() -> PanelWindow {
         if let compact { return compact }
-        let area = mainArea
-        let saved = PanelFrameCodec.restoreFrame(
-            UserDefaults.standard.string(forKey: "shell.compact.frame"), minSize: CGSize(width: 320, height: 360),
-            fixedSize: nil, displays: displays)
-        let frame = saved ?? CGRect(x: area.maxX - 460, y: area.minY + 24, width: 440, height: 640)
-        let window = PanelWindow(kind: nil, webView: makeWebView(), frame: frame) { frame in
-            UserDefaults.standard.set(PanelFrameCodec.encode(frame), forKey: "shell.compact.frame")
+        let frame = model.prefs.frame(.compact, displays: displays, main: mainArea)
+        let window = PanelWindow(kind: .compact, webView: makeWebView(), frame: frame) { [weak self] frame in
+            self?.model.prefs.saveFrame(.compact, frame)
         }
         wireControls(window)
         compact = window
-        load(window.webView, .compact, onlyIfBlank: true)
+        load(window.webView, .window(.compact), onlyIfBlank: true)
         return window
     }
 
@@ -228,21 +190,18 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     }
 }
 
-// One floating panel (or the compact window when `kind` is nil): borderless,
+// One floating window: the compact window or Settings. Titled but chromeless,
 // non-activating, translucent, rounded, draggable by its header strip.
 @MainActor
 final class PanelWindow: NSObject, NSWindowDelegate {
-    let kind: PanelKind?
     let panel: StudioPanel
     let webView: WKWebView
     private let onFrame: (CGRect) -> Void
-    private var effect: NSVisualEffectView?
     /// What the strip's buttons ask for: quit the app, or open the main window.
     var onClose: (() -> Void)?
     var onExpand: (() -> Void)?
 
-    init(kind: PanelKind?, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
-        self.kind = kind
+    init(kind: WindowKind, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.webView = webView
         self.onFrame = onFrame
         // [DOMAIN] A titled window with its title bar hidden and the content drawn
@@ -257,17 +216,17 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         super.init()
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        // The video's panels have no chrome: no traffic lights, no title strip. Only
-        // the compact window (kind nil) keeps its lights (red quits, green expands).
-        let showControls = kind == nil
+        // Settings has no chrome: no traffic lights, no title strip. Only the compact
+        // window keeps its lights (red quits, green expands).
+        let isCompact = kind == .compact
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         if let close = panel.standardWindowButton(.closeButton) {
-            close.isHidden = !showControls
+            close.isHidden = !isCompact
             close.target = self
             close.action = #selector(closeTapped)
         }
         if let zoom = panel.standardWindowButton(.zoomButton) {
-            zoom.isHidden = !showControls
+            zoom.isHidden = !isCompact
             zoom.target = self
             zoom.action = #selector(zoomTapped)
         }
@@ -281,53 +240,30 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.minSize = kind?.minSize ?? CGSize(width: 320, height: 360)
-        if kind?.isResizable == false { panel.maxSize = kind!.defaultSize }
+        panel.minSize = kind.minSize
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
 
-        let effect = NSVisualEffectView(frame: CGRect(origin: .zero, size: frame.size))
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        // The bar drags by its left grip (the page sits beside it). A panel's page
-        // fills the whole frame and a transparent 22 pt strip over its top edge
-        // drags the window (the page insets its content). The compact window keeps
-        // its visible grip strip.
-        let vertical = kind == .pill
-        let compactWindow = kind == nil
-        let strip: CGFloat = vertical ? 14 : (compactWindow ? 16 : 22)
+        // The compact window keeps a visible grip strip over its page; Settings'
+        // page fills the whole frame and a transparent strip over its top edge
+        // drags the window (the page insets its content).
+        let strip: CGFloat = isCompact ? 16 : 22
         let size = frame.size
-        let handle = DragHandle(frame: vertical
-            ? CGRect(x: 0, y: 0, width: strip, height: size.height)
-            : CGRect(x: 0, y: size.height - strip, width: size.width, height: strip))
-        handle.autoresizingMask = vertical ? [.height] : [.width, .minYMargin]
-        handle.vertical = vertical
-        handle.showsGrip = vertical || compactWindow
-        let insetPage = vertical || compactWindow
-        webView.frame = vertical
-            ? CGRect(x: strip, y: 0, width: size.width - strip, height: size.height)
-            : CGRect(x: 0, y: 0, width: size.width, height: size.height - (insetPage ? strip : 0))
+        let handle = DragHandle(frame: CGRect(x: 0, y: size.height - strip, width: size.width, height: strip))
+        handle.autoresizingMask = [.width, .minYMargin]
+        handle.showsGrip = isCompact
+        webView.frame = CGRect(x: 0, y: 0, width: size.width, height: size.height - (isCompact ? strip : 0))
         webView.autoresizingMask = [.width, .height]
-        // The blur is its own layer so its opacity can change without fading the
-        // page's text; the page above it is transparent when hosted natively.
-        effect.autoresizingMask = [.width, .height]
-        self.effect = effect
         let container = NSView(frame: CGRect(origin: .zero, size: frame.size))
         container.wantsLayer = true
         container.layer?.cornerRadius = 14
         container.layer?.masksToBounds = true
-        container.addSubview(effect)
         container.addSubview(webView)
         container.addSubview(handle)
-        // The whole toolbar drags: the bar window entirely, and the top of the one
-        // window (the strip plus the bar's row).
-        if kind == .pill || compactWindow {
-            let bar = ToolbarDragView(frame: kind == .pill
-                ? CGRect(origin: .zero, size: size)
-                : CGRect(x: 0, y: size.height - 62, width: size.width, height: 62))
-            bar.autoresizingMask = kind == .pill ? [.width, .height] : [.width, .minYMargin]
+        // The whole toolbar drags: the strip plus the bar's row of the compact window.
+        if isCompact {
+            let bar = ToolbarDragView(frame: CGRect(x: 0, y: size.height - 62, width: size.width, height: 62))
+            bar.autoresizingMask = [.width, .minYMargin]
             container.addSubview(bar)
         }
         // [DOMAIN] Real controls, because a chromeless window has no title bar to
@@ -342,7 +278,6 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         }
         container.layer?.backgroundColor = CGColor.clear
         container.layer?.isOpaque = false
-        effect.layer?.backgroundColor = nil
         webView.wantsLayer = true
         webView.layer?.backgroundColor = CGColor.clear
         webView.layer?.isOpaque = false
@@ -358,7 +293,7 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         var others: [Double] = []
         if let content = panel.contentView {
             others.append(alpha(content.layer?.backgroundColor))
-            for view in content.subviews where view !== effect && view !== webView {
+            for view in content.subviews where view !== webView {
                 others.append(alpha(view.layer?.backgroundColor))
             }
             others.append(alpha(webView.layer?.backgroundColor))
@@ -368,9 +303,9 @@ final class PanelWindow: NSObject, NSWindowDelegate {
             windowIsOpaque: panel.isOpaque, windowBackgroundAlpha: Double(panel.backgroundColor.alphaComponent),
             windowHasShadow: panel.hasShadow, webViewDrawsBackground: (webView.value(forKey: "drawsBackground") as? Bool) ?? true,
             webViewUnderPageAlpha: Double(webView.underPageBackgroundColor?.alphaComponent ?? 0),
-            otherBackgroundAlphas: others, hasVisualEffect: effect != nil)
+            otherBackgroundAlphas: others)
         let problems = PanelChrome.violations(snapshot)
-        if !problems.isEmpty { NSLog("studio-shell: panel is not see-through: %@", problems.joined(separator: "; ")) }
+        if !problems.isEmpty { NSLog("studio-shell: window is not see-through: %@", problems.joined(separator: "; ")) }
     }
 
     @objc private func closeTapped() { onClose?() }
@@ -411,27 +346,19 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     }
 
     func setInteractive(_ on: Bool) { panel.ignoresMouseEvents = !on }
-    // The video's panels are a flat tint over a sharp page: the blur layer stays off.
-    func setOpacity(_ value: Double) { effect?.alphaValue = 0 }
 
     // [SAFETY] Over any app, Space and full-screen window (PanelWindowTraits).
     func show(pinned: Bool) {
-        let traits = PanelWindowTraits.of(kind ?? .analysis, pinned: pinned)
+        let traits = PanelWindowTraits.of(pinned: pinned)
         panel.level = switch traits.level {
         case .normal: .normal
         case .floating: .floating
-        case .statusBar: .statusBar
         }
         panel.hidesOnDeactivate = traits.hidesOnDeactivate
         panel.orderFrontRegardless()
     }
 
     func hide() { panel.orderOut(nil) }
-
-    func setFrame(_ frame: CGRect) {
-        panel.setFrame(frame, display: true)
-        onFrame(frame)
-    }
 
     func windowDidMove(_ notification: Notification) { onFrame(panel.frame) }
     func windowDidEndLiveResize(_ notification: Notification) { onFrame(panel.frame) }
@@ -464,15 +391,12 @@ final class ToolbarDragView: NSView {
 }
 
 final class DragHandle: NSView {
-    var vertical = false
     var showsGrip = true
     override var mouseDownCanMoveWindow: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
         guard showsGrip else { return }
         NSColor.secondaryLabelColor.withAlphaComponent(0.5).setFill()
-        let grip = vertical
-            ? CGRect(x: bounds.midX - 1.5, y: bounds.midY - 14, width: 3, height: 28)
-            : CGRect(x: bounds.midX - 14, y: bounds.midY - 1.5, width: 28, height: 3)
+        let grip = CGRect(x: bounds.midX - 14, y: bounds.midY - 1.5, width: 28, height: 3)
         NSBezierPath(roundedRect: grip, xRadius: 1.5, yRadius: 1.5).fill()
     }
 }

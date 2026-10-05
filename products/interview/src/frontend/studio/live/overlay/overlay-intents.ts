@@ -83,7 +83,7 @@ export function sendIntent(base: string, intent: Intent): void {
 
 // How long a tab that is not showing waits before acting, so a visible tab
 // claims the intent first. It must stay below INTENT_ACK_MS.
-export const HIDDEN_TAB_DELAY_MS = 120;
+const HIDDEN_TAB_DELAY_MS = 120;
 const JITTER_MS = 20;
 
 // In the Studio shell: handle intents addressed to this tenant's product. One

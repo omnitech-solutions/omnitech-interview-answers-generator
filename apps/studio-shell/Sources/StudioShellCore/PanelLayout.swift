@@ -1,84 +1,47 @@
 import CoreGraphics
 import Foundation
 
-// [DOMAIN] The four translucent panels laid over the person's working window,
-// and the pure maths that places them. AppKit coordinates throughout (origin
+// [DOMAIN] The two floating windows the shell owns besides the main Studio
+// window: the one compact window (toolbar, chat, answer and code together) and
+// the small Settings window beside it. AppKit coordinates throughout (origin
 // bottom-left); `area` is a display's visible frame.
-public enum PanelKind: String, CaseIterable, Sendable {
-    case pill, analysis, chat, settings
+public enum WindowKind: String, CaseIterable, Sendable {
+    case compact, settings
 
-    public var title: String {
-        switch self {
-        case .pill: "Status pill"
-        case .analysis: "Analysis"
-        case .chat: "Live transcription & chat"
-        case .settings: "Settings"
-        }
-    }
+    // The value of `?panel=` on the overlay route: the page decides what to draw.
+    public var queryName: String { self == .compact ? "single" : "settings" }
 
-    // The value of `?panel=` on the overlay route.
-    public var queryName: String { rawValue }
-
-    // The video's sizes: bar ~520x35, analysis ~700x400, chat ~320x440, settings ~400x380.
     public var defaultSize: CGSize {
         switch self {
-        case .pill: CGSize(width: 520, height: 35)
-        case .analysis: CGSize(width: 700, height: 400)
-        case .chat: CGSize(width: 320, height: 440)
+        case .compact: CGSize(width: 440, height: 640)
         case .settings: CGSize(width: 400, height: 380)
         }
     }
 
     public var minSize: CGSize {
         switch self {
-        case .pill: CGSize(width: 520, height: 35)
-        case .analysis: CGSize(width: 320, height: 200)
-        case .chat: CGSize(width: 260, height: 200)
+        case .compact: CGSize(width: 320, height: 360)
         case .settings: CGSize(width: 320, height: 240)
         }
     }
-
-    public var isResizable: Bool { self != .pill }
-    public var startsVisible: Bool { self != .settings }
 }
 
 public enum PanelLayout {
     public static let margin = 24.0
-    public static let gap = 12.0
     public static let topInset = 8.0
-    public static let step = 40.0
 
-    // The video's layout: the bar top-centre of the display, the chat at the
-    // left under it, the analysis right of the chat, settings top-right (on
-    // demand). Every frame fits inside `area`.
-    public static func defaultFrame(_ kind: PanelKind, in area: CGRect) -> CGRect {
-        let pill = size(.pill, in: area)
-        let pillFrame = CGRect(
-            x: area.midX - pill.width / 2, y: area.maxY - topInset - pill.height,
-            width: pill.width, height: pill.height)
-        let top = pillFrame.minY - gap
-        let chatSize = CGSize(
-            width: min(PanelKind.chat.defaultSize.width, max(PanelKind.chat.minSize.width, area.width * 0.4)),
-            height: min(PanelKind.chat.defaultSize.height, max(PanelKind.chat.minSize.height, top - area.minY - margin)))
-        let chatFrame = CGRect(x: area.minX + margin, y: top - chatSize.height, width: chatSize.width, height: chatSize.height)
+    // The compact window sits at the bottom-right of the display; Settings opens
+    // top-right. Every frame fits inside `area`.
+    public static func defaultFrame(_ kind: WindowKind, in area: CGRect) -> CGRect {
+        let size = kind.defaultSize
+        let frame: CGRect
         switch kind {
-        case .pill:
-            return fit(pillFrame, in: area, min: kind.minSize)
-        case .chat:
-            return fit(chatFrame, in: area, min: kind.minSize)
-        case .analysis:
-            let left = chatFrame.maxX + gap
-            let width = min(kind.defaultSize.width, max(kind.minSize.width, area.maxX - margin - left))
-            let height = min(kind.defaultSize.height, max(kind.minSize.height, top - area.minY - margin))
-            return fit(CGRect(x: left, y: top - height, width: width, height: height), in: area, min: kind.minSize)
+        case .compact:
+            frame = CGRect(x: area.maxX - margin - size.width, y: area.minY + margin, width: size.width, height: size.height)
         case .settings:
-            let s = size(kind, in: area)
-            return fit(CGRect(x: area.maxX - margin - s.width, y: area.maxY - topInset - s.height, width: s.width, height: s.height), in: area, min: kind.minSize)
+            frame = CGRect(x: area.maxX - margin - size.width, y: area.maxY - topInset - size.height, width: size.width, height: size.height)
         }
-    }
-
-    private static func size(_ kind: PanelKind, in area: CGRect) -> CGSize {
-        CGSize(width: min(kind.defaultSize.width, area.width), height: min(kind.defaultSize.height, area.height))
+        return fit(frame, in: area, min: kind.minSize)
     }
 
     // Keeps a frame wholly inside `area`, shrinking it first if it is larger
@@ -89,17 +52,6 @@ public enum PanelLayout {
         let x = Swift.min(Swift.max(frame.minX, area.minX), area.maxX - width)
         let y = Swift.min(Swift.max(frame.minY, area.minY), area.maxY - height)
         return CGRect(x: x, y: y, width: width, height: height)
-    }
-
-    public static func nudge(_ frame: CGRect, dx: Double, dy: Double, in area: CGRect, min minimum: CGSize) -> CGRect {
-        fit(frame.offsetBy(dx: dx, dy: dy), in: area, min: minimum)
-    }
-
-    // The top-left corner stays put while the size changes.
-    public static func resize(_ frame: CGRect, dw: Double, dh: Double, in area: CGRect, min minimum: CGSize) -> CGRect {
-        let width = Swift.max(minimum.width, frame.width + dw)
-        let height = Swift.max(minimum.height, frame.height + dh)
-        return fit(CGRect(x: frame.minX, y: frame.maxY - height, width: width, height: height), in: area, min: minimum)
     }
 }
 
@@ -118,20 +70,12 @@ public enum PanelFrameCodec {
         return CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
     }
 
-    // [GUARD] At least a grabbable strip of the frame must lie on some display,
-    // and it must respect the panel's minimum size; a fixed-size panel takes
-    // only the saved origin.
-    public static func restore(_ kind: PanelKind, saved: String?, displays: [CGRect]) -> CGRect? {
-        restoreFrame(saved, minSize: kind.minSize, fixedSize: kind.isResizable ? nil : kind.defaultSize, displays: displays)
-    }
-
-    public static func restoreFrame(_ saved: String?, minSize: CGSize, fixedSize: CGSize?, displays: [CGRect]) -> CGRect? {
-        guard let saved, var frame = decode(saved) else { return nil }
-        if let fixedSize {
-            frame.size = fixedSize
-        } else {
-            guard frame.width >= minSize.width, frame.height >= minSize.height else { return nil }
-        }
+    // [GUARD] A window is never lost off-screen: at least a grabbable strip of the
+    // frame must lie on some display, and it must respect the minimum size.
+    public static func restoreFrame(_ saved: String?, minSize: CGSize, displays: [CGRect]) -> CGRect? {
+        guard let saved, let frame = decode(saved),
+            frame.width >= minSize.width, frame.height >= minSize.height
+        else { return nil }
         let strip = CGRect(x: frame.minX, y: frame.maxY - 28, width: frame.width, height: 28)
         let reachable = displays.contains { area in
             let overlap = area.intersection(strip)
@@ -141,15 +85,15 @@ public enum PanelFrameCodec {
     }
 }
 
-// [SAFETY] How a panel sits in the window server, platform-neutral; the AppKit
-// adapter maps it onto NSPanel. Over any app and any Space, including a
-// full-screen window: floating (the pill one tier up, at status-bar level),
-// joins every Space, is a full-screen auxiliary, stays put through Mission
-// Control, never hides when another app is active, never takes activation.
-// There is deliberately NO sharing/capture-exclusion trait: panels keep the
-// default and show in screen shares (ADR-0018, ADR-0019/shell-no-concealment).
+// [SAFETY] How a floating window sits in the window server, platform-neutral; the
+// AppKit adapter maps it onto NSPanel. Over any app and any Space, including a
+// full-screen window: floating when pinned, joins every Space, is a full-screen
+// auxiliary, stays put through Mission Control, never hides when another app is
+// active, never takes activation. There is deliberately NO sharing/capture-exclusion
+// trait: windows keep the default and show in screen shares (ADR-0018,
+// ADR-0019/shell-no-concealment).
 public struct PanelWindowTraits: Equatable, Sendable {
-    public enum LevelTier: Int, Sendable { case normal = 0, floating = 1, statusBar = 2 }
+    public enum LevelTier: Int, Sendable { case normal = 0, floating = 1 }
 
     public let level: LevelTier
     public let joinsAllSpaces = true
@@ -159,7 +103,7 @@ public struct PanelWindowTraits: Equatable, Sendable {
     public let nonActivating = true
     public let borderless = true
 
-    public static func of(_ kind: PanelKind, pinned: Bool = true) -> PanelWindowTraits {
-        PanelWindowTraits(level: pinned ? (kind == .pill ? .statusBar : .floating) : .normal)
+    public static func of(pinned: Bool = true) -> PanelWindowTraits {
+        PanelWindowTraits(level: pinned ? .floating : .normal)
     }
 }

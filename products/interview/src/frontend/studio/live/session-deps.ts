@@ -22,14 +22,9 @@ export const RETRY_MAX_MS = 30_000;
 export const PURGE_SETTLE_MS = 3_000;
 export const PURGE_SETTLE_ATTEMPTS = 20;
 
-export type StoreDeps = {
-  fetch: SessionFetch;
-  now(): number;
-  setTimer(run: () => void, ms: number): unknown;
-  clearTimer(handle: unknown): void;
-  isVisible(): boolean;
-  // Calls back when the page becomes visible or hidden; returns the remover.
-  onVisibilityChange(listener: () => void): () => void;
+// Owner input over the one session, shared by what the page injects (StoreDeps)
+// and what the commands call (CommandContext).
+export type OwnerInputPort = {
   // Owner input over the one session: ask for an answer from the newest
   // capture, or send a typed follow-up. The server route is optional until it
   // ships; a missing method is answered with the "unavailable" code. Failures
@@ -74,6 +69,16 @@ export type StoreDeps = {
     text: string,
     requestId: string,
   ): Promise<void>;
+};
+
+export type StoreDeps = OwnerInputPort & {
+  fetch: SessionFetch;
+  now(): number;
+  setTimer(run: () => void, ms: number): unknown;
+  clearTimer(handle: unknown): void;
+  isVisible(): boolean;
+  // Calls back when the page becomes visible or hidden; returns the remover.
+  onVisibilityChange(listener: () => void): () => void;
   // Only the finished session's id is ever stored; failures are the caller's.
   storage: {
     read(key: string): string | null;

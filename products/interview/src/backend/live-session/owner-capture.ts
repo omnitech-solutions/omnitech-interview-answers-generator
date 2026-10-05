@@ -41,7 +41,7 @@ import { lockSession } from "./session-record.js";
 
 // Owner captures one session accepts: each may hold up to 2 MiB, so this
 // bounds stored bytes (400 x 2 MiB is the companion's own bound).
-export const OWNER_CAPTURE_MAX_PER_SESSION = 200;
+const OWNER_CAPTURE_MAX_PER_SESSION = 200;
 
 const invalid = (reason: InvalidReason = "fields") =>
   new SessionError("invalid_input", [], reason);

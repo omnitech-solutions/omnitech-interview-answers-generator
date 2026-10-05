@@ -7,7 +7,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import { parseDisconnectedContent, parseGapContent } from "./session-results";
 
-export const CAPTURE_SOURCES: readonly LiveCaptureSource[] = [
+const CAPTURE_SOURCES: readonly LiveCaptureSource[] = [
   "microphone",
   "application-audio",
   "screen",
@@ -38,7 +38,7 @@ export const SOURCE_LABEL: Record<LiveCaptureSource, string> = {
   "application-audio": "App audio",
   screen: "Screen",
 };
-export const SOURCE_NOTE: Record<LiveCaptureSource, string> = {
+const SOURCE_NOTE: Record<LiveCaptureSource, string> = {
   microphone: "Labelled “Microphone”, not a speaker name",
   "application-audio": "May contain several people. Gaps are recorded.",
   screen: "Snapshots of the selected window, not video",
@@ -213,8 +213,8 @@ export const CREDENTIAL_LIFETIME_TEXT = `${CREDENTIAL_LIFETIME_MS / (60 * 60 * 1
 // never-seen: the server has recorded no contact, so nothing may say the
 // companion is connected. online: contact within the threshold. offline:
 // contact was recorded but is older.
-export type CompanionStatus = "never-seen" | "online" | "offline";
-export type CredentialState =
+type CompanionStatus = "never-seen" | "online" | "offline";
+type CredentialState =
   | "none"
   | "valid"
   | "expiring-soon"

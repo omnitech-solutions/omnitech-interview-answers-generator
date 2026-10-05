@@ -196,7 +196,7 @@ describe("a real stream page through the Live view's derivations", () => {
     expect(stateView(model).key).toBe("permission-revoked");
     expect(
       sourceChips(model).find((chip) => chip.source === "screen")?.state,
-    ).toMatch(/disconnected/);
+    ).toMatch(/capture lost/);
     // Never "listening" for a source that is gone.
     expect(model.barState).toBe("source-lost");
   });

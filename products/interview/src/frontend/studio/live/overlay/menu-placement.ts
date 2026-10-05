@@ -11,9 +11,9 @@ export type Placement = {
   shiftX: number;
 };
 
-export const GAP = 4;
-export const MARGIN = 8;
-export const MIN_HEIGHT = 96;
+const GAP = 4;
+const MARGIN = 8;
+const MIN_HEIGHT = 96;
 
 export function placeMenu(input: {
   anchor: Box;

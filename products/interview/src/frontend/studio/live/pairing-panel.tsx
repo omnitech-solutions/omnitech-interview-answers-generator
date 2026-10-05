@@ -19,7 +19,7 @@ const MASK = "••••••••••••••••";
 // What the revoke did, said from the session record read AFTER it. The server
 // pauses only a session that was active; for any other status it changes
 // nothing, so this never says "paused" unless the record does.
-export function revokedNote(status: string | undefined): string {
+function revokedNote(status: string | undefined): string {
   return status === "paused"
     ? "Credential revoked. The session is paused: renew a credential and resume to continue."
     : `Credential revoked. The session is still ${status ?? "open"}; it was not paused.`;

@@ -1,12 +1,12 @@
 import type { LiveAction } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { action, minutesAfter, snapshot } from "../session-fixtures";
+import { deriveTasks, type TaskView } from "../session-tasks";
+import { action, minutesAfter, snapshot } from "../testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "../session-result-fixtures";
-import { deriveTasks, type TaskView } from "../session-tasks";
+} from "../testing/session-result-fixtures";
 import {
   generatedByLabel,
   missingContextFor,

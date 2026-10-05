@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sessionView } from "./session-fixtures";
+import { sessionView } from "./testing/session-fixtures";
 
 afterEach(() => {
   vi.resetModules();

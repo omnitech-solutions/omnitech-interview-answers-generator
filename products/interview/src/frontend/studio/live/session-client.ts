@@ -62,7 +62,7 @@ export class SessionApiError extends Error {
   }
 }
 
-export type StreamCursor = {
+type StreamCursor = {
   afterSequence?: number;
   actionCursor?: string;
   limit?: number;
@@ -125,7 +125,7 @@ export type SessionClient = {
 
 // What one capture request carries. `label` is plain text and never a window or
 // tab title.
-export type CaptureUpload = {
+type CaptureUpload = {
   requestId: string;
   image: Blob;
   label?: string;

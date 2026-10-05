@@ -23,7 +23,7 @@ const hintFields = (hints?: OwnerHints): OwnerHints => ({
 const requestId = (): string => `r-${globalThis.crypto.randomUUID()}`;
 
 // The newest screen snapshot the store holds, by observation id.
-export function latestSnapshotIds(
+function latestSnapshotIds(
   snapshot: LiveSnapshot,
 ): { sourceId: string; eventId: string } | null {
   let newest: LiveSnapshot["observations"][number] | null = null;

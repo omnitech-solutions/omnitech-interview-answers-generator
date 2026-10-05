@@ -7,14 +7,17 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PairingPanel } from "./pairing-panel";
+import { getSessionStore, resetSessionStores } from "./session-registry";
 import {
   jsonResponse,
   minutesAfter,
   sessionView,
   streamPage,
-} from "./session-fixtures";
-import { getSessionStore, resetSessionStores } from "./session-registry";
-import { createTestServer, type TestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import {
+  createTestServer,
+  type TestServer,
+} from "./testing/session-test-server";
 
 const SECRET = "pair-secret-123";
 const RENEWED = "renewed-secret-456";

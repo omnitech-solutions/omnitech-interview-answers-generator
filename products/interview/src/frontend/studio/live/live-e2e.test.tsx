@@ -7,12 +7,13 @@ import type { AssistantConfig } from "@omnitech-assistant/react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
+import { resetSessionStores } from "./session-registry";
 import {
   CANDIDACY_ID,
   INTERVIEW_ID,
   installScriptedService,
   type ScriptedService,
-} from "./live-script-kit";
+} from "./testing/live-script-kit";
 import {
   action,
   disconnected,
@@ -20,13 +21,12 @@ import {
   sessionView,
   snapshot,
   transcript,
-} from "./session-fixtures";
-import { resetSessionStores } from "./session-registry";
+} from "./testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "./session-result-fixtures";
+} from "./testing/session-result-fixtures";
 
 vi.mock("@omnitech-assistant/react", () => ({
   AssistantRoot: ({
@@ -169,7 +169,7 @@ describe("start", () => {
     expect(screen.getByTestId("companion-chip")).toHaveTextContent(
       "Capture companion: not connected",
     );
-    expect(bar()).not.toHaveTextContent(/Waiting|receiving/i);
+    expect(bar()).not.toHaveTextContent(/Waiting|(?<!not )receiving/i);
 
     // Handed over: dismissed, it is gone and never comes back from the server.
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));

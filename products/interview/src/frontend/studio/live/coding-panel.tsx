@@ -15,9 +15,9 @@ import { RUNNER_NOTE } from "./session-draft-facts";
 import type { CodeResult } from "./session-results";
 import type { TaskView } from "./session-tasks";
 import {
+  badgesOf,
   type CardBadge,
   type TaskCard,
-  taskCardModel,
 } from "./shared/task-card-model";
 import { useSessionDraftLink } from "./workspace-handoff";
 
@@ -105,23 +105,13 @@ function TestResults({ code }: { code: CodeResult }) {
   );
 }
 
-// A held result is judged by the same card model, as if it were the solution on
-// show, so its badges cannot differ in meaning from the draft's.
-function suggestionBadges(
+// A held result is judged by the same badge rules as the solution on show, so
+// its badges cannot differ in meaning from the draft's.
+const suggestionBadges = (
   task: TaskView,
   suggestion: CodeResult,
-): readonly CardBadge[] {
-  const shown = { ...task, draftCode: suggestion, code: suggestion };
-  return (
-    taskCardModel({
-      tasks: [shown],
-      actions: [],
-      observations: [],
-      selectedTaskId: task.taskId,
-      deviceOnly: false,
-    })?.badges ?? []
-  );
-}
+): readonly CardBadge[] =>
+  badgesOf({ ...task, draftCode: suggestion, code: suggestion });
 
 function CodingTabs({
   tab,

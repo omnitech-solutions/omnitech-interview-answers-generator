@@ -35,7 +35,7 @@ export const CLAIM_COLUMNS = [
 export const CLAIM_SELECT = `SELECT ${CLAIM_COLUMNS.join(", ")} FROM interview.active_session_claims`;
 
 // Thirty days from end (rule:retention-modes).
-export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Runs `work` in a transaction with the claim setting on. The setting is
 // transaction-local, so a pooled connection never carries it away. The worker

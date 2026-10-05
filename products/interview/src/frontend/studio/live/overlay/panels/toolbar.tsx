@@ -1,7 +1,7 @@
 // The toolbar, drawn from the tables in toolbar-config.ts: the capture button
-// with its mode menu, the microphone, the answer style, and (in the one window)
-// the model chip, the pane toggles, click-through and the shortcut list. It
-// holds no session logic: every control calls the one panel session.
+// with its mode menu, the microphone, the answer style, the model chip, the pane
+// toggles, click-through and the shortcut list. It holds no session logic:
+// every control calls the one panel session.
 //
 // [SAFETY] Nothing here hides a window or conceals capture; click-through only
 // lets the mouse reach the page underneath, and the window stays visible.
@@ -35,7 +35,7 @@ function pillTone(s: PanelSession): { tone: Tone; label: string } {
 
 type MenuId = "mode" | "skill" | "keys";
 
-// What the one window adds to the bar.
+// What the one window gives the toolbar.
 type WindowControls = {
   panes: Panes;
   presentation: PresentationHost;
@@ -44,22 +44,22 @@ type WindowControls = {
   onMenuOpen(open: boolean): void;
 };
 
-export function PillPanel({
+export function Toolbar({
   s,
-  single: extras,
+  controls,
 }: {
   s: PanelSession;
-  single?: WindowControls;
+  controls: WindowControls;
 }) {
   const status = pillTone(s);
   const recording = s.live.mic === "listening";
   const control = captureControl(Boolean(s.phase));
   const [menu, setMenu] = useState<MenuId | null>(null);
-  const onMenuOpen = extras?.onMenuOpen;
-  useEffect(() => onMenuOpen?.(menu !== null), [menu, onMenuOpen]);
+  const onMenuOpen = controls.onMenuOpen;
+  useEffect(() => onMenuOpen(menu !== null), [menu, onMenuOpen]);
   const toggle = (id: MenuId) => (open: boolean) => setMenu(open ? id : null);
   const skill = SKILLS.find((option) => option.id === s.skill)?.label ?? "";
-  const modes = extras?.captureMode;
+  const modes = controls.captureMode;
   const clickThrough = s.interaction === false;
   return (
     <div
@@ -94,59 +94,57 @@ export function PillPanel({
           <span className="pn-split-label">{control.label}</span>
           <kbd>{nativeChord("analyze")}</kbd>
         </button>
-        {modes && (
-          <Popover
-            open={menu === "mode"}
-            onOpenChange={toggle("mode")}
-            className="pn-split-menu"
-            label="Capture mode"
-            title="How the screen is captured"
-            kind="menu"
-            panelClassName="pn-menu"
-            trigger={
-              <>
-                {CAPTURE_MODES.find((mode) => mode.id === modes.value)?.label}
-                <Icon name="expand_more" />
-              </>
-            }
-          >
-            {(close) =>
-              captureMenuItems({
-                mode: modes.value,
-                auto: s.auto.limits,
-                target: s.target?.targetLabel ?? null,
-                open: s.open,
-              }).map((item) => {
-                const isMode = item.id !== "attach";
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role={isMode ? "menuitemradio" : "menuitem"}
-                    aria-checked={isMode ? item.checked : undefined}
-                    aria-disabled={item.disabledReason !== null}
-                    className="pn-menu-item"
-                    onClick={() => {
-                      if (item.disabledReason !== null) return;
-                      if (item.id === "attach") s.press("attach");
-                      else modes.onChange(item.id);
-                      close();
-                    }}
-                  >
-                    <Icon
-                      name="check"
-                      style={{ opacity: item.checked ? 1 : 0 }}
-                    />
-                    <span>
-                      <span className="pn-menu-label">{item.label}</span>
-                      <span className="pn-menu-sub">{item.subtitle}</span>
-                    </span>
-                  </button>
-                );
-              })
-            }
-          </Popover>
-        )}
+        <Popover
+          open={menu === "mode"}
+          onOpenChange={toggle("mode")}
+          className="pn-split-menu"
+          label="Capture mode"
+          title="How the screen is captured"
+          kind="menu"
+          panelClassName="pn-menu"
+          trigger={
+            <>
+              {CAPTURE_MODES.find((mode) => mode.id === modes.value)?.label}
+              <Icon name="expand_more" />
+            </>
+          }
+        >
+          {(close) =>
+            captureMenuItems({
+              mode: modes.value,
+              auto: s.auto.limits,
+              target: s.target?.targetLabel ?? null,
+              open: s.open,
+            }).map((item) => {
+              const isMode = item.id !== "attach";
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role={isMode ? "menuitemradio" : "menuitem"}
+                  aria-checked={isMode ? item.checked : undefined}
+                  aria-disabled={item.disabledReason !== null}
+                  className="pn-menu-item"
+                  onClick={() => {
+                    if (item.disabledReason !== null) return;
+                    if (item.id === "attach") s.press("attach");
+                    else modes.onChange(item.id);
+                    close();
+                  }}
+                >
+                  <Icon
+                    name="check"
+                    style={{ opacity: item.checked ? 1 : 0 }}
+                  />
+                  <span>
+                    <span className="pn-menu-label">{item.label}</span>
+                    <span className="pn-menu-sub">{item.subtitle}</span>
+                  </span>
+                </button>
+              );
+            })
+          }
+        </Popover>
       </div>
       <button
         type="button"
@@ -217,72 +215,68 @@ export function PillPanel({
           </>
         )}
       </Popover>
-      {extras && (
-        <>
-          {s.card?.modelLabel && (
-            <span
-              className="pn-model"
-              title={`Generated by ${s.card.modelLabel}`}
-              data-testid="pn-model"
-            >
-              {s.card.modelLabel}
-            </span>
-          )}
-          <span className="pn-divider" aria-hidden="true" />
-          {PANES.map((pane) => (
-            <button
-              key={pane.id}
-              type="button"
-              className="pn-bar-button"
-              aria-pressed={extras.panes.shown[pane.id]}
-              title={pane.title}
-              onClick={() => extras.panes.toggle(pane.id)}
-            >
-              <Icon name={pane.icon} />
-              {pane.label}
-            </button>
-          ))}
-          {s.interaction !== null && (
-            <button
-              type="button"
-              className="pn-bar-button pn-icon-button"
-              aria-label="Click-through"
-              aria-pressed={clickThrough}
-              title={
-                clickThrough
-                  ? `Click-through on · ${nativeChord("click-through")} to interact`
-                  : `Interactive · ${nativeChord("click-through")} for click-through`
-              }
-              onClick={() =>
-                void extras.presentation.setInteractionMode(clickThrough)
-              }
-            >
-              <Icon name="desktop_windows" />
-            </button>
-          )}
-          <Popover
-            open={menu === "keys"}
-            onOpenChange={toggle("keys")}
-            className="pn-bar-button pn-icon-button"
-            label="Keyboard shortcuts"
-            title="Shortcuts"
-            kind="dialog"
-            panelClassName="pn-menu pn-keys"
-            trigger={<Icon name="keyboard" />}
-          >
-            {() => (
-              <ul className="pn-keys-list">
-                {shortcutsFor("native").map((shortcut) => (
-                  <li key={shortcut.id}>
-                    <span>{shortcut.label}</span>
-                    <kbd>{shortcut.chord}</kbd>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Popover>
-        </>
+      {s.card?.modelLabel && (
+        <span
+          className="pn-model"
+          title={`Generated by ${s.card.modelLabel}`}
+          data-testid="pn-model"
+        >
+          {s.card.modelLabel}
+        </span>
       )}
+      <span className="pn-divider" aria-hidden="true" />
+      {PANES.map((pane) => (
+        <button
+          key={pane.id}
+          type="button"
+          className="pn-bar-button"
+          aria-pressed={controls.panes.shown[pane.id]}
+          title={pane.title}
+          onClick={() => controls.panes.toggle(pane.id)}
+        >
+          <Icon name={pane.icon} />
+          {pane.label}
+        </button>
+      ))}
+      {s.interaction !== null && (
+        <button
+          type="button"
+          className="pn-bar-button pn-icon-button"
+          aria-label="Click-through"
+          aria-pressed={clickThrough}
+          title={
+            clickThrough
+              ? `Click-through on · ${nativeChord("click-through")} to interact`
+              : `Interactive · ${nativeChord("click-through")} for click-through`
+          }
+          onClick={() =>
+            void controls.presentation.setInteractionMode(clickThrough)
+          }
+        >
+          <Icon name="desktop_windows" />
+        </button>
+      )}
+      <Popover
+        open={menu === "keys"}
+        onOpenChange={toggle("keys")}
+        className="pn-bar-button pn-icon-button"
+        label="Keyboard shortcuts"
+        title="Shortcuts"
+        kind="dialog"
+        panelClassName="pn-menu pn-keys"
+        trigger={<Icon name="keyboard" />}
+      >
+        {() => (
+          <ul className="pn-keys-list">
+            {shortcutsFor("native").map((shortcut) => (
+              <li key={shortcut.id}>
+                <span>{shortcut.label}</span>
+                <kbd>{shortcut.chord}</kbd>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Popover>
     </div>
   );
 }

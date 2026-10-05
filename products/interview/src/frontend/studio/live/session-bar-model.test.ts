@@ -6,14 +6,14 @@ import {
   sourceChips,
   stateView,
 } from "./session-bar-model";
+import { deriveLiveModel } from "./session-state";
 import {
   disconnected,
   gap,
   minutesAfter,
   sessionView,
   transcript,
-} from "./session-fixtures";
-import { deriveLiveModel } from "./session-state";
+} from "./testing/session-fixtures";
 
 const NOW = Date.parse(minutesAfter(1));
 function model(
@@ -126,8 +126,8 @@ describe("source chips", () => {
   it("never says receiving while the companion is not in contact", () => {
     const chips = sourceChips(model({ lastHeartbeatAt: null }));
     expect(chips.map((chip) => chip.title)).toEqual([
-      "Microphone · no data from it yet",
-      "App audio · no data from it yet",
+      "Microphone · not receiving",
+      "App audio · not receiving",
     ]);
     const quiet = sourceChips(
       model({ lastHeartbeatAt: minutesAfter(-5) }, [
@@ -153,7 +153,7 @@ describe("source chips", () => {
       source: "application-audio",
       tone: "red",
     });
-    expect(chips[1]?.title).toBe("App audio · disconnected, device lost");
+    expect(chips[1]?.title).toBe("App audio · capture lost, device lost");
   });
   it("shows a dropped-audio gap as amber", () => {
     const chips = sourceChips(

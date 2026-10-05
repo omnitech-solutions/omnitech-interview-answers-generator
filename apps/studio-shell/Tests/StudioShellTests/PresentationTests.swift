@@ -12,19 +12,13 @@ private final class MemoryStore: SettingsStore {
 @MainActor
 private final class RecordingSurface: PresentationSurface {
     var rendered: [PresentationState] = []
-    var focused: [PanelKind] = []
     var toasts: [Toast] = []
     var quits = 0
-    var moves: [(Double, Double)] = []
-    var resets = 0
+    var fronts = 0
     var sizes: [[Double?]] = []
     func setCompactSize(width: Double, height: Double?) { sizes.append([width, height]) }
     func render(_ state: PresentationState) { rendered.append(state) }
-    func focus(_ panel: PanelKind) { focused.append(panel) }
-    func resetFrames() { resets += 1 }
-    func movePanels(dx: Double, dy: Double) { moves.append((dx, dy)) }
-    func resizePanel(_ panel: PanelKind, dw: Double, dh: Double) {}
-    func bringToFront() {}
+    func bringToFront() { fronts += 1 }
     func toast(_ toast: Toast) { toasts.append(toast) }
     func quit() { quits += 1 }
 }
@@ -33,20 +27,16 @@ private let display = CGRect(x: 0, y: 25, width: 1440, height: 875)
 
 @MainActor
 func presentationTests(_ t: Harness) async {
-    await t.test("in the one window, the page asks for a width and the layout stays") {
+    await t.test("in the one window, the page asks for a width and a fitted height; nothing else changes") {
         let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
         let surface = RecordingSurface()
         controller.surface = surface
-        t.expectEqual(controller.state.layout, .compact)
         controller.perform(.setWindowSize(width: 1260, height: nil))
         controller.perform(.setWindowSize(width: 540, height: 120))
         t.expectEqual(surface.sizes.count, 2)
         t.expectEqual(surface.sizes[0][0], 1260)
         t.expectEqual(surface.sizes[1][1], 120)
-        t.expectEqual(controller.state.layout, .compact, "no switch to separate panels")
-        controller.perform(.resetLayout)
-        controller.perform(.setWindowSize(width: 900, height: nil))
-        t.expectEqual(surface.sizes.count, 2, "ignored outside the one window")
+        t.expect(controller.state.compactShown && controller.state.appMode == .minified, "still the one window")
     }
     await t.test("click-through in the one window: the window stays shown, ignores the mouse, and the toggle brings it back") {
         let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
@@ -56,7 +46,6 @@ func presentationTests(_ t: Harness) async {
         controller.perform(.toggleInteractionMode)
         t.expect(surface.rendered.last?.compactShown == true, "still on screen while click-through")
         t.expect(surface.rendered.last?.interaction.ignoresMouseEvents == true, "the one window follows interaction state")
-        t.expectEqual(controller.state.layout, .compact)
         // The hotkey that turns it back on stays registered and routed while the window ignores the mouse.
         let registered = HotkeyBinding.all.filter { !$0.requiresInteractive }
         t.expect(registered.contains { $0.action == .toggleInteraction && $0.label == "⌘⇧I" }, "⌘⇧I always registered")
@@ -69,99 +58,76 @@ func presentationTests(_ t: Harness) async {
         t.expect(!PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive)
     }
 
-    await t.test("Settings opens beside the one window without changing the layout; the chat key is an intent") {
+    await t.test("Settings opens beside the one window; the chat key is an intent that never touches the windows") {
         let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
         let surface = RecordingSurface()
         controller.surface = surface
-        controller.perform(.openPanel(.settings))
-        t.expectEqual(controller.state.layout, .compact, "Settings leaves the layout alone")
+        controller.perform(.openSettings)
         t.expect(controller.state.compactShown, "the one window stays")
-        t.expectEqual(controller.state.shownPanels, [.settings])
-        controller.perform(.closePanel(.settings))
-        t.expectEqual(controller.state.shownPanels, [])
-        // The chat key sends an intent to the page; it never touches the layout.
+        t.expect(controller.state.settingsShown)
+        t.expectEqual(HostReply.tookEffect(.openSettings, controller.state), true)
+        controller.perform(.closeSettings)
+        t.expect(!controller.state.settingsShown)
+        t.expectEqual(HostReply.tookEffect(.closeSettings, controller.state), true)
+        // The chat key sends an intent to the page; the page owns the input.
         t.expectEqual(HotkeyRouting.effect(for: .showChat, interactive: false), .intent(.chatFocus))
         t.expectEqual(HostCommand.chatFocus.wireName, "chat.focus")
-        t.expectEqual(HostCommand.chatFocus.target, .chat)
         t.expectEqual(HostBridgeScript.emit(.chatFocus), "window.__studioHostEmit && window.__studioHostEmit(\"chat.focus\");")
-        t.expectEqual(HotkeyRouting.effect(for: .openSettings, interactive: false), .present(.openPanel(.settings)))
-        // Another panel still opens the separate-panels layout.
-        controller.perform(.openPanel(.chat))
-        t.expectEqual(controller.state.layout, .panels)
+        t.expectEqual(HotkeyRouting.effect(for: .openSettings, interactive: false), .present(.openSettings))
+        // Settings hides with the window and never survives into the expanded form.
+        controller.perform(.openSettings)
+        controller.perform(.setVisible(false))
+        t.expect(!controller.state.settingsShown && !controller.state.compactShown)
+        controller.perform(.setAppMode(.expanded))
+        t.expect(!controller.state.settingsShown && controller.state.mainWindowShown)
     }
 
-    // MARK: layout maths
-    await t.test("default layout is the video's: bar top-centre, chat left, analysis right of it, settings top-right") {
-        let pill = PanelLayout.defaultFrame(.pill, in: display)
-        t.expectEqual(pill.size, CGSize(width: 520, height: 35))
-        t.expectEqual(pill.midX, display.midX)
-        t.expectEqual(pill.maxY, display.maxY - PanelLayout.topInset)
-        let analysis = PanelLayout.defaultFrame(.analysis, in: display)
-        let chat = PanelLayout.defaultFrame(.chat, in: display)
-        t.expectEqual(analysis.size, CGSize(width: 700, height: 400))
-        t.expectEqual(chat.size, CGSize(width: 320, height: 440))
-        t.expect(analysis.maxY <= pill.minY && chat.maxY <= pill.minY, "both sit under the bar")
-        t.expectEqual(chat.minX, display.minX + PanelLayout.margin)
-        t.expect(analysis.minX >= chat.maxX, "analysis is right of the chat")
-        for kind in PanelKind.allCases {
-            let frame = PanelLayout.defaultFrame(kind, in: display)
-            t.expect(display.contains(frame), "\(kind) inside the display")
-        }
+    // MARK: window frames
+    await t.test("default frames sit bottom-right (compact) and top-right (Settings) and always fit the display") {
+        let compact = PanelLayout.defaultFrame(.compact, in: display)
+        t.expectEqual(compact.size, WindowKind.compact.defaultSize)
+        t.expectEqual(compact.maxX, display.maxX - PanelLayout.margin)
+        t.expectEqual(compact.minY, display.minY + PanelLayout.margin)
         let settings = PanelLayout.defaultFrame(.settings, in: display)
         t.expectEqual(settings.size, CGSize(width: 400, height: 380))
         t.expectEqual(settings.maxX, display.maxX - PanelLayout.margin)
         t.expectEqual(settings.maxY, display.maxY - PanelLayout.topInset)
-        t.expect(!PanelKind.pill.isResizable && PanelKind.analysis.isResizable && PanelKind.chat.isResizable)
-        t.expect(PanelKind.settings.startsVisible == false, "settings opens on demand")
-        // A small display still fits every panel.
-        let small = CGRect(x: 0, y: 0, width: 800, height: 500)
-        for kind in PanelKind.allCases { t.expect(small.contains(PanelLayout.defaultFrame(kind, in: small)), "\(kind) fits small") }
-        // A full-HD-class display too.
-        let big = CGRect(x: 0, y: 0, width: 1920, height: 1055)
-        t.expectEqual(PanelLayout.defaultFrame(.pill, in: big).midX, big.midX)
-        t.expectEqual(PanelLayout.defaultFrame(.analysis, in: big).size, CGSize(width: 700, height: 400))
+        for kind in WindowKind.allCases {
+            for area in [display, CGRect(x: 0, y: 0, width: 800, height: 500), CGRect(x: 0, y: 0, width: 1920, height: 1055)] {
+                t.expect(area.contains(PanelLayout.defaultFrame(kind, in: area)), "\(kind) fits \(area.size)")
+            }
+        }
+        t.expectEqual(WindowKind.compact.queryName, "single")
+        t.expectEqual(WindowKind.settings.queryName, "settings")
     }
 
-    await t.test("nudge and resize stay on the display and respect minimum sizes") {
-        let frame = CGRect(x: 100, y: 100, width: 400, height: 300)
-        t.expectEqual(PanelLayout.nudge(frame, dx: 40, dy: -40, in: display, min: PanelKind.chat.minSize).origin, CGPoint(x: 140, y: 60))
-        let pushed = PanelLayout.nudge(frame, dx: -10_000, dy: 10_000, in: display, min: PanelKind.chat.minSize)
-        t.expectEqual(pushed.minX, display.minX)
-        t.expectEqual(pushed.maxY, display.maxY)
-        let narrower = PanelLayout.resize(frame, dw: -10_000, dh: 0, in: display, min: PanelKind.chat.minSize)
-        t.expectEqual(narrower.width, PanelKind.chat.minSize.width)
-        t.expectEqual(narrower.maxY, frame.maxY, "top-left stays put")
-        let wider = PanelLayout.resize(frame, dw: 40, dh: 40, in: display, min: PanelKind.chat.minSize)
-        t.expectEqual(wider.size, CGSize(width: 440, height: 340))
-        t.expectEqual(wider.maxY, frame.maxY)
-    }
-
-    // MARK: frame persistence
-    await t.test("frames persist as text and are restored only when sane and reachable") {
+    await t.test("frames persist as text and are restored only when sane and reachable (never lost off-screen)") {
         let store = MemoryStore()
         let prefs = ShellPrefs(store: store)
         let frame = CGRect(x: 120, y: 200, width: 500, height: 400)
-        prefs.saveFrame(.analysis, frame)
-        t.expectEqual(store.values["panel.analysis.frame2"], "120,200,500,400")
-        t.expectEqual(prefs.savedFrame(.analysis, displays: [display]), frame)
+        prefs.saveFrame(.compact, frame)
+        t.expectEqual(store.values["shell.compact.frame"], "120,200,500,400")
+        t.expectEqual(prefs.savedFrame(.compact, displays: [display]), frame)
         // Off every display: default wins.
-        prefs.saveFrame(.analysis, CGRect(x: 9000, y: 9000, width: 500, height: 400))
-        t.expectEqual(prefs.savedFrame(.analysis, displays: [display]), nil)
-        t.expectEqual(prefs.frame(.analysis, displays: [display], main: display), PanelLayout.defaultFrame(.analysis, in: display))
-        // Smaller than the panel's minimum, junk, and non-finite are refused.
-        prefs.saveFrame(.analysis, CGRect(x: 0, y: 100, width: 10, height: 10))
-        t.expectEqual(prefs.savedFrame(.analysis, displays: [display]), nil)
+        prefs.saveFrame(.compact, CGRect(x: 9000, y: 9000, width: 500, height: 400))
+        t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
+        t.expectEqual(prefs.frame(.compact, displays: [display], main: display), PanelLayout.defaultFrame(.compact, in: display))
+        // Only a sliver on screen is not enough; a grabbable strip is.
+        prefs.saveFrame(.compact, CGRect(x: display.maxX - 20, y: 200, width: 500, height: 400))
+        t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
+        prefs.saveFrame(.compact, CGRect(x: display.maxX - 200, y: 200, width: 500, height: 400))
+        t.expect(prefs.savedFrame(.compact, displays: [display]) != nil)
+        // Smaller than the window's minimum, junk, and non-finite are refused.
+        prefs.saveFrame(.settings, CGRect(x: 0, y: 100, width: 10, height: 10))
+        t.expectEqual(prefs.savedFrame(.settings, displays: [display]), nil)
         t.expectEqual(PanelFrameCodec.decode("1,2,3"), nil)
         t.expectEqual(PanelFrameCodec.decode("a,b,c,d"), nil)
         t.expectEqual(PanelFrameCodec.decode("1,2,nan,4"), nil)
-        // A fixed-size pill keeps only its saved origin.
-        store.values["panel.pill.frame2"] = "300,800,50,10"
-        t.expectEqual(prefs.savedFrame(.pill, displays: [display])?.size, PanelKind.pill.defaultSize)
-        // The main window has its own frame, and a layout reset forgets everything placed.
+        // Settings and the main window have their own frames.
+        prefs.saveFrame(.settings, CGRect(x: 300, y: 300, width: 400, height: 380))
+        t.expectEqual(store.values["panel.settings.frame2"], "300,300,400,380")
         prefs.saveMainWindowFrame(CGRect(x: 50, y: 60, width: 1000, height: 700))
         t.expectEqual(prefs.mainWindowFrame(displays: [display], main: display), CGRect(x: 50, y: 60, width: 1000, height: 700))
-        prefs.resetLayout()
-        t.expect(store.values["main.frame"] == nil && store.values["panel.analysis.frame2"] == nil, "reset clears frames")
     }
 
     // MARK: interaction mode
@@ -183,19 +149,14 @@ func presentationTests(_ t: Harness) async {
     }
 
     // MARK: window policy
-    await t.test("panels stay over any app, Space and full-screen window, and are never hidden from screen shares") {
-        let pill = PanelWindowTraits.of(.pill)
-        let analysis = PanelWindowTraits.of(.analysis)
-        t.expectEqual(pill.level, .statusBar)
-        t.expectEqual(analysis.level, .floating)
-        t.expect(pill.level.rawValue > analysis.level.rawValue, "pill above the panels")
-        for traits in [pill, analysis] {
-            t.expect(traits.joinsAllSpaces && traits.fullScreenAuxiliary && traits.stationary, "collection behaviour")
-            t.expect(!traits.hidesOnDeactivate && traits.nonActivating && traits.borderless, "never hides, never activates")
-        }
-        t.expectEqual(PanelWindowTraits.of(.pill, pinned: false).level, .normal)
+    await t.test("the windows stay over any app, Space and full-screen window, and are never hidden from screen shares") {
+        let pinned = PanelWindowTraits.of()
+        t.expectEqual(pinned.level, .floating)
+        t.expect(pinned.joinsAllSpaces && pinned.fullScreenAuxiliary && pinned.stationary, "collection behaviour")
+        t.expect(!pinned.hidesOnDeactivate && pinned.nonActivating && pinned.borderless, "never hides, never activates")
+        t.expectEqual(PanelWindowTraits.of(pinned: false).level, .normal)
         // No concealment: the type has no sharing/capture-exclusion trait at all.
-        let names = Mirror(reflecting: pill).children.compactMap(\.label)
+        let names = Mirror(reflecting: pinned).children.compactMap(\.label)
         t.expect(!names.contains { $0.lowercased().contains("shar") || $0.lowercased().contains("protect") }, "no sharing trait")
         t.expect(VisibilityTruth.line.contains("shows in screen shares"))
     }
@@ -210,16 +171,14 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(effect(.toggleAuto), .intent(.autoToggle))
         t.expectEqual(effect(.toggleMic), .intent(.transcribeToggle))
         t.expectEqual(effect(.clearSession), .intent(.sessionClear))
-        t.expectEqual(effect(.toggleVisibility), .present(.togglePanelsVisible))
+        t.expectEqual(effect(.toggleVisibility), .present(.toggleVisible))
         t.expectEqual(effect(.toggleInteraction), .present(.toggleInteractionMode))
         t.expectEqual(effect(.toggleMode), .present(.toggleAppMode))
         t.expectEqual(effect(.skillNext), nil)
         t.expectEqual(effect(.skillNext, true), .intent(.skillNext))
         t.expectEqual(effect(.skillPrevious, true), .intent(.skillPrevious))
-        t.expectEqual(effect(.moveUp), .present(.movePanels(dx: 0, dy: 40)))
-        t.expectEqual(effect(.resizeWider), .present(.resizePanel(.analysis, dw: 40, dh: 0)))
         t.expectEqual(effect(.showChat), .intent(.chatFocus))
-        t.expectEqual(effect(.openSettings), .present(.openPanel(.settings)))
+        t.expectEqual(effect(.openSettings), .present(.openSettings))
         // Every binding has a mapping when interactive.
         for binding in HotkeyBinding.all { t.expect(effect(binding.action, true) != nil, "\(binding.label) maps") }
         // Wire names are the page-facing typed commands.
@@ -230,9 +189,10 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(HostCommand.skillNext.wireName, "skill.next")
         t.expectEqual(HostCommand.skillPrevious.wireName, "skill.prev")
         t.expectEqual(HostCommand.sessionClear.wireName, "session.clear")
-        t.expectEqual(HostCommand.captureAnalyze.target, .analysis)
-        t.expectEqual(HostCommand.transcribeToggle.target, .chat)
-        t.expectEqual(HostCommand.sessionClear.target, nil)
+        // The panel move and resize keys are gone: the one window is moved by its toolbar and resized by its edges.
+        t.expectEqual(HotkeyBinding.all.count, 18)
+        t.expect(!HotkeyBinding.all.contains { $0.label.contains("⌃") }, "no control chords")
+        t.expectEqual(HotkeyBinding.all.filter { $0.label.hasPrefix("⌘") || $0.label.hasPrefix("⌥") }.count, HotkeyBinding.all.count)
         // Only the skill keys are interaction-only; the others are always registered.
         t.expectEqual(HotkeyBinding.all.filter(\.requiresInteractive).map(\.action), [.skillPrevious, .skillNext])
     }
@@ -291,33 +251,26 @@ func presentationTests(_ t: Harness) async {
         t.expect(Consent.isGranted(store), "persisted for the next launch")
     }
 
-    await t.test("Settings Quit ends the app and Close hides it; first run is the one window") {
+    await t.test("Settings Quit ends the app; first run is the one window and Settings never reopens by itself") {
         let store = MemoryStore()
         let controller = PresentationController(prefs: ShellPrefs(store: store))
         let surface = RecordingSurface()
         controller.surface = surface
         t.expectEqual(controller.state.appMode, .minified)
-        t.expectEqual(controller.state.layout, .compact)
-        t.expect(controller.state.shownPanels.isEmpty && controller.state.compactShown, "one window by default")
-        controller.perform(.resetLayout)
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat], "the video's panels on request")
-        controller.perform(.openPanel(.settings))
-        t.expect(controller.state.shownPanels.contains(.settings))
-        controller.perform(.closePanel(.settings))
-        t.expect(!controller.state.shownPanels.contains(.settings))
-        controller.perform(.openPanel(.settings))
-        t.expectEqual(PresentationController(prefs: ShellPrefs(store: store)).state.panels.contains(.settings), false, "settings never reopens by itself")
+        t.expect(controller.state.compactShown && !controller.state.settingsShown, "one window by default")
+        controller.perform(.openSettings)
+        t.expect(controller.state.settingsShown)
+        t.expect(!PresentationController(prefs: ShellPrefs(store: store)).state.settingsOpen, "settings never reopens by itself")
         t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit"]]), .success(.presentation(.quitApp)))
         t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit", "x": 1]]), .failure(.invalidParameters))
         controller.perform(.quitApp)
         t.expectEqual(surface.quits, 1)
-        // The compact window stays reachable.
-        controller.perform(.applyLayout(.compact))
-        t.expect(controller.state.compactShown)
+        controller.perform(.bringToFront)
+        t.expectEqual(surface.fronts, 1)
     }
 
     // MARK: presentation reducer
-    await t.test("one command entry: minify/expand, panels, layout, interaction mode, opacity, persisted") {
+    await t.test("one command entry: minify/expand, hide, Settings, interaction mode, persisted") {
         let store = MemoryStore()
         let prefs = ShellPrefs(store: store)
         let controller = PresentationController(prefs: prefs)
@@ -327,33 +280,18 @@ func presentationTests(_ t: Harness) async {
         controller.onChange = { _ in pushed += 1 }
         t.expectEqual(controller.state.appMode, .minified, "first run is minified")
         t.expect(!controller.state.mainWindowShown && controller.state.compactShown)
-        controller.perform(.resetLayout)
-        t.expect(controller.state.shownPanels == [.pill, .analysis, .chat])
 
         controller.perform(.toggleAppMode)
         t.expectEqual(controller.state.appMode, .expanded)
-        t.expect(controller.state.mainWindowShown && controller.state.shownPanels.isEmpty)
+        t.expect(controller.state.mainWindowShown && !controller.state.compactShown)
         controller.perform(.toggleAppMode)
-        controller.perform(.applyLayout(.compact))
-        t.expect(controller.state.compactShown && controller.state.shownPanels.isEmpty, "the compact window is still reachable")
+        t.expect(controller.state.compactShown, "the compact window is reachable again")
         t.expectEqual(store.values["appMode2"], "minified", "last mode remembered")
-        controller.perform(.applyLayout(.all))
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat])
 
-        controller.perform(.closePanel(.chat))
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis])
-        controller.perform(.applyLayout(.all))
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis, .chat])
-        controller.perform(.applyLayout(.reading))
-        t.expectEqual(controller.state.shownPanels, [.pill, .analysis])
-        controller.perform(.applyLayout(.compact))
-        t.expect(controller.state.compactShown && controller.state.shownPanels.isEmpty)
-        controller.perform(.applyLayout(.all))
-
-        controller.perform(.setPanelsVisible(false))
-        t.expect(controller.state.shownPanels.isEmpty && controller.state.allHidden)
-        controller.perform(.togglePanelsVisible)
-        t.expect(!controller.state.shownPanels.isEmpty)
+        controller.perform(.setVisible(false))
+        t.expect(!controller.state.compactShown && controller.state.hidden)
+        controller.perform(.toggleVisible)
+        t.expect(controller.state.compactShown)
 
         // Interaction mode toggles with a toast, persists, and is pushed to pages.
         surface.toasts = []
@@ -366,39 +304,25 @@ func presentationTests(_ t: Harness) async {
 
         // Settings is for clicking: opening it turns interaction ON.
         controller.perform(.setInteractionMode(false))
-        controller.perform(.openPanel(.settings))
-        t.expect(controller.state.interaction.isInteractive && controller.state.shownPanels.contains(.settings))
+        controller.perform(.openSettings)
+        t.expect(controller.state.interaction.isInteractive && controller.state.settingsShown)
 
-        // Opening a panel from the expanded form leaves it.
+        // Opening Settings from the expanded form leaves it; hands-free is announced in the minified form.
         controller.perform(.setAppMode(.expanded))
-        t.expect(controller.state.shownPanels.isEmpty)
-        controller.perform(.openPanel(.chat))
-        t.expectEqual(controller.state.appMode, .minified)
-
-        // Opacity is clamped and persisted; hands-free is announced in the minified form.
-        controller.perform(.setOpacity(0))
-        t.expectEqual(controller.state.opacity, PanelOpacity.minimum)
-        controller.perform(.setOpacity(0.6))
-        t.expectEqual(controller.state.opacity, 0.6)
-        t.expectEqual(ShellPrefs(store: store).opacity, 0.6)
-        t.expectEqual(controller.state.wire["handsFree"] as? Bool, true)
-        controller.perform(.setAppMode(.expanded))
+        t.expect(!controller.state.settingsShown)
         t.expectEqual(controller.state.wire["handsFree"] as? Bool, false)
-
-        controller.perform(.resetLayout)
-        t.expectEqual(surface.resets, 2)
-        t.expectEqual(controller.state.panels, [.pill, .analysis, .chat])
-        controller.perform(.movePanels(dx: 40, dy: 0))
-        t.expectEqual(surface.moves.count, 1)
-        controller.perform(.focusPanel(.analysis))
-        t.expectEqual(surface.focused, [.analysis])
+        controller.perform(.openSettings)
+        t.expectEqual(controller.state.appMode, .minified)
+        t.expectEqual(controller.state.wire["handsFree"] as? Bool, true)
         t.expect(pushed > 5)
 
-        // A restart restores the last mode and visibility.
+        // The pages never read layout, panels or opacity: they no longer exist.
+        for key in ["layout", "panels", "opacity"] { t.expect(controller.state.wire[key] == nil, "no \(key) on the wire") }
+
+        // A restart restores the last mode and interaction choice.
         controller.perform(.setAppMode(.minified))
         let again = PresentationController(prefs: ShellPrefs(store: store))
         t.expectEqual(again.state.appMode, .minified)
-        t.expectEqual(again.state.panels, controller.state.panels)
         t.expect(again.state.interaction.isInteractive == controller.state.interaction.isInteractive)
     }
 
@@ -407,26 +331,28 @@ func presentationTests(_ t: Harness) async {
         func decode(_ params: [String: Any]) -> Result<HostCall, HostCallError> {
             HostCallDecoder.decode(["v": 1, "method": "presentation", "params": params])
         }
-        t.expectEqual(decode(["op": "open", "panel": "chat"]), .success(.presentation(.openPanel(.chat))))
-        t.expectEqual(decode(["op": "close", "panel": "settings"]), .success(.presentation(.closePanel(.settings))))
-        t.expectEqual(decode(["op": "setLayout", "layout": "reading"]), .success(.presentation(.applyLayout(.reading))))
-        t.expectEqual(decode(["op": "setVisible", "visible": false]), .success(.presentation(.setPanelsVisible(false))))
+        t.expectEqual(decode(["op": "openSettings"]), .success(.presentation(.openSettings)))
+        t.expectEqual(decode(["op": "closeSettings"]), .success(.presentation(.closeSettings)))
+        t.expectEqual(decode(["op": "setVisible", "visible": false]), .success(.presentation(.setVisible(false))))
         t.expectEqual(decode(["op": "setInteractionMode", "on": true]), .success(.presentation(.setInteractionMode(true))))
         t.expectEqual(decode(["op": "setAppMode", "mode": "minified"]), .success(.presentation(.setAppMode(.minified))))
-        t.expectEqual(decode(["op": "setOpacity", "value": 0.5]), .success(.presentation(.setOpacity(0.5))))
         t.expectEqual(decode(["op": "setWindowSize", "width": 1260.0]), .success(.presentation(.setWindowSize(width: 1260, height: nil))))
         t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 120.0]), .success(.presentation(.setWindowSize(width: 540, height: 120))))
         t.expectEqual(decode(["op": "setWindowSize", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
         t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 5.0]), .failure(.invalidParameters), "too short is refused")
         t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
         t.expectEqual(decode(["op": "setHotkeysEnabled", "enabled": false]), .success(.presentation(.setHotkeysEnabled(false))))
-        t.expectEqual(decode(["op": "open", "panel": "../x"]), .failure(.invalidParameters))
-        t.expectEqual(decode(["op": "open"]), .failure(.invalidParameters))
-        t.expectEqual(decode(["op": "open", "panel": "chat", "extra": 1]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "openSettings", "extra": 1]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "setInteractionMode", "on": "yes"]), .failure(.invalidParameters))
-        t.expectEqual(decode(["op": "setLayout", "layout": "huge"]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "setInteractionMode"]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "launchRockets"]), .failure(.invalidParameters))
         t.expectEqual(decode([:]), .failure(.invalidParameters))
+        // The removed multi-panel, layout and opacity operations are refused, with or without their old parameters.
+        t.expectEqual(decode(["op": "open", "panel": "chat"]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "close", "panel": "settings"]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "focus", "panel": "analysis"]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "setLayout", "layout": "reading"]), .failure(.invalidParameters))
+        t.expectEqual(decode(["op": "setOpacity", "value": 0.5]), .failure(.invalidParameters))
     }
 
     await t.test("the page-side presentation object matches the contract and mirrors pushed state") {
@@ -438,36 +364,37 @@ func presentationTests(_ t: Harness) async {
         """)
         context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.capabilities.join(',')")?.toString(),
-            "multi-panel,always-on-top,click-through,all-spaces")
+            "always-on-top,click-through,all-spaces")
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.nativeToasts")?.toBool(), true, "pages must not duplicate toasts")
-        t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.quit")?.toString(), "function")
-        for method in ["open", "close", "focus", "openPanels", "setLayout", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode"] {
+        for method in ["quit", "openSettings", "closeSettings", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode", "appMode", "setAppMode", "setHotkeysEnabled", "setWindowSize"] {
             t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "function", method)
+        }
+        for method in ["open", "close", "focus", "openPanels", "setLayout", "opacity", "setOpacity"] {
+            t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "undefined", "\(method) is gone")
         }
         context.evaluateScript("""
         var heard = [];
         window.studioHost.presentation.onInteractionMode(function (on) { heard.push(on); });
-        window.studioHost.presentation.open('chat');
+        window.studioHost.presentation.closeSettings();
         window.studioHost.presentation.setInteractionMode(true);
         """)
-        t.expectEqual(context.evaluateScript("__posted.join('|')")?.toString(),
-            #"{"op":"open","panel":"chat"}"# == "" ? "" : context.evaluateScript("__posted.join('|')")?.toString())
-        t.expect(context.evaluateScript("__posted[0]")?.toString().contains("\"method\":\"presentation\"") == true)
+        t.expectEqual(context.evaluateScript("__posted[0]")?.toString(), #"{"v":1,"method":"presentation","params":{"op":"closeSettings"}}"#)
+        t.expect(context.evaluateScript("__posted[1]")?.toString().contains("\"op\":\"setInteractionMode\"") == true)
         var state = PresentationState.initial
         state.appMode = .minified
-        state.panels = [.pill, .chat]
         state.interaction.set(false)
         context.evaluateScript(HostBridgeScript.emitPresentation(state))
-        t.expectEqual(context.evaluateScript("window.studioHost.presentation.openPanels().join(',')")?.toString(), "pill,chat")
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.interactionMode()")?.toBool(), false)
         t.expectEqual(context.evaluateScript("heard.join(',')")?.toString(), "false", "the change is heard once")
         t.expectEqual(context.evaluateScript("window.studioHost.presentation.appMode()")?.toString(), "minified")
     }
 
-    await t.test("a page is told it is a hands-free host through its address, and panel variants are selected by name") {
+    await t.test("a page is told it is a hands-free host through its address, and the window is selected by name") {
         let location = StudioLocation(address: "", tenantSlug: "local")!
-        t.expectEqual(location.overlayURL(panel: .pill, handsFree: true).absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=pill&handsfree=1")
+        t.expectEqual(location.overlayURL(window: .compact, handsFree: true).absoluteString,
+            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=single&handsfree=1")
+        t.expectEqual(location.overlayURL(window: .settings, handsFree: true).absoluteString,
+            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=settings&handsfree=1")
         t.expectEqual(location.overlayURL().absoluteString,
             "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native")
     }

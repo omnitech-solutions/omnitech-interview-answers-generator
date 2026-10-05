@@ -4,6 +4,7 @@
 // their own; and a "new task" row marks where each task revision first got
 // work. Pure.
 import type {
+  LiveAction,
   LiveCaptureSource,
   LiveObservation,
 } from "@omnitech/interview-contracts";
@@ -19,7 +20,7 @@ import {
   type SnapshotRef,
   snapshotLabelOf,
   snapshotOrdinals,
-  taskCardModel,
+  sourceSnapshotOf,
 } from "./shared/task-card-model";
 import { taskOrdinal } from "./shared/task-target";
 
@@ -231,20 +232,13 @@ export const NO_LABELS: TranscriptLabels = {
 
 export function transcriptLabels(input: {
   tasks: readonly TaskView[];
-  actions: Parameters<typeof taskCardModel>[0]["actions"];
-  observations: Parameters<typeof taskCardModel>[0]["observations"];
-  deviceOnly: boolean;
+  actions: readonly LiveAction[];
+  observations: readonly LiveObservation[];
 }): TranscriptLabels {
   const ordinals = snapshotOrdinals(input.observations);
-  const byTask = new Map<string, string | null>();
-  for (const task of input.tasks)
-    byTask.set(
-      task.taskId,
-      taskCardModel({ ...input, selectedTaskId: task.taskId })?.snapshotLabel ??
-        null,
-    );
   return {
     snapshot: (ref) => snapshotLabelOf(ref, ordinals),
-    taskSnapshot: (taskId) => byTask.get(taskId) ?? null,
+    taskSnapshot: (taskId) =>
+      snapshotLabelOf(sourceSnapshotOf(input.actions, taskId), ordinals),
   };
 }

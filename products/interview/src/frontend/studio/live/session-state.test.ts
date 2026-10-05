@@ -5,6 +5,7 @@ import type {
 } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
 import { CAP_NEAR_MS } from "./session-banners";
+import { deriveLiveModel } from "./session-state";
 import {
   action,
   disconnected,
@@ -14,13 +15,12 @@ import {
   snapshot,
   stored,
   transcript,
-} from "./session-fixtures";
+} from "./testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "./session-result-fixtures";
-import { deriveLiveModel } from "./session-state";
+} from "./testing/session-result-fixtures";
 
 // The server and the browser agree on "now" unless a test moves the offset.
 const NOW = Date.parse(minutesAfter(10));

@@ -22,7 +22,7 @@ import { createTestServer, type TestServer } from "./session-test-server";
 export const CANDIDACY_ID = "22222222-2222-4222-8222-222222222222";
 export const INTERVIEW_ID = "11111111-1111-4111-8111-111111111111";
 
-export const CHOICES: LiveSessionChoicesResponse = {
+const CHOICES: LiveSessionChoicesResponse = {
   candidacies: [
     {
       id: CANDIDACY_ID,

@@ -13,7 +13,7 @@ import type { CodeResult } from "./session-results";
 import type { ActivityRun } from "./session-runs";
 import type { TaskView } from "./session-tasks";
 
-export type WrittenResult = {
+type WrittenResult = {
   // The task revision whose solution the draft was written from.
   taskRevision: number;
   result: CodeResult;

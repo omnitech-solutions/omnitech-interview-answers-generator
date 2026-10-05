@@ -18,9 +18,9 @@ export const CLAIM_KINDS = [
 ] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
 
-export const STAR_ELEMENTS = ["situation", "task", "action", "result"] as const;
+const STAR_ELEMENTS = ["situation", "task", "action", "result"] as const;
 export type StarElement = (typeof STAR_ELEMENTS)[number];
-export const LOGISTICS_FIELDS = [
+const LOGISTICS_FIELDS = [
   "notice-period",
   "compensation",
   "work-arrangement",
@@ -80,8 +80,8 @@ const answerSchema = z.object({
 
 export type ClaimRefView = z.infer<typeof claimRefSchema>;
 export type ClaimView = z.infer<typeof claimSchema>;
-export type CodingBriefView = z.infer<typeof briefSchema>;
-export type StarElementView = {
+type CodingBriefView = z.infer<typeof briefSchema>;
+type StarElementView = {
   element: StarElement;
   text: string;
   // Claims (by position in `claims`) the element rests on; out-of-range
@@ -90,7 +90,7 @@ export type StarElementView = {
   // The approved experience cannot support this element: it has no text.
   missing: boolean;
 };
-export type LogisticsFoundView = {
+type LogisticsFoundView = {
   field: LogisticsField;
   claim: ClaimView | null;
 };
@@ -205,8 +205,8 @@ const codeSchema = z.object({
   workspace: workspaceSchema.optional(),
 });
 
-export type CodeStatesView = z.infer<typeof codeSchema>["states"];
-export type WorkspaceOutcomeView = z.infer<typeof workspaceSchema>;
+type CodeStatesView = z.infer<typeof codeSchema>["states"];
+type WorkspaceOutcomeView = z.infer<typeof workspaceSchema>;
 export type CodeResult = {
   language: string;
   code: string;
@@ -361,11 +361,6 @@ const gapContent = z.object({
   durationMs: z.number().int().min(0),
   reason: z.enum(["buffer-overflow", "source-interrupted", "paused", "error"]),
 });
-
-export type TranscriptContent = z.infer<typeof transcriptContent>;
-export type SnapshotContent = z.infer<typeof snapshotContent>;
-export type DisconnectedContent = z.infer<typeof disconnectedContent>;
-export type GapContent = z.infer<typeof gapContent>;
 
 const orNull =
   <T>(schema: z.ZodType<T>) =>

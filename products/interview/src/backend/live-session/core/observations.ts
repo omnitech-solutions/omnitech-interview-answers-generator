@@ -18,7 +18,7 @@ type AcceptedAck = {
   control: ControlStatus;
 };
 
-export type SourceLedger = {
+type SourceLedger = {
   highestSequence: number;
   // Sequences below the highest seen that have not arrived yet.
   missing: readonly number[];
@@ -44,11 +44,11 @@ export const emptyLedger = (): ObservationLedger => ({
 });
 
 // How far behind the highest sequence a missing event may still arrive.
-export const DEFAULT_LATE_TOLERANCE = 16;
+const DEFAULT_LATE_TOLERANCE = 16;
 
-export type ArrivalOrder = "in-order" | "gap-ahead" | "late" | "out-of-window";
+type ArrivalOrder = "in-order" | "gap-ahead" | "late" | "out-of-window";
 
-export type SequenceGap = {
+type SequenceGap = {
   sourceId: string;
   fromSequence: number;
   toSequence: number;

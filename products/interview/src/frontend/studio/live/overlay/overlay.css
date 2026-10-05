@@ -52,7 +52,7 @@
   background: transparent;
 }
 :root[data-panel-host="native"] .ov-root {
-  --ov-a: max(0.3, calc(var(--ov-alpha, 0.75) * 0.55));
+  --ov-a: 0.41;
 }
 .ov-empty,
 .ov-unavailable {
@@ -1687,9 +1687,8 @@
 }
 
 /* ---- A native shell window: translucent surfaces --------------------------
-   The page marks its document data-panel-host="native" and sets --ov-alpha from
-   the shell's opacity (host-surface.ts). Every surface is then rgba over a
-   blur, never a solid colour. Contrast is kept by a text shadow (light text on
+   The page marks its document data-panel-host="native" (host-surface.ts). Every
+   surface is then a light rgba tint, never a solid colour. Contrast is kept by a text shadow (light text on
    a light desktop) and by chips and the code canvas staying denser than the
    card. A plain tab keeps its solid look. */
 :root[data-panel-host="native"],
@@ -1705,12 +1704,12 @@
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
 }
 :root[data-panel-host="native"] .ov-sheet {
-  background: rgba(0, 0, 0, max(0.35, calc(var(--ov-alpha, 0.75) * 0.6)));
+  background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(10px);
 }
 :root[data-panel-host="native"] .lc-canvas {
   /* Semi-opaque: the desktop shows faintly, code stays readable. */
-  --lc-surface: rgba(18, 19, 24, max(0.45, calc(var(--ov-alpha, 0.75) * 0.65)));
+  --lc-surface: rgba(18, 19, 24, 0.49);
   background: var(--lc-surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

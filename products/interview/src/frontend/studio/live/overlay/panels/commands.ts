@@ -7,7 +7,6 @@ import {
   type LiveOwnerSkill,
   type StudioHostHotkey,
 } from "@omnitech/interview-contracts";
-import type { PanelKind } from "./panel-kinds";
 
 export const COMMANDS = [
   "auto.toggle",
@@ -18,7 +17,6 @@ export const COMMANDS = [
   "skill.prev",
   "session.clear",
   "chat.focus",
-  "panel.toggle",
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -92,17 +90,7 @@ export const COMMAND_KEYS: readonly CommandKey[] = [
     shift: true,
     label: "Focus the chat",
   },
-  {
-    command: "panel.toggle",
-    keys: "Alt+Shift+P",
-    code: "KeyP",
-    shift: true,
-    label: "Show or hide the analysis panel",
-  },
 ];
-
-export const commandKeys = (command: Command): string =>
-  COMMAND_KEYS.find((each) => each.command === command)?.keys ?? "";
 
 type KeyLike = {
   altKey: boolean;
@@ -135,17 +123,7 @@ export function commandOfHotkey(
   return COMMANDS.find((each) => each === hotkey) ?? null;
 }
 
-// Which panel's document runs a host intent when the shell opens one document
-// per panel; the rest are for every panel (they claim one run between them).
-export const INTENT_TARGET: Partial<Record<Command, PanelKind>> = {
-  // The bar is always open; the analysis and chat windows may be closed.
-  "capture.analyze": "pill",
-  "solution.generate": "pill",
-  "transcribe.toggle": "pill",
-  "auto.toggle": "pill",
-};
-
-// The skill every panel starts with (the video's bar reads DSA).
+// The skill the window starts with (the video's bar reads DSA).
 export const DEFAULT_SKILL: LiveOwnerSkill = "dsa";
 
 // The next or previous skill of the nine, wrapping at the ends.
@@ -162,7 +140,7 @@ export function cycleSkill(
 // reaches every page it hosts; the in-page key also fires). Granted once per
 // window per command, here by timestamp and across same-origin windows by a Web
 // Lock nobody else can take meanwhile.
-export const COMMAND_WINDOW_MS = 400;
+const COMMAND_WINDOW_MS = 400;
 const lastGranted = new Map<Command, number>();
 
 export function resetCommandClaims(): void {

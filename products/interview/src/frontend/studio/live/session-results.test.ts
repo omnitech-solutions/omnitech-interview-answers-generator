@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLAIM_PRESENTATION, claimChip, entryLabel } from "./session-claims";
 import {
-  answerResult,
-  codeResult,
-  logisticsResult,
-  starResult,
-} from "./session-result-fixtures";
-import {
   parseAgentResult,
   parseAnswerResult,
   parseCodeResult,
@@ -16,6 +10,12 @@ import {
   parseSnapshotContent,
   parseTranscriptContent,
 } from "./session-results";
+import {
+  answerResult,
+  codeResult,
+  logisticsResult,
+  starResult,
+} from "./testing/session-result-fixtures";
 
 describe("answer results", () => {
   it("reads each claim kind with its references", () => {

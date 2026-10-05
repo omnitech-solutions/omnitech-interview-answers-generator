@@ -9,7 +9,7 @@ import {
   type DisposablePostgres,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
-import { eq, getTableName, is, sql } from "drizzle-orm";
+import { eq, getTableName, is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "./schema.js";

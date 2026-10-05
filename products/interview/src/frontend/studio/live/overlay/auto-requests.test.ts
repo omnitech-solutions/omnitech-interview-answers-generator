@@ -10,8 +10,8 @@ import { describe, expect, it } from "vitest";
 import { fitFrame } from "../host-adapter";
 import { ownerInputDeps } from "../session-owner-input";
 import type { LiveSnapshot } from "../session-snapshot";
-import { AUTO_CAPTURE_LABEL } from "./overlay-card";
 import { failureNote } from "./overlay-footer";
+import { AUTO_CAPTURE_LABEL } from "./use-hands-free";
 
 const SESSION = "1c2d3e4f-0000-4000-8000-000000000001";
 const sent: { url: string; init?: RequestInit | undefined }[] = [];

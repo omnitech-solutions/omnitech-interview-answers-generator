@@ -12,8 +12,6 @@ public struct HotkeyBinding: Equatable, Sendable {
     public enum Action: String, Sendable {
         case captureAnalyze, solutionGenerate, toggleAuto, toggleVisibility, toggleInteraction, toggleMic, clearSession
         case toggleMode, bringToFront, skillNext, skillPrevious, showChat, openSettings
-        case moveLeft, moveRight, moveUp, moveDown
-        case resizeNarrower, resizeWider, resizeTaller, resizeShorter
     }
 
     public let action: Action
@@ -34,9 +32,7 @@ public struct HotkeyBinding: Equatable, Sendable {
     public static let command: UInt32 = 0x0100
     public static let shift: UInt32 = 0x0200
     public static let option: UInt32 = 0x0800
-    public static let control: UInt32 = 0x1000
     public static let optionShift: UInt32 = option | shift
-    public static let controlOption: UInt32 = control | option
 
     // The video's keys come first (a lookup by action finds them); the old
     // Option+Shift chords stay as secondary aliases of the same actions.
@@ -60,14 +56,6 @@ public struct HotkeyBinding: Equatable, Sendable {
         HotkeyBinding(action: .clearSession, keyCode: 0x2A, carbonModifiers: optionShift, label: "⌥⇧\\"),
         HotkeyBinding(action: .toggleMode, keyCode: 0x2E, carbonModifiers: optionShift, label: "⌥⇧M"),
         HotkeyBinding(action: .bringToFront, keyCode: 0x11, carbonModifiers: optionShift, label: "⌥⇧T"),
-        HotkeyBinding(action: .moveLeft, keyCode: 0x7B, carbonModifiers: controlOption, label: "⌃⌥←"),
-        HotkeyBinding(action: .moveRight, keyCode: 0x7C, carbonModifiers: controlOption, label: "⌃⌥→"),
-        HotkeyBinding(action: .moveUp, keyCode: 0x7E, carbonModifiers: controlOption, label: "⌃⌥↑"),
-        HotkeyBinding(action: .moveDown, keyCode: 0x7D, carbonModifiers: controlOption, label: "⌃⌥↓"),
-        HotkeyBinding(action: .resizeNarrower, keyCode: 0x7B, carbonModifiers: controlOption | shift, label: "⌃⌥⇧←"),
-        HotkeyBinding(action: .resizeWider, keyCode: 0x7C, carbonModifiers: controlOption | shift, label: "⌃⌥⇧→"),
-        HotkeyBinding(action: .resizeTaller, keyCode: 0x7E, carbonModifiers: controlOption | shift, label: "⌃⌥⇧↑"),
-        HotkeyBinding(action: .resizeShorter, keyCode: 0x7D, carbonModifiers: controlOption | shift, label: "⌃⌥⇧↓"),
     ]
 }
 
@@ -81,15 +69,11 @@ public enum HotkeyEffect: Equatable, Sendable {
 }
 
 public enum HotkeyRouting {
-    public static let nudge = 40.0
-
     // The toast a key shows, if any.
     public static func toast(for action: HotkeyBinding.Action) -> Toast? {
         action == .toggleMic ? ToastText.recording : nil
     }
 
-    // `moveUp` is dy > 0: AppKit coordinates have the origin bottom-left. Keys
-    // resize the analysis panel, the one with room to grow.
     public static func effect(for action: HotkeyBinding.Action, interactive: Bool) -> HotkeyEffect? {
         switch action {
         case .captureAnalyze: return .intent(.captureAnalyze)
@@ -97,23 +81,15 @@ public enum HotkeyRouting {
         case .toggleAuto: return .intent(.autoToggle)
         case .toggleMic: return .intent(.transcribeToggle)
         case .clearSession: return .intent(.sessionClear)
-        case .toggleVisibility: return .present(.togglePanelsVisible)
+        case .toggleVisibility: return .present(.toggleVisible)
         case .toggleInteraction: return .present(.toggleInteractionMode)
         case .toggleMode: return .present(.toggleAppMode)
         case .bringToFront: return .present(.bringToFront)
         case .showChat: return .intent(.chatFocus)
-        case .openSettings: return .present(.openPanel(.settings))
+        case .openSettings: return .present(.openSettings)
         // [GUARD] Skill keys act only while interaction mode is ON.
         case .skillNext: return interactive ? .intent(.skillNext) : nil
         case .skillPrevious: return interactive ? .intent(.skillPrevious) : nil
-        case .moveLeft: return .present(.movePanels(dx: -nudge, dy: 0))
-        case .moveRight: return .present(.movePanels(dx: nudge, dy: 0))
-        case .moveUp: return .present(.movePanels(dx: 0, dy: nudge))
-        case .moveDown: return .present(.movePanels(dx: 0, dy: -nudge))
-        case .resizeNarrower: return .present(.resizePanel(.analysis, dw: -nudge, dh: 0))
-        case .resizeWider: return .present(.resizePanel(.analysis, dw: nudge, dh: 0))
-        case .resizeTaller: return .present(.resizePanel(.analysis, dw: 0, dh: nudge))
-        case .resizeShorter: return .present(.resizePanel(.analysis, dw: 0, dh: -nudge))
         }
     }
 }

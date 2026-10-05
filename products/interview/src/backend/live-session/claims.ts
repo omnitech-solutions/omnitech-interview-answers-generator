@@ -50,7 +50,7 @@ export const LEAVING_REASON_PLACEHOLDER =
   "[candidate input needed: reason for leaving]";
 
 export const MAX_REFS_PER_CLAIM = 8;
-export const MAX_VIOLATIONS = 50;
+const MAX_VIOLATIONS = 50;
 // [DOMAIN] The cited quotes must carry at least this share of the claim's
 // significant words (see significantWords). Half: a faithful paraphrase of one
 // or two entries clears it easily; a claim about a topic the entry never
@@ -126,7 +126,7 @@ function spokenOf(text: string): SpokenQuantity[] {
     ),
   );
 }
-export const spokenKeysOf = (text: string): Set<string> =>
+const spokenKeysOf = (text: string): Set<string> =>
   new Set(spokenOf(text).map((quantity) => quantity.key));
 
 export function figuresOf(text: string): Set<string> {
@@ -170,7 +170,7 @@ export function supportedFigureKeys(texts: readonly string[]): Set<string> {
 const COMPLEXITY_NOTATION = /(?<![\p{L}])[OΘΩ]\((?:[^()]|\([^()]*\))*\)/gu;
 const STANDARD_TOKEN_CONTEXT =
   /(?:^|[^\p{L}])(?:http|https|rfc|iso|tls|ssl|es|ipv|status|code|port|error|version|v)\s*[-/:]?\s*$/iu;
-export const MAX_GENERAL_INTEGER = 10;
+const MAX_GENERAL_INTEGER = 10;
 
 // [DOMAIN] Technical provenance (real failure: a coding follow-up such as "what
 // is the time complexity?" was withheld for O(n^2) and "up to 1000"). Figures
@@ -201,7 +201,7 @@ const PLAIN_TECHNICAL_NUMBER = /^\d+(?:[.,]\d+)*[kKmMbB]?$/;
 
 // Text with algorithmic and mathematical notation removed, before the figure
 // patterns run (NFKC would otherwise turn a superscript 2 into a bare 2).
-export function withoutNotation(text: string): string {
+function withoutNotation(text: string): string {
   return canonicalText(text.replace(SUPERSCRIPT_RUN, " "))
     .replace(COMPLEXITY_NOTATION, " ")
     .replace(POWER_NOTATION, " ");
@@ -209,7 +209,7 @@ export function withoutNotation(text: string): string {
 
 // The figures of exercise-like text, as provenance keys.
 // A percentage is never provenance: it reads as a result about someone.
-export const provenanceFigures = (texts: readonly string[]): Set<string> =>
+const provenanceFigures = (texts: readonly string[]): Set<string> =>
   new Set(
     texts
       .flatMap((text) => [...figuresOf(withoutNotation(text))])
@@ -297,7 +297,7 @@ export function significantWords(text: string): Set<string> {
 // text (SQL, AWS, API) or is on the short list below: a fabricated "CEO",
 // "CTO" or "AWS" is exactly what a four-letter minimum would let through.
 const HIGH_RISK_SHORT = new Set(["ceo", "cto", "cfo", "coo", "aws", "gcp"]);
-export function riskTerms(text: string): Set<string> {
+function riskTerms(text: string): Set<string> {
   const risk = new Set<string>();
   for (const word of canonicalText(text).match(
     /(?<!\p{L})\p{L}{3}(?!\p{L})/gu,
@@ -316,7 +316,7 @@ export function supportTerms(text: string): Set<string> {
 // the paraphrase added ("tooling"); two or more is an appended clause
 // ("... and received the company excellence award"). A risk term (CEO, AWS,
 // SQL) has no allowance: missing from the quotes, it rejects the claim.
-export const MAX_UNMATCHED_TERMS = 1;
+const MAX_UNMATCHED_TERMS = 1;
 
 // The role prefix of a candidate pointer, e.g. "/roles/2/".
 const ROLE_PREFIX = /^\/roles\/\d+\//;
@@ -337,7 +337,7 @@ function roleScope(refs: readonly ClaimRef[]): {
   }
   return { roles, allInRole };
 }
-export const crossesRoles = (refs: readonly ClaimRef[]) => {
+const crossesRoles = (refs: readonly ClaimRef[]) => {
   const { roles, allInRole } = roleScope(refs);
   return roles.size > 1 || (roles.size === 1 && !allInRole);
 };
@@ -358,7 +358,7 @@ export type VerifyContext = {
   // Exercise text the task carries as provenance (restatement, constraints).
   exercise?: readonly string[] | undefined;
 };
-export type StarElementText = {
+type StarElementText = {
   element: string;
   text: string;
   claimIndexes: readonly number[];

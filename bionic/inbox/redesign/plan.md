@@ -72,7 +72,7 @@ Each task: file ownership is exclusive; shared-file edits go through the owner n
 | T04 | worker-web-setup | `setup-*.tsx/.ts`, `use-setup-choices.ts`, `hands-free-choice.ts`, `setup.css`, `capability-table.tsx` as needed | T01 | W1 rows; duplicate controls removed | [ ] |
 | T05 | worker-web-live | `live-session-view.tsx`, `session-bar*`, `session-banner*`, `banner-copy.ts`, `hands-free-controls.tsx`, `use-hands-free.ts`, `sources-tab.tsx`, `pairing-panel.tsx`, `session-tabs.*`, nav dot (`config/views.tsx`, `sidebar.tsx`) | T01 | header, banners, capture card + stop, side rail | [ ] |
 | T06 | worker-web-task | `task-panels.tsx`, `coding-panel.tsx`, `answer-body.tsx`, `code-canvas.tsx`, `ended-*.tsx`, `ended.css`, task CSS | T01 | stage tiles, tabs, header meta, model chip, ended polish | [ ] |
-| T07 | worker-cleanup | Cross-language removal (D14, opacity, unrouted card stack, duplicate `CompanionReport`, third source-health renderer, `auto-change.ts`, test-support relocation), ADR-0022 text, knip/jscpd/ast-grep rerun, ledger | T02-T06 | ledger; analysers re-run; `pnpm verify` | [ ] |
+| T07a/T07b | worker-cleanup (a: TS outside overlay, backend, apps/web deps, ADR-0022; b: overlay/**, Swift, bridge contract, D14) | Cross-language removal (D14, opacity, unrouted card stack, duplicate `CompanionReport`, third source-health renderer, `auto-change.ts`, test-support relocation), ADR-0022 text, knip/jscpd/ast-grep rerun, ledger | T02-T06 | ledger; analysers re-run; `pnpm verify` | [ ] |
 | T08 | worker-missing-context | Tests only + minimal fixes in the missing-context path: backend, hook, both UIs, e2e through UI | T03,T05 | all brief §8 cases covered | [ ] |
 | T09 | reviewer | Independent diff review vs this matrix; challenge cleanup deletions | T07,T08 | findings file; MUST-FIX closed | [ ] |
 | T10 | lead | `pnpm verify`, swift build/test, rebuild bundle, install, live missing-context run, final report | T09 | evidence in column above | [ ] |
@@ -88,4 +88,5 @@ Filled by T07 (finding, resolution, canonical replacement, verification). Baseli
 ## 6. Journal
 
 - 2026-10-04: discovery complete (native, web); tooling baseline in progress.
+- 2026-10-04: P2 delivered and committed as 5b306c3. Gate: all tests green except load-sensitive hardening/latency test (2175>2000 ms once, 3/3 pass alone, machine load avg 8-17); build green. Fixed my own finding: shortcuts parity test now finds repo root (failed when run from repo root). T07a/T07b launched. T08 ordered after T07.
 - 2026-10-04: T01 and T02 delivered. T01 deviation: `snapshotLabel` is always null (wire gap) -> T01b. T02 left for T03: page handler for `chat.focus`, remove dead `skill.set:` branch; for T07: layout presets, panel kinds, opacity, move/resize keys. P2 workers T01b/T03/T04/T05/T06 launched.

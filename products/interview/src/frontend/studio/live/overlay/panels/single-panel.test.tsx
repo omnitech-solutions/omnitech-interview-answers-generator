@@ -11,7 +11,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
-import { answerAction } from "../../live-view-kit";
+import {
+  configureSessionStores,
+  resetSessionStores,
+} from "../../session-registry";
+import { SKILLS } from "../../shared/skills";
+import { answerAction } from "../../testing/live-view-kit";
 import {
   action,
   jsonResponse,
@@ -20,18 +25,16 @@ import {
   snapshot,
   streamPage,
   transcript,
-} from "../../session-fixtures";
-import {
-  configureSessionStores,
-  resetSessionStores,
-} from "../../session-registry";
+} from "../../testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "../../session-result-fixtures";
-import { createTestServer, type TestServer } from "../../session-test-server";
-import { SKILLS } from "../../shared/skills";
+} from "../../testing/session-result-fixtures";
+import {
+  createTestServer,
+  type TestServer,
+} from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { TOAST_TEXT } from "./use-panel-session";
@@ -86,12 +89,9 @@ function nativeHost(overrides: Record<string, unknown> = {}) {
   const setInteractionMode = vi.fn(async () => true);
   (window as { studioHost?: unknown }).studioHost = {
     presentation: {
-      capabilities: ["multi-panel", "click-through"],
-      open: async () => true,
-      close: async () => true,
-      focus: async () => true,
-      openPanels: () => ["pill"],
-      setLayout: async () => true,
+      capabilities: ["click-through"],
+      openSettings: async () => true,
+      closeSettings: async () => true,
       setVisible: async () => true,
       setInteractionMode,
       interactionMode: () => mode,
@@ -331,7 +331,7 @@ describe("click-through", () => {
   });
 
   it("has no button where the host cannot click through", async () => {
-    nativeHost({ capabilities: ["multi-panel"] });
+    nativeHost({ capabilities: [] });
     await show();
     expect(screen.queryByRole("button", { name: "Click-through" })).toBeNull();
   });

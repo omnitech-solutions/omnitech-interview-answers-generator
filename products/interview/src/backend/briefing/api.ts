@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   type BriefingContext,
-  type BriefingDraft,
   type BriefingPrepared,
   type BriefingQuestion,
   briefingApplySchema,

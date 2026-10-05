@@ -10,7 +10,7 @@ import type {
 } from "@omnitech/interview-contracts";
 
 export const SESSION_ID = "0b1f6a52-7c7e-4f0e-9e1b-2c3d4e5f6a7b";
-export const T0 = "2026-10-03T12:00:00.000Z";
+const T0 = "2026-10-03T12:00:00.000Z";
 
 export function minutesAfter(minutes: number, seconds = 0): string {
   return new Date(
@@ -146,7 +146,7 @@ export function snapshot(
 }
 
 let actionCounter = 0;
-export function actionId(n: number): string {
+function actionId(n: number): string {
   return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 }
 

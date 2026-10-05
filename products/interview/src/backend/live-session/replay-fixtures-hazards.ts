@@ -16,7 +16,7 @@ import {
   type ReplayPhase,
 } from "./session-replay-fixtures.js";
 
-export type ReplayExpect = {
+type ReplayExpect = {
   // One line saying what the set shows.
   description: string;
   // Hazard label from the workload profile, when the set is a grounding hazard.

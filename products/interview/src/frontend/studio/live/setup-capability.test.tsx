@@ -1,24 +1,18 @@
 // Setup against the companion's last capability report: no report, ready, speech
 // unavailable, speech denied, the device-only block on Start, and remote allowed.
 import type { LiveCompanionCapability } from "@omnitech/interview-contracts";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
+import { resetSessionStores } from "./session-registry";
+import { SetupView } from "./setup-view";
 import {
   capabilityReport,
   jsonResponse,
   minutesAfter,
-} from "./session-fixtures";
-import { resetSessionStores } from "./session-registry";
-import { createTestServer } from "./session-test-server";
-import { CHOICES, REPORTS } from "./setup-capability-fixtures";
-import { SetupView } from "./setup-view";
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
+import { CHOICES, REPORTS } from "./testing/setup-capability-fixtures";
 
 const studio = { go: vi.fn() } as unknown as StudioActions;
 

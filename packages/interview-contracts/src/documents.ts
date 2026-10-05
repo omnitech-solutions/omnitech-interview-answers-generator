@@ -7,7 +7,7 @@ export const documentTemplateKindSchema = z.enum([
   "custom",
 ]);
 export const documentFormatSchema = z.enum(["docx", "md"]);
-export const documentFieldSourceSchema = z.enum([
+const documentFieldSourceSchema = z.enum([
   "candidate-profile",
   "candidacy",
   "interview",

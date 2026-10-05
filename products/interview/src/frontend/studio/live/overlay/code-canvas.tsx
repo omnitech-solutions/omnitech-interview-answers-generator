@@ -33,7 +33,7 @@ import { copyText } from "../shared/copy-text";
 // buttons, results as a one-line chip); maximized is the roomy view. Same
 // editor theme, language support, highlighting and line numbers in both.
 export type CanvasDensity = "compact" | "maximized";
-export type CanvasRunRequest = {
+type CanvasRunRequest = {
   language: Language;
   code: string;
   usageCode: string;
@@ -52,7 +52,7 @@ const isLanguage = (value: string): value is Language =>
 
 // The Workspace's runner: all three fields, in order, in the language's
 // container. The server's own message explains an unavailable runner.
-export const runAllRequest: CanvasRunner = async (request) => {
+const runAllRequest: CanvasRunner = async (request) => {
   const response = await studioFetch("/api/v1/run-all", {
     method: "POST",
     headers: { "content-type": "application/json" },

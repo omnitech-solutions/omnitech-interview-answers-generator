@@ -1,15 +1,6 @@
 import { ACTIVE_SESSION_LIMITS } from "@omnitech/active-session-contracts";
 import { describe, expect, it } from "vitest";
 import {
-  disconnected,
-  gap,
-  minutesAfter,
-  sessionView,
-  snapshot,
-  stored,
-  transcript,
-} from "./session-fixtures";
-import {
   COMPANION_OFFLINE_AFTER_MS,
   CREDENTIAL_EXPIRING_SOON_MS,
   CREDENTIAL_LIFETIME_MS,
@@ -18,6 +9,15 @@ import {
   sourceIndex,
   sourceStatuses,
 } from "./session-sources";
+import {
+  disconnected,
+  gap,
+  minutesAfter,
+  sessionView,
+  snapshot,
+  stored,
+  transcript,
+} from "./testing/session-fixtures";
 
 const health = (
   observations: Parameters<typeof sourceStatuses>[1],

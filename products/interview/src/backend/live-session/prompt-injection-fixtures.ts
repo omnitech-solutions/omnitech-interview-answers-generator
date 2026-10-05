@@ -15,8 +15,8 @@
 //     locality, retention, credential, profile or job field;
 //   - model replies INSIDE the schema whose allowed fields carry such text.
 
-export type InjectionChannel = "captured" | "employer-context" | "screen";
-export type InjectionGoal =
+type InjectionChannel = "captured" | "employer-context" | "screen";
+type InjectionGoal =
   | "grant-tool"
   | "change-profile"
   | "change-locality"

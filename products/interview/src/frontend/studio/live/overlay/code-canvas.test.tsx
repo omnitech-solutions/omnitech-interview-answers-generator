@@ -11,8 +11,8 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { codeResult } from "../session-result-fixtures";
 import { type CodeResult, parseCodeResult } from "../session-results";
+import { codeResult } from "../testing/session-result-fixtures";
 import { LiveCodeCanvas } from "./code-canvas";
 
 // The editor is a textarea here; CodeMirror needs a real layout engine.

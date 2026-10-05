@@ -41,6 +41,7 @@ import {
   OWNER_MICROPHONE_SOURCE_ID,
   SESSION_SCREENSHOT_ARTIFACT_TYPE,
 } from "../db/live-session.js";
+import { canonicalJson } from "./canonical-json.js";
 import {
   checkSnapshotRequest,
   failCaptureRequest,
@@ -566,19 +567,6 @@ const touch = (tx: TenantDatabase, scope: OwnerScope, sessionId: string) =>
     WHERE tenant_id = ${scope.tenantId}::uuid
       AND owner_user_id = ${scope.actorId}::uuid AND id = ${sessionId}::uuid`);
 
-// Key order never matters to the comparison: both sides are written in one
-// canonical form before they are compared.
-const canonical = (value: unknown): string =>
-  JSON.stringify(value, (_key, node: unknown) =>
-    node !== null && typeof node === "object" && !Array.isArray(node)
-      ? Object.fromEntries(
-          Object.entries(node as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : 1,
-          ),
-        )
-      : node,
-  );
-
 // Whether a stored observation is the same message as the one resent. A
 // transcript, disconnect or gap is the same when kind, source sequence and body
 // match; occurredAt is a clock stamp a companion may re-take on a resend, so it
@@ -595,7 +583,8 @@ function sameObservation(
     sourceSequence?: unknown;
     body?: unknown;
   };
-  if (canonical(content.body) !== canonical(observation.content)) return false;
+  if (canonicalJson(content.body) !== canonicalJson(observation.content))
+    return false;
   if (
     observation.kind !== "screen.snapshot" &&
     content.sourceSequence !== observation.sequence

@@ -11,7 +11,7 @@ import { seg } from "./session-replay-fixtures.js";
 import type { SessionCodeRunner } from "./session-run.js";
 
 export const RESTATEMENT = "Implement a rate limiter for a Node service.";
-export const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {
+const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {
   1: ["a fixed number of requests per client in a sliding window"],
   2: [
     "a fixed number of requests per client in a sliding window",
@@ -24,7 +24,7 @@ export const CONSTRAINTS_BY_REVISION: Record<number, string[]> = {
 };
 export const revisionOf = (request: AiExecutionRequest) =>
   Number(/^REVISION: (\d+)$/m.exec(request.task.prompt)?.[1]);
-export const briefOf = (request: AiExecutionRequest) => {
+const briefOf = (request: AiExecutionRequest) => {
   const lines = request.task.prompt.split("\n");
   const at = lines.findIndex((line) => line.startsWith("BEGIN TASK BRIEF"));
   return JSON.parse(lines[at + 1] ?? "{}") as { constraints: string[] };

@@ -19,7 +19,7 @@ import {
 // source, so a rebuilt run names a task as the live run did.
 export const TASK_ID_PREFIX = "task";
 
-export type TaskRevision = {
+type TaskRevision = {
   revision: number;
   // Segment ids this revision was built on.
   basedOn: readonly string[];
@@ -35,7 +35,7 @@ export type Task = {
   revisions: readonly TaskRevision[];
 };
 
-export type DeferredTopic = {
+type DeferredTopic = {
   topic: string;
   status: "deferred" | "resumed";
   deferredAtUtterance: string;
@@ -53,14 +53,14 @@ export const emptyTaskState = (): TaskState => ({
   deferred: {},
 });
 
-export type TaskRefusal =
+type TaskRefusal =
   | "non_substantive_segment"
   | "invalid_handle"
   | "task_exists"
   | "unknown_task"
   | "topic_not_deferred";
 
-export type TaskOutcome =
+type TaskOutcome =
   | { kind: "ignored" }
   | { kind: "opened"; taskId: string; revision: 1 }
   | { kind: "revised"; taskId: string; revision: number }

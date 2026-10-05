@@ -12,7 +12,7 @@ export function navigateStudio(href: string): void {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-export function open(intent: Intent, variant: CardVariant): void {
+function open(intent: Intent, variant: CardVariant): void {
   const base = parseRoute(window.location).base;
   if (variant === "overlay") {
     sendIntent(base, intent);

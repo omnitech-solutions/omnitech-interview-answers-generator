@@ -50,7 +50,7 @@ export const sessionWorkspaceId = (sessionId: string): string =>
 // The draft's artifact is derived from the task, so every revision of one task
 // updates the same draft.
 export const sessionArtifactId = (taskId: string): string => `coding:${taskId}`;
-export const sessionDraftKey = (
+const sessionDraftKey = (
   sessionId: string,
   taskId: string,
 ): WorkspaceDraftKey => ({

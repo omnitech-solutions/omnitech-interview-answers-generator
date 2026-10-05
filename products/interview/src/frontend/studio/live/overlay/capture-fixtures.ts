@@ -90,7 +90,7 @@ function pixelsFor(width: number, height: number): Uint8ClampedArray {
   return data;
 }
 
-export type Draw = {
+type Draw = {
   args: number[];
   canvasWidth: number;
   canvasHeight: number;

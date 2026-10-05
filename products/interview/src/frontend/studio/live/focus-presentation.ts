@@ -9,7 +9,7 @@
 // Nothing here is persisted: a new visit to the live page is always Full.
 import { useSyncExternalStore } from "react";
 
-export type TabMode = "full" | "card" | "maximized";
+type TabMode = "full" | "card" | "maximized";
 export type PresentationMode = TabMode | "floating";
 // closed: no float. opening: window requested. pip: the window is open.
 // fallback: the API is absent or refused, so the card shows in the tab.

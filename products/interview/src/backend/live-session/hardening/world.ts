@@ -37,14 +37,14 @@ export type Started = {
   scope: { tenantId: string; actorId: string };
 };
 
-export type StartBody = {
+type StartBody = {
   processingPolicy: "device-only" | "permitted-remote";
   captureSources: readonly CaptureSource[];
   retention?: "delete-at-end" | "thirty-days" | "until-deleted";
   [key: string]: unknown;
 };
 
-export const DEFAULT_START: StartBody = {
+const DEFAULT_START: StartBody = {
   processingPolicy: "permitted-remote",
   captureSources: ["microphone", "application-audio"],
 };

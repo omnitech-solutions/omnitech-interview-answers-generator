@@ -1,5 +1,4 @@
 import AppKit
-import StudioShellCore
 import WebKit
 
 // The floating window class (panels and the compact window). Non-activating, so

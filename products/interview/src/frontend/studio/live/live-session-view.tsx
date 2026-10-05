@@ -12,7 +12,6 @@ import {
   useState,
 } from "react";
 import type { StudioActions } from "../config/commands";
-import { Icon } from "../icon";
 import { ActivityTab } from "./activity-tab";
 import type { BannerAction, BannerHost } from "./banner-copy";
 import { studioHostInfo } from "./host-adapter";
@@ -176,9 +175,8 @@ export function LiveSessionBody({
         tasks,
         actions: stream.actions,
         observations: stream.observations,
-        deviceOnly: session.processingPolicy === "device-only",
       }),
-    [tasks, stream.actions, stream.observations, session.processingPolicy],
+    [tasks, stream.actions, stream.observations],
   );
 
   const showSources = () => {

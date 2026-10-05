@@ -1,6 +1,6 @@
 // The native shell's presentation: `window.studioHost.presentation`, negotiated
 // by the contract and wrapped so a failing bridge call is a refusal (false),
-// never an exception in a panel.
+// never an exception in a window.
 import {
   negotiatePresentation,
   type PresentationHost,
@@ -20,17 +20,8 @@ export function nativePresentation(): PresentationHost | null {
   };
   return {
     capabilities: host.capabilities,
-    open: (panel) => attempt(() => host.open(panel)),
-    close: (panel) => attempt(() => host.close(panel)),
-    focus: (panel) => attempt(() => host.focus(panel)),
-    openPanels: () => {
-      try {
-        return host.openPanels();
-      } catch {
-        return [];
-      }
-    },
-    setLayout: (layout) => attempt(() => host.setLayout(layout)),
+    openSettings: () => attempt(() => host.openSettings()),
+    closeSettings: () => attempt(() => host.closeSettings()),
     setVisible: (visible) => attempt(() => host.setVisible(visible)),
     interactionMode: () => {
       try {
@@ -75,18 +66,14 @@ export function nativePresentation(): PresentationHost | null {
             ),
         }
       : {}),
-    ...(host.opacity ? { opacity: () => host.opacity?.() ?? 1 } : {}),
-    ...(host.setOpacity
-      ? {
-          setOpacity: (value: number) =>
-            attempt(() => host.setOpacity?.(value) ?? Promise.resolve(false)),
-        }
-      : {}),
     ...(host.setWindowSize
       ? {
           setWindowSize: (size: { width: number; height?: number }) =>
             attempt(() => host.setWindowSize?.(size) ?? Promise.resolve(false)),
         }
+      : {}),
+    ...(host.quit
+      ? { quit: () => attempt(() => host.quit?.() ?? Promise.resolve(false)) }
       : {}),
   };
 }

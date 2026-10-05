@@ -63,7 +63,7 @@ export function asSessionPurge<Result>(
 
 // The bounded wait for named jobs to become terminal; after it the job rows are
 // deleted anyway and a worker write to a missing job fails closed.
-export const PURGE_JOB_WAIT_MS = 30_000;
+const PURGE_JOB_WAIT_MS = 30_000;
 const PURGE_POLL_MS = 500;
 
 // Session-created Workspace drafts are text-keyed rows in the assistant draft
@@ -79,7 +79,7 @@ export interface SessionDraftPurger {
     draft: WorkspaceDraftKey | null,
   ): Promise<number>;
 }
-export const noSessionDraftPurger: SessionDraftPurger = {
+const noSessionDraftPurger: SessionDraftPurger = {
   purge: async () => 0,
 };
 
@@ -93,7 +93,7 @@ export type PurgeOptions = {
   sleep?: (ms: number) => Promise<void>;
 };
 
-export type PurgeCounts = {
+type PurgeCounts = {
   observations: number;
   screenshotArtifacts: number;
   actions: number;
@@ -114,11 +114,11 @@ const TERMINAL_JOB = ["succeeded", "failed", "cancelled", "timed-out"];
 // Tables that reference a session (or a job) and that the purge deletes from.
 // The final check compares the Postgres catalog against these lists: a table
 // that references a session or a job and is not listed fails the check.
-export const SESSION_COVERED_TABLES = [
+const SESSION_COVERED_TABLES = [
   "interview.session_actions",
   "interview.session_observations",
 ] as const;
-export const JOB_COVERED_TABLES = [
+const JOB_COVERED_TABLES = [
   "ai.agent_artifacts",
   "ai.agent_job_events",
 ] as const;

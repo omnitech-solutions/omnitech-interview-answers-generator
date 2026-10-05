@@ -1,20 +1,14 @@
 // The live session body: programming challenges, earlier tasks and announcements.
-import {
-  act,
-  cleanup,
-  fireEvent,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { draftLink } from "./live-draft-link";
-import { answerAction, show, spies } from "./live-view-kit";
-import { action, minutesAfter } from "./session-fixtures";
+import { draftLink } from "./testing/live-draft-link";
+import { answerAction, show } from "./testing/live-view-kit";
+import { action, minutesAfter } from "./testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "./session-result-fixtures";
+} from "./testing/session-result-fixtures";
 
 const openCode = () =>
   fireEvent.click(screen.getByRole("tab", { name: "Code" }));
@@ -24,7 +18,7 @@ const stage = (id: string) =>
     .querySelector(`[data-stage="${id}"]`) as HTMLElement;
 
 vi.mock("./workspace-handoff", async () => {
-  const kit = await import("./live-draft-link");
+  const kit = await import("./testing/live-draft-link");
   return { useSessionDraftLink: () => kit.draftLink.current };
 });
 

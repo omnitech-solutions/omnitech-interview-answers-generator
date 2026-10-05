@@ -66,9 +66,4 @@ public struct CredentialLifecycle {
     public mutating func renewalFailed(now: Date) {
         nextAttemptAt = now.addingTimeInterval(backoff.nextDelay())
     }
-
-    public func isExpired(now: Date) -> Bool {
-        guard let expiresAt else { return false }
-        return now >= expiresAt
-    }
 }

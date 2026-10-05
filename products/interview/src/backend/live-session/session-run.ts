@@ -91,7 +91,7 @@ import type { SessionTraceEvent } from "./trace.js";
 
 // An owner input replayed and waiting to be applied to the task state after the
 // spoken utterances have been (so a follow-up finds the task it targets).
-export type PendingOwnerInput = {
+type PendingOwnerInput = {
   provenanceId: string;
   input: LiveOwnerInputRequest;
   // True for the owner's "stop work" marker (control command `stop-work`): it
@@ -104,7 +104,7 @@ export type PendingOwnerInput = {
   deferrals: number;
 };
 
-export type RunMode = "running" | "quiescing" | "superseded";
+type RunMode = "running" | "quiescing" | "superseded";
 
 // The host's test runner as the coding path uses it: runAll is required, the
 // syntax check is optional (without it a solution cannot be fully verified).
@@ -307,7 +307,7 @@ export const keyOf = (
   actionKind: string,
 ): string => dispatchKey(requestOf(run, taskId, revision, actionKind));
 
-export const requestOf = (
+const requestOf = (
   run: SessionRun,
   taskId: string,
   revision: number,
@@ -747,7 +747,7 @@ function applyOwnerInput(run: SessionRun, pending: PendingOwnerInput): void {
 // suppressed `owner_stopped` (a final reason that a rebuilt run reads back as
 // settled). Store calls are best effort: the in-memory settlement holds anyway,
 // and nothing here carries content.
-export const OWNER_STOPPED_REASON = "owner_stopped";
+const OWNER_STOPPED_REASON = "owner_stopped";
 
 async function applyStop(
   run: SessionRun,

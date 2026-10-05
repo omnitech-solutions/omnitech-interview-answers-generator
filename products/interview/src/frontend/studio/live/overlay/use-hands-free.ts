@@ -50,9 +50,9 @@ import { useScreenShare } from "./use-screen-share";
 
 // What an automatic capture is called in the transcript and Activity.
 export const AUTO_CAPTURE_LABEL = "Auto-captured · screen changed";
-export const ANNOUNCE_MS = 8_000;
+const ANNOUNCE_MS = 8_000;
 // How long the "Captured" preview stays.
-export const FLASH_MS = 2_500;
+const FLASH_MS = 2_500;
 const CAPABILITY_REFRESH_MS = 10_000;
 
 export type CaptureFlash = {

@@ -37,16 +37,11 @@ import { type TranscriptRow, transcriptRows } from "./session-transcript";
 //   ended        finished (or being deleted)
 //   unreachable  Studio's session service cannot be read, so what is shown
 //                may be out of date
-export type BarState =
-  | "live"
-  | "paused"
-  | "source-lost"
-  | "ended"
-  | "unreachable";
+type BarState = "live" | "paused" | "source-lost" | "ended" | "unreachable";
 
 // No successful read of the stream for this long (the store polls every second
 // while active) means what is on screen may be out of date.
-export const STREAM_STALE_AFTER_MS = 20_000;
+const STREAM_STALE_AFTER_MS = 20_000;
 
 export type LiveStats = {
   utterances: number;

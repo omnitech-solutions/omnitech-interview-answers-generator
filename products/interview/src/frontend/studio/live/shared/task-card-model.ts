@@ -18,18 +18,18 @@ import { solution } from "../overlay/overlay-model";
 import { STATE_REASON } from "../session-draft-facts";
 import type { ActivityRun, RunTone } from "../session-runs";
 import type { ConstraintView, TaskKind, TaskView } from "../session-tasks";
-import { TASK_KIND } from "../task-panels";
+import { TASK_KIND } from "./task-kind";
 import { taskName } from "./task-name";
 import { taskLabel, taskOrdinal } from "./task-target";
 
 // ---- Stages -------------------------------------------------------------------
 
-export const STAGES = [
+const STAGES = [
   { id: "answer", label: "Answer" },
   { id: "code", label: "Code" },
   { id: "verified", label: "Fully verified" },
 ] as const;
-export type StageId = (typeof STAGES)[number]["id"];
+type StageId = (typeof STAGES)[number]["id"];
 
 // waiting         not started yet
 // running         work in flight
@@ -45,7 +45,7 @@ export type StageState =
   | "unavailable"
   | "not-established";
 
-export type CardStage = {
+type CardStage = {
   id: StageId;
   label: string;
   state: StageState;
@@ -158,7 +158,7 @@ export type CardBadge = {
 };
 
 // Only what the server reports: "n/n generated tests" only when it counted them.
-function badgesOf(task: TaskView): CardBadge[] {
+export function badgesOf(task: TaskView): CardBadge[] {
   const result = task.draftCode ?? task.code;
   if (!result) return [];
   const { states, tests } = result;
@@ -263,7 +263,7 @@ export function snapshotLabelOf(
 // The screenshot a task was started from: the first one its earliest action
 // (by revision, then creation) rests on. null when no action names one, as for
 // a task built on speech alone or a device-only session; never guessed.
-function sourceSnapshotOf(
+export function sourceSnapshotOf(
   actions: readonly LiveAction[],
   taskId: string,
 ): SnapshotRef | null {

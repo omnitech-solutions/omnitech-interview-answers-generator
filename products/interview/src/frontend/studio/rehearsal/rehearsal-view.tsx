@@ -18,7 +18,6 @@ import {
   conceptChoices,
   loadCoding,
   loadConcept,
-  type QuestionChoice,
 } from "./material";
 import { Scorecard } from "./scorecard";
 

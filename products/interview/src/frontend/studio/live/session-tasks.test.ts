@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { action, minutesAfter } from "./session-fixtures";
+import { deriveTasks } from "./session-tasks";
+import { action, minutesAfter } from "./testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
   logisticsResult,
   starResult,
-} from "./session-result-fixtures";
-import { deriveTasks } from "./session-tasks";
+} from "./testing/session-result-fixtures";
 
 const answer = (
   result: Record<string, unknown>,

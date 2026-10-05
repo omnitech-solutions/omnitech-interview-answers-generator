@@ -4,7 +4,6 @@ import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
 import { withTenant } from "@omnitech/database";
 import {
   type DocumentField,
-  type DocumentFieldError,
   type DocumentFormat,
   type DocumentTemplateKind,
   documentFieldsSchema,

@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Icon } from "../../icon";
 import { copyText } from "../shared/copy-text";
 
-export const COMPANION_STEPS = [
+const COMPANION_STEPS = [
   {
     id: "build",
     title: "Build and launch the companion app",
@@ -28,7 +28,7 @@ export const COMPANION_STEPS = [
   },
 ] as const;
 
-export const COMPANION_LINE = "Capture companion: not connected";
+const COMPANION_LINE = "Capture companion: not connected";
 
 export function CompanionSetup({
   credential,

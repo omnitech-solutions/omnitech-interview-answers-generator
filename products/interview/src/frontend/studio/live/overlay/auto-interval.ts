@@ -6,8 +6,8 @@
 import { type FrameHash, hamming } from "./auto-hash";
 
 export const AUTO_INTERVAL_DEFAULT_S = 8;
-export const AUTO_INTERVAL_MIN_S = 3;
-export const AUTO_INTERVAL_MAX_S = 30;
+const AUTO_INTERVAL_MIN_S = 3;
+const AUTO_INTERVAL_MAX_S = 30;
 // Bits (of 64) that must differ from the last analysed frame.
 export const AUTO_CHANGE_BITS = 4;
 // With the heartbeat option on, an unchanged screen is re-analysed this often.

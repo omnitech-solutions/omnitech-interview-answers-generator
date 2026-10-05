@@ -108,17 +108,16 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
-  max-width: 520px;
+  /* The toolbar is as wide as its items, never clipped. */
+  width: max-content;
+  max-width: none;
+  flex-shrink: 0;
   align-self: center;
   padding: 6px;
   border-radius: 14px;
   white-space: nowrap;
   font-size: 12px;
   user-select: none;
-}
-:root[data-panel-host="native"] .pn-root[data-panel="pill"] {
-  justify-content: center;
 }
 .pn-bar-button {
   display: inline-flex;
@@ -423,16 +422,6 @@
   cursor: default;
 }
 
-/* ---- PiP: the bar's one-window switch (not shown natively) ---- */
-.pn-switch {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-}
-.pn-switch .pn-bar-button[aria-pressed="true"] {
-  background: var(--ov-chip);
-}
-
 /* ---- Toasts: bottom-left, large white text on a dark left-to-right fade ---- */
 .pn-toasts {
   position: fixed;
@@ -563,13 +552,6 @@
   flex: 0 1 420px;
 }
 
-/* The one window's toolbar is as wide as its items, never clipped. */
-.pn-root[data-single] .pn-pill {
-  width: max-content;
-  max-width: none;
-  flex-shrink: 0;
-  align-self: center;
-}
 .pn-model {
   font-size: 11px;
   color: var(--ov-muted);

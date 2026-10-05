@@ -33,7 +33,7 @@ import { reserveJobId, type SessionJobRequest } from "./fenced-writes.js";
 import type { SessionStorePort } from "./processor-ports.js";
 import type { SessionRun } from "./session-run.js";
 
-export const AGENT_ACTION_KIND = "agent-solve";
+const AGENT_ACTION_KIND = "agent-solve";
 
 export type EscalationKind = Exclude<Escalation, "none">;
 

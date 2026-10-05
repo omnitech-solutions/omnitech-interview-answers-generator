@@ -91,5 +91,3 @@ export function createLoggerTraceSink(log: (line: string) => void): TraceSink {
     },
   };
 }
-
-export const silentTraceSink: TraceSink = { emit: () => undefined };

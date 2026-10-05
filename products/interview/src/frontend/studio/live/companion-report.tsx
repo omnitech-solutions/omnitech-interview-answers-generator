@@ -3,6 +3,7 @@
 // read (useCompanionCapability) and says which sources are selected.
 import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import {
+  captureRequestSupport,
   NO_REPORT_DETAIL,
   permissionLines,
   reportAge,
@@ -14,8 +15,9 @@ export type CompanionReportProps = {
   state: CompanionCapabilityState;
   // Only a denied permission for a selected source is explained.
   sources: readonly LiveCaptureSource[];
-  // true lists speech and permissions here; false when the caller already
-  // shows them (the Setup host card does).
+  // true lists speech, capture-request support and permissions here (the
+  // Sources tab); false when the caller already shows them (the Setup host
+  // card does).
   showFacts: boolean;
 };
 
@@ -57,18 +59,24 @@ export function CompanionReport({
         live connection.
       </p>
       {showFacts && (
-        <dl className="setup-facts">
-          <div>
-            <dt>Speech</dt>
-            <dd data-tone={speech.tone}>{speech.label}</dd>
-          </div>
-          {lines.map((line) => (
-            <div key={line.source}>
-              <dt>{line.label}</dt>
-              <dd data-tone={line.tone}>{line.text}</dd>
+        <>
+          <p className="setup-muted">{speech.detail}</p>
+          <p className="setup-muted" data-testid="capture-request-support">
+            {captureRequestSupport(capability).line}
+          </p>
+          <dl className="setup-facts">
+            <div>
+              <dt>Speech</dt>
+              <dd data-tone={speech.tone}>{speech.label}</dd>
             </div>
-          ))}
-        </dl>
+            {lines.map((line) => (
+              <div key={line.source}>
+                <dt>{line.label}</dt>
+                <dd data-tone={line.tone}>{line.text}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
       )}
       {denied.map((line) => (
         <p key={line.source} className="setup-muted">

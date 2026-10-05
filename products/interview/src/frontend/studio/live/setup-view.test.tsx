@@ -10,10 +10,17 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { fakeStream } from "./overlay/capture-fixtures";
-import { jsonResponse, minutesAfter, sessionView } from "./session-fixtures";
 import { resetSessionStores } from "./session-registry";
-import { createTestServer, type TestServer } from "./session-test-server";
 import { SetupView } from "./setup-view";
+import {
+  jsonResponse,
+  minutesAfter,
+  sessionView,
+} from "./testing/session-fixtures";
+import {
+  createTestServer,
+  type TestServer,
+} from "./testing/session-test-server";
 
 const CANDIDACY = "22222222-2222-4222-8222-222222222222";
 const INTERVIEW = "11111111-1111-4111-8111-111111111111";

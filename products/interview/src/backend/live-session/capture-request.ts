@@ -47,12 +47,12 @@ import {
 import { firstRow, inOwnerScope, type OwnerScope } from "./scope.js";
 import { lockSession, type SessionRecord } from "./session-record.js";
 
-export const CAPTURE_REFUSED_DEVICE_ONLY = "vision_device_only";
-export const CAPTURE_REFUSED_UPDATE_REQUIRED = "companion_update_required";
-export const CAPTURE_REFUSED_SOURCE_CHANGED = "source_changed";
+const CAPTURE_REFUSED_DEVICE_ONLY = "vision_device_only";
+const CAPTURE_REFUSED_UPDATE_REQUIRED = "companion_update_required";
+const CAPTURE_REFUSED_SOURCE_CHANGED = "source_changed";
 
 // The stored shape: the validated request plus its lifecycle.
-export type StoredCaptureRequest = {
+type StoredCaptureRequest = {
   request: LiveCaptureRequest;
   // The screen selection a region request is bound to: the owner's, else the
   // companion's declared one at submission. Absent for the other modes.

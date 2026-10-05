@@ -19,14 +19,6 @@ public enum EngineSourceKind: String, CaseIterable, Sendable {
         case .screen: self = .screen
         }
     }
-
-    public var captureSource: CaptureSource {
-        switch self {
-        case .microphone: .microphone
-        case .systemAudio: .applicationAudio
-        case .screen: .screen
-        }
-    }
 }
 
 public enum SourceHealth: String, Equatable, Sendable {

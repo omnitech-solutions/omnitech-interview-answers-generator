@@ -3,18 +3,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoreDeps } from "./session-deps";
 import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "./session-registry";
+import {
   jsonResponse,
   minutesAfter,
   SESSION_ID,
   sessionView,
   streamPage,
-} from "./session-fixtures";
-import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "./session-registry";
-import { createTestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 const OTHER = "1c2d3e4f-0000-4000-8000-00000000beef";
 const THIRD = "1c2d3e4f-0000-4000-8000-00000000cafe";

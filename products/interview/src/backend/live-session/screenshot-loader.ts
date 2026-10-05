@@ -243,7 +243,7 @@ export async function loadVerifiedScreenshot(
 
 // The database read: the snapshot observation joined to the owner's own ACTIVE
 // session and to its private screenshot artifact, in the owner's scope.
-export function createSnapshotRead(database: PlatformDatabase): SnapshotRead {
+function createSnapshotRead(database: PlatformDatabase): SnapshotRead {
   return (owner, ref) =>
     inOwnerScope(database, owner, async (tx) => {
       const row = await firstRow<{

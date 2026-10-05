@@ -17,7 +17,7 @@ import type { LiveCompanionCapability } from "@omnitech/interview-contracts";
 import { ageLabel } from "./session-format";
 import type { DeviceOnlyBlocker } from "./setup-sections";
 
-export type SpeechKey =
+type SpeechKey =
   | "no-report"
   | "ready"
   | "denied"

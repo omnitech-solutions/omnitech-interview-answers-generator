@@ -1,8 +1,8 @@
 // What dictation is doing, where the person is looking: a level meter (or an
 // animated indicator where the browser cannot give one), and a hint that says
 // "speak now", then "Heard nothing" after a few quiet seconds.
-export const LISTENING_HINT = "Listening… speak now";
-export const HEARD_NOTHING_HINT = "Heard nothing — check your microphone";
+const LISTENING_HINT = "Listening… speak now";
+const HEARD_NOTHING_HINT = "Heard nothing — check your microphone";
 
 export function ListeningHint({
   level,

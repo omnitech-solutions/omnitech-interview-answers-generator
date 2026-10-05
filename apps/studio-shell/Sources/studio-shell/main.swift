@@ -4,9 +4,9 @@
 // keeps all session state, assist requests, masks and locality; this process
 // fulfils capture for the page through `window.studioHost` and offers window
 // chrome. It is a regular app (Dock icon, app menu, Cmd-Q) whose main window
-// is the full Studio ("expanded"); "minified" hides it and shows the floating
-// pill and panels, which are non-activating so they never take the focus from
-// the window being interviewed in. Every window is ordinary and visible:
+// is the full Studio ("expanded"); "minified" hides it and shows the one
+// floating compact window, which is non-activating so it never takes the focus
+// from the window being interviewed in. Every window is ordinary and visible:
 // nothing here hides it from, or disguises it for, screen sharing (ADR-0018).
 //
 // Output: none. Nothing here prints or logs content, addresses or credentials.

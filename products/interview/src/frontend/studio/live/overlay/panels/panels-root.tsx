@@ -1,11 +1,10 @@
-// The overlay route with `?panel=pill|analysis|chat|settings`: one focused panel
-// of the same session (the card is the default and is untouched). In the PiP
-// window (`host=pip`) there is one window, so it shows the pill with the one
-// active panel under it, the PiP adapter's mapping of the same four panels.
+// The overlay route with `?panel=single|settings`, the two pages the native
+// shell loads: the one compact window (toolbar, chat, answer and code) and the
+// small Settings window beside it. The card is the default of the route and is
+// untouched.
 //
 // [SAFETY] Signed out or unavailable: a message, no panel; the store stops.
-import { type PresentationHost } from "@omnitech/interview-contracts";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Icon } from "../../../icon";
 import { overlayAccess } from "../../float-access";
 import { holdAwake } from "../../keep-awake";
@@ -15,92 +14,47 @@ import { installHostSurface, isNativeSurface } from "../host-surface";
 import { tellHost } from "../overlay-url";
 import { useAutoSession } from "./auto-session";
 import { useCaptureMode } from "./capture-mode";
-import { PANEL_LABEL, PANELS, type PanelKind } from "./panel-kinds";
-import {
-  AnalysisPanel,
-  ChatPanel,
-  type PanelSession,
-  SettingsPanel,
-  Toasts,
-} from "./panel-views";
-import { createPipPresentation } from "./pip-adapter";
+import type { NativeWindowPage } from "./panel-owner";
+import { SettingsPanel, Toasts } from "./panel-views";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
 import { SinglePanel, usePanes } from "./single-panel";
-import { PillPanel } from "./toolbar";
 import { usePanelSession } from "./use-panel-session";
 
-function View({
-  panel,
-  s,
-  presentation,
-}: {
-  panel: PanelKind;
-  s: PanelSession;
-  presentation: PresentationHost;
-}) {
-  if (panel === "pill") return <PillPanel s={s} />;
-  if (panel === "analysis") return <AnalysisPanel s={s} />;
-  if (panel === "chat") return <ChatPanel s={s} />;
-  return <SettingsPanel s={s} presentation={presentation} />;
-}
+const WINDOW_TITLE: Record<NativeWindowPage, string> = {
+  single: "Live session",
+  settings: "Settings",
+};
 
-export function PanelsRoot({
-  panel,
-  single = false,
-}: {
-  panel: PanelKind;
-  // The minimized window: the bar, analysis and chat in one frame.
-  single?: boolean;
-}) {
+export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
   const params = new URLSearchParams(window.location.search);
-  const embedded = params.get("host") === "pip";
-  const stack = useMemo(
-    () =>
-      embedded
-        ? createPipPresentation({ closeWindow: () => tellHost("close") })
-        : null,
-    [embedded],
-  );
-  const active = useSyncExternalStore(
-    stack?.subscribe ?? (() => () => undefined),
-    stack?.active ?? (() => null),
-  );
-  const presentation = useMemo(
-    () => selectPresentation(stack?.host ?? null),
-    [stack],
-  );
+  const presentation = useMemo(() => selectPresentation(), []);
   const { snapshot, actions } = useLiveSession();
   const panes = usePanes();
   const [captureMode, setCaptureMode] = useCaptureMode(tenantFromLocation());
   const s = usePanelSession(panel, presentation, {
-    watchScreen: single && panes.shown.analysis && captureMode === "auto",
+    watchScreen:
+      panel === "single" && panes.shown.analysis && captureMode === "auto",
   });
   const access = overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
   const opened = useRef(false);
   const native = isNativeSurface(params, presentation.capabilities.length);
-  // A native panel starts its own session; it never sends the person away.
+  // A native window starts its own session; it never sends the person away.
   const autoSession = useAutoSession({
     panel,
     enabled: native && access === "ok" && snapshot.hydration === "ready",
     snapshot,
     actions,
   });
-  // One document draws the toasts: the one the shell names (`toasts=1`), else
-  // the analysis panel. Never when the shell draws them itself, and every
-  // non-native window (PiP, a tab) draws its own.
-  const toastsHere =
-    !nativeToastsDrawn() &&
-    (!native ||
-      params.get("toasts") === "1" ||
-      (!params.has("toasts") && panel === "analysis"));
+  // The shell draws its own toasts; any other window (a browser tab) draws them here.
+  const toastsHere = !nativeToastsDrawn();
 
-  // A native panel is always in view of the person, so it keeps reading the
+  // A native window is always in view of the person, so it keeps reading the
   // session even when its window is covered by another app's.
   useEffect(() => (native ? holdAwake() : undefined), [native]);
   useEffect(() => {
-    document.title = `Interview Studio · ${PANEL_LABEL[panel]}`;
+    document.title = `Interview Studio · ${WINDOW_TITLE[panel]}`;
     return installHostSurface(native);
   }, [panel, native]);
   useEffect(() => {
@@ -128,7 +82,7 @@ export function PanelsRoot({
     return (
       <div className="pn-root" data-panel={panel} data-testid="pn-empty">
         <div
-          className={panel === "pill" ? "pn-pill" : "pn-card"}
+          className={panel === "single" ? "pn-pill" : "pn-card"}
           aria-busy={snapshot.hydration !== "ready"}
         >
           <span className="pn-muted">
@@ -165,31 +119,8 @@ export function PanelsRoot({
     );
 
   return (
-    <div
-      className="pn-root"
-      data-panel={panel}
-      data-single={single ? "" : undefined}
-      data-testid="pn-root"
-    >
-      {stack ? (
-        <>
-          <PillPanel s={s} />
-          <nav className="pn-switch" aria-label="Panels">
-            {PANELS.filter((each) => each !== "pill").map((each) => (
-              <button
-                key={each}
-                type="button"
-                className="pn-bar-button"
-                aria-pressed={active === each}
-                onClick={() => void presentation.open(each)}
-              >
-                {PANEL_LABEL[each]}
-              </button>
-            ))}
-          </nav>
-          {active && <View panel={active} s={s} presentation={presentation} />}
-        </>
-      ) : single ? (
+    <div className="pn-root" data-panel={panel} data-testid="pn-root">
+      {panel === "single" ? (
         <SinglePanel
           s={s}
           panes={panes}
@@ -197,7 +128,7 @@ export function PanelsRoot({
           captureMode={{ value: captureMode, onChange: setCaptureMode }}
         />
       ) : (
-        <View panel={panel} s={s} presentation={presentation} />
+        <SettingsPanel s={s} presentation={presentation} />
       )}
       {toastsHere && <Toasts s={s} />}
     </div>

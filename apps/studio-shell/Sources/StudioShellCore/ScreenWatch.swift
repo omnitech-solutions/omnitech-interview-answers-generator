@@ -79,8 +79,6 @@ public struct ScreenChangeDetector: Sendable {
         self.settleSeconds = settleSeconds
     }
 
-    public var hasBaseline: Bool { baseline != nil }
-
     // Forget everything (a new watch begins).
     public mutating func reset() {
         baseline = nil

@@ -9,18 +9,21 @@ import { LiveCardHost } from "./card-host";
 import { LiveFloatHost } from "./float-host";
 import { presentation } from "./focus-presentation";
 import { LiveSessionView } from "./live-view";
-import { answerAction } from "./live-view-kit";
 import { HandsFreeProvider } from "./overlay/hands-free-context";
+import { configureSessionStores, resetSessionStores } from "./session-registry";
+import { answerAction } from "./testing/live-view-kit";
 import {
   jsonResponse,
   minutesAfter,
   sessionView,
   snapshot,
   streamPage,
-} from "./session-fixtures";
-import { configureSessionStores, resetSessionStores } from "./session-registry";
-import { answerResult } from "./session-result-fixtures";
-import { createTestServer, type TestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import { answerResult } from "./testing/session-result-fixtures";
+import {
+  createTestServer,
+  type TestServer,
+} from "./testing/session-test-server";
 
 const studio = {} as never;
 let server: TestServer;

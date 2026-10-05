@@ -14,7 +14,7 @@ import type { LiveViewModel } from "./session-state";
 export type BannerAction = "resume" | "sources" | "renew" | "pair";
 // Where the page runs: inside the Mac app's window, or an ordinary browser.
 export type BannerHost = "native" | "browser";
-export type BannerCta = { action: BannerAction; label: string };
+type BannerCta = { action: BannerAction; label: string };
 export type BannerCopy = {
   title: string;
   detail: string;
@@ -38,7 +38,7 @@ function sourceCta(banner: Banner, host: BannerHost): BannerCta {
 }
 
 // Every banner's button, or none for a banner that only informs.
-export const BANNER_CTA: Record<
+const BANNER_CTA: Record<
   BannerKind,
   (banner: Banner, host: BannerHost) => BannerCta | null
 > = {

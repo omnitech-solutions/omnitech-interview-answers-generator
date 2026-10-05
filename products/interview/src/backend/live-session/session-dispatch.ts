@@ -20,9 +20,9 @@
 // unavailable device is a retryable outcome that tries the same profile again.
 import {
   type AgentAttachment,
-  type AiGeneratedBy,
   type AiExecutionGateway,
   type AiExecutionRequest,
+  type AiGeneratedBy,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
 import type { Clock, ProcessingPolicy, Task } from "./core/index.js";
@@ -89,7 +89,7 @@ export type DispatchStage = {
   readonly deviceProfileId?: string;
 };
 
-export type DispatchPrompt = {
+type DispatchPrompt = {
   system: string;
   prompt: string;
   schema: Readonly<Record<string, unknown>>;
@@ -105,7 +105,7 @@ export type DispatchOptions = {
   attachments?: readonly AgentAttachment[];
 };
 
-export type DispatchDetail = Record<string, string | number | boolean>;
+type DispatchDetail = Record<string, string | number | boolean>;
 
 // One recorded, standing-checked dispatch. Every method that ends the dispatch
 // traces its own outcome; a caller returns when one reports it is over.

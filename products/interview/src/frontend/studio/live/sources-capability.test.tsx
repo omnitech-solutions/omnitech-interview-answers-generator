@@ -14,8 +14,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { LiveSessionBody, LiveSessionPanel } from "./live-session-view";
-import { build } from "./live-view-kit";
 import { SessionBar } from "./session-bar";
+import { getSessionStore, resetSessionStores } from "./session-registry";
+import type { SessionActions } from "./session-snapshot";
+import { build } from "./testing/live-view-kit";
 import {
   capabilityReport,
   disconnected,
@@ -24,11 +26,9 @@ import {
   sessionView,
   streamPage,
   transcript,
-} from "./session-fixtures";
-import { getSessionStore, resetSessionStores } from "./session-registry";
-import type { SessionActions } from "./session-snapshot";
-import { createTestServer } from "./session-test-server";
-import { REPORTS } from "./setup-capability-fixtures";
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
+import { REPORTS } from "./testing/setup-capability-fixtures";
 import type { CompanionCapabilityState } from "./use-companion-capability";
 import { resetTargetTitles } from "./use-session-target";
 
@@ -71,7 +71,7 @@ describe("Sources tab: the companion's speech state", () => {
 
   it("no report: says so honestly and claims no locality", () => {
     body(ready(null));
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
       "No capability report yet: the companion checks on its first session and fails visibly if device-only speech is unavailable.",
     );
     expect(speechRow()).toHaveTextContent("No report yet");
@@ -81,11 +81,11 @@ describe("Sources tab: the companion's speech state", () => {
   it("ready: says on this Mac, in the companion, only because the report says on-device is available", () => {
     body(ready(REPORTS.ready));
     expect(speechRow()).toHaveTextContent("On this Mac, in the companion");
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
-      "Last capability report",
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
+      "The companion’s last report",
     );
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
-      "Microphone granted · Screen recording granted",
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
+      /Microphone\s*granted.*Screen recording\s*granted/,
     );
   });
 
@@ -99,7 +99,7 @@ describe("Sources tab: the companion's speech state", () => {
   it("denied: shows the permission problem", () => {
     body(ready(REPORTS.denied));
     expect(speechRow()).toHaveTextContent("Speech permission denied");
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
       "denied for the companion",
     );
   });
@@ -112,8 +112,8 @@ describe("Sources tab: the companion's speech state", () => {
         }),
       ),
     );
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
-      "Microphone denied · Screen recording not asked yet",
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
+      /Microphone\s*denied.*Screen recording\s*not asked yet/,
     );
   });
 
@@ -129,7 +129,7 @@ describe("Sources tab: the companion's speech state", () => {
 
   it("a read that failed says so", () => {
     body({ status: "error" });
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
       "couldn’t read the companion’s last capability report",
     );
   });
@@ -152,7 +152,7 @@ describe("permission revoked and capture lost, from stream data", () => {
       session: { captureSources: ["screen"] },
       observations: [disconnected(1, "screen", "device-lost")],
     });
-    expect(screen.getByText("Lost")).toBeVisible();
+    expect(screen.getByText("Capture lost")).toBeVisible();
   });
 });
 
@@ -258,12 +258,12 @@ describe("the bar and the live panel", () => {
     await flush();
     await flush();
     fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
       "No capability report yet",
     );
     capability = REPORTS.unsupported;
     await act(() => vi.advanceTimersByTimeAsync(15_000));
-    expect(screen.getByTestId("companion-report")).toHaveTextContent(
+    expect(screen.getByTestId("setup-capability")).toHaveTextContent(
       "isn’t supported for en-GB",
     );
   });

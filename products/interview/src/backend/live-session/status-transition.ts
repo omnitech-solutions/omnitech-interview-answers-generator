@@ -18,7 +18,7 @@ import type { SessionRecord } from "./session-record.js";
 
 // A companion that has made contact and then goes silent this long is treated
 // as stopped; capture pauses and stays open (never ends).
-export const HEARTBEAT_STALE_MS = 2 * 60 * 1000;
+const HEARTBEAT_STALE_MS = 2 * 60 * 1000;
 
 export type Transition = {
   changed: boolean;

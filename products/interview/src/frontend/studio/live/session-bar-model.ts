@@ -12,10 +12,11 @@ import type { IconName } from "../icon";
 import type { SessionErrorCode } from "./session-client";
 import type { SourceStatus } from "./session-sources";
 import type { LiveViewModel } from "./session-state";
+import { shownHealth } from "./source-health";
 
-export type BarTone = "red" | "amber" | "neutral";
+type BarTone = "red" | "amber" | "neutral";
 
-export type BarStateKey =
+type BarStateKey =
   | "unreachable"
   | "live"
   | "paused"
@@ -123,40 +124,34 @@ const REASON_TEXT: Record<string, string> = {
   error: "capture error",
 };
 
+// What the server reported beyond the health's name, as a suffix.
+function healthDetail(status: SourceStatus): string {
+  switch (status.health) {
+    case "lost-permission":
+      return ", the system withdrew access";
+    case "lost": {
+      const reason = REASON_TEXT[status.reason ?? ""];
+      return reason ? `, ${reason}` : "";
+    }
+    case "gap":
+      return status.gapMs === null
+        ? ""
+        : ` for ${Math.max(1, Math.round(status.gapMs / 1000))} s`;
+    default:
+      return "";
+  }
+}
+
 function chipState(
   status: SourceStatus,
   companionOnline: boolean,
 ): { tone: SourceChip["tone"]; state: string } {
-  switch (status.health) {
-    case "disconnected":
-      return { tone: "red", state: "disconnected" };
-    case "lost-permission":
-      return {
-        tone: "amber",
-        state: "permission revoked, the system withdrew access",
-      };
-    case "lost":
-      return {
-        tone: "red",
-        state: `disconnected, ${REASON_TEXT[status.reason ?? ""] ?? "capture lost"}`,
-      };
-    case "gap":
-      return {
-        tone: "amber",
-        state:
-          status.gapMs === null
-            ? "audio dropped"
-            : `audio dropped for ${Math.max(1, Math.round(status.gapMs / 1000))} s`,
-      };
-    case "waiting":
-      return { tone: "neutral", state: "no data from it yet" };
-    default:
-      // "receiving" was derived from earlier observations; without current
-      // contact from the companion it is not claimed.
-      return companionOnline
-        ? { tone: "none", state: "receiving" }
-        : { tone: "neutral", state: "no recent contact" };
-  }
+  const { label, tone } = shownHealth(status, companionOnline);
+  return {
+    // Healthy is drawn plain; only a problem is toned.
+    tone: tone === "green" ? "none" : tone,
+    state: `${label.toLowerCase()}${healthDetail(status)}`,
+  };
 }
 
 // The capture companion is an optional upgrade (system audio, the focused

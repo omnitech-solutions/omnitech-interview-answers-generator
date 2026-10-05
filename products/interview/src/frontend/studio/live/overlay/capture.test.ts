@@ -1,8 +1,8 @@
 // Capture, the region geometry, remembered choices and what each companion light
 // means: the parts of the overlay that are logic rather than layout.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sessionView } from "../session-fixtures";
 import { companionModel, type SourceStatus } from "../session-sources";
+import { sessionView } from "../testing/session-fixtures";
 import {
   fakeStream,
   installDisplayMedia,
@@ -314,7 +314,8 @@ describe("what each companion light says", () => {
         online,
       ),
     ).toMatchObject({
-      tone: "red",
+      // Named and toned by the one source-health table.
+      tone: "amber",
       state: "Permission revoked",
       fix: "Permission revoked: allow Screen Recording for the capture companion in System Settings, then restart it.",
     });

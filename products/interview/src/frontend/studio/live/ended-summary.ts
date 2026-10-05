@@ -28,12 +28,8 @@ const TIME = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-// "3 Oct 2026". The server's UTC day, so the same session reads the same
-// anywhere; the view says UTC where the hour is shown.
-export function formatDay(iso: string): string {
-  const time = Date.parse(iso);
-  return Number.isNaN(time) ? "" : DATE.format(time);
-}
+// "3 Oct 2026, 14:05 UTC". The server's UTC time, so the same session reads
+// the same anywhere.
 export function formatDayTime(iso: string): string {
   const time = Date.parse(iso);
   return Number.isNaN(time)
@@ -231,7 +227,7 @@ export type CodingRow = {
 
 // The three states stay distinct (ADR-0011 coding states): "generated tests
 // passed" never implies "fully verified".
-export function codeSummary(task: TaskView): string {
+function codeSummary(task: TaskView): string {
   const code = task.code;
   if (!code) return "Ended before a draft was ready";
   const { generated, testsPassed, fullyVerified } = code.states;

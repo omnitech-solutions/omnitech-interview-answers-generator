@@ -138,14 +138,13 @@ func screenWatchTests(_ t: Harness) async {
         t.expectEqual(context.evaluateScript("window.studioHost.screenWatch.status().reason")?.toString(), "permission-denied")
     }
 
-    await t.test("panel chrome: the intended configuration is see-through; each opaque trait is named") {
+    await t.test("window chrome: the intended configuration is see-through; each opaque trait is named") {
         t.expectEqual(PanelChrome.violations(.intended), [])
         var bad = PanelChromeSnapshot.intended
         bad.windowIsOpaque = true
         bad.webViewDrawsBackground = true
         bad.otherBackgroundAlphas = [1]
-        bad.hasVisualEffect = false
-        t.expectEqual(PanelChrome.violations(bad).count, 4)
+        t.expectEqual(PanelChrome.violations(bad).count, 3)
     }
 
     await t.test("soak: 500 repeated captures stay single-flight, prompt once, and fit small frames") {

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
 import { LiveSessionView } from "./live-view";
+import { getSessionStore, resetSessionStores } from "./session-registry";
 import {
   action,
   jsonResponse,
@@ -11,14 +12,13 @@ import {
   sessionView,
   streamPage,
   transcript,
-} from "./session-fixtures";
-import { getSessionStore, resetSessionStores } from "./session-registry";
+} from "./testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "./session-result-fixtures";
-import { createTestServer } from "./session-test-server";
+} from "./testing/session-result-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 // The Workspace hand-off is another unit's file: the ended view only asks it
 // for a link, so the link is scripted here.

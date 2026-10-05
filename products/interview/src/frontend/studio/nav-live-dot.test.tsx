@@ -4,16 +4,16 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { views } from "./config/views";
 import {
+  configureSessionStores,
+  resetSessionStores,
+} from "./live/session-registry";
+import {
   jsonResponse,
   minutesAfter,
   sessionView,
   streamPage,
-} from "./live/session-fixtures";
-import {
-  configureSessionStores,
-  resetSessionStores,
-} from "./live/session-registry";
-import { createTestServer } from "./live/session-test-server";
+} from "./live/testing/session-fixtures";
+import { createTestServer } from "./live/testing/session-test-server";
 import { Sidebar } from "./sidebar";
 
 const lists = {

@@ -80,8 +80,7 @@ export type StudioHostHotkey =
   | "skill.next"
   | "skill.prev"
   | "session.clear"
-  | "chat.focus"
-  | "panel.toggle";
+  | "chat.focus";
 
 export type StudioHost = {
   readonly version: typeof STUDIO_HOST_VERSION;
@@ -96,7 +95,7 @@ export type StudioHost = {
   openExternal(url: string): Promise<void>;
   // Returns the remover.
   onHotkey(listener: (hotkey: StudioHostHotkey) => void): () => void;
-  // The multi-panel presentation, when the shell offers one (below).
+  // The window presentation, when the shell offers one (below).
   readonly presentation?: PresentationHost;
   // The hands-free engine, when the shell embeds one (below).
   readonly engine?: EngineHost;
@@ -198,29 +197,14 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
   return { host: host as StudioHost, capabilities };
 }
 
-// ---- Presentation (the OpenCluely-style panels) -----------------------------
-// One core interface for how the Active Session is presented: four focused
-// panels (the one overlay route with `?panel=`). A host adapts it: a native
-// shell opens each as a translucent window, Document Picture-in-Picture maps
-// them onto one window (the pill plus the active panel), the tab card has none.
-// A panel view reads CAPABILITIES, never the host's name. Presentation changes
-// layout and window behaviour only; it never touches the session.
-export const PRESENTATION_PANELS = [
-  "pill",
-  "analysis",
-  "chat",
-  "settings",
-] as const;
-export type PresentationPanel = (typeof PRESENTATION_PANELS)[number];
-
-export const PRESENTATION_LAYOUTS = ["compact", "reading", "all"] as const;
-export type PresentationLayout = (typeof PRESENTATION_LAYOUTS)[number];
-
+// ---- Presentation (the native windows) ---------------------------------------
+// How a native shell presents the Active Session: ONE compact window (the
+// overlay route with `?panel=single`) plus a small Settings window beside it
+// (`?panel=settings`). A page reads CAPABILITIES, never the host's name.
+// Presentation changes window behaviour only; it never touches the session.
 export const PRESENTATION_CAPABILITIES = [
-  // Several panels may be open at once (otherwise one at a time beside the pill).
-  "multi-panel",
   "always-on-top",
-  // Interaction mode: panels accept clicks, or pass them to the window beneath.
+  // Interaction mode: the window accepts clicks, or passes them to the one beneath.
   "click-through",
   "all-spaces",
 ] as const;
@@ -231,40 +215,31 @@ export type PresentationHost = {
   // True when the shell shows its own toasts (interaction mode, recording); a page must not duplicate them.
   readonly nativeToasts?: boolean;
   // Each resolves to whether it took effect; none throws for a refusal.
-  open(panel: PresentationPanel): Promise<boolean>;
-  close(panel: PresentationPanel): Promise<boolean>;
-  focus(panel: PresentationPanel): Promise<boolean>;
-  openPanels(): readonly PresentationPanel[];
-  // "compact": the pill. "reading": pill and analysis. "all": pill, analysis
-  // and chat.
-  setLayout(layout: PresentationLayout): Promise<boolean>;
+  openSettings(): Promise<boolean>;
+  closeSettings(): Promise<boolean>;
   setVisible(visible: boolean): Promise<boolean>;
-  // Interaction mode: true when panels take clicks. A host without
+  // Interaction mode: true when the window takes clicks. A host without
   // "click-through" is always true and refuses to change it.
   interactionMode(): boolean;
   setInteractionMode(on: boolean): Promise<boolean>;
   // Returns the remover.
   onInteractionMode(listener: (on: boolean) => void): () => void;
   // Optional extras a shell may offer. "minified" is the hands-free state: only
-  // the pill shows and Auto is the default.
+  // the compact window shows and Auto is the default.
   appMode?(): PresentationAppMode;
   setAppMode?(mode: PresentationAppMode): Promise<boolean>;
   setHotkeysEnabled?(enabled: boolean): Promise<boolean>;
-  // Panel opacity, 0.3 to 1.
-  opacity?(): number;
-  setOpacity?(value: number): Promise<boolean>;
   // The one-window view: asks for this size (CSS px). The window widens or
   // narrows evenly about its centre, so the toolbar at the top stays put. A
   // `height` fits the window to its content from the top edge; without one the
   // window returns to the height it had before.
   setWindowSize?(size: { width: number; height?: number }): Promise<boolean>;
-  // Quits the app (the Settings panel's Quit button).
+  // Quits the app (the Settings window's Quit button).
   quit?(): Promise<boolean>;
 };
 
 export const PRESENTATION_APP_MODES = ["expanded", "minified"] as const;
 export type PresentationAppMode = (typeof PRESENTATION_APP_MODES)[number];
-export const PRESENTATION_OPACITY_MIN = 0.3;
 
 // [GUARD] Accepts a presentation object with every method; unknown capability
 // names are dropped. null for anything else.
@@ -274,11 +249,8 @@ export function negotiatePresentation(
   if (typeof candidate !== "object" || candidate === null) return null;
   const host = candidate as Partial<PresentationHost>;
   const methods: (keyof PresentationHost)[] = [
-    "open",
-    "close",
-    "focus",
-    "openPanels",
-    "setLayout",
+    "openSettings",
+    "closeSettings",
     "setVisible",
     "interactionMode",
     "setInteractionMode",
@@ -293,11 +265,8 @@ export function negotiatePresentation(
   return {
     capabilities,
     ...(host.nativeToasts === true ? { nativeToasts: true } : {}),
-    open: (panel) => inner.open(panel),
-    close: (panel) => inner.close(panel),
-    focus: (panel) => inner.focus(panel),
-    openPanels: () => inner.openPanels(),
-    setLayout: (layout) => inner.setLayout(layout),
+    openSettings: () => inner.openSettings(),
+    closeSettings: () => inner.closeSettings(),
     setVisible: (visible) => inner.setVisible(visible),
     interactionMode: () => inner.interactionMode(),
     setInteractionMode: (on) => inner.setInteractionMode(on),
@@ -315,15 +284,6 @@ export function negotiatePresentation(
       ? {
           setHotkeysEnabled: (on: boolean) =>
             inner.setHotkeysEnabled?.(on) ?? Promise.resolve(false),
-        }
-      : {}),
-    ...(typeof inner.opacity === "function"
-      ? { opacity: () => inner.opacity?.() ?? 1 }
-      : {}),
-    ...(typeof inner.setOpacity === "function"
-      ? {
-          setOpacity: (value: number) =>
-            inner.setOpacity?.(value) ?? Promise.resolve(false),
         }
       : {}),
     ...(typeof inner.setWindowSize === "function"

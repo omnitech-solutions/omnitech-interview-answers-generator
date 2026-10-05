@@ -20,7 +20,7 @@ import { takeParkedShare } from "./share-handoff";
 
 export type ShareStatus = "idle" | "starting" | "sharing";
 
-export const SHARE_MESSAGES = {
+const SHARE_MESSAGES = {
   unsupported:
     "This browser can’t share a window, tab or screen. Use Chrome or Edge, or the companion’s capture.",
   cancelled: "Nothing was shared.",

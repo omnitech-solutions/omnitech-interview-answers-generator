@@ -27,19 +27,20 @@ import {
   DEVICE_MAX_PROMPT_BYTES,
   MAX_PROMPT_BYTES,
 } from "./assist-stage.js";
+import { parseRaw, zodViolations } from "./stage-output.js";
 
 export const CODING_ACTION_KIND = "solve-code";
-export const ESCALATIONS = [
+const ESCALATIONS = [
   "none",
   "repository-navigation",
   "iterative-repair",
 ] as const;
 export type Escalation = (typeof ESCALATIONS)[number];
 
-export const MAX_CODE_CHARS = 20_000;
-export const MAX_USAGE_CHARS = 5_000;
-export const MAX_NOTES_CHARS = 500;
-export const MAX_COVERAGE = 10;
+const MAX_CODE_CHARS = 20_000;
+const MAX_USAGE_CHARS = 5_000;
+const MAX_NOTES_CHARS = 500;
+const MAX_COVERAGE = 10;
 // A failing report is summarised for the repair call: names and statuses
 // only, and bounded.
 export const MAX_REPORT_TESTS = 40;
@@ -139,18 +140,18 @@ export type CodingInput = {
   deviceOnly: boolean;
 };
 
-export type CodingPrompt = {
+type CodingPrompt = {
   system: string;
   prompt: string;
   schema: Readonly<Record<string, unknown>>;
   byteCount: number;
 };
 
-export type CodingPrepared =
+type CodingPrepared =
   | { ok: true; prompt: CodingPrompt }
   | { ok: false; reason: "prompt_too_large"; byteCount: number };
 
-export type CodingValidation =
+type CodingValidation =
   | { ok: true; solution: CodingSolution }
   | { ok: false; violations: readonly string[] };
 
@@ -161,26 +162,6 @@ export interface CodingStage {
   readonly deviceProfileId?: string;
   prepare(input: CodingInput): CodingPrepared;
   validate(raw: unknown, brief: CodingBrief): CodingValidation;
-}
-
-function parseRaw(raw: unknown): unknown {
-  if (typeof raw !== "string") return raw;
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-// [SAFETY] Paths and issue codes only: an unrecognised key's NAME is
-// model-controlled, so it is counted and never copied.
-function zodViolations(error: z.ZodError): string[] {
-  return error.issues.slice(0, 20).map((issue) => {
-    const path = issue.path.map(String).join(".") || "$";
-    const count =
-      issue.code === "unrecognized_keys" ? `:${issue.keys.length}` : "";
-    return `${path}:${issue.code}${count}`;
-  });
 }
 
 function renderPrompt(

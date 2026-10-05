@@ -1,4 +1,4 @@
-// The panels beside the toolbar: the analysis (the answer pane and the code
+// The panes beside the toolbar: the analysis (the answer pane and the code
 // pane, in answer-pane.tsx), the live transcription and chat, settings and the
 // toasts. Each takes the one panel session (usePanelSession) and renders it;
 // none fetches or decides anything itself.
@@ -32,7 +32,6 @@ import {
   panelRows,
   type TaskStage,
 } from "./panel-model";
-import { quitShell } from "./shell-bridge";
 import { phaseLabel } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 import type { usePanelSession } from "./use-panel-session";
@@ -43,18 +42,21 @@ export type PanelSession = ReturnType<typeof usePanelSession>;
 
 export function AnalysisPanel({
   s,
-  part = "all",
+  part,
   autoWatching = false,
 }: {
   s: PanelSession;
   // The one window shows the answer and the code as separate panes.
-  part?: "all" | "text" | "code";
+  part: "text" | "code";
   autoWatching?: boolean;
 }) {
   return (
     <div className="pn-analysis" data-testid="pn-analysis">
-      {part !== "code" && <AnswerPane s={s} autoWatching={autoWatching} />}
-      {part !== "text" && <CodePane s={s} />}
+      {part === "text" ? (
+        <AnswerPane s={s} autoWatching={autoWatching} />
+      ) : (
+        <CodePane s={s} />
+      )}
     </div>
   );
 }
@@ -326,7 +328,12 @@ export function SettingsPanel({
 }) {
   const settings = s.prefs.settings;
   const close = async () => {
-    if (!(await presentation.close("settings"))) window.close();
+    if (!(await presentation.closeSettings())) window.close();
+  };
+  // Without a shell to ask, a window can only close itself.
+  const quit = () => {
+    if (presentation.quit) void presentation.quit();
+    else window.close();
   };
   return (
     <div className="pn-card pn-settings" data-testid="pn-settings">
@@ -336,7 +343,7 @@ export function SettingsPanel({
           type="button"
           className="pn-danger"
           data-testid="pn-quit"
-          onClick={quitShell}
+          onClick={quit}
         >
           Quit
         </button>

@@ -18,7 +18,7 @@ import type { TaskView } from "./session-tasks";
 import { useLiveSession } from "./use-live-session";
 
 // The Workspace draft a session owns, by the key the backend wrote.
-export type SessionDraftTarget = {
+type SessionDraftTarget = {
   workspaceId: string;
   artifactId: string;
   // The draft revision the session last wrote, when known.

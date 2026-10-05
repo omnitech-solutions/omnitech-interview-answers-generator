@@ -235,7 +235,6 @@ it("returns current canonical origin for stale requests and never treats draft t
 });
 
 it("does not allow relabeling a personal metric as a technical claim", async () => {
-  const text = "I improved latency by 40%.";
   const ref = {
     ...source,
     id: "camouflage",

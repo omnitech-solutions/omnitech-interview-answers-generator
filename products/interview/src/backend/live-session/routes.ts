@@ -43,7 +43,7 @@ import { ActiveSessionRepository } from "./repository.js";
 import type { OwnerScope } from "./scope.js";
 import { MAX_PAGE } from "./session-reads.js";
 
-export const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
+const SESSION_ROUTES_PREFIX = "/api/interview/t/:tenantSlug/sessions";
 
 export type SessionRoutesOptions = {
   database: PlatformDatabase;

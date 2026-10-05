@@ -2,11 +2,11 @@
 // synthetic fixtures, with spy actions.
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
-import type { BannerHost } from "./banner-copy";
-import { LiveSessionBody } from "./live-session-view";
+import type { BannerHost } from "../banner-copy";
+import { LiveSessionBody } from "../live-session-view";
+import type { SessionActions } from "../session-snapshot";
+import { deriveLiveModel } from "../session-state";
 import { action, minutesAfter, sessionView } from "./session-fixtures";
-import type { SessionActions } from "./session-snapshot";
-import { deriveLiveModel } from "./session-state";
 
 export type Build = {
   session?: Parameters<typeof sessionView>[0];

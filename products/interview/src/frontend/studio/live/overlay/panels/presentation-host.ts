@@ -1,7 +1,7 @@
-// The panels' one view of the presentation: a host-independent consumer of
+// The windows' one view of the presentation: a host-independent consumer of
 // the `PresentationHost` contract. A native shell supplies one
-// (native-adapter), the PiP window another (pip-adapter), and a plain tab a
-// no-op. Views read `capabilities`, never which host this is.
+// (native-adapter), and a plain tab, an installed app or a PiP window a no-op.
+// Views read `capabilities`, never which host this is.
 import type {
   PresentationCapability,
   PresentationHost,
@@ -12,23 +12,18 @@ import { nativePresentation } from "./native-adapter";
 // The tab card and an ordinary browser window: nothing to open or move.
 export const noopPresentation: PresentationHost = {
   capabilities: [],
-  open: async () => false,
-  close: async () => false,
-  focus: async () => false,
-  openPanels: () => [],
-  setLayout: async () => false,
+  openSettings: async () => false,
+  closeSettings: async () => false,
   setVisible: async () => false,
   interactionMode: () => true,
   setInteractionMode: async () => false,
   onInteractionMode: () => () => undefined,
 };
 
-// The host this document is in: the native one when the shell offers it, the
-// given PiP one when this page is embedded in the float, otherwise the no-op.
-export function selectPresentation(
-  pip: PresentationHost | null = null,
-): PresentationHost {
-  return nativePresentation() ?? pip ?? noopPresentation;
+// The host this document is in: the native one when the shell offers it,
+// otherwise the no-op.
+export function selectPresentation(): PresentationHost {
+  return nativePresentation() ?? noopPresentation;
 }
 
 export const hasCapability = (

@@ -13,7 +13,7 @@ import {
   parseWithheldResult,
 } from "./session-results";
 
-export type RunState =
+type RunState =
   // Its result is current and was published.
   | "published"
   // Work in flight for the current revision.
@@ -93,10 +93,14 @@ const STATE_PRESENTATION: Record<RunState, { label: string; tone: RunTone }> = {
   superseded: { label: "Superseded", tone: "neutral" },
 };
 
+// The reason the server records when the owner stops work (session-wide).
+export const OWNER_STOPPED = "owner_stopped";
+
 // Suppression reasons the processor records, as a state and a sentence.
 const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
   session_paused: { state: "cancelled", label: "The session was paused." },
   session_ended: { state: "cancelled", label: "The session ended." },
+  [OWNER_STOPPED]: { state: "cancelled", label: "You stopped it." },
   session_purging: {
     state: "cancelled",
     label: "The session is being deleted.",

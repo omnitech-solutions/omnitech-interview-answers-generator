@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { Icon, type IconName } from "../../icon";
 import type { TaskView } from "../session-tasks";
-import { TASK_KIND } from "../task-panels";
+import { TASK_KIND } from "../shared/task-kind";
 import type { SessionDraftLink } from "../workspace-handoff";
 import { LiveCodeCanvas } from "./code-canvas";
 import {

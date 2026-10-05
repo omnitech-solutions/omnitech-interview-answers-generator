@@ -13,20 +13,20 @@ const MAX_CANDIDACIES = 50;
 const MAX_INTERVIEWS_PER_CANDIDACY = 20;
 const MAX_PROFILE_REVISIONS = 50;
 
-export type InterviewChoice = {
+type InterviewChoice = {
   id: string;
   label: string;
   kind: string;
   scheduledAt: string | null;
 };
-export type CandidacyChoice = {
+type CandidacyChoice = {
   id: string;
   title: string;
   companyName: string;
   createdAt: string;
   interviews: InterviewChoice[];
 };
-export type ProfileChoice = {
+type ProfileChoice = {
   profileId: string;
   name: string;
   revision: number;

@@ -30,7 +30,7 @@ const ANALYZE_CHORD =
 
 export const DEVICE_ONLY_ANALYZE =
   "Device-only mode never sends a screenshot to an assistant.";
-export const EXPIRED_NOTE =
+const EXPIRED_NOTE =
   "The companion did not answer within 20 s. Is it running with the screen source selected?";
 
 // One plain line, with the fix, for each closed reason a capture request can end
@@ -57,16 +57,16 @@ const FAILURE_TEXT: Record<string, string> = {
     "The companion’s screen source changed, so the capture was dropped. Try again.",
   "capture-failed": "The companion couldn’t take the capture. Try again.",
 };
-export const refusalText = (reason: string | null): string =>
+const refusalText = (reason: string | null): string =>
   (reason ? REFUSAL_TEXT[reason] : undefined) ??
   `The companion’s capture was refused${reason ? ` (${reason})` : ""}.`;
-export const failureText = (reason: string | null): string =>
+const failureText = (reason: string | null): string =>
   (reason ? FAILURE_TEXT[reason] : undefined) ??
   `The companion couldn’t capture${reason ? ` (${reason})` : ""}. Nothing was analysed.`;
 
 // What the strip says while a request to the companion is followed, or how it
 // ended. null: nothing to say.
-export function progressText(progress: CaptureProgress | null): string | null {
+function progressText(progress: CaptureProgress | null): string | null {
   if (!progress) return null;
   switch (progress.phase) {
     case "asking":

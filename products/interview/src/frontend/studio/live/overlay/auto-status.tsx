@@ -4,7 +4,7 @@
 import { Icon } from "../../icon";
 import type { AutoLine } from "./auto-line";
 
-export const AUTO_AUDIO_NOTE =
+const AUTO_AUDIO_NOTE =
   "Auto listens through this browser’s microphone. Audio from a call or another tab needs the native companion.";
 
 export function AutoStatus({

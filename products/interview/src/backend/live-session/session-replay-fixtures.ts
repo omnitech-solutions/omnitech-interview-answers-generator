@@ -66,7 +66,7 @@ type ScriptLine = {
   supersedes?: string;
 };
 
-export const said = (
+const said = (
   role: FixtureSegment["role"],
   text: string,
   options: { label?: string; supersedes?: string } = {},

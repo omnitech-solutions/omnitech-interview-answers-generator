@@ -1,12 +1,12 @@
 import { negotiateStudioHost } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
-import { capabilityReport } from "./session-fixtures";
 import {
   capabilityLines,
   defaultHost,
   type HostFacts,
   macStatus,
 } from "./setup-hosts";
+import { capabilityReport } from "./testing/session-fixtures";
 
 const noop = () => undefined;
 const nativeHost = negotiateStudioHost({

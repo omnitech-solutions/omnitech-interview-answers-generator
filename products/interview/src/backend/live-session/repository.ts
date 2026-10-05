@@ -8,9 +8,9 @@ import { randomUUID } from "node:crypto";
 import {
   ACTIVE_SESSION_LIMITS,
   type CaptureSource,
-  captureSourceSchema,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
+import { liveSessionStartRequestSchema } from "@omnitech/interview-contracts";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -110,33 +110,9 @@ const CONTROL_COMMAND: Record<ControlAction, StatusCommand> = {
   end: "end",
 };
 
-const startInputSchema = z.strictObject({
-  processingPolicy: z.string().refine(isProcessingPolicy),
-  captureSources: z.array(captureSourceSchema).min(1).max(3),
-  liveAssistance: z.boolean().optional(),
-  retention: z.string().refine(isRetentionMode).optional(),
-  rehearsal: z
-    .strictObject({
-      runId: z.string().min(1).max(128),
-      strict: z.boolean(),
-    })
-    .optional(),
-  interviewId: z.uuid().optional(),
-  candidacyId: z.uuid().optional(),
-  profile: z
-    .strictObject({
-      id: z.string().min(1).max(256),
-      revision: z.number().int().min(1).optional(),
-    })
-    .optional(),
-  workspaceDraft: z
-    .strictObject({
-      workspaceId: z.string().min(1).max(256),
-      artifactId: z.string().min(1).max(256),
-    })
-    .optional(),
-  durationMs: z.number().int().min(60_000).optional(),
-});
+// The one start-body schema is the wire contract's; the repository re-checks it
+// at its own boundary so a caller other than the route cannot skip it.
+const startInputSchema = liveSessionStartRequestSchema;
 
 function pgError(error: unknown): { code?: string; constraint?: string } {
   const cause =

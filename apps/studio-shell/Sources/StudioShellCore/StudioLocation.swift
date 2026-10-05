@@ -27,14 +27,13 @@ public struct StudioLocation: Equatable, Sendable {
     private var productBase: String { "/t/\(tenantSlug)/p/\(Self.productId)" }
 
     // /t/:tenant/p/interview/live/overlay?host=native[&panel=<name>][&handsfree=1][&session=<id>]
-    // `panel` selects a panel variant of the route (?panel=pill|analysis|chat|settings).
-    public func overlayURL(sessionId: String? = nil, panel: PanelKind? = nil, single: Bool = false, handsFree: Bool = false) -> URL {
+    // `window` selects the page the route draws: `single` for the compact window,
+    // `settings` for Settings; none is the route's own default.
+    public func overlayURL(sessionId: String? = nil, window: WindowKind? = nil, handsFree: Bool = false) -> URL {
         var components = URLComponents(url: origin, resolvingAgainstBaseURL: false) ?? URLComponents()
         components.path = "\(productBase)/live/overlay"
         var query = [URLQueryItem(name: "host", value: "native")]
-        if let panel { query.append(URLQueryItem(name: "panel", value: panel.queryName)) }
-        // The minimized window: the bar, analysis and chat in one frame.
-        if single, panel == nil { query.append(URLQueryItem(name: "panel", value: "single")) }
+        if let window { query.append(URLQueryItem(name: "panel", value: window.queryName)) }
         // The minified shell is a hands-free host: Studio defaults Auto on.
         if handsFree { query.append(URLQueryItem(name: "handsfree", value: "1")) }
         if let sessionId, Self.isSessionId(sessionId) { query.append(URLQueryItem(name: "session", value: sessionId)) }

@@ -58,11 +58,11 @@ const pageSize = (limit: number | undefined, fallback: number): number =>
 
 // ---- Session history --------------------------------------------------------
 
-export const SESSION_LIST_MAX = 100;
+const SESSION_LIST_MAX = 100;
 
 // A history row: standing, retention, policy, links and counts. It carries no
 // transcript, draft, answer or credential.
-export type SessionSummary = Pick<
+type SessionSummary = Pick<
   SessionView,
   | "id"
   | "status"
@@ -139,7 +139,7 @@ export async function listSessions(
 // whose transaction began before the read but committed after it (its
 // updated_at is the transaction's start) is still found. Rows can therefore
 // repeat; clients merge by id (the contract says so).
-export const ACTION_CURSOR_OVERLAP_SECONDS = 2;
+const ACTION_CURSOR_OVERLAP_SECONDS = 2;
 
 export type ActionChangesPage = {
   actions: StoredAction[];

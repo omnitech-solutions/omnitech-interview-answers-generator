@@ -50,7 +50,7 @@ const KIND_OF_CATEGORY: Record<string, TaskKind> = {
   other: "other",
 };
 
-export type TaskRevisionView = {
+type TaskRevisionView = {
   revision: number;
   current: boolean;
   // The latest run per action kind, in the order drafts, code, agent.

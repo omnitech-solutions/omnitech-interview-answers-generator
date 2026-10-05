@@ -2,22 +2,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionApiError } from "./session-client";
 import {
-  jsonResponse,
-  minutesAfter,
-  SESSION_ID,
-  sessionView,
-} from "./session-fixtures";
-import {
   configureSessionStores,
   getSessionStore,
   resetSessionStores,
 } from "./session-registry";
-import { createTestServer } from "./session-test-server";
+import {
+  jsonResponse,
+  minutesAfter,
+  SESSION_ID,
+  sessionView,
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 let visible = true;
 let visibilityListeners: (() => void)[] = [];
 const flush = () => vi.advanceTimersByTimeAsync(0);
-const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);
 
 function boot(extra: Parameters<typeof configureSessionStores>[0] = {}) {
   const server = createTestServer();

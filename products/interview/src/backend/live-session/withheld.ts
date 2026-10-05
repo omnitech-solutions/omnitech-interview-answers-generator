@@ -15,7 +15,7 @@ export type WithheldSummary = {
   codes: string[];
 };
 
-export const INVALID_OUTPUT_REASON = "invalid_output";
+const INVALID_OUTPUT_REASON = "invalid_output";
 // The store refuses a suppression reason longer than this (fenced-writes.ts),
 // so the encoded reason is built to fit rather than to be refused.
 export const MAX_REASON_CHARS = 200;

@@ -72,7 +72,6 @@ export function captureRequestFor(
 // main display has changed, and the caller then drops the stored area. Kept in
 // memory only.
 let knownDisplayId: string | null = null;
-export const hostDisplayId = (): string | null => knownDisplayId;
 export const forgetHostDisplay = (): void => {
   knownDisplayId = null;
 };
@@ -80,7 +79,7 @@ export const forgetHostDisplay = (): void => {
 // A capture the server accepts is at most 2 MiB (maxOwnerCaptureBytes). A
 // retina window can encode larger, so an oversize image is re-encoded smaller
 // here, before it is sent; nothing else about it changes.
-export const HOST_FRAME_MAX_BYTES = 1_800_000;
+const HOST_FRAME_MAX_BYTES = 1_800_000;
 export async function fitFrame(
   blob: Blob,
   maxBytes: number = HOST_FRAME_MAX_BYTES,

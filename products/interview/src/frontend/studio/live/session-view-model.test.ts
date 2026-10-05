@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 import { bannerCopy } from "./banner-copy";
 import { capabilityRows } from "./capability-table";
 import { speechState } from "./companion-capability";
+import { ageLabel, clockLabel, plural } from "./session-format";
+import { parseWithheldResult } from "./session-results";
+import { deriveLiveModel } from "./session-state";
 import {
   action,
   disconnected,
@@ -12,10 +15,7 @@ import {
   minutesAfter,
   READY_REPORT,
   sessionView,
-} from "./session-fixtures";
-import { ageLabel, clockLabel, plural } from "./session-format";
-import { parseWithheldResult } from "./session-results";
-import { deriveLiveModel } from "./session-state";
+} from "./testing/session-fixtures";
 
 const model = (
   overrides: Parameters<typeof sessionView>[0] = {},

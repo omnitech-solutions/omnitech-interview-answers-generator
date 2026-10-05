@@ -8,7 +8,7 @@ import { revisionStanding, type TaskState } from "./tasks.js";
 
 export type DispatchStatus = "in-flight" | "succeeded" | "failed";
 
-export type DispatchEntry = {
+type DispatchEntry = {
   key: string;
   status: DispatchStatus;
   attempts: number;
@@ -44,7 +44,7 @@ export type DispatchSuppressionReason =
   | "source_superseded"
   | "task_unknown";
 
-export type SuppressionRecord = DispatchRequest & {
+type SuppressionRecord = DispatchRequest & {
   reason: DispatchSuppressionReason;
 };
 

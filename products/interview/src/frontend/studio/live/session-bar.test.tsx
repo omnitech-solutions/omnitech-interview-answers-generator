@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EndConfirm } from "./end-confirm";
 import { presentation } from "./focus-presentation";
 import { SessionBar } from "./session-bar";
+import { resetSessionStores } from "./session-registry";
 import {
   disconnected,
   jsonResponse,
@@ -17,9 +18,8 @@ import {
   sessionView,
   streamPage,
   transcript,
-} from "./session-fixtures";
-import { resetSessionStores } from "./session-registry";
-import { createTestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 import { resetTargetTitles } from "./use-session-target";
 
 let server: ReturnType<typeof createTestServer>;
@@ -139,7 +139,7 @@ describe("header controls", () => {
     const lost = bar().querySelector('[data-source="application-audio"]');
     expect(lost).toHaveAttribute("data-alert", "true");
     expect(lost?.className).toContain("red");
-    expect(lost?.getAttribute("title")).toMatch(/disconnected/);
+    expect(lost?.getAttribute("title")).toMatch(/capture lost/);
   });
 });
 
@@ -228,7 +228,7 @@ describe("states", () => {
     await openBar();
     expect(bar()).toHaveAttribute("data-state", "live");
     expect(bar()).toHaveTextContent("Ready");
-    expect(bar()).not.toHaveTextContent(/Waiting|receiving/);
+    expect(bar()).not.toHaveTextContent(/Waiting|(?<!not )receiving/);
     expect(
       bar().querySelectorAll('[data-testid="companion-chip"]'),
     ).toHaveLength(1);
@@ -287,7 +287,7 @@ describe("source chips", () => {
       disconnected(2, "microphone", "permission-revoked"),
     ];
     await openBar();
-    const lost = screen.getByTitle("App audio · disconnected, device lost");
+    const lost = screen.getByTitle("App audio · capture lost, device lost");
     expect(lost.className).toContain("red");
     const revoked = screen.getByTitle(/^Microphone · permission revoked/);
     expect(revoked.className).toContain("amber");

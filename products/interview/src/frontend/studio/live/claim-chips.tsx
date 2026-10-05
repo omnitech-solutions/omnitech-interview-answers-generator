@@ -26,7 +26,7 @@ function chipLabel(claim: ClaimView): string {
     : chip.presentation.label;
 }
 
-export function ClaimRow({ claim }: { claim: ClaimView }) {
+function ClaimRow({ claim }: { claim: ClaimView }) {
   const chip = claimChip(claim);
   const panelId = useId();
   const [open, setOpen] = useState(false);

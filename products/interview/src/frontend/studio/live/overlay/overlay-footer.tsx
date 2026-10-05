@@ -93,7 +93,6 @@ export function Footer({
   pending,
   actions,
   onFailure,
-  controls = true,
   sessionWording = false,
   ended = false,
   onStart,
@@ -101,8 +100,6 @@ export function Footer({
   clock,
   onOpenSummary,
 }: {
-  // False when Pause and End live elsewhere.
-  controls?: boolean;
   // The one-window view spells out what each button acts on: "End session".
   sessionWording?: boolean;
   // A finished session offers a new one instead of Pause and End.
@@ -163,33 +160,32 @@ export function Footer({
             {clock.label}
           </span>
         )}
-        {controls &&
-          footerButtons({
-            paused,
-            ended,
-            starting,
-            busy: pending.includes("pause") || pending.includes("resume"),
-            wording: sessionWording ? "session" : "short",
-            canStart: onStart !== undefined,
-            canSummary: onOpenSummary !== undefined,
-          }).map((button) => (
-            <button
-              key={button.id}
-              ref={button.id === "end" ? endButton : undefined}
-              type="button"
-              className={
-                button.tone === "default"
-                  ? "ov-button"
-                  : `ov-button ${button.tone}`
-              }
-              title={button.title}
-              disabled={button.disabled}
-              onClick={() => press[button.id]()}
-            >
-              {button.icon && <Icon name={button.icon} filled />}
-              {button.label}
-            </button>
-          ))}
+        {footerButtons({
+          paused,
+          ended,
+          starting,
+          busy: pending.includes("pause") || pending.includes("resume"),
+          wording: sessionWording ? "session" : "short",
+          canStart: onStart !== undefined,
+          canSummary: onOpenSummary !== undefined,
+        }).map((button) => (
+          <button
+            key={button.id}
+            ref={button.id === "end" ? endButton : undefined}
+            type="button"
+            className={
+              button.tone === "default"
+                ? "ov-button"
+                : `ov-button ${button.tone}`
+            }
+            title={button.title}
+            disabled={button.disabled}
+            onClick={() => press[button.id]()}
+          >
+            {button.icon && <Icon name={button.icon} filled />}
+            {button.label}
+          </button>
+        ))}
       </div>
       {confirming && (
         <div

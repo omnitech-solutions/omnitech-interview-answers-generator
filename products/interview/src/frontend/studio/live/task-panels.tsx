@@ -14,18 +14,9 @@ import { noticesFor, RunNotices } from "./run-notices";
 import type { ActivityKey } from "./session-banners";
 import type { AnswerResult } from "./session-results";
 import type { LiveViewModel } from "./session-state";
-import type { TaskKind, TaskView } from "./session-tasks";
+import type { TaskView } from "./session-tasks";
 import { STAGE_PRESENTATION, type TaskCard } from "./shared/task-card-model";
-
-export const TASK_KIND: Record<TaskKind, { label: string; icon: IconName }> = {
-  "experience-question": { label: "Experience question", icon: "psychology" },
-  "leadership-behavioural": { label: "Behavioural question", icon: "star" },
-  logistics: { label: "Logistics question", icon: "checklist" },
-  concept: { label: "Concept question", icon: "school" },
-  "programming-challenge": { label: "Programming challenge", icon: "code" },
-  other: { label: "Question", icon: "help" },
-  unclassified: { label: "New task", icon: "pending" },
-};
+import { TASK_KIND } from "./shared/task-kind";
 
 export type Idle = { icon: IconName; title: string; detail: string };
 const IDLE: Partial<Record<ActivityKey, Idle>> = {

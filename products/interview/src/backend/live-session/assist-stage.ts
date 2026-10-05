@@ -42,7 +42,6 @@ import {
   supportedFigureKeys,
   verifyClaims,
 } from "./claims.js";
-import { sanitizeMissingContext } from "./missing-context.js";
 import {
   type ContextSnapshot,
   type ContextSource,
@@ -53,16 +52,17 @@ import {
   selectSourcesForTask,
   TASK_VIEW_LIMITS,
 } from "./context-snapshot.js";
+import { sanitizeMissingContext } from "./missing-context.js";
+import { parseRaw, zodViolations } from "./stage-output.js";
 
 export const ASSIST_ACTION_KIND = "draft-answer";
 // Captured text beyond this is left out oldest-first; a device profile's
 // window is small, and a prompt is never allowed to grow with the session.
 export const MAX_CAPTURED_CHARS = 6_000;
-export const MAX_DRAFT_CHARS = 4_000;
-export const MAX_CLAIM_CHARS = 600;
-export const MAX_QUOTE_CHARS = 500;
-export const MAX_CLAIMS = 12;
-export const MAX_SECTIONS = MAX_CLAIMS;
+const MAX_DRAFT_CHARS = 4_000;
+const MAX_CLAIM_CHARS = 600;
+const MAX_QUOTE_CHARS = 500;
+const MAX_CLAIMS = 12;
 // What may leave the process, system policy and prompt together. A device
 // profile's window is much smaller; the prompt SHRINKS (whole sources are
 // dropped) and is REFUSED, never truncated, when it still would not fit.
@@ -81,22 +81,20 @@ export const ASSIST_CATEGORIES = [
   "coding",
   "other",
 ] as const;
-export type AssistCategory = (typeof ASSIST_CATEGORIES)[number];
 
 export const STAR_ELEMENTS = ["situation", "task", "action", "result"] as const;
-export type StarElement = (typeof STAR_ELEMENTS)[number];
-export const LOGISTICS_FIELDS = [
+const LOGISTICS_FIELDS = [
   "notice-period",
   "compensation",
   "work-arrangement",
 ] as const;
-export type LogisticsField = (typeof LOGISTICS_FIELDS)[number];
+type LogisticsField = (typeof LOGISTICS_FIELDS)[number];
 
 export type CapturedLine = { speaker: string; text: string };
 
 // The pinned approved context a stage reads: the snapshot plus the matrix the
 // role ranking works on (null when the session pins no profile).
-export type AssistContext = {
+type AssistContext = {
   snapshot: ContextSnapshot;
   matrix: CandidateMatrix | null;
 };
@@ -128,7 +126,7 @@ export type AssistPrompt = {
   sourceCount: number;
 };
 
-export type AssistPrepared =
+type AssistPrepared =
   | { ok: true; prompt: AssistPrompt }
   // The prompt cannot fit its window even without any source: refused, never
   // truncated (the dispatcher records prompt_too_large).
@@ -197,7 +195,7 @@ const outputSchema = z.strictObject({
   codingBrief: codingBriefSchema.nullable(),
 });
 
-export type AssistSection = { kind: ClaimKind; text: string };
+type AssistSection = { kind: ClaimKind; text: string };
 export type AssistDraft = z.infer<typeof outputSchema> & {
   // What the model says it could not see (display metadata, never a claim).
   // Absent when nothing is missing, not assessed, or the field was malformed.
@@ -207,7 +205,7 @@ export type AssistDraft = z.infer<typeof outputSchema> & {
   sections: AssistSection[];
 };
 
-export type AssistValidationContext = {
+type AssistValidationContext = {
   snapshot: ContextSnapshot;
   // The spoken text of the task's captured lines (for the spoken-figure rule).
   captured: readonly string[];
@@ -446,15 +444,6 @@ export function boundedLines(lines: readonly CapturedLine[]): CapturedLine[] {
   return kept;
 }
 
-function parseRaw(raw: unknown): unknown {
-  if (typeof raw !== "string") return raw;
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
 const shown = (source: ContextSource) => ({
   sourceId: source.id,
   revision: source.revision,
@@ -508,17 +497,6 @@ function renderPrompt(
     of("employer-context"),
     "END EMPLOYER MATERIAL",
   ].join("\n");
-}
-
-// [SAFETY] Paths and issue codes only: an unrecognised key's NAME is
-// model-controlled, so it is counted and never copied.
-function zodViolations(error: z.ZodError): string[] {
-  return error.issues.slice(0, 20).map((issue) => {
-    const path = issue.path.map(String).join(".") || "$";
-    const count =
-      issue.code === "unrecognized_keys" ? `:${issue.keys.length}` : "";
-    return `${path}:${issue.code}${count}`;
-  });
 }
 
 type Output = z.infer<typeof outputSchema>;

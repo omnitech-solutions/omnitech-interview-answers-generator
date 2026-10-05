@@ -1,7 +1,7 @@
-// The one session implementation behind every panel (and the same stores the
-// card uses): the session store (the server is the authority), the owner's
+// The one session implementation behind every native window (and the same stores
+// the card uses): the session store (the server is the authority), the owner's
 // capture prefs, and, in the ONE document that owns the microphone and the
-// screen, hands-free Auto, dictation and captures. Other panels display that
+// screen, hands-free Auto, dictation and captures. Other windows display that
 // owner's state and ask it to act through the panel bus.
 //
 // [SAFETY] Nothing here hides a window or types into another app. A capture
@@ -23,12 +23,12 @@ import { loadMask, loadSettings } from "../capture-prefs";
 import { FrameError } from "../capture-source";
 import { claimCaptureTrigger } from "../capture-trigger";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
-import { AUTO_CAPTURE_LABEL } from "../overlay-card";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
 import { useCompanionCapture } from "../use-companion-capture";
+import { AUTO_CAPTURE_LABEL } from "../use-hands-free";
 import { useScreenShare } from "../use-screen-share";
 import {
   type Command,
@@ -40,15 +40,14 @@ import {
   FOCUS_INPUT_EVENT,
 } from "./commands";
 import { openPanelBus, type PanelMessage, type PanelState } from "./panel-bus";
-import type { PanelKind } from "./panel-kinds";
 import { type SystemLine, taskMarkers } from "./panel-model";
-import { useOwnsSession } from "./panel-owner";
+import { type NativeWindowPage, useOwnsSession } from "./panel-owner";
 import { useInteractionMode } from "./presentation-host";
 import { autoLimits } from "./toolbar-config";
 import { engineHost, engineLine, useEngine } from "./use-engine";
 
 export const TOAST_MS = 3_000;
-export const MAX_LINES = 40;
+const MAX_LINES = 40;
 
 // The exact toast words (bottom-left, large white text, gone after ~3 s).
 export type Toast = { key: number; title: string; detail: string };
@@ -80,7 +79,7 @@ export const TOAST_TEXT = {
 };
 export const RECORDING_LINE =
   "Recording in Progress. press Alt+R to stop recording.";
-export const CLEARED_LINE = "Session memory has been cleared";
+const CLEARED_LINE = "Session memory has been cleared";
 
 const OFF: PanelState = {
   auto: false,
@@ -91,7 +90,7 @@ const OFF: PanelState = {
 };
 
 export function usePanelSession(
-  panel: PanelKind,
+  panel: NativeWindowPage,
   presentation: PresentationHost,
   // True while the analysis is on screen: Auto then watches the screen on an
   // interval and analyzes it when it changes. Off, captures wait for the hotkey.
@@ -513,17 +512,9 @@ export function usePanelSession(
         case "chat.focus":
           window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
           return;
-        case "panel.toggle": {
-          const shown = presentation.openPanels().includes("analysis");
-          const done = await (shown
-            ? presentation.close("analysis")
-            : presentation.open("analysis"));
-          if (!done) setNote("This window can’t show other panels.");
-          return;
-        }
       }
     },
-    [actions, presentation, prefs.setSettings, setAuto, toast],
+    [actions, prefs.setSettings, setAuto, toast],
   );
   const runRef = useRef(run);
   runRef.current = run;

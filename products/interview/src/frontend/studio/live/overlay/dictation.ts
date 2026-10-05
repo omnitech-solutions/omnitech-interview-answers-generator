@@ -85,7 +85,7 @@ const FATAL = new Set([
 export type DictationState = "idle" | "listening";
 
 // How long with nothing heard before the hint says so.
-export const SILENCE_HINT_MS = 6_000;
+const SILENCE_HINT_MS = 6_000;
 const METER_MS = 100;
 
 type AudioCtor = new () => {

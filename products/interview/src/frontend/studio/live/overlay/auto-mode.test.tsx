@@ -13,20 +13,23 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
-import { answerAction } from "../live-view-kit";
+import {
+  configureSessionStores,
+  resetSessionStores,
+} from "../session-registry";
+import { answerAction } from "../testing/live-view-kit";
 import {
   jsonResponse,
   minutesAfter,
   sessionView,
   snapshot,
   streamPage,
-} from "../session-fixtures";
+} from "../testing/session-fixtures";
+import { answerResult } from "../testing/session-result-fixtures";
 import {
-  configureSessionStores,
-  resetSessionStores,
-} from "../session-registry";
-import { answerResult } from "../session-result-fixtures";
-import { createTestServer, type TestServer } from "../session-test-server";
+  createTestServer,
+  type TestServer,
+} from "../testing/session-test-server";
 import { AUTO_MIN_GAP_MS } from "./auto-gate";
 import { clearOwnerPaused, markOwnerPaused } from "./auto-owner-pause";
 import { RESTART_BASE_MS } from "./auto-restart";
@@ -41,7 +44,7 @@ import {
 } from "./capture-fixtures";
 import { resetCaptureTrigger } from "./capture-trigger";
 import { resetPosition } from "./card-position";
-import { AUTO_CAPTURE_LABEL } from "./overlay-card";
+import { AUTO_CAPTURE_LABEL } from "./use-hands-free";
 
 const SESSION = "1c2d3e4f-0000-4000-8000-000000000001";
 let server: TestServer;

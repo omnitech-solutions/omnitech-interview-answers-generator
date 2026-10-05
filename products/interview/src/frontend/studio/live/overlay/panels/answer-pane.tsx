@@ -44,7 +44,7 @@ function useCopy(s: PanelSession) {
 
 // A job is in flight and the task on show is not what it is working on (or has
 // no answer yet): the panes show its steps in place of the old answer.
-export function stepsShown(
+function stepsShown(
   s: Pick<PanelSession, "phase" | "card" | "selected">,
 ): boolean {
   if (!s.phase) return false;

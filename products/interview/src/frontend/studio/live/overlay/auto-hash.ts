@@ -5,8 +5,8 @@
 // sent; the hash only decides WHEN a capture is worth taking.
 import { cropPixels, type Rect } from "./mask-geometry";
 
-export const HASH_COLUMNS = 9;
-export const HASH_ROWS = 8;
+const HASH_COLUMNS = 9;
+const HASH_ROWS = 8;
 
 // 64 bits as two 32-bit halves.
 export type FrameHash = readonly [number, number];

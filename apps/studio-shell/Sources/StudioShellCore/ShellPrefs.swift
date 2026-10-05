@@ -1,24 +1,17 @@
 import Foundation
 
 // [DOMAIN] What the shell remembers between launches: interaction mode, the
-// layout, which panels are shown and where. Behind a tiny
-// store so the rules are tested without UserDefaults. Nothing here is content.
+// app mode and where each window sits. Behind a tiny store so the rules are
+// tested without UserDefaults. Nothing here is content.
 public protocol SettingsStore {
     func string(forKey key: String) -> String?
     func set(_ value: String?, forKey key: String)
 }
 
-public enum LayoutMode: String, Sendable {
-    // The four floating panels (default).
-    case panels
-    // The single compact window, the fallback.
-    case compact
-}
-
-// [DOMAIN] Interaction mode. ON (the default): panels take clicks, so they can be
-// moved and used. OFF: every panel is click-through so the page underneath keeps
-// the mouse. The shell owns it, persists it and mirrors it to the pages; the dot
-// says which it is. (It defaulted to OFF at first, which made every panel inert.)
+// [DOMAIN] Interaction mode. ON (the default): the windows take clicks, so they can
+// be moved and used. OFF: every window is click-through so the page underneath
+// keeps the mouse. The shell owns it, persists it and mirrors it to the pages; the
+// dot says which it is. (It defaulted to OFF at first, which made every window inert.)
 public struct InteractionState: Equatable, Sendable {
     public enum Dot: String, Sendable { case green, red }
 
@@ -104,48 +97,34 @@ public struct ShellPrefs {
     }
 
     public var appMode: AppMode {
-        // "appMode2": the default is the video's panels, not the main window.
+        // "appMode2": the default is the compact window, not the main window.
         get { store.string(forKey: "appMode2").flatMap(AppMode.init(rawValue:)) ?? .minified }
         nonmutating set { store.set(newValue.rawValue, forKey: "appMode2") }
     }
 
-    public var opacity: Double {
-        get { store.string(forKey: "opacity").flatMap(Double.init).map(PanelOpacity.clamp) ?? 1 }
-        nonmutating set { store.set(String(PanelOpacity.clamp(newValue)), forKey: "opacity") }
+    // The compact window and Settings each remember where they were put.
+    public func savedFrame(_ kind: WindowKind, displays: [CGRect]) -> CGRect? {
+        PanelFrameCodec.restoreFrame(store.string(forKey: Self.frameKey(kind)), minSize: kind.minSize, displays: displays)
     }
 
-    public var layout: LayoutMode {
-        // One movable, resizable window by default; the video's four panels are one menu step away.
-        get { store.string(forKey: "layout4").flatMap(LayoutMode.init(rawValue:)) ?? .compact }
-        nonmutating set { store.set(newValue.rawValue, forKey: "layout4") }
+    public func saveFrame(_ kind: WindowKind, _ frame: CGRect) {
+        store.set(PanelFrameCodec.encode(frame), forKey: Self.frameKey(kind))
     }
 
-    public func isVisible(_ kind: PanelKind) -> Bool {
-        switch store.string(forKey: "panel.\(kind.rawValue).visible2") {
-        case "1": true
-        case "0": false
-        default: kind.startsVisible
-        }
+    public func frame(_ kind: WindowKind, displays: [CGRect], main: CGRect) -> CGRect {
+        savedFrame(kind, displays: displays) ?? PanelLayout.defaultFrame(kind, in: main)
     }
 
-    public func setVisible(_ kind: PanelKind, _ visible: Bool) {
-        store.set(visible ? "1" : "0", forKey: "panel.\(kind.rawValue).visible2")
+    private static func frameKey(_ kind: WindowKind) -> String {
+        kind == .compact ? "shell.compact.frame" : "panel.settings.frame2"
     }
 
-    public func savedFrame(_ kind: PanelKind, displays: [CGRect]) -> CGRect? {
-        PanelFrameCodec.restore(kind, saved: store.string(forKey: "panel.\(kind.rawValue).frame2"), displays: displays)
-    }
-
-    public func saveFrame(_ kind: PanelKind, _ frame: CGRect) {
-        store.set(PanelFrameCodec.encode(frame), forKey: "panel.\(kind.rawValue).frame2")
-    }
-
-    // The expanded main window's frame (minified frames are per panel).
+    // The expanded main window's frame.
     public static let mainWindowMinSize = CGSize(width: 800, height: 520)
 
     public func mainWindowFrame(displays: [CGRect], main: CGRect) -> CGRect {
         let saved = PanelFrameCodec.restoreFrame(
-            store.string(forKey: "main.frame"), minSize: Self.mainWindowMinSize, fixedSize: nil, displays: displays)
+            store.string(forKey: "main.frame"), minSize: Self.mainWindowMinSize, displays: displays)
         let size = CGSize(width: min(1280, main.width * 0.85), height: min(860, main.height * 0.85))
         let centered = CGRect(x: main.midX - size.width / 2, y: main.midY - size.height / 2, width: size.width, height: size.height)
         return saved ?? PanelLayout.fit(centered, in: main, min: Self.mainWindowMinSize)
@@ -153,18 +132,5 @@ public struct ShellPrefs {
 
     public func saveMainWindowFrame(_ frame: CGRect) {
         store.set(PanelFrameCodec.encode(frame), forKey: "main.frame")
-    }
-
-    // "Layout reset": forget placement and visibility.
-    public func resetLayout() {
-        for kind in PanelKind.allCases {
-            store.set(nil, forKey: "panel.\(kind.rawValue).frame2")
-            store.set(nil, forKey: "panel.\(kind.rawValue).visible2")
-        }
-        store.set(nil, forKey: "main.frame")
-    }
-
-    public func frame(_ kind: PanelKind, displays: [CGRect], main: CGRect) -> CGRect {
-        savedFrame(kind, displays: displays) ?? PanelLayout.defaultFrame(kind, in: main)
     }
 }

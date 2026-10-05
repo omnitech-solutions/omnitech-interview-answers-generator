@@ -33,8 +33,8 @@ export type DatabasePortOptions = {
   actionLimit?: number;
 };
 
-export const DEFAULT_LEASE_MS = 60_000;
-export const DEFAULT_ACTION_LIMIT = 5_000;
+const DEFAULT_LEASE_MS = 60_000;
+const DEFAULT_ACTION_LIMIT = 5_000;
 
 export function createDatabaseClaimPort(
   database: PlatformDatabase,

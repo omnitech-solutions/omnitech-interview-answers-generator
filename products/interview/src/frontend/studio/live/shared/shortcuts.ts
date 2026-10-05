@@ -41,7 +41,13 @@ export const NATIVE_SHORTCUTS: readonly Shortcut[] = [
     chord: "⌘⇧V",
     platform: "native",
   },
-  { id: "focus-chat", label: "Focus chat", chord: "⌘⇧C", platform: "native" },
+  {
+    id: "focus-chat",
+    label: "Focus chat",
+    chord: "⌘⇧C",
+    platform: "native",
+    intent: "chat.focus",
+  },
   {
     id: "clear-session",
     label: "Clear session memory",

@@ -1,4 +1,3 @@
-import CaptureCore
 import Foundation
 import StudioShellCore
 import WebKit

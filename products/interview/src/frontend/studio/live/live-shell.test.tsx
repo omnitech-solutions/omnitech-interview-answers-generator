@@ -2,15 +2,15 @@ import type { AssistantConfig } from "@omnitech-assistant/react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Studio } from "../studio";
+import { getSessionStore, resetSessionStores } from "./session-registry";
 import {
   jsonResponse,
   minutesAfter,
   SESSION_ID,
   sessionView,
   streamPage,
-} from "./session-fixtures";
-import { getSessionStore, resetSessionStores } from "./session-registry";
-import { createTestServer } from "./session-test-server";
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 vi.mock("@omnitech-assistant/react", () => ({
   AssistantRoot: ({

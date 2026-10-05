@@ -13,8 +13,8 @@ import { cropPixels, fitSize, isFull, type Rect } from "./mask-geometry";
 export const MAX_LONG_SIDE = 1920;
 // Encoding qualities tried in order, then smaller sizes, to stay under the limit.
 export const QUALITIES = [0.85, 0.7, 0.55, 0.4, 0.3] as const;
-export const SHRINK_STEPS = 4;
-export const SHRINK_FACTOR = 0.75;
+const SHRINK_STEPS = 4;
+const SHRINK_FACTOR = 0.75;
 
 export type SourceKind =
   | "Window"

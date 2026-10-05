@@ -364,8 +364,6 @@ export function DocumentEditor({
   const interview = context.interviews.find(
     (item) => item.id === detail.document.interviewId,
   );
-  const labelOf = (key: string) =>
-    detail.fields.find((field) => field.key === key)?.label ?? key;
   const attention = detail.fields.filter((field) =>
     issueFor(validation, field.key),
   );

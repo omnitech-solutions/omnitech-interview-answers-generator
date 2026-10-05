@@ -1,9 +1,9 @@
-// A natively hosted panel never asks the person to "start a session in Studio":
-// once the shell has recorded its one-time consent, the first panel document to
+// A natively hosted window never asks the person to "start a session in Studio":
+// once the shell has recorded its one-time consent, the first window document to
 // find no live session starts one with the defaults (permitted-remote, the
 // microphone, the app's audio and the screen). A Web Lock lets exactly one
 // document start it; it tells the others over the panel bus, which then open
-// that session. Without the shell's consent nothing starts: the panel shows one
+// that session. Without the shell's consent nothing starts: the window shows one
 // "Consent required" line with a button that asks the shell for its dialog.
 //
 // [SAFETY] Starting a session is not capturing: the screen is captured on the
@@ -12,7 +12,7 @@ import type { LiveSessionStartRequest } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { useLiveSession } from "../../use-live-session";
 import { openPanelBus } from "./panel-bus";
-import type { PanelKind } from "./panel-kinds";
+import type { NativeWindowPage } from "./panel-owner";
 import { shellConsented } from "./shell-bridge";
 
 type Live = ReturnType<typeof useLiveSession>;
@@ -21,17 +21,17 @@ export const AUTO_SESSION: LiveSessionStartRequest = {
   processingPolicy: "permitted-remote",
   captureSources: ["microphone", "application-audio", "screen"],
 };
-export const START_LOCK = "interview-studio.panel-autostart";
-export const CONSENT_POLL_MS = 1_000;
-export const START_RETRY_MS = 4_000;
-// The others wait a moment so the always-open bar usually starts it.
-export const NON_PILL_START_DELAY_MS = 1_500;
+const START_LOCK = "interview-studio.panel-autostart";
+const CONSENT_POLL_MS = 1_000;
+const START_RETRY_MS = 4_000;
+// Settings waits a moment so the always-open compact window usually starts it.
+const LATE_START_DELAY_MS = 1_500;
 
 export type AutoSessionState = "idle" | "consent" | "starting" | "failed";
 
 export function useAutoSession(input: {
-  panel: PanelKind;
-  // A natively hosted panel document, signed in, with the store ready.
+  panel: NativeWindowPage;
+  // A natively hosted window document, signed in, with the store ready.
   enabled: boolean;
   snapshot: Live["snapshot"];
   actions: Live["actions"];
@@ -56,7 +56,7 @@ export function useAutoSession(input: {
     };
   }, [missing, consented]);
 
-  // Start one session, once, for every panel document.
+  // Start one session, once, for every window document.
   useEffect(() => {
     if (!missing || !consented || failed) return;
     let alive = true;
@@ -115,7 +115,7 @@ export function useAutoSession(input: {
     };
     const delay = setTimeout(
       begin,
-      panel === "pill" ? 0 : NON_PILL_START_DELAY_MS,
+      panel === "single" ? 0 : LATE_START_DELAY_MS,
     );
     return () => {
       alive = false;

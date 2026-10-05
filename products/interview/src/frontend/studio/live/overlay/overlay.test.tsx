@@ -13,7 +13,12 @@ import { LiveCardHost } from "../card-host";
 import { LiveFloatHost } from "../float-host";
 import { presentation } from "../focus-presentation";
 import { LiveSessionView } from "../live-view";
-import { answerAction } from "../live-view-kit";
+import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "../session-registry";
+import { answerAction } from "../testing/live-view-kit";
 import {
   action,
   jsonResponse,
@@ -22,18 +27,16 @@ import {
   sessionView,
   snapshot,
   streamPage,
-} from "../session-fixtures";
-import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "../session-registry";
+} from "../testing/session-fixtures";
 import {
   answerResult,
   codeResult,
   codingAnswer,
-} from "../session-result-fixtures";
-import { createTestServer, type TestServer } from "../session-test-server";
+} from "../testing/session-result-fixtures";
+import {
+  createTestServer,
+  type TestServer,
+} from "../testing/session-test-server";
 import { clampPosition, readPosition, resetPosition } from "./card-position";
 import { HandsFreeProvider } from "./hands-free-context";
 import { OverlayPage } from "./overlay-page";

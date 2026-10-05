@@ -10,10 +10,10 @@ import {
   type TranscriptLabels,
   type TranscriptRow,
 } from "./session-transcript";
+import { TASK_KIND } from "./shared/task-kind";
 import { taskLabel } from "./shared/task-target";
-import { TASK_KIND } from "./task-panels";
 
-export const MAX_TRANSCRIPT_ROWS = 300;
+const MAX_TRANSCRIPT_ROWS = 300;
 
 const GAP_REASON: Record<string, string> = {
   "buffer-overflow": "the capture buffer filled",
@@ -28,7 +28,7 @@ const DISCONNECT_REASON: Record<string, string> = {
   error: "capture error",
 };
 
-export function screenshotHref(sessionId: string, artifactId: string): string {
+function screenshotHref(sessionId: string, artifactId: string): string {
   return `/api/interview/t/${encodeURIComponent(tenantFromLocation())}/sessions/${encodeURIComponent(sessionId)}/screenshots/${encodeURIComponent(artifactId)}`;
 }
 

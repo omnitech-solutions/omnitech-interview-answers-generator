@@ -11,7 +11,6 @@
 // exists (rule:action-before-job).
 import { randomUUID } from "node:crypto";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
-import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import {
@@ -85,7 +84,7 @@ export type PublishOutcome = { outcome: "published" } | Refused;
 // The object it returns is merged into the stored action result. A throw rolls
 // the whole publish back, leaving the action in flight; an outcome the caller
 // should keep (a revision conflict) is returned, never thrown.
-export type PublishEffectContext = {
+type PublishEffectContext = {
   tx: TenantDatabase;
   scope: OwnerScope;
   sessionId: string;
@@ -679,7 +678,3 @@ export async function resumeSessionJob(
 
 // The job id the dispatch reserves on its action before the job exists.
 export const reserveJobId = (): string => randomUUID();
-
-export function defaultSessionJobs(database: PlatformDatabase): SessionJobs {
-  return new PostgresAgentJobRepository(database);
-}

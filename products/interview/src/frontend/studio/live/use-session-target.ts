@@ -28,7 +28,7 @@ function choicesOf(tenant: string): Promise<LiveSessionChoicesResponse> {
   return read;
 }
 
-export function titleFromChoices(
+function titleFromChoices(
   session: Pick<LiveSessionView, "interviewId" | "candidacyId">,
   choices: LiveSessionChoicesResponse,
 ): string | null {

@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { elapsedMs } from "./session-merge";
+import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "./session-registry";
 import {
   jsonResponse,
   minutesAfter,
@@ -6,14 +12,11 @@ import {
   sessionView,
   streamPage,
   transcript,
-} from "./session-fixtures";
-import { elapsedMs } from "./session-merge";
+} from "./testing/session-fixtures";
 import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "./session-registry";
-import { createTestServer, type TestServer } from "./session-test-server";
+  createTestServer,
+  type TestServer,
+} from "./testing/session-test-server";
 
 const storage = new Map<string, string>();
 const flush = () => vi.advanceTimersByTimeAsync(0);

@@ -53,7 +53,7 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // The spans of a preference quote a draft may repeat verbatim: the whole quote
 // and its value after a "Label:" prefix, without trailing punctuation.
-export function approvedSpans(quotes: readonly string[]): string[] {
+function approvedSpans(quotes: readonly string[]): string[] {
   const spans = new Set<string>();
   for (const quote of quotes) {
     const clean = squash(foldSpoken(quote)).replace(/[\s.,;:!?]+$/u, "");

@@ -3,13 +3,6 @@
 // only after a real run of failed reads, never for one blip.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  jsonResponse,
-  minutesAfter,
-  SESSION_ID,
-  sessionView,
-  streamPage,
-} from "./session-fixtures";
-import {
   configureSessionStores,
   getSessionStore,
   resetSessionStores,
@@ -18,7 +11,14 @@ import {
   deriveLiveModel,
   FAILED_READS_BEFORE_UNREACHABLE,
 } from "./session-state";
-import { createTestServer } from "./session-test-server";
+import {
+  jsonResponse,
+  minutesAfter,
+  SESSION_ID,
+  sessionView,
+  streamPage,
+} from "./testing/session-fixtures";
+import { createTestServer } from "./testing/session-test-server";
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 const advance = (ms: number) => vi.advanceTimersByTimeAsync(ms);

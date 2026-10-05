@@ -8,15 +8,7 @@
 // solution replaces the earlier one in the session draft; and a restart finds
 // the owed solution from the stored actions.
 import type { AiExecutionRequest } from "@omnitech/ai-contracts";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   INTERVIEW_ANSWER_PROFILE,
   INTERVIEW_SESSION_DEVICE_PROFILE,
@@ -47,7 +39,6 @@ import {
   buildProcessor,
   type CollectedTrace,
   collectTraces,
-  createFakeGateway,
   expireLease,
   type FakeGateway,
   NEVER_ABORTED,

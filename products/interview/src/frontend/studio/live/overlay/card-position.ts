@@ -20,10 +20,10 @@ const STORAGE_KEY = "interview-studio.live.card-position";
 // The least of the card that must stay on screen below its top edge (its
 // header, chips and toolbar), plus the page margin. The card's max-height is
 // "viewport - top - 12px", so the rest of it scrolls inside, never off screen.
-export const MIN_VISIBLE_HEIGHT = 160;
-export const PAGE_MARGIN = 12;
-export const KEY_STEP = 16;
-export const KEY_STEP_LARGE = 64;
+const MIN_VISIBLE_HEIGHT = 160;
+const PAGE_MARGIN = 12;
+const KEY_STEP = 16;
+const KEY_STEP_LARGE = 64;
 
 // Keeps the card inside the viewport: all of its width, and at least its
 // header row vertically, so it can always be grabbed again.
@@ -67,7 +67,7 @@ export function readPosition(): CardPosition | null {
   return held;
 }
 
-export function writePosition(position: CardPosition | null): void {
+function writePosition(position: CardPosition | null): void {
   held = position;
   try {
     if (position)

@@ -21,7 +21,7 @@ import { openPanelBus } from "./panel-bus";
 import { AnalysisPanel, ChatPanel, type PanelSession } from "./panel-views";
 import { StatusStrip, useStrip } from "./status-strip";
 import { openSessionSummary } from "./summary-link";
-import { PillPanel } from "./toolbar";
+import { Toolbar } from "./toolbar";
 import {
   ALL_PANES_SHOWN,
   BARE_WIDTH,
@@ -89,7 +89,7 @@ export function SinglePanel({
     if (!result.ok) return s.notify(failureNote(result.code));
     startedHere.current = true;
   }
-  // Tell the other windows which session this one just started.
+  // Tell the other windows (Settings) which session this one just started.
   const sessionId = s.session?.id ?? null;
   useEffect(() => {
     if (!sessionId || !startedHere.current) return;
@@ -163,9 +163,9 @@ export function SinglePanel({
 
   return (
     <>
-      <PillPanel
+      <Toolbar
         s={s}
-        single={{ panes, presentation, captureMode, onMenuOpen: setMenuOpen }}
+        controls={{ panes, presentation, captureMode, onMenuOpen: setMenuOpen }}
       />
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {anyPane && (

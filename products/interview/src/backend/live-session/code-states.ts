@@ -18,7 +18,7 @@
 // is false; it never carries a model-controlled string.
 import type { TestResult } from "@omnitech/interview-contracts";
 
-export const CODE_STATE_REASONS = [
+const CODE_STATE_REASONS = [
   "not_generated",
   "runner_unavailable",
   "timed_out",
@@ -31,7 +31,7 @@ export const CODE_STATE_REASONS = [
   "syntax_unchecked",
   "syntax_errors",
 ] as const;
-export type CodeStateReason = (typeof CODE_STATE_REASONS)[number];
+type CodeStateReason = (typeof CODE_STATE_REASONS)[number];
 
 export type CodeStates = {
   generated: boolean;

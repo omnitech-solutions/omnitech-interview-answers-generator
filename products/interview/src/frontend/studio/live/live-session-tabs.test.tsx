@@ -7,8 +7,8 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { draftLink } from "./live-draft-link";
-import { answerAction, show, spies } from "./live-view-kit";
+import { draftLink } from "./testing/live-draft-link";
+import { answerAction, show, spies } from "./testing/live-view-kit";
 import {
   action,
   disconnected,
@@ -17,11 +17,11 @@ import {
   snapshot,
   stored,
   transcript,
-} from "./session-fixtures";
-import { answerResult, codeResult } from "./session-result-fixtures";
+} from "./testing/session-fixtures";
+import { answerResult, codeResult } from "./testing/session-result-fixtures";
 
 vi.mock("./workspace-handoff", async () => {
-  const kit = await import("./live-draft-link");
+  const kit = await import("./testing/live-draft-link");
   return { useSessionDraftLink: () => kit.draftLink.current };
 });
 

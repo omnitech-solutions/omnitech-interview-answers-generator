@@ -7,7 +7,6 @@ import {
   commandOf,
   commandOfHotkey,
   cycleSkill,
-  INTENT_TARGET,
   resetCommandClaims,
 } from "./commands";
 
@@ -30,7 +29,8 @@ describe("keymap to command", () => {
     expect(commandOf(key("BracketLeft"))).toBe("skill.prev");
     expect(commandOf(key("KeyC", true))).toBe("session.clear");
     expect(commandOf(key("KeyF", true))).toBe("chat.focus");
-    expect(commandOf(key("KeyP", true))).toBe("panel.toggle");
+    // The removed panel-toggle key is no command any more.
+    expect(commandOf(key("KeyP", true))).toBeNull();
     expect(COMMAND_KEYS.map((each) => each.command).sort()).toEqual(
       [...COMMANDS].sort(),
     );
@@ -59,16 +59,7 @@ describe("host intents", () => {
   it("refuses unknown names, and no longer sets a skill by name (the page owns it)", () => {
     expect(commandOfHotkey("skill.set:dsa")).toBeNull();
     expect(commandOfHotkey("rm -rf")).toBeNull();
-  });
-  it("routes capture, solve, the mic and auto to the always-open bar, and the rest to every panel", () => {
-    expect(INTENT_TARGET).toEqual({
-      "capture.analyze": "pill",
-      "solution.generate": "pill",
-      "transcribe.toggle": "pill",
-      "auto.toggle": "pill",
-    });
-    expect(INTENT_TARGET["skill.next"]).toBeUndefined();
-    expect(INTENT_TARGET["session.clear"]).toBeUndefined();
+    expect(commandOfHotkey("panel.toggle")).toBeNull();
   });
 });
 

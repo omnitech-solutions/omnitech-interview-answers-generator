@@ -8,7 +8,7 @@ import {
   reportAge,
   speechState,
 } from "./companion-capability";
-import { capabilityReport, minutesAfter } from "./session-fixtures";
+import { capabilityReport, minutesAfter } from "./testing/session-fixtures";
 
 describe("speechState", () => {
   it("says honestly that no report exists, and blocks nothing", () => {

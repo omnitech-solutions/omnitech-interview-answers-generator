@@ -42,17 +42,20 @@ describe("a task's stage", () => {
 
 // ---- What the conversation and the panes say, from the session's own data ------
 
-import { answerAction } from "../../live-view-kit";
+import { deriveLiveModel } from "../../session-state";
+import { taskCardModel } from "../../shared/task-card-model";
+import { answerAction } from "../../testing/live-view-kit";
 import {
   action,
   minutesAfter,
   sessionView,
   snapshot,
   transcript,
-} from "../../session-fixtures";
-import { answerResult, codingAnswer } from "../../session-result-fixtures";
-import { deriveLiveModel } from "../../session-state";
-import { taskCardModel } from "../../shared/task-card-model";
+} from "../../testing/session-fixtures";
+import {
+  answerResult,
+  codingAnswer,
+} from "../../testing/session-result-fixtures";
 import {
   codePlaceholder,
   followUpPlaceholder,

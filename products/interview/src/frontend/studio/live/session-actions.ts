@@ -1,18 +1,11 @@
 // The owner's commands over a session store. Each one calls its route, replaces
 // the session from the server's response (the record is authoritative) and
 // answers with a result carrying a fixed error code, never a message.
-import type {
-  LiveCaptureState,
-  LiveSessionView,
-} from "@omnitech/interview-contracts";
+import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { clearOwnerPaused, markOwnerPaused } from "./overlay/auto-owner-pause";
-import type {
-  CaptureInput,
-  CompanionCaptureInput,
-  OwnerHints,
-} from "./session-capture";
 import { SessionApiError, type SessionClient } from "./session-client";
 import { errorCodeOf } from "./session-codes";
+import type { OwnerInputPort } from "./session-deps";
 import type {
   CaptureRequestResult,
   CommandResult,
@@ -20,10 +13,9 @@ import type {
   SessionActions,
   SessionCommand,
 } from "./session-snapshot";
-import type { TaskTarget } from "./shared/task-target";
 
 // What the commands need from the store; nothing else is shared.
-export type CommandContext = {
+export type CommandContext = OwnerInputPort & {
   client: SessionClient;
   snapshot(): LiveSnapshot;
   set(patch: Partial<LiveSnapshot>): void;
@@ -47,38 +39,6 @@ export type CommandContext = {
   bindSession(view: LiveSessionView): void;
   // Raised by every bindSession: what a command captured when it began.
   bindEpoch(): number;
-  // The deps' owner-input methods; absent until the server route ships.
-  analyzeLatestCapture?(
-    sessionId: string,
-    target?: TaskTarget,
-    hints?: OwnerHints,
-    snapshot?: { sourceId: string; eventId: string },
-  ): Promise<void>;
-  analyzeCapture?(sessionId: string, input: CaptureInput): Promise<void>;
-  requestCapture?(
-    sessionId: string,
-    input: CompanionCaptureInput,
-  ): Promise<LiveCaptureState>;
-  captureStatus?(
-    sessionId: string,
-    requestId: string,
-  ): Promise<LiveCaptureState>;
-  submitFollowUp?(
-    sessionId: string,
-    text: string,
-    target: TaskTarget | null,
-    hints?: OwnerHints,
-  ): Promise<void>;
-  submitHeard?(
-    sessionId: string,
-    text: string,
-    requestId: string,
-  ): Promise<void>;
-  solveTask?(
-    sessionId: string,
-    target: TaskTarget,
-    hints?: OwnerHints,
-  ): Promise<void>;
 };
 
 // The session and bind epoch a command began under. Its answer is applied only

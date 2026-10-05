@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { action, minutesAfter } from "../session-fixtures";
-import { answerResult } from "../session-result-fixtures";
 import { deriveTasks } from "../session-tasks";
+import { action, minutesAfter } from "../testing/session-fixtures";
+import { answerResult } from "../testing/session-result-fixtures";
 import {
   resolveTarget,
   selectedTask,

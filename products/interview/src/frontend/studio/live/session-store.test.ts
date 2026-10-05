@@ -1,6 +1,11 @@
 import type { LiveStreamResponse } from "@omnitech/interview-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  configureSessionStores,
+  getSessionStore,
+  resetSessionStores,
+} from "./session-registry";
+import {
   action,
   jsonResponse,
   minutesAfter,
@@ -8,13 +13,11 @@ import {
   sessionView,
   streamPage,
   transcript,
-} from "./session-fixtures";
+} from "./testing/session-fixtures";
 import {
-  configureSessionStores,
-  getSessionStore,
-  resetSessionStores,
-} from "./session-registry";
-import { createTestServer, type TestServer } from "./session-test-server";
+  createTestServer,
+  type TestServer,
+} from "./testing/session-test-server";
 
 // Fake timers also fake Date.now, so the store's clock and its timers agree.
 let visible = true;

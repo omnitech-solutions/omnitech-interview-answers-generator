@@ -4,7 +4,7 @@
 // one click to stop. Nothing here sends a frame: a capture goes through the
 // card's own capture route, with the owner's region, exactly as a press would.
 //
-// [SAFETY] The decisions live in pure modules (auto-change, auto-gate,
+// [SAFETY] The decisions live in pure modules (auto-interval, auto-gate,
 // auto-restart, auto-line); this hook only runs the timers and calls out.
 
 import type { ScreenWatchHost } from "@omnitech/interview-contracts";
@@ -35,15 +35,15 @@ import type { Rect } from "./mask-geometry";
 // How often listening is checked and, if it ended for a reason retrying can
 // fix, started again. The dictation hook's own restart handles the common case
 // (silence); this is the backstop, and it never runs faster than this.
-export const LISTEN_CHECK_MS = 5_000;
-export const RESUME_FIRST_MS = 1_500;
-export const RESUME_RETRY_MS = 8_000;
-export const RESUME_MAX_TRIES = 3;
+const LISTEN_CHECK_MS = 5_000;
+const RESUME_FIRST_MS = 1_500;
+const RESUME_RETRY_MS = 8_000;
+const RESUME_MAX_TRIES = 3;
 // How a host watch that found no focused window is started again.
-export const WATCH_RETRY_MS = 5_000;
+const WATCH_RETRY_MS = 5_000;
 const HEARD_RETRY_MS = 1_000;
 // Finals closer together than this are one question.
-export const COALESCE_MS = 800;
+const COALESCE_MS = 800;
 const COALESCE_MAX_CHARS = 900;
 
 export type AutoModeInput = {

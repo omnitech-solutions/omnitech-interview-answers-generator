@@ -3,7 +3,7 @@
 import { type KeyboardEvent, type ReactNode, useId, useRef } from "react";
 
 export type SessionTabId = "transcript" | "activity" | "sources";
-export const SESSION_TABS: readonly { id: SessionTabId; label: string }[] = [
+const SESSION_TABS: readonly { id: SessionTabId; label: string }[] = [
   { id: "transcript", label: "Transcript" },
   { id: "activity", label: "Activity" },
   { id: "sources", label: "Sources" },

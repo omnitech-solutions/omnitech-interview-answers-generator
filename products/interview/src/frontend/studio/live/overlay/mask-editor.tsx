@@ -33,10 +33,10 @@ const STEP_LARGE = 0.05;
 
 // The companion captures from the main display, so its region is drawn against
 // the display, not against a shared window.
-export const DISPLAY_MASK_NOTE =
+const DISPLAY_MASK_NOTE =
   "The companion captures only this part of your main display; nothing outside it is sent.";
-export const DISPLAY_TITLE = "Region of your main display";
-export const BROWSER_TITLE = "Choose capture area";
+const DISPLAY_TITLE = "Region of your main display";
+const BROWSER_TITLE = "Choose capture area";
 
 export const MASK_NOTE =
   "The crop happens in your browser before anything is sent; pixels outside the mask never leave this device.";

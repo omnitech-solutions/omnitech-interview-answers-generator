@@ -27,7 +27,7 @@ export type ContextSource = {
   sha256: string;
 };
 
-export type ProfileRef = { id: string; revision: number; sha256: string };
+type ProfileRef = { id: string; revision: number; sha256: string };
 
 export type ContextSnapshot = {
   // The matrix revision pinned at session start; null when no matrix exists.
@@ -63,7 +63,7 @@ export const DEVICE_TASK_VIEW_LIMITS: SourceLimits = {
 };
 // The snapshot itself holds every citable source of the pinned matrix (a
 // superset of any task view) under a generous bound.
-export const SNAPSHOT_LIMITS = { maxSources: 2_000, maxSourceChars: 2_000 };
+const SNAPSHOT_LIMITS = { maxSources: 2_000, maxSourceChars: 2_000 };
 
 export class ContextSnapshotError extends Error {
   constructor(readonly code: "invalid_limits") {
@@ -152,11 +152,11 @@ const wordingText = (text: string) => foldLookalikes(canonicalText(text));
 // [DOMAIN] Notice period and compensation are the candidate's own facts: they
 // live only in candidate preferences. Shared with claims.ts so the snapshot and
 // the verifier agree on what counts as that wording.
-export const NOTICE_PERIOD_WORDING =
+const NOTICE_PERIOD_WORDING =
   /\bnotice\b|\bstart date\b|\bavailable to start\b|\bearliest start\b|\b(?:can|able to) start\b/i;
-export const COMPENSATION_WORDING =
+const COMPENSATION_WORDING =
   /\bsalary\b|\bcompensation\b|\bcomp\b|\bbase pay\b|\btake-home\b|\bote\b|\bstock options?\b|\brsus?\b|\bbonus\b|\bhourly rate\b|\bday rate\b|\bper (?:hour|annum|year)\b|[$£€]\s?\d|\b\d[\d,.]*\s?(?:k\s?)?(?:usd|cad|eur|gbp)\b|\b(?:usd|cad|eur|gbp|aud)\s?\d/i;
-export const WORK_ARRANGEMENT_WORDING =
+const WORK_ARRANGEMENT_WORDING =
   /\bwork (?:arrangement|location|mode)\b|\bremote\b|\bhybrid\b|\bon[- ]?site\b|\bin[- ]office\b|\boffice[- ]based\b|\bwork from home\b|\bwfh\b/i;
 
 export const isNoticePeriodText = (text: string) =>

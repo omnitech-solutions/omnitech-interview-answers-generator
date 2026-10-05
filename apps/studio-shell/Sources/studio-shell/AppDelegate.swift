@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.handler.stopWatching()
                         await self.engine.shutdown(revoke: true)
                         self.model.disconnect()
-                        self.present(.setPanelsVisible(false))
+                        self.present(.setVisible(false))
                     }
                 },
                 engineHint: { [weak self] in self?.engine.snapshot.hint },
@@ -130,7 +130,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cookieWatcher = CookieWatcher { [weak self] in self?.model.refresh() }
         WKWebsiteDataStore.default().httpCookieStore.add(cookieWatcher!)
 
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in self?.model.refresh() }
+        // The timer fires on the main run loop.
+        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.model.refresh() }
+        }
         if model.location == nil { connect() } else { present(.setAppMode(controller.state.appMode)) }
     }
 
@@ -139,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     private func present(_ command: PresentationCommand) -> PresentationState {
         // Showing anything before Studio is configured starts the connect flow.
-        if model.location == nil, command != .setPanelsVisible(false) {
+        if model.location == nil, command != .setVisible(false) {
             connect()
             if model.location == nil { return controller.state }
         }
@@ -184,8 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let location = model.location else { return nil }
         switch target {
         case .main: return location.studioURL
-        case .compact: return location.overlayURL(sessionId: sessionId, single: true, handsFree: true)
-        case .panel(let kind): return location.overlayURL(sessionId: sessionId, panel: kind, handsFree: true)
+        case .window(let kind): return location.overlayURL(sessionId: sessionId, window: kind, handsFree: true)
         }
     }
 
@@ -201,32 +203,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // An intent goes to the pages as a typed event; the page decides what it
-    // means. An action intent reaches the one panel that acts on it, opening
-    // that panel first when the layout has not shown it yet.
+    // An intent goes to the page as a typed event; the page decides what it
+    // means. It reaches the one window that acts on it, showing it first when it
+    // is not on screen.
     private func send(_ command: HostCommand) {
         guard model.location != nil else { return }
         let state = controller.state
-        var views: [WKWebView] = []
-        if state.mainWindowShown {
-            views = [surface.mainWindowView].compactMap { $0 }
-        } else if state.layout == .compact {
-            if !state.compactShown { present(.setAppMode(.minified)) }
-            views = [surface.compactView].compactMap { $0 }
-        } else if let target = command.target {
-            if !state.shownPanels.contains(target) { present(.openPanel(target)) }
-            views = [surface.view(for: target)].compactMap { $0 }
+        if !state.mainWindowShown, !state.compactShown { present(.setAppMode(.minified)) }
+        guard let view = state.mainWindowShown ? surface.mainWindowView : surface.compactView else { return }
+        if view.isLoading || view.url == nil {
+            pending[ObjectIdentifier(view), default: []].append(command)
         } else {
-            views = surface.panelViews
+            view.evaluateJavaScript(HostBridgeScript.emit(command), completionHandler: nil)
         }
-        for view in views {
-            if view.isLoading || view.url == nil {
-                pending[ObjectIdentifier(view), default: []].append(command)
-            } else {
-                view.evaluateJavaScript(HostBridgeScript.emit(command), completionHandler: nil)
-            }
-        }
-        if command == .chatFocus, state.layout == .compact, !state.mainWindowShown { surface.focusCompact() }
+        if command == .chatFocus, !state.mainWindowShown { surface.focusCompact() }
     }
 
     private func reloadIdleViews() { surface.reloadAll() }

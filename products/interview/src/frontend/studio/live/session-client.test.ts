@@ -5,7 +5,7 @@ import {
   SESSION_ID,
   sessionView,
   streamPage,
-} from "./session-fixtures";
+} from "./testing/session-fixtures";
 
 function clientWith(...responses: (Response | Error)[]) {
   const calls: { url: string; init?: RequestInit }[] = [];

@@ -65,7 +65,7 @@ const DEFAULTS = {
 
 // A content-free code for any error: a SessionError carries its own fixed
 // code; everything else is "unexpected_error". The message is never read.
-export function errorCode(error: unknown): string {
+function errorCode(error: unknown): string {
   return error instanceof SessionError ? error.code : "unexpected_error";
 }
 

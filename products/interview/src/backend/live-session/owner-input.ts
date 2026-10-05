@@ -23,6 +23,7 @@ import {
   OWNER_INPUT_SOURCE_ID,
   OWNER_MICROPHONE_SOURCE_ID,
 } from "../db/live-session.js";
+import { canonicalJson } from "./canonical-json.js";
 import { assertUuid, SessionError } from "./errors.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import { lockSession, type SessionRecord } from "./session-record.js";
@@ -79,17 +80,6 @@ export function parseSnapshotProvenanceId(
   return { sessionId, sourceId, eventId };
 }
 
-const canonical = (value: unknown): string =>
-  JSON.stringify(value, (_key, node: unknown) =>
-    node !== null && typeof node === "object" && !Array.isArray(node)
-      ? Object.fromEntries(
-          Object.entries(node as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : 1,
-          ),
-        )
-      : node,
-  );
-
 // The lock-time checks every owner request shares: a live, purge-free session
 // in a status that takes requests, with live assistance on.
 export function assertAcceptsOwnerInput(
@@ -109,7 +99,7 @@ export function assertAcceptsOwnerInput(
 }
 
 export const sameBody = (a: unknown, b: unknown): boolean =>
-  canonical(a) === canonical(b);
+  canonicalJson(a) === canonicalJson(b);
 
 // The stored owner input for a request id, if any.
 export const findStoredOwnerInput = (
@@ -180,7 +170,7 @@ export async function insertOwnerInput(
 // Heard speech per session: the owner's own recognised phrases, one row each.
 // A two-hour interview is a few hundred phrases; the bound only stops a
 // runaway client.
-export const OWNER_HEARD_MAX_PER_SESSION = 1_500;
+const OWNER_HEARD_MAX_PER_SESSION = 1_500;
 
 // Stores one heard phrase (ADR-0022) as a `transcript.final` from the reserved
 // owner microphone source, so the processor reads it like any heard speech.

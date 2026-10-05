@@ -22,7 +22,7 @@ import { decodeWithheldReason } from "./withheld.js";
 export const MAX_PAGE = 500;
 // A page is at most MAX_PAGE; one more row may be asked for (MAX_PAGE + 1) so
 // a reader can tell whether a further page exists.
-export const pageSize = (limit: number | undefined, fallback: number): number =>
+const pageSize = (limit: number | undefined, fallback: number): number =>
   Math.max(1, Math.min(limit ?? fallback, MAX_PAGE + 1));
 
 export async function getSession(

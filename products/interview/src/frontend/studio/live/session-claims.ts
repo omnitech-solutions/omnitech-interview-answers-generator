@@ -4,7 +4,7 @@
 // verified, so a kind is a label of provenance, never a rating.
 import type { ClaimKind, ClaimRefView, ClaimView } from "./session-results";
 
-export type ClaimTone = "green" | "amber" | "neutral" | "red";
+type ClaimTone = "green" | "amber" | "neutral" | "red";
 export type ClaimPresentation = {
   label: string;
   tone: ClaimTone;

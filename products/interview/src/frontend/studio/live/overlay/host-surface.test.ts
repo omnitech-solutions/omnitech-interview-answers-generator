@@ -1,18 +1,14 @@
-// A native shell window paints translucent surfaces and follows the shell's
-// opacity; a tab and a PiP window are untouched.
+// A native shell window paints translucent surfaces; a tab and a PiP window are
+// untouched.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  installHostSurface,
-  isNativeSurface,
-  OPACITY_POLL_MS,
-} from "./host-surface";
+import { afterEach, describe, expect, it } from "vitest";
+import { installHostSurface, isNativeSurface } from "./host-surface";
 
 const here = (name: string) => join(__dirname, name);
 const root = document.documentElement;
 
-const bridge = (opacity: () => number) => {
+const bridge = () => {
   (window as { studioHost?: unknown }).studioHost = {
     version: 1,
     hostKind: "native-macos",
@@ -23,49 +19,30 @@ const bridge = (opacity: () => number) => {
     onHotkey: () => () => undefined,
     presentation: {
       capabilities: [],
-      open: async () => true,
-      close: async () => true,
-      focus: async () => true,
-      openPanels: () => [],
-      setLayout: async () => true,
+      openSettings: async () => true,
+      closeSettings: async () => true,
       setVisible: async () => true,
       interactionMode: () => true,
       setInteractionMode: async () => true,
       onInteractionMode: () => () => undefined,
-      opacity,
     },
   };
 };
 
-beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
-  vi.useRealTimers();
   delete (window as { studioHost?: unknown }).studioHost;
   root.removeAttribute("data-panel-host");
-  root.style.removeProperty("--ov-alpha");
 });
 
 describe("installHostSurface", () => {
-  it("reads the shell's opacity into --ov-alpha and follows a change", () => {
-    let opacity = 0.8;
-    bridge(() => opacity);
+  it("marks a native window and removes the mark again", () => {
     const remove = installHostSurface(true);
     expect(root.getAttribute("data-panel-host")).toBe("native");
-    expect(root.style.getPropertyValue("--ov-alpha")).toBe("0.8");
-    opacity = 0.4;
-    vi.advanceTimersByTime(OPACITY_POLL_MS);
-    expect(root.style.getPropertyValue("--ov-alpha")).toBe("0.4");
     remove();
     expect(root.hasAttribute("data-panel-host")).toBe(false);
-    expect(root.style.getPropertyValue("--ov-alpha")).toBe("");
   });
-  it("keeps the value within the shell's range", () => {
-    bridge(() => 0.01);
-    installHostSurface(true);
-    expect(root.style.getPropertyValue("--ov-alpha")).toBe("0.3");
-  });
-  it("sets no variable for a plain window", () => {
-    bridge(() => 0.5);
+  it("marks a plain window as one, and the page sets no opacity variable in either", () => {
+    bridge();
     installHostSurface(false);
     expect(root.getAttribute("data-panel-host")).toBe("window");
     expect(root.style.getPropertyValue("--ov-alpha")).toBe("");
@@ -76,7 +53,7 @@ describe("isNativeSurface", () => {
   it("is native for host=native or a bridge, never for PiP or a plain tab", () => {
     expect(isNativeSurface(new URLSearchParams("host=native"))).toBe(true);
     expect(isNativeSurface(new URLSearchParams(""))).toBe(false);
-    bridge(() => 1);
+    bridge();
     expect(isNativeSurface(new URLSearchParams(""))).toBe(true);
     expect(isNativeSurface(new URLSearchParams("host=pip"))).toBe(false);
   });
@@ -127,12 +104,14 @@ describe("the native-host stylesheet", () => {
     expect(text).toMatch(/\.pn-root[\s\S]*background: transparent/);
   });
   it("keeps the tint light enough to see through, with text kept legible by shadow and lifted muted text", () => {
-    const floor = [...css.matchAll(/--ov-a: max\(([0-9.]+),/g)].map((m) =>
-      Number(m[1]),
-    );
-    expect(floor.length).toBeGreaterThan(0);
-    // The user asked for genuinely see-through panels: a light floor, with legibility from the text shadow.
-    for (const value of floor) expect(value).toBeGreaterThanOrEqual(0.3);
+    const tint = [
+      ...css.matchAll(
+        /:root\[data-panel-host="native"\] \.ov-root \{\s*--ov-a: ([0-9.]+);/g,
+      ),
+    ].map((m) => Number(m[1]));
+    expect(tint.length).toBeGreaterThan(0);
+    // The user asked for genuinely see-through windows: a light tint, with legibility from the text shadow.
+    for (const value of tint) expect(value).toBeLessThan(0.5);
     expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.5/);
     expect(css).toMatch(/--ov-muted: rgba\(255, 255, 255, 0\.84\)/);
   });

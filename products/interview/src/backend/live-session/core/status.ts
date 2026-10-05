@@ -26,7 +26,7 @@ export type StatusCommand =
   | "begin-purge"
   | "complete-purge";
 
-export type StatusRefusalReason = "actor_not_permitted" | "invalid_transition";
+type StatusRefusalReason = "actor_not_permitted" | "invalid_transition";
 
 export type StatusDecision =
   | { ok: true; status: SessionStatus; changed: boolean }
