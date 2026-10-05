@@ -21,13 +21,22 @@ export function e2eDistDir(env: NodeJS.ProcessEnv = process.env): string {
 // scan skips them, so machine-local results never reach a committed map. A run
 // with its own E2E_DIST_DIR gets its own pair (named like its build), because
 // Playwright clears the output directory and two runs would delete each
-// other's traces.
+// other's traces. A shard (E2E_SHARD, set by scripts/run.mjs) gets its own
+// subfolder of that pair for the same reason.
 export function e2eOutputDirs(env: NodeJS.ProcessEnv = process.env): {
   results: string;
   report: string;
 } {
   const own = env["E2E_DIST_DIR"] ? e2eDistDir(env) : undefined;
-  return own
+  const base = own
     ? { results: `./${own}-results`, report: `./${own}-report` }
     : { results: "./.test-results", report: "./.playwright-report" };
+  const shard = env["E2E_SHARD"];
+  if (shard === undefined || shard === "") return base;
+  if (!/^[1-9]\d?$/.test(shard))
+    throw new Error("E2E_SHARD must be a shard number from 1 to 99");
+  return {
+    results: `${base.results}/s${shard}`,
+    report: `${base.report}/s${shard}`,
+  };
 }

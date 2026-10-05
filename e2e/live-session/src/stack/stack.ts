@@ -169,6 +169,24 @@ function distSignature(): string {
   return hash.digest("hex");
 }
 
+// What the web build reads from the environment (NEXT_PUBLIC_* is inlined into
+// the bundle), shared by the stack and the shard prebuild so both build alike.
+const webBuildEnv = {
+  FAKE_AUTH_ENABLED: "true",
+  NEXT_PUBLIC_FAKE_AUTH_ENABLED: "true",
+  NEXT_DIST_DIR: distDir,
+};
+
+// Builds the web app once, before sharded runs start their own stacks, so the
+// shards find the build current (their stamp matches) instead of racing N
+// `next build`s into one directory. Run by scripts/run.mjs.
+export function prebuildWeb(
+  log: (line: string) => void = (line) => console.log(`[e2e] ${line}`),
+): void {
+  preflight();
+  buildWeb({ ...process.env, ...webBuildEnv }, log);
+}
+
 function buildWeb(env: NodeJS.ProcessEnv, log: (line: string) => void): void {
   const stampFile = join(webDir, distDir, "e2e-stamp");
   const stamp = sourceStamp();
@@ -314,8 +332,7 @@ export async function startStack(
     const stackEnv: Record<string, string> = {
       DATABASE_URL: postgres.memberUrl,
       ...secrets,
-      FAKE_AUTH_ENABLED: "true",
-      NEXT_PUBLIC_FAKE_AUTH_ENABLED: "true",
+      ...webBuildEnv,
       ACTIVE_SESSION_AGENT_PORT: "on",
       ACTIVE_SESSION_AGENT_PROFILE: "claude",
       // The real sandboxed test runner (Docker, the repo's runner images), so a
@@ -326,7 +343,6 @@ export async function startStack(
       AI_MODEL: "e2e-model",
       AI_API_KEY: "e2e-not-a-key",
       AI_LOCALITY: "device",
-      NEXT_DIST_DIR: distDir,
       AGENT_WORKER_POLL_MS: "50",
     };
     const childEnv = { ...process.env, ...stackEnv };

@@ -12,7 +12,9 @@ Run it explicitly. It is not part of `pnpm verify`.
 ```bash
 pnpm test:browser:install        # once: downloads Playwright Chromium and WebKit
 pnpm build                       # the web app loads every package from dist
-pnpm test:browser                # the whole suite
+pnpm test:browser                # the whole suite, as 4 parallel shards
+E2E_SHARDS=1 pnpm test:browser   # one process, one stack (1 to 8 shards; default 4)
+E2E_LIVE=1 pnpm test:browser     # timestamped START/END line per test
 pnpm test:browser tests/smoke-web-end.spec.ts --project=chromium   # one spec
 E2E_HEADED=1 pnpm test:browser   # watch the browser
 E2E_STRICT=1 pnpm test:browser   # claims still `pending` fail the run
@@ -210,3 +212,14 @@ snapshot, network call and console line. `.playwright-report/` has the HTML repo
 `E2E_LIVE=1 pnpm test:browser ...` adds a wall-clock `START`/`END` line per test
 (project, `file:line`, title; `src/reporters/live-reporter.ts`), so a screen
 recording can be matched to the test that was running.
+
+## Shards
+
+The whole suite runs as `E2E_SHARDS` parallel Playwright processes (default 4,
+at most 8; `.env.example`). The web app is built once, then each shard starts
+its own stack: its own PostgreSQL container, ports, worker, storage state and
+`.stack/<pid>` folder, so shards share nothing but the read-only web build.
+Output lines carry `[s1]`..`[sN]`; each shard writes `.test-results/sN` and
+`.playwright-report/sN`. Naming spec files, or using `--shard`, `--list`, `--ui`
+or `--debug`, runs one process. The first sharded run took 370 s against 19.1
+min serial; shard sizes are uneven (files are the unit of splitting).
