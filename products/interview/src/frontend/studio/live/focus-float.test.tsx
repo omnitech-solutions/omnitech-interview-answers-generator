@@ -102,6 +102,11 @@ async function openLive() {
   await flush();
   await flush();
 }
+// The card opens over the page; the header's one control is Pop out.
+const openCard = async () => {
+  act(() => presentation.setMode("card"));
+  await flush();
+};
 const click = async (name: string | RegExp) => {
   fireEvent.click(screen.getByRole("button", { name }));
   await flush();
@@ -161,7 +166,7 @@ describe("the card", () => {
     server.on("GET /current", () => jsonResponse({ session: deviceOnly() }));
     page = { ...page, session: deviceOnly() };
     await openLive();
-    await click("Card view");
+    await openCard();
     expect(card()).toHaveAttribute("data-variant", "tab");
     expect(card()).toHaveAttribute("data-size", "compact");
     expect(screen.getByTestId("ov-status")).toHaveTextContent(/^Live · 1:00$/);
@@ -188,13 +193,13 @@ describe("the card", () => {
     ).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Follow-up" })).toHaveAttribute(
       "placeholder",
-      expect.stringMatching(/^Follow-up about T1 · rev 1$/),
+      expect.stringMatching(/^Add context to T1, or ask a follow-up$/),
     );
   });
 
   it("names the remote execution profile when processing is remote", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     expect(screen.getByTestId("ov-locality")).toHaveTextContent(
       "Remote · fast",
     );
@@ -212,7 +217,7 @@ describe("the card", () => {
       ],
     };
     await openLive();
-    await click("Card view");
+    await openCard();
     expect(screen.getByText("APPROACH")).toBeVisible();
     expect(screen.getByText("Validated · rev 1")).toBeVisible();
     expect(inCard().getByText("No sorting allowed")).toBeVisible();
@@ -233,7 +238,7 @@ describe("the card", () => {
 
   it("with nothing shared, Capture & analyze opens the source menu with its three choices", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     await click(/Capture & analyze/);
     const menu = within(screen.getByRole("menu", { name: "Capture source" }));
     expect(
@@ -254,7 +259,7 @@ describe("the card", () => {
 
   it("shares a source, then offers New task and Attach for a FRESH capture and sends it", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     await shareSource();
     expect(screen.getByTestId("share-kind")).toHaveTextContent("Window");
     await click(/Capture & analyze/);
@@ -284,7 +289,7 @@ describe("the card", () => {
 
   it("starts a new task from a fresh capture without a target", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     await shareSource();
     await click(/Capture & analyze/);
     fireEvent.click(
@@ -302,7 +307,7 @@ describe("the card", () => {
   it("offers only New task before any task exists, and Escape closes the menu", async () => {
     page = { ...page, actions: [] };
     await openLive();
-    await click("Card view");
+    await openCard();
     await shareSource();
     await click(/Capture & analyze/);
     const menu = screen.getByRole("menu", { name: "Capture & analyze" });
@@ -319,7 +324,7 @@ describe("the card", () => {
     server.on("GET /current", () => jsonResponse({ session: deviceOnly() }));
     page = { ...page, session: deviceOnly() };
     await openLive();
-    await click("Card view");
+    await openCard();
     const analyze = screen.getByRole("button", { name: /Capture & analyze/ });
     expect(analyze).toBeDisabled();
     expect(analyze).toHaveAttribute(
@@ -336,7 +341,7 @@ describe("the card", () => {
 
   it("sends a trimmed follow-up through the store, without moving focus on new answers", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     const input = screen.getByLabelText("Follow-up");
     fireEvent.change(input, { target: { value: "  and the cost?  " } });
     input.focus();
@@ -344,6 +349,7 @@ describe("the card", () => {
     expect(deps.submitFollowUp).toHaveBeenCalledWith(
       expect.any(String),
       "and the cost?",
+      { taskId: "task-1", revision: 1 },
       { skill: "auto", language: "auto" },
     );
     expect(input).toHaveValue("");
@@ -371,7 +377,7 @@ describe("the card", () => {
       submitFollowUp: undefined,
     } as never);
     await openLive();
-    await click("Card view");
+    await openCard();
     await shareSource();
     await click(/Capture & analyze/);
     fireEvent.click(
@@ -395,7 +401,7 @@ describe("the card", () => {
       ],
     };
     await openLive();
-    await click("Card view");
+    await openCard();
     const before = server.calls.filter((call) => call.startsWith("POST"));
     await click("Task 1");
     expect(screen.getByText(/Viewing an earlier task/)).toBeVisible();
@@ -413,7 +419,7 @@ describe("the card", () => {
     );
     page = { ...page, session: sessionView({ status: "paused" }) };
     await openLive();
-    await click("Card view");
+    await openCard();
     expect(
       screen.getByText("Paused. Nothing is captured and no new work starts."),
     ).toBeVisible();
@@ -422,7 +428,7 @@ describe("the card", () => {
 
   it("confirms End before ending, and Keep going leaves the session as it was", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     fireEvent.click(inCard().getByRole("button", { name: "End" }));
     expect(screen.getByRole("alertdialog")).toBeVisible();
     await click("Keep going");
@@ -432,7 +438,7 @@ describe("the card", () => {
 
   it("returns to the dashboard's ended summary when the open session ends", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     page = {
       ...page,
       session: sessionView({ status: "ended", endedAt: minutesAfter(3) }),
@@ -444,12 +450,12 @@ describe("the card", () => {
 
   it("Details opens the full dashboard, and Close leaves the card", async () => {
     await openLive();
-    await click("Card view");
+    await openCard();
     await click("Details");
     expect(presentation.get().mode).toBe("full");
     expect(screen.queryByTestId("overlay-card")).toBeNull();
     expect(screen.getByTestId("live-panel")).toBeVisible();
-    await click("Card view");
+    await openCard();
     await click("Close overlay");
     expect(presentation.get().mode).toBe("full");
   });
@@ -459,7 +465,7 @@ describe("floating host", () => {
   it("opens the PiP window with the overlay route in an iframe, not a portal", async () => {
     const pip = fakePip();
     await openLive();
-    await click("Float");
+    await click("Pop out");
     expect(pip.requestWindow).toHaveBeenCalledTimes(1);
     const frame = overlayFrame(pip);
     expect(frame).not.toBeNull();
@@ -551,7 +557,7 @@ describe("floating host", () => {
     const pip = fakePip();
     await openLive();
     act(() => presentation.pin("task-1"));
-    await click("Float");
+    await click("Pop out");
     act(() => pip.win.emit("pagehide"));
     await flush();
     expect(presentation.get().pinnedTaskId).toBe("task-1");
@@ -559,7 +565,7 @@ describe("floating host", () => {
 
   it("falls back to the draggable card in the tab when the API is absent", async () => {
     await openLive();
-    await click("Float");
+    await click("Pop out");
     expect(card()).toHaveAttribute("data-variant", "tab");
     expect(presentation.get().float).toBe("fallback");
     // Closing the in-tab fallback returns to where it came from.
@@ -571,7 +577,7 @@ describe("floating host", () => {
     const pip = fakePip();
     pip.requestWindow.mockRejectedValueOnce(new Error("no activation"));
     await openLive();
-    await click("Float");
+    await click("Pop out");
     expect(card()).toHaveAttribute("data-variant", "tab");
     expect(overlayFrame(pip)).toBeNull();
   });
@@ -589,7 +595,7 @@ describe("float closes when access is lost", () => {
   async function floating() {
     const pip = fakePip();
     await openLive();
-    await click("Float");
+    await click("Pop out");
     expect(overlayFrame(pip)).not.toBeNull();
     return pip;
   }
@@ -643,7 +649,7 @@ describe("float closes when access is lost", () => {
     );
     await flush();
     await flush();
-    await click("Float");
+    await click("Pop out");
     expect(overlayFrame(pip)).not.toBeNull();
     view.rerender(
       <HandsFreeProvider>

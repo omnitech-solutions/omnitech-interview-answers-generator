@@ -10,24 +10,40 @@ import {
   type CodingRow,
   type WithheldNotice,
 } from "./ended-summary";
+import { copyText } from "./shared/copy-text";
 import { useSessionDraftLink } from "./workspace-handoff";
 
+// "Copied" only after the write succeeded; a blocked clipboard says so.
 function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
+  const [outcome, setOutcome] = useState<"copied" | "failed" | null>(null);
+  const word =
+    outcome === "copied"
+      ? "Copied"
+      : outcome === "failed"
+        ? "Copy failed"
+        : "Copy";
   return (
     <button
       type="button"
       className="studio-button"
-      aria-label={copied ? `${label}: copied` : label}
+      aria-label={outcome ? `${label}: ${word.toLowerCase()}` : label}
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
+        void copyText(text).then((written) => {
+          setOutcome(written ? "copied" : "failed");
+          setTimeout(() => setOutcome(null), 1500);
         });
       }}
     >
-      <Icon name={copied ? "check" : "content_copy"} />
-      {copied ? "Copied" : "Copy"}
+      <Icon
+        name={
+          outcome === "copied"
+            ? "check"
+            : outcome === "failed"
+              ? "error"
+              : "content_copy"
+        }
+      />
+      {word}
     </button>
   );
 }

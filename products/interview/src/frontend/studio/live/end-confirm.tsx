@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef } from "react";
-import { END_BODY, END_TITLE } from "./session-bar-model";
+import { END_BODY, END_HOST_LINE, END_TITLE } from "./session-bar-model";
 
 export type EndConfirmProps = {
   // True while the End command is in flight.
   busy: boolean;
+  // The page runs in the Mac app's window, so ending here ends it there too.
+  inMacApp?: boolean;
   onKeepGoing(): void;
   onEnd(): void;
 };
@@ -12,7 +14,12 @@ export type EndConfirmProps = {
 // (to the safe choice), Tab stays inside, Escape or a click outside keeps the
 // session going, and the scrim stops a click from reaching the page beneath.
 // The caller returns focus to the End button when this closes.
-export function EndConfirm({ busy, onKeepGoing, onEnd }: EndConfirmProps) {
+export function EndConfirm({
+  busy,
+  inMacApp = false,
+  onKeepGoing,
+  onEnd,
+}: EndConfirmProps) {
   const titleId = useId();
   const bodyId = useId();
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -58,7 +65,7 @@ export function EndConfirm({ busy, onKeepGoing, onEnd }: EndConfirmProps) {
           {END_TITLE}
         </div>
         <div id={bodyId} className="live-end-body">
-          {END_BODY}
+          {inMacApp ? `${END_BODY} ${END_HOST_LINE}` : END_BODY}
         </div>
         <div className="live-end-actions">
           <button

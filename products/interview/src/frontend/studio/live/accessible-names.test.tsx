@@ -277,7 +277,13 @@ describe("every control is named, in every major state", () => {
     fireEvent.click(screen.getByLabelText(/Rehearsal/));
     fireEvent.click(screen.getByLabelText(/Everyone in this interview/));
     fireEvent.click(screen.getByRole("button", { name: "Start session" }));
-    await flush();
+    // A browser start first asks for the microphone, then starts.
+    for (
+      let attempt = 0;
+      attempt < 20 && !screen.queryByTestId("pairing-credential");
+      attempt += 1
+    )
+      await flush();
     expect(screen.getByTestId("pairing-credential")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show" }));
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));

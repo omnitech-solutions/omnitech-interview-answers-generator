@@ -65,7 +65,7 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         }
         if state.compactShown {
             let window = compactWindow()
-            window.setInteractive(true)
+            window.setInteractive(state.interaction.isInteractive)
             window.setOpacity(state.opacity)
             window.show(pinned: pinned)
         } else {
@@ -79,6 +79,14 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         // Non-activating: the panel can take keys without taking the app's focus.
         panels[panel]?.panel.orderFrontRegardless()
         if model.prefs.interaction.isInteractive { panels[panel]?.panel.makeKey() }
+    }
+
+    // The one window takes keys for the chat input, even while it ignores the mouse
+    // (typing never reaches the page underneath because the panel is key).
+    func focusCompact() {
+        guard let compact, compact.panel.isVisible else { return }
+        compact.panel.orderFrontRegardless()
+        compact.panel.makeKey()
     }
 
     func bringToFront() { reassert() }

@@ -542,6 +542,13 @@ export type LiveMissingContextItem = z.infer<
 >;
 export type LiveMissingContext = readonly LiveMissingContextItem[];
 
+// The screen snapshot observation an action analysed, named by the same
+// (sourceId, eventId) pair the stream's observations carry. Ids only.
+const liveSourceSnapshotSchema = z.object({
+  sourceId: z.string(),
+  eventId: z.string(),
+});
+
 export const liveActionSchema = z.object({
   id: z.uuid(),
   taskId: z.string(),
@@ -564,6 +571,9 @@ export const liveActionSchema = z.object({
   // Context the draft says it could not see; lifted from result.missingContext.
   // Absent or empty means nothing missing or not assessed.
   missingContext: liveMissingContextSchema.optional(),
+  // The screenshots the task revision rests on, oldest first; absent for a
+  // revision built on speech alone and for rows recorded before this field.
+  sourceSnapshots: z.array(liveSourceSnapshotSchema).optional(),
   shown: z.boolean(),
   suppressionReason: z.string().nullable(),
   createdAt: isoTime,

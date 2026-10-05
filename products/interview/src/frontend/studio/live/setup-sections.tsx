@@ -1,15 +1,43 @@
-// The Setup view's choice sections: what the session is for, which matrix it
-// pins, where processing runs and how long it is kept.
+// The Setup view's sections: 1 what the session is for, 2 how Studio hears and
+// sees (host cards), 3 help and privacy (matrix, where AI runs, retention).
 import type {
   LiveProcessingPolicy,
   LiveRetentionMode,
   LiveSessionChoicesResponse,
 } from "@omnitech/interview-contracts";
-import { Icon } from "../icon";
+import type { ReactNode } from "react";
+import { Icon, type IconName } from "../icon";
 import { RETENTION_LABEL, RETENTION_MODES } from "./ended-summary";
-import { Segmented } from "./setup-controls";
-import { matrixOptions, type SetupTarget } from "./setup-model";
+import { CardOption, Segmented, SettingRow } from "./setup-controls";
+import {
+  type CapabilityLine,
+  HOST_OPTIONS,
+  type LineState,
+} from "./setup-hosts";
+import { matrixOptions, type SetupHost, type SetupTarget } from "./setup-model";
 import type { SetupChoices } from "./use-setup-choices";
+
+// A numbered section with its heading; `id` names it for the controls inside.
+export function SetupSection({
+  id,
+  number,
+  title,
+  children,
+}: {
+  id: string;
+  number: number;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="setup-section" aria-labelledby={id}>
+      <h3 id={id}>
+        {number} · {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
 
 type Candidacy = LiveSessionChoicesResponse["candidacies"][number];
 
@@ -28,18 +56,20 @@ function dateLabel(iso: string | null): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
 }
 
-type Card = {
+type TargetOption = {
   target: SetupTarget;
+  icon: IconName;
   title: string;
   sub: string;
 };
 
-function cardsFor(candidacy: Candidacy): Card[] {
+function optionsFor(candidacy: Candidacy): TargetOption[] {
   const where = `${candidacy.title} · ${candidacy.companyName}`;
   if (candidacy.interviews.length === 0)
     return [
       {
         target: { kind: "candidacy", candidacyId: candidacy.id },
+        icon: "work",
         title: candidacy.title,
         sub: candidacy.companyName,
       },
@@ -50,12 +80,20 @@ function cardsFor(candidacy: Candidacy): Card[] {
       candidacyId: candidacy.id,
       interviewId: interview.id,
     },
+    icon: "work",
     title: interview.label,
     sub: [where, interview.kind, dateLabel(interview.scheduledAt)]
       .filter(Boolean)
       .join(" · "),
   }));
 }
+
+const REHEARSAL: TargetOption = {
+  target: { kind: "rehearsal" },
+  icon: "timer",
+  title: "Rehearsal",
+  sub: "Practice with no interview attached",
+};
 
 export function TargetSection({
   choices,
@@ -72,40 +110,33 @@ export function TargetSection({
   onTarget(target: SetupTarget): void;
   onStrict(strict: boolean): void;
 }) {
-  const cards: Card[] = [
-    {
-      target: { kind: "rehearsal" },
-      title: "Rehearsal",
-      sub: "Practice with no interview attached",
-    },
+  const options: TargetOption[] = [
+    REHEARSAL,
     ...(choices.status === "ready"
-      ? choices.choices.candidacies.flatMap(cardsFor)
+      ? choices.choices.candidacies.flatMap(optionsFor)
       : []),
   ];
   const selected = targetKey(target);
   return (
-    <fieldset
-      className="setup-section"
-      aria-busy={choices.status === "loading"}
-    >
-      <legend>What is this session for?</legend>
-      <div className="setup-cards">
-        {cards.map((card) => {
-          const key = targetKey(card.target);
+    <SetupSection id="setup-target" number={1} title="What it’s for">
+      <div
+        role="radiogroup"
+        aria-labelledby="setup-target"
+        aria-busy={choices.status === "loading"}
+        className="setup-cards"
+      >
+        {options.map((option) => {
+          const key = targetKey(option.target);
           return (
-            <label
+            <CardOption
               key={key}
-              className={`setup-card${key === selected ? " on" : ""}`}
-            >
-              <input
-                type="radio"
-                name="setup-target"
-                checked={key === selected}
-                onChange={() => onTarget(card.target)}
-              />
-              <span className="setup-card-title">{card.title}</span>
-              <span className="setup-muted">{card.sub}</span>
-            </label>
+              name="setup-target"
+              checked={key === selected}
+              onSelect={() => onTarget(option.target)}
+              icon={option.icon}
+              title={option.title}
+              sub={option.sub}
+            />
           );
         })}
       </div>
@@ -145,11 +176,82 @@ export function TargetSection({
           </span>
         </label>
       )}
-    </fieldset>
+    </SetupSection>
   );
 }
 
-export function MatrixSection({
+const LINE_ICON: Record<LineState, IconName> = {
+  ok: "check_circle",
+  no: "cancel",
+  unknown: "help",
+};
+const LINE_WORD: Record<LineState, string> = {
+  ok: "Yes",
+  no: "No",
+  unknown: "Not known",
+};
+
+// The two host cards. Each line's state is real data (setup-hosts.ts); the
+// card does not decide what is true.
+export function HostSection({
+  host,
+  onHost,
+  lines,
+  macStatus,
+  children,
+}: {
+  host: SetupHost;
+  onHost(host: SetupHost): void;
+  lines: Record<SetupHost, readonly CapabilityLine[]>;
+  macStatus: { text: string; state: LineState };
+  // Below the cards: the browser warning, pairing note and companion report.
+  children?: ReactNode;
+}) {
+  return (
+    <SetupSection id="setup-host" number={2} title="How Studio hears and sees">
+      <div
+        role="radiogroup"
+        aria-labelledby="setup-host"
+        className="setup-cards"
+      >
+        {HOST_OPTIONS.map((option) => (
+          <CardOption
+            key={option.id}
+            name="setup-host"
+            checked={option.id === host}
+            onSelect={() => onHost(option.id)}
+            icon={option.icon}
+            title={option.title}
+            status={
+              option.id === "mac" && (
+                <span
+                  className="setup-status"
+                  data-state={macStatus.state}
+                  data-testid="host-status-mac"
+                >
+                  {macStatus.text}
+                </span>
+              )
+            }
+          >
+            <ul className="setup-lines" data-testid={`host-lines-${option.id}`}>
+              {lines[option.id].map((line) => (
+                <li key={line.id} data-state={line.state}>
+                  <Icon name={LINE_ICON[line.state]} />
+                  <span className="setup-sr">{LINE_WORD[line.state]}: </span>
+                  {line.text}
+                </li>
+              ))}
+            </ul>
+          </CardOption>
+        ))}
+      </div>
+      {children}
+    </SetupSection>
+  );
+}
+
+export function MatrixRow({
   choices,
   value,
   onChange,
@@ -161,46 +263,51 @@ export function MatrixSection({
   onOpenBriefings(): void;
 }) {
   const profiles = choices.status === "ready" ? choices.choices.profiles : [];
+  if (profiles.length > 0)
+    return (
+      <SettingRow
+        icon="badge"
+        title="Experience matrix"
+        note="Answers can only claim what it says. Pinned for the whole session."
+        control={
+          <select
+            aria-label="Matrix and revision"
+            className="setup-select"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          >
+            {matrixOptions(profiles).map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+            <option value="none">No matrix</option>
+          </select>
+        }
+      />
+    );
+  const loading = choices.status === "loading";
   return (
-    <section className="setup-section">
-      <h3>Experience matrix</h3>
-      {profiles.length > 0 ? (
-        <>
-          <label className="setup-field">
-            <span className="setup-muted">Matrix and revision</span>
-            <select
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-            >
-              {matrixOptions(profiles).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              <option value="none">No matrix</option>
-            </select>
-          </label>
-          <p className="setup-muted">
-            Pinned for the whole session. Answers can only claim what it says.
-          </p>
-        </>
-      ) : (
-        <p className="setup-muted">
-          {choices.status === "loading"
-            ? "Loading your matrices…"
-            : "You have no experience matrix yet. You can still start: with no matrix, answers can’t claim your experience."}{" "}
-          {choices.status !== "loading" && (
-            <button
-              type="button"
-              className="setup-link"
-              onClick={onOpenBriefings}
-            >
-              Import one in Briefings
-            </button>
-          )}
-        </p>
-      )}
-    </section>
+    <SettingRow
+      icon="badge"
+      title="Experience matrix"
+      note={
+        loading
+          ? "Loading your matrices…"
+          : "You have no experience matrix yet. You can still start: with no matrix, answers can’t claim your experience."
+      }
+      control={
+        loading ? null : (
+          <button
+            type="button"
+            className="setup-link"
+            onClick={onOpenBriefings}
+          >
+            Import one in Briefings
+          </button>
+        )
+      }
+    />
   );
 }
 
@@ -211,10 +318,25 @@ const POLICY_COPY: Record<LiveProcessingPolicy, string> = {
     "Remote models may be used for answers and code. Speech recognition still runs on this Mac.",
 };
 
+const POLICY_ICON: Record<LiveProcessingPolicy, IconName> = {
+  "device-only": "lock",
+  "permitted-remote": "cloud",
+};
+
+const POLICY_LABEL: Record<LiveProcessingPolicy, string> = {
+  "device-only": "Device only",
+  "permitted-remote": "Allow remote",
+};
+
+const LOCALITY_OPTIONS = (["permitted-remote", "device-only"] as const).map(
+  (value) => ({ value, label: POLICY_LABEL[value] }),
+);
+
 export type DeviceOnlyBlocker = { title: string; body: string };
 
-export function ProcessingSection({
+export function LocalityRow({
   value,
+  remembered,
   blockers,
   advisories = [],
   advisoryAge = null,
@@ -222,6 +344,9 @@ export function ProcessingSection({
   onChange,
 }: {
   value: LiveProcessingPolicy;
+  // The choice carried over from last time, while the owner has not touched it
+  // on this screen; null otherwise.
+  remembered: LiveProcessingPolicy | null;
   // Reasons that block Start in device-only mode.
   blockers: readonly DeviceOnlyBlocker[];
   // From the companion's stored report: shown, never blocking, because the
@@ -234,18 +359,39 @@ export function ProcessingSection({
   onChange(value: LiveProcessingPolicy): void;
 }) {
   return (
-    <section className="setup-section">
-      <h3 id="setup-processing">Where processing runs</h3>
-      <Segmented
-        label="Where processing runs"
-        value={value}
-        onChange={onChange}
-        options={[
-          { value: "device-only", label: "Device only" },
-          { value: "permitted-remote", label: "Allow remote" },
-        ]}
-      />
-      <p className="setup-muted">{POLICY_COPY[value]}</p>
+    <SettingRow
+      icon={POLICY_ICON[value]}
+      title="Where AI runs"
+      note={POLICY_COPY[value]}
+      control={
+        <Segmented
+          label="Where AI runs"
+          value={value}
+          onChange={onChange}
+          options={LOCALITY_OPTIONS}
+        />
+      }
+    >
+      {remembered && (
+        <p className="setup-muted" data-testid="remembered-policy">
+          Remembered from your last choice: {POLICY_LABEL[remembered]}. Change
+          it here before you start.
+        </p>
+      )}
+      {value === "device-only" && (
+        <div
+          role="status"
+          className="setup-warning"
+          data-testid="device-only-warning"
+        >
+          <Icon name="warning" />
+          <span>
+            Device only: no screenshot analysis, no code generation, dictation
+            only if your browser or Mac has on-device speech. Screenshots are
+            still stored for you, never sent to a model.
+          </span>
+        </div>
+      )}
       {value === "device-only" &&
         blockers.map((blocker) => (
           <div key={blocker.title} role="alert" className="setup-blocker">
@@ -284,7 +430,7 @@ export function ProcessingSection({
       <p className="setup-muted">
         After the session starts you can only tighten this, never loosen it.
       </p>
-    </section>
+    </SettingRow>
   );
 }
 
@@ -297,7 +443,12 @@ const RETENTION_COPY: Record<LiveRetentionMode, string> = {
     "Session records are kept until you delete them. Until then they block deleting the interview, candidacy or matrix revision they link. Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
 };
 
-export function RetentionSection({
+const RETENTION_OPTIONS = RETENTION_MODES.map((mode) => ({
+  value: mode,
+  label: RETENTION_LABEL[mode],
+}));
+
+export function RetentionRow({
   value,
   onChange,
 }: {
@@ -305,19 +456,19 @@ export function RetentionSection({
   onChange(value: LiveRetentionMode): void;
 }) {
   return (
-    <section className="setup-section">
-      <h3>Keep the session</h3>
-      <Segmented
-        label="Keep the session"
-        value={value}
-        onChange={onChange}
-        options={[
-          ...RETENTION_MODES.map((mode) => ({
-            value: mode,
-            label: RETENTION_LABEL[mode],
-          })),
-        ]}
-      />
+    <SettingRow
+      icon="schedule"
+      title="Keep transcript and screenshots"
+      note="Private to you · raw audio is never saved · can only be shortened later"
+      control={
+        <Segmented
+          label="Keep the session"
+          value={value}
+          onChange={onChange}
+          options={RETENTION_OPTIONS}
+        />
+      }
+    >
       <p className="setup-muted">{RETENTION_COPY[value]}</p>
       <dl className="setup-facts">
         <div>
@@ -333,9 +484,6 @@ export function RetentionSection({
           <dd>Memory only, never saved</dd>
         </div>
       </dl>
-      <p className="setup-muted">
-        You can shorten this later, never lengthen it.
-      </p>
-    </section>
+    </SettingRow>
   );
 }

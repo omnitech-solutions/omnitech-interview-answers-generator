@@ -69,8 +69,8 @@ export type StudioHostCaptureResult =
 
 // Key presses the shell registered system-wide, passed to the page as events.
 // "capture-analyze" is the original; the dotted names are the typed command set
-// the pages understand (panels/commands.ts), and `skill.set:<skill id | auto>`
-// picks one skill.
+// the pages understand (panels/commands.ts). The page owns the skill: the shell
+// only relays `skill.next` / `skill.prev`.
 export type StudioHostHotkey =
   | "capture-analyze"
   | "auto.toggle"
@@ -80,8 +80,8 @@ export type StudioHostHotkey =
   | "skill.next"
   | "skill.prev"
   | "session.clear"
-  | "panel.toggle"
-  | `skill.set:${string}`;
+  | "chat.focus"
+  | "panel.toggle";
 
 export type StudioHost = {
   readonly version: typeof STUDIO_HOST_VERSION;
@@ -228,8 +228,7 @@ export type PresentationCapability = (typeof PRESENTATION_CAPABILITIES)[number];
 
 export type PresentationHost = {
   readonly capabilities: readonly PresentationCapability[];
-  // True when the shell shows its own toasts (interaction mode, recording,
-  // skill changes); a page must not duplicate them.
+  // True when the shell shows its own toasts (interaction mode, recording); a page must not duplicate them.
   readonly nativeToasts?: boolean;
   // Each resolves to whether it took effect; none throws for a refusal.
   open(panel: PresentationPanel): Promise<boolean>;

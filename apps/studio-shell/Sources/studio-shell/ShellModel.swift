@@ -46,10 +46,6 @@ final class ShellModel {
     var allViews: [WKWebView] { hostedViews.allObjects }
 
     let prefs = ShellPrefs(store: UserDefaultsStore())
-    var skill: OwnerSkill {
-        get { prefs.skill }
-        set { prefs.skill = newValue }
-    }
     private let probeSession: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieStorage = nil

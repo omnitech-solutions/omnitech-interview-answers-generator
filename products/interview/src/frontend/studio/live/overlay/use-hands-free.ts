@@ -13,12 +13,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureRequestSupport } from "../companion-capability";
-import { copyText } from "../copy-text";
 import { usePresentation } from "../focus-presentation";
 import { nativeCaptureAvailable } from "../host-adapter";
 import type { SessionErrorCode } from "../session-client";
 import { isOpenSession } from "../session-deps";
-import { latestTarget } from "../session-owner-input";
+import { isRunInFlight } from "../session-runs";
+import { copyText } from "../shared/copy-text";
+import { selectedTask, type TaskTarget, targetOf } from "../shared/task-target";
 import { useCompanionCapability } from "../use-companion-capability";
 import { useLiveSession } from "../use-live-session";
 import { loadAutoPreferred, saveAutoPreferred } from "./auto-prefs";
@@ -39,8 +40,8 @@ import {
   type PanelState,
 } from "./panels/panel-bus";
 import { type OwnerKind, useOwnsSession } from "./panels/panel-owner";
-import { takeAnnouncement } from "./share-handoff";
 import { engineHost, useEngine } from "./panels/use-engine";
+import { takeAnnouncement } from "./share-handoff";
 import { useAutoMode } from "./use-auto-mode";
 import { useCapturePrefs } from "./use-capture-prefs";
 import { useCompanionCapture } from "./use-companion-capture";
@@ -127,7 +128,7 @@ export function useHandsFree(kind: OwnerKind) {
   // would keep it.
   const tasks = model.tasks;
   const newest = tasks[tasks.length - 1];
-  const selected = tasks.find((task) => task.taskId === pinnedTaskId) ?? newest;
+  const selected = selectedTask(tasks, pinnedTaskId);
   const hints = {
     skill: prefs.settings.skill ?? ("auto" as const),
     language: prefs.settings.language ?? ("auto" as const),
@@ -153,7 +154,7 @@ export function useHandsFree(kind: OwnerKind) {
   // sent through the capture route. `label` names an automatic capture; true
   // when the frame was sent.
   async function shareCapture(
-    attach: { taskId: string; revision: number } | undefined,
+    attach: TaskTarget | undefined,
     label?: string,
     here: () => boolean = () => true,
   ): Promise<boolean> {
@@ -210,9 +211,7 @@ export function useHandsFree(kind: OwnerKind) {
     const origin = sessionNow.current;
     const here = () => sessionNow.current === origin;
     const attach =
-      choice.kind === "attach" && selected
-        ? { taskId: selected.taskId, revision: selected.currentRevision }
-        : undefined;
+      choice.kind === "attach" ? (targetOf(selected) ?? undefined) : undefined;
     if (via === "focused") {
       const sent = await companionCapture.start({
         mode: "focused-window",
@@ -263,6 +262,16 @@ export function useHandsFree(kind: OwnerKind) {
     if (share.status === "sharing") void analyze({ kind: "new" }, "share");
     else setCaptureMenu(true);
   }
+  // Stop what is running now (session-wide stop-work, ADR-0011): in-flight work
+  // is cancelled and not retried, the session stays live, and the next analyze
+  // opens a NEW task. Failure is a fixed line, never a silent no-op.
+  async function stopAnalysis() {
+    setNote(null);
+    const origin = sessionNow.current;
+    const result = await actions.stopWork();
+    if (origin === sessionNow.current && !result.ok) fail(result.code);
+    return result;
+  }
   async function startSharing() {
     // Straight from the click: the browser needs the user gesture.
     await share.start();
@@ -270,7 +279,11 @@ export function useHandsFree(kind: OwnerKind) {
   async function send(text: string) {
     setNote(null);
     const origin = sessionNow.current;
-    const result = await actions.submitFollowUp(text, hints);
+    const result = await actions.submitFollowUp(
+      text,
+      targetOf(selected),
+      hints,
+    );
     if (origin !== sessionNow.current) return result;
     if (result.ok) addEntry("Typed", text.trim());
     else fail(result.code);
@@ -354,6 +367,11 @@ export function useHandsFree(kind: OwnerKind) {
   }, [sessionKey]);
 
   // ---- One owner, the rest mirror -----------------------------------------------
+  // Work is running for the session: the capture control offers Stop instead
+  // of Analyze. Taking and sending the frame is shown as "Capturing…" and
+  // "Analyzing…" until the server has started the work.
+  const working = tasks.some((task) => task.current.runs.some(isRunInFlight));
+  const stopping = pending.includes("stop-work");
   const phase: "capturing" | "analyzing" | null = grabbing
     ? "capturing"
     : pending.includes("analyze")
@@ -501,6 +519,9 @@ export function useHandsFree(kind: OwnerKind) {
     setSettingsOpen,
     analyze,
     captureNow,
+    working,
+    stopping,
+    stopAnalysis,
     startSharing,
     send,
     cardAttached: cards > 0,

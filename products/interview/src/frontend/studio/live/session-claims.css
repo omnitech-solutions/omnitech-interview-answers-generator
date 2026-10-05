@@ -111,44 +111,6 @@
   text-decoration: line-through;
   color: var(--muted);
 }
-.live-states {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(110px, 100%), 1fr));
-  gap: 8px;
-}
-.live-state {
-  padding: 8px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 9px;
-}
-.live-state dt {
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.live-state dd {
-  margin: 2px 0 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13.5px;
-  font-weight: 500;
-}
-.live-state[data-state="yes"] dd {
-  color: var(--green);
-}
-.live-state[data-state="no"] dd {
-  color: var(--red);
-}
-.live-state[data-state="unknown"] dd {
-  color: var(--faint);
-}
-.live-why {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
 .live-tests ul {
   margin: 6px 0 0;
   padding-left: 18px;

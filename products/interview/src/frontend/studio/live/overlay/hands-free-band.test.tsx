@@ -15,6 +15,7 @@ import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
 import { LiveSessionView } from "../live-view";
 import {
+  action,
   jsonResponse,
   minutesAfter,
   sessionView,
@@ -51,7 +52,10 @@ const settle = async () => {
 const autoOn = () =>
   window.localStorage.setItem("interview-studio.live.auto.local", "on");
 
-function serve() {
+// The control actions the server received, in order.
+const controls: string[] = [];
+
+function serve(actions: ReturnType<typeof action>[] = []) {
   const session = sessionView({
     id: SESSION,
     processingPolicy: "permitted-remote",
@@ -61,9 +65,13 @@ function serve() {
     session,
     observations: [snapshot(1, "Chrome · LeetCode")],
     nextAfterSequence: 1,
-    actions: [],
+    actions,
   });
   const server = createTestServer(() => page);
+  server.on("POST /:id/control", ({ body }) => {
+    controls.push((body as { action: string }).action);
+    return jsonResponse({ session });
+  });
   server.on("GET /current", () => jsonResponse({ session }));
   configureSessionStores({
     fetch: server.fetch,
@@ -88,8 +96,8 @@ function anotherDocumentOwns() {
   return request;
 }
 
-async function openStudioView() {
-  serve();
+async function openStudioView(actions: ReturnType<typeof action>[] = []) {
+  serve(actions);
   render(
     <HandsFreeProvider>
       <LiveSessionView rest={[]} studio={studio} />
@@ -101,6 +109,7 @@ async function openStudioView() {
 const band = () => screen.getByTestId("hands-free-band");
 
 beforeEach(() => {
+  controls.length = 0;
   resetCaptureTrigger();
   vi.useFakeTimers();
   vi.setSystemTime(new Date(minutesAfter(1)));
@@ -125,6 +134,48 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
+});
+
+describe("the capture card while work runs", () => {
+  it("offers Analyze when idle, and Stop analysis (the real stop-work) while a run is in flight", async () => {
+    await openStudioView([
+      action({ dispatchStatus: "in_flight", result: null }),
+    ]);
+    const stop = screen.getByTestId("stop-analysis");
+    expect(stop).toHaveTextContent("Stop analysis");
+    expect(
+      screen.queryByRole("button", { name: /Capture & analyze/ }),
+    ).toBeNull();
+    fireEvent.click(stop);
+    await settle();
+    expect(controls).toEqual(["stop-work"]);
+  });
+
+  it("keeps Capture & analyze while nothing runs, and a separate control stops sharing", async () => {
+    await openStudioView();
+    expect(screen.queryByTestId("stop-analysis")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Capture & analyze/ }),
+    ).toBeVisible();
+  });
+
+  it("switches between Manual and Auto from one segmented control", async () => {
+    await openStudioView();
+    expect(screen.getByTestId("manual-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByTestId("auto-toggle"));
+    await settle();
+    expect(screen.getByTestId("auto-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("manual-toggle")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
 });
 
 describe("the Studio live view hosts hands-free", () => {

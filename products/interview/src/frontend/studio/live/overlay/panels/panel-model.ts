@@ -1,19 +1,17 @@
 // What the analysis and chat panels say, derived from the session's own
 // published results and transcript. Pure; text from the session is inert.
-import type { LiveViewModel } from "../../session-state";
 import type {
   LiveAction,
-  LiveMissingContext,
+  LiveCaptureSource,
+  LiveObservation,
 } from "@omnitech/interview-contracts";
+import type { IconName } from "../../../icon";
+import type { LiveViewModel } from "../../session-state";
 import type { TaskView } from "../../session-tasks";
-import { TASK_KIND } from "../../task-panels";
-import {
-  type ApproachItem,
-  approach,
-  type ChatEntry,
-  solution,
-} from "../overlay-model";
-import { taskHeading } from "../overlay-task";
+import { type TaskCard, taskCardModel } from "../../shared/task-card-model";
+import { taskName } from "../../shared/task-name";
+import { taskLabel, taskOrdinal } from "../../shared/task-target";
+import { type ApproachItem, approach, type ChatEntry } from "../overlay-model";
 import { phaseLabel } from "./toolbar-config";
 
 // ---- Analysis ---------------------------------------------------------------
@@ -71,22 +69,17 @@ export const taskSections = (task: TaskView): ApproachSection[] => {
   return shown ? approachSections(shown.items) : [];
 };
 
-// What the analysis panel shows for the newest task: the text column (title,
-// type, constraint chips, input/output, numbered approach) and the separate
-// code card. Everything is the published answer's own text; a part the answer
-// does not have is absent, never invented.
-export type AnalysisStep = { heading: string; lines: string[] };
-export type AnalysisView = {
-  title: string;
-  problemType: string;
-  constraints: string[];
+// What the answer pane shows beyond the task card (its name, kind, constraints
+// and code come from the shared card): the published answer's own sections and
+// the worked example. A part the answer does not have is absent, never invented.
+type AnswerStep = { heading: string; lines: string[] };
+type AnswerView = {
   input: string[];
   output: string[];
-  steps: AnalysisStep[];
+  steps: AnswerStep[];
   complexity: string[];
   // A fenced block of the answer: the worked example, shown above the code.
   example: string | null;
-  code: { language: string; text: string } | null;
 };
 
 const STEP_HEADING: Record<string, string> = {
@@ -95,41 +88,7 @@ const STEP_HEADING: Record<string, string> = {
   Optimal: "Optimal Solution",
 };
 
-const NAME_MAX = 60;
-
-// What to call the task: its short title if the model gave one, else the start of
-// the model's restatement (first sentence, trimmed), else "Analysis".
-// A problem name the answer itself gives: in quotes ('This is LeetCode 2, "Add Two
-// Numbers": ...') or after a LeetCode number ('LeetCode 37, Sudoku Solver: ...').
-// Short and not a sentence, or it is not a name.
-const QUOTED_NAME = /["“]([^"”]{3,60})["”]/;
-const NUMBERED_NAME =
-  /\bLeetCode\s*#?\d+\s*[,:\-–—]\s*([^:.\n"“]{3,60}?)\s*[:.]/i;
-export function problemNameIn(text: string): string | null {
-  const name = (QUOTED_NAME.exec(text) ??
-    NUMBERED_NAME.exec(text))?.[1]?.trim();
-  return name && !/[.!?]$/.test(name) ? name : null;
-}
-
-export function taskName(task: TaskView): string {
-  const firstLine =
-    approach(task)?.items.find((item) => item.kind === "line")?.text ?? "";
-  const named = problemNameIn(firstLine);
-  if (named) return named;
-  const heading = taskHeading(task);
-  const text = heading.restated ?? heading.title;
-  const generic = TASK_KIND[task.kind].label;
-  if (heading.restated === null && (task.title?.trim() ?? "") === "")
-    return "Analysis";
-  if (heading.restated === null && heading.title === generic) return "Analysis";
-  const sentence =
-    text.split(/(?<=[.!?])\s/)[0]?.replace(/[.!?:\s]+$/, "") ?? "";
-  return sentence.length <= NAME_MAX
-    ? sentence
-    : `${sentence.slice(0, NAME_MAX - 1).trimEnd()}…`;
-}
-
-export function analysisView(task: TaskView): AnalysisView {
+export function answerView(task: TaskView): AnswerView {
   const sections = taskSections(task);
   const lines = (name: SectionName) =>
     sections.find((section) => section.name === name)?.lines ?? [];
@@ -140,34 +99,125 @@ export function analysisView(task: TaskView): AnalysisView {
     number += 1;
     return [{ heading: `${number}. ${label}`, lines: section.lines }];
   });
-  const example =
-    approach(task)?.items.find((item) => item.kind === "code")?.text ?? null;
-  const code = solution(task);
   return {
-    title: taskName(task),
-    problemType: TASK_KIND[task.kind].label,
-    constraints: task.constraints
-      .filter((each) => each.status === "current")
-      .map((each) => each.text),
     input: lines("Input"),
     output: lines("Output"),
     steps,
     complexity: lines("Complexity"),
-    example,
-    code: code ? { language: code.language, text: code.code } : null,
+    example:
+      approach(task)?.items.find((item) => item.kind === "code")?.text ?? null,
   };
+}
+
+// The suppression reason the server records when the owner stops work.
+const OWNER_STOPPED_REASON = "owner_stopped";
+
+// The task's runs were stopped by the owner (session-wide stop-work).
+export const stoppedByYou = (task: TaskView): boolean =>
+  task.current.runs.some((run) => run.reason === OWNER_STOPPED_REASON);
+
+// What the code pane says while there is no code: one sentence per state of the
+// task's code stage, never a promise the session has not made.
+type CodePlaceholder = { text: string; busy: boolean };
+
+export function codePlaceholder(input: {
+  card: TaskCard | null;
+  // The answer pane is showing the steps of a job: the approach is not drafted.
+  approachPending: boolean;
+  stoppedByYou: boolean;
+  // Seconds the code has been in the writing (real, observed here).
+  seconds: number;
+}): CodePlaceholder {
+  const { card } = input;
+  if (!card)
+    return {
+      text: input.approachPending
+        ? "Waits for the approach. Starts automatically."
+        : "Code appears here after the approach is drafted.",
+      busy: false,
+    };
+  if (input.approachPending)
+    return {
+      text: "Waits for the approach. Starts automatically.",
+      busy: false,
+    };
+  const code = card.stages[1];
+  switch (code.state) {
+    case "unavailable":
+      return {
+        text: code.detail ?? "Code is not available for this task.",
+        busy: false,
+      };
+    case "running":
+      return {
+        text: `Writing code…${input.seconds >= 3 ? ` ${input.seconds}s` : ""}`,
+        busy: true,
+      };
+    case "stopped":
+      return {
+        text: input.stoppedByYou
+          ? "Stopped before code was written."
+          : (code.detail ?? "Stopped before code was written."),
+        busy: false,
+      };
+    case "waiting":
+      return {
+        text:
+          card.stages[0].state === "done"
+            ? "No code yet."
+            : "Waits for the approach. Starts automatically.",
+        busy: false,
+      };
+    default:
+      return { text: "The code is not available.", busy: false };
+  }
+}
+
+// A chip per task: "T2 · Two Sum". Choosing one shows that task.
+type TaskChip = {
+  taskId: string;
+  label: string;
+  text: string;
+  selected: boolean;
+  newest: boolean;
+};
+
+export function taskChips(
+  tasks: readonly TaskView[],
+  selectedTaskId: string | undefined,
+): TaskChip[] {
+  return tasks.map((task, index) => {
+    const label = taskLabel(taskOrdinal(tasks, task.taskId) ?? index + 1);
+    return {
+      taskId: task.taskId,
+      label,
+      text: `${label} · ${taskName(task)}`,
+      selected: task.taskId === selectedTaskId,
+      newest: index === tasks.length - 1,
+    };
+  });
 }
 
 // ---- Chat -------------------------------------------------------------------
 
-// "heard" and "typed" are what was said; "assistant" is the reply to it.
-export type PanelRowKind = "heard" | "typed" | "assistant" | "system";
+// "heard" and "typed" are what was said; "assistant" is the reply to it;
+// "marker" is a capture or stop between them.
+export type PanelRowKind =
+  | "heard"
+  | "typed"
+  | "assistant"
+  | "system"
+  | "marker";
+type SpeakerId = "interviewer" | "you" | "typed" | "heard";
 export type PanelRow = {
   key: string;
   kind: PanelRowKind;
   label: string;
+  // Who said it, for heard and typed rows.
+  speaker?: SpeakerId;
   text: string;
   at: number;
+  icon?: IconName;
   // The assistant's formatted answer: its lines and fenced code blocks.
   items?: readonly ApproachItem[];
   // The task an assistant answer belongs to: choosing the row shows that task.
@@ -176,6 +226,78 @@ export type PanelRow = {
   // until the answer exists, then beside it until the work is done.
   stage?: TaskStage;
 };
+
+// Whose words a heard line is, from the capture source it arrived on and
+// nothing else: the app's audio is the other side of the call, the microphone
+// is you, anything else is only "Heard".
+const SPEAKER: Record<
+  Extract<LiveCaptureSource, "microphone" | "application-audio">,
+  { speaker: SpeakerId; label: string }
+> = {
+  microphone: { speaker: "you", label: "You · mic" },
+  "application-audio": {
+    speaker: "interviewer",
+    label: "Interviewer · app audio",
+  },
+};
+const HEARD = { speaker: "heard", label: "Heard" } as const;
+const TYPED = { speaker: "typed", label: "You · typed" } as const;
+
+export const speakerOf = (
+  source: LiveCaptureSource | null,
+): { speaker: SpeakerId; label: string } =>
+  source === "microphone" || source === "application-audio"
+    ? SPEAKER[source]
+    : HEARD;
+
+// What the session's own observations and runs say happened, between the lines
+// of the conversation: a task starting (with its screenshot, when the stream
+// names one) and a task the owner stopped.
+type TaskMarker = {
+  key: string;
+  at: number;
+  icon: IconName;
+  text: string;
+};
+
+export function taskMarkers(input: {
+  tasks: readonly TaskView[];
+  actions: readonly LiveAction[];
+  observations: readonly LiveObservation[];
+  deviceOnly: boolean;
+}): TaskMarker[] {
+  return input.tasks.flatMap((task) => {
+    const card = taskCardModel({ ...input, selectedTaskId: task.taskId });
+    if (!card) return [];
+    const started: TaskMarker = {
+      key: `m-start-${task.taskId}`,
+      at: Date.parse(task.firstSeenAt) || 0,
+      icon: card.snapshotLabel ? "screenshot_monitor" : "play_circle",
+      text: card.snapshotLabel
+        ? `${card.snapshotLabel} captured · ${card.label} started`
+        : `${card.label} started`,
+    };
+    const stoppedAt = Math.max(
+      ...task.current.runs
+        .filter((run) => run.reason === OWNER_STOPPED_REASON)
+        .map((run) => Date.parse(run.updatedAt) || 0),
+      0,
+    );
+    return stoppedAt === 0
+      ? [started]
+      : [
+          started,
+          {
+            key: `m-stop-${task.taskId}`,
+            at: stoppedAt,
+            icon: "stop_circle" as const,
+            text: `${card.label} stopped by you · nothing published${
+              task.answer ? " for code" : ""
+            }`,
+          },
+        ];
+  });
+}
 
 // A stage's label has no ellipsis; the row adds it and a timer.
 export type TaskStage = { label: string; since: number };
@@ -213,6 +335,7 @@ export function panelRows(
   system: readonly SystemLine[] = [],
   // Rows at or before this time were cleared (session.clear).
   since = 0,
+  markers: readonly TaskMarker[] = [],
 ): PanelRow[] {
   const heard: PanelRow[] = model.transcript.flatMap((row) =>
     row.type === "utterance" && !row.superseded
@@ -220,7 +343,7 @@ export function panelRows(
           {
             key: `h-${row.sourceId}/${row.eventId}`,
             kind: "heard" as const,
-            label: "Heard",
+            ...speakerOf(row.source),
             text: row.text,
             at: Date.parse(row.receivedAt),
           },
@@ -232,7 +355,7 @@ export function panelRows(
     .map((entry) => ({
       key: entry.key,
       kind: "typed" as const,
-      label: "You",
+      ...TYPED,
       text: entry.text,
       at: entry.at,
     }));
@@ -249,7 +372,7 @@ export function panelRows(
         key: `a-${task.taskId}`,
         taskId: task.taskId,
         kind: "assistant" as const,
-        label: "Assistant",
+        label: `Studio · ${taskLabel(taskOrdinal(model.tasks, task.taskId) ?? 1)}`,
         text:
           shown && first ? shown.items.map((item) => item.text).join("\n") : "",
         ...(shown && first ? { items: shown.items } : {}),
@@ -265,11 +388,25 @@ export function panelRows(
     text: line.text,
     at: line.at,
   }));
-  return [...heard, ...mine, ...assistant, ...lines]
+  const between: PanelRow[] = markers.map((marker) => ({
+    key: marker.key,
+    kind: "marker" as const,
+    label: "",
+    text: marker.text,
+    icon: marker.icon,
+    at: marker.at,
+  }));
+  return [...heard, ...mine, ...assistant, ...lines, ...between]
     .filter((row) => row.kind === "system" || row.at > since)
     .sort((a, b) => a.at - b.at)
     .slice(-PANEL_ROWS);
 }
+
+// The follow-up box says which task its text is about: the one on show.
+export const followUpPlaceholder = (targetLabel: string | null): string =>
+  targetLabel
+    ? `Add context to ${targetLabel}, or ask a follow-up`
+    : "Ask anything, or add context";
 
 export const clock = (at: number): string =>
   Number.isNaN(at) || at === 0
@@ -278,23 +415,3 @@ export const clock = (at: number): string =>
         hour: "2-digit",
         minute: "2-digit",
       });
-
-// What the model said it could not see for the task on show: from its newest
-// succeeded answer draft for the task's current revision, or none.
-export function missingContextFor(
-  actions: readonly LiveAction[],
-  task: TaskView | undefined,
-): LiveMissingContext | null {
-  if (!task) return null;
-  const draft = actions
-    .filter(
-      (action) =>
-        action.taskId === task.taskId &&
-        action.taskRevision === task.currentRevision &&
-        action.actionKind === "draft-answer" &&
-        action.dispatchStatus === "succeeded" &&
-        (action.missingContext?.length ?? 0) > 0,
-    )
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
-  return draft?.missingContext ?? null;
-}

@@ -117,8 +117,26 @@ describe("transcript", () => {
     expect(
       screen.getByText(/Microphone disconnected: stopped on the Mac/),
     ).toBeVisible();
-    expect(screen.getByText("Screen · Editor window · snapshot")).toBeVisible();
-    expect(screen.getByText(/New task: experience question/)).toBeVisible();
+    // The screenshot is numbered; no action rests on it, so the task row says
+    // nothing about a screenshot.
+    expect(
+      screen.getByText("Screen · Editor window · S1 captured"),
+    ).toBeVisible();
+    expect(screen.getByText("T1 started · experience question")).toBeVisible();
+  });
+
+  it("says which screenshot a task started from, only when an action names it", () => {
+    show({
+      observations: [snapshot(1, "Editor window")],
+      actions: [
+        answerAction(answerResult(), {
+          sourceSnapshots: [{ sourceId: "screen", eventId: "evt-1" }],
+        }),
+      ],
+    });
+    expect(
+      screen.getByText("S1 analysed → T1 started · experience question"),
+    ).toBeVisible();
   });
 
   it("offers a screenshot only as a download through the owner's route, never inline", () => {
@@ -400,13 +418,35 @@ describe("sources", () => {
     expect(companion.textContent?.match(/Credential revoked/g)).toHaveLength(1);
     expect(companion.textContent).not.toMatch(/was revoked\. Renew to pair/);
     // The pairing controls sit inside that block.
+    fireEvent.click(
+      within(companion).getByRole("button", { name: "Pair capture companion" }),
+    );
     expect(within(companion).getByTestId("pairing-slot")).toBeInTheDocument();
   });
 
-  it("mounts the pairing panel in the tab", () => {
+  it("keeps the credential panel out of sight until Pair capture companion is pressed", () => {
     show({});
     open();
+    expect(screen.queryByTestId("pairing-slot")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Pair capture companion" }),
+    );
     expect(screen.getByTestId("pairing-slot")).toBeInTheDocument();
+  });
+
+  it("puts a red dot on the Sources tab only while a selected source is not receiving", () => {
+    show({
+      observations: [disconnected(1, "application-audio", "device-lost")],
+    });
+    expect(screen.getByRole("tab", { name: "Sources" })).toHaveAttribute(
+      "data-alert",
+      "true",
+    );
+    cleanup();
+    show({});
+    expect(screen.getByRole("tab", { name: "Sources" })).not.toHaveAttribute(
+      "data-alert",
+    );
   });
 
   it("shows only what is true in the capability table for a device-only session", () => {

@@ -1,4 +1,4 @@
-// One panel per detected task, chosen by a selector (newest first), and the
+// One card per detected task, chosen by a selector (newest first), and the
 // idle state shown before any task exists. The idle copy follows the model's
 // activity, so it never says "listening" when the session is paused, a source
 // is lost or the companion has not been heard from.
@@ -8,11 +8,14 @@ import type {
 } from "@omnitech/interview-contracts";
 import { Icon, type IconName } from "../icon";
 import { AnswerBody } from "./answer-body";
+import { claimSummary } from "./claim-chips";
 import { CodingPanel } from "./coding-panel";
 import { noticesFor, RunNotices } from "./run-notices";
 import type { ActivityKey } from "./session-banners";
+import type { AnswerResult } from "./session-results";
 import type { LiveViewModel } from "./session-state";
 import type { TaskKind, TaskView } from "./session-tasks";
+import { STAGE_PRESENTATION, type TaskCard } from "./shared/task-card-model";
 
 export const TASK_KIND: Record<TaskKind, { label: string; icon: IconName }> = {
   "experience-question": { label: "Experience question", icon: "psychology" },
@@ -94,53 +97,165 @@ export function TaskSelector({
   );
 }
 
+// What the answer rests on: the model that wrote it, then either how many of
+// its claims are grounded in the owner's own words or, when none are, that it
+// is general knowledge and not a claim about them.
+function ModelLine({
+  card,
+  answer,
+}: {
+  card: TaskCard;
+  answer: AnswerResult | null;
+}) {
+  if (!card.modelLabel) return null;
+  const grounded = answer
+    ? answer.claimCounts["matrix-backed"] +
+        answer.claimCounts["preference-backed"] >
+      0
+    : false;
+  return (
+    <p className="live-model-line" data-testid="model-line">
+      <span className="live-chip neutral">
+        <Icon name="auto_awesome" />
+        {card.modelLabel}
+      </span>
+      {answer && (
+        <span className="live-note">
+          {grounded
+            ? claimSummary(answer.claimCounts)
+            : "General knowledge, not a claim about you."}
+        </span>
+      )}
+    </p>
+  );
+}
+
+// The three stages as tiles. A running stage spins; "Not established" is a
+// plain statement that nothing says it is true, never a failure.
+function StageTiles({
+  card,
+  noticed,
+}: {
+  card: TaskCard;
+  // A run notice below already says why a stopped or refused stage ended.
+  noticed: boolean;
+}) {
+  return (
+    <ul className="live-stages" aria-label="Stages">
+      {card.stages.map((stage) => {
+        const look = STAGE_PRESENTATION[stage.state];
+        return (
+          <li
+            key={stage.id}
+            className="live-stage"
+            data-stage={stage.id}
+            data-state={stage.state}
+            data-tone={look.tone}
+          >
+            <span className="live-stage-name">{stage.label}</span>
+            <span className="live-stage-state">
+              <Icon name={look.icon} />
+              {look.word}
+            </span>
+            {stage.detail &&
+              !(
+                noticed &&
+                (stage.state === "stopped" || stage.state === "unavailable")
+              ) && (
+                <span className="live-note live-stage-detail">
+                  {stage.detail}
+                </span>
+              )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function EarlierTaskBanner({ onBack }: { onBack(): void }) {
+  return (
+    <div className="live-banner earlier" role="status">
+      <Icon name="history" />
+      <span className="live-banner-text">
+        Viewing an earlier task. Studio still tracks the newest one.
+      </span>
+      <button type="button" className="live-banner-action" onClick={onBack}>
+        Back to now
+      </button>
+    </div>
+  );
+}
+
 export function TaskPanel({
   task,
-  number,
+  card,
   session,
   policy,
   onCopy,
+  onBackToNow,
   showWorkspaceLink = true,
 }: {
   task: TaskView;
-  number: number;
+  // The one derivation of this task's identity, stages and model.
+  card: TaskCard;
   session: LiveSessionView | null;
   policy: LiveProcessingPolicy | null;
   onCopy(text: string): void;
+  onBackToNow(): void;
   showWorkspaceLink?: boolean;
 }) {
-  const kind = TASK_KIND[task.kind];
   const noticed = noticesFor(task, policy).length > 0;
+  const meta = [
+    `${card.label} · rev ${card.revision}`,
+    card.snapshotLabel ? `from screenshot ${card.snapshotLabel}` : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
   return (
-    <article
-      className="live-task"
-      aria-label={`Task ${number}: ${kind.label}`}
-      data-testid="task-panel"
-      data-kind={task.kind}
-    >
-      <header className="live-task-head">
-        <span className="live-chip accent">
-          <Icon name={kind.icon} />
-          {kind.label}
-        </span>
-        <span className="live-note">Task rev {task.currentRevision}</span>
-      </header>
-      <RunNotices task={task} policy={policy} />
-      {task.kind === "programming-challenge" ? (
-        <CodingPanel
-          task={task}
-          session={session}
-          showWorkspaceLink={showWorkspaceLink}
-        />
-      ) : task.answer ? (
-        <AnswerBody task={task} answer={task.answer} onCopy={onCopy} />
-      ) : (
-        !noticed && (
-          <p className="live-note">
-            No answer has been published for this task.
-          </p>
-        )
-      )}
-    </article>
+    <>
+      {card.earlier && <EarlierTaskBanner onBack={onBackToNow} />}
+      <article
+        key={card.taskId}
+        className="live-task"
+        aria-label={`Task ${card.ordinal}: ${card.kind.label}`}
+        data-testid="task-panel"
+        data-kind={card.kind.id}
+      >
+        <header className="live-task-head">
+          <span className="live-chip accent">
+            <Icon name={card.kind.icon} />
+            {card.kind.label}
+          </span>
+          <span className="live-note">{meta}</span>
+        </header>
+        <h3 className="live-task-name">{card.name}</h3>
+        <ModelLine card={card} answer={task.answer} />
+        <StageTiles card={card} noticed={noticed} />
+        <RunNotices task={task} policy={policy} />
+        {card.kind.id === "programming-challenge" ? (
+          <CodingPanel
+            task={task}
+            card={card}
+            session={session}
+            onCopy={onCopy}
+            showWorkspaceLink={showWorkspaceLink}
+          />
+        ) : task.answer ? (
+          <AnswerBody
+            task={task}
+            card={card}
+            answer={task.answer}
+            onCopy={onCopy}
+          />
+        ) : (
+          !noticed && (
+            <p className="live-note">
+              No answer has been published for this task.
+            </p>
+          )
+        )}
+      </article>
+    </>
   );
 }

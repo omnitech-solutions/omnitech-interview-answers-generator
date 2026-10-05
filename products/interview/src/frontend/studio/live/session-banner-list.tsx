@@ -2,7 +2,7 @@
 // priority order. A red one is an alert (it interrupts), an amber one a status.
 // The sentence comes from banner-copy.ts; the button does what the copy says.
 import { Icon, type IconName } from "../icon";
-import { type BannerAction, bannerCopy } from "./banner-copy";
+import { type BannerAction, type BannerHost, bannerCopy } from "./banner-copy";
 import type { BannerKind } from "./session-banners";
 import type { LiveViewModel } from "./session-state";
 
@@ -21,10 +21,12 @@ const BANNER_ICON: Record<BannerKind, IconName> = {
 
 export function SessionBanners({
   model,
+  host,
   busy,
   onAction,
 }: {
   model: LiveViewModel;
+  host: BannerHost;
   // A command is in flight: its button waits.
   busy: boolean;
   onAction(action: BannerAction): void;
@@ -33,7 +35,7 @@ export function SessionBanners({
   return (
     <div className="live-banners">
       {model.banners.map((banner) => {
-        const copy = bannerCopy(banner, model);
+        const copy = bannerCopy(banner, model, host);
         return (
           <div
             key={`${banner.kind}-${banner.source ?? ""}`}

@@ -4,16 +4,32 @@
    shell draws the window frame). They reuse the overlay's --ov-* tokens by
    redeclaring them on .pn-root, so a panel document needs nothing else. */
 .pn-root {
-  /* The surface tint. --ov-a follows the shell's opacity setting in a native
-     host (below); a plain window keeps the denser default. */
-  --ov-a: 0.82;
-  --ov-bg: rgba(58, 58, 62, var(--ov-a));
+  /* The design's tokens: the glass of every surface, its radius, the control
+     height and the status colours. Everything below reads these. */
+  --pn-glass: rgba(30, 30, 34, 0.8);
+  --pn-glass-menu: rgba(36, 36, 40, 0.96);
+  --pn-glass-code: rgba(22, 22, 26, 0.86);
+  --pn-radius: 12px;
+  --pn-control: 30px;
+  --pn-control-radius: 9px;
+  --pn-chip: rgba(255, 255, 255, 0.07);
+  --pn-chip-strong: rgba(255, 255, 255, 0.1);
+  --pn-hair: rgba(255, 255, 255, 0.08);
+  --pn-ring: 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --pn-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  --pn-accent: #2f6fe4;
+  --pn-link: #8fb0ff;
+  --pn-ok: #6ddc93;
+  --pn-warn: #f5c56b;
+  --pn-danger: #e5484d;
+  --pn-go: #34c759;
+  --ov-bg: var(--pn-glass);
   --ov-text: rgba(255, 255, 255, 0.95);
   --ov-muted: rgba(255, 255, 255, 0.68);
   --ov-faint: rgba(255, 255, 255, 0.5);
   --ov-line: rgba(255, 255, 255, 0.12);
   --ov-chip: rgba(255, 255, 255, 0.14);
-  --ov-accent: #8fb0ff;
+  --ov-accent: var(--pn-link);
   --ov-green: #4cd964;
   --ov-red: #ff453a;
   position: fixed;
@@ -55,7 +71,6 @@
   background: transparent;
 }
 :root[data-panel-host="native"] .pn-root {
-  --ov-a: 0.5;
   padding: 0;
 }
 
@@ -63,7 +78,8 @@
 .pn-pill,
 .pn-codecard {
   background: var(--ov-bg);
-  border-radius: 10px;
+  border-radius: var(--pn-radius);
+  box-shadow: var(--pn-shadow), var(--pn-ring);
 }
 .pn-card {
   flex: 1;
@@ -87,18 +103,19 @@
 
 /* ---- Bar ---- */
 .pn-pill {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 6px;
   width: 100%;
   max-width: 520px;
-  height: 35px;
   align-self: center;
-  padding: 0 14px;
-  border-radius: 18px;
+  padding: 6px;
+  border-radius: 14px;
   white-space: nowrap;
   font-size: 12px;
+  user-select: none;
 }
 :root[data-panel-host="native"] .pn-root[data-panel="pill"] {
   justify-content: center;
@@ -121,16 +138,15 @@
   opacity: 0.45;
   cursor: default;
 }
-.pn-bar-button kbd {
+.pn-bar-button kbd,
+.pn-split-main kbd {
   font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
-  color: var(--ov-muted);
+  opacity: 0.7;
 }
 .pn-bar-button[data-mic="listening"] {
-  color: var(--ov-red);
-}
-.pn-skill {
-  font-weight: 600;
+  color: #ff7b75;
 }
 .pn-dot {
   width: 9px;
@@ -516,24 +532,6 @@
 }
 
 
-/* Toolbar buttons read as buttons: a visible border always, brighter when on,
-   dashed and dim when they cannot act right now. */
-.pn-pill .pn-bar-button {
-  padding: 3px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-}
-.pn-pill .pn-bar-button:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.6);
-}
-.pn-pill .pn-bar-button[aria-pressed="true"] {
-  border-color: rgba(255, 255, 255, 0.75);
-  background: var(--ov-chip);
-}
-.pn-pill .pn-bar-button:disabled {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.22);
-}
-
 /* In the one window the analysis pane may be narrow: its code card then sits
    under the text instead of off the edge of the window. */
 .pn-single-pane[data-which="analysis"] {
@@ -578,16 +576,7 @@
   white-space: nowrap;
 }
 
-/* While analysing the capture button is red: press it to stop. Resume and Start
-   are green. */
-.pn-pill .pn-bar-button[data-stop="true"] {
-  background: rgba(214, 62, 52, 0.9);
-  border-color: rgba(255, 255, 255, 0.55);
-  color: #fff;
-}
-.pn-pill .pn-bar-button[data-stop="true"] kbd {
-  color: rgba(255, 255, 255, 0.85);
-}
+/* Resume and Start are green; End is red. */
 .pn-single-foot .ov-button.go {
   background: rgba(46, 160, 90, 0.9);
   border-color: rgba(255, 255, 255, 0.45);
@@ -606,96 +595,6 @@
   background: none;
   border-radius: 6px;
   padding: 3px 8px;
-}
-
-/* The status dot sits on the capture icon. */
-.pn-icon-dot {
-  position: relative;
-  display: inline-flex;
-}
-.pn-icon-dot .pn-dot {
-  position: absolute;
-  right: -5px;
-  top: -4px;
-  width: 9px;
-  height: 9px;
-  box-shadow: 0 0 0 2px rgba(30, 30, 34, 0.95);
-}
-
-/* The Auto / Manual menu beside the capture button. */
-.pn-pill .pn-mode {
-  appearance: none;
-  -webkit-appearance: none;
-  font: inherit;
-  font-size: 12px;
-  color: var(--ov-text);
-  background-color: transparent;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 7px center;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 6px;
-  padding: 3px 22px 3px 8px;
-  cursor: pointer;
-}
-.pn-pill .pn-mode:hover {
-  border-color: rgba(255, 255, 255, 0.6);
-}
-.pn-pill .pn-mode option {
-  color: #111;
-}
-
-/* The capture control: one split button, [capture | mode menu]. */
-.pn-split {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.pn-split:hover {
-  border-color: rgba(255, 255, 255, 0.6);
-}
-.pn-split-main,
-.pn-split-menu {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-shadow: inherit;
-}
-.pn-split-main:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.pn-split-menu {
-  position: relative;
-  border-left: 1px solid rgba(255, 255, 255, 0.32);
-  font-size: 12px;
-}
-.pn-split-menu:hover,
-.pn-split-main:hover:not(:disabled) {
-  background: var(--ov-chip);
-}
-.pn-split-menu select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-.pn-split[data-stop="true"] {
-  background: rgba(214, 62, 52, 0.9);
-  border-color: rgba(255, 255, 255, 0.55);
-  color: #fff;
-}
-.pn-split[data-stop="true"] kbd {
-  color: rgba(255, 255, 255, 0.85);
 }
 
 /* The task's name, with its type as a pill. */
@@ -723,17 +622,6 @@
 }
 .pn-interim[data-empty="true"] {
   visibility: hidden;
-}
-
-/* What the app is doing right now, in the bottom bar. */
-.pn-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 6px 12px 0;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
 /* "Latest": shown when the transcript is scrolled away from its newest line. */
@@ -800,4 +688,661 @@
 .pn-missing-actions .pn-bar-button {
   border: 1px solid rgba(255, 255, 255, 0.4);
   padding: 3px 9px;
+}
+
+/* ---- The toolbar's controls: 30 px, rounded, no borders ---- */
+.pn-pill .pn-bar-button,
+.pn-split-main,
+.pn-split-menu {
+  height: var(--pn-control);
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--pn-control-radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+.pn-pill .pn-bar-button[aria-pressed="true"],
+.pn-pill .pn-bar-button[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.16);
+}
+.pn-pill .pn-bar-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+.pn-pill .pn-icon-button {
+  width: var(--pn-control);
+  padding: 0;
+  justify-content: center;
+  color: var(--ov-muted);
+}
+.pn-pill .pn-icon-button[aria-pressed="true"] {
+  color: var(--pn-link);
+  background: rgba(143, 176, 255, 0.25);
+}
+.pn-pill .pn-mic-button,
+.pn-pill .pn-skill {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+.pn-pill .pn-mic-button[data-mic="listening"] {
+  background: rgba(229, 72, 77, 0.22);
+}
+.pn-pill .pn-skill {
+  font-weight: 600;
+  gap: 3px;
+}
+.pn-skill-name {
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pn-divider {
+  width: 0.5px;
+  height: 20px;
+  margin: 0 2px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.pn-model {
+  padding: 0 4px;
+}
+
+/* The capture control: one split button, [capture | mode menu]. */
+.pn-split {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--pn-control-radius);
+  overflow: visible;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  background: var(--pn-chip-strong);
+  color: #fff;
+}
+.pn-split-main,
+.pn-split-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+.pn-split-main {
+  border-radius: var(--pn-control-radius) 0 0 var(--pn-control-radius);
+  padding-left: 8px;
+}
+.pn-split-menu {
+  gap: 2px;
+  padding: 0 6px 0 8px;
+  border-left: 0.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0 var(--pn-control-radius) var(--pn-control-radius) 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+.pn-split-main:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pn-split-main:hover:not(:disabled),
+.pn-split-menu:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.pn-split[data-stop="true"] {
+  background: var(--pn-danger);
+}
+.pn-split[data-stop="true"] .pn-split-menu {
+  background: #c93b40;
+}
+.pn-popover {
+  position: relative;
+  display: inline-flex;
+}
+.pn-icon-dot {
+  position: relative;
+  display: inline-flex;
+}
+.pn-icon-dot .pn-dot {
+  position: absolute;
+  right: -5px;
+  top: -4px;
+  box-shadow: 0 0 0 2px rgba(30, 30, 34, 0.95);
+}
+
+/* The microphone's bars: shown only while listening; they move only while
+   words are actually being recognised. */
+.pn-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+.pn-level i {
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: scaleY(0.35);
+}
+.pn-level[data-active="true"] i {
+  animation: pn-level 0.9s infinite;
+}
+.pn-level[data-active="true"] i:nth-child(2) {
+  animation-duration: 0.7s;
+  animation-delay: 0.2s;
+}
+.pn-level[data-active="true"] i:nth-child(3) {
+  animation-duration: 1.1s;
+  animation-delay: 0.1s;
+}
+@keyframes pn-level {
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* ---- Menus and the shortcut list ---- */
+.pn-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 290px;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--pn-glass-menu);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), var(--pn-ring);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: normal;
+  text-align: left;
+}
+.pn-menu-narrow {
+  width: 220px;
+}
+.pn-menu:focus {
+  outline: none;
+}
+.pn-menu-head {
+  padding: 4px 9px;
+  font-size: 11px;
+  color: var(--ov-muted);
+}
+.pn-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.pn-menu-item:hover:not([aria-disabled="true"]),
+.pn-menu-item:focus-visible {
+  background: var(--pn-accent);
+}
+.pn-menu-item[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+.pn-menu-item .studio-icon {
+  margin-top: 1px;
+}
+.pn-menu-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pn-menu-sub {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.7;
+  line-height: 1.3;
+}
+.pn-keys {
+  left: auto;
+  right: 0;
+  width: 300px;
+  padding: 10px 12px;
+}
+.pn-keys-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.pn-keys-list li {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+.pn-keys-list li span {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.75);
+}
+.pn-keys-list kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #fff;
+}
+
+/* ---- Small buttons used in the panes ---- */
+.pn-mini-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--pn-chip-strong);
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pn-mini-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.pn-mini-button[data-action="resume"] {
+  background: var(--pn-go);
+  color: #04220d;
+  font-weight: 600;
+  text-shadow: none;
+}
+.pn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--pn-control);
+  margin-top: 4px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--pn-accent);
+  color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+}
+.pn-primary:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pn-primary kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.pn-fill {
+  flex: 1;
+}
+
+/* ---- The status strip ---- */
+.pn-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 11px;
+  background: var(--pn-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--pn-ring);
+}
+.pn-strip[data-tone="amber"] {
+  background: rgba(80, 60, 20, 0.85);
+}
+.pn-strip-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.pn-strip[data-tone="accent"] .pn-strip-main {
+  color: var(--pn-link);
+}
+.pn-strip[data-tone="green"] .pn-strip-main {
+  color: var(--pn-ok);
+}
+.pn-strip[data-tone="amber"] .pn-strip-main {
+  color: var(--pn-warn);
+}
+.pn-strip-sub {
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+.pn-task-chips {
+  display: flex;
+  gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.pn-task-chip {
+  height: 24px;
+  max-width: 14em;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--pn-chip);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.pn-task-chip[aria-pressed="true"] {
+  background: rgba(143, 176, 255, 0.25);
+  color: #fff;
+}
+
+/* ---- Steps, the spinner, the empty state ---- */
+.pn-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--pn-link);
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  animation: pn-spin 0.8s linear infinite;
+}
+@keyframes pn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pn-steps {
+  list-style: none;
+  margin: auto 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pn-steps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.pn-steps li[data-state="done"] {
+  color: rgba(255, 255, 255, 0.6);
+}
+.pn-steps li[data-state="active"] {
+  color: #fff;
+}
+.pn-step-mark {
+  width: 16px;
+  display: inline-flex;
+  justify-content: center;
+}
+.pn-step-label {
+  flex: 1;
+}
+.pn-step-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.pn-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+.pn-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--pn-radius);
+  background: var(--pn-chip);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pn-empty-icon .studio-icon {
+  width: 22px;
+  height: 22px;
+}
+.pn-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.pn-empty-sub {
+  max-width: 300px;
+  font-size: 12.5px;
+  color: var(--ov-muted);
+}
+.pn-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  text-align: center;
+  color: var(--ov-muted);
+  font-size: 12.5px;
+}
+
+/* ---- The answer pane's header, a stopped task, the code card ---- */
+.pn-task-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--ov-muted);
+}
+.pn-task-id {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(122, 162, 255, 0.18);
+  color: var(--pn-link);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pn-earlier {
+  color: var(--pn-warn);
+}
+.pn-stopped {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12.5px;
+}
+.pn-actions {
+  display: flex;
+  gap: 6px;
+}
+.pn-codecard {
+  background: var(--pn-glass-code);
+}
+.pn-codecard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pn-codecard-language {
+  flex: 1;
+}
+.pn-badges {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.pn-badges li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--pn-ok);
+}
+.pn-badges li[data-ok="false"] {
+  color: var(--pn-warn);
+}
+
+/* ---- The conversation: who said it, markers, the pending reply ---- */
+.pn-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.pn-who-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pn-row[data-speaker="interviewer"] {
+  align-self: flex-start;
+  background: var(--pn-chip);
+}
+.pn-row[data-speaker="interviewer"] .pn-who-label {
+  color: var(--pn-link);
+}
+.pn-row[data-speaker="you"],
+.pn-row[data-speaker="typed"] {
+  align-self: flex-end;
+  background: rgba(109, 220, 147, 0.12);
+}
+.pn-row[data-speaker="you"] .pn-who-label {
+  color: var(--pn-ok);
+}
+.pn-row[data-speaker="typed"] {
+  background: rgba(122, 162, 255, 0.18);
+}
+.pn-row[data-kind="heard"],
+.pn-row[data-kind="typed"] {
+  max-width: 92%;
+}
+.pn-row[data-kind="assistant"] {
+  background: rgba(122, 162, 255, 0.12);
+}
+.pn-row[data-kind="assistant"] .pn-who-label {
+  color: var(--pn-link);
+}
+.pn-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.pn-marker::before,
+.pn-marker::after {
+  content: "";
+  flex: 1;
+  height: 0.5px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.pn-pending {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+
+/* ---- The ended card and the footer's clock ---- */
+.pn-ended {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--pn-radius);
+  background: var(--pn-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--pn-ring);
+}
+.pn-ended-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.pn-ended-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ov-muted);
+}
+.pn-ended-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pn-ended-stats li {
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: var(--pn-chip);
+  font-size: 12px;
+}
+.ov-clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #ff6b61;
+}
+.ov-clock[data-paused="true"] {
+  color: var(--pn-warn);
+}
+.ov-clock-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pn-pulse-dot 1.4s infinite;
+}
+.ov-clock[data-paused="true"] .ov-clock-dot {
+  animation: none;
+}
+@keyframes pn-pulse-dot {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Click-through is a hint, not a control: the window ignores the mouse, so the
+   banner cannot take a click. */
+.pn-clickthrough {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(20, 20, 24, 0.92);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pn-spinner,
+  .pn-level[data-active="true"] i,
+  .pn-ellipsis i,
+  .ov-clock-dot {
+    animation: none;
+  }
 }

@@ -17,9 +17,13 @@ export const COMMANDS = [
   "skill.next",
   "skill.prev",
   "session.clear",
+  "chat.focus",
   "panel.toggle",
 ] as const;
 export type Command = (typeof COMMANDS)[number];
+
+// The analysis asks the chat box to take focus (same document).
+export const FOCUS_INPUT_EVENT = "pn-focus-input";
 
 export type CommandKey = {
   command: Command;
@@ -82,6 +86,13 @@ export const COMMAND_KEYS: readonly CommandKey[] = [
     label: "Clear session memory",
   },
   {
+    command: "chat.focus",
+    keys: "Alt+Shift+F",
+    code: "KeyF",
+    shift: true,
+    label: "Focus the chat",
+  },
+  {
     command: "panel.toggle",
     keys: "Alt+Shift+P",
     code: "KeyP",
@@ -114,25 +125,14 @@ export function commandOf(event: KeyLike): Command | null {
   );
 }
 
-// What a host hotkey name asks for: a command, a skill to set ("auto" is no
-// hint), or null for a name this page does not know. The dotted names are the
-// commands themselves; "capture-analyze" is the original spelling.
-export type Intent =
-  | { kind: "command"; command: Command }
-  | { kind: "skill"; skill: LiveOwnerSkill | undefined };
-
-export function intentOf(hotkey: StudioHostHotkey | string): Intent | null {
-  if (hotkey === "capture-analyze")
-    return { kind: "command", command: "capture.analyze" };
-  const command = COMMANDS.find((each) => each === hotkey);
-  if (command) return { kind: "command", command };
-  if (hotkey.startsWith("skill.set:")) {
-    const id = hotkey.slice("skill.set:".length);
-    if (id === "auto") return { kind: "skill", skill: undefined };
-    const skill = LIVE_OWNER_SKILLS.find((each) => each === id);
-    if (skill) return { kind: "skill", skill };
-  }
-  return null;
+// The command a host hotkey name asks for, or null for a name this page does
+// not know. The dotted names are the commands themselves; "capture-analyze" is
+// the original spelling.
+export function commandOfHotkey(
+  hotkey: StudioHostHotkey | string,
+): Command | null {
+  if (hotkey === "capture-analyze") return "capture.analyze";
+  return COMMANDS.find((each) => each === hotkey) ?? null;
 }
 
 // Which panel's document runs a host intent when the shell opens one document

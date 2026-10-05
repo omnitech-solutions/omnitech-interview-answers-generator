@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildStartRequest,
   defaultMatrix,
+  HOST_SOURCES,
   initialForm,
   matrixOptions,
   type SetupForm,
+  startBlocker,
   startErrorMessage,
 } from "./setup-model";
 
@@ -35,7 +37,7 @@ const choices: LiveSessionChoicesResponse = {
 };
 
 const ready = (patch: Partial<SetupForm>): SetupForm => ({
-  ...initialForm(),
+  ...initialForm("mac"),
   consent: true,
   ...patch,
 });
@@ -94,7 +96,7 @@ describe("start request", () => {
     });
   });
   it("refuses without a target, consent or a source", () => {
-    expect(buildStartRequest(initialForm(), "r", [])).toBeNull();
+    expect(buildStartRequest(initialForm("mac"), "r", [])).toBeNull();
     expect(
       buildStartRequest(
         ready({ target: { kind: "rehearsal" }, sources: [] }),
@@ -104,11 +106,54 @@ describe("start request", () => {
     ).toBeNull();
     expect(
       buildStartRequest(
-        { ...initialForm(), target: { kind: "rehearsal" } },
+        { ...initialForm("mac"), target: { kind: "rehearsal" } },
         "r",
         [],
       ),
     ).toBeNull();
+  });
+});
+
+describe("host defaults", () => {
+  it("starts the Mac app on all three sources and a browser without app audio", () => {
+    expect(initialForm("mac").sources).toEqual(HOST_SOURCES.mac);
+    expect(initialForm("browser").sources).toEqual(["microphone", "screen"]);
+    expect(initialForm("browser").host).toBe("browser");
+  });
+  it("sends the chosen sources, never the host", () => {
+    const request = buildStartRequest(
+      ready({
+        host: "browser",
+        sources: HOST_SOURCES.browser,
+        target: { kind: "rehearsal" },
+      }),
+      "r",
+      [],
+    );
+    expect(request?.captureSources).toEqual(["microphone", "screen"]);
+    expect(request).not.toHaveProperty("host");
+  });
+});
+
+describe("start blocker", () => {
+  const full = ready({ target: { kind: "rehearsal" } });
+  it("names the first thing in the way, in the page's order", () => {
+    expect(startBlocker(initialForm("mac"), null)).toBe(
+      "Choose what the session is for.",
+    );
+    expect(startBlocker({ ...full, sources: [], consent: false }, null)).toBe(
+      "Choose at least one source.",
+    );
+    expect(startBlocker({ ...full, consent: false }, null)).toBe(
+      "Confirm everyone has agreed.",
+    );
+    expect(startBlocker(full, null)).toBeNull();
+  });
+  it("applies a device-only block only to a device-only session", () => {
+    expect(startBlocker(full, "Blocked here")).toBeNull();
+    expect(
+      startBlocker({ ...full, policy: "device-only" }, "Blocked here"),
+    ).toBe("Blocked here");
   });
 });
 

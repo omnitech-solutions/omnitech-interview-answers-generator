@@ -1,10 +1,10 @@
 // Follow-up input and the footer: the honest "Visible window" note, Pause or
 // Resume, and End (with its own confirmation). Each calls a store action.
 
-import { latestRefusalReason } from "../session-client";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
+import { latestRefusalReason } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD_ID } from "./build-id";
 import { type FooterButtonId, footerButtons } from "./panels/toolbar-config";
@@ -98,6 +98,8 @@ export function Footer({
   ended = false,
   onStart,
   starting = false,
+  clock,
+  onOpenSummary,
 }: {
   // False when Pause and End live elsewhere.
   controls?: boolean;
@@ -107,6 +109,11 @@ export function Footer({
   ended?: boolean;
   onStart?(): void;
   starting?: boolean;
+  // The one-window view shows the session's running time beside a live dot
+  // (amber while paused).
+  clock?: { label: string; paused: boolean } | null;
+  // A finished session offers its summary page.
+  onOpenSummary?(): void;
   paused: boolean;
   pending: readonly string[];
   actions: SessionActions;
@@ -129,6 +136,7 @@ export function Footer({
     resume: () => void run(actions.resume()),
     end: () => setConfirming(true),
     start: () => onStart?.(),
+    summary: () => onOpenSummary?.(),
   };
   return (
     <div className="ov-footer">
@@ -143,6 +151,18 @@ export function Footer({
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>
+        {clock && (
+          <span
+            className="ov-clock"
+            role="timer"
+            aria-label={`Session time ${clock.label}${clock.paused ? ", paused" : ""}`}
+            data-paused={clock.paused ? "true" : undefined}
+            data-testid="ov-clock"
+          >
+            <span className="ov-clock-dot" aria-hidden="true" />
+            {clock.label}
+          </span>
+        )}
         {controls &&
           footerButtons({
             paused,
@@ -151,6 +171,7 @@ export function Footer({
             busy: pending.includes("pause") || pending.includes("resume"),
             wording: sessionWording ? "session" : "short",
             canStart: onStart !== undefined,
+            canSummary: onOpenSummary !== undefined,
           }).map((button) => (
             <button
               key={button.id}

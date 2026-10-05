@@ -14,20 +14,20 @@ import { useLiveSession } from "../../use-live-session";
 import { installHostSurface, isNativeSurface } from "../host-surface";
 import { tellHost } from "../overlay-url";
 import { useAutoSession } from "./auto-session";
+import { useCaptureMode } from "./capture-mode";
 import { PANEL_LABEL, PANELS, type PanelKind } from "./panel-kinds";
 import {
   AnalysisPanel,
   ChatPanel,
   type PanelSession,
-  PillPanel,
   SettingsPanel,
   Toasts,
 } from "./panel-views";
-import { useCaptureMode } from "./capture-mode";
-import { SinglePanel, usePanes } from "./single-panel";
 import { createPipPresentation } from "./pip-adapter";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
+import { SinglePanel, usePanes } from "./single-panel";
+import { PillPanel } from "./toolbar";
 import { usePanelSession } from "./use-panel-session";
 
 function View({

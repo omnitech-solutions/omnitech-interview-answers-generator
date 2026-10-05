@@ -7,25 +7,25 @@
 // [SAFETY] Nothing here hides a window or types into another app. A capture
 // goes through the same owner capture route, with the owner's region, as the
 // card's; a device-only session never sends one.
-import {
-  LIVE_OWNER_SKILL_LABELS,
-  type LiveOwnerSkill,
-  type PresentationHost,
+import type {
+  LiveOwnerSkill,
+  PresentationHost,
 } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { nativeCaptureAvailable, onHostHotkey } from "../../host-adapter";
 import { isOpenSession } from "../../session-deps";
+import { SKILLS } from "../../shared/skills";
+import { missingContextFor, taskCardModel } from "../../shared/task-card-model";
+import { resolveTarget, targetOf } from "../../shared/task-target";
 import { useLiveSession } from "../../use-live-session";
 import { loadAutoPreferred, saveAutoPreferred } from "../auto-prefs";
 import { loadMask, loadSettings } from "../capture-prefs";
 import { FrameError } from "../capture-source";
 import { claimCaptureTrigger } from "../capture-trigger";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
+import { AUTO_CAPTURE_LABEL } from "../overlay-card";
 import { failureNote } from "../overlay-footer";
 import type { ChatEntry } from "../overlay-model";
-import { AUTO_CAPTURE_LABEL } from "../overlay-card";
-import { missingContextFor } from "./panel-model";
-import { phaseLabel } from "./toolbar-config";
 import { useAutoMode } from "../use-auto-mode";
 import { useCapturePrefs } from "../use-capture-prefs";
 import { useCompanionCapture } from "../use-companion-capture";
@@ -34,16 +34,17 @@ import {
   type Command,
   claimCommand,
   commandOf,
+  commandOfHotkey,
   cycleSkill,
   DEFAULT_SKILL,
-  INTENT_TARGET,
-  intentOf,
+  FOCUS_INPUT_EVENT,
 } from "./commands";
 import { openPanelBus, type PanelMessage, type PanelState } from "./panel-bus";
 import type { PanelKind } from "./panel-kinds";
-import type { SystemLine } from "./panel-model";
+import { type SystemLine, taskMarkers } from "./panel-model";
 import { useOwnsSession } from "./panel-owner";
 import { useInteractionMode } from "./presentation-host";
+import { autoLimits } from "./toolbar-config";
 import { engineHost, engineLine, useEngine } from "./use-engine";
 
 export const TOAST_MS = 3_000;
@@ -51,6 +52,8 @@ export const MAX_LINES = 40;
 
 // The exact toast words (bottom-left, large white text, gone after ~3 s).
 export type Toast = { key: number; title: string; detail: string };
+const skillLabel = (skill: LiveOwnerSkill): string =>
+  SKILLS.find((option) => option.id === skill)?.label ?? skill;
 export const TOAST_TEXT = {
   interaction: (on: boolean): Omit<Toast, "key"> => ({
     title: `Interaction Mode: ${on ? "ON" : "OFF"}`,
@@ -63,11 +66,15 @@ export const TOAST_TEXT = {
     detail: "option + R",
   }),
   skillChanged: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
-    title: `Skill changed to - ${LIVE_OWNER_SKILL_LABELS[skill]}`,
+    title: `Skill changed to - ${skillLabel(skill)}`,
     detail: "Look in the small tab above",
   }),
+  copied: (what: string): Omit<Toast, "key"> => ({
+    title: `Copied ${what}`,
+    detail: "",
+  }),
   skillCurrent: (skill: LiveOwnerSkill): Omit<Toast, "key"> => ({
-    title: `Current Skill - ${LIVE_OWNER_SKILL_LABELS[skill]}`,
+    title: `Current Skill - ${skillLabel(skill)}`,
     detail: "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)",
   }),
 };
@@ -353,7 +360,6 @@ export function usePanelSession(
     report();
   }, [report, live.auto, live.mic, live.interim, live.sharing, live.phase]);
 
-  useEffect(() => {}, [owns, open, bus]);
   // Stop what is running now: the server cancels the in-flight work and does not
   // try it again, and the session stays open (the mic keeps listening). The panels
   // stop saying "Analyzing" at once, without waiting for the server.
@@ -363,8 +369,7 @@ export function usePanelSession(
     setStopped(true);
     setNote(null);
     const result = await actions.stopWork();
-    if (!result.ok) return setNote(failureNote(result.code));
-    addSystem("Analysis stopped.");
+    if (!result.ok) setNote(failureNote(result.code));
   }
   const press = useCallback(
     (command: "capture" | "attach" | "toggle-mic") => {
@@ -505,6 +510,9 @@ export function usePanelSession(
         case "session.clear":
           clearMemory(true);
           return;
+        case "chat.focus":
+          window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+          return;
         case "panel.toggle": {
           const shown = presentation.openPanels().includes("analysis");
           const done = await (shown
@@ -517,8 +525,6 @@ export function usePanelSession(
     },
     [actions, presentation, prefs.setSettings, setAuto, toast],
   );
-  const perPanelHost = useRef(false);
-  perPanelHost.current = presentation.capabilities.includes("multi-panel");
   const runRef = useRef(run);
   runRef.current = run;
   const runOnce = useCallback((command: Command) => {
@@ -535,30 +541,21 @@ export function usePanelSession(
     };
     window.addEventListener("keydown", onKey);
     const removeHost = onHostHotkey((hotkey) => {
-      const intent = intentOf(hotkey);
-      if (!intent) return;
+      const command = commandOfHotkey(hotkey);
+      if (!command) return;
       if (typeof document !== "undefined" && document.hidden) return;
-      if (intent.kind === "skill") {
-        // The shell holds no skill: one page writes it, the others follow
-        // through storage, and each shows its own toast.
-        void claimCommand("skill.next").then((granted) => {
-          if (granted)
-            prefs.setSettings({ ...settingsRef.current, skill: intent.skill });
-        });
-        return;
-      }
       // Whichever document the shell delivered the key to runs it once (a Web Lock
       // dedupes a key several documents hear); a document that is not the owner
       // hands it to the owner over the panel bus (see `press`). Filtering by
       // "the panel it is for" dropped the key whenever the shell delivered it to a
       // different panel than the page expected.
-      runOnce(intent.command);
+      runOnce(command);
     });
     return () => {
       window.removeEventListener("keydown", onKey);
       removeHost();
     };
-  }, [runOnce, panel, prefs.setSettings]);
+  }, [runOnce]);
 
   // ---- Toasts for changes -------------------------------------------------------
   const lastSkill = useRef<LiveOwnerSkill>(skill);
@@ -595,7 +592,11 @@ export function usePanelSession(
     async (text: string) => {
       setNote(null);
       const origin = sessionNow.current;
-      const result = await actions.submitFollowUp(text, latest.current.hints);
+      const result = await actions.submitFollowUp(
+        text,
+        targetOf(selectedRef.current),
+        latest.current.hints,
+      );
       if (origin !== sessionNow.current) return result;
       if (result.ok) {
         const at = Date.now();
@@ -618,13 +619,55 @@ export function usePanelSession(
   // transcript. Choosing only changes what is shown; the other task keeps running
   // unless they stop it. A new task takes over the view.
   const [pinned, setPinned] = useState<string | null>(null);
-  const newest = tasks[tasks.length - 1];
-  const selected = tasks.find((task) => task.taskId === pinned) ?? newest;
+  const resolved = resolveTarget(tasks, pinned);
+  const selected = resolved?.task;
   const taskCount = tasks.length;
   useEffect(() => {
     if (taskCount >= 0) setPinned(null);
   }, [taskCount]);
   selectedRef.current = selected;
+  // The one description of the task on show, shared with the web page; and the
+  // lines between the conversation's own (a task starting, a task stopped).
+  const card = useMemo(
+    () =>
+      taskCardModel({
+        tasks,
+        actions: snapshot.actions,
+        observations: snapshot.observations,
+        selectedTaskId: pinned,
+        deviceOnly,
+      }),
+    [tasks, snapshot.actions, snapshot.observations, pinned, deviceOnly],
+  );
+  const markers = useMemo(
+    () =>
+      taskMarkers({
+        tasks,
+        actions: snapshot.actions,
+        observations: snapshot.observations,
+        deviceOnly,
+      }),
+    [tasks, snapshot.actions, snapshot.observations, deviceOnly],
+  );
+  const setSkill = useCallback(
+    (next: LiveOwnerSkill) =>
+      prefs.setSettings({ ...settingsRef.current, skill: next }),
+    [prefs.setSettings],
+  );
+  // Auto's own numbers, for the strip and the capture menu: the interval in
+  // force and the per-session limit, from the one Auto config.
+  const autoNow = {
+    on: auto.on,
+    line: auto.line,
+    limits: autoLimits(auto.intervalSec),
+    // Auto is only watching the screen while the analysis shows, a screen is
+    // wanted and the session may send it.
+    watching:
+      options.watchScreen === true &&
+      auto.on &&
+      !deviceOnly &&
+      (session?.captureSources.includes("screen") ?? false),
+  };
 
   // What the model says it could not see for the task on show, until the person
   // says the problem looks complete (per task revision).
@@ -675,7 +718,14 @@ export function usePanelSession(
     notify: setNote,
     toasts,
     selected,
+    card,
+    markers,
+    // The task a follow-up or an added screen is about, with its label ("T2").
+    target: resolved,
     select: setPinned,
+    setSkill,
+    stop: stopAnalysis,
+    auto: autoNow,
     missing,
     dismissMissing,
     phase,

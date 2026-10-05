@@ -1,7 +1,7 @@
 import Foundation
 
 // [DOMAIN] What the shell remembers between launches: interaction mode, the
-// current skill, the layout, which panels are shown and where. Behind a tiny
+// layout, which panels are shown and where. Behind a tiny
 // store so the rules are tested without UserDefaults. Nothing here is content.
 public protocol SettingsStore {
     func string(forKey key: String) -> String?
@@ -60,12 +60,6 @@ public enum ToastText {
             : Toast("Interaction Mode: OFF", "Red dot shows interaction mode is off")
     }
     public static let recording = Toast("Start/Stop Recording", "option + R")
-    public static func skillChanged(_ skill: OwnerSkill) -> Toast {
-        Toast("Skill changed to - \(skill.label)", "Look in the small tab above")
-    }
-    public static func currentSkill(_ skill: OwnerSkill) -> Toast {
-        Toast("Current Skill - \(skill.label)", "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)")
-    }
 }
 
 // Where a toast sits: bottom-left of the display, as wide as its gradient.
@@ -107,11 +101,6 @@ public struct ShellPrefs {
         // "interactive2": an earlier build persisted OFF as its default; start fresh.
         get { InteractionState(isInteractive: store.string(forKey: "interactive2") != "0") }
         nonmutating set { store.set(newValue.isInteractive ? "1" : "0", forKey: "interactive2") }
-    }
-
-    public var skill: OwnerSkill {
-        get { store.string(forKey: "skill").flatMap(OwnerSkill.init(rawValue:)) ?? .default }
-        nonmutating set { store.set(newValue.rawValue, forKey: "skill") }
     }
 
     public var appMode: AppMode {

@@ -9,13 +9,21 @@ export const SESSION_TABS: readonly { id: SessionTabId; label: string }[] = [
   { id: "sources", label: "Sources" },
 ];
 
+// What a tab's red dot says, for the tab that carries one.
+const ALERT_TEXT: Partial<Record<SessionTabId, string>> = {
+  sources: "A selected source is not receiving.",
+};
+
 export function SessionTabs({
   tab,
   onTab,
+  alerts = {},
   children,
 }: {
   tab: SessionTabId;
   onTab(next: SessionTabId): void;
+  // Tabs that need attention: a red dot, and the reason for assistive tech.
+  alerts?: Partial<Record<SessionTabId, boolean>>;
   children: ReactNode;
 }) {
   const prefix = useId();
@@ -58,8 +66,15 @@ export function SessionTabs({
             className="live-tab"
             onClick={() => onTab(entry.id)}
             onKeyDown={(event) => move(event, index)}
+            aria-description={
+              alerts[entry.id] ? ALERT_TEXT[entry.id] : undefined
+            }
+            data-alert={alerts[entry.id] || undefined}
           >
             {entry.label}
+            {alerts[entry.id] && (
+              <span className="live-tab-dot" aria-hidden="true" />
+            )}
           </button>
         ))}
       </div>

@@ -15,6 +15,13 @@ import {
 } from "./session-results";
 import { SOURCE_LABEL, type SourceIndex, sourceIndex } from "./session-sources";
 import type { TaskKind, TaskView } from "./session-tasks";
+import {
+  type SnapshotRef,
+  snapshotLabelOf,
+  snapshotOrdinals,
+  taskCardModel,
+} from "./shared/task-card-model";
+import { taskOrdinal } from "./shared/task-target";
 
 export type TranscriptRow =
   | {
@@ -39,6 +46,8 @@ export type TranscriptRow =
   | {
       type: "screenshot";
       sequence: number;
+      sourceId: string;
+      eventId: string;
       receivedAt: string;
       windowLabel: string;
       artifactId: string | null;
@@ -63,6 +72,8 @@ export type TranscriptRow =
   | {
       type: "new-task";
       taskId: string;
+      // 1-based, in creation order: "T1".
+      ordinal: number;
       revision: number;
       kind: TaskKind;
       // The revision after the first: a changed or follow-up task.
@@ -103,6 +114,8 @@ function observationRow(
     return {
       type: "screenshot",
       sequence,
+      sourceId: observation.sourceId,
+      eventId: observation.eventId,
       receivedAt,
       windowLabel: content.windowLabel,
       artifactId: observation.screenshotArtifactId,
@@ -182,6 +195,7 @@ export function transcriptRows(
       task.revisions.map((revision) => ({
         type: "new-task" as const,
         taskId: task.taskId,
+        ordinal: taskOrdinal(tasks, task.taskId) ?? 0,
         revision: revision.revision,
         kind: task.kind,
         revised: revision.revision > (task.revisions[0]?.revision ?? 0),
@@ -199,4 +213,38 @@ export function transcriptRows(
   }
   while (next < marks.length) merged.push(marks[next++] as TranscriptRow);
   return merged;
+}
+
+// The screenshot numbers the Transcript shows: "S1" beside each screenshot and
+// "S1 analysed → T1 started" where a task is known to rest on one. The labels
+// come from the shared task card model; a screenshot or a link that is not
+// known has no label, and the row then says nothing about it.
+export type TranscriptLabels = {
+  snapshot(ref: SnapshotRef): string | null;
+  taskSnapshot(taskId: string): string | null;
+};
+
+export const NO_LABELS: TranscriptLabels = {
+  snapshot: () => null,
+  taskSnapshot: () => null,
+};
+
+export function transcriptLabels(input: {
+  tasks: readonly TaskView[];
+  actions: Parameters<typeof taskCardModel>[0]["actions"];
+  observations: Parameters<typeof taskCardModel>[0]["observations"];
+  deviceOnly: boolean;
+}): TranscriptLabels {
+  const ordinals = snapshotOrdinals(input.observations);
+  const byTask = new Map<string, string | null>();
+  for (const task of input.tasks)
+    byTask.set(
+      task.taskId,
+      taskCardModel({ ...input, selectedTaskId: task.taskId })?.snapshotLabel ??
+        null,
+    );
+  return {
+    snapshot: (ref) => snapshotLabelOf(ref, ordinals),
+    taskSnapshot: (taskId) => byTask.get(taskId) ?? null,
+  };
 }

@@ -38,3 +38,30 @@ describe("stored action generatedBy", () => {
     ).not.toHaveProperty("generatedBy");
   });
 });
+
+describe("stored action sourceSnapshots", () => {
+  const withIds = (ids: unknown) => ({ ...row(null), snapshot_event_ids: ids });
+
+  it("lifts snapshot provenance ids to source and event ids, in order", () => {
+    const stored = toStoredAction(
+      withIds([
+        "snap/00000000-0000-4000-8000-0000000000aa/screen/s1",
+        "snap/00000000-0000-4000-8000-0000000000aa/screen/s2",
+      ]),
+    );
+    expect(stored.sourceSnapshots).toEqual([
+      { sourceId: "screen", eventId: "s1" },
+      { sourceId: "screen", eventId: "s2" },
+    ]);
+    // Only ids: no session id, no content.
+    expect(JSON.stringify(stored.sourceSnapshots)).not.toContain("0000aa");
+  });
+
+  it("is absent without snapshots, malformed ids or the column", () => {
+    expect(toStoredAction(row(null))).not.toHaveProperty("sourceSnapshots");
+    expect(toStoredAction(withIds([]))).not.toHaveProperty("sourceSnapshots");
+    expect(toStoredAction(withIds(["snap/bad"]))).not.toHaveProperty(
+      "sourceSnapshots",
+    );
+  });
+});

@@ -7,6 +7,8 @@ import type {
 } from "@omnitech/interview-contracts";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { EndConfirm } from "./end-confirm";
+import { presentation } from "./focus-presentation";
 import { SessionBar } from "./session-bar";
 import {
   disconnected,
@@ -111,6 +113,33 @@ describe("visibility", () => {
     await openBar("header");
     expect(bar()).toHaveAttribute("data-variant", "header");
     expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
+  });
+});
+
+describe("header controls", () => {
+  it("has ONE Pop out control that opens the floating presentation, not separate Card view and Float buttons", async () => {
+    await openBar("header");
+    expect(screen.queryByRole("button", { name: "Card view" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Float" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pop out" }));
+    expect(presentation.get().mode).toBe("floating");
+    presentation.reset();
+  });
+
+  it("shows the clock inside the status pill, from the server clock", async () => {
+    await openBar("header");
+    const pill = bar().querySelector(".live-bar-state") as HTMLElement;
+    expect(pill).toHaveTextContent("Live");
+    expect(pill).toHaveTextContent("1:00");
+  });
+
+  it("draws an icon for each selected source, red when it is not receiving", async () => {
+    observations = [disconnected(1, "application-audio", "device-lost")];
+    await openBar("header");
+    const lost = bar().querySelector('[data-source="application-audio"]');
+    expect(lost).toHaveAttribute("data-alert", "true");
+    expect(lost?.className).toContain("red");
+    expect(lost?.getAttribute("title")).toMatch(/disconnected/);
   });
 });
 
@@ -368,6 +397,18 @@ describe("pause and resume", () => {
   });
 });
 
+describe("end copy", () => {
+  it("says it also ends in the Mac app only when the page runs in the Mac app", () => {
+    const props = { busy: false, onKeepGoing: () => {}, onEnd: () => {} };
+    const { rerender } = render(<EndConfirm {...props} />);
+    expect(screen.getByRole("alertdialog")).not.toHaveTextContent("Mac app");
+    rerender(<EndConfirm {...props} inMacApp />);
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "This also ends it in the Mac app.",
+    );
+  });
+});
+
 describe("end", () => {
   async function askEnd() {
     await openBar();
@@ -379,7 +420,7 @@ describe("end", () => {
     const dialog = await askEnd();
     expect(dialog).toHaveAccessibleName("End this session?");
     expect(dialog).toHaveAccessibleDescription(
-      "Studio stops accepting capture, cancels running work and discards any result that arrives later. This can’t be undone.",
+      "Capture stops, running work is cancelled and any result that arrives later is discarded. This can’t be undone.",
     );
     expect(server.count("POST /:id/control")).toBe(0);
   });

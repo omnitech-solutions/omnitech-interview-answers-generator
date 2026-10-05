@@ -48,6 +48,48 @@ func presentationTests(_ t: Harness) async {
         controller.perform(.setWindowSize(width: 900, height: nil))
         t.expectEqual(surface.sizes.count, 2, "ignored outside the one window")
     }
+    await t.test("click-through in the one window: the window stays shown, ignores the mouse, and the toggle brings it back") {
+        let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
+        let surface = RecordingSurface()
+        controller.surface = surface
+        t.expect(controller.state.compactShown && !controller.state.interaction.ignoresMouseEvents, "interactive by default")
+        controller.perform(.toggleInteractionMode)
+        t.expect(surface.rendered.last?.compactShown == true, "still on screen while click-through")
+        t.expect(surface.rendered.last?.interaction.ignoresMouseEvents == true, "the one window follows interaction state")
+        t.expectEqual(controller.state.layout, .compact)
+        // The hotkey that turns it back on stays registered and routed while the window ignores the mouse.
+        let registered = HotkeyBinding.all.filter { !$0.requiresInteractive }
+        t.expect(registered.contains { $0.action == .toggleInteraction && $0.label == "⌘⇧I" }, "⌘⇧I always registered")
+        t.expectEqual(HotkeyRouting.effect(for: .toggleInteraction, interactive: false), .present(.toggleInteractionMode))
+        controller.perform(.setInteractionMode(true))
+        t.expect(surface.rendered.last?.interaction.ignoresMouseEvents == false)
+        // OFF persists as OFF; the next launch starts from the saved choice.
+        let store = MemoryStore()
+        PresentationController(prefs: ShellPrefs(store: store)).perform(.setInteractionMode(false))
+        t.expect(!PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive)
+    }
+
+    await t.test("Settings opens beside the one window without changing the layout; the chat key is an intent") {
+        let controller = PresentationController(prefs: ShellPrefs(store: MemoryStore()))
+        let surface = RecordingSurface()
+        controller.surface = surface
+        controller.perform(.openPanel(.settings))
+        t.expectEqual(controller.state.layout, .compact, "Settings leaves the layout alone")
+        t.expect(controller.state.compactShown, "the one window stays")
+        t.expectEqual(controller.state.shownPanels, [.settings])
+        controller.perform(.closePanel(.settings))
+        t.expectEqual(controller.state.shownPanels, [])
+        // The chat key sends an intent to the page; it never touches the layout.
+        t.expectEqual(HotkeyRouting.effect(for: .showChat, interactive: false), .intent(.chatFocus))
+        t.expectEqual(HostCommand.chatFocus.wireName, "chat.focus")
+        t.expectEqual(HostCommand.chatFocus.target, .chat)
+        t.expectEqual(HostBridgeScript.emit(.chatFocus), "window.__studioHostEmit && window.__studioHostEmit(\"chat.focus\");")
+        t.expectEqual(HotkeyRouting.effect(for: .openSettings, interactive: false), .present(.openPanel(.settings)))
+        // Another panel still opens the separate-panels layout.
+        controller.perform(.openPanel(.chat))
+        t.expectEqual(controller.state.layout, .panels)
+    }
+
     // MARK: layout maths
     await t.test("default layout is the video's: bar top-centre, chat left, analysis right of it, settings top-right") {
         let pill = PanelLayout.defaultFrame(.pill, in: display)
@@ -176,7 +218,7 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(effect(.skillPrevious, true), .intent(.skillPrevious))
         t.expectEqual(effect(.moveUp), .present(.movePanels(dx: 0, dy: 40)))
         t.expectEqual(effect(.resizeWider), .present(.resizePanel(.analysis, dw: 40, dh: 0)))
-        t.expectEqual(effect(.showChat), .present(.focusPanel(.chat)))
+        t.expectEqual(effect(.showChat), .intent(.chatFocus))
         t.expectEqual(effect(.openSettings), .present(.openPanel(.settings)))
         // Every binding has a mapping when interactive.
         for binding in HotkeyBinding.all { t.expect(effect(binding.action, true) != nil, "\(binding.label) maps") }
@@ -188,7 +230,6 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(HostCommand.skillNext.wireName, "skill.next")
         t.expectEqual(HostCommand.skillPrevious.wireName, "skill.prev")
         t.expectEqual(HostCommand.sessionClear.wireName, "session.clear")
-        t.expectEqual(HostCommand.setSkill(.behavioral).wireName, "skill.set:behavioral")
         t.expectEqual(HostCommand.captureAnalyze.target, .analysis)
         t.expectEqual(HostCommand.transcribeToggle.target, .chat)
         t.expectEqual(HostCommand.sessionClear.target, nil)
@@ -225,13 +266,11 @@ func presentationTests(_ t: Harness) async {
 
     await t.test("toasts use the video's exact words and appear for the right keys") {
         t.expectEqual(ToastText.recording, Toast("Start/Stop Recording", "option + R"))
-        t.expectEqual(ToastText.skillChanged(.systemDesign), Toast("Skill changed to - System Design", "Look in the small tab above"))
-        t.expectEqual(ToastText.currentSkill(.dsa), Toast("Current Skill - DSA", "Change Skill: Cmd + Arrow Up/Down (Only in interaction mode)"))
-        t.expectEqual(HotkeyRouting.toast(for: .toggleMic, skill: .dsa), ToastText.recording)
-        t.expectEqual(HotkeyRouting.toast(for: .skillNext, skill: .systemDesign), ToastText.skillChanged(.systemDesign))
-        t.expectEqual(HotkeyRouting.toast(for: .skillPrevious, skill: .programming), ToastText.skillChanged(.programming))
-        t.expectEqual(HotkeyRouting.toast(for: .captureAnalyze, skill: .dsa), ToastText.currentSkill(.dsa))
-        t.expectEqual(HotkeyRouting.toast(for: .clearSession, skill: .dsa), nil)
+        t.expectEqual(HotkeyRouting.toast(for: .toggleMic), ToastText.recording)
+        // The shell holds no skill: no key raises a skill toast, a capture least of all.
+        for action in [HotkeyBinding.Action.skillNext, .skillPrevious, .captureAnalyze, .clearSession] {
+            t.expectEqual(HotkeyRouting.toast(for: action), nil)
+        }
         // Bottom-left of the display, click-through banner ~3 s.
         let frame = ToastLayout.frame(on: display)
         t.expectEqual(frame.minX, display.minX)
@@ -431,7 +470,5 @@ func presentationTests(_ t: Harness) async {
             "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=pill&handsfree=1")
         t.expectEqual(location.overlayURL().absoluteString,
             "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native")
-        t.expectEqual(OwnerSkill.dsa.cycled(by: -1), .programming)
-        t.expectEqual(OwnerSkill.programming.cycled(by: -1), .devops)
     }
 }

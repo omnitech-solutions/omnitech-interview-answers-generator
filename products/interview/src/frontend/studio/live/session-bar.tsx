@@ -3,10 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import { speechState } from "./companion-capability";
 import { EndConfirm } from "./end-confirm";
-import { presentation } from "./focus-presentation";
+import { presentation, usePresentation } from "./focus-presentation";
+import { studioHostInfo } from "./host-adapter";
 import {
   commandMessage,
   companionLine,
+  LOCALITY_ICON,
+  PAUSE_CONTROL,
   PAUSED_TOAST,
   RESUMED_RENEWED_TOAST,
   RESUMED_TOAST,
@@ -51,6 +54,7 @@ function OpenSessionBar({
 }: SessionBarProps & { session: LiveSessionView }) {
   const { snapshot, actions, model } = useLiveSession();
   const target = useSessionTarget(session);
+  const { mode: presentationMode } = usePresentation();
   const [confirming, setConfirming] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -76,6 +80,7 @@ function OpenSessionBar({
   const pauseBusy = resuming || pending("pause", "resume", "renew");
   const endBusy = pending("end");
   const paused = session.status === "paused";
+  const pauseFace = paused ? PAUSE_CONTROL.resume : PAUSE_CONTROL.pause;
   const fail = (code: SessionErrorCode) =>
     setNotice({ tone: "error", text: commandMessage(code) });
 
@@ -144,38 +149,43 @@ function OpenSessionBar({
       aria-label="Session control"
     >
       <div className="live-bar-main">
-        <span role="status" className="live-bar-state">
+        <span className="live-bar-state">
+          <span role="status" className="live-bar-status">
+            <span
+              className={`live-dot ${state.tone === "neutral" ? "" : state.tone}${state.pulse ? " pulse" : ""}`}
+              aria-hidden="true"
+            />
+            <span className="live-bar-label">{state.label}</span>
+          </span>
           <span
-            className={`live-dot ${state.tone === "neutral" ? "" : state.tone}${state.pulse ? " pulse" : ""}`}
-            aria-hidden="true"
-          />
-          <span className="live-bar-label">{state.label}</span>
+            className="live-bar-elapsed"
+            title="Elapsed on the server clock"
+          >
+            {model.elapsedLabel}
+          </span>
         </span>
         <span className="live-bar-target">{target}</span>
-        <span className="live-bar-elapsed" title="Elapsed on the server clock">
-          {model.elapsedLabel}
-        </span>
         {showActivity && (
           <span className="live-bar-activity">{model.activity.text}</span>
         )}
       </div>
 
       <ul className="live-bar-chips" aria-label="Capture sources">
-        {companion.connected ? (
-          chips.map((chip) => (
-            <li
-              key={chip.source}
-              className={`live-chip ${chip.tone === "none" ? "" : chip.tone}`}
-              title={chip.title}
-              data-source={chip.source}
-              data-reason={chip.reason ?? undefined}
-            >
-              <Icon name={chip.icon} />
-              <span className="live-chip-text">{chip.label}</span>
-              <span className="live-sr-only">{`, ${chip.state}`}</span>
-            </li>
-          ))
-        ) : (
+        {chips.map((chip) => (
+          <li
+            key={chip.source}
+            className={`live-chip ${chip.tone === "none" ? "" : chip.tone}`}
+            title={chip.title}
+            data-source={chip.source}
+            data-reason={chip.reason ?? undefined}
+            data-alert={chip.alert || undefined}
+          >
+            <Icon name={chip.icon} />
+            <span className="live-chip-text">{chip.label}</span>
+            <span className="live-sr-only">{`, ${chip.state}`}</span>
+          </li>
+        ))}
+        {!companion.connected && (
           <li
             className="live-chip neutral"
             title={companion.title}
@@ -204,13 +214,7 @@ function OpenSessionBar({
             data-testid="locality-chip"
             data-policy={model.locality.policy}
           >
-            <Icon
-              name={
-                model.locality.policy === "device-only"
-                  ? "devices"
-                  : "cloud_done"
-              }
-            />
+            <Icon name={LOCALITY_ICON[model.locality.policy]} />
             <span className="live-chip-text">{model.locality.label}</span>
             <span className="live-sr-only">{`. ${model.locality.meaning}`}</span>
           </li>
@@ -219,26 +223,16 @@ function OpenSessionBar({
 
       <div className="live-bar-actions" role="toolbar" aria-label="Session">
         {variant === "header" && (
-          <>
-            <button
-              type="button"
-              className="studio-button live-bar-button live-bar-icon"
-              aria-label="Card view"
-              title="Card view: a compact card over this page"
-              onClick={() => presentation.setMode("card")}
-            >
-              <Icon name="fit_screen" />
-            </button>
-            <button
-              type="button"
-              className="studio-button live-bar-button live-bar-icon"
-              aria-label="Float"
-              title="Float: pop the card out into its own window"
-              onClick={() => presentation.setMode("floating")}
-            >
-              <Icon name="open_in_new" />
-            </button>
-          </>
+          <button
+            type="button"
+            className="studio-button live-bar-button"
+            title="Pop out the capture controls into a floating window"
+            disabled={presentationMode === "floating"}
+            onClick={() => presentation.setMode("floating")}
+          >
+            <Icon name="picture_in_picture_alt" />
+            Pop out
+          </button>
         )}
         {variant === "bar" && (
           <button
@@ -258,8 +252,8 @@ function OpenSessionBar({
             disabled={pauseBusy}
             onClick={() => void (paused ? resume() : pause())}
           >
-            <Icon name={paused ? "play_arrow" : "pause"} filled />
-            {paused ? "Resume" : "Pause"}
+            <Icon name={pauseFace.icon} filled />
+            {pauseFace.label}
           </button>
         )}
         <button
@@ -280,6 +274,7 @@ function OpenSessionBar({
       {confirming && (
         <EndConfirm
           busy={endBusy}
+          inMacApp={studioHostInfo() !== null}
           onKeepGoing={closeConfirm}
           onEnd={() => void end()}
         />

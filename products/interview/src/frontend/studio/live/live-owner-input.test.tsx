@@ -29,6 +29,11 @@ let bodies: unknown[] = [];
 
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+// The card opens over the page; the header's one control is Pop out.
+const openCard = async () => {
+  act(() => presentation.setMode("card"));
+  await flush();
+};
 const click = async (name: string | RegExp) => {
   fireEvent.click(screen.getByRole("button", { name }));
   await flush();
@@ -54,7 +59,7 @@ async function openFocus() {
   );
   await flush();
   await flush();
-  await click("Card view");
+  await openCard();
 }
 
 beforeEach(() => {
@@ -162,6 +167,42 @@ describe("Analyze latest capture and follow-ups", () => {
       text: "and the cost?",
       target: { taskId: "task-spoken", revision: 2 },
       snapshots: [],
+    });
+  });
+
+  it("sends a follow-up to the pinned earlier task at its own revision, not the newest", async () => {
+    page = {
+      ...page,
+      actions: [
+        answerAction(answerResult(), {
+          taskId: "task-first",
+          taskRevision: 3,
+          createdAt: minutesAfter(0, 10),
+        }),
+        answerAction(answerResult(), {
+          taskId: "task-second",
+          taskRevision: 1,
+          createdAt: minutesAfter(0, 40),
+        }),
+      ],
+    };
+    server.on("POST /:id/input", ({ body }) => {
+      bodies.push(body);
+      return jsonResponse({ input: { requestId: "r", sequence: 3 } }, 202);
+    });
+    await openFocus();
+    act(() => presentation.pin("task-first"));
+    await flush();
+    const input = screen.getByLabelText("Follow-up");
+    expect(input).toHaveAttribute(
+      "placeholder",
+      "Add context to T1, or ask a follow-up",
+    );
+    fireEvent.change(input, { target: { value: "why?" } });
+    await click("Send follow-up");
+    expect(bodies[0]).toMatchObject({
+      operation: "follow-up",
+      target: { taskId: "task-first", revision: 3 },
     });
   });
 

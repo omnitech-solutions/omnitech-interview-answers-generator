@@ -98,7 +98,7 @@ describe("banner copy", () => {
       10,
     );
     const banner = m.banners.find((b) => b.kind === "permission-revoked");
-    const copy = bannerCopy(banner!, m);
+    const copy = bannerCopy(banner!, m, "native");
     expect(copy.title).toMatch(/permission for Screen was revoked/i);
     expect(copy.detail).toMatch(/System Settings/);
     expect(copy.detail).not.toMatch(/will resume/i);
@@ -109,7 +109,11 @@ describe("banner copy", () => {
     const m = model({ lastHeartbeatAt: minutesAfter(9, 50) }, [
       gap(1, "application-audio", "buffer-overflow", 4000),
     ]);
-    const copy = bannerCopy(m.banners.find((b) => b.kind === "gap")!, m);
+    const copy = bannerCopy(
+      m.banners.find((b) => b.kind === "gap")!,
+      m,
+      "native",
+    );
     expect(copy.detail).toMatch(/recorded in the transcript/);
     const lost = model({ lastHeartbeatAt: minutesAfter(9, 50) }, [
       disconnected(1, "application-audio", "device-lost"),
@@ -117,6 +121,7 @@ describe("banner copy", () => {
     const lostCopy = bannerCopy(
       lost.banners.find((b) => b.kind === "source-lost")!,
       lost,
+      "native",
     );
     expect(lostCopy.title).toMatch(/App audio was lost/);
     expect(lostCopy.detail).toMatch(/other side of the call/);
@@ -142,6 +147,7 @@ describe("banner copy", () => {
       bannerCopy(
         expired.banners.find((b) => b.kind === "credential-expired")!,
         expired,
+        "native",
       ).action,
     ).toBe("renew");
     const cap = model(
@@ -152,6 +158,7 @@ describe("banner copy", () => {
     const copy = bannerCopy(
       cap.banners.find((b) => b.kind === "cap-near")!,
       cap,
+      "native",
     );
     expect(copy.title).toMatch(/5 min/);
     expect(copy.action).toBe(null);
@@ -159,11 +166,49 @@ describe("banner copy", () => {
 
   it("describes a pause without claiming capture stopped", () => {
     const m = model({ status: "paused", lastHeartbeatAt: minutesAfter(9, 55) });
-    const copy = bannerCopy(m.banners[0]!, m);
+    const copy = bannerCopy(m.banners[0]!, m, "native");
     expect(copy.title).toMatch(/^Paused/);
     expect(copy.detail).toMatch(/No new work will start/);
     expect(copy.detail).not.toMatch(/nothing is being captured/i);
     expect(copy.action).toBe("resume");
+  });
+});
+
+describe("banner buttons", () => {
+  const appAudio = (kind: "gap" | "source-lost") => {
+    const m = model(
+      { lastHeartbeatAt: minutesAfter(9, 50) },
+      kind === "gap"
+        ? [gap(1, "application-audio", "buffer-overflow", 4000)]
+        : [disconnected(1, "application-audio", "device-lost")],
+    );
+    return { m, banner: m.banners.find((b) => b.kind === kind)! };
+  };
+
+  it("offers pairing for lost app audio in a browser, and never a fake reconnect", () => {
+    for (const kind of ["gap", "source-lost"] as const) {
+      const { m, banner } = appAudio(kind);
+      const copy = bannerCopy(banner, m, "browser");
+      expect(copy.action).toBe("pair");
+      expect(copy.actionLabel).toBe("Pair companion");
+    }
+  });
+
+  it("sends the Mac app to Sources, since no bridge action can reconnect a source", () => {
+    for (const kind of ["gap", "source-lost"] as const) {
+      const { m, banner } = appAudio(kind);
+      const copy = bannerCopy(banner, m, "native");
+      expect(copy.action).toBe("sources");
+      expect(copy.actionLabel).toBe("Open Sources");
+    }
+  });
+
+  it("sends a lost microphone to Sources in either host", () => {
+    const m = model({ lastHeartbeatAt: minutesAfter(9, 50) }, [
+      disconnected(1, "microphone", "device-lost"),
+    ]);
+    const banner = m.banners.find((b) => b.kind === "source-lost")!;
+    expect(bannerCopy(banner, m, "browser").action).toBe("sources");
   });
 });
 

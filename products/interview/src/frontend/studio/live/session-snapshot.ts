@@ -16,6 +16,7 @@ import type {
   OwnerHints,
 } from "./session-capture";
 import type { SessionErrorCode } from "./session-client";
+import type { TaskTarget } from "./shared/task-target";
 
 export type SessionCommand =
   | "start"
@@ -105,7 +106,7 @@ export type SessionActions = {
   // Owner input: thin calls to the session deps. "unavailable" when the server
   // has no such route; "invalid_input" for an empty follow-up.
   analyzeLatestCapture(
-    target?: { taskId: string; revision: number },
+    target?: TaskTarget,
     hints?: OwnerHints,
     // The stored capture to analyze (its identity as shown to the owner);
     // without it, the newest stored one.
@@ -117,13 +118,15 @@ export type SessionActions = {
   // state; poll captureStatus until it is no longer pending.
   requestCapture(input: CompanionCaptureInput): Promise<CaptureRequestResult>;
   captureStatus(requestId: string): Promise<CaptureRequestResult>;
-  submitFollowUp(text: string, hints?: OwnerHints): Promise<CommandResult>;
-  // Generate the solution code for one task revision (the coding stage). One
-  // request per revision: asking again for the same one is the same request.
-  solveTask(
-    target: { taskId: string; revision: number },
+  // About the given task revision; null is an explicit general question.
+  submitFollowUp(
+    text: string,
+    target: TaskTarget | null,
     hints?: OwnerHints,
   ): Promise<CommandResult>;
+  // Generate the solution code for one task revision (the coding stage). One
+  // request per revision: asking again for the same one is the same request.
+  solveTask(target: TaskTarget, hints?: OwnerHints): Promise<CommandResult>;
   // Hands-free Auto: one heard phrase, idempotent by `requestId`. A failure is
   // returned, never held as the session's command error.
   submitHeard(text: string, requestId: string): Promise<CommandResult>;

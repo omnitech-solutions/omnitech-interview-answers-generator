@@ -16,6 +16,13 @@ import {
   codingAnswer,
 } from "./session-result-fixtures";
 
+const openCode = () =>
+  fireEvent.click(screen.getByRole("tab", { name: "Code" }));
+const stage = (id: string) =>
+  screen
+    .getByLabelText("Stages")
+    .querySelector(`[data-stage="${id}"]`) as HTMLElement;
+
 vi.mock("./workspace-handoff", async () => {
   const kit = await import("./live-draft-link");
   return { useSessionDraftLink: () => kit.draftLink.current };
@@ -77,11 +84,17 @@ describe("programming challenge", () => {
         }),
       ],
     });
-    expect(screen.getByText("Programming challenge")).toBeVisible();
+    expect(screen.getByTestId("task-panel")).toHaveAttribute(
+      "data-kind",
+      "programming-challenge",
+    );
     expect(
-      screen.getByText("Implement a rate limiter for a Node service."),
+      screen.getByRole("heading", {
+        level: 3,
+        name: /Implement a rate limiter/,
+      }),
     ).toBeVisible();
-    expect(screen.getByText("Task rev 3")).toBeVisible();
+    expect(screen.getByText("T1 · rev 3")).toBeVisible();
     const old = screen.getByText("Single thread").closest("li");
     expect(old).toHaveClass("old");
     expect(old).toHaveTextContent("replaced at rev 3");
@@ -99,15 +112,23 @@ describe("programming challenge", () => {
     show({
       actions: [coding(["a"]), solve(codeResult())],
     });
-    const state = (name: string) =>
-      screen.getByText(name, { selector: "dt" }).closest(".live-state");
-    expect(state("Generated")).toHaveAttribute("data-state", "yes");
-    expect(state("Tests passed")).toHaveAttribute("data-state", "yes");
-    expect(state("Fully verified")).toHaveAttribute("data-state", "no");
-    expect(screen.getByText("5/5 tests passed")).toBeVisible();
-    expect(screen.getByLabelText("Why not fully verified")).toHaveTextContent(
+    // The Fully verified tile says nothing is established, with the server's reason.
+    expect(stage("verified")).toHaveAttribute("data-state", "not-established");
+    expect(stage("verified")).toHaveTextContent("Not established");
+    expect(stage("verified")).toHaveTextContent(
       "A stated constraint has no test of its own.",
     );
+    expect(stage("code")).toHaveAttribute("data-state", "done");
+    openCode();
+    const badge = (id: string) =>
+      screen
+        .getByLabelText("What is established")
+        .querySelector(`[data-badge="${id}"]`);
+    expect(badge("generated")).toHaveAttribute("data-ok", "true");
+    expect(badge("tests")).toHaveAttribute("data-ok", "true");
+    expect(badge("tests")).toHaveTextContent("5/5 generated tests");
+    expect(badge("verified")).toHaveAttribute("data-ok", "false");
+    expect(badge("verified")).toHaveTextContent("Not fully verified");
   });
 
   it("claims verified only when the server says so", () => {
@@ -126,26 +147,89 @@ describe("programming challenge", () => {
         ),
       ],
     });
+    expect(stage("verified")).toHaveAttribute("data-state", "done");
+    openCode();
     expect(
       screen
-        .getByText("Fully verified", { selector: "dt" })
-        .closest(".live-state"),
-    ).toHaveAttribute("data-state", "yes");
+        .getByLabelText("What is established")
+        .querySelector('[data-badge="verified"]'),
+    ).toHaveTextContent("Fully verified");
   });
 
-  it("shows nothing as passed before a result exists", () => {
+  it("shows a running solution as running and nothing as established", () => {
     show({
       actions: [coding(["a"]), solve(null, 1, { dispatchStatus: "in_flight" })],
     });
-    for (const name of ["Generated", "Tests passed", "Fully verified"])
-      expect(
-        screen.getByText(name, { selector: "dt" }).closest(".live-state"),
-      ).toHaveAttribute("data-state", "unknown");
+    expect(stage("code")).toHaveAttribute("data-state", "running");
+    expect(stage("verified")).toHaveAttribute("data-state", "not-established");
+    openCode();
+    expect(screen.queryByLabelText("What is established")).toBeNull();
+  });
+
+  it("shows a finished answer as done", () => {
+    show({
+      session: { processingPolicy: "permitted-remote" },
+      actions: [coding(["a"])],
+    });
+    expect(stage("answer")).toHaveAttribute("data-state", "done");
+    expect(stage("code")).toHaveAttribute("data-state", "waiting");
+  });
+
+  it("says the code stage is unavailable in a device-only session, with the reason", () => {
+    show({
+      session: { processingPolicy: "device-only" },
+      actions: [coding(["a"])],
+    });
+    expect(stage("code")).toHaveAttribute("data-state", "unavailable");
+    expect(stage("code")).toHaveTextContent("Device-only mode");
+    expect(stage("verified")).toHaveAttribute("data-state", "unavailable");
+  });
+
+  it("switches between the Answer and Code tabs", () => {
+    show({ actions: [coding(["a"]), solve(codeResult())] });
+    expect(screen.getByRole("tab", { name: "Answer" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    // The answer tab holds the model's restatement and suggested answer.
+    expect(
+      screen.getByText("Implement a rate limiter for a Node service.", {
+        selector: "p",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByLabelText("Code canvas")).toBeNull();
+    openCode();
+    expect(screen.getByLabelText("Code canvas")).toBeVisible();
+    expect(screen.queryByText("Suggested answer")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Code" }), {
+      key: "ArrowLeft",
+    });
+    expect(screen.getByRole("tab", { name: "Answer" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("names the model, and says general knowledge when no claim is grounded", () => {
+    show({
+      actions: [
+        coding(["a"], 1, {
+          generatedBy: { runtime: "claude-code", model: "sonnet" },
+        }),
+      ],
+    });
+    expect(screen.getByTestId("model-line")).toHaveTextContent(
+      "Claude · sonnet",
+    );
+    expect(screen.getByTestId("model-line")).toHaveTextContent(
+      "General knowledge, not a claim about you.",
+    );
   });
 
   it("offers the Workspace draft with the test count only when it was written", () => {
     draftLink.current = { target: {}, open: vi.fn() };
     show({ actions: [coding(["a"]), solve(codeResult())] });
+    openCode();
     expect(screen.getByText("Draft ready · 5/5 tests")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Open in Workspace" }));
     expect(draftLink.current?.open).toHaveBeenCalled();
@@ -168,6 +252,7 @@ describe("programming challenge", () => {
         ),
       ],
     });
+    openCode();
     expect(screen.queryByText(/Draft ready/)).toBeNull();
   });
 
@@ -188,6 +273,7 @@ describe("programming challenge", () => {
         ),
       ],
     });
+    openCode();
     expect(screen.getByTestId("held-result")).toHaveTextContent(
       "Your edits are kept; the new result is offered as a suggestion in Workspace.",
     );
@@ -233,20 +319,23 @@ describe("programming challenge", () => {
         }),
       ],
     });
-    // The status grid and the chip describe what the draft holds (rev 1: 2/5).
-    const status = screen.getByRole("region", { name: "Status" });
-    expect(
-      within(status).getByText("Tests passed").closest("div"),
-    ).toHaveAttribute("data-state", "no");
-    expect(
-      within(status).getByText("2/5 tests passed · 3 failed"),
-    ).toBeVisible();
+    openCode();
+    // The badges and the chip describe what the draft holds (rev 1: 2/5).
+    const status = screen.getAllByLabelText(
+      "What is established",
+    )[0] as HTMLElement;
+    expect(status.querySelector('[data-badge="tests"]')).toHaveAttribute(
+      "data-ok",
+      "false",
+    );
+    expect(status).toHaveTextContent("2/5 generated tests");
+    expect(screen.getByText("3 failed")).toBeVisible();
     expect(screen.getByText("Draft ready · 2/5 tests")).toBeVisible();
     // The held result is the suggestion's, labelled as such.
     const suggestion = screen.getByRole("region", {
       name: "Suggestion not written to your draft",
     });
-    expect(within(suggestion).getByText("5/5 tests passed")).toBeVisible();
+    expect(within(suggestion).getByText("5/5 generated tests")).toBeVisible();
   });
 
   it("shows a late result for an outdated revision as discarded", () => {
@@ -282,6 +371,7 @@ describe("programming challenge", () => {
         }),
       ],
     });
+    openCode();
     expect(screen.getByTestId("stale-code")).toHaveTextContent(
       "This solution is for task rev 1. The task is now at rev 2",
     );
@@ -340,6 +430,7 @@ describe("programming challenge", () => {
 
   it("states only the real sandbox limits, and only when the runner ran", () => {
     show({ actions: [coding(["a"]), solve(codeResult())] });
+    openCode();
     expect(screen.getByTestId("runner-note")).toHaveTextContent(
       "no network, a read-only filesystem, 256 MB memory, 1 CPU and a 20 s limit",
     );
@@ -359,6 +450,7 @@ describe("programming challenge", () => {
         ),
       ],
     });
+    openCode();
     expect(screen.getByTestId("runner-note")).toHaveTextContent(
       "code runner was not available",
     );
@@ -389,6 +481,7 @@ describe("earlier tasks", () => {
         "Viewing an earlier task. Studio still tracks the newest one.",
       ),
     ).toBeVisible();
+    expect(screen.getByText("T1 · rev 1")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Back to now" }));
     expect(screen.getByText("Second answer.")).toBeVisible();
     expect(screen.queryByText(/Viewing an earlier task/)).toBeNull();

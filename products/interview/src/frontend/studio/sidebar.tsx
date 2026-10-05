@@ -2,6 +2,7 @@ import type { ProductLink } from "@omnitech/platform-contracts";
 import { views } from "./config/views";
 import type { StudioTheme } from "./context";
 import { Icon } from "./icon";
+import { useSessionOpen } from "./live/use-session-open";
 import { runStatus } from "./run-status";
 import { formatShortcut } from "./use-shortcuts";
 import type { StudioLists } from "./use-studio-lists";
@@ -39,6 +40,7 @@ export function Sidebar({
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }) {
+  const indicators = { "session-open": useSessionOpen() };
   return (
     <aside className="studio-sidebar" aria-label="Studio">
       <div className="studio-brand">
@@ -80,6 +82,13 @@ export function Sidebar({
           >
             <Icon name={item.icon} filled={item.id === view} />
             <span className="studio-nav-label">{item.label}</span>
+            {item.indicator && indicators[item.indicator] && (
+              <span
+                className="studio-nav-live"
+                role="img"
+                aria-label="Session in progress"
+              />
+            )}
             <kbd>G {item.goKey}</kbd>
           </button>
         ))}

@@ -90,7 +90,7 @@ describe("Auto's requests satisfy the server schemas", () => {
 
   it("a typed follow-up", async () => {
     sent.length = 0;
-    await deps().submitFollowUp?.(SESSION, "why O(n)?", {
+    await deps().submitFollowUp?.(SESSION, "why O(n)?", null, {
       skill: "auto",
       language: "auto",
     });

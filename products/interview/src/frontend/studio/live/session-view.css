@@ -214,8 +214,7 @@
   min-width: 0;
 }
 .live-task-head,
-.live-answer-head,
-.live-coding-head {
+.live-answer-head {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -229,18 +228,122 @@
   text-transform: uppercase;
   color: var(--faint);
 }
-.live-coding-head h3 {
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
 .live-answer,
 .live-coding {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+.live-task-name {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.live-model-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.live-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: 8px;
+}
+.live-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  min-width: 0;
+}
+.live-stage-name {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.live-stage-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.live-stage-detail {
+  overflow-wrap: anywhere;
+}
+.live-stage[data-tone="green"] .live-stage-state {
+  color: var(--green);
+}
+.live-stage[data-tone="amber"] .live-stage-state {
+  color: var(--amber);
+}
+.live-stage[data-tone="accent"] .live-stage-state {
+  color: var(--accent);
+}
+.live-stage[data-tone="neutral"] .live-stage-state {
+  color: var(--faint);
+}
+.live-stage[data-state="running"] .studio-icon {
+  animation: live-spin 1.1s linear infinite;
+}
+@keyframes live-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-stage[data-state="running"] .studio-icon {
+    animation: none;
+  }
+}
+.live-coding-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.live-coding-tab {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 40px;
+}
+.live-coding-tab[aria-selected="true"] {
+  color: var(--accent-ink);
+  border-bottom-color: var(--accent);
+}
+.live-coding-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.live-coding-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.live-coding-language {
+  margin: 0;
+}
+.live-badges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .live-answer[data-stale] .live-draft {
   opacity: 0.6;
@@ -263,4 +366,34 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   text-wrap: pretty;
+}
+
+/* ---- Side rail ---- */
+/* Narrow: the task first, the Transcript, Activity and Sources stacked below.
+   Wide: the tabs become a right rail beside the task. */
+.live-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.live-main,
+.live-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+@media (min-width: 1180px) {
+  .live-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 400px);
+    align-items: start;
+  }
+  .live-rail {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+  }
 }

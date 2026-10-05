@@ -122,3 +122,42 @@
   color: var(--accent-ink);
 }
 
+
+/* The nav item's red dot while a session is open. */
+.studio-nav-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--red);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-nav-live {
+    animation: none;
+  }
+}
+
+/* The band's Manual | Auto switch. */
+.ov-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 9px;
+  background: var(--subtle);
+}
+.ov-segment {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ov-segment[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--pop);
+}

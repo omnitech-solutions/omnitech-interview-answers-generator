@@ -16,7 +16,7 @@ import { EditorView } from "@codemirror/view";
 import type { Language, RunResult } from "@omnitech/interview-contracts";
 import CodeMirror from "@uiw/react-codemirror";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Icon } from "../../icon";
+import { Icon, type IconName } from "../../icon";
 import { studioFetch } from "../../studio-fetch";
 import type { EditorFile } from "../../workspace/assistant-change";
 import {
@@ -27,6 +27,7 @@ import {
 } from "../../workspace/code-panel";
 import { FILE_NAMES } from "../../workspace/stages";
 import type { CodeResult } from "../session-results";
+import { copyText } from "../shared/copy-text";
 
 // One component, two densities: compact is the card (12px, pills, icon
 // buttons, results as a one-line chip); maximized is the roomy view. Same
@@ -187,17 +188,30 @@ export function LiveCodeCanvas({
     setCopied(label);
     setTimeout(() => setCopied((now) => (now === label ? null : now)), 1500);
   };
+  // "Copied" only after the write succeeded; a blocked clipboard says so.
   const copy = (label: string, text: string) => {
     void (async () => {
-      try {
-        if (onCopy) await onCopy(text);
-        else await navigator.clipboard?.writeText(text);
-        flash(label);
-      } catch {
-        // The clipboard may be blocked; nothing to report beyond no tick.
-      }
+      const written = onCopy
+        ? await Promise.resolve(onCopy(text)).then(
+            () => true,
+            () => false,
+          )
+        : await copyText(text);
+      flash(written ? label : `failed:${label}`);
     })();
   };
+  const copyLabel = (label: string, rest: string, done: string) =>
+    copied === label
+      ? done
+      : copied === `failed:${label}`
+        ? "Copy failed"
+        : rest;
+  const copyIcon = (label: string): IconName =>
+    copied === label
+      ? "check"
+      : copied === `failed:${label}`
+        ? "error"
+        : "content_copy";
   const copyAll = () =>
     copy(
       "all",
@@ -332,20 +346,17 @@ export function LiveCodeCanvas({
         <button
           type="button"
           className="lc-button"
-          aria-label={copied === file ? "Copied" : "Copy"}
+          aria-label={copyLabel(file, "Copy", "Copied")}
           title="Copy this file"
           onClick={() => copy(file, sources[file])}
         >
-          <Icon name={copied === file ? "check" : "content_copy"} size={14} />
-          {!compact && (copied === file ? "Copied" : "Copy")}
+          <Icon name={copyIcon(file)} size={14} />
+          {!compact && copyLabel(file, "Copy", "Copied")}
         </button>
         {!compact && (
           <button type="button" className="lc-button" onClick={copyAll}>
-            <Icon
-              name={copied === "all" ? "check" : "content_copy"}
-              size={14}
-            />
-            {copied === "all" ? "Copied all" : "Copy all"}
+            <Icon name={copyIcon("all")} size={14} />
+            {copyLabel("all", "Copy all", "Copied all")}
           </button>
         )}
         <button

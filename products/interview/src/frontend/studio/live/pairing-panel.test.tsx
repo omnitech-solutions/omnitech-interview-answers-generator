@@ -172,9 +172,50 @@ describe("PairingPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
     expect(deleteCalls).toBe(0);
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
-    fireEvent.click(screen.getByRole("button", { name: "Revoke and pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm revoke" }));
     await waitFor(() => expect(deleteCalls).toBe(1));
     await waitFor(() => expect(server.count("GET /:id")).toBeGreaterThan(0));
+  });
+
+  async function revokeWith(status: "active" | "paused") {
+    const session = sessionView({ status });
+    install(session);
+    server.on("DELETE /:id/credential", () => {
+      deleteCalls += 1;
+      // The server pauses only an active session.
+      if (status === "active") session.status = "paused";
+      return new Response(null, { status: 204 });
+    });
+    server.on("GET /:id", () => jsonResponse({ session }));
+    await openWithCredential();
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: status === "active" ? "Revoke and pause" : "Confirm revoke",
+      }),
+    );
+    return screen.findByTestId("revoke-result");
+  }
+
+  it("says the session is paused after revoking an active one, from the refreshed record", async () => {
+    expect(await revokeWith("active")).toHaveTextContent(
+      "The session is paused",
+    );
+  });
+
+  it("never says paused after revoking on a session the server did not pause", async () => {
+    const note = await revokeWith("paused");
+    expect(note).toHaveTextContent("The session is paused");
+    cleanup();
+    resetSessionStores();
+    const created = sessionView({ status: "created" });
+    install(created);
+    await openWithCredential();
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm revoke" }));
+    expect(await screen.findByTestId("revoke-result")).toHaveTextContent(
+      "still created; it was not paused",
+    );
   });
 
   it("dismiss clears the credential from the store and the screen", async () => {

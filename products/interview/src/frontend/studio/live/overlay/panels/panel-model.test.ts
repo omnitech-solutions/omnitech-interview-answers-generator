@@ -1,33 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LiveAction } from "@omnitech/interview-contracts";
 import type { TaskView } from "../../session-tasks";
-import { missingContextFor, problemNameIn, taskStage } from "./panel-model";
-
-describe("a problem name the answer gives", () => {
-  it("takes a quoted name", () => {
-    expect(
-      problemNameIn('This is LeetCode 2, "Add Two Numbers": two lists'),
-    ).toBe("Add Two Numbers");
-    expect(problemNameIn("This is “Two Sum” again")).toBe("Two Sum");
-  });
-
-  it("takes the name after a LeetCode number", () => {
-    expect(
-      problemNameIn("This is LeetCode 37, Sudoku Solver: fill a 9x9 board"),
-    ).toBe("Sudoku Solver");
-    expect(
-      problemNameIn(
-        "This is LeetCode 32, Longest Valid Parentheses: given a string",
-      ),
-    ).toBe("Longest Valid Parentheses");
-  });
-
-  it("ignores text that is not a name", () => {
-    expect(problemNameIn("no name here")).toBeNull();
-    expect(problemNameIn('He said "do it now." and left')).toBeNull();
-    expect(problemNameIn('a "x" b')).toBeNull();
-  });
-});
+import { taskStage } from "./panel-model";
 
 describe("a task's stage", () => {
   const run = (actionKind: string, state: string) => ({
@@ -67,42 +40,263 @@ describe("a task's stage", () => {
   });
 });
 
-describe("what the model says is missing", () => {
-  const task = { taskId: "t1", currentRevision: 2 } as unknown as TaskView;
-  const action = (over: Record<string, unknown>) =>
-    ({
-      taskId: "t1",
-      taskRevision: 2,
-      actionKind: "draft-answer",
-      dispatchStatus: "succeeded",
-      updatedAt: "2026-10-04T10:00:00Z",
-      missingContext: [{ kind: "constraints" }],
-      ...over,
-    }) as unknown as LiveAction;
+// ---- What the conversation and the panes say, from the session's own data ------
 
-  it("comes from the newest succeeded draft for the task's current revision", () => {
-    const found = missingContextFor(
-      [
-        action({ missingContext: [{ kind: "examples" }] }),
-        action({
-          updatedAt: "2026-10-04T10:05:00Z",
-          missingContext: [{ kind: "signature", note: "return type unclear" }],
-        }),
-      ],
-      task,
-    );
-    expect(found).toEqual([{ kind: "signature", note: "return type unclear" }]);
+import { answerAction } from "../../live-view-kit";
+import {
+  action,
+  minutesAfter,
+  sessionView,
+  snapshot,
+  transcript,
+} from "../../session-fixtures";
+import { answerResult, codingAnswer } from "../../session-result-fixtures";
+import { deriveLiveModel } from "../../session-state";
+import { taskCardModel } from "../../shared/task-card-model";
+import {
+  codePlaceholder,
+  followUpPlaceholder,
+  panelRows,
+  speakerOf,
+  stoppedByYou,
+  taskChips,
+  taskMarkers,
+} from "./panel-model";
+
+const modelOf = (
+  actions: ReturnType<typeof action>[],
+  observations = [snapshot(1)],
+) =>
+  deriveLiveModel({
+    session: sessionView({ processingPolicy: "permitted-remote" }),
+    observations,
+    actions,
+    serverClockOffsetMs: 0,
+    nowMs: Date.parse(minutesAfter(2)),
+  });
+const stopped = (taskId: string, actionKind = "draft-answer") =>
+  action({
+    taskId,
+    actionKind,
+    dispatchStatus: "suppressed",
+    suppressionReason: "owner_stopped",
+    createdAt: minutesAfter(1, 8),
+    updatedAt: minutesAfter(1, 9),
+  });
+const first = answerAction(codingAnswer([], "Rate limiter."), {
+  sourceSnapshots: [{ sourceId: "screen", eventId: "evt-1" }],
+});
+
+describe("who said it", () => {
+  it("names the speaker from the capture source alone", () => {
+    expect(speakerOf("application-audio")).toEqual({
+      speaker: "interviewer",
+      label: "Interviewer · app audio",
+    });
+    expect(speakerOf("microphone")).toEqual({
+      speaker: "you",
+      label: "You · mic",
+    });
+    expect(speakerOf("screen")).toEqual({ speaker: "heard", label: "Heard" });
+    expect(speakerOf(null)).toEqual({ speaker: "heard", label: "Heard" });
   });
 
-  it("ignores other revisions, other tasks, failed drafts and empty lists", () => {
-    expect(missingContextFor([action({ taskRevision: 1 })], task)).toBeNull();
-    expect(missingContextFor([action({ taskId: "t2" })], task)).toBeNull();
+  it("labels heard rows by the source id the companion and the owner really use", () => {
+    const model = modelOf(
+      [],
+      [
+        snapshot(1),
+        transcript(2, "a", { sourceId: "application-audio-run1" }),
+        transcript(3, "b", { sourceId: "microphone-run1" }),
+        transcript(4, "c", { sourceId: "studio.owner-microphone" }),
+        transcript(5, "d", { sourceId: "unknown-source" }),
+      ],
+    );
+    expect(panelRows(model, []).map((row) => [row.text, row.label])).toEqual([
+      ["a", "Interviewer · app audio"],
+      ["b", "You · mic"],
+      ["c", "You · mic"],
+      ["d", "Heard"],
+    ]);
+  });
+
+  it("labels what was typed, and the reply with its task", () => {
+    const model = modelOf([first]);
+    const rows = panelRows(model, [
+      {
+        key: "t",
+        kind: "Typed",
+        text: "why?",
+        at: Date.parse(minutesAfter(2)),
+      },
+    ]);
+    expect(rows.find((row) => row.kind === "typed")?.label).toBe("You · typed");
+    expect(rows.find((row) => row.kind === "assistant")?.label).toBe(
+      "Studio · T1",
+    );
+  });
+});
+
+describe("markers between the lines", () => {
+  const input = (actions: ReturnType<typeof action>[]) => {
+    const model = modelOf(actions);
+    return {
+      tasks: model.tasks,
+      actions,
+      observations: [snapshot(1)],
+      deviceOnly: false,
+    };
+  };
+
+  it("says which screenshot a task started from when the stream names it", () => {
+    expect(taskMarkers(input([first])).map((marker) => marker.text)).toEqual([
+      "S1 captured · T1 started",
+    ]);
+  });
+
+  it("claims no screenshot for a task the stream does not tie to one", () => {
     expect(
-      missingContextFor([action({ dispatchStatus: "failed" })], task),
-    ).toBeNull();
+      taskMarkers(input([answerAction(answerResult())])).map(
+        (marker) => marker.text,
+      ),
+    ).toEqual(["T1 started"]);
+  });
+
+  it("marks a task the owner stopped, and what was and was not published", () => {
+    const texts = taskMarkers(input([stopped("task-2")])).map(
+      (marker) => marker.text,
+    );
+    expect(texts).toEqual([
+      "T1 started",
+      "T1 stopped by you · nothing published",
+    ]);
     expect(
-      missingContextFor([action({ missingContext: [] })], task),
-    ).toBeNull();
-    expect(missingContextFor([action({})], undefined)).toBeNull();
+      taskMarkers(input([first, stopped("task-1", "solve-code")])).map(
+        (marker) => marker.text,
+      ),
+    ).toContain("T1 stopped by you · nothing published for code");
+  });
+
+  it("puts the markers among the rows in time order, and drops the cleared ones", () => {
+    const model = modelOf([first]);
+    const markers = taskMarkers({
+      tasks: model.tasks,
+      actions: [first],
+      observations: [snapshot(1)],
+      deviceOnly: false,
+    });
+    const rows = panelRows(model, [], [], 0, markers);
+    expect(rows.some((row) => row.kind === "marker")).toBe(true);
+    expect(
+      panelRows(model, [], [], Date.parse(minutesAfter(5)), markers).some(
+        (row) => row.kind === "marker",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("what the owner stopped", () => {
+  it("knows a task whose runs the owner stopped, and no other", () => {
+    expect(stoppedByYou(modelOf([stopped("task-1")]).tasks[0] as never)).toBe(
+      true,
+    );
+    expect(stoppedByYou(modelOf([first]).tasks[0] as never)).toBe(false);
+  });
+});
+
+describe("task chips", () => {
+  it("numbers and names each task, marking the one on show and the newest", () => {
+    const model = modelOf([
+      first,
+      answerAction(answerResult(), {
+        taskId: "task-2",
+        createdAt: minutesAfter(1, 8),
+        updatedAt: minutesAfter(1, 9),
+      }),
+    ]);
+    const chips = taskChips(model.tasks, "task-1");
+    expect(
+      chips.map((chip) => [chip.label, chip.selected, chip.newest]),
+    ).toEqual([
+      ["T1", true, false],
+      ["T2", false, true],
+    ]);
+    expect(chips[0]?.text).toBe("T1 · Rate limiter");
+  });
+});
+
+describe("the follow-up box", () => {
+  it("names the task its text is about", () => {
+    expect(followUpPlaceholder("T2")).toBe(
+      "Add context to T2, or ask a follow-up",
+    );
+    expect(followUpPlaceholder(null)).toBe("Ask anything, or add context");
+  });
+});
+
+describe("code placeholders", () => {
+  const cardOf = (actions: ReturnType<typeof action>[], deviceOnly = false) => {
+    const model = modelOf(actions);
+    return taskCardModel({
+      tasks: model.tasks,
+      actions,
+      observations: [snapshot(1)],
+      selectedTaskId: null,
+      deviceOnly,
+    });
+  };
+  const place = (
+    card: ReturnType<typeof cardOf>,
+    extra: Partial<Parameters<typeof codePlaceholder>[0]> = {},
+  ) =>
+    codePlaceholder({
+      card,
+      approachPending: false,
+      stoppedByYou: false,
+      seconds: 0,
+      ...extra,
+    });
+
+  it("waits for the approach before there is one, and before any task exists", () => {
+    expect(place(null).text).toBe(
+      "Code appears here after the approach is drafted.",
+    );
+    expect(place(null, { approachPending: true }).text).toBe(
+      "Waits for the approach. Starts automatically.",
+    );
+    expect(place(cardOf([first]), { approachPending: true }).text).toBe(
+      "Waits for the approach. Starts automatically.",
+    );
+  });
+
+  it("says it is writing code, with the real seconds once there are a few", () => {
+    const writing = cardOf([
+      first,
+      action({
+        actionKind: "solve-code",
+        dispatchStatus: "in_flight",
+        result: null,
+        createdAt: minutesAfter(1, 6),
+      }),
+    ]);
+    expect(place(writing)).toEqual({ text: "Writing code…", busy: true });
+    expect(place(writing, { seconds: 7 }).text).toBe("Writing code… 7s");
+  });
+
+  it("says why code is not available, and when the owner stopped it", () => {
+    expect(place(cardOf([first], true)).text).toBe(
+      "Device-only mode: the code runner does not run on this Mac.",
+    );
+    const cancelled = cardOf([
+      first,
+      action({
+        actionKind: "solve-code",
+        dispatchStatus: "suppressed",
+        suppressionReason: "owner_stopped",
+      }),
+    ]);
+    expect(place(cancelled, { stoppedByYou: true }).text).toBe(
+      "Stopped before code was written.",
+    );
   });
 });

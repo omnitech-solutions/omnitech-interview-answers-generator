@@ -20,6 +20,7 @@ import type {
   SessionActions,
   SessionCommand,
 } from "./session-snapshot";
+import type { TaskTarget } from "./shared/task-target";
 
 // What the commands need from the store; nothing else is shared.
 export type CommandContext = {
@@ -49,7 +50,7 @@ export type CommandContext = {
   // The deps' owner-input methods; absent until the server route ships.
   analyzeLatestCapture?(
     sessionId: string,
-    target?: { taskId: string; revision: number },
+    target?: TaskTarget,
     hints?: OwnerHints,
     snapshot?: { sourceId: string; eventId: string },
   ): Promise<void>;
@@ -65,6 +66,7 @@ export type CommandContext = {
   submitFollowUp?(
     sessionId: string,
     text: string,
+    target: TaskTarget | null,
     hints?: OwnerHints,
   ): Promise<void>;
   submitHeard?(
@@ -74,7 +76,7 @@ export type CommandContext = {
   ): Promise<void>;
   solveTask?(
     sessionId: string,
-    target: { taskId: string; revision: number },
+    target: TaskTarget,
     hints?: OwnerHints,
   ): Promise<void>;
 };
@@ -341,14 +343,14 @@ export function createSessionActions(context: CommandContext): SessionActions {
         return { ok: false, code: errorCodeOf(error) };
       }
     },
-    submitFollowUp: (text, hints) =>
+    submitFollowUp: (text, target, hints) =>
       run("follow-up", async (bound) => {
         const send = context.submitFollowUp;
         if (!send) throw new SessionApiError("unavailable", 0);
         // [GUARD] Nothing empty is sent; the text goes to the route only.
         const trimmed = text.trim();
         if (trimmed === "") throw new SessionApiError("invalid_input", 0);
-        await send(sessionIdOf(bound), trimmed, hints);
+        await send(sessionIdOf(bound), trimmed, target, hints);
         restartIfLive(bound);
       }),
     solveTask: (target, hints) =>

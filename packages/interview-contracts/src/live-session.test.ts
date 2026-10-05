@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LIVE_SESSION_ERROR_CODES,
   LIVE_SESSION_ERROR_STATUS,
+  liveActionSchema,
   liveCaptureRequestSchema,
   liveCompanionCapabilityResponseSchema,
   liveOwnerInputRequestSchema,
@@ -157,6 +158,41 @@ describe("live session contract", () => {
     ).toBe(false);
     for (const code of LIVE_SESSION_ERROR_CODES)
       expect(LIVE_SESSION_ERROR_STATUS[code]).toBeGreaterThanOrEqual(400);
+  });
+});
+
+describe("liveActionSchema sourceSnapshots", () => {
+  const action = {
+    id: ID,
+    taskId: "t1",
+    taskRevision: 1,
+    actionKind: "draft-answer",
+    dispatchStatus: "succeeded",
+    attempt: 1,
+    fenceAtDispatch: 1,
+    jobId: null,
+    jobCreated: false,
+    result: null,
+    shown: true,
+    suppressionReason: null,
+    createdAt: "2026-10-03T10:00:00.000Z",
+    updatedAt: "2026-10-03T10:00:01.000Z",
+  };
+
+  it("is optional and carries only source and event ids", () => {
+    expect(liveActionSchema.parse(action)).not.toHaveProperty(
+      "sourceSnapshots",
+    );
+    const sourceSnapshots = [{ sourceId: "screen", eventId: "s1" }];
+    expect(
+      liveActionSchema.parse({ ...action, sourceSnapshots }).sourceSnapshots,
+    ).toEqual(sourceSnapshots);
+    expect(
+      liveActionSchema.safeParse({
+        ...action,
+        sourceSnapshots: [{ sourceId: "screen" }],
+      }).success,
+    ).toBe(false);
   });
 });
 

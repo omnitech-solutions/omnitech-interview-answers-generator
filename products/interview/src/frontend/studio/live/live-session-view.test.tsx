@@ -130,13 +130,15 @@ describe("banners", () => {
     ).toBeVisible();
   });
 
-  it("opens the Sources tab from a gap banner and does not pretend to reconnect", () => {
-    show({
-      observations: [gap(1, "application-audio", "buffer-overflow", 4000)],
-    });
-    const banner = screen
-      .getByText(/of capture was dropped/)
-      .closest("[role]") as HTMLElement;
+  const gapOfAppAudio = {
+    observations: [gap(1, "application-audio", "buffer-overflow", 4000)],
+  };
+  const gapBanner = () =>
+    screen.getByText(/of capture was dropped/).closest("[role]") as HTMLElement;
+
+  it("in the Mac app, sends a gap to Sources and does not pretend to reconnect", () => {
+    show(gapOfAppAudio, spies(), "native");
+    const banner = gapBanner();
     expect(banner).toHaveTextContent("recorded in the transcript");
     expect(
       within(banner).queryByRole("button", { name: /reconnect/i }),
@@ -148,6 +150,19 @@ describe("banners", () => {
       "aria-selected",
       "true",
     );
+    expect(screen.queryByTestId("pairing-slot")).toBeNull();
+  });
+
+  it("in a browser, Pair companion opens Sources and reveals the credential panel", () => {
+    show(gapOfAppAudio, spies(), "browser");
+    fireEvent.click(
+      within(gapBanner()).getByRole("button", { name: "Pair companion" }),
+    );
+    expect(screen.getByRole("tab", { name: "Sources" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("pairing-slot")).toBeInTheDocument();
   });
 
   it("raises no banner about a companion that is quiet or never seen", () => {

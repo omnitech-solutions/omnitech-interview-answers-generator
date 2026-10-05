@@ -2,45 +2,117 @@
 // the window's width and the footer buttons are all drawn from these tables, so
 // adding a pane or a mode is one entry here and nothing else changes.
 import type { IconName } from "../../../icon";
+import { NATIVE_SHORTCUTS } from "../../shared/shortcuts";
+import { AUTO_MAX_PER_SESSION } from "../auto-gate";
+
+// The chord the Mac shell registers for a control, from the one shortcut table.
+export const nativeChord = (id: string): string =>
+  NATIVE_SHORTCUTS.find((shortcut) => shortcut.id === id)?.chord ?? "";
 
 // ---- Capture modes ------------------------------------------------------------
+
+// What Auto does is limited by the Auto config; the menu says so with its real
+// numbers.
+type AutoLimits = { intervalSec: number; maxPerSession: number };
+export const autoLimits = (intervalSec: number): AutoLimits => ({
+  intervalSec,
+  maxPerSession: AUTO_MAX_PER_SESSION,
+});
 
 export const CAPTURE_MODES = [
   {
     id: "auto",
     label: "Auto",
     title: "Analyses a new screen by itself while the analysis is showing",
+    subtitle: (auto: AutoLimits) =>
+      `Re-analyse when the screen changes · checks every ${auto.intervalSec} s, at most ${auto.maxPerSession} per session`,
   },
   {
     id: "manual",
     label: "Manual",
     title: "Only analyses when you press capture",
+    subtitle: () => `Analyse only when you press ${nativeChord("analyze")}`,
   },
 ] as const;
 export type CaptureMode = (typeof CAPTURE_MODES)[number]["id"];
-// An action in the same menu: capture the screen as more of the problem on show
-// (scroll, then add the next part). It is not a mode and is never remembered.
-export const ATTACH_ACTION = {
-  id: "attach",
-  label: "Add screen to this problem",
-  title: "Capture this screen as more of the current problem, not a new one",
-} as const;
 
 export const DEFAULT_CAPTURE_MODE: CaptureMode = "auto";
 export const isCaptureMode = (value: unknown): value is CaptureMode =>
   CAPTURE_MODES.some((mode) => mode.id === value);
 
+// One row of the capture menu: a mode (checked when chosen) or the action that
+// captures the screen as more of the task on show. The action is never
+// remembered; it is disabled, with its reason in the subtitle, until a task
+// exists.
+type CaptureMenuItem = {
+  id: CaptureMode | "attach";
+  label: string;
+  subtitle: string;
+  checked: boolean;
+  disabledReason: string | null;
+};
+
+export function captureMenuItems(input: {
+  mode: CaptureMode;
+  auto: AutoLimits;
+  // "T2": the task on show, or null when there is none.
+  target: string | null;
+  open: boolean;
+}): CaptureMenuItem[] {
+  const modes = CAPTURE_MODES.map((mode) => ({
+    id: mode.id,
+    label: mode.label,
+    subtitle: mode.subtitle(input.auto),
+    checked: mode.id === input.mode,
+    disabledReason: null,
+  }));
+  const reason = !input.open
+    ? "The session has ended"
+    : input.target === null
+      ? "Needs a task first"
+      : null;
+  return [
+    ...modes,
+    {
+      id: "attach",
+      label: `Add screen to ${input.target ?? "this problem"}`,
+      subtitle: reason ?? "Adds the current screen as context to the same task",
+      checked: false,
+      disabledReason: reason,
+    },
+  ];
+}
+
 // ---- Panes --------------------------------------------------------------------
 
 // Order is left to right. `width` is what the pane needs in CSS px.
 export const PANES = [
-  { id: "chat", icon: "forum", label: "chat", width: 320 },
-  { id: "analysis", icon: "article", label: "analysis", width: 480 },
-  { id: "code", icon: "code", label: "code", width: 420 },
+  {
+    id: "chat",
+    icon: "forum",
+    label: "Chat",
+    title: `Conversation · ${nativeChord("focus-chat")}`,
+    width: 320,
+  },
+  {
+    id: "analysis",
+    icon: "lightbulb",
+    label: "Answer",
+    title: "The answer for the task on show",
+    width: 480,
+  },
+  {
+    id: "code",
+    icon: "code",
+    label: "Code",
+    title: "The code for the task on show",
+    width: 420,
+  },
 ] as const satisfies readonly {
   id: string;
   icon: IconName;
   label: string;
+  title: string;
   width: number;
 }[];
 export type PaneId = (typeof PANES)[number]["id"];
@@ -71,11 +143,15 @@ export function windowWidthFor(shown: PaneState, floor = BARE_WIDTH): number {
 }
 export const WINDOW_GAP = GAP;
 export const WINDOW_PAD = PAD;
+// A menu opened from the toolbar needs this much window below it, even when no
+// pane is showing.
+export const POPOVER_ROOM = 340;
 
 // ---- The capture control ------------------------------------------------------
 
-// One button, two meanings: capture, or (while work runs) stop it. It keeps its
-// screen icon and turns red when it means stop.
+// One button, two meanings: capture, or (while work runs) stop it. It turns red
+// when it means stop. Stop is session-wide: the server cancels every run in
+// flight and the session stays open.
 export function captureControl(analysing: boolean): {
   label: string;
   title: string;
@@ -83,21 +159,21 @@ export function captureControl(analysing: boolean): {
 } {
   return analysing
     ? {
-        label: "Stop analysis",
+        label: "Stop",
         title:
-          "Stop the analysis. Press again to capture the screen as a new task",
+          "Stop all analysis in this session. The session keeps running. Press again to capture the screen as a new task",
         stop: true,
       }
     : {
-        label: "Capture screenshot",
-        title: "Capture and analyze the screen",
+        label: "Analyze screen",
+        title: "Capture the screen and analyse it as a new problem",
         stop: false,
       };
 }
 
 // ---- Footer buttons -----------------------------------------------------------
 
-export type FooterButtonId = "pause" | "resume" | "end" | "start";
+export type FooterButtonId = "pause" | "resume" | "end" | "start" | "summary";
 export type FooterButton = {
   id: FooterButtonId;
   label: string;
@@ -117,21 +193,37 @@ export function footerButtons(input: {
   // "session" spells out what each button acts on: "Pause session".
   wording: "short" | "session";
   canStart: boolean;
+  // The ended session's summary page can be opened from here.
+  canSummary?: boolean;
 }): FooterButton[] {
   const noun = input.wording === "session" ? " session" : "";
   if (input.ended)
-    return input.canStart
-      ? [
-          {
-            id: "start",
-            label: input.starting ? "Starting…" : "Start a new session",
-            title: "Start a new session",
-            icon: "play_circle",
-            tone: "go",
-            disabled: input.starting,
-          },
-        ]
-      : [];
+    return [
+      ...(input.canSummary
+        ? [
+            {
+              id: "summary" as const,
+              label: "Open summary",
+              title: "Open this session's summary in Studio",
+              icon: "open_in_new" as const,
+              tone: "default" as const,
+              disabled: false,
+            },
+          ]
+        : []),
+      ...(input.canStart
+        ? [
+            {
+              id: "start" as const,
+              label: input.starting ? "Starting…" : "Start a new session",
+              title: "Start a new session",
+              icon: "play_circle" as const,
+              tone: "go" as const,
+              disabled: input.starting,
+            },
+          ]
+        : []),
+    ];
   return [
     input.paused
       ? {
@@ -163,24 +255,54 @@ export function footerButtons(input: {
 
 // ---- Phases -------------------------------------------------------------------
 
-// What the app says it is doing, by what it is actually doing. A coding problem
-// that has been detected says "Solutioning" rather than the generic "Analyzing".
-const CAPTURING = "Capturing the screen";
-const ANALYZING = "Analyzing";
-const PHASE_LABELS: Record<string, string> = {
-  "reading-coding-task": "Reading the problem",
-  drafting: "Drafting an answer",
-  "coding-draft": "Solutioning",
-  "agent-working": "Solutioning",
+// The steps an analysis goes through, in order, as the answer pane lists them.
+const ANSWER_STEPS = [
+  { id: "capturing", label: "Capturing the screen" },
+  { id: "reading", label: "Reading the problem" },
+  { id: "drafting", label: "Drafting an answer" },
+] as const;
+type AnswerStepId = (typeof ANSWER_STEPS)[number]["id"];
+
+// What the app says it is doing, and the step that is, by what it is actually
+// doing. A coding problem that has been detected says "Solutioning" rather than
+// the generic "Analyzing".
+const CAPTURING = { label: ANSWER_STEPS[0].label, step: "capturing" } as const;
+const ANALYZING = { label: "Analyzing", step: "reading" } as const;
+const PHASES: Record<string, { label: string; step: AnswerStepId }> = {
+  "reading-coding-task": { label: ANSWER_STEPS[1].label, step: "reading" },
+  drafting: { label: ANSWER_STEPS[2].label, step: "drafting" },
+  "coding-draft": { label: "Solutioning", step: "drafting" },
+  "agent-working": { label: "Solutioning", step: "drafting" },
 };
+
+function phaseOf(
+  phase: "capturing" | "analyzing",
+  activityKey: string,
+): { label: string; step: AnswerStepId } {
+  return phase === "capturing" ? CAPTURING : (PHASES[activityKey] ?? ANALYZING);
+}
 
 export function phaseLabel(
   phase: "capturing" | "analyzing" | null,
   activityKey: string,
 ): string | null {
-  if (phase === null) return null;
-  if (phase === "capturing") return CAPTURING;
-  return PHASE_LABELS[activityKey] ?? ANALYZING;
+  return phase === null ? null : phaseOf(phase, activityKey).label;
+}
+
+type StepState = "done" | "active" | "waiting";
+
+// Every step with where the work is: the ones before the active step are done.
+export function answerSteps(
+  phase: "capturing" | "analyzing",
+  activityKey: string,
+): { id: AnswerStepId; label: string; state: StepState }[] {
+  const at = ANSWER_STEPS.findIndex(
+    (step) => step.id === phaseOf(phase, activityKey).step,
+  );
+  return ANSWER_STEPS.map((step, index) => ({
+    ...step,
+    state: index < at ? "done" : index === at ? "active" : "waiting",
+  }));
 }
 
 // ---- Missing context ------------------------------------------------------------

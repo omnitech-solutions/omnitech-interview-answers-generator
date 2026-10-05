@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icon";
 import type { CommandResult } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
+import { copyText } from "./shared/copy-text";
 import { useLiveSession } from "./use-live-session";
 
 // Pairing the capture companion with the open session: the credential controls
@@ -15,6 +16,15 @@ import { useLiveSession } from "./use-live-session";
 
 const MASK = "••••••••••••••••";
 
+// What the revoke did, said from the session record read AFTER it. The server
+// pauses only a session that was active; for any other status it changes
+// nothing, so this never says "paused" unless the record does.
+export function revokedNote(status: string | undefined): string {
+  return status === "paused"
+    ? "Credential revoked. The session is paused: renew a credential and resume to continue."
+    : `Credential revoked. The session is still ${status ?? "open"}; it was not paused.`;
+}
+
 const timeOf = (iso: string): string =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -25,11 +35,14 @@ export function PairingPanel() {
   const [copied, setCopied] = useState<"idle" | "done" | "failed">("idle");
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [revoked, setRevoked] = useState(false);
   const credentialValue = pairing?.value ?? null;
   // A new credential (renewal) starts masked again.
   useEffect(() => {
     setShown(false);
     setCopied("idle");
+    // A new credential replaces the revoked one; clearing it does not.
+    if (credentialValue) setRevoked(false);
   }, [credentialValue]);
 
   if (model.phase !== "open") return null;
@@ -39,15 +52,11 @@ export function PairingPanel() {
 
   async function copy() {
     if (!pairing) return;
-    try {
-      await navigator.clipboard.writeText(pairing.value);
-      setCopied("done");
-    } catch {
-      setCopied("failed");
-    }
+    setCopied((await copyText(pairing.value)) ? "done" : "failed");
   }
-  async function run(command: Promise<CommandResult>) {
+  async function run(command: Promise<CommandResult>, revoking = false) {
     const result = await command;
+    if (revoking) setRevoked(result.ok);
     setFailure(
       result.ok
         ? null
@@ -123,9 +132,11 @@ export function PairingPanel() {
               type="button"
               className="studio-button danger"
               disabled={busy}
-              onClick={() => void run(actions.revokeCredential())}
+              onClick={() => void run(actions.revokeCredential(), true)}
             >
-              Revoke and pause
+              {snapshot.session?.status === "active"
+                ? "Revoke and pause"
+                : "Confirm revoke"}
             </button>
             <button
               type="button"
@@ -155,6 +166,11 @@ export function PairingPanel() {
           </button>
         )}
       </div>
+      {revoked && (
+        <p role="status" className="setup-muted" data-testid="revoke-result">
+          {revokedNote(snapshot.session?.status)}
+        </p>
+      )}
       {failure && (
         <p role="alert" className="setup-error">
           {failure}

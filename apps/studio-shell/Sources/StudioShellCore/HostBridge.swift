@@ -31,8 +31,9 @@ public enum HostCommand: Equatable, Sendable {
     case transcribeToggle
     case skillNext
     case skillPrevious
-    case setSkill(OwnerSkill)
     case sessionClear
+    // Put the cursor in the chat input; the page owns the input.
+    case chatFocus
 
     // The typed command names pages subscribe to (`onHotkey`).
     public var wireName: String {
@@ -43,8 +44,8 @@ public enum HostCommand: Equatable, Sendable {
         case .transcribeToggle: "transcribe.toggle"
         case .skillNext: "skill.next"
         case .skillPrevious: "skill.prev"
-        case .setSkill(let skill): "skill.set:\(skill.rawValue)"
         case .sessionClear: "session.clear"
+        case .chatFocus: "chat.focus"
         }
     }
 
@@ -53,9 +54,9 @@ public enum HostCommand: Equatable, Sendable {
     public var target: PanelKind? {
         switch self {
         case .captureAnalyze, .solutionGenerate: .analysis
-        case .transcribeToggle: .chat
+        case .transcribeToggle, .chatFocus: .chat
         case .autoToggle: .pill
-        case .skillNext, .skillPrevious, .setSkill, .sessionClear: nil
+        case .skillNext, .skillPrevious, .sessionClear: nil
         }
     }
 }

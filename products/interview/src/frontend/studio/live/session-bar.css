@@ -35,17 +35,29 @@
   align-items: center;
   gap: 4px 12px;
 }
+/* The status pill: state and the server's clock together. */
 .live-bar-state {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 13px;
+  background: var(--subtle);
   font-weight: 600;
   white-space: nowrap;
 }
+.live-bar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
 .tone-red .live-bar-state {
+  background: var(--red-soft);
   color: var(--red);
 }
 .tone-amber .live-bar-state {
+  background: var(--amber-soft);
   color: var(--amber);
 }
 .live-bar-target {
@@ -56,8 +68,9 @@
   font-weight: 500;
 }
 .live-bar-elapsed {
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
 }
 .live-bar-activity {
   color: var(--muted);

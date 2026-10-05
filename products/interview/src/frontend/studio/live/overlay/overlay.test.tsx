@@ -169,7 +169,8 @@ async function openCard() {
   );
   await flush();
   await flush();
-  await click("Card view");
+  act(() => presentation.setMode("card"));
+  await flush();
 }
 
 function placeCard(left = 100, top = 100, width = 380, height = 500) {

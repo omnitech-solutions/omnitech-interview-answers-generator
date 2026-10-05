@@ -6,7 +6,8 @@ import Foundation
 // matches the card's own Alt+Shift+A, so the key does the same thing in and out
 // of the window. The modifier values are Carbon's. Skill cycling (Cmd+Up/Down)
 // is registered only while interaction mode is ON, so Cmd+Arrow keeps working
-// in other apps the rest of the time.
+// in other apps the rest of the time. Every other key stays registered while the
+// window ignores the mouse: Cmd+Shift+I is the way back from click-through.
 public struct HotkeyBinding: Equatable, Sendable {
     public enum Action: String, Sendable {
         case captureAnalyze, solutionGenerate, toggleAuto, toggleVisibility, toggleInteraction, toggleMic, clearSession
@@ -82,15 +83,9 @@ public enum HotkeyEffect: Equatable, Sendable {
 public enum HotkeyRouting {
     public static let nudge = 40.0
 
-    // The toast a key shows, if any. `skill` is the current skill AFTER a skill
-    // key has moved it.
-    public static func toast(for action: HotkeyBinding.Action, skill: OwnerSkill) -> Toast? {
-        switch action {
-        case .toggleMic: ToastText.recording
-        case .skillNext, .skillPrevious: ToastText.skillChanged(skill)
-        case .captureAnalyze: ToastText.currentSkill(skill)
-        default: nil
-        }
+    // The toast a key shows, if any.
+    public static func toast(for action: HotkeyBinding.Action) -> Toast? {
+        action == .toggleMic ? ToastText.recording : nil
     }
 
     // `moveUp` is dy > 0: AppKit coordinates have the origin bottom-left. Keys
@@ -106,7 +101,7 @@ public enum HotkeyRouting {
         case .toggleInteraction: return .present(.toggleInteractionMode)
         case .toggleMode: return .present(.toggleAppMode)
         case .bringToFront: return .present(.bringToFront)
-        case .showChat: return .present(.focusPanel(.chat))
+        case .showChat: return .intent(.chatFocus)
         case .openSettings: return .present(.openPanel(.settings))
         // [GUARD] Skill keys act only while interaction mode is ON.
         case .skillNext: return interactive ? .intent(.skillNext) : nil

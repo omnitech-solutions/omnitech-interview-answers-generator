@@ -1,23 +1,32 @@
-import type { LiveSessionView } from "@omnitech/interview-contracts";
+import type {
+  LiveAction,
+  LiveObservation,
+  LiveSessionView,
+} from "@omnitech/interview-contracts";
 import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { ActivityTab } from "./activity-tab";
-import type { BannerAction } from "./banner-copy";
-import { copyText } from "./copy-text";
+import type { BannerAction, BannerHost } from "./banner-copy";
+import { studioHostInfo } from "./host-adapter";
 import { HandsFreeBand } from "./overlay/hands-free-controls";
 import { PairingPanel } from "./pairing-panel";
 import { SessionBanners } from "./session-banner-list";
 import { SessionBar } from "./session-bar";
+import { sourcesNeedAttention } from "./session-bar-model";
 import type { SessionActions } from "./session-snapshot";
 import type { LiveViewModel } from "./session-state";
 import { type SessionTabId, SessionTabs } from "./session-tabs";
+import { transcriptLabels } from "./session-transcript";
+import { copyText } from "./shared/copy-text";
+import { taskCardModel } from "./shared/task-card-model";
 import { SourcesTab } from "./sources-tab";
 import { IdleState, TaskPanel, TaskSelector } from "./task-panels";
 import { TranscriptTab } from "./transcript-tab";
@@ -34,8 +43,6 @@ export type LiveSessionPanelProps = {
 
 const TOAST_MS = 3_000;
 const CAPABILITY_REFRESH_MS = 15_000;
-
-export { copyText };
 
 // A session that is open (created, active or paused): the live header, the
 // banners, the task panels and the Transcript, Activity and Sources tabs.
@@ -55,6 +62,7 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
         <LiveSessionBody
           session={snapshot.session}
           model={model}
+          stream={snapshot}
           actions={actions}
           busy={snapshot.pending.length > 0}
           commandError={snapshot.commandError}
@@ -63,6 +71,7 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
           // A credential that was just issued is shown once: open the tab that
           // holds it rather than leave it behind another.
           initialTab={snapshot.pairing ? "sources" : "transcript"}
+          initialPairing={snapshot.pairing !== null}
         />
       )}
     </div>
@@ -74,15 +83,23 @@ export function LiveSessionPanel(_props: LiveSessionPanelProps) {
 export function LiveSessionBody({
   session,
   model,
+  stream,
   actions,
   busy,
   commandError,
   pairing,
   capability,
   initialTab = "transcript",
+  initialPairing = false,
+  host = studioHostInfo() ? "native" : "browser",
 }: {
   session: LiveSessionView;
   model: LiveViewModel;
+  // What the task card reads beside the model: model labels and screenshots.
+  stream: {
+    actions: readonly LiveAction[];
+    observations: readonly LiveObservation[];
+  };
   actions: SessionActions;
   busy: boolean;
   commandError: string | null;
@@ -90,8 +107,14 @@ export function LiveSessionBody({
   // The companion's last capability report; omitted when none was read.
   capability?: CompanionCapabilityState;
   initialTab?: SessionTabId;
+  // The pairing panel starts open when a credential was just issued.
+  initialPairing?: boolean;
+  // Where the page runs: decides which button a lost-source banner offers.
+  host?: BannerHost;
 }) {
   const [tab, setTab] = useState<SessionTabId>(initialTab);
+  // The credential panel is revealed by an explicit action, never by default.
+  const [pairingOpen, setPairingOpen] = useState(initialPairing);
   // null follows the newest task; an id pins an earlier one.
   const [pinned, setPinned] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -105,9 +128,13 @@ export function LiveSessionBody({
   const tasks = model.tasks;
   const newest = tasks[tasks.length - 1];
   const selected = tasks.find((task) => task.taskId === pinned) ?? newest;
-  const viewingEarlier =
-    selected !== undefined && newest !== undefined && selected !== newest;
-  const selectedNumber = selected ? tasks.indexOf(selected) + 1 : 0;
+  const card = taskCardModel({
+    tasks,
+    actions: stream.actions,
+    observations: stream.observations,
+    selectedTaskId: pinned,
+    deviceOnly: session.processingPolicy === "device-only",
+  });
 
   // A result that arrives is announced, once, without moving focus.
   useEffect(() => {
@@ -143,6 +170,17 @@ export function LiveSessionBody({
     [say],
   );
 
+  const labels = useMemo(
+    () =>
+      transcriptLabels({
+        tasks,
+        actions: stream.actions,
+        observations: stream.observations,
+        deviceOnly: session.processingPolicy === "device-only",
+      }),
+    [tasks, stream.actions, stream.observations, session.processingPolicy],
+  );
+
   const showSources = () => {
     setTab("sources");
     tabsTop.current?.scrollIntoView?.({ block: "start" });
@@ -152,11 +190,16 @@ export function LiveSessionBody({
   const renewThenResume = async () => {
     const renewed = await actions.renewCredential();
     if (!renewed.ok) return;
+    setPairingOpen(true);
     showSources();
     if (session.status === "paused") await actions.resume();
   };
   const onBanner = async (action: BannerAction) => {
     if (action === "sources") return showSources();
+    if (action === "pair") {
+      setPairingOpen(true);
+      return showSources();
+    }
     if (action === "renew") return renewThenResume();
     const resumed = await actions.resume();
     if (!resumed.ok && resumed.code === "credential_renewal_required")
@@ -170,64 +213,66 @@ export function LiveSessionBody({
           That didn’t work ({commandError}). The session is unchanged.
         </p>
       )}
-      <SessionBanners model={model} busy={busy} onAction={onBanner} />
-      {viewingEarlier && (
-        <div className="live-banner earlier" role="status">
-          <Icon name="history" />
-          <span className="live-banner-text">
-            Viewing an earlier task. Studio still tracks the newest one.
-          </span>
-          <button
-            type="button"
-            className="live-banner-action"
-            onClick={() => setPinned(null)}
-          >
-            Back to now
-          </button>
+      <SessionBanners
+        model={model}
+        host={host}
+        busy={busy}
+        onAction={onBanner}
+      />
+      <div className="live-columns">
+        <div className="live-main">
+          {selected && card ? (
+            <>
+              <TaskSelector
+                tasks={tasks}
+                selectedId={selected.taskId}
+                onSelect={(taskId) =>
+                  setPinned(taskId === newest?.taskId ? null : taskId)
+                }
+              />
+              <TaskPanel
+                task={selected}
+                card={card}
+                session={session}
+                policy={model.locality?.policy ?? null}
+                onCopy={copy}
+                onBackToNow={() => setPinned(null)}
+              />
+            </>
+          ) : (
+            <IdleState model={model} />
+          )}
         </div>
-      )}
-      {selected ? (
-        <>
-          <TaskSelector
-            tasks={tasks}
-            selectedId={selected.taskId}
-            onSelect={(taskId) =>
-              setPinned(taskId === newest?.taskId ? null : taskId)
-            }
-          />
-          <TaskPanel
-            task={selected}
-            number={selectedNumber}
-            session={session}
-            policy={model.locality?.policy ?? null}
-            onCopy={copy}
-          />
-        </>
-      ) : (
-        <IdleState model={model} />
-      )}
-      <div ref={tabsTop}>
-        <SessionTabs tab={tab} onTab={setTab}>
-          {tab === "transcript" && (
-            <TranscriptTab
-              rows={model.transcript}
-              sessionId={session.id}
-              sessionStart={session.createdAt}
-            />
-          )}
-          {tab === "activity" && (
-            <ActivityTab runs={model.runs} tasks={tasks} />
-          )}
-          {tab === "sources" && (
-            <SourcesTab
-              model={model}
-              session={session}
-              actions={actions}
-              pairing={pairing}
-              {...(capability ? { capability } : {})}
-            />
-          )}
-        </SessionTabs>
+        <div ref={tabsTop} className="live-rail">
+          <SessionTabs
+            tab={tab}
+            onTab={setTab}
+            alerts={{ sources: sourcesNeedAttention(model) }}
+          >
+            {tab === "transcript" && (
+              <TranscriptTab
+                rows={model.transcript}
+                sessionId={session.id}
+                sessionStart={session.createdAt}
+                labels={labels}
+              />
+            )}
+            {tab === "activity" && (
+              <ActivityTab runs={model.runs} tasks={tasks} />
+            )}
+            {tab === "sources" && (
+              <SourcesTab
+                model={model}
+                session={session}
+                actions={actions}
+                pairing={pairing}
+                pairingOpen={pairingOpen}
+                onPair={() => setPairingOpen(true)}
+                {...(capability ? { capability } : {})}
+              />
+            )}
+          </SessionTabs>
+        </div>
       </div>
       <div className="live-toast" role="status">
         {toast}

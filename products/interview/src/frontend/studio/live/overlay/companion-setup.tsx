@@ -5,7 +5,7 @@
 // copy button. The moment contact happens the card swaps it for the source lights.
 import { useState } from "react";
 import { Icon } from "../../icon";
-import { copyText } from "../live-session-view";
+import { copyText } from "../shared/copy-text";
 
 export const COMPANION_STEPS = [
   {

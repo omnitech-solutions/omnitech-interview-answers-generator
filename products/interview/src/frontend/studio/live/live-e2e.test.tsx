@@ -107,6 +107,8 @@ afterEach(() => {
 async function startFromSetup() {
   await openStudio();
   fireEvent.click(await ready(() => screen.getByLabelText(/Recruiter screen/)));
+  // The Mac app hears both sides; the scenarios below use app audio.
+  fireEvent.click(screen.getByRole("radio", { name: /Mac app/ }));
   fireEvent.click(screen.getByLabelText(/Everyone in this interview/));
   fireEvent.click(screen.getByRole("button", { name: "Start session" }));
   await flush();
@@ -131,16 +133,18 @@ describe("start", () => {
       await ready(() => screen.getByLabelText(/Recruiter screen/)),
     );
     expect(start()).toBeDisabled();
-    expect(screen.getByText("Confirm that everyone has agreed.")).toBeVisible();
+    expect(screen.getByText("Confirm everyone has agreed.")).toBeVisible();
     fireEvent.click(screen.getByLabelText(/Everyone in this interview/));
     expect(start()).toBeEnabled();
     fireEvent.click(start());
     await flush();
+    await flush();
 
+    // A plain browser starts without app audio, which it cannot capture.
     expect(service.script.started).toEqual([
       {
         processingPolicy: "permitted-remote",
-        captureSources: ["microphone", "application-audio", "screen"],
+        captureSources: ["microphone", "screen"],
         liveAssistance: true,
         retention: "delete-at-end",
         candidacyId: CANDIDACY_ID,
@@ -359,6 +363,11 @@ describe("a live session", () => {
     expect(screen.queryByTestId("pairing-credential")).toBeNull();
     expect(document.body).not.toHaveTextContent("pair-credential-0001");
     fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
+    // Nothing about a credential is on screen until it is asked for.
+    expect(screen.queryByTestId("pairing-panel")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Pair capture companion" }),
+    );
     expect(screen.getByTestId("pairing-panel")).toHaveTextContent(
       "no longer shown",
     );

@@ -6,11 +6,11 @@
 import { useEffect, useId, useRef } from "react";
 import { Icon } from "../../icon";
 import { shareMenuCopy } from "../host-adapter";
+import { shortcutsFor } from "../shared/shortcuts";
 import type { SourceKind } from "./capture-source";
 import { LocalPreview } from "./local-preview";
 import { useMenuPlacement } from "./menu-placement";
 import type { Capture } from "./overlay-model";
-import { shortcutKeys } from "./overlay-shortcuts";
 import type { CaptureProgress } from "./use-companion-capture";
 import { closeOnEscape, useDismiss } from "./use-dismiss";
 
@@ -22,6 +22,11 @@ export type AnalyzeChoice = { kind: "new" } | { kind: "attach" };
 // the native companion to capture now (its focused window, or a region of the
 // main display).
 export type AnalyzeVia = "share" | "companion" | "focused" | "region";
+
+// The chord the page binds for Capture & analyze, from the one shortcut table.
+const ANALYZE_CHORD =
+  shortcutsFor("web").find((shortcut) => shortcut.intent === "capture.analyze")
+    ?.chord ?? "";
 
 export const DEVICE_ONLY_ANALYZE =
   "Device-only mode never sends a screenshot to an assistant.";
@@ -115,6 +120,11 @@ export type CaptureStripProps = {
     bytes: number;
   } | null;
   unavailable: boolean;
+  // Work is running for the session: the button stops it (session-wide
+  // stop-work; the session stays live and the next analyze starts a NEW task)
+  // instead of capturing. Stopping the share is the separate icon beside the
+  // source name.
+  stopWork?: { stopping: boolean; onStop(): void } | null;
   menuOpen: boolean;
   onMenuOpenChange(open: boolean): void;
   onShare(): void;
@@ -197,8 +207,10 @@ export function CaptureStrip(props: CaptureStripProps) {
     button.current?.focus();
   };
   const asking = progress?.phase === "asking";
+  const stopWork = props.stopWork ?? null;
   const busy = phase !== null;
   const disabled = unavailable || busy || deviceOnly || asking;
+  const analyzeChord = ANALYZE_CHORD;
   const progressNote = progressText(progress);
 
   return (
@@ -254,30 +266,46 @@ export function CaptureStrip(props: CaptureStripProps) {
             </div>
           )}
         </div>
-        <button
-          ref={button}
-          type="button"
-          className="ov-analyze"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-controls={menuOpen ? menuId : undefined}
-          aria-busy={busy || asking}
-          disabled={disabled}
-          title={
-            deviceOnly
-              ? DEVICE_ONLY_ANALYZE
-              : `Capture a fresh frame now and analyze it (${shortcutKeys("analyze")})`
-          }
-          onClick={() => onMenuOpenChange(!menuOpen)}
-        >
-          <Icon name="center_focus_strong" />
-          {phase === "capturing"
-            ? "Capturing…"
-            : phase === "analyzing"
-              ? "Analyzing…"
-              : "Capture & analyze"}
-          {!busy && <kbd className="ov-kbd">⌥⇧A</kbd>}
-        </button>
+        {stopWork ? (
+          <button
+            ref={button}
+            type="button"
+            className="ov-analyze stop"
+            data-testid="stop-analysis"
+            aria-busy={stopWork.stopping}
+            disabled={stopWork.stopping}
+            title="Stop the work that is running. The session stays live; the next analyze starts a new task."
+            onClick={stopWork.onStop}
+          >
+            <Icon name="stop_circle" />
+            {stopWork.stopping ? "Stopping…" : "Stop analysis"}
+          </button>
+        ) : (
+          <button
+            ref={button}
+            type="button"
+            className="ov-analyze"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-controls={menuOpen ? menuId : undefined}
+            aria-busy={busy || asking}
+            disabled={disabled}
+            title={
+              deviceOnly
+                ? DEVICE_ONLY_ANALYZE
+                : `Capture a fresh frame now and analyze it (${analyzeChord})`
+            }
+            onClick={() => onMenuOpenChange(!menuOpen)}
+          >
+            <Icon name="center_focus_strong" />
+            {phase === "capturing"
+              ? "Capturing…"
+              : phase === "analyzing"
+                ? "Analyzing…"
+                : "Capture & analyze"}
+            {!busy && <kbd className="ov-kbd">{analyzeChord}</kbd>}
+          </button>
+        )}
       </div>
       {flash && (
         <div className="ov-flash" role="status" data-testid="capture-flash">

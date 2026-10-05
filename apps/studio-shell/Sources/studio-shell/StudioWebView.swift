@@ -13,7 +13,7 @@ import WebKit
 // person's browser.
 final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
     private let model: ShellModel
-    // A page finished loading: the shell pushes it the presentation state and skill.
+    // A page finished loading: the shell pushes it the presentation state and screen-watch status.
     var onPageFinished: (WKWebView) -> Void = { _ in }
 
     init(model: ShellModel) { self.model = model }

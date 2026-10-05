@@ -79,7 +79,11 @@ public struct PresentationState: Equatable, Sendable {
         interaction: InteractionState(), hotkeysEnabled: true, opacity: 1)
 
     public var mainWindowShown: Bool { appMode == .expanded }
-    public var shownPanels: Set<PanelKind> { appMode == .minified && layout == .panels && !allHidden ? panels : [] }
+    // Settings is its own small window in either layout; the other panels exist only in `.panels`.
+    public var shownPanels: Set<PanelKind> {
+        guard appMode == .minified, !allHidden else { return [] }
+        return layout == .panels ? panels : panels.intersection([.settings])
+    }
     public var compactShown: Bool { appMode == .minified && layout == .compact && !allHidden }
 
     // The state as pages read it: names only, never content.
@@ -94,7 +98,7 @@ public struct PresentationState: Equatable, Sendable {
             "opacity": opacity,
             // The minified form is a hands-free host: Studio defaults Auto on.
             "handsFree": appMode == .minified,
-            // The shell shows the interaction/recording/skill toasts itself.
+            // The shell shows the interaction and recording toasts itself.
             "nativeToasts": true,
         ]
     }
@@ -161,7 +165,8 @@ public final class PresentationController: PresentationHost {
             // Panels exist in the minified form: opening one leaves expanded mode.
             next.panels.insert(kind)
             next.appMode = .minified
-            next.layout = .panels
+            // Settings never changes the layout: in the one-window layout it opens beside it.
+            if kind != .settings { next.layout = .panels }
             next.allHidden = false
             // Settings is for clicking, so it turns interaction ON.
             if kind == .settings { next.interaction.set(true) }

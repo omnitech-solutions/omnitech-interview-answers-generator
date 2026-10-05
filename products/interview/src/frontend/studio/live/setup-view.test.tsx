@@ -99,6 +99,10 @@ async function open(
 
 const start = () =>
   screen.getByRole("button", { name: /Start session|Starting/ });
+const pickMacApp = () =>
+  fireEvent.click(screen.getByRole("radio", { name: /Mac app/ }));
+const pickBrowser = () =>
+  fireEvent.click(screen.getByRole("radio", { name: /This browser only/ }));
 const pickRehearsal = () => fireEvent.click(screen.getByLabelText(/Rehearsal/));
 const pickInterview = () =>
   fireEvent.click(screen.getByLabelText(/Recruiter screen/));
@@ -129,26 +133,30 @@ describe("Setup defaults", () => {
       screen.getByLabelText(/Everyone in this interview/),
     ).not.toBeChecked();
     expect(screen.getByRole("radio", { name: "Allow remote" })).toBeChecked();
-    // Start hands-free is the first, default action; plain Start is secondary.
-    const buttons = screen.getAllByRole("button", { name: /^Start / });
-    expect(buttons[0]).toHaveTextContent("Start hands-free");
-    expect(screen.getByTestId("start-choice-effect")).toHaveTextContent(
-      "Allow remote: everything works",
+    // One Start button, and no second processing control.
+    expect(screen.getAllByRole("button", { name: /^Start / })).toHaveLength(1);
+    expect(screen.queryByTestId("start-choice")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("radio", { name: "Device only" })).toHaveLength(
+      1,
     );
     expect(screen.getByRole("radio", { name: "Delete at end" })).toBeChecked();
     expect(screen.getByTestId("live-setup")).toHaveTextContent(
       "Edited or revision-linked Workspace drafts may remain; delete them separately in Workspace.",
     );
+    // A plain browser cannot hear app audio, so it starts without it.
+    expect(
+      screen.getByRole("radio", { name: /This browser only/ }),
+    ).toBeChecked();
     expect(screen.getByRole("switch", { name: "Microphone" })).toBeChecked();
-    expect(screen.getByRole("switch", { name: "App audio" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "App audio" })).not.toBeChecked();
     expect(screen.getByRole("switch", { name: "Screen" })).toBeChecked();
     expect(
       screen.getByRole("switch", { name: "Live assistance" }),
     ).toBeChecked();
-    // Focus moves to it once Start is possible, so Enter starts hands-free.
+    // Focus moves to it once Start is possible, so Enter starts.
     pickRehearsal();
     consent();
-    expect(buttons[0]).toHaveFocus();
+    expect(start()).toHaveFocus();
   });
 
   it("makes no claim that the companion is connected before start", async () => {
@@ -173,10 +181,21 @@ describe("Setup defaults", () => {
 
   it("groups the choices with legends", async () => {
     await open();
-    for (const name of ["What is this session for?", "Sources", "Assistance"])
-      expect(screen.getByRole("group", { name })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Sources" })).toBeVisible();
+    for (const name of [
+      "1 · What it’s for",
+      "2 · How Studio hears and sees",
+      "3 · Help and privacy",
+    ])
+      expect(screen.getByRole("region", { name })).toBeVisible();
     expect(
-      screen.getByRole("radiogroup", { name: "Where processing runs" }),
+      screen.getByRole("radiogroup", { name: "1 · What it’s for" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("radiogroup", { name: "2 · How Studio hears and sees" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("radiogroup", { name: "Where AI runs" }),
     ).toBeVisible();
     expect(
       screen.getByRole("radiogroup", { name: "Keep the session" }),
@@ -192,30 +211,30 @@ describe("Consent and start", () => {
     consent();
     expect(start()).toBeEnabled();
     fireEvent.click(screen.getByRole("switch", { name: "Microphone" }));
-    fireEvent.click(screen.getByRole("switch", { name: "App audio" }));
     fireEvent.click(screen.getByRole("switch", { name: "Screen" }));
     expect(start()).toBeDisabled();
     expect(screen.getByText("Choose at least one source.")).toBeVisible();
+    expect(start()).toHaveAccessibleDescription("Choose at least one source.");
   });
 
-  it("remembers the last processing choice per tenant and prefers it to the default", async () => {
+  it("remembers the last processing choice per tenant, says so, and drops the note once chosen again", async () => {
     await open();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Hands-free: device only" }),
-    );
-    expect(screen.getByTestId("start-choice-effect")).toHaveTextContent(
-      "Device only: no screenshot analysis, no code generation",
-    );
+    expect(screen.queryByTestId("remembered-policy")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
+    expect(screen.queryByTestId("remembered-policy")).not.toBeInTheDocument();
     cleanup();
     await open();
     expect(screen.getByRole("radio", { name: "Device only" })).toBeChecked();
-    expect(
-      screen.getByRole("button", { name: "Hands-free: device only" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("remembered-policy")).toHaveTextContent(
+      "Remembered from your last choice: Device only.",
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
+    expect(screen.queryByTestId("remembered-policy")).not.toBeInTheDocument();
   });
 
   it("sends exactly the strict start body for an interview and pins the latest matrix", async () => {
     await open();
+    pickMacApp();
     pickInterview();
     consent();
     fireEvent.click(start());
@@ -233,6 +252,7 @@ describe("Consent and start", () => {
 
   it("sends each changed setting: screen, remote, retention, assistance off", async () => {
     await open();
+    pickMacApp();
     pickInterview();
     consent();
     fireEvent.click(screen.getByRole("switch", { name: "Microphone" }));
@@ -420,7 +440,7 @@ describe("Experience matrix", () => {
     });
     expect(select).toHaveValue("main@3");
     expect(screen.getByTestId("live-setup")).toHaveTextContent(
-      "Pinned for the whole session. Answers can only claim what it says.",
+      "Answers can only claim what it says. Pinned for the whole session.",
     );
     pickRehearsal();
     consent();
@@ -564,10 +584,7 @@ describe("Start failures", () => {
   });
 });
 
-describe("Start hands-free", () => {
-  const handsFree = () =>
-    screen.getByRole("button", { name: /Start hands-free/ });
-
+describe("Start in a browser", () => {
   it("asks only for the microphone in the starting click, never opens the share picker, and remembers the choice", async () => {
     const shared = fakeStream();
     const stream = shared.stream;
@@ -583,7 +600,7 @@ describe("Start hands-free", () => {
     pickInterview();
     consent();
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
-    fireEvent.click(handsFree());
+    fireEvent.click(start());
     await waitFor(() => expect(started).toHaveLength(1));
     // A browser would show its picker: that waits for the capture button.
     expect(getDisplayMedia).not.toHaveBeenCalled();
@@ -614,7 +631,7 @@ describe("Start hands-free", () => {
     pickInterview();
     consent();
     fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
-    fireEvent.click(handsFree());
+    fireEvent.click(start());
     await waitFor(() => expect(started).toHaveLength(1));
     expect(getDisplayMedia).not.toHaveBeenCalled();
     const { takeAnnouncement } = await import("./overlay/share-handoff");
@@ -639,8 +656,135 @@ describe("Start hands-free", () => {
     pickInterview();
     consent();
     fireEvent.click(screen.getByRole("radio", { name: "Allow remote" }));
-    fireEvent.click(handsFree());
+    fireEvent.click(start());
     await screen.findByTestId("setup-failure");
     expect(stop).not.toHaveBeenCalled();
+  });
+});
+
+describe("Host cards", () => {
+  const nativeHost = () => ({
+    version: 1,
+    hostKind: "native-macos",
+    capabilities: ["capture-screen", "hotkeys"],
+    captureScreen: vi.fn(),
+    onHotkey: vi.fn(() => () => undefined),
+  });
+  afterEach(() => {
+    delete window.studioHost;
+  });
+  const lines = (host: "mac" | "browser") =>
+    screen.getByTestId(`host-lines-${host}`);
+
+  it("a plain browser selects This browser only and cannot know the Mac app is installed", async () => {
+    await open();
+    expect(
+      screen.getByRole("radio", { name: /This browser only/ }),
+    ).toBeChecked();
+    const status = screen.getByTestId("host-status-mac");
+    expect(status).toHaveTextContent("Can’t tell from a browser");
+    expect(screen.getByTestId("live-setup").textContent).not.toMatch(
+      /installed/i,
+    );
+    expect(lines("mac")).toHaveTextContent("Sees the screen, no share picker");
+    expect(lines("mac")).toHaveTextContent("known only inside the Mac app");
+    expect(screen.getByTestId("browser-warning")).toHaveTextContent(
+      "A plain browser can’t hear app audio",
+    );
+    expect(lines("browser")).toHaveTextContent("Can’t hear the other side");
+  });
+
+  it("inside the Mac app the Mac card is selected, running here, with real capabilities", async () => {
+    window.studioHost = nativeHost();
+    await open();
+    expect(screen.getByRole("radio", { name: /Mac app/ })).toBeChecked();
+    expect(screen.getByTestId("host-status-mac")).toHaveTextContent(
+      "Running in this window",
+    );
+    expect(lines("mac")).not.toHaveTextContent("known only inside the Mac app");
+    expect(screen.queryByTestId("browser-warning")).not.toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "App audio" })).toBeChecked();
+  });
+
+  it("choosing a host sets its default sources, which the switches still adjust", async () => {
+    await open();
+    pickMacApp();
+    expect(screen.getByRole("switch", { name: "App audio" })).toBeChecked();
+    expect(screen.queryByTestId("browser-warning")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Microphone" }));
+    pickBrowser();
+    expect(screen.getByRole("switch", { name: "App audio" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Microphone" })).toBeChecked();
+    expect(screen.getByTestId("browser-warning")).toBeVisible();
+  });
+
+  it("says how the Mac app picks the session up, and starts without asking the browser for anything", async () => {
+    const getUserMedia = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getUserMedia },
+      configurable: true,
+    });
+    await open();
+    pickMacApp();
+    expect(screen.getByTestId("setup-footer")).toHaveTextContent(
+      "The Mac app window picks it up while it is open.",
+    );
+    pickRehearsal();
+    consent();
+    fireEvent.click(start());
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+});
+
+describe("Footer", () => {
+  it("names the one blocking reason, then says Ready", async () => {
+    await open();
+    const footer = screen.getByTestId("setup-footer");
+    expect(footer).toHaveTextContent("Choose what the session is for.");
+    expect(start()).toHaveAccessibleDescription(
+      "Choose what the session is for.",
+    );
+    pickRehearsal();
+    expect(footer).toHaveTextContent("Confirm everyone has agreed");
+    consent();
+    expect(footer).toHaveTextContent("Ready");
+    expect(footer).toHaveTextContent(
+      "This browser only · Microphone, Screen · Allow remote",
+    );
+    expect(start()).toBeEnabled();
+  });
+
+  it("a device-only blocker is the reason, and the device-only warning explains the limits", async () => {
+    await open({ blockers: [{ title: "Blocked here", body: "No." }] });
+    pickRehearsal();
+    consent();
+    fireEvent.click(screen.getByRole("radio", { name: "Device only" }));
+    expect(screen.getByTestId("setup-footer")).toHaveTextContent(
+      "Blocked here",
+    );
+    expect(screen.getByTestId("device-only-warning")).toHaveTextContent(
+      "no screenshot analysis, no code generation",
+    );
+    expect(screen.getByTestId("device-only-warning")).toHaveTextContent(
+      "stored for you, never sent to a model",
+    );
+    expect(screen.getByTestId("live-setup").textContent).not.toMatch(
+      /everything stays on this mac/i,
+    );
+  });
+
+  it("states the promise and the retention privacy line", async () => {
+    await open();
+    const setup = screen.getByTestId("live-setup");
+    expect(setup).toHaveTextContent(
+      "It never submits, sends or types anything for you.",
+    );
+    expect(setup).toHaveTextContent(
+      "Private to you · raw audio is never saved · can only be shortened later",
+    );
+    expect(setup).toHaveTextContent(
+      "Required to start. Studio asks on this screen and does not store your answer.",
+    );
   });
 });

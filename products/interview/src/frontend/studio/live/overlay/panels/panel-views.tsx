@@ -1,380 +1,60 @@
-// The four panels, as the OpenCluely recording shows them and nothing more:
-// the bar, the analysis (text column plus a separate code card), the live
-// transcription and chat, and settings. Each takes the one panel session
-// (usePanelSession) and renders it; none fetches or decides anything itself.
+// The panels beside the toolbar: the analysis (the answer pane and the code
+// pane, in answer-pane.tsx), the live transcription and chat, settings and the
+// toasts. Each takes the one panel session (usePanelSession) and renders it;
+// none fetches or decides anything itself.
 //
 // [SAFETY] The settings footer says plainly that this is a visible window that
 // shows in screen shares. Nothing here hides a window or conceals capture.
-import {
-  LIVE_OWNER_SKILL_LABELS,
-  LIVE_OWNER_SKILLS,
-  type LiveOwnerSkill,
-  type PresentationHost,
-} from "@omnitech/interview-contracts";
+import type { PresentationHost } from "@omnitech/interview-contracts";
 import {
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { Icon } from "../../../icon";
+import { SKILLS } from "../../shared/skills";
 import { BUILD_ID } from "../build-id";
 import type { ApproachItem } from "../overlay-model";
-import { CodeCard, TextCard } from "./code-card";
+import { AnswerPane, CodePane } from "./answer-pane";
+import { DEFAULT_SKILL, FOCUS_INPUT_EVENT } from "./commands";
 import { useFollowLatest } from "./follow-latest";
-import { DEFAULT_SKILL } from "./commands";
 import {
   languageOptions,
   NOT_SUPPORTED_YET,
   supportedLanguage,
 } from "./languages";
 import {
-  analysisView,
   clock,
+  followUpPlaceholder,
   type PanelRow,
   panelRows,
   type TaskStage,
 } from "./panel-model";
 import { quitShell } from "./shell-bridge";
-import {
-  ATTACH_ACTION,
-  CAPTURE_MODES,
-  type CaptureMode,
-  MISSING_CONTEXT_LABEL,
-  captureControl,
-  phaseLabel,
-} from "./toolbar-config";
+import { phaseLabel } from "./toolbar-config";
+import { useElapsed } from "./use-elapsed";
 import type { usePanelSession } from "./use-panel-session";
 
 export type PanelSession = ReturnType<typeof usePanelSession>;
-type Tone = "green" | "red" | "neutral";
-
-// The hotkey the bar shows for the capture (the shell registers it).
-// The analysis asks the chat box to take focus (same document).
-export const FOCUS_INPUT_EVENT = "pn-focus-input";
-export const CAPTURE_HINT = "⌘⇧S";
-export const CHAT_PLACEHOLDER = "Type a message or transcription…";
-// Once there is a problem on screen, typed text is context for it.
-export const CONTEXT_PLACEHOLDER =
-  "Add context for this problem, or ask a follow-up…";
-
-// green: interaction on. red: interaction off, or recording.
-export function pillTone(s: PanelSession): { tone: Tone; label: string } {
-  if (!s.open) return { tone: "neutral", label: "Ended" };
-  if (s.live.mic === "listening") return { tone: "red", label: "Recording" };
-  if (s.interaction === false) return { tone: "red", label: "Interaction off" };
-  return { tone: "green", label: "Interaction on" };
-}
-
-// The short names the bar uses; every other skill shows its full name.
-const BAR_NAME: Partial<Record<LiveOwnerSkill, string>> = {
-  dsa: "DSA",
-  behavioral: "Behavioral",
-};
-export const skillName = (skill: LiveOwnerSkill | undefined): string => {
-  const chosen = skill ?? DEFAULT_SKILL;
-  return BAR_NAME[chosen] ?? LIVE_OWNER_SKILL_LABELS[chosen];
-};
-
-// ---- Bar --------------------------------------------------------------------
-
-export function PillPanel({
-  s,
-  children,
-  captureMode,
-}: {
-  s: PanelSession;
-  // The one window offers Auto or Manual beside the capture button.
-  captureMode?: {
-    value: CaptureMode;
-    onChange(mode: CaptureMode): void;
-  };
-  // Extra controls the one-window view adds after the status dot.
-  children?: ReactNode;
-}) {
-  const status = pillTone(s);
-  const recording = s.live.mic === "listening";
-  const control = captureControl(Boolean(s.phase));
-  return (
-    <div
-      className="pn-pill"
-      role="toolbar"
-      aria-label="Session controls"
-      data-testid="pn-pill"
-    >
-      <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
-        <button
-          type="button"
-          className="pn-split-main"
-          aria-label={control.label}
-          title={control.title}
-          disabled={!s.open}
-          onClick={() => s.press("capture")}
-        >
-          <span className="pn-icon-dot">
-            <Icon name="screenshot_monitor" />
-            <span
-              className="pn-dot"
-              data-tone={status.tone}
-              role="status"
-              aria-label={status.label}
-              title={status.label}
-              data-testid="pn-dot"
-            />
-          </span>
-          <kbd>{CAPTURE_HINT}</kbd>
-        </button>
-        {captureMode && (
-          <label
-            className="pn-split-menu"
-            title={
-              CAPTURE_MODES.find((mode) => mode.id === captureMode.value)?.title
-            }
-          >
-            <span>
-              {
-                CAPTURE_MODES.find((mode) => mode.id === captureMode.value)
-                  ?.label
-              }
-            </span>
-            <Icon name="expand_more" />
-            <select
-              aria-label="Capture mode"
-              value={captureMode.value}
-              onChange={(event) => {
-                // The attach entry is an action: do it, and the menu keeps showing
-                // the mode that is still chosen.
-                if (event.target.value === ATTACH_ACTION.id) {
-                  s.press("attach");
-                  return;
-                }
-                captureMode.onChange(
-                  CAPTURE_MODES.find((mode) => mode.id === event.target.value)
-                    ?.id ?? captureMode.value,
-                );
-              }}
-            >
-              {CAPTURE_MODES.map((mode) => (
-                <option key={mode.id} value={mode.id}>
-                  {mode.label}
-                </option>
-              ))}
-              <option
-                value={ATTACH_ACTION.id}
-                title={ATTACH_ACTION.title}
-                disabled={!s.selected || !s.open}
-              >
-                {ATTACH_ACTION.label}
-              </option>
-            </select>
-          </label>
-        )}
-      </div>
-      <button
-        type="button"
-        className="pn-bar-button"
-        aria-label={recording ? "Stop microphone" : "Start microphone"}
-        aria-pressed={recording}
-        data-mic={s.live.mic}
-        disabled={!s.open}
-        onClick={() => s.press("toggle-mic")}
-      >
-        <Icon name={recording ? "mic" : "mic_off"} filled={recording} />
-      </button>
-      <span className="pn-skill" data-testid="pn-skill">
-        {skillName(s.skill)}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-// Whole seconds since `active` last turned on; 0 while it is off.
-export function useElapsed(active: boolean): number {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!active) return setSeconds(0);
-    const started = Date.now();
-    const timer = setInterval(
-      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [active]);
-  return seconds;
-}
 
 // ---- Analysis ---------------------------------------------------------------
-
-const Lines = ({ lines }: { lines: readonly string[] }) => (
-  <>
-    {lines.map((line) => (
-      <p key={line}>{line}</p>
-    ))}
-  </>
-);
 
 export function AnalysisPanel({
   s,
   part = "all",
+  autoWatching = false,
 }: {
   s: PanelSession;
-  // The one window shows the text and the code as separate panes.
+  // The one window shows the answer and the code as separate panes.
   part?: "all" | "text" | "code";
+  autoWatching?: boolean;
 }) {
-  const task = s.selected;
-  const view = task ? analysisView(task) : null;
-  // The one error line can be dismissed; a different message shows again.
-  const [dismissed, setDismissed] = useState<string | null>(null);
-  const note = s.note && s.note !== dismissed ? s.note : null;
-  const waited = useElapsed(Boolean(s.phase));
   return (
     <div className="pn-analysis" data-testid="pn-analysis">
-      {part !== "code" && (
-        <div className="pn-card pn-analysis-text">
-          {s.phase ? (
-            <p
-              className="pn-analyzing"
-              role="status"
-              data-testid="pn-analyzing"
-            >
-              {phaseLabel(s.phase, s.model.activity.key)}
-              <span className="pn-ellipsis" aria-hidden="true">
-                <i />
-                <i />
-              </span>
-              {waited >= 3 && <span className="pn-muted"> {waited}s</span>}
-            </p>
-          ) : !view ? (
-            <p className="pn-muted pn-centered" data-testid="pn-analysis-empty">
-              Press {CAPTURE_HINT} to analyze the screen
-            </p>
-          ) : (
-            <div className="pn-scroll" data-testid="pn-answer">
-              <div className="pn-problem-head">
-                <h2 className="pn-problem" data-testid="pn-problem">
-                  {view.title}
-                </h2>
-                <span className="pn-type-pill" data-testid="pn-type">
-                  {view.problemType}
-                </span>
-              </div>
-              {s.missing && (
-                <div
-                  className="pn-missing"
-                  role="note"
-                  data-testid="pn-missing"
-                >
-                  <strong>The AI may be missing:</strong>
-                  <ul>
-                    {s.missing.map((item) => (
-                      <li key={item.kind}>
-                        {MISSING_CONTEXT_LABEL[item.kind] ?? item.kind}
-                        {item.note ? `: ${item.note}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="pn-missing-actions">
-                    <button
-                      type="button"
-                      className="pn-bar-button"
-                      onClick={() => s.press("attach")}
-                    >
-                      Add another screenshot
-                    </button>
-                    <button
-                      type="button"
-                      className="pn-bar-button"
-                      onClick={() =>
-                        window.dispatchEvent(new Event(FOCUS_INPUT_EVENT))
-                      }
-                    >
-                      Add context
-                    </button>
-                    <button
-                      type="button"
-                      className="pn-bar-button"
-                      onClick={s.dismissMissing}
-                    >
-                      Looks complete
-                    </button>
-                  </div>
-                </div>
-              )}
-              {view.constraints.length > 0 && (
-                <div className="pn-constraints">
-                  <strong>Constraints:</strong>
-                  <div className="pn-chips" aria-label="Constraints">
-                    {view.constraints.map((text) => (
-                      <span key={text} className="pn-chip">
-                        {text}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {(view.input.length > 0 || view.output.length > 0) && (
-                <div>
-                  <strong>Input/Output:</strong>
-                  {view.input.length > 0 && (
-                    <p>
-                      <b>Input:</b> {view.input.join(" ")}
-                    </p>
-                  )}
-                  {view.output.length > 0 && (
-                    <p>
-                      <b>Output:</b> {view.output.join(" ")}
-                    </p>
-                  )}
-                </div>
-              )}
-              {view.steps.map((step) => (
-                <div key={step.heading}>
-                  <strong>{step.heading}</strong>
-                  <Lines lines={step.lines} />
-                </div>
-              ))}
-              {view.complexity.length > 0 && (
-                <div>
-                  <strong>Complexity</strong>
-                  <Lines lines={view.complexity} />
-                </div>
-              )}
-            </div>
-          )}
-          {note && (
-            <p className="pn-note" role="alert">
-              <span>{note}</span>
-              <button
-                type="button"
-                className="pn-note-close"
-                aria-label="Dismiss message"
-                onClick={() => setDismissed(note)}
-              >
-                <Icon name="close" />
-              </button>
-            </p>
-          )}
-        </div>
-      )}
-      {part === "code" &&
-        !(!s.phase && view && (view.example || view.code)) && (
-          <div className="pn-card">
-            <p className="pn-muted pn-centered">
-              {s.phase ? "Code appears here when it is ready" : "No code yet"}
-            </p>
-          </div>
-        )}
-      {part !== "text" && !s.phase && view && (view.example || view.code) && (
-        <div className="pn-codecol">
-          {view.example && <TextCard text={view.example} />}
-          {view.code && (
-            <CodeCard language={view.code.language} text={view.code.text} />
-          )}
-        </div>
-      )}
+      {part !== "code" && <AnswerPane s={s} autoWatching={autoWatching} />}
+      {part !== "text" && <CodePane s={s} />}
     </div>
   );
 }
@@ -443,6 +123,13 @@ function Row({
   selected: boolean;
   onSelect(taskId: string): void;
 }) {
+  if (row.kind === "marker")
+    return (
+      <div className="pn-marker" data-testid="pn-marker">
+        {row.icon && <Icon name={row.icon} />}
+        <span>{row.text}</span>
+      </div>
+    );
   const taskId = row.taskId;
   // An answer can be chosen to bring its task into the analysis and code panes.
   const choose =
@@ -465,10 +152,16 @@ function Row({
     <div
       className="pn-row"
       data-kind={row.kind}
+      data-speaker={row.speaker}
       data-selected={selected ? "true" : undefined}
       {...choose}
     >
-      <span className="pn-time">{clock(row.at)}</span>
+      <span className="pn-who">
+        {row.kind !== "system" && (
+          <span className="pn-who-label">{row.label}</span>
+        )}
+        <span className="pn-time">{clock(row.at)}</span>
+      </span>
       {row.kind === "assistant" && row.items ? (
         <AnswerText items={row.items} />
       ) : row.stage ? null : (
@@ -480,7 +173,9 @@ function Row({
 }
 
 export function ChatPanel({ s }: { s: PanelSession }) {
-  const rows = panelRows(s.model, s.entries, s.system, s.clearedAt);
+  const rows = panelRows(s.model, s.entries, s.system, s.clearedAt, s.markers);
+  // A follow-up is on its way to the server: the reply is not here yet.
+  const answering = s.snapshot.pending.includes("follow-up");
   const recording = s.live.mic === "listening";
   // A task's own row shows its stage. This pending row covers the moment before
   // a task exists (capturing the screen, a new utterance being read).
@@ -492,7 +187,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
   const last = rows[rows.length - 1];
   const log = useFollowLatest(
     rows.length,
-    `${loading}-${last?.stage?.label}-${last?.items?.length ?? 0}`,
+    `${loading}-${answering}-${last?.stage?.label}-${last?.items?.length ?? 0}`,
   );
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -555,6 +250,12 @@ export function ChatPanel({ s }: { s: PanelSession }) {
             </span>
           </div>
         )}
+        {answering && (
+          <div className="pn-pending" role="status" data-testid="pn-pending">
+            <span className="pn-spinner" aria-hidden="true" />
+            Answering your follow-up…
+          </div>
+        )}
         {!log.following && (
           <button
             type="button"
@@ -586,7 +287,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           className="pn-input"
           aria-label="Message"
           ref={inputRef}
-          placeholder={s.selected ? CONTEXT_PLACEHOLDER : CHAT_PLACEHOLDER}
+          placeholder={followUpPlaceholder(s.target?.targetLabel ?? null)}
           value={s.draft}
           disabled={!s.open}
           onChange={(event) => s.setDraft(event.target.value)}
@@ -682,17 +383,17 @@ export function SettingsPanel({
           <select
             className="pn-select"
             data-testid="pn-skill-select"
-            value={s.skill}
+            value={s.skill ?? DEFAULT_SKILL}
             onChange={(event) => {
-              const skill = LIVE_OWNER_SKILLS.find(
-                (value) => value === event.target.value,
+              const chosen = SKILLS.find(
+                (option) => option.id === event.target.value,
               );
-              if (skill) s.prefs.setSettings({ ...settings, skill });
+              if (chosen) s.setSkill(chosen.id);
             }}
           >
-            {LIVE_OWNER_SKILLS.map((value) => (
-              <option key={value} value={value}>
-                {LIVE_OWNER_SKILL_LABELS[value]}
+            {SKILLS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -723,7 +424,9 @@ export function Toasts({ s }: { s: PanelSession }) {
       {s.toasts.map((toast) => (
         <div key={toast.key} className="pn-toast">
           <div className="pn-toast-title">{toast.title}</div>
-          <div className="pn-toast-detail">{toast.detail}</div>
+          {toast.detail !== "" && (
+            <div className="pn-toast-detail">{toast.detail}</div>
+          )}
         </div>
       ))}
     </div>

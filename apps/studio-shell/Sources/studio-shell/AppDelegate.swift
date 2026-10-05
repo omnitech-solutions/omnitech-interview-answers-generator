@@ -95,10 +95,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 present: { [weak self] command in self?.present(command) },
                 presentation: { [weak self] in self?.controller.state ?? PresentationState.initial },
                 send: { [weak self] command in self?.send(command) },
-                setSkill: { [weak self] skill in
-                    self?.model.skill = skill
-                    self?.send(.setSkill(skill))
-                },
                 connect: { [weak self] in self?.connect() },
                 disconnect: { [weak self] in
                     guard let self else { return }
@@ -165,10 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .intent(let command): send(command)
         case .present(let command): present(command)
         }
-        // The skill is the shell's to name in the toast; the page gets the intent.
-        if action == .skillNext { model.skill = model.skill.cycled(by: 1) }
-        if action == .skillPrevious { model.skill = model.skill.cycled(by: -1) }
-        if let toast = HotkeyRouting.toast(for: action, skill: model.skill) { surface.toast(toast) }
+        if let toast = HotkeyRouting.toast(for: action) { surface.toast(toast) }
     }
 
     // [SAFETY] The first-run agreement. Persisted once; Quit leaves nothing running.
@@ -233,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 view.evaluateJavaScript(HostBridgeScript.emit(command), completionHandler: nil)
             }
         }
+        if command == .chatFocus, state.layout == .compact, !state.mainWindowShown { surface.focusCompact() }
     }
 
     private func reloadIdleViews() { surface.reloadAll() }

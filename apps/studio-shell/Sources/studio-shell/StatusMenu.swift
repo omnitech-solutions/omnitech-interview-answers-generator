@@ -16,7 +16,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         var present: (PresentationCommand) -> Void
         var presentation: () -> PresentationState
         var send: (HostCommand) -> Void
-        var setSkill: (OwnerSkill) -> Void
         var connect: () -> Void
         var disconnect: () -> Void
         var engineHint: () -> String?
@@ -156,16 +155,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         }
         opacityItem.submenu = opacityMenu
         menu.addItem(opacityItem)
-        let skillItem = NSMenuItem(title: "Skill", action: nil, keyEquivalent: "")
-        let skillMenu = NSMenu()
-        for (index, skill) in OwnerSkill.allCases.enumerated() {
-            let entry = NSMenuItem(title: skill.label, action: #selector(pickSkill(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.tag = index
-            skillMenu.addItem(entry)
-        }
-        skillItem.submenu = skillMenu
-        menu.addItem(skillItem)
         add("Settings", #selector(openSettings), enabled: paired)
         let shortcuts = add("Global Shortcuts", #selector(toggleHotkeys), enabled: true)
         shortcuts.state = pstate.hotkeysEnabled ? .on : .off
@@ -221,9 +210,6 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     }
     @objc private func pickOpacity(_ sender: NSMenuItem) {
         if Self.opacities.indices.contains(sender.tag) { actions.present(.setOpacity(Self.opacities[sender.tag])) }
-    }
-    @objc private func pickSkill(_ sender: NSMenuItem) {
-        if OwnerSkill.allCases.indices.contains(sender.tag) { actions.setSkill(OwnerSkill.allCases[sender.tag]) }
     }
     @objc private func connect() { actions.connect() }
     @objc private func disconnect() { actions.disconnect() }

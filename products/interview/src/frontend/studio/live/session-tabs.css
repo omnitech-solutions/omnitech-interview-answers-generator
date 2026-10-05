@@ -24,6 +24,18 @@
   font-weight: 500;
   cursor: pointer;
 }
+.live-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  flex: none;
+}
 .live-tab[aria-selected="true"] {
   background: var(--accent-soft);
   color: var(--accent-ink);

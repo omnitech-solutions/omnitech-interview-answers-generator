@@ -51,6 +51,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+const TARGET = { taskId: "task-1", revision: 2 };
+
 describe("owner input actions", () => {
   it("answer unavailable, without a request or a crash, when the deps have no method", async () => {
     // A server build without the owner-input route: no method at all.
@@ -64,7 +66,7 @@ describe("owner input actions", () => {
       ok: false,
       code: "unavailable",
     });
-    expect(await store.actions.submitFollowUp("and the cost?")).toEqual({
+    expect(await store.actions.submitFollowUp("and the cost?", null)).toEqual({
       ok: false,
       code: "unavailable",
     });
@@ -78,9 +80,9 @@ describe("owner input actions", () => {
     const { store } = boot({ analyzeLatestCapture, submitFollowUp });
     await flush();
     expect(await store.actions.analyzeLatestCapture()).toEqual({ ok: true });
-    expect(await store.actions.submitFollowUp("  and the cost?  ")).toEqual({
-      ok: true,
-    });
+    expect(
+      await store.actions.submitFollowUp("  and the cost?  ", TARGET),
+    ).toEqual({ ok: true });
     expect(analyzeLatestCapture).toHaveBeenCalledWith(
       SESSION_ID,
       undefined,
@@ -90,6 +92,7 @@ describe("owner input actions", () => {
     expect(submitFollowUp).toHaveBeenCalledWith(
       SESSION_ID,
       "and the cost?",
+      TARGET,
       undefined,
     );
   });
@@ -100,12 +103,12 @@ describe("owner input actions", () => {
     });
     const { store } = boot({ submitFollowUp });
     await flush();
-    expect(await store.actions.submitFollowUp("   ")).toEqual({
+    expect(await store.actions.submitFollowUp("   ", null)).toEqual({
       ok: false,
       code: "invalid_input",
     });
     expect(submitFollowUp).not.toHaveBeenCalled();
-    expect(await store.actions.submitFollowUp("next")).toEqual({
+    expect(await store.actions.submitFollowUp("next", null)).toEqual({
       ok: false,
       code: "status_refused",
     });

@@ -13,6 +13,7 @@ import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import {
   ACTION_COLUMNS,
   MAX_PAGE,
+  SNAPSHOT_EVENT_IDS,
   type StoredAction,
   toStoredAction,
 } from "./session-reads.js";
@@ -166,7 +167,7 @@ export async function listActionChanges(
     const after = options.cursor ? decodeKeyset(options.cursor) : null;
     const rows = await rowsOf<Record<string, unknown>>(
       tx,
-      sql`SELECT ${ACTION_COLUMNS},
+      sql`SELECT ${ACTION_COLUMNS}, ${SNAPSHOT_EVENT_IDS},
                  to_char(updated_at AT TIME ZONE 'UTC', ${EXACT}) AS key_at
           FROM interview.session_actions
           WHERE tenant_id = ${scope.tenantId}::uuid

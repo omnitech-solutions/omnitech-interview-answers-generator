@@ -19,7 +19,12 @@ export type SetupTarget =
   // An interview is agreed only through its candidacy: both ids go to start.
   | { kind: "interview"; candidacyId: string; interviewId: string };
 
+// Where Studio hears and sees from. It only chooses the default sources: the
+// start request carries sources, never the host.
+export type SetupHost = "mac" | "browser";
+
 export type SetupForm = {
+  host: SetupHost;
   // null until the owner picks what the session is for.
   target: SetupTarget | null;
   // Rehearsal only. Strict turns live assistance off.
@@ -41,12 +46,20 @@ export const SOURCE_ORDER: readonly LiveCaptureSource[] = [
   "screen",
 ];
 
-export function initialForm(): SetupForm {
+// The Mac app hears both sides and sees the screen; a plain browser cannot
+// capture app audio, so it starts from the microphone and the screen.
+export const HOST_SOURCES: Record<SetupHost, readonly LiveCaptureSource[]> = {
+  mac: ["microphone", "application-audio", "screen"],
+  browser: ["microphone", "screen"],
+};
+
+export function initialForm(host: SetupHost): SetupForm {
   return {
+    host,
     target: null,
     strict: false,
     consent: false,
-    sources: ["microphone", "application-audio", "screen"],
+    sources: HOST_SOURCES[host],
     assistance: true,
     matrix: "none",
     // Allow remote is the default so hands-free works (screenshots, code,
@@ -82,6 +95,20 @@ export function matrixOptions(
 
 export function defaultMatrix(profiles: readonly ProfileChoice[]): string {
   return matrixOptions(profiles)[0]?.value ?? "none";
+}
+
+// ---- Why Start is blocked --------------------------------------------------
+
+// The first thing in the way of Start, as one sentence, or null when ready.
+// Checked in the order the page asks for things.
+export function startBlocker(
+  form: SetupForm,
+  deviceOnlyBlock: string | null,
+): string | null {
+  if (!form.target) return "Choose what the session is for.";
+  if (form.sources.length === 0) return "Choose at least one source.";
+  if (!form.consent) return "Confirm everyone has agreed.";
+  return form.policy === "device-only" ? deviceOnlyBlock : null;
 }
 
 // ---- The start request -----------------------------------------------------

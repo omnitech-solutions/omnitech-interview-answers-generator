@@ -1,13 +1,10 @@
-// The minimized view: the toolbar, the chat, the analysis and the code in ONE
-// window the person can move and resize. The toolbar is the pivot: it stays at
-// the centre, and showing or hiding a pane widens or narrows the window evenly
-// around it. Which panes exist, how wide each is, and which footer buttons show
-// are tables in toolbar-config.ts; this file only draws them. The footer keeps
-// the honest "Visible window" note and the build id.
-import type {
-  LiveAction,
-  PresentationHost,
-} from "@omnitech/interview-contracts";
+// The minimized view: the toolbar, the status strip, the chat, the answer and
+// the code in ONE window the person can move and resize. The toolbar is the
+// pivot: it stays at the centre, and showing or hiding a pane widens or narrows
+// the window evenly around it. Which panes exist, how wide each is, and which
+// footer buttons show are tables in toolbar-config.ts; this file only draws
+// them. The footer keeps the honest "Visible window" note and the build id.
+import type { PresentationHost } from "@omnitech/interview-contracts";
 import {
   type ReactNode,
   useEffect,
@@ -15,74 +12,49 @@ import {
   useRef,
   useState,
 } from "react";
-import { Icon } from "../../../icon";
-import { failureNote, Footer } from "../overlay-footer";
+import { Footer, failureNote } from "../overlay-footer";
 import { AUTO_SESSION } from "./auto-session";
 import type { CaptureMode } from "./capture-mode";
+import { FOCUS_INPUT_EVENT } from "./commands";
+import { EndedCard } from "./ended-card";
 import { openPanelBus } from "./panel-bus";
-import {
-  AnalysisPanel,
-  ChatPanel,
-  type PanelSession,
-  PillPanel,
-  useElapsed,
-} from "./panel-views";
+import { AnalysisPanel, ChatPanel, type PanelSession } from "./panel-views";
+import { StatusStrip, useStrip } from "./status-strip";
+import { openSessionSummary } from "./summary-link";
+import { PillPanel } from "./toolbar";
 import {
   ALL_PANES_SHOWN,
   BARE_WIDTH,
+  nativeChord,
   PANES,
   type PaneId,
-  phaseLabel,
   type PaneState,
+  POPOVER_ROOM,
   WINDOW_GAP,
   WINDOW_PAD,
   windowWidthFor,
 } from "./toolbar-config";
 
-const RUNTIME_LABEL: Record<string, string> = {
-  "claude-code": "Claude",
-  codex: "Codex",
-};
-
-// "Claude · claude-sonnet-5-5": what produced the latest answer, or null before
-// the first one. Display only; nothing depends on it.
-export function generatedByLabel(
-  actions: readonly LiveAction[],
-): string | null {
-  const latest = actions
-    .filter(
-      (action) => action.generatedBy && action.dispatchStatus === "succeeded",
-    )
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
-  const by = latest?.generatedBy;
-  return by ? `${RUNTIME_LABEL[by.runtime] ?? by.runtime} · ${by.model}` : null;
-}
-
-// What each pane shows. The ids and sizes live in PANES.
-const PANE_VIEW: Record<PaneId, (s: PanelSession) => ReactNode> = {
-  chat: (s) => <ChatPanel s={s} />,
-  analysis: (s) => <AnalysisPanel s={s} part="text" />,
-  code: (s) => <AnalysisPanel s={s} part="code" />,
-};
-
 export type Panes = {
   shown: PaneState;
   toggle(pane: PaneId): void;
+  show(pane: PaneId): void;
 };
 
 // Which panes of the one window are showing. All of them to begin with: the code
-// opens with the analysis.
+// opens with the answer.
 export function usePanes(): Panes {
   const [shown, setShown] = useState<PaneState>(ALL_PANES_SHOWN);
   return {
     shown,
     toggle: (pane) => setShown((now) => ({ ...now, [pane]: !now[pane] })),
+    show: (pane) => setShown((now) => ({ ...now, [pane]: true })),
   };
 }
 
 export function SinglePanel({
   s,
-  panes: { shown, toggle },
+  panes,
   presentation,
   captureMode,
 }: {
@@ -91,6 +63,19 @@ export function SinglePanel({
   presentation: PresentationHost;
   captureMode: { value: CaptureMode; onChange(mode: CaptureMode): void };
 }) {
+  const { shown, show } = panes;
+  // What each pane shows. The ids and sizes live in PANES.
+  const view: Record<PaneId, (session: PanelSession) => ReactNode> = {
+    chat: (session) => <ChatPanel s={session} />,
+    analysis: (session) => (
+      <AnalysisPanel
+        s={session}
+        part="text"
+        autoWatching={captureMode.value === "auto"}
+      />
+    ),
+    code: (session) => <AnalysisPanel s={session} part="code" />,
+  };
   // The session ended (End, or the server's time limit): the window starts the
   // next one itself. It is the same server-side session Studio shows, so the
   // browser view and every other window follow it.
@@ -112,16 +97,43 @@ export function SinglePanel({
     openPanelBus().post({ type: "session", sessionId });
   }, [sessionId]);
 
-  const model = generatedByLabel(s.snapshot.actions);
-  const doing = phaseLabel(s.phase, s.model.activity.key);
-  const waited = useElapsed(doing !== null);
+  // The chat takes focus on its command, opening first when it is hidden: the
+  // focus is asked for once it is on screen (its own listener is in by then).
+  const chatShown = shown.chat;
+  const focusWhenShown = useRef(false);
+  useEffect(() => {
+    if (chatShown) {
+      if (!focusWhenShown.current) return;
+      focusWhenShown.current = false;
+      window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+      return;
+    }
+    const open = () => {
+      focusWhenShown.current = true;
+      show("chat");
+    };
+    window.addEventListener(FOCUS_INPUT_EVENT, open);
+    return () => window.removeEventListener(FOCUS_INPUT_EVENT, open);
+  }, [chatShown, show]);
+
+  const strip = useStrip(s);
+  const stripShown = strip !== null && !ended;
+  const [menuOpen, setMenuOpen] = useState(false);
   const anyPane = PANES.some((pane) => shown[pane.id]);
+  const clickThrough = s.interaction === false;
 
   // The shell widens or narrows the window about its centre to fit what shows,
   // never narrower than the toolbar. With no pane showing, the window is only as
-  // tall as its rows, so the footer sits right under the toolbar.
+  // tall as its rows (and the room a menu needs), so the footer sits right under
+  // the toolbar.
   useLayoutEffect(() => {
     const root = document.querySelector<HTMLElement>(".pn-root");
+    const rows = [...(root?.children ?? [])].filter(
+      (row): row is HTMLElement =>
+        row instanceof HTMLElement &&
+        !row.classList.contains("pn-toasts") &&
+        !row.classList.contains("pn-clickthrough"),
+    );
     const fit = () => {
       const pill = root?.querySelector<HTMLElement>(".pn-pill");
       const toolbar =
@@ -129,14 +141,11 @@ export function SinglePanel({
       const width = windowWidthFor(shown, toolbar);
       let height: number | undefined;
       if (!anyPane && root) {
-        const rows = [...root.children].filter(
-          (row): row is HTMLElement =>
-            row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
-        );
-        height =
+        const content =
           rows.reduce((sum, row) => sum + row.offsetHeight, 0) +
           WINDOW_GAP * Math.max(rows.length - 1, 0) +
           WINDOW_PAD;
+        height = Math.max(content, menuOpen ? POPOVER_ROOM : 0);
       }
       void presentation.setWindowSize?.({
         width,
@@ -144,73 +153,59 @@ export function SinglePanel({
       });
     };
     fit();
-    // With nothing showing the window follows the footer as its confirmation
-    // opens and closes.
-    const foot = root?.querySelector<HTMLElement>(".pn-single-foot");
-    if (anyPane || !foot || typeof ResizeObserver === "undefined") return;
+    // The toolbar grows with its labels and the rows with their content; the
+    // window follows both.
+    if (typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(fit);
-    watch.observe(foot);
+    for (const row of rows) watch.observe(row);
     return () => watch.disconnect();
-  }, [shown, anyPane, ended, model, presentation]);
+  }, [shown, anyPane, ended, menuOpen, stripShown, presentation]);
 
   return (
     <>
-      <PillPanel s={s} captureMode={captureMode}>
-        {model && (
-          <span
-            className="pn-model"
-            title={`Generated by ${model}`}
-            data-testid="pn-model"
-          >
-            {model}
-          </span>
-        )}
-        {PANES.map((pane) => (
-          <button
-            key={pane.id}
-            type="button"
-            className="pn-bar-button"
-            aria-label={`Show ${pane.label}`}
-            aria-pressed={shown[pane.id]}
-            title={`Show or hide the ${pane.label}`}
-            onClick={() => toggle(pane.id)}
-          >
-            <Icon name={pane.icon} />
-          </button>
-        ))}
-      </PillPanel>
+      <PillPanel
+        s={s}
+        single={{ panes, presentation, captureMode, onMenuOpen: setMenuOpen }}
+      />
+      {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {anyPane && (
         <div className="pn-single-body">
           {PANES.filter((pane) => shown[pane.id]).map((pane) => (
             <div key={pane.id} className="pn-single-pane" data-which={pane.id}>
-              {PANE_VIEW[pane.id](s)}
+              {view[pane.id](s)}
             </div>
           ))}
         </div>
       )}
+      {ended && <EndedCard s={s} />}
       <div className="pn-single-foot">
-        {doing && (
-          <p className="pn-status" role="status" data-testid="pn-status">
-            <span className="pn-ellipsis" aria-hidden="true">
-              <i />
-              <i />
-            </span>
-            {doing}
-            {waited >= 3 && ` · ${waited}s`}
-            {model && <span className="pn-muted"> · {model}</span>}
-          </p>
-        )}
         <Footer
           sessionWording
           ended={ended}
           onStart={() => void startNext()}
+          {...(sessionId
+            ? { onOpenSummary: () => openSessionSummary(sessionId) }
+            : {})}
           starting={starting}
+          clock={
+            ended ? null : { label: s.model.elapsedLabel, paused: s.paused }
+          }
           paused={s.paused}
           pending={s.snapshot.pending}
           actions={s.actions}
           onFailure={(code) => s.notify(failureNote(code))}
         />
       </div>
+      {clickThrough && (
+        <p
+          className="pn-clickthrough"
+          role="status"
+          data-testid="pn-clickthrough"
+        >
+          Click-through is on. Clicks reach the page underneath. Press{" "}
+          {nativeChord("click-through")} to interact.
+        </p>
+      )}
     </>
   );
 }

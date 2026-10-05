@@ -146,18 +146,20 @@ function nativeHost(extra: Record<string, unknown> = {}, studioHost = {}) {
 }
 
 describe("bar", () => {
-  it("shows the camera with its hotkey, the mic, the skill name and a dot, and nothing else", async () => {
+  it("shows the labelled capture button with its hotkey, the mic with its hotkey, the answer style and a dot, and nothing else", async () => {
     await show("pill");
-    expect(
-      screen.getByRole("button", { name: "Capture screenshot" }),
-    ).toHaveTextContent("⌘⇧S");
+    const capture = screen.getByRole("button", { name: "Analyze screen" });
+    expect(capture).toHaveTextContent("Analyze screen");
+    expect(capture).toHaveTextContent("⌘⇧S");
     expect(
       screen.getByRole("button", { name: "Start microphone" }),
-    ).toBeVisible();
-    expect(screen.getByTestId("pn-skill")).toHaveTextContent("DSA");
+    ).toHaveTextContent("⌥R");
+    expect(screen.getByTestId("pn-skill")).toHaveTextContent(
+      "Data Structures & Algorithms",
+    );
     expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
     const bar = screen.getByTestId("pn-pill");
-    expect(within(bar).getAllByRole("button")).toHaveLength(2);
+    expect(within(bar).getAllByRole("button")).toHaveLength(3);
     for (const gone of [/Auto/, /Remote/, /Visible window/, /companion/i])
       expect(bar).not.toHaveTextContent(gone);
   });
@@ -253,26 +255,38 @@ describe("analysis", () => {
     expect(within(panel).queryByRole("button", { name: /Run/ })).toBeNull();
     expect(screen.queryByText("Results")).toBeNull();
   });
-  it("shows Analyzing while a capture is in flight, in place of the old answer", () => {
+  it("lists the steps while a capture is in flight, in place of the old answer", () => {
     const session = {
       selected: undefined,
+      card: null,
       phase: "analyzing",
       note: null,
-      model: { activity: { key: "idle", text: "" } },
+      model: { activity: { key: "idle", text: "" }, tasks: [] },
     } as unknown as PanelSession;
     render(<AnalysisPanel s={session} />);
-    expect(screen.getByTestId("pn-analyzing")).toHaveTextContent("Analyzing");
+    const steps = screen.getByTestId("pn-steps");
+    expect(
+      within(steps)
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
+    ).toEqual(["done", "active", "waiting"]);
+    expect(steps).toHaveTextContent("Reading the problem");
     expect(screen.queryByTestId("pn-answer")).toBeNull();
   });
-  it("says Solutioning once a coding problem is being worked on", () => {
+  it("is at drafting once the answer is being written", () => {
     const session = {
       selected: undefined,
+      card: null,
       phase: "analyzing",
       note: null,
-      model: { activity: { key: "coding-draft", text: "" } },
+      model: { activity: { key: "drafting", text: "" }, tasks: [] },
     } as unknown as PanelSession;
     render(<AnalysisPanel s={session} />);
-    expect(screen.getByTestId("pn-analyzing")).toHaveTextContent("Solutioning");
+    expect(
+      within(screen.getByTestId("pn-steps"))
+        .getAllByRole("listitem")
+        .map((item) => item.getAttribute("data-state")),
+    ).toEqual(["done", "done", "active"]);
   });
 });
 
@@ -281,9 +295,7 @@ describe("chat", () => {
     await show("chat");
     expect(screen.getByText("Live Transcription & Chat")).toBeVisible();
     expect(
-      screen.getByPlaceholderText(
-        /Type a message or transcription…|Add context for this problem/,
-      ),
+      screen.getByPlaceholderText("Add context to T1, or ask a follow-up"),
     ).toBeVisible();
     expect(screen.queryByTestId("pn-rec")).toBeNull();
     fireEvent.change(screen.getByLabelText("Message"), {
@@ -319,6 +331,9 @@ describe("chat", () => {
         tasks: [],
         activity: { key: "idle", text: "" },
       },
+      snapshot: { pending: [] },
+      target: null,
+      markers: [],
       entries: [],
       system: [{ key: "r", text: RECORDING_LINE, at: 5 }],
       clearedAt: 0,

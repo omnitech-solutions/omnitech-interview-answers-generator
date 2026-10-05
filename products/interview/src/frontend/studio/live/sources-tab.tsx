@@ -164,10 +164,14 @@ function CompanionRow({
   model,
   capability,
   pairing,
+  pairingOpen,
+  onPair,
 }: {
   model: LiveViewModel;
   capability: CompanionCapabilityState;
   pairing: ReactNode;
+  pairingOpen: boolean;
+  onPair(): void;
 }) {
   const { companion } = model;
   // Only the companion can supply the microphone and application audio; the
@@ -215,7 +219,14 @@ function CompanionRow({
           {CREDENTIAL_LIFETIME_TEXT} and is renewed here, by you.
         </p>
         <CompanionReport state={capability} />
-        {pairing}
+        {pairingOpen ? (
+          pairing
+        ) : (
+          <button type="button" className="studio-button" onClick={onPair}>
+            <Icon name="link" />
+            Pair capture companion
+          </button>
+        )}
       </div>
     </li>
   );
@@ -226,13 +237,18 @@ export function SourcesTab({
   session,
   actions,
   pairing,
+  pairingOpen,
+  onPair,
   capability = CAPABILITY_LOADING,
 }: {
   model: LiveViewModel;
   session: LiveSessionView;
   actions: SessionActions;
-  // The pairing panel (a credential just issued), when there is one to show.
+  // The pairing panel. It stays out of sight until the owner asks for it (or a
+  // credential was just issued), so a credential is never on screen by default.
   pairing: ReactNode;
+  pairingOpen: boolean;
+  onPair(): void;
   // The companion's last capability report, read by the panel.
   capability?: CompanionCapabilityState;
 }) {
@@ -274,7 +290,13 @@ export function SourcesTab({
             </li>
           );
         })}
-        <CompanionRow model={model} capability={capability} pairing={pairing} />
+        <CompanionRow
+          model={model}
+          capability={capability}
+          pairing={pairing}
+          pairingOpen={pairingOpen}
+          onPair={onPair}
+        />
       </ul>
       {locality && (
         <section className="live-block" aria-label="Processing">

@@ -124,6 +124,26 @@ describe("LiveCodeCanvas", () => {
     await waitFor(() => expect(screen.getByText("Copied all")).toBeVisible());
   });
 
+  it("says Copied only after the clipboard write succeeded, and says when it failed", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(<LiveCodeCanvas result={make()} density="maximized" />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(screen.getByText("Copied")).toBeVisible());
+    expect(writeText).toHaveBeenCalledWith("export const a = 1;");
+    cleanup();
+    // A blocked clipboard and no selection route: no tick, an honest failure.
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error("blocked")) },
+    });
+    document.execCommand = vi.fn(() => false);
+    render(<LiveCodeCanvas result={make()} density="maximized" />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(screen.getByText("Copy failed")).toBeVisible());
+    expect(screen.queryByText("Copied")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it("runs the edited solution, usage and tests in order and shows the results", async () => {
     const runner = vi.fn().mockResolvedValue(passed);
     render(

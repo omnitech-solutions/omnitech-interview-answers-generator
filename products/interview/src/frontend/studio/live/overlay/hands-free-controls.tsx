@@ -6,7 +6,8 @@
 import { useContext, useState } from "react";
 import { Icon } from "../../icon";
 import { CAPTURE_UPDATE_LINE } from "../companion-capability";
-import { latestTarget } from "../session-owner-input";
+import { usePresentation } from "../focus-presentation";
+import { resolveTarget } from "../shared/task-target";
 import { AutoStatus } from "./auto-status";
 import { CommandBar } from "./command-bar";
 import { DeviceOnlyCard } from "./device-only-notice";
@@ -26,9 +27,12 @@ import { type HandsFree, useHandsFree } from "./use-hands-free";
 export function HandsFreeBar({
   hf,
   onStartRemote,
+  autoControl = true,
 }: {
   hf: HandsFree;
   onStartRemote(): void;
+  // False where another control (the band's Manual/Auto switch) owns Auto.
+  autoControl?: boolean;
 }) {
   const { auto, live, owns } = hf;
   const dictation = auto.dictation;
@@ -55,11 +59,15 @@ export function HandsFreeBar({
         onCapture={owns ? hf.captureNow : () => hf.press("capture")}
         onDictate={() => hf.press("toggle-mic")}
         onSettings={() => hf.setSettingsOpen(true)}
-        auto={{
-          on: live.auto,
-          mic: live.mic,
-          onToggle: () => hf.setAuto(!live.auto),
-        }}
+        {...(autoControl
+          ? {
+              auto: {
+                on: live.auto,
+                mic: live.mic,
+                onToggle: () => hf.setAuto(!live.auto),
+              },
+            }
+          : {})}
       />
       {hf.announced && (
         <p className="ov-auto ok" role="status" data-testid="hands-free-on">
@@ -129,19 +137,32 @@ export function HandsFreeCapture({
                 : "No source shared in the window that owns hands-free"}
             </div>
           </div>
-          <button
-            type="button"
-            className="ov-analyze"
-            disabled={hf.deviceOnly || hf.phase !== null}
-            onClick={() => hf.press("capture")}
-          >
-            <Icon name="center_focus_strong" />
-            {hf.live.phase === "capturing"
-              ? "Capturing…"
-              : hf.live.phase === "analyzing"
-                ? "Analyzing…"
-                : "Capture & analyze"}
-          </button>
+          {hf.working ? (
+            <button
+              type="button"
+              className="ov-analyze stop"
+              data-testid="stop-analysis"
+              disabled={hf.stopping}
+              onClick={() => void hf.stopAnalysis()}
+            >
+              <Icon name="stop_circle" />
+              {hf.stopping ? "Stopping…" : "Stop analysis"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ov-analyze"
+              disabled={hf.deviceOnly || hf.phase !== null}
+              onClick={() => hf.press("capture")}
+            >
+              <Icon name="center_focus_strong" />
+              {hf.live.phase === "capturing"
+                ? "Capturing…"
+                : hf.live.phase === "analyzing"
+                  ? "Analyzing…"
+                  : "Capture & analyze"}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -187,6 +208,11 @@ export function HandsFreeCapture({
       phase={hf.phase}
       flash={hf.flash}
       unavailable={hf.unavailable}
+      stopWork={
+        hf.working
+          ? { stopping: hf.stopping, onStop: () => void hf.stopAnalysis() }
+          : null
+      }
       menuOpen={menuOpen}
       onMenuOpenChange={hf.setCaptureMenu}
       onShare={() => void hf.startSharing()}
@@ -215,16 +241,12 @@ export function HandsFreeNote({ hf }: { hf: HandsFree }) {
 // The listening hint and the follow-up box.
 export function HandsFreeFollowUp({ hf }: { hf: HandsFree }) {
   const dictation = hf.auto.dictation;
-  // A follow-up goes to the task last answered (the store's own rule), so the
-  // label names that one, not whichever task is pinned for reading.
-  const target = latestTarget(hf.snapshot);
-  const followed = target
-    ? hf.tasks.findIndex((task) => task.taskId === target.taskId)
-    : -1;
-  const label =
-    followed >= 0
-      ? `Follow-up about T${followed + 1} · rev ${target?.revision}`
-      : "Type a follow-up";
+  // A follow-up goes to the task on show, at its own current revision, so the
+  // label names that one.
+  const resolved = resolveTarget(hf.tasks, hf.selected?.taskId);
+  const label = resolved
+    ? `Add context to ${resolved.targetLabel}, or ask a follow-up`
+    : "Type a follow-up";
   return (
     <>
       {hf.owns && dictation.state === "listening" && (
@@ -350,8 +372,54 @@ function OwnedBand() {
   return <BandView hf={useHandsFree("studio")} />;
 }
 
+// Where the controls are while the band hands them over: the floating window
+// when a float is open, the card otherwise.
+const HAND_OFF_TEXT = {
+  floating: "Controls are in the floating window. Close it to use them here.",
+  card: "The controls are in the card. Close it to use them here.",
+} as const;
+
+// Manual: capture only when Analyze is pressed. Auto: hands-free listening and
+// capture when the shared screen changes. One choice, the same Auto state the
+// card's pill shows.
+const CAPTURE_MODES = [
+  {
+    id: "manual",
+    label: "Manual",
+    title: "Capture only when you press Analyze",
+    on: false,
+  },
+  {
+    id: "auto",
+    label: "Auto",
+    title: "Listen, and capture when the shared screen changes",
+    on: true,
+  },
+] as const;
+
+function CaptureMode({ hf }: { hf: HandsFree }) {
+  return (
+    <div className="ov-segmented" role="group" aria-label="Capture mode">
+      {CAPTURE_MODES.map((mode) => (
+        <button
+          key={mode.id}
+          type="button"
+          className="ov-segment"
+          aria-pressed={hf.live.auto === mode.on}
+          title={mode.title}
+          data-testid={mode.on ? "auto-toggle" : "manual-toggle"}
+          onClick={() => hf.setAuto(mode.on)}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function BandView({ hf }: { hf: HandsFree }) {
   const [collapsed, setCollapsed] = useState(false);
+  const { float } = usePresentation();
   // While a card shows the same controller, it has the controls and dialogs.
   const dialogs = !hf.cardAttached;
   if (!hf.open) return null;
@@ -382,6 +450,7 @@ function BandView({ hf }: { hf: HandsFree }) {
             Screen {light.screen}
           </span>
         </span>
+        {!hf.cardAttached && <CaptureMode hf={hf} />}
         <button
           type="button"
           className="ov-icon-button"
@@ -400,11 +469,15 @@ function BandView({ hf }: { hf: HandsFree }) {
       {hf.cardAttached ? (
         // One set of controls: while the card is open it has them.
         <p className="ov-muted ov-band-note" data-testid="band-in-card">
-          The controls are in the card. Close it to use them here.
+          {float === "pip" ? HAND_OFF_TEXT.floating : HAND_OFF_TEXT.card}
         </p>
       ) : (
         <>
-          <HandsFreeBar hf={hf} onStartRemote={() => openStartPage("tab")} />
+          <HandsFreeBar
+            hf={hf}
+            autoControl={false}
+            onStartRemote={() => openStartPage("tab")}
+          />
           {!collapsed && (
             <>
               <HandsFreeCapture hf={hf} />

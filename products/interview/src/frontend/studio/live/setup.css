@@ -22,7 +22,8 @@
   border-radius: 12px;
   background: var(--surface);
 }
-.setup-section legend {
+.setup-section legend,
+.setup-sources legend {
   padding: 0 6px;
   font-size: 11.5px;
   font-weight: 600;
@@ -198,20 +199,6 @@
   outline-offset: 2px;
 }
 
-.setup-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.setup-field select {
-  max-width: 100%;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
 
 /* Segmented radiogroup. */
 .setup-segmented {
@@ -282,16 +269,172 @@
   font-size: 18px;
   flex: none;
 }
-.setup-start {
+
+.setup-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setup-card-head .studio-icon {
+  color: var(--muted);
+}
+.setup-card.on .setup-card-head .studio-icon {
+  color: var(--accent-ink);
+}
+.setup-card-head .setup-card-title {
+  flex: 1;
+}
+.setup-status {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.setup-status[data-state="ok"] {
+  color: var(--green);
+}
+
+/* Capability lines: icon plus words, never colour alone. */
+.setup-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+.setup-lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.setup-lines .studio-icon {
+  flex: none;
+  font-size: 16px;
+}
+.setup-lines [data-state="ok"] .studio-icon {
+  color: var(--green);
+}
+.setup-lines [data-state="no"] {
+  color: var(--red);
+}
+.setup-lines [data-state="unknown"] {
+  color: var(--muted);
+}
+.setup-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.setup-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--amber-soft);
+  color: var(--text);
+  font-size: 12.5px;
+}
+.setup-warning .studio-icon {
+  flex: none;
+  font-size: 16px;
+  color: var(--amber);
+}
+
+.setup-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  border: 0;
+}
+
+/* Section 3: one bordered list of settings. */
+.setup-settings {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.setup-settings > * {
+  padding: 12px 14px;
+}
+.setup-settings > * + * {
+  border-top: 1px solid var(--border);
+}
+.setup-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-setting-main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
 }
-.setup-start .studio-button {
+.setup-setting-main > .studio-icon {
+  color: var(--muted);
+}
+.setup-setting-text {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setup-select {
+  max-width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Sticky footer: Ready, or the one thing in the way, and Start. */
+.setup-page {
+  padding-bottom: 0;
+}
+.setup-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  background: var(--app);
+}
+.setup-footer-text {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setup-footer-title {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.setup-footer-title.blocked {
+  color: var(--amber);
+}
+.setup-footer .studio-button {
   height: 38px;
 }
-.setup-start .studio-button:disabled {
+.setup-footer .studio-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

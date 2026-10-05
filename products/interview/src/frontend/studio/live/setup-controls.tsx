@@ -1,6 +1,8 @@
-// Small form controls for the Setup view: a segmented radiogroup and a switch
-// row. Both are keyboard operable and carry their accessible name themselves.
+// Small form controls for the Setup view: a segmented radiogroup, a switch row,
+// a radio card and a titled setting row. All are keyboard operable and carry
+// their accessible name themselves.
 import { type KeyboardEvent, type ReactNode, useRef } from "react";
+import { Icon, type IconName } from "../icon";
 
 export type SegmentOption<T extends string> = {
   value: T;
@@ -119,6 +121,70 @@ export function SwitchRow({
       >
         <span />
       </button>
+    </div>
+  );
+}
+
+// A radio card: the native radio is the control (visually hidden, covering the
+// card), so keyboard and screen-reader behaviour is the browser's own.
+export function CardOption({
+  name,
+  checked,
+  onSelect,
+  icon,
+  title,
+  sub,
+  status,
+  children,
+}: {
+  name: string;
+  checked: boolean;
+  onSelect(): void;
+  icon?: IconName;
+  title: string;
+  sub?: string;
+  status?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <label className={`setup-card${checked ? " on" : ""}`}>
+      <input type="radio" name={name} checked={checked} onChange={onSelect} />
+      <span className="setup-card-head">
+        {icon && <Icon name={icon} />}
+        <span className="setup-card-title">{title}</span>
+        {status}
+      </span>
+      {sub && <span className="setup-muted">{sub}</span>}
+      {children}
+    </label>
+  );
+}
+
+// A titled row of the privacy block: what it is, a note, and its control.
+export function SettingRow({
+  icon,
+  title,
+  note,
+  control,
+  children,
+}: {
+  icon: IconName;
+  title: string;
+  note: string;
+  control: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="setup-setting">
+      <div className="setup-setting-main">
+        <Icon name={icon} />
+        <div className="setup-setting-text">
+          <div className="setup-row-title">{title}</div>
+          <div className="setup-muted">{note}</div>
+        </div>
+        {control}
+      </div>
+      {children}
     </div>
   );
 }

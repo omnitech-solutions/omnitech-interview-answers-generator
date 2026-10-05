@@ -4,6 +4,7 @@
 // published.
 import type { ActivityRun } from "./session-runs";
 import type { TaskView } from "./session-tasks";
+import { taskLabel, taskOrdinal } from "./shared/task-target";
 
 export function ActivityTab({
   runs,
@@ -12,8 +13,6 @@ export function ActivityTab({
   runs: readonly ActivityRun[];
   tasks: readonly TaskView[];
 }) {
-  const numberOf = (taskId: string): number =>
-    tasks.findIndex((task) => task.taskId === taskId) + 1;
   return (
     <>
       <p className="live-note">
@@ -29,7 +28,8 @@ export function ActivityTab({
               <div className="live-run-head">
                 <strong>{run.kindLabel}</strong>
                 <span className="live-note">
-                  Task {numberOf(run.taskId)} · rev {run.taskRevision}
+                  {taskLabel(taskOrdinal(tasks, run.taskId) ?? 0)} · rev{" "}
+                  {run.taskRevision}
                   {run.attempt > 1 ? ` · attempt ${run.attempt}` : ""}
                 </span>
                 <span className={`live-chip ${run.tone}`}>{run.label}</span>

@@ -5,7 +5,12 @@
 import { Icon } from "../icon";
 import { clockLabel } from "./session-format";
 import { tenantFromLocation } from "./session-registry";
-import type { TranscriptRow } from "./session-transcript";
+import {
+  NO_LABELS,
+  type TranscriptLabels,
+  type TranscriptRow,
+} from "./session-transcript";
+import { taskLabel } from "./shared/task-target";
 import { TASK_KIND } from "./task-panels";
 
 export const MAX_TRANSCRIPT_ROWS = 300;
@@ -31,10 +36,12 @@ function Row({
   row,
   sessionId,
   start,
+  labels,
 }: {
   row: TranscriptRow;
   sessionId: string;
   start: string;
+  labels: TranscriptLabels;
 }) {
   switch (row.type) {
     case "utterance":
@@ -59,11 +66,15 @@ function Row({
           <p className="live-line-text">{row.text}</p>
         </li>
       );
-    case "screenshot":
+    case "screenshot": {
+      const shot = labels.snapshot(row);
       return (
         <li className="live-line live-event" data-testid="transcript-row">
           <Icon name="screenshot_monitor" />
-          <span>Screen · {row.windowLabel} · snapshot</span>
+          <span>
+            Screen · {row.windowLabel} ·{" "}
+            {shot ? `${shot} captured` : "snapshot"}
+          </span>
           {row.artifactId && (
             <a
               className="live-link"
@@ -76,6 +87,7 @@ function Row({
           )}
         </li>
       );
+    }
     case "gap":
       return (
         <li className="live-line live-event amber" data-testid="transcript-row">
@@ -96,7 +108,9 @@ function Row({
           </span>
         </li>
       );
-    case "new-task":
+    case "new-task": {
+      const task = taskLabel(row.ordinal);
+      const shot = labels.taskSnapshot(row.taskId);
       return (
         <li
           className="live-line live-event accent"
@@ -105,11 +119,12 @@ function Row({
           <Icon name={TASK_KIND[row.kind].icon} />
           <span>
             {row.revised
-              ? `Task revised · rev ${row.revision}`
-              : `New task: ${TASK_KIND[row.kind].label.toLowerCase()}`}
+              ? `${task} revised · rev ${row.revision}`
+              : `${shot ? `${shot} analysed → ` : ""}${task} started · ${TASK_KIND[row.kind].label.toLowerCase()}`}
           </span>
         </li>
       );
+    }
   }
 }
 
@@ -124,10 +139,12 @@ export function TranscriptTab({
   rows,
   sessionId,
   sessionStart,
+  labels = NO_LABELS,
 }: {
   rows: readonly TranscriptRow[];
   sessionId: string;
   sessionStart: string;
+  labels?: TranscriptLabels;
 }) {
   if (rows.length === 0)
     return (
@@ -148,6 +165,7 @@ export function TranscriptTab({
             row={row}
             sessionId={sessionId}
             start={sessionStart}
+            labels={labels}
           />
         ))}
       </ol>

@@ -277,6 +277,24 @@ describe("the ended view: header and results", () => {
     expect(writeText).toHaveBeenCalledWith(hostile);
   });
 
+  it("says when a draft could not be copied", async () => {
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error("blocked")) },
+    });
+    document.execCommand = vi.fn(() => false);
+    await mount(ended(), { actions: [answerAction()] });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Copy Experience answer 1" }),
+      );
+    });
+    expect(
+      screen.getByRole("button", {
+        name: "Copy Experience answer 1: copy failed",
+      }),
+    ).toBeVisible();
+  });
+
   it("names the target from the setup choices", async () => {
     const candidacyId = "11111111-1111-4111-8111-111111111111";
     const interviewId = "22222222-2222-4222-8222-222222222222";

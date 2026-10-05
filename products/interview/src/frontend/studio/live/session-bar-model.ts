@@ -5,6 +5,7 @@
 // the companion is never called connected before the server has seen it.
 import type {
   LiveCaptureSource,
+  LiveProcessingPolicy,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import type { IconName } from "../icon";
@@ -106,6 +107,9 @@ export type SourceChip = {
   state: string;
   // The server's disconnect or gap reason, as sent.
   reason: string | null;
+  // Not receiving (lost, revoked, dropped): drawn red in the header and
+  // lights the Sources tab.
+  alert: boolean;
 };
 
 const SOURCE_ICON: Record<LiveCaptureSource, IconName> = {
@@ -194,9 +198,25 @@ export function sourceChips(model: LiveViewModel): SourceChip[] {
         title: `${status.label} · ${state}`,
         state,
         reason: status.health === "lost-permission" ? status.reason : null,
+        alert: tone === "red" || tone === "amber",
       };
     });
 }
+
+// A source is selected and not receiving: the Sources tab carries a red dot.
+export const sourcesNeedAttention = (model: LiveViewModel): boolean =>
+  sourceChips(model).some((chip) => chip.alert);
+
+// Pause and Resume are one control whose face follows the session status.
+export const PAUSE_CONTROL = {
+  pause: { label: "Pause", icon: "pause" },
+  resume: { label: "Resume", icon: "play_arrow" },
+} as const satisfies Record<string, { label: string; icon: IconName }>;
+
+export const LOCALITY_ICON: Record<LiveProcessingPolicy, IconName> = {
+  "device-only": "devices",
+  "permitted-remote": "cloud_done",
+};
 
 // Shown until the choices resolve, and when they cannot: a session with no
 // Interview or candidacy link is a rehearsal.
@@ -235,4 +255,7 @@ export const RESUMED_RENEWED_TOAST =
   "Resumed with a renewed capture credential. Open the session to hand it to the companion.";
 export const END_TITLE = "End this session?";
 export const END_BODY =
-  "Studio stops accepting capture, cancels running work and discards any result that arrives later. This can’t be undone.";
+  "Capture stops, running work is cancelled and any result that arrives later is discarded. This can’t be undone.";
+// Said only when the page runs inside the Mac app's window, which is the one
+// case where ending here is known to end it there too.
+export const END_HOST_LINE = "This also ends it in the Mac app.";

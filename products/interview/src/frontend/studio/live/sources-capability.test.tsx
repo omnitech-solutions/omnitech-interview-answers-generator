@@ -40,11 +40,12 @@ function body(
   capability: CompanionCapabilityState | undefined,
   input: Parameters<typeof build>[0] = {},
 ) {
-  const { view, model } = build(input);
+  const { view, model, stream } = build(input);
   render(
     <LiveSessionBody
       session={view}
       model={model}
+      stream={stream}
       actions={{} as SessionActions}
       busy={false}
       commandError={null}

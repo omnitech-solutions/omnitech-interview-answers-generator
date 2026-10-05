@@ -25,12 +25,16 @@ export type ViewProps = {
   control: PlaygroundControlState;
   onDirtyChange(dirty: boolean): void;
 };
+// "session-open": a live session is open (shown as a red dot).
+export type ViewIndicator = "session-open";
 export type ViewDefinition = {
   id: ViewId;
   label: string;
   icon: IconName;
   // "W" makes "G W" the shortcut.
   goKey: string;
+  // A marker the sidebar draws beside the label while its condition holds.
+  indicator?: ViewIndicator;
   render(props: ViewProps): ReactNode;
 };
 
@@ -127,6 +131,7 @@ export const views: readonly ViewDefinition[] = [
     label: "Live session",
     icon: "sensors",
     goKey: "L",
+    indicator: "session-open",
     render: ({ route, actions }) => (
       <LiveSessionView rest={route.rest} studio={actions} />
     ),

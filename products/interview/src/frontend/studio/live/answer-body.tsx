@@ -3,13 +3,14 @@
 // for a behavioural question, and what was found or is missing for logistics.
 // The draft and every claim are session content: inert text only.
 import { Icon } from "../icon";
-import { ClaimList, claimSummary } from "./claim-chips";
+import { ClaimList } from "./claim-chips";
 import type {
   AnswerResult,
   LogisticsField,
   StarElement,
 } from "./session-results";
 import type { TaskView } from "./session-tasks";
+import type { TaskCard } from "./shared/task-card-model";
 
 const STAR_LABEL: Record<StarElement, string> = {
   situation: "Situation",
@@ -113,14 +114,17 @@ function Logistics({ answer }: { answer: AnswerResult }) {
 
 export function AnswerBody({
   task,
+  card,
   answer,
   onCopy,
 }: {
   task: TaskView;
+  // The card's answer text is the one the owner reads and copies.
+  card: TaskCard;
   answer: AnswerResult;
   onCopy(text: string): void;
 }) {
-  const summary = claimSummary(answer.claimCounts);
+  const text = card.answerText ?? "";
   // The newest revision that has an answer, for the "outdated" notice.
   const answeredRevision = [...task.revisions]
     .reverse()
@@ -147,7 +151,7 @@ export function AnswerBody({
         <button
           type="button"
           className="studio-button live-copy"
-          onClick={() => onCopy(answer.draft)}
+          onClick={() => onCopy(text)}
         >
           <Icon name="content_copy" />
           Copy answer
@@ -158,9 +162,9 @@ export function AnswerBody({
         pay, availability or work arrangement, use only facts marked From your
         preferences. Review personal commitments before saying or copying them.
       </p>
-      {answer.draft.trim() !== "" && (
+      {text.trim() !== "" && (
         <div className="live-draft">
-          <Paragraphs text={answer.draft} />
+          <Paragraphs text={text} />
         </div>
       )}
       {answer.star ? (
@@ -170,7 +174,6 @@ export function AnswerBody({
       ) : (
         <ClaimList claims={answer.claims} label="Claims in this answer" />
       )}
-      {summary !== "" && <p className="live-note">{summary}</p>}
       <p className="live-note">
         Private to you. Nothing here is added to your matrix or exercise
         catalogue.

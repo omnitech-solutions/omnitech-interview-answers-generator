@@ -5,9 +5,9 @@ import {
   COMMANDS,
   claimCommand,
   commandOf,
+  commandOfHotkey,
   cycleSkill,
   INTENT_TARGET,
-  intentOf,
   resetCommandClaims,
 } from "./commands";
 
@@ -29,6 +29,7 @@ describe("keymap to command", () => {
     expect(commandOf(key("BracketRight"))).toBe("skill.next");
     expect(commandOf(key("BracketLeft"))).toBe("skill.prev");
     expect(commandOf(key("KeyC", true))).toBe("session.clear");
+    expect(commandOf(key("KeyF", true))).toBe("chat.focus");
     expect(commandOf(key("KeyP", true))).toBe("panel.toggle");
     expect(COMMAND_KEYS.map((each) => each.command).sort()).toEqual(
       [...COMMANDS].sort(),
@@ -49,22 +50,15 @@ describe("keymap to command", () => {
 });
 
 describe("host intents", () => {
-  it("accepts the dotted command names and the original capture-analyze", () => {
+  it("accepts the dotted command names, chat.focus among them, and the original capture-analyze", () => {
     for (const command of COMMANDS)
-      expect(intentOf(command)).toEqual({ kind: "command", command });
-    expect(intentOf("capture-analyze")).toEqual({
-      kind: "command",
-      command: "capture.analyze",
-    });
+      expect(commandOfHotkey(command)).toBe(command);
+    expect(commandOfHotkey("chat.focus")).toBe("chat.focus");
+    expect(commandOfHotkey("capture-analyze")).toBe("capture.analyze");
   });
-  it("sets a skill by id, or none by auto, and refuses unknown names", () => {
-    expect(intentOf("skill.set:dsa")).toEqual({ kind: "skill", skill: "dsa" });
-    expect(intentOf("skill.set:auto")).toEqual({
-      kind: "skill",
-      skill: undefined,
-    });
-    expect(intentOf("skill.set:wizardry")).toBeNull();
-    expect(intentOf("rm -rf")).toBeNull();
+  it("refuses unknown names, and no longer sets a skill by name (the page owns it)", () => {
+    expect(commandOfHotkey("skill.set:dsa")).toBeNull();
+    expect(commandOfHotkey("rm -rf")).toBeNull();
   });
   it("routes capture, solve, the mic and auto to the always-open bar, and the rest to every panel", () => {
     expect(INTENT_TARGET).toEqual({

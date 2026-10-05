@@ -10,6 +10,7 @@ import type {
   OwnerHints,
 } from "./session-capture";
 import type { SessionFetch } from "./session-client";
+import type { TaskTarget } from "./shared/task-target";
 
 // Cadence: a live session is read about once a second; a paused one rarely
 // changes, so every 5 s; failures back off from 5 s to 30 s.
@@ -35,7 +36,7 @@ export type StoreDeps = {
   // are thrown as SessionApiError. The text is never logged or stored here.
   analyzeLatestCapture?(
     sessionId: string,
-    target?: { taskId: string; revision: number },
+    target?: TaskTarget,
     hints?: OwnerHints,
     // The stored capture the owner chose; without it, the newest one.
     snapshot?: { sourceId: string; eventId: string },
@@ -51,16 +52,19 @@ export type StoreDeps = {
     sessionId: string,
     requestId: string,
   ): Promise<LiveCaptureState>;
+  // `target` is the task revision the question is about; null is an explicit
+  // general question (no task exists yet), never a stand-in for another task.
   submitFollowUp?(
     sessionId: string,
     text: string,
+    target: TaskTarget | null,
     hints?: OwnerHints,
   ): Promise<void>;
   // Generate the solution code for one task revision. Idempotent: the same
   // task revision always carries the same request id.
   solveTask?(
     sessionId: string,
-    target: { taskId: string; revision: number },
+    target: TaskTarget,
     hints?: OwnerHints,
   ): Promise<void>;
   // Hands-free Auto: one final phrase the browser heard, by its own request id

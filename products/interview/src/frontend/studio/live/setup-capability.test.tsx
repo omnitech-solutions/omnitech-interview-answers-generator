@@ -98,9 +98,11 @@ describe("Setup and the companion's last report", () => {
     withReport(REPORTS.ready);
     await open();
     expect(capability()).toHaveTextContent("not a live connection");
-    expect(capability()).toHaveTextContent("On this Mac, in the companion");
-    expect(within(capability()).getByText("Microphone")).toBeVisible();
-    expect(capability()).toHaveTextContent("granted");
+    // The Mac card lists speech and permissions from the report.
+    const lines = screen.getByTestId("host-lines-mac");
+    expect(lines).toHaveTextContent("On this Mac, in the companion");
+    expect(lines).toHaveTextContent("Microphone: granted");
+    expect(lines).toHaveTextContent("Screen recording: granted");
     readyToStart();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(start()).toBeEnabled();
@@ -207,7 +209,8 @@ describe("Setup and the audio source that questions are read from", () => {
     withReport(null);
     await open();
     readyToStart();
-    // Default: microphone and application audio, assistance on.
+    // The Mac app starts with microphone and application audio, assistance on.
+    fireEvent.click(screen.getByRole("radio", { name: /Mac app/ }));
     expect(screen.queryByTestId("app-audio-advisory")).toBeNull();
     fireEvent.click(screen.getByLabelText(/App audio/));
     const advisory = screen.getByTestId("app-audio-advisory");

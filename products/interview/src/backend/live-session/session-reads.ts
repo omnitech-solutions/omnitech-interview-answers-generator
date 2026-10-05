@@ -13,6 +13,7 @@ import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile.js";
 import { SESSION_SCREENSHOT_ARTIFACT_TYPE } from "../db/live-session.js";
 import { assertUuid, SessionError } from "./errors.js";
 import { sanitizeMissingContext } from "./missing-context.js";
+import { parseSnapshotProvenanceId } from "./owner-input.js";
 import { firstRow, inOwnerScope, type OwnerScope, rowsOf } from "./scope.js";
 import type { SessionJobs } from "./session-jobs.js";
 import { readSession, type SessionView, toView } from "./session-record.js";
@@ -127,6 +128,10 @@ export type StoredAction = {
   // a row written before the column existed.
   sourceEventIds?: readonly string[] | null;
   result: unknown;
+  // The screenshots the revision rests on, as (sourceId, eventId) pairs lifted
+  // from the snapshot provenance ids. Ids only; the browser's feed carries this
+  // and never the raw sourceEventIds.
+  sourceSnapshots?: { sourceId: string; eventId: string }[];
   // Display metadata lifted from result.generatedBy when it is well formed.
   generatedBy?: { runtime: string; model: string };
   // Display metadata lifted from result.missingContext, sanitised.
@@ -156,6 +161,26 @@ function missingContextOf(result: unknown): LiveMissingContext | undefined {
   );
 }
 
+// Column that gives the browser's feed the snapshot provenance ids only: the
+// spoken segment ids and owner input ids in source_event_ids stay server-side.
+export const SNAPSHOT_EVENT_IDS = sql`ARRAY(
+    SELECT source_id FROM unnest(source_event_ids) WITH ORDINALITY AS u(source_id, n)
+    WHERE source_id LIKE 'snap/%' ORDER BY n) AS snapshot_event_ids`;
+
+function sourceSnapshotsOf(
+  row: Record<string, unknown>,
+): { sourceId: string; eventId: string }[] | undefined {
+  const ids = row["snapshot_event_ids"];
+  if (!Array.isArray(ids)) return undefined;
+  const found = (ids as string[]).flatMap((id) => {
+    const parsed = parseSnapshotProvenanceId(id);
+    return parsed
+      ? [{ sourceId: parsed.sourceId, eventId: parsed.eventId }]
+      : [];
+  });
+  return found.length > 0 ? found : undefined;
+}
+
 export function toStoredAction(row: Record<string, unknown>): StoredAction {
   // A withheld draft's summary rides on its suppression reason (withheld.ts):
   // the browser reads it as result.withheld, content-free.
@@ -167,6 +192,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     : (row["result"] ?? null);
   const generatedBy = generatedByOf(result);
   const missingContext = missingContextOf(result);
+  const sourceSnapshots = sourceSnapshotsOf(row);
   return {
     id: String(row["id"]),
     taskId: String(row["task_id"]),
@@ -180,6 +206,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     result,
     ...(generatedBy === undefined ? {} : { generatedBy }),
     ...(missingContext === undefined ? {} : { missingContext }),
+    ...(sourceSnapshots === undefined ? {} : { sourceSnapshots }),
     shown: Boolean(row["shown"]),
     suppressionReason: stored ? stored.reason : null,
     createdAt: new Date(row["created_at"] as string).toISOString(),

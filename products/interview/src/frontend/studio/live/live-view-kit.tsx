@@ -2,6 +2,7 @@
 // synthetic fixtures, with spy actions.
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
+import type { BannerHost } from "./banner-copy";
 import { LiveSessionBody } from "./live-session-view";
 import { action, minutesAfter, sessionView } from "./session-fixtures";
 import type { SessionActions } from "./session-snapshot";
@@ -31,7 +32,11 @@ export function build({
     serverClockOffsetMs: 0,
     nowMs: Date.parse(minutesAfter(nowMinutes)),
   });
-  return { view, model };
+  return {
+    view,
+    model,
+    stream: { actions, observations },
+  };
 }
 
 export function spies() {
@@ -50,12 +55,18 @@ export type Shown = {
   again(next: Build): void;
 };
 
-export function show(input: Build, actions = spies()): Shown {
-  const { view, model } = build(input);
-  const ui = (v = view, m = model) => (
+export function show(
+  input: Build,
+  actions = spies(),
+  host?: BannerHost,
+): Shown {
+  const { view, model, stream } = build(input);
+  const ui = (v = view, m = model, st = stream) => (
     <LiveSessionBody
       session={v}
       model={m}
+      stream={st}
+      {...(host ? { host } : {})}
       actions={actions as unknown as SessionActions}
       busy={false}
       commandError={null}
@@ -67,7 +78,7 @@ export function show(input: Build, actions = spies()): Shown {
     actions,
     again(next: Build) {
       const built = build(next);
-      utils.rerender(ui(built.view, built.model));
+      utils.rerender(ui(built.view, built.model, built.stream));
     },
   };
 }
