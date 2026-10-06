@@ -31,6 +31,9 @@ const WINDOW_TITLE: Record<NativeWindowPage, string> = {
   settings: "Settings",
 };
 
+// How many times the window re-reads on its own after losing its session.
+const MAX_RECOVERIES = 3;
+
 export function PanelsRoot({
   panel,
   member,
@@ -90,6 +93,24 @@ export function PanelsRoot({
   useEffect(() => {
     if (access !== "ok") tellHost("lost");
   }, [access]);
+  // [SAFETY] A native window is never left on a dead end: a session that went away
+  // (ended elsewhere, deleted, a stale id) halts the store, and nothing else would
+  // restart it. Read the current session again: a running one is adopted, none shows
+  // the start screen. Bounded, so a server that keeps refusing shows the card.
+  const recoveries = useRef(0);
+  useEffect(() => {
+    if (access === "ok") recoveries.current = 0;
+    else if (
+      native &&
+      panel === "single" &&
+      access === "unavailable" &&
+      snapshot.tenant === tenantFromLocation() &&
+      recoveries.current < MAX_RECOVERIES
+    ) {
+      recoveries.current += 1;
+      void actions.refresh();
+    }
+  }, [access, native, panel, snapshot.tenant, actions]);
 
   // The compact native window before a session runs: the real toolbar and
   // footer, locked, around the sign-in or start screen.
@@ -135,6 +156,18 @@ export function PanelsRoot({
           {access === "signed-out"
             ? "You’re signed out. Sign in to Studio again to continue."
             : "This session is unavailable."}
+          {access === "unavailable" && native && (
+            <button
+              type="button"
+              className="pn-bar-button"
+              onClick={() => {
+                recoveries.current = 0;
+                void actions.refresh();
+              }}
+            >
+              Try again
+            </button>
+          )}
           {access === "signed-out" && (
             <a className="pn-bar-button" href="/sign-in">
               Sign in

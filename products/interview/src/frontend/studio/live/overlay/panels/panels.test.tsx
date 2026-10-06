@@ -606,6 +606,49 @@ describe("no session in a native window", () => {
   });
 });
 
+describe("a native window that loses its session", () => {
+  it("recovers to the start screen instead of stopping on a dead end", async () => {
+    serve();
+    nativeHost();
+    await show("single", "&host=native");
+    expect(screen.queryByTestId("pn-start")).toBeNull();
+    // The session goes away: its stream answers 404, and nothing is running.
+    server.on("GET /:id/stream", () =>
+      jsonResponse({ error: { code: "not_found" } }, 404),
+    );
+    server.on("GET /current", () =>
+      jsonResponse({ error: { code: "not_found" } }, 404),
+    );
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(screen.queryByText("This session is unavailable.")).toBeNull();
+    expect(screen.getByTestId("pn-start")).toHaveAttribute(
+      "data-stage",
+      "idle",
+    );
+  });
+  it("adopts a session that is running when the old one is gone", async () => {
+    serve();
+    nativeHost();
+    await show("single", "&host=native");
+    const next = live({ id: "22222222-2222-4222-8222-222222222222" });
+    server.on("GET /:id/stream", ({ url }) =>
+      url.pathname.includes(next.id)
+        ? jsonResponse(
+            streamPage({
+              session: next,
+              observations: [],
+              nextAfterSequence: 0,
+              actions: [],
+            }),
+          )
+        : jsonResponse({ error: { code: "not_found" } }, 404),
+    );
+    server.on("GET /current", () => jsonResponse({ session: next }));
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(screen.queryByText("This session is unavailable.")).toBeNull();
+  });
+});
+
 describe("commands in a page", () => {
   const press = (code: string, shift = false) =>
     act(async () => {
