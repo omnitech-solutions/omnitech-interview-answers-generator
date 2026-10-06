@@ -28,8 +28,8 @@ If a swap seems to need a behaviour change, stop and write it down as a question
 - The earlier decision (`bionic/research/references/ui-components.md`) was "no new package or dependency". The owner
   reversed it: **the library `~/dev/omnitech-solutions/omni-ui-components` is the single home for components.** This work
   supersedes that note; propose an ADR and update the note.
-- The designer's target is `~/Downloads/AI Assistant Design Overhaul/Native Panel Cleanup.dc.html` (boards 1a, 1c, 1d, 1e;
-  ignore Zoom board 1b, drop 1f) and its written requirements T1–T9, M1–M11, F1–F6 in
+- The designer's target is the gallery `Native Panel Cleanup.dc.html` (boards 1a, 1c, 1d, 1e; ignore Zoom board 1b, drop 1f),
+  **committed in this repo** at `bionic/inbox/redesign/ui-components/design/` (the original lives in the owner's Downloads) and its written requirements T1–T9, M1–M11, F1–F6 in
   `bionic/inbox/redesign/ui-components/native-panel-cleanup-brief.md`. The library's showcase
   `omni-ui-components/Showcase/Native App` reproduces those boards from library parts and is the visual reference.
 
@@ -129,6 +129,47 @@ new network or persistence is introduced by the swap.
 Tests query by role, `title` and visible text (`getByTitle`, `getByRole`). Every `label`/`title` string above must be
 preserved exactly, passed through the library's `labels` props. Where the library adds a `tooltip`, the accessible name
 must not change.
+
+## 4A. The redesign is the target: every requirement, its phase and its acceptance check
+
+The new native app must **represent the designer's redesign** (`bionic/inbox/redesign/ui-components/design/`: the gallery
+file, boards 1a, 1c, 1d, 1e, and a README) and satisfy its written instructions, which are in
+`bionic/inbox/redesign/ui-components/native-panel-cleanup-brief.md` verbatim. The brief's own first line is the contract for
+this whole swap: *"Keep every behaviour and shortcut exactly as it is; only change layout, visuals and where state is
+shown."* Treat each row below as an acceptance criterion; a phase is not done until its rows pass. "Lib" is the library
+component that renders it (see the showcase `omni-ui-components/Showcase/Native App`, which already reproduces these boards).
+
+| Id | Requirement (short) | Phase | Lib | Acceptance check |
+|---|---|---|---|---|
+| T1 | "Manual" pill removed; capture caret menu has "When to analyse" (Manual / Auto, current copy) above "Display"; neutral = Manual, blue tint = Auto; coloured dot removed; tooltip names the mode; click behaviour and the auto key unchanged | 3 | `SplitButton`, `ActionMenu` | Unit: menu sections and order, tint by mode, no dot element, tooltip text. Behaviour tests for mode and click unchanged. |
+| T2 | While analysing the icon is a blue progress ring; click or the capture key stops the run; banner deleted | 3 | `SplitButton` (`state="analysing"`), `Progress` | Unit: ring present while a run is active, no banner node; stop path still ends the run (`engine.test.tsx`). |
+| T3 | Mic: listening neutral white mic; muted red slashed; lost/retrying amber outline + "!" badge; caret lists devices, status "Trying again · attempt n", "Retry now"; banner removed; `Alt+R` unchanged | 3 | `SplitButton`, `IconButton` badge, `ActionMenu` | Unit per state (colour tone, slash, badge); caret menu content from device data; no banner string anywhere. |
+| T4 | Screen problems (permission missing, display gone, last capture failed) get the same amber outline and badge; caret leads with the reason and a fix action | 3 | `SplitButton` status, `ActionMenu` | Unit per problem kind; fix action fires its handler. State persists until resolved (section 7). |
+| T5 | Answer style: full name up to 260 px then ellipsis + tooltip; menu sized to the viewport with internal scroll; grouped Technical / Conversation; fixed check column; "⌘↑ ⌘↓" hint row (show the **app's real keys**) | 3 | `ActionMenu`, `Button` | Unit: label width cap, groups, hint from `COMMAND_KEYS`; browser check at a short window that no item is cut off. |
+| T6 | Chat / Answer / Code toggles are one bordered segmented control; active = blue tint; the last visible panel cannot be turned off (disabled with a tooltip) | 3 | `Segmented` (`multiple`, `minActive`) | Unit: three states, last-one-disabled with tooltip; reflow tests in Phase 4. |
+| T7 | Shortcuts menu: macOS glyphs everywhere, grouped Capture / Listening / View / Answer style / App, "Clear session memory" last in the destructive colour, bindings unchanged | 3 | `ActionMenu` | Unit: group order, glyphs derived from `COMMAND_KEYS`, destructive item last; `commands.test.ts` unchanged. |
+| T8 | Paused: capture and mic dimmed, slashed, not clickable ("Resume to capture"); answer style, panel toggles, see-through, shortcuts stay usable | 3 | `SplitButton`, `IconButton` (`disabledReason`) | Unit: disabled controls and tooltip; the mode menu stays openable (4.2). |
+| T9 | One size system: controls 36 px (52 px labelled), radius 10, gap 6, separators 20 px, 20 px outline icons (filled only for active/primary), split buttons share one border with a 1 px divider | 1, 3 | tokens, `Toolbar` | Computed-style test of heights, radius, gaps and divider; no per-control size overrides left in app CSS. |
+| M1 | Never write mic or recording status into the transcript; it holds speech turns, chat messages and one-line capture event chips | 4 | `Transcript` | Test: the recording-status lines are never appended; chips render for "no question found" and "answered". |
+| M2 | Red dot in the transcript header deleted | 4 | `Panel` | Test: header has no record indicator; footer record icon is the single "live" indicator. |
+| M3 | Analysis progress only as the step list in the Answer panel plus a "Stop" button in the Answer header; banner and "Capturing the screen…" chat message removed | 4 | `Panel`, `Steps`, `Button` | Test: one progress surface; no banner and no chat line; Stop ends the run. |
+| M4 | "Last capture 08:33 · no question found" as right-aligned Answer header meta plus the transcript chip; empty-state body unchanged | 4 | `Panel` meta, `Transcript` event | Test: meta text and chip; no loose top-left text. (`no-question.test.tsx`) |
+| M5 | Each panel is a flex column (header 40, body flex 1 scrolling, optional dock); nothing positioned against the window; the empty-state Capture button sits inside the body | 4 | `Panel` | Test: no `position:absolute` against the window in panel CSS; the button is inside the Answer body at 330/300/900. |
+| M6 | "To apply" is a dock at the bottom of the Answer panel (count, thumbnails, Add screenshot, Clear, primary Apply), only while items are pending; apply behaviour unchanged | 4 | `Panel` dock | Test: dock present only with items; Apply/Clear/Add fire the existing handlers; does not overlap the footer. |
+| M7 | Every panel has a 40 px header (title, meta, optional action); empty states use a 40 px icon tile, optional title, one line, optional action; Code waiting copy "Starts automatically after the approach." | 4 | `Panel`, `Empty` | Test: header height and copy strings in all three panels. |
+| M8 | Composer: mic neutral, red only while dictating; Send muted until there is text | 4 | `Composer`/`Input` | Unit: states; dictation behaviour unchanged (`dictation.ts` tests). |
+| M9 | Transcript: 28 px top fade, thin overlay scrollbar, sticks to the bottom, "Jump to latest" pill when scrolled up | 4 | `Panel` `scroll`, `useFollowLatest` | Real-wheel test: scroll up shows the pill, click returns and follows; new message sticks. |
+| M10 | Transcript 330 px (min 300); other visible panels share the rest equally; footer spans the full row; nothing cropped at ≥ 900 px | 4 | `Panel` widths | Browser test at 900 and 1,180 for 1, 2 and 3 visible panels; `windowWidthFor` tests stay green. |
+| M11 | See-through lowers panel backgrounds only; text and icons stay at full opacity | 1, 4 | `--oui-panel-see-through` | Computed-style test at 0.22: backgrounds alpha 0.22, text colours opaque. |
+| F1 | Footer left: filled red record icon and monospace timer, no "Live" text; paused: amber pause icon, amber timer, "Paused" label; nothing else changes colour | 2 | `StatusClock`, `SessionBar` | Unit per state; the timer excludes paused time (4.2). |
+| F2 | Build tag `<short sha> · <branch>` in mono after a divider, dev builds only (`!app.isPackaged`), full SHA in the tooltip, click to copy; hidden in production | 2 | `StatusClock` `buildTag` | Unit: present with `!isPackaged`, absent when packaged; copy writes the full SHA. |
+| F3 | One Resume: paused banner deleted; footer toggles "Pause session" (outline, filled pause icon) / "Resume session" (green filled, filled play icon); behaviour unchanged | 2 | `SessionBar` | Unit: single Resume in the DOM; label and icon fill per state. |
+| F4 | End session is an outlined red button; behaviour including confirmation unchanged | 2 | `SessionBar` `end.confirm` | Unit: outline tone; confirmation still gates End. |
+| F5 | The footer contains only its own items (no floating Capture or To-apply tray) | 2, 4 | `SessionBar`, `Panel` | Test: footer children are the clock, tag and actions only; overlap check at 900. |
+| F6 | The footer background never changes with state; state shows only through icon and timer colour | 2 | `SessionBar` | Computed-style test: identical background live vs paused (and at see-through). |
+
+Visual sign-off: after each phase compare the rendered panels with `board-1a/1c/1d/1e.png` side by side at 2x (colours,
+spacing, states), exactly as the library's showcase was reviewed, and attach the comparison to the PR.
 
 ## 5. What gets replaced, and with what (old → new)
 
