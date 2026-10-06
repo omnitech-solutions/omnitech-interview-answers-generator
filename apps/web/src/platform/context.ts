@@ -1,10 +1,14 @@
+import "./server-only";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { auth } from "@/auth";
 import { LOCAL_USER_EMAIL, localSignInBypass } from "./fake-auth";
+import { REQUESTED_PATH_HEADER } from "./request-path";
+import { safeReturnTarget, signInPath } from "./return-target";
 
 const localContext: PlatformContext = {
   user: {
@@ -94,13 +98,19 @@ export const resolvePlatformContext = cache(async function resolve(
 });
 
 // [SAFETY] A tenant route that resolves no context ends here. Nobody signed in
-// goes to sign-in, which names no tenant: the native shell starts its sign-in
-// round trip when its web view reaches /sign-in, so a bare 404 would strand the
-// panel on "This page could not be found". Someone signed in who is not a
-// member (or asks for an unknown tenant) gets the same 404 as before, so a
-// response never reveals whether a tenant exists.
-export async function refuseTenantAccess(): Promise<never> {
+// goes to sign-in carrying the page they asked for (`next`, validated: only a
+// same-origin /t/ path survives). The native shell starts its sign-in round
+// trip when its web view reaches /sign-in, so a bare 404 would strand the
+// panel. Someone signed in who is not a member (or asks for an unknown tenant)
+// gets the same 404 as before, so a response never reveals whether a tenant
+// exists.
+export async function refuseTenantAccess(next?: string): Promise<never> {
   const signedOut = !localSignInBypass() && !(await auth())?.user?.email;
-  if (signedOut) redirect("/sign-in");
+  if (signedOut) {
+    const target =
+      safeReturnTarget(next) ??
+      safeReturnTarget((await headers()).get(REQUESTED_PATH_HEADER));
+    redirect(signInPath(target));
+  }
   notFound();
 }

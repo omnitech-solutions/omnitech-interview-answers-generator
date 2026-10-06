@@ -1,39 +1,37 @@
-import { signIn } from "@/auth";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 
-export default function SignInPage() {
+import { localSignInAvailable } from "@/src/platform/fake-auth";
+import { configuredLoginProviders } from "@/src/platform/native-handoff";
+import {
+  returnTargetLabel,
+  safeReturnTarget,
+} from "@/src/platform/return-target";
+import { SignInView } from "./sign-in-view";
+
+export const metadata: Metadata = { title: "Sign in" };
+
+const first = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? undefined : value;
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
+  const next = safeReturnTarget(first(query["next"]));
+  const configured = configuredLoginProviders();
   return (
-    <main className="sign-in-page">
-      <section>
-        <p className="platform-eyebrow">Omnitech Studio</p>
-        <h1>Continue to your product catalog</h1>
-        <p>Use your organization identity to access your workspaces.</p>
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", { redirectTo: "/t/local" });
-          }}
-        >
-          <button type="submit">Continue with Google</button>
-        </form>
-        <form
-          action={async () => {
-            "use server";
-            await signIn("linkedin", { redirectTo: "/t/local" });
-          }}
-        >
-          <button type="submit">Continue with LinkedIn</button>
-        </form>
-        {process.env["FAKE_AUTH_ENABLED"] === "true" ? (
-          <form
-            action={async () => {
-              "use server";
-              await signIn("local", { redirectTo: "/t/local" });
-            }}
-          >
-            <button type="submit">Continue as local user</button>
-          </form>
-        ) : null}
-      </section>
-    </main>
+    <SignInView
+      next={next}
+      nextLabel={next ? returnTargetLabel(next) : null}
+      expired={first(query["reason"]) === "expired"}
+      providers={{
+        google: configured.includes("google"),
+        linkedin: configured.includes("linkedin"),
+      }}
+      localAvailable={localSignInAvailable(await headers())}
+    />
   );
 }

@@ -58,3 +58,24 @@ describe("createPlatformApi", () => {
     });
   });
 });
+
+describe("malformed preferences", () => {
+  it("answers 400, not 500, for a body that is not JSON", async () => {
+    const savePreferences = vi.fn();
+    const api = createPlatformApi({
+      resolveContext: async () => platformContext,
+      savePreferences,
+    });
+    const response = await api.request(
+      "http://localhost/api/platform/v1/preferences?tenant=acme",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: "{not json",
+      },
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("invalid_preferences");
+    expect(savePreferences).not.toHaveBeenCalled();
+  });
+});

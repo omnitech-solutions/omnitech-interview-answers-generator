@@ -17,7 +17,42 @@ function buildId(): string {
   }
 }
 
+// [SAFETY] NX-SEC-01: a static baseline on every route. The microphone and
+// display capture are what the live session uses (dictation, screen share), so
+// they stay open to this origin only, which also covers the same-origin overlay
+// frame the picture-in-picture window embeds; camera and location are never
+// used. `frame-ancestors 'self'` is the only CSP directive on purpose: a full
+// policy needs a nonce, dynamic rendering and allowances for the OCR worker,
+// wasm and Mermaid, and is deferred.
+const noSniff = { key: "X-Content-Type-Options", value: "nosniff" };
+const securityHeaders = [
+  noSniff,
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value:
+      "camera=(), geolocation=(), microphone=(self), display-capture=(self)",
+  },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+];
+
+// A header set here replaces the same header a route sets itself (verified: the
+// screenshot download lost its `sandbox` policy to the baseline's CSP). Two
+// routes carry their own stricter policy, so they get only `nosniff` from here:
+//   - the stored-screenshot download (CSP `sandbox`),
+//   - the native sign-in completion page (its own CSP, no-referrer, DENY).
+const NATIVE_COMPLETE = "api/native-auth/complete";
+const SCREENSHOTS = "api/interview/t/[^/]+/sessions/[^/]+/screenshots/";
+const BASELINE_SOURCE = `/((?!${NATIVE_COMPLETE}|${SCREENSHOTS}).*)`;
+const SELF_PROTECTED_SOURCE = `/(${NATIVE_COMPLETE}|${SCREENSHOTS}.*)`;
+
 const config: NextConfig = {
+  poweredByHeader: false,
+  headers: async () => [
+    { source: BASELINE_SOURCE, headers: securityHeaders },
+    { source: SELF_PROTECTED_SOURCE, headers: [noSniff] },
+  ],
   env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   distDir: process.env["NEXT_DIST_DIR"] ?? ".next",
   // The dev badge would sit over Interview Studio's sidebar footer.

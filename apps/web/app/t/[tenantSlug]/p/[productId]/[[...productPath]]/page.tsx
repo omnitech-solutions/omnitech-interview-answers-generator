@@ -42,7 +42,10 @@ export default async function ProductPage({
     resolvePlatformContext,
     { tenantSlug, productId, path: productPath },
   );
-  if (resolved.status === 404) return refuseTenantAccess();
+  if (resolved.status === 404)
+    return refuseTenantAccess(
+      `/t/${encodeURIComponent(tenantSlug)}/p/${encodeURIComponent(productId)}${productPath.map((segment) => `/${encodeURIComponent(segment)}`).join("")}`,
+    );
   // The same context the registry just resolved (one membership read per request).
   const context = await resolvePlatformContext(tenantSlug);
   const Component = resolved.page;

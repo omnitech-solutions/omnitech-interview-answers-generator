@@ -17,6 +17,12 @@ export default defineConfig({
       },
       { find: "react", replacement: require.resolve("react") },
       { find: "react-dom", replacement: require.resolve("react-dom") },
+      // `server-only` throws outside a server bundle by design; Next supplies it
+      // when it builds, and the tests are plain Node, so it resolves to nothing.
+      {
+        find: /^server-only$/,
+        replacement: `${import.meta.dirname}/src/platform/optional-module-stub.ts`,
+      },
       // tsconfig's "@/*" path, so route handlers under app/ can be tested.
       { find: /^@\//, replacement: `${import.meta.dirname}/` },
     ],
@@ -27,6 +33,9 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     clearMocks: true,
     restoreMocks: true,
+    // vi.stubEnv values are undone after every test, so a test never inherits
+    // another test's environment.
+    unstubEnvs: true,
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],

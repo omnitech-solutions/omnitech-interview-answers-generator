@@ -9,11 +9,32 @@ const SESSION_SECONDS = 30 * 24 * 60 * 60;
 // The shell loads this inside its web view with the handoff code and its attempt
 // nonce. A valid, unspent code sets Studio's own session cookie there and sends
 // the person to the overlay; anything else is refused with no detail.
+// [SAFETY] Whether the session cookie is Secure (and so named `__Secure-...`),
+// decided the way Auth.js decides it when it reads the cookie back: the
+// protocol of AUTH_URL when set, else the forwarded protocol, else the
+// request's own. Behind a TLS-terminating proxy the request URL is http, and a
+// cookie set as plain there is never found by Auth.js over https (verified by
+// experiment): the person would be silently signed out.
+function secureCookies(request: Request, url: URL): boolean {
+  const configured = process.env["AUTH_URL"] ?? process.env["NEXTAUTH_URL"];
+  if (configured) {
+    try {
+      return new URL(configured).protocol === "https:";
+    } catch {
+      // An unusable AUTH_URL is not this route's business; fall through.
+    }
+  }
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) return forwarded.split(",")[0]?.trim() === "https";
+  return url.protocol === "https:";
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const identity = nativeHandoffs().consume(
     url.searchParams.get("code") ?? "",
     url.searchParams.get("state") ?? "",
+    url.searchParams.get("verifier") ?? "",
     url.origin,
   );
   if (!identity || !authSecret)
@@ -27,7 +48,7 @@ export async function GET(request: Request) {
         },
       },
     );
-  const secure = url.protocol === "https:";
+  const secure = secureCookies(request, url);
   const name = sessionCookieName(secure);
   const token = await encode({
     token: {

@@ -1,4 +1,8 @@
-import { signIntegrationState } from "@omnitech/platform-integrations";
+import { createHash } from "node:crypto";
+import {
+  createPkcePair,
+  signIntegrationState,
+} from "@omnitech/platform-integrations";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const tenant = { id: "00000000-0000-4000-8000-000000000002", slug: "acme" };
@@ -120,3 +124,82 @@ it.each(["INTEGRATION_STATE_SECRET", "CONNECTED_ACCOUNT_SECRET"])(
     expect(fetchSpy).not.toHaveBeenCalled();
   },
 );
+
+// RFC 9700 PKCE: the callback needs the verifier cookie the same attempt's
+// authorize set, and refuses before any token request when it is absent,
+// wrong, or from another attempt.
+function pkceCallback(
+  verifier: string | undefined,
+  challenge = createPkcePair().challenge,
+) {
+  return GET(
+    new Request(
+      `https://app.test/api/integrations/google/callback?code=c&state=${encodeURIComponent(signedState({ pkceChallenge: challenge }))}`,
+      verifier === undefined
+        ? {}
+        : { headers: { cookie: `integration_pkce_google=${verifier}` } },
+    ),
+    { params: Promise.resolve({ provider: "google" }) },
+  );
+}
+
+it.each([
+  ["missing", () => pkceCallback(undefined)],
+  ["wrong", () => pkceCallback("not-the-verifier-of-this-attempt-xxxxxxxxxx")],
+  [
+    "from an earlier attempt",
+    () => pkceCallback(createPkcePair().verifier, createPkcePair().challenge),
+  ],
+])(
+  "returns 403 before any token request when the PKCE verifier is %s",
+  async (_case, run) => {
+    vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+    vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "client-secret");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await run();
+    expect(response.status).toBe(403);
+    expect(response.headers.get("location")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  },
+);
+
+it("returns 403 for a PKCE provider whose state carries no challenge (a replayed or foreign state)", async () => {
+  vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+  vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "client-secret");
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  const response = await GET(
+    new Request(
+      `https://app.test/api/integrations/google/callback?code=c&state=${encodeURIComponent(signedState())}`,
+      {
+        headers: {
+          cookie: `integration_pkce_google=${createPkcePair().verifier}`,
+        },
+      },
+    ),
+    { params: Promise.resolve({ provider: "google" }) },
+  );
+  expect(response.status).toBe(403);
+  expect(fetchSpy).not.toHaveBeenCalled();
+});
+
+it("with the matching verifier, sends it on the token exchange, then spends the attempt by clearing the cookie", async () => {
+  vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+  vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "client-secret");
+  const { verifier, challenge } = createPkcePair();
+  expect(createHash("sha256").update(verifier).digest("base64url")).toBe(
+    challenge,
+  );
+  const bodies: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+    bodies.push(String(init?.body ?? ""));
+    // Stop after the token request: the grant is refused.
+    return new Response("{}", { status: 400 });
+  });
+  const response = await pkceCallback(verifier, challenge);
+  expect(new URLSearchParams(bodies[0]).get("code_verifier")).toBe(verifier);
+  // The attempt is spent whatever the outcome: the verifier cookie is cleared.
+  expect(response.status).toBe(502);
+  expect(response.headers.get("set-cookie")).toMatch(
+    /integration_pkce_google=;.*Max-Age=0/i,
+  );
+});

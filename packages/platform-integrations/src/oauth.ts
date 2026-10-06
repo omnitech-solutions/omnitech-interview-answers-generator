@@ -1,4 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 
 import { z } from "zod";
 
@@ -12,6 +17,8 @@ export interface OAuthProviderConfiguration {
   tokenUrl: string;
   userInfoUrl: string;
   scopes: readonly string[];
+  // Whether this provider takes an S256 PKCE challenge (RFC 7636 / RFC 9700).
+  pkce: boolean;
 }
 
 export interface OAuthGrant {
@@ -24,10 +31,13 @@ export interface OAuthGrant {
 
 const stateSchema = z.object({
   provider: z.enum(["google", "linkedin"]),
-  tenantId: z.string().uuid(),
+  tenantId: z.uuid(),
   tenantSlug: z.string().min(1),
-  userId: z.string().uuid(),
+  userId: z.uuid(),
   expiresAt: z.number().int(),
+  // The S256 challenge of this attempt's verifier; the verifier itself is
+  // never in the state (it is in a URL), only in an httpOnly cookie.
+  pkceChallenge: z.string().optional(),
 });
 
 export type IntegrationState = z.infer<typeof stateSchema>;
@@ -51,6 +61,8 @@ export function getProviderConfiguration(
         userInfoUrl: "https://openidconnect.googleapis.com/v1/userinfo",
         // OIDC profile only (ADR-0006): no product uses Google APIs yet.
         scopes: ["openid", "email", "profile"],
+        // Google documents S256 PKCE for the authorization-code flow.
+        pkce: true,
       }
     : {
         provider,
@@ -60,6 +72,10 @@ export function getProviderConfiguration(
         tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
         userInfoUrl: "https://api.linkedin.com/v2/userinfo",
         scopes: ["openid", "profile", "email"],
+        // UNVERIFIED offline: LinkedIn documents PKCE for native apps; its
+        // support for confidential web clients is not confirmed, so this is
+        // an explicit opt-in (INTEGRATION_LINKEDIN_PKCE=1), never the default.
+        pkce: process.env["INTEGRATION_LINKEDIN_PKCE"] === "1",
       };
 }
 
@@ -67,6 +83,7 @@ export function createAuthorizationUrl(
   configuration: OAuthProviderConfiguration,
   redirectUri: string,
   state: string,
+  pkceChallenge?: string,
 ): string {
   const url = new URL(configuration.authorizationUrl);
   url.search = new URLSearchParams({
@@ -77,8 +94,52 @@ export function createAuthorizationUrl(
     state,
     access_type: "offline",
     prompt: "consent",
+    ...(pkceChallenge
+      ? { code_challenge: pkceChallenge, code_challenge_method: "S256" }
+      : {}),
   }).toString();
   return url.toString();
+}
+
+// [SAFETY] One PKCE pair per attempt: 32 random bytes (43 base64url
+// characters, the RFC 7636 minimum) and its S256 challenge.
+export function createPkcePair(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString("base64url");
+  return { verifier, challenge: pkceChallengeFor(verifier) };
+}
+
+// The httpOnly cookie that holds one provider's verifier between authorize and
+// callback.
+export function pkceCookieName(provider: IntegrationProvider): string {
+  return `integration_pkce_${provider}`;
+}
+
+function pkceChallengeFor(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}
+
+// [SAFETY] The attempt's verifier from the callback's Cookie header, or
+// undefined unless it hashes to the challenge the signed state carries: a
+// missing, stale or foreign cookie yields nothing.
+export function verifierFromCookie(
+  cookieHeader: string | null,
+  provider: IntegrationProvider,
+  challenge: string | undefined,
+): string | undefined {
+  if (!challenge) return undefined;
+  for (const part of (cookieHeader ?? "").split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key !== pkceCookieName(provider)) continue;
+    const verifier = rest.join("=");
+    const expected = Buffer.from(challenge);
+    const actual = Buffer.from(pkceChallengeFor(verifier));
+    return verifier &&
+      expected.length === actual.length &&
+      timingSafeEqual(expected, actual)
+      ? verifier
+      : undefined;
+  }
+  return undefined;
 }
 
 export function signIntegrationState(
@@ -121,7 +182,12 @@ export async function exchangeAuthorizationCode(
   configuration: OAuthProviderConfiguration,
   code: string,
   redirectUri: string,
+  codeVerifier?: string,
 ): Promise<OAuthGrant> {
+  // A PKCE provider is never asked for a token without the attempt's verifier.
+  if (configuration.pkce && !codeVerifier) {
+    throw new Error("The PKCE verifier is missing.");
+  }
   const response = await fetch(configuration.tokenUrl, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -131,6 +197,9 @@ export async function exchangeAuthorizationCode(
       client_id: configuration.clientId,
       client_secret: configuration.clientSecret,
       redirect_uri: redirectUri,
+      ...(configuration.pkce && codeVerifier
+        ? { code_verifier: codeVerifier }
+        : {}),
     }),
   });
   if (!response.ok) throw new Error("The provider rejected the OAuth grant.");

@@ -13,7 +13,15 @@ import {
   grantApplicationRole,
   startDisposablePostgres,
 } from "@omnitech/database/test-support";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 // No sign-in session at all: the companion has no cookie.
 vi.mock("@/auth", () => ({ auth: async () => null }));
@@ -30,15 +38,9 @@ const REFUSED = {
 
 let pg: DisposablePostgres;
 let handlers: typeof import("./route");
-beforeAll(async () => {
-  pg = await startDisposablePostgres();
-  await migrateDatabase(pg.owner);
-  await grantApplicationRole(pg.owner);
-  await promisify(execFile)(
-    process.execPath,
-    ["--import", "tsx", "src/bootstrap.ts"],
-    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
-  );
+// unstubEnvs undoes stubs after every test, so this runs before each one (and
+// once in beforeAll, before the route module is imported).
+function stubEnvironment() {
   vi.stubEnv("DATABASE_URL", pg.memberUrl);
   // Real sign-in rules: no fake local owner stands in for the missing session.
   vi.stubEnv("FAKE_AUTH_ENABLED", "false");
@@ -54,6 +56,18 @@ beforeAll(async () => {
     "CONNECTED_ACCOUNT_SECRET",
   ])
     vi.stubEnv(name, undefined);
+}
+beforeEach(stubEnvironment);
+beforeAll(async () => {
+  pg = await startDisposablePostgres();
+  await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
+  await promisify(execFile)(
+    process.execPath,
+    ["--import", "tsx", "src/bootstrap.ts"],
+    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
+  );
+  stubEnvironment();
   handlers = await import("./route");
 }, 90_000);
 afterAll(async () => {

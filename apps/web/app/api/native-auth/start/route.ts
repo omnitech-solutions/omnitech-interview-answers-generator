@@ -5,6 +5,7 @@ import { localSignInNeeded } from "@/src/platform/fake-auth";
 import {
   configuredLoginProviders,
   isAttemptState,
+  isChallenge,
   nativeHandoffs,
 } from "@/src/platform/native-handoff";
 
@@ -14,7 +15,8 @@ import {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
-  if (!isAttemptState(state))
+  const challenge = url.searchParams.get("challenge");
+  if (!isAttemptState(state) || !isChallenge(challenge))
     return NextResponse.json(
       { error: "The sign-in attempt is invalid." },
       { status: 400 },
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
       { error: "No login provider is configured." },
       { status: 503 },
     );
-  nativeHandoffs().beginAttempt(state);
+  nativeHandoffs().beginAttempt(state, challenge);
   // Auth.js answers with a redirect to the provider.
   return await signIn(provider, {
     redirectTo: `/api/native-auth/complete?state=${state}`,

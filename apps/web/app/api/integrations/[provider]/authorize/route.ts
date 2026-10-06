@@ -1,12 +1,16 @@
 import {
   createAuthorizationUrl,
+  createPkcePair,
   getProviderConfiguration,
   type IntegrationProvider,
+  pkceCookieName,
   signIntegrationState,
 } from "@omnitech/platform-integrations";
 import { NextResponse } from "next/server";
 
 import { resolvePlatformContext } from "@/src/platform/context";
+
+const ATTEMPT_SECONDS = 10 * 60;
 
 function providerFrom(value: string): IntegrationProvider | null {
   return value === "google" || value === "linkedin" ? value : null;
@@ -49,17 +53,33 @@ export async function GET(
     `/api/integrations/${provider}/callback`,
     requestUrl.origin,
   ).toString();
+  // [SAFETY] RFC 9700 PKCE: the verifier lives only in an httpOnly cookie
+  // scoped to this provider's callback; the URL carries just its S256
+  // challenge, and the signed state repeats the challenge to tie the cookie
+  // to this attempt.
+  const pkce = configuration.pkce ? createPkcePair() : undefined;
   const state = signIntegrationState(
     {
       provider,
       tenantId: context.tenant.id,
       tenantSlug: context.tenant.slug,
       userId: context.user.id,
-      expiresAt: Date.now() + 10 * 60 * 1000,
+      expiresAt: Date.now() + ATTEMPT_SECONDS * 1000,
+      ...(pkce ? { pkceChallenge: pkce.challenge } : {}),
     },
     secret,
   );
-  return NextResponse.redirect(
-    createAuthorizationUrl(configuration, redirectUri, state),
+  const response = NextResponse.redirect(
+    createAuthorizationUrl(configuration, redirectUri, state, pkce?.challenge),
   );
+  if (pkce) {
+    response.cookies.set(pkceCookieName(provider), pkce.verifier, {
+      httpOnly: true,
+      secure: requestUrl.protocol === "https:",
+      sameSite: "lax",
+      path: `/api/integrations/${provider}/callback`,
+      maxAge: ATTEMPT_SECONDS,
+    });
+  }
+  return response;
 }

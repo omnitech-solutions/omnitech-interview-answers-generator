@@ -26,6 +26,8 @@ export interface HandoffIdentity {
 
 interface Handoff {
   stateHash: Buffer;
+  // base64url SHA-256 of the shell's secret verifier (RFC 7636 S256).
+  challenge: string;
   origin: string;
   identity: HandoffIdentity;
   expiresAt: number;
@@ -38,18 +40,33 @@ const hex = (digest: Buffer) => digest.toString("hex");
 export const isAttemptState = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{32,64}$/.test(value);
 
+// The shell's PKCE challenge: the unpadded base64url SHA-256 of its secret
+// verifier, always 43 characters. The verifier itself (43 to 128 URL-safe
+// characters) stays inside the shell until it redeems the code.
+export const isChallenge = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9_-]{43}$/.test(value);
+export const isVerifier = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9._~-]{43,128}$/.test(value);
+
 export class NativeHandoffStore {
-  private readonly attempts = new Map<string, number>();
+  private readonly attempts = new Map<
+    string,
+    { expiresAt: number; challenge: string }
+  >();
   private readonly handoffs = new Map<string, Handoff>();
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  // The shell started a sign-in: remember the attempt so only it can be
-  // completed. Returns false for a malformed state.
-  beginAttempt(state: string): boolean {
-    if (!isAttemptState(state)) return false;
+  // The shell started a sign-in: remember the attempt, with the challenge of its
+  // secret verifier, so only it can be completed and only the shell can redeem
+  // it. Returns false for a malformed state or challenge.
+  beginAttempt(state: string, challenge: string): boolean {
+    if (!isAttemptState(state) || !isChallenge(challenge)) return false;
     this.purge();
-    this.attempts.set(hex(sha256(state)), this.now() + ATTEMPT_TTL_MS);
+    this.attempts.set(hex(sha256(state)), {
+      expiresAt: this.now() + ATTEMPT_TTL_MS,
+      challenge,
+    });
     return true;
   }
 
@@ -63,12 +80,13 @@ export class NativeHandoffStore {
     if (!isAttemptState(state)) return null;
     this.purge();
     const key = hex(sha256(state));
-    const expiry = this.attempts.get(key);
+    const attempt = this.attempts.get(key);
     this.attempts.delete(key);
-    if (expiry === undefined || expiry <= this.now()) return null;
+    if (attempt === undefined || attempt.expiresAt <= this.now()) return null;
     const code = randomBytes(32).toString("base64url");
     this.handoffs.set(hex(sha256(code)), {
       stateHash: sha256(state),
+      challenge: attempt.challenge,
       origin,
       identity,
       expiresAt: this.now() + HANDOFF_TTL_MS,
@@ -77,8 +95,16 @@ export class NativeHandoffStore {
   }
 
   // Verify and consume. The code is spent by any presentation, right or wrong,
-  // so a guess cannot be retried and a replay always fails.
-  consume(code: string, state: string, origin: string): HandoffIdentity | null {
+  // so a guess cannot be retried and a replay always fails. The verifier must
+  // hash to the challenge the attempt began with: the state travels in browser
+  // history and the code through a URL scheme any app can register, so neither
+  // alone redeems anything.
+  consume(
+    code: string,
+    state: string,
+    verifier: string,
+    origin: string,
+  ): HandoffIdentity | null {
     if (typeof code !== "string" || code.length > 128) return null;
     const key = hex(sha256(code));
     const handoff = this.handoffs.get(key);
@@ -86,14 +112,24 @@ export class NativeHandoffStore {
     if (!handoff || handoff.expiresAt <= this.now()) return null;
     if (!isAttemptState(state)) return null;
     if (!timingSafeEqual(handoff.stateHash, sha256(state))) return null;
+    if (!isVerifier(verifier)) return null;
+    const presented = Buffer.from(
+      createHash("sha256").update(verifier).digest("base64url"),
+    );
+    const expected = Buffer.from(handoff.challenge);
+    if (
+      presented.length !== expected.length ||
+      !timingSafeEqual(presented, expected)
+    )
+      return null;
     if (handoff.origin !== origin) return null;
     return handoff.identity;
   }
 
   private purge() {
     const now = this.now();
-    for (const [key, expiry] of this.attempts)
-      if (expiry <= now) this.attempts.delete(key);
+    for (const [key, attempt] of this.attempts)
+      if (attempt.expiresAt <= now) this.attempts.delete(key);
     for (const [key, handoff] of this.handoffs)
       if (handoff.expiresAt <= now) this.handoffs.delete(key);
     // A flood cannot grow the maps without bound: oldest entries go first.

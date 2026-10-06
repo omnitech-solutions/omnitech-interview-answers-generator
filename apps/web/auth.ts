@@ -1,3 +1,4 @@
+import "@/src/platform/server-only";
 import { getPlatformDatabase } from "@omnitech/database";
 import { PlatformRepository } from "@omnitech/platform-storage";
 import NextAuth from "next-auth";
@@ -6,6 +7,12 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import LinkedIn from "next-auth/providers/linkedin";
 
+import {
+  resolveAuthSecret,
+  resolveTrustHost,
+} from "@/src/platform/auth-settings";
+import { allowLocalSignIn, LOCAL_USER_EMAIL } from "@/src/platform/fake-auth";
+
 const providers: Provider[] = [
   ...(process.env["FAKE_AUTH_ENABLED"] === "true"
     ? [
@@ -13,20 +20,20 @@ const providers: Provider[] = [
           id: "local",
           name: "Local development",
           credentials: {},
-          authorize: async () => ({
-            id: "00000000-0000-4000-8000-000000000001",
-            name: "Local User",
-            email: "local@omnitech.test",
-          }),
+          // [SAFETY] Passwordless, so only where Studio runs on this computer.
+          authorize: async (_credentials, request) =>
+            allowLocalSignIn(request?.headers)
+              ? {
+                  id: "00000000-0000-4000-8000-000000000001",
+                  name: "Local User",
+                  email: LOCAL_USER_EMAIL,
+                }
+              : null,
         }),
       ]
     : []),
 ];
-const authSecret =
-  process.env["AUTH_SECRET"] ??
-  (process.env["NODE_ENV"] === "production"
-    ? undefined
-    : "development-only-auth-secret-change-before-deployment");
+const authSecret = resolveAuthSecret();
 
 // The session cookie's name, for the native handoff redemption, which sets
 // the same cookie Auth.js would (it is also the JWT salt).
@@ -63,7 +70,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         // Development sessions never share production's cookie.
         cookies: { sessionToken: { name: "omnitech.dev-session" } },
       }),
-  trustHost: true,
+  trustHost: resolveTrustHost(),
   session: { strategy: "jwt" },
   pages: { signIn: "/sign-in" },
   callbacks: {

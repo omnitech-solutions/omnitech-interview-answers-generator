@@ -290,7 +290,7 @@ export function createPlatformAiGateway() {
     modelAdapters.push(
       createAnthropicModelAdapter({
         apiKey: process.env["ANTHROPIC_API_KEY"],
-        model: process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-6",
+        model: process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-5-5",
       }),
     );
   }

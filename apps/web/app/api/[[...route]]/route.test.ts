@@ -18,6 +18,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -39,21 +40,9 @@ const storageRoot = fileURLToPath(
 let pg: DisposablePostgres;
 let handlers: typeof import("./route");
 let tenantId: string;
-beforeAll(async () => {
-  pg = await startDisposablePostgres();
-  await migrateDatabase(pg.owner);
-  await grantApplicationRole(pg.owner);
-  // The local tenant, owner and installed products, as `pnpm dev` seeds them.
-  await promisify(execFile)(
-    process.execPath,
-    ["--import", "tsx", "src/bootstrap.ts"],
-    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
-  );
-  tenantId = (
-    await pg.owner.query<{ id: string }>(
-      "SELECT id FROM platform.tenants WHERE slug = 'local'",
-    )
-  ).rows[0]!.id;
+// unstubEnvs undoes stubs after every test, so this runs before each one (and
+// once in beforeAll, before the route module is imported).
+function stubEnvironment() {
   vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.stubEnv("FAKE_AUTH_ENABLED", "true");
   vi.stubEnv("AGENT_PAYLOAD_SECRET", SECRET);
@@ -69,6 +58,24 @@ beforeAll(async () => {
     "CONNECTED_ACCOUNT_SECRET",
   ])
     vi.stubEnv(name, undefined);
+}
+beforeEach(stubEnvironment);
+beforeAll(async () => {
+  pg = await startDisposablePostgres();
+  await migrateDatabase(pg.owner);
+  await grantApplicationRole(pg.owner);
+  // The local tenant, owner and installed products, as `pnpm dev` seeds them.
+  await promisify(execFile)(
+    process.execPath,
+    ["--import", "tsx", "src/bootstrap.ts"],
+    { cwd: storageRoot, env: { ...process.env, DATABASE_URL: pg.memberUrl } },
+  );
+  tenantId = (
+    await pg.owner.query<{ id: string }>(
+      "SELECT id FROM platform.tenants WHERE slug = 'local'",
+    )
+  ).rows[0]!.id;
+  stubEnvironment();
   handlers = await import("./route");
 }, 90_000);
 afterAll(async () => {
@@ -154,6 +161,34 @@ describe("the platform API", () => {
       locale: "en-GB",
       aiProfileId: "document-fast",
     });
+  });
+
+  it("answers 400 for preferences that are not JSON, and never echoes the text", async () => {
+    const response = await call("/api/platform/v1/preferences?tenant=local", {
+      method: "PUT",
+      body: "{not json SECRET-NOTE",
+    });
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("SECRET-NOTE");
+  });
+
+  it("refuses a forged cross-site browser write, and serves the CLI-style call", async () => {
+    const body = { theme: "dark", locale: "en" };
+    const forged = await call("/api/platform/v1/preferences?tenant=local", {
+      method: "PUT",
+      body,
+      headers: {
+        origin: "https://evil.example",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(forged.status).toBe(403);
+    const cli = await call("/api/platform/v1/preferences?tenant=local", {
+      method: "PUT",
+      body,
+      headers: { authorization: "Bearer cli-token" },
+    });
+    expect(cli.status).toBe(200);
   });
 
   it("lists the AI targets the member may use", async () => {

@@ -3,6 +3,8 @@ import {
   exchangeAuthorizationCode,
   getProviderConfiguration,
   type IntegrationProvider,
+  pkceCookieName,
+  verifierFromCookie,
   verifyIntegrationState,
 } from "@omnitech/platform-integrations";
 import {
@@ -12,6 +14,18 @@ import {
 import { NextResponse } from "next/server";
 
 import { resolvePlatformContext } from "@/src/platform/context";
+
+function withSpentVerifier(
+  response: NextResponse,
+  provider: IntegrationProvider,
+) {
+  response.cookies.set(pkceCookieName(provider), "", {
+    httpOnly: true,
+    path: `/api/integrations/${provider}/callback`,
+    maxAge: 0,
+  });
+  return response;
+}
 
 function providerFrom(value: string): IntegrationProvider | null {
   return value === "google" || value === "linkedin" ? value : null;
@@ -77,11 +91,41 @@ export async function GET(
     `/api/integrations/${provider}/callback`,
     url.origin,
   ).toString();
-  const grant = await exchangeAuthorizationCode(
-    configuration,
-    code,
-    redirectUri,
+  // [SAFETY] RFC 9700 PKCE: refuse before any token request unless the
+  // verifier cookie belongs to this attempt. The cookie is cleared on every
+  // outcome below, so the same callback URL cannot be replayed.
+  const verifier = verifierFromCookie(
+    request.headers.get("cookie"),
+    provider,
+    state.pkceChallenge,
   );
+  if (configuration.pkce && !verifier) {
+    return withSpentVerifier(
+      NextResponse.json(
+        { error: "The integration context is invalid." },
+        { status: 403 },
+      ),
+      provider,
+    );
+  }
+  let grant: Awaited<ReturnType<typeof exchangeAuthorizationCode>>;
+  try {
+    grant = await exchangeAuthorizationCode(
+      configuration,
+      code,
+      redirectUri,
+      configuration.pkce ? verifier : undefined,
+    );
+  } catch {
+    // The provider's reply can quote the code; none of it is surfaced.
+    return withSpentVerifier(
+      NextResponse.json(
+        { error: "The provider did not complete the connection." },
+        { status: 502 },
+      ),
+      provider,
+    );
+  }
   const vault = new ConnectedAccountVault(tokenSecret);
   await new PlatformRepository(getPlatformDatabase()).saveConnectedAccount({
     userId: context.user.id,
@@ -92,7 +136,10 @@ export async function GET(
     refreshToken: grant.refreshToken ? vault.encrypt(grant.refreshToken) : null,
     expiresAt: grant.expiresAt,
   });
-  return NextResponse.redirect(
-    new URL(`/t/${context.tenant.slug}/settings/integrations`, url.origin),
+  return withSpentVerifier(
+    NextResponse.redirect(
+      new URL(`/t/${context.tenant.slug}/settings/integrations`, url.origin),
+    ),
+    provider,
   );
 }

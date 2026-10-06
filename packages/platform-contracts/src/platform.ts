@@ -50,19 +50,19 @@ export type InstalledProductSummary = z.infer<
 
 export const platformContextSchema = z.object({
   user: z.object({
-    id: z.string().uuid(),
-    email: z.string().email(),
+    id: z.uuid(),
+    email: z.email(),
     displayName: z.string(),
-    avatarUrl: z.string().url().nullable(),
+    avatarUrl: z.url().nullable(),
   }),
   tenant: z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     slug: z.string(),
     name: z.string(),
   }),
   membership: z.object({
-    tenantId: z.string().uuid(),
-    userId: z.string().uuid(),
+    tenantId: z.uuid(),
+    userId: z.uuid(),
     role: z.enum(["owner", "admin", "member"]),
   }),
   preferences: userPreferencesSchema,

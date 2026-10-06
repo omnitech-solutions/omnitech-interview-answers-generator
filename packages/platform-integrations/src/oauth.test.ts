@@ -57,3 +57,47 @@ describe("integration state", () => {
     );
   });
 });
+
+describe("PKCE capability", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("is on for Google, whose S256 support is documented", () => {
+    vi.stubEnv("INTEGRATION_GOOGLE_ID", "client-id");
+    vi.stubEnv("INTEGRATION_GOOGLE_SECRET", "secret");
+    expect(getProviderConfiguration("google")?.pkce).toBe(true);
+  });
+
+  // UNVERIFIED offline: LinkedIn's web-app PKCE support is not confirmed, so
+  // it stays off unless the operator opts in.
+  it("is off for LinkedIn unless INTEGRATION_LINKEDIN_PKCE=1", () => {
+    vi.stubEnv("INTEGRATION_LINKEDIN_ID", "client-id");
+    vi.stubEnv("INTEGRATION_LINKEDIN_SECRET", "secret");
+    expect(getProviderConfiguration("linkedin")?.pkce).toBe(false);
+    vi.stubEnv("INTEGRATION_LINKEDIN_PKCE", "1");
+    expect(getProviderConfiguration("linkedin")?.pkce).toBe(true);
+  });
+
+  it("carries the challenge in the signed state and rejects a tampered one", () => {
+    const state = {
+      provider: "google" as const,
+      tenantId: "00000000-0000-4000-8000-000000000002",
+      tenantSlug: "acme",
+      userId: "00000000-0000-4000-8000-000000000001",
+      expiresAt: Date.now() + 60_000,
+      pkceChallenge: "challenge-1",
+    };
+    const signed = signIntegrationState(
+      state,
+      "secret-that-is-long-enough-32-chars",
+    );
+    expect(
+      verifyIntegrationState(signed, "secret-that-is-long-enough-32-chars")
+        .pkceChallenge,
+    ).toBe("challenge-1");
+    const [, signature] = signed.split(".");
+    const forged = `${Buffer.from(JSON.stringify({ ...state, pkceChallenge: "other" })).toString("base64url")}.${signature}`;
+    expect(() =>
+      verifyIntegrationState(forged, "secret-that-is-long-enough-32-chars"),
+    ).toThrow("Invalid OAuth state.");
+  });
+});

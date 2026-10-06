@@ -11,7 +11,15 @@ import {
 } from "@omnitech/database/test-support";
 import { signIntegrationState } from "@omnitech/platform-integrations";
 import type { ReactElement } from "react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 // The sign-in session (NextAuth) is the identity boundary; local development
 // signs in through FAKE_AUTH_ENABLED instead.
@@ -20,6 +28,12 @@ const session = vi.hoisted(() => ({
   current: null as { user: { email: string } } | null,
 }));
 vi.mock("@/auth", () => ({ auth: async () => session.current }));
+// The path the proxy records for a request (a layout is not told its own).
+const request = vi.hoisted(() => ({ path: null as string | null }));
+vi.mock("next/headers", () => ({
+  headers: async () =>
+    new Headers(request.path ? { "x-studio-path": request.path } : {}),
+}));
 
 const storageRoot = fileURLToPath(
   new URL("../../../packages/platform-storage", import.meta.url),
@@ -41,9 +55,12 @@ beforeAll(async () => {
     )
   ).rows[0]!;
   local = { tenantId: row.tenant_id, userId: row.user_id };
+}, 90_000);
+// unstubEnvs undoes stubs after every test, so each test starts with these.
+beforeEach(() => {
   vi.stubEnv("DATABASE_URL", pg.memberUrl);
   vi.stubEnv("FAKE_AUTH_ENABLED", "true");
-}, 90_000);
+});
 afterAll(async () => {
   await getPlatformDatabase()
     .close()
@@ -147,6 +164,7 @@ describe("a product page", () => {
       });
     } finally {
       session.current = null;
+      request.path = null;
       vi.stubEnv("FAKE_AUTH_ENABLED", "true");
     }
   });
@@ -204,18 +222,30 @@ describe("the tenant's pages", () => {
     try {
       session.current = null;
       for (const tenantSlug of ["local", "other"]) {
+        request.path = `/t/${tenantSlug}/p/interview/live`;
+        const next = encodeURIComponent(`/t/${tenantSlug}/p/interview/live`);
         expect(
           await digestOf(() =>
             TenantLayout({ children: null, ...params({ tenantSlug }) }),
           ),
           `layout, signed out, ${tenantSlug}`,
-        ).toMatch(/^NEXT_REDIRECT;replace;\/sign-in;307;/);
+        ).toMatch(
+          new RegExp(`^NEXT_REDIRECT;replace;/sign-in\\?next=${next};307;`),
+        );
         expect(
           await digestOf(() =>
-            ProductPage(params({ tenantSlug, productId: "interview" })),
+            ProductPage(
+              params({
+                tenantSlug,
+                productId: "interview",
+                productPath: ["live"],
+              }),
+            ),
           ),
           `page, signed out, ${tenantSlug}`,
-        ).toMatch(/^NEXT_REDIRECT;replace;\/sign-in;307;/);
+        ).toMatch(
+          new RegExp(`^NEXT_REDIRECT;replace;/sign-in\\?next=${next};307;`),
+        );
       }
       session.current = { user: { email: "stranger@example.test" } };
       expect(
@@ -225,6 +255,7 @@ describe("the tenant's pages", () => {
       ).toBe("NEXT_HTTP_ERROR_FALLBACK;404");
     } finally {
       session.current = null;
+      request.path = null;
       vi.stubEnv("FAKE_AUTH_ENABLED", "true");
     }
   });

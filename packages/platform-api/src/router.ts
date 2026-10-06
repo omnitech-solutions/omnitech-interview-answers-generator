@@ -68,7 +68,10 @@ export function createPlatformApi(services: PlatformApiServices) {
         404,
       );
     }
-    const parsed = userPreferencesSchema.safeParse(await request.req.json());
+    const parsed = userPreferencesSchema.safeParse(
+      // A body that is not JSON is an invalid body (400), not a server error.
+      await request.req.json().catch(() => undefined),
+    );
     if (!parsed.success) {
       return request.json(
         {

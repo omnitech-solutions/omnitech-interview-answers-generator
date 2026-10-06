@@ -6,10 +6,28 @@ import {
   verifyMigrations,
 } from "@omnitech/database";
 import { createPlatformAiGateway } from "./src/platform/ai";
+import { resolveAuthSecret } from "./src/platform/auth-settings";
 import { createProductBackends } from "./src/platform/products";
 
 // Node.js only (see instrumentation.ts): each product's in-process worker,
 // stopped with the server.
+
+// [SAFETY] A fatal startup condition ends the process. `next start` only logs a
+// throwing startup check and then answers 500 to every request forever, which a
+// supervisor that checks "process alive" or "port open" would call healthy
+// (verified by experiment). The messages are fixed strings: no SQL, URL or data.
+function refuseToStart(message: string): never {
+  console.error(JSON.stringify({ startup: "refused", reason: message }));
+  return process.exit(1);
+}
+
+// [SAFETY] No session secret stops the server here, not at the first sign-in
+// (and never at `next build`, which does not run this file). The committed
+// development secret counts only with FAKE_AUTH_ENABLED outside production.
+if (!resolveAuthSecret())
+  refuseToStart(
+    "AUTH_SECRET is not set. Set a random secret of 32 or more characters (openssl rand -base64 32).",
+  );
 // A DATABASE_URL whose role bypasses row-level security stops the server here,
 // not at the first tenant request, and so does a database that has not applied
 // exactly this build's migrations (pending, ahead or mismatched; `pnpm
@@ -26,7 +44,7 @@ try {
     (error instanceof Error &&
       error.message === roleBypassesRowLevelSecurityMessage)
   )
-    throw error;
+    refuseToStart(error.message);
 }
 
 const stop = new AbortController();
