@@ -1,4 +1,4 @@
-// Follow-up input and the footer: the honest "Visible window" note, Pause or
+// Follow-up input and the footer: Pause or
 // Resume, and End (with its own confirmation). Each calls a store action.
 
 import {
@@ -181,13 +181,6 @@ export function Footer({
   return (
     <div className="ov-footer">
       <div className="ov-footer-row">
-        <span
-          className="ov-visible"
-          title="This is a normal window. It appears in screen shares and recordings."
-        >
-          <Icon name="visibility" />
-          Visible window · shows in screen shares
-        </span>
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>

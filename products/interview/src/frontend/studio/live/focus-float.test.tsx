@@ -191,9 +191,7 @@ describe("the card", () => {
     expect(screen.getByTestId("ov-verification")).toHaveTextContent(
       /1 from your matrix/,
     );
-    expect(
-      screen.getByText("Visible window · shows in screen shares"),
-    ).toBeVisible();
+    expect(screen.queryByText(/Visible window/)).toBeNull();
     expect(screen.getByRole("textbox", { name: "Follow-up" })).toHaveAttribute(
       "placeholder",
       expect.stringMatching(/^Add context to T1, or ask a follow-up$/),

@@ -146,13 +146,6 @@ export function MiniPlayer({
         </div>
       </div>
       <div className="pn-mini-foot">
-        <span
-          className="ov-visible"
-          title="This is a normal window. It appears in screen shares and recordings."
-        >
-          <Icon name="visibility" />
-          Visible window
-        </span>
         <span className="pn-fill" />
         <span
           className="ov-clock"

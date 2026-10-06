@@ -179,8 +179,8 @@ describe("Auto is a visible, stoppable control", () => {
     expect(
       window.localStorage.getItem("interview-studio.live.auto.local"),
     ).toBe("on");
-    // The footer still says the window is visible.
-    expect(card()).toHaveTextContent(/Visible window/);
+    // The footer no longer carries a visible-window note.
+    expect(card()).not.toHaveTextContent(/Visible window/);
   });
 
   it("starts on for a new session once the owner has opted in, and turns off in one click", async () => {

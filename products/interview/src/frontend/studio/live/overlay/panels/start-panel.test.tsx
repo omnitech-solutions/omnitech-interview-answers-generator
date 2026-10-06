@@ -285,10 +285,8 @@ describe("signed out", () => {
     expect(within(bar).getByTestId("pn-chip-out")).toHaveTextContent(
       "Not signed in",
     );
-    // The footer keeps the visible-window note and the build id, with the status at its end.
-    expect(
-      screen.getByText(/Visible window · shows in screen shares/),
-    ).toBeVisible();
+    // The footer keeps the build id, with the status at its end (and no visible-window note).
+    expect(screen.queryByText(/Visible window/)).toBeNull();
     expect(screen.getByTestId("ov-build")).toBeVisible();
     expect(screen.getByTestId("ov-status")).toHaveTextContent("Not signed in");
     // Nothing has "ended": the capture control's status says there is no session.

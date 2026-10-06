@@ -41,6 +41,7 @@ import { ToolbarLock, useToolbarLock } from "./toolbar-lock";
 
 // What the capture controls say while the session is paused: nothing is captured.
 const PAUSED_REASON = "Paused. Resume the session to capture.";
+const PAUSED_PANES_REASON = "Paused. Resume the session to see this.";
 import { MIC_HELD_TEXT } from "./use-engine";
 import { WindowDots } from "./window-dots";
 import type { PanelWindowMode } from "./window-mode";
@@ -403,8 +404,8 @@ export function Toolbar({
           className="pn-bar-button pn-icon-button"
           aria-label={pane.label}
           aria-pressed={controls.panes.shown[pane.id]}
-          title={lock ?? pane.title}
-          disabled={lock !== null}
+          title={lock ?? (s.paused ? PAUSED_PANES_REASON : pane.title)}
+          disabled={lock !== null || s.paused}
           onClick={() => controls.panes.toggle(pane.id)}
         >
           <Icon name={pane.icon} />

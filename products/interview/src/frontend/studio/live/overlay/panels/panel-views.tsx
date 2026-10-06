@@ -497,7 +497,6 @@ export function SettingsPanel({
         </label>
         {s.session && <PrivacySettings s={s} />}
         <p className="pn-footer">
-          Visible window · shows in screen shares ·{" "}
           <span data-testid="pn-build">Build {BUILD_ID}</span>
         </p>
       </div>

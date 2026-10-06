@@ -588,7 +588,7 @@ describe("window controls", () => {
       await show();
       fireEvent.click(dot("size"));
       expect(screen.getByTestId("pn-dot-size")).toBeVisible();
-      expect(screen.getByText(/Visible window/)).toBeVisible();
+      expect(screen.queryByText(/Visible window/)).toBeNull();
       expect(
         document.querySelectorAll(".pn-single-pane[data-which]"),
       ).toHaveLength(3);
@@ -672,6 +672,27 @@ describe("the capture split control and the microphone with a native engine", ()
 });
 
 describe("a paused session", () => {
+  it("shows no body panels: the toolbar, the paused strip and the footer stay, and the pane buttons are disabled with the reason", async () => {
+    serve(live({ status: "paused" }));
+    await show();
+    expect(document.querySelector(".pn-single-body")).toBeNull();
+    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(screen.getByTestId("pn-strip")).toHaveTextContent("Paused");
+    expect(document.querySelector(".pn-single-foot")).not.toBeNull();
+    for (const label of ["Chat", "Answer", "Code"]) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute(
+        "title",
+        "Paused. Resume the session to see this.",
+      );
+    }
+    cleanup();
+    serve(live());
+    await show();
+    expect(document.querySelector(".pn-single-body")).not.toBeNull();
+  });
+
   it("disables the capture button and both of its dropdowns, saying why, and enables them again once it runs", async () => {
     serve(live({ status: "paused" }));
     await show();
@@ -769,7 +790,7 @@ describe("the Mini player", () => {
     expect(screen.getByTestId("pn-mini-headline").textContent).not.toContain(
       "token bucket per client",
     );
-    expect(screen.getByText(/Visible window/)).toBeVisible();
+    expect(screen.queryByText(/Visible window/)).toBeNull();
     expect(screen.getByTestId("ov-clock")).toBeVisible();
   });
 

@@ -3,7 +3,7 @@
 // pivot: it stays at the centre, and showing or hiding a pane widens or narrows
 // the window evenly around it. Which panes exist, how wide each is, and which
 // footer buttons show are tables in toolbar-config.ts; this file only draws
-// them. The footer keeps the honest "Visible window" note and the build id.
+// them. The footer keeps the build id and the session controls.
 import type { PresentationHost } from "@omnitech/interview-contracts";
 import {
   type ReactNode,
@@ -122,7 +122,9 @@ export function SinglePanel({
   const strip = useStrip(s);
   const stripShown = strip !== null && !ended;
   const [menuOpen, setMenuOpen] = useState(false);
-  const anyPane = PANES.some((pane) => shown[pane.id]);
+  // A paused session shows no body: the toolbar, the strip that says it is paused
+  // (with Resume session) and the footer stay; the panes come back on resume.
+  const anyPane = PANES.some((pane) => shown[pane.id]) && !(s.paused && !ended);
   const mode = windowMode.mode;
 
   // The shell widens or narrows the window about its centre to fit what shows,
