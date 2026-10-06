@@ -152,6 +152,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -1105,6 +1108,10 @@
         "products/interview/src/frontend/studio/workspace/versions-menu.tsx",
         "products/interview/src/frontend/studio/workspace/workspace-view.test.tsx",
         "products/interview/src/frontend/studio/workspace/workspace-view.tsx",
+        "products/interview/src/frontend/ui/button.test.tsx",
+        "products/interview/src/frontend/ui/button.tsx",
+        "products/interview/src/frontend/ui/index.ts",
+        "products/interview/src/frontend/ui/join.ts",
         "products/interview/src/manifest.test.ts",
         "products/interview/src/manifest.tsx",
         "products/interview/vitest.config.ts",
@@ -1181,7 +1188,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1163,
+      "n_sources": 1170,
       "verdict": "populated"
     },
     {
@@ -1324,6 +1331,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -2277,6 +2287,10 @@
         "products/interview/src/frontend/studio/workspace/versions-menu.tsx",
         "products/interview/src/frontend/studio/workspace/workspace-view.test.tsx",
         "products/interview/src/frontend/studio/workspace/workspace-view.tsx",
+        "products/interview/src/frontend/ui/button.test.tsx",
+        "products/interview/src/frontend/ui/button.tsx",
+        "products/interview/src/frontend/ui/index.ts",
+        "products/interview/src/frontend/ui/join.ts",
         "products/interview/src/manifest.test.ts",
         "products/interview/src/manifest.tsx",
         "products/interview/vitest.config.ts",
@@ -2353,8 +2367,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3187,
-      "n_sources": 1164,
+      "n_entities": 3191,
+      "n_sources": 1171,
       "verdict": "populated"
     },
     {

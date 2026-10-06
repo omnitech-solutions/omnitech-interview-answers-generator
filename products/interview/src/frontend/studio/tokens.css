@@ -1,3 +1,5 @@
+@import "../ui/tokens.css";
+@import "../ui/ui.css";
 @import "./library.css";
 @import "./studio-base.css";
 @import "./workspace/workspace.css";

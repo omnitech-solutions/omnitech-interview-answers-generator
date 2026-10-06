@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1163 modules, 3187 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1170 modules, 3191 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -3124,6 +3124,10 @@ graph LR
   products_interview_src_frontend_studio_workspace_workspace_view_tsx["products/interview/src/frontend/studio/workspace/workspace-view.tsx"] --> products_interview_src_frontend_studio_workspace_stages_ts["products/interview/src/frontend/studio/workspace/stages.ts"]
   products_interview_src_frontend_studio_workspace_workspace_view_tsx["products/interview/src/frontend/studio/workspace/workspace-view.tsx"] --> products_interview_src_frontend_studio_workspace_use_canonical_draft_ts["products/interview/src/frontend/studio/workspace/use-canonical-draft.ts"]
   products_interview_src_frontend_studio_workspace_workspace_view_tsx["products/interview/src/frontend/studio/workspace/workspace-view.tsx"] --> products_interview_src_frontend_studio_workspace_versions_menu_tsx["products/interview/src/frontend/studio/workspace/versions-menu.tsx"]
+  products_interview_src_frontend_ui_button_test_tsx["products/interview/src/frontend/ui/button.test.tsx"] --> products_interview_src_frontend_ui_index_ts["products/interview/src/frontend/ui/index.ts"]
+  products_interview_src_frontend_ui_button_tsx["products/interview/src/frontend/ui/button.tsx"] --> products_interview_src_frontend_studio_icon_tsx["products/interview/src/frontend/studio/icon.tsx"]
+  products_interview_src_frontend_ui_button_tsx["products/interview/src/frontend/ui/button.tsx"] --> products_interview_src_frontend_ui_join_ts["products/interview/src/frontend/ui/join.ts"]
+  products_interview_src_frontend_ui_index_ts["products/interview/src/frontend/ui/index.ts"] --> products_interview_src_frontend_ui_button_tsx["products/interview/src/frontend/ui/button.tsx"]
   products_interview_src_manifest_test_ts["products/interview/src/manifest.test.ts"] --> products_interview_src_manifest_tsx["products/interview/src/manifest.tsx"]
   products_interview_src_manifest_tsx["products/interview/src/manifest.tsx"] --> products_interview_src_frontend_studio_route_tsx["products/interview/src/frontend/studio-route.tsx"]
   products_presentation_integration_repository_ts["products/presentation/integration/repository.ts"] --> products_presentation_src_repositories_index_ts["products/presentation/src/repositories/index.ts"]
@@ -3193,11 +3197,11 @@ graph LR
   vitest_config_ts["vitest.config.ts"] --> scripts_docker_tests_mjs["scripts/docker-tests.mjs"]
 ```
 
-## Isolated modules (37)
+## Isolated modules (40)
 
 _No resolved import edge (leaf or standalone):_
 
-`apps/web/next-env.d.ts`, `apps/web/proxy.ts`, `apps/web/public/ocr.docs-arch-aside/worker.min.js`, `apps/web/scripts/copy-ocr-assets.mjs`, `apps/web/src/platform/optional-module-stub.ts`, `apps/web/src/platform/web-app-manifest.ts`, `apps/web/vitest.config.ts`, `apps/web/vitest.setup.ts`, `docker/app/forward.mjs`, `e2e/live-session/scripts/run.mjs`, `e2e/live-session/src/reporters/live-reporter.ts`, `packages/agent-runtime-codex/scripts/check-tool-isolation.ts`, `packages/database/drizzle.config.ts`, `packages/database/scripts/write-migration-names.mjs`, `packages/interview-cli/tsup.config.ts`, `packages/interview-contracts/src/live-session.test.ts`, `packages/interview-playground-control/tsup.config.ts`, `products/interview/scripts/copy-document-assets.mjs`, `products/interview/scripts/generate-studio-icons.mjs`, `products/interview/src/frontend/studio/live/host-capability-parity.test.ts`, `products/interview/src/frontend/studio/live/layout-rules.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/panel-glass.test.tsx`, `products/interview/src/frontend/studio/live/overlay/panels/panels-css.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/stacking.test.ts`, `products/interview/vitest.config.ts`, `products/interview/vitest.setup.ts`, `scripts/assistant-sync.mjs`, `scripts/dev-build-graph.test.ts`, `scripts/dev-stop.mjs`, `scripts/ocr-assets-wiring.test.ts`, `scripts/package-boundaries.test.ts`, `scripts/raw-sql-guard.test.ts`, `scripts/rls-role-guard.test.ts`, `scripts/tenant-context-boundary.test.ts`, `scripts/verify-native.mjs`, `vitest.package.config.ts`
+`apps/web/next-env.d.ts`, `apps/web/proxy.ts`, `apps/web/public/ocr.docs-arch-aside/worker.min.js`, `apps/web/scripts/copy-ocr-assets.mjs`, `apps/web/src/platform/optional-module-stub.ts`, `apps/web/src/platform/web-app-manifest.ts`, `apps/web/vitest.config.ts`, `apps/web/vitest.setup.ts`, `coverage/block-navigation.js`, `coverage/prettify.js`, `coverage/sorter.js`, `docker/app/forward.mjs`, `e2e/live-session/scripts/run.mjs`, `e2e/live-session/src/reporters/live-reporter.ts`, `packages/agent-runtime-codex/scripts/check-tool-isolation.ts`, `packages/database/drizzle.config.ts`, `packages/database/scripts/write-migration-names.mjs`, `packages/interview-cli/tsup.config.ts`, `packages/interview-contracts/src/live-session.test.ts`, `packages/interview-playground-control/tsup.config.ts`, `products/interview/scripts/copy-document-assets.mjs`, `products/interview/scripts/generate-studio-icons.mjs`, `products/interview/src/frontend/studio/live/host-capability-parity.test.ts`, `products/interview/src/frontend/studio/live/layout-rules.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/panel-glass.test.tsx`, `products/interview/src/frontend/studio/live/overlay/panels/panels-css.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/stacking.test.ts`, `products/interview/vitest.config.ts`, `products/interview/vitest.setup.ts`, `scripts/assistant-sync.mjs`, `scripts/dev-build-graph.test.ts`, `scripts/dev-stop.mjs`, `scripts/ocr-assets-wiring.test.ts`, `scripts/package-boundaries.test.ts`, `scripts/raw-sql-guard.test.ts`, `scripts/rls-role-guard.test.ts`, `scripts/tenant-context-boundary.test.ts`, `scripts/verify-native.mjs`, `vitest.package.config.ts`
 
 ## Residuals
 
