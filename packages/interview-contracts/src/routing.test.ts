@@ -7,7 +7,7 @@ import {
   runRequestSchema,
   savedAnswerSchema,
 } from "./schemas";
-import { getWorkflow, listWorkflows } from "./workflows";
+import { codeQualityRules, getWorkflow, listWorkflows } from "./workflows";
 
 const guide = {
   version: 1 as const,
@@ -169,6 +169,23 @@ describe("answer workflows", () => {
     expect(contract).toContain("entry-point function or component above");
     expect(contract).toContain("must never include example");
   });
+  it("shares one code-quality contract between the web prompt and the live stage", () => {
+    for (const { id, systemPrompt } of listWorkflows()) {
+      const rules = codeQualityRules(id);
+      expect(rules).toContain("PROBLEM / STRATEGY / COMPLEXITY header");
+      expect(rules).toContain("[STRATEGY]");
+      expect(rules).toContain("entry-point function or component above");
+      expect(rules).toContain("must never include example");
+      // The web prompt carries the very same rules; the live stage adds none of
+      // the web answer's JSON reply shape or guide.
+      expect(systemPrompt).toContain(rules.split("\n\n")[0]?.trim() ?? "");
+      expect(rules).not.toContain('"guide"');
+      expect(rules).not.toContain("Return a JSON object");
+    }
+    expect(codeQualityRules("react")).toContain("React Testing Library");
+    expect(codeQualityRules("typescript")).not.toContain("React Testing");
+  });
+
   it("takes the language a coding-test site declares over prose keywords", () => {
     const pyramid = [
       "We can render an ASCII art pyramid with N levels by printing rows of asterisks.",

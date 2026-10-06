@@ -1,11 +1,9 @@
 // The Tests drawer on the left of the code pane: what the server established
 // about the generated tests (its counts, never recomputed), one row per
-// reported test, and the generated test source to read aloud. Read-only: the
-// app never runs or types for the person, so there is no Run control.
-import { useEffect, useState } from "react";
+// reported test. The generated test source is the card's Tests tab, not here.
+// Read-only: the app never runs or types for the person, so there is no Run
+// control.
 import { Icon } from "../../../icon";
-import { copyText } from "../../shared/copy-text";
-import { type LineFocus, ReadOnlyCode } from "./read-only-code";
 import {
   NO_FAILURE_DETAILS,
   type TestRowView,
@@ -13,7 +11,6 @@ import {
 } from "./tests-drawer-model";
 
 export const TESTS_DRAWER_ID = "pn-tests-drawer";
-const COPIED_MS = 1_600;
 
 // The narrow handle on the pane's left edge. The glyphs are decoration: the
 // button's name is "Tests" and its expanded state says which way it goes.
@@ -37,62 +34,6 @@ export function TestsHandle({
     >
       <span aria-hidden="true">{open ? "|<|" : "|>|"}</span>
     </button>
-  );
-}
-
-type Copy = "idle" | "copied" | "failed";
-
-function TestSource({
-  language,
-  source,
-  focus,
-}: {
-  language: string;
-  source: TestsDrawerView["source"];
-  focus: LineFocus | null;
-}) {
-  const [copy, setCopy] = useState<Copy>("idle");
-  useEffect(() => {
-    if (copy !== "copied") return;
-    const timer = setTimeout(() => setCopy("idle"), COPIED_MS);
-    return () => clearTimeout(timer);
-  }, [copy]);
-  if ("unavailable" in source)
-    return (
-      <p className="pn-placeholder" data-testid="pn-tests-nosource">
-        {source.unavailable}
-      </p>
-    );
-  return (
-    <section className="pn-tests-source" aria-label="Generated test source">
-      <div className="pn-codecard-head">
-        <span className="pn-codecard-language">{source.name}</span>
-        <button
-          type="button"
-          className="pn-mini-button"
-          data-testid="pn-tests-copy"
-          onClick={() =>
-            void copyText(source.text).then((ok) =>
-              setCopy(ok ? "copied" : "failed"),
-            )
-          }
-        >
-          <Icon name={copy === "copied" ? "check" : "content_copy"} />
-          {copy === "copied" ? "Copied" : "Copy tests"}
-        </button>
-      </div>
-      {copy === "failed" && (
-        <p className="pn-tests-note" role="status">
-          Couldn’t copy. Select the tests and copy by hand.
-        </p>
-      )}
-      <ReadOnlyCode
-        language={language}
-        text={source.text}
-        label="Generated test source"
-        focus={focus}
-      />
-    </section>
   );
 }
 
@@ -144,18 +85,14 @@ function TestRow({
 export function TestsDrawer({
   open,
   view,
-  language,
-  onRevealSolution,
+  onReveal,
 }: {
   open: boolean;
   view: TestsDrawerView;
-  language: string;
-  onRevealSolution(line: number): void;
+  onReveal(editor: "solution" | "tests", line: number): void;
 }) {
-  const [focus, setFocus] = useState<LineFocus | null>(null);
+  // A tests line can only be shown when a test source (the Tests tab) exists.
   const hasSource = !("unavailable" in view.source);
-  const reveal = (editor: "solution" | "tests", line: number) =>
-    editor === "tests" ? setFocus({ line }) : onRevealSolution(line);
   // Closed: the content is not mounted, and the element is inert and hidden from
   // assistive technology, so nothing in it can take focus.
   return (
@@ -196,7 +133,7 @@ export function TestsDrawer({
                   key={row.key}
                   row={row}
                   canReveal={(editor) => editor === "solution" || hasSource}
-                  onReveal={reveal}
+                  onReveal={onReveal}
                 />
               ))}
             </ul>
@@ -205,7 +142,11 @@ export function TestsDrawer({
               {view.list.text}
             </p>
           )}
-          <TestSource language={language} source={view.source} focus={focus} />
+          {"unavailable" in view.source && (
+            <p className="pn-placeholder" data-testid="pn-tests-nosource">
+              {view.source.unavailable}
+            </p>
+          )}
         </>
       )}
     </aside>

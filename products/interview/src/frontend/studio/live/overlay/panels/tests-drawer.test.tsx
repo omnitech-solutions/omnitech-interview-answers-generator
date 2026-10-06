@@ -1,5 +1,6 @@
 // The Tests drawer on the code card: the handle and its state, what it keeps per
-// viewer, what is read inside it, and the line links into the two editors.
+// viewer, what is read inside it, and the line links into the Tests and Solution
+// tabs.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -31,6 +32,10 @@ const USAGE = "allow('a');";
 const withUsage: CardCode["files"] = [
   { id: "solution", name: "solution.ts", text: SOLUTION },
   { id: "usage", name: "usage.ts", text: USAGE },
+];
+const withUsageAndTests: CardCode["files"] = [
+  ...withUsage,
+  { id: "tests", name: "tests.ts", text: TESTS },
 ];
 const oneFailure = (
   failure: Partial<NonNullable<CardCode["tests"]>["results"][number]>,
@@ -89,6 +94,8 @@ function card(overrides: Partial<CardCode> = {}) {
   );
   return { onCopy };
 }
+const solutionTab = () => screen.getByRole("button", { name: "solution.ts" });
+const testsTab = () => screen.getByRole("button", { name: "tests.ts" });
 const handle = () => screen.getByRole("button", { name: "Tests" });
 const drawer = () => screen.getByTestId("pn-tests-drawer");
 const lines = (selector: string) =>
@@ -194,7 +201,7 @@ describe("the open drawer", () => {
     card();
     const order = [
       ...drawer().querySelectorAll(
-        "[aria-label='Tests: 5 of 6 passed'], [data-testid='pn-tests-honesty'], [data-testid='pn-tests-notverified'], [aria-label='Test results'], section[aria-label='Generated test source']",
+        "[aria-label='Tests: 5 of 6 passed'], [data-testid='pn-tests-honesty'], [data-testid='pn-tests-notverified'], [aria-label='Test results']",
       ),
     ].map(
       (node) =>
@@ -205,8 +212,10 @@ describe("the open drawer", () => {
       "pn-tests-honesty",
       "pn-tests-notverified",
       "Test results",
-      "Generated test source",
     ]);
+    // The test source is the Tests tab now: no second copy lives in the drawer.
+    expect(drawer().querySelector(".cm-editor")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy tests" })).toBeNull();
     expect(screen.getByTestId("pn-tests-honesty")).toHaveTextContent(
       "Generated tests passing is not full verification.",
     );
@@ -219,62 +228,54 @@ describe("the open drawer", () => {
     expect(rejects).toHaveTextContent("expected 429");
   });
 
-  it("a tests-editor line link highlights that line in the drawer's test source", () => {
+  it("a failed test's link switches to the Tests tab and marks the failing line", () => {
     card();
+    expect(testsTab()).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(
       screen.getByRole("button", { name: "Go to line 2 (tests)" }),
     );
-    expect(lines(".pn-tests-source .pn-line-hit")).toEqual([
+    expect(testsTab()).toHaveAttribute("aria-pressed", "true");
+    expect(solutionTab()).toHaveAttribute("aria-pressed", "false");
+    expect(lines(".pn-codemain .cm-editor .cm-line")).toEqual(
+      TESTS.split("\n"),
+    );
+    expect(lines(".pn-codemain .cm-editor .pn-line-hit")).toEqual([
       "it('two', () => {});",
     ]);
-    expect(
-      document.querySelector(".pn-codemain .cm-editor .pn-line-hit"),
-    ).toBeNull();
   });
 
-  it("a solution-editor line link highlights the solution line and leaves the tests alone", () => {
+  it("a failure in the solution goes back to the Solution tab line from the Tests tab", () => {
     card({
-      tests: oneFailure({
-        message: "boom",
-        location: { editor: "solution", line: 3 },
-      }),
+      tests: {
+        ...oneFailure({
+          message: "boom",
+          location: { editor: "solution", line: 3 },
+        }),
+      },
     });
+    fireEvent.click(testsTab());
+    expect(lines(".pn-codemain .cm-editor .pn-line-hit")).toEqual([]);
     fireEvent.click(
       screen.getByRole("button", { name: "Go to line 3 (solution)" }),
     );
+    expect(solutionTab()).toHaveAttribute("aria-pressed", "true");
     expect(lines(".pn-codemain .cm-editor .pn-line-hit")).toEqual([
       "const c = 3;",
     ]);
-    expect(document.querySelector(".pn-tests-source .pn-line-hit")).toBeNull();
+  });
+
+  it("a line mark belongs to its own file and is gone from the others", () => {
+    card({ files: withUsageAndTests });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Go to line 2 (tests)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "usage.ts" }));
+    expect(lines(".pn-codemain .cm-editor .pn-line-hit")).toEqual([]);
   });
 
   it("says details are not available when a failure has no message or location", () => {
     card({ tests: oneFailure({}) });
     expect(screen.getByText("Failure details not available")).toBeVisible();
-  });
-
-  it("copies the test source and says Copied only after the write succeeded", async () => {
-    const writeText = vi.fn(async () => undefined);
-    vi.stubGlobal("navigator", { clipboard: { writeText } });
-    card();
-    fireEvent.click(screen.getByRole("button", { name: "Copy tests" }));
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeVisible();
-    expect(writeText).toHaveBeenCalledWith(TESTS);
-  });
-
-  it("says the copy failed and never says Copied when the clipboard is refused", async () => {
-    vi.stubGlobal("navigator", {
-      clipboard: {
-        writeText: vi.fn(async () => {
-          throw new Error("denied");
-        }),
-      },
-    });
-    document.execCommand = vi.fn(() => false);
-    card();
-    fireEvent.click(screen.getByRole("button", { name: "Copy tests" }));
-    expect(await screen.findByText(/Couldn’t copy/)).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
   });
 
   it("states the unavailable cases in the app's own words", () => {
@@ -311,6 +312,31 @@ describe("the code card", () => {
     expect(lines(".pn-codemain .cm-editor .cm-line")).toEqual([USAGE]);
   });
 
+  it("offers Solution, Usage and Tests tabs, each named and showing its own file", () => {
+    card({ files: withUsageAndTests });
+    const tabs = within(
+      screen.getByRole("group", { name: "File" }),
+    ).getAllByRole("button");
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      "solution.ts",
+      "usage.ts",
+      "tests.ts",
+    ]);
+    fireEvent.click(testsTab());
+    expect(testsTab()).toHaveAttribute("aria-pressed", "true");
+    expect(solutionTab()).toHaveAttribute("aria-pressed", "false");
+    expect(lines(".pn-codemain .cm-editor .cm-line")).toEqual(
+      TESTS.split("\n"),
+    );
+  });
+
+  it("copies the test source from the Tests tab", () => {
+    const { onCopy } = card();
+    fireEvent.click(testsTab());
+    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+    expect(onCopy).toHaveBeenCalledWith(TESTS);
+  });
+
   it("copies the file on show", () => {
     const { onCopy } = card({ files: withUsage });
     fireEvent.click(screen.getByRole("button", { name: "usage.ts" }));
@@ -318,8 +344,8 @@ describe("the code card", () => {
     expect(onCopy).toHaveBeenCalledWith(USAGE);
   });
 
-  it("draws no tab row without a usage file", () => {
-    card();
+  it("draws no tab row when only the solution was published", () => {
+    card({ files: [{ id: "solution", name: "solution.ts", text: SOLUTION }] });
     expect(screen.queryByRole("group", { name: "File" })).toBeNull();
   });
 

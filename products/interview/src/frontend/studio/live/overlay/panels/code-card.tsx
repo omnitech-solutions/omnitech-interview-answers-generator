@@ -1,8 +1,10 @@
-// The code pane's card: the language, file tabs (Solution, and Usage when the
-// run has one) and Copy in the header, the badges the server's own code states
-// give, why it is not fully verified, the repair line, the highlighted code
-// (read-only, no run), the syntax problems and the approach note. The generated
-// tests live in the Tests drawer on its left edge.
+// The code pane's card: the language, file tabs (Solution, Usage and Tests, like
+// the main answers page; a tab only when the run published that file) and Copy
+// in the header, the badges the server's own code states give, why it is not
+// fully verified, the repair line, the highlighted code (read-only, no run), the
+// syntax problems and the approach note. The Tests drawer on the left edge keeps
+// the per-test results and counts; its failure links open the Tests tab (or the
+// Solution tab) on the failing line.
 import { useState } from "react";
 import { Icon } from "../../../icon";
 import type {
@@ -10,12 +12,21 @@ import type {
   CardCode,
   TaskCard,
 } from "../../shared/task-card-model";
-import { type LineFocus, ReadOnlyCode } from "./read-only-code";
+import { ReadOnlyCode } from "./read-only-code";
 import { TestsDrawer, TestsHandle } from "./tests-drawer";
 import { testsDrawerView } from "./tests-drawer-model";
 import { useTestsDrawerOpen } from "./tests-drawer-pref";
 
-type ShownFile = "solution" | "usage";
+type ShownFile = "solution" | "usage" | "tests";
+
+// Where a line request lands: the file to show and the line to mark.
+type FileFocus = { file: ShownFile; line: number };
+
+const FILE_LABEL: Record<ShownFile, string> = {
+  solution: "Solution",
+  usage: "Usage example",
+  tests: "Generated test source",
+};
 
 function repairLine(repair: CardCode["repair"]): string | null {
   if (repair.succeeded) return "Fixed after a repair";
@@ -35,20 +46,35 @@ export function CodeCard({
 }) {
   const drawer = useTestsDrawerOpen();
   const [tab, setTab] = useState<ShownFile>("solution");
-  const [focus, setFocus] = useState<LineFocus | null>(null);
+  const [focus, setFocus] = useState<FileFocus | null>(null);
   const usage = code.files.find((file) => file.id === "usage");
   const solutionName =
     code.files.find((file) => file.id === "solution")?.name ?? "solution";
-  const shown: ShownFile = tab === "usage" && usage ? "usage" : "solution";
-  const text = shown === "usage" && usage ? usage.text : code.text;
+  const tests = code.files.find((file) => file.id === "tests");
+  const shown: ShownFile =
+    tab === "usage" && usage
+      ? "usage"
+      : tab === "tests" && tests
+        ? "tests"
+        : "solution";
+  const text =
+    shown === "usage" && usage
+      ? usage.text
+      : shown === "tests" && tests
+        ? tests.text
+        : code.text;
   const tabs: { id: ShownFile; name: string }[] = [
     { id: "solution", name: solutionName },
     ...(usage ? [{ id: "usage" as const, name: usage.name }] : []),
+    ...(tests ? [{ id: "tests" as const, name: tests.name }] : []),
   ];
-  const revealSolution = (line: number) => {
-    setTab("solution");
-    setFocus({ line });
+  // [DOMAIN] A line link names the file it belongs to: switch to that tab and
+  // mark the line there, so a failing test is read next to its own source.
+  const reveal = (file: ShownFile, line: number) => {
+    setTab(file);
+    setFocus({ file, line });
   };
+  const revealSolution = (line: number) => reveal("solution", line);
   const repair = repairLine(code.repair);
   const view = testsDrawerView(code, constraints);
   return (
@@ -58,12 +84,7 @@ export function CodeCard({
       data-testid="pn-code"
     >
       <TestsHandle open={drawer.open} onToggle={drawer.toggle} />
-      <TestsDrawer
-        open={drawer.open}
-        view={view}
-        language={code.language}
-        onRevealSolution={revealSolution}
-      />
+      <TestsDrawer open={drawer.open} view={view} onReveal={reveal} />
       <div className="pn-codemain">
         <div className="pn-codecard-head">
           <span className="pn-codecard-language" data-testid="pn-language">
@@ -119,8 +140,8 @@ export function CodeCard({
         <ReadOnlyCode
           language={code.language}
           text={text}
-          label={shown === "usage" ? "Usage example" : "Solution"}
-          focus={shown === "solution" ? focus : null}
+          label={FILE_LABEL[shown]}
+          focus={focus?.file === shown ? { line: focus.line } : null}
         />
         {code.diagnostics.length > 0 && (
           <section className="pn-problems" aria-label="Problems">
