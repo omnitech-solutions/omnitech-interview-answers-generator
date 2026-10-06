@@ -27,7 +27,7 @@ public struct PanelChromeSnapshot: Equatable, Sendable {
 
     // The configuration every panel is built to.
     public static let intended = PanelChromeSnapshot(
-        windowIsOpaque: false, windowBackgroundAlpha: 0, windowHasShadow: true, webViewDrawsBackground: false,
+        windowIsOpaque: false, windowBackgroundAlpha: 0, windowHasShadow: false, webViewDrawsBackground: false,
         webViewUnderPageAlpha: 0, otherBackgroundAlphas: [])
 }
 
@@ -37,7 +37,7 @@ public enum PanelChrome {
         var out: [String] = []
         if s.windowIsOpaque { out.append("window is opaque") }
         if s.windowBackgroundAlpha > 0 { out.append("window background is not clear") }
-        if !s.windowHasShadow { out.append("window has no shadow") }
+        if s.windowHasShadow { out.append("window has a system shadow (it strokes the content shape)") }
         if s.webViewDrawsBackground { out.append("web view draws a background") }
         if s.webViewUnderPageAlpha > 0 { out.append("web view under-page colour is not clear") }
         if s.otherBackgroundAlphas.contains(where: { $0 > 0 }) { out.append("an opaque layer sits behind the page") }

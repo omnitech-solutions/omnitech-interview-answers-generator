@@ -234,7 +234,10 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // [DOMAIN] No system shadow: macOS strokes a see-through window along the exact
+        // shape of what is drawn, so a toolbar pill over a card gets a notched hairline
+        // where they meet. The page draws its own ring and shadow (panels.css).
+        panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.minSize = kind.minSize
         webView.setValue(false, forKey: "drawsBackground")
@@ -277,6 +280,7 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         webView.layer?.isOpaque = false
         panel.contentView = container
         panel.contentView?.layer?.backgroundColor = CGColor.clear
+        panel.dragSurface = webView
         audit()
     }
 
