@@ -111,18 +111,6 @@ const ALLOWED: readonly Allowed[] = [
     "background",
     "Letterbox behind a display thumbnail image.",
   ],
-  [
-    "panels.css",
-    '.pn-strip[data-tone="amber"]',
-    "background",
-    "The warning strip is dense by design; clear glass overrides it to .4.",
-  ],
-  [
-    "panels.css",
-    '.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"]',
-    "background",
-    "A warning must stay readable on any desktop.",
-  ],
   ["panels.css", ".pn-quit-confirm", "background", "Small solid control."],
   [
     "start-panel.css",

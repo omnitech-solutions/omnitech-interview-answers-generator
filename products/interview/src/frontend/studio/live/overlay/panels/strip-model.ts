@@ -44,6 +44,12 @@ type Entry = {
   show(input: StripInput): Omit<StripState, "id">;
 };
 
+// What a paused session says, once: the footer shows it (the strip does not).
+export const PAUSED_NOTICE = {
+  label: "Paused",
+  sub: "Nothing is captured and no new work starts",
+} as const;
+
 const STRIP_TABLE: readonly Entry[] = [
   {
     id: "paused",
@@ -52,8 +58,8 @@ const STRIP_TABLE: readonly Entry[] = [
       tone: "amber",
       busy: false,
       icon: "pause_circle",
-      label: "Paused",
-      sub: "Nothing is captured and no new work starts",
+      label: PAUSED_NOTICE.label,
+      sub: PAUSED_NOTICE.sub,
       action: {
         id: "resume",
         label: "Resume session",

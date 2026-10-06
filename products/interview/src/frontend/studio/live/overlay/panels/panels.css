@@ -16,6 +16,9 @@
   /* The design's tokens: the glass of every surface, its radius, the control
      height and the status colours. Everything below reads these. */
   --pn-glass: rgba(30, 30, 34, 0.8);
+  /* The warning surface: a paused session's footer (and the strip's amber tone). */
+  --pn-warn-bg: rgba(80, 60, 20, 0.85);
+  --pn-warn-bg-clear: rgba(80, 60, 20, 0.4);
   --pn-glass-menu: rgba(36, 36, 40, 0.96);
   --pn-glass-code: rgba(22, 22, 26, 0.86);
   --pn-radius: 12px;
@@ -579,6 +582,14 @@
 }
 .pn-single-foot .ov-footer {
   padding: 6px 10px 8px;
+}
+/* A paused session: the footer carries "Paused" at its left in the warning colour
+   (the controls stay at the right, where they always are). */
+.pn-single-foot:has(.ov-footer[data-notice="warn"]) {
+  background: var(--pn-warn-bg);
+}
+.pn-single-foot .ov-footer-notice {
+  color: var(--ov-amber);
 }
 .pn-single-foot .ov-visible,
 .pn-single-foot .ov-build {
@@ -1202,7 +1213,7 @@
   box-shadow: var(--pn-ring);
 }
 .pn-strip[data-tone="amber"] {
-  background: rgba(80, 60, 20, 0.85);
+  background: var(--pn-warn-bg);
 }
 .pn-strip-main {
   display: inline-flex;
@@ -1590,8 +1601,9 @@
   --pn-text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.9);
   --pn-bed: var(--pn-text-bed);
 }
-.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"] {
-  background: rgba(80, 60, 20, 0.4);
+.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"],
+.pn-root[data-glass="clear"] .pn-single-foot:has(.ov-footer[data-notice="warn"]) {
+  background: var(--pn-warn-bg-clear);
 }
 /* Reading beds. Panes and bars stay near-clear (alpha <= .22, no blur); text
    sits on small islands that carry --pn-text-bed (.5), the least tint that keeps

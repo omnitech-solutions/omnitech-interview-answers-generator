@@ -116,6 +116,10 @@ export type FooterVariant =
       kind: "live";
       paused: boolean;
       clock?: { label: string; paused: boolean } | null;
+      // Something to say at the footer's left, in the warning colour (a paused
+      // session: what it means). Without one the left is empty space, which keeps
+      // the clock and the buttons at the right.
+      notice?: { label: string; sub?: string } | null;
     }
   | {
       kind: "ended";
@@ -161,6 +165,7 @@ export function Footer({
     summary: () => variant.kind === "ended" && variant.onOpenSummary?.(),
   };
   const clock = variant.kind === "live" ? variant.clock : null;
+  const notice = variant.kind === "live" ? (variant.notice ?? null) : null;
   const buttons =
     variant.kind === "idle"
       ? []
@@ -179,8 +184,22 @@ export function Footer({
           wording,
         );
   return (
-    <div className="ov-footer">
+    <div className="ov-footer" data-notice={notice ? "warn" : undefined}>
       <div className="ov-footer-row">
+        <span className="ov-footer-lead">
+          {notice && (
+            <span
+              className="ov-footer-notice"
+              role="status"
+              data-testid="ov-footer-notice"
+              title={notice.sub}
+            >
+              <Icon name="pause_circle" filled />
+              <strong>{notice.label}</strong>
+              {notice.sub && <span>{notice.sub}</span>}
+            </span>
+          )}
+        </span>
         <span className="ov-build" data-testid="ov-build" title="Build">
           {BUILD_ID}
         </span>

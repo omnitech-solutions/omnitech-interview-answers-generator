@@ -696,7 +696,8 @@ describe("a paused session", () => {
     await show();
     expect(document.querySelector(".pn-single-body")).toBeNull();
     expect(screen.getByRole("toolbar")).toBeVisible();
-    expect(screen.getByTestId("pn-strip")).toHaveTextContent("Paused");
+    expect(screen.getByTestId("ov-footer-notice")).toHaveTextContent("Paused");
+    expect(screen.queryByTestId("pn-strip")).toBeNull();
     expect(document.querySelector(".pn-single-foot")).not.toBeNull();
     for (const label of ["Chat", "Answer", "Code"]) {
       const button = screen.getByRole("button", { name: label });
@@ -1111,14 +1112,18 @@ describe("status strip", () => {
     const resumed = vi.fn(() => jsonResponse({ session: live() }));
     server.on("POST /:id/control", resumed);
     await show();
-    const strip = screen.getByTestId("pn-strip");
-    expect(strip).toHaveTextContent("Paused");
-    expect(strip).toHaveTextContent(
+    // One Resume session, in the footer, beside the Paused notice (not a second
+    // one in a strip).
+    expect(screen.queryByTestId("pn-strip")).toBeNull();
+    const notice = screen.getByTestId("ov-footer-notice");
+    expect(notice).toHaveTextContent("Paused");
+    expect(notice).toHaveTextContent(
       "Nothing is captured and no new work starts",
     );
-    fireEvent.click(
-      within(strip).getByRole("button", { name: "Resume session" }),
-    );
+    expect(
+      screen.getAllByRole("button", { name: "Resume session" }),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Resume session" }));
     await flush();
     expect(resumed).toHaveBeenCalledWith(
       expect.objectContaining({

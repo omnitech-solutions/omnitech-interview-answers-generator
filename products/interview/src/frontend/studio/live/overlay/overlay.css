@@ -952,6 +952,29 @@
   align-items: center;
   gap: 6px;
 }
+/* The footer's left: empty space that keeps the clock and the buttons at the right,
+   or a notice (a paused session) that fills it. */
+.ov-footer-lead {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.ov-footer-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.ov-footer-notice > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ov-text);
+}
 .ov-visible {
   flex: 1;
   min-width: 0;

@@ -46,6 +46,8 @@ export const isTransientBuildFile = (name: string): boolean =>
   /\.bundled_[a-z0-9]+\.(mjs|cjs|js)$/.test(name) ||
   /\.timestamp-\d+-[a-f0-9]+\.(mjs|cjs|js)$/.test(name);
 
+const TRANSIENT_BUNDLED_CONFIG = /\.bundled_[a-z0-9]+\.[cm]?js$/;
+
 /** Every file under `directory` (repository-relative) whose name matches. */
 export function walk(directory: string, pattern: RegExp): string[] {
   const root = join(repoRoot, directory);
@@ -53,7 +55,10 @@ export function walk(directory: string, pattern: RegExp): string[] {
     readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
       if (
         ignoredDirectories.has(entry.name) ||
-        entry.name.startsWith(".next-e2e")
+        entry.name.startsWith(".next-e2e") ||
+        // tsup writes a short-lived bundled copy of its config while another test
+        // builds a package: a file that can vanish between listing and reading.
+        TRANSIENT_BUNDLED_CONFIG.test(entry.name)
       )
         return [];
       const path = join(dir, entry.name);
