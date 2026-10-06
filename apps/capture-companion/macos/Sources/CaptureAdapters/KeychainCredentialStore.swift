@@ -19,6 +19,26 @@ public final class KeychainCredentialStore: CredentialStore {
         self.account = account
     }
 
+    // The store for THIS signed build (see CredentialAccount): an account scoped to the
+    // running app's code identity. Unsigned or unreadable signing information falls
+    // back to the plain account.
+    public static func forThisBuild(service: String = "com.omnitech.capture-companion") -> KeychainCredentialStore {
+        let base = "session-ingest-credential"
+        var code: SecCode?
+        var staticCode: SecStaticCode?
+        var info: CFDictionary?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
+            SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
+            SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+            let dictionary = info as? [String: Any]
+        else { return KeychainCredentialStore(service: service, account: base) }
+        let account = CredentialAccount.name(
+            base: base,
+            teamIdentifier: dictionary[kSecCodeInfoTeamIdentifier as String] as? String,
+            codeHash: dictionary[kSecCodeInfoUnique as String] as? Data)
+        return KeychainCredentialStore(service: service, account: account)
+    }
+
     private var identity: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,

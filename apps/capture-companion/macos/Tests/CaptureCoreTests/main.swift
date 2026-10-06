@@ -8,6 +8,7 @@ await policyTests(harness)
 await sessionTests(harness)
 await captureRequestTests(harness)
 await sourceScanTests(harness)
+await credentialAccountTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("capture-core-tests: \(harness.passed) passed, \(harness.failures.count) failed")

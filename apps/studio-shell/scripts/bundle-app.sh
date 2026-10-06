@@ -65,7 +65,9 @@ PLIST
 # keeps the Screen Recording / Microphone / Speech grants across rebuilds. A plain
 # ad-hoc signature is keyed on the code hash, which changes every build, so every
 # rebuild silently lost its permissions.
-codesign --force --sign - \
+# CODESIGN_IDENTITY: set it to a real code-signing identity for a code identity that
+# is the same across builds. The default, ad-hoc (-), is a new one per build.
+codesign --force --sign "${CODESIGN_IDENTITY:--}" \
   --requirements '=designated => identifier "com.omnitech.studio-shell"' \
   "$bundle" >/dev/null
 echo "$bundle"

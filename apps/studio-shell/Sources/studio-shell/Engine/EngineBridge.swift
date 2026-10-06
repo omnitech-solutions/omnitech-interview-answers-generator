@@ -122,7 +122,9 @@ public enum SystemEngine {
     public static func make(
         webView: @escaping () -> WKWebView?, location: @escaping () -> StudioLocation?
     ) -> HandsFreeEngine {
-        let credentials = KeychainCredentialStore()
+        // The engine's own session credential, scoped to this build's code identity (see
+        // CredentialAccount); the pairing the person pastes stays in the shared item.
+        let credentials = KeychainCredentialStore.forThisBuild()
         let focus = FocusTracker()
         return HandsFreeEngine(
             routes: WebViewOwnerRoutes(webView: webView, location: location), credentials: credentials,
