@@ -188,7 +188,7 @@ export function resolveAgentProfiles(
   environment: LanguageModelEnvironment = process.env,
 ): ReadonlyMap<string, AgentProfile> {
   const documentModel =
-    environment["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-4-6";
+    environment["CLAUDE_DOCUMENT_MODEL"] ?? "claude-opus-5-5";
   const profiles: AgentProfile[] = [
     {
       ...BOUNDED,

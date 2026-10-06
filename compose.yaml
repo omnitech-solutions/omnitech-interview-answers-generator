@@ -1,24 +1,164 @@
-# Interview Studio's local database. `pnpm dev` starts it and waits for it.
+# Interview Studio's local database (`pnpm dev` starts it and waits for it), and
+# the whole app in Docker under the `app` profile:
+#
+#   docker compose --profile app up -d --build     # web :3000, gateway :3001
+#   docker compose --profile app down              # stop (data volumes stay)
+#
+# The `app` services are one image (docker/app/Dockerfile) with a command each.
+# They are published on 127.0.0.1 only. Settings come from your root `.env`
+# (optional) and `${VAR:-default}` below; container wiring (the database host,
+# the LM Studio address) is fixed here on purpose.
 name: omnitech-interview
+
+x-app-image: &app-image
+  image: omnitech-studio:local
+  pull_policy: never
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  # The app role (DML only). The host name is the compose service, never 127.0.0.1.
+  DATABASE_URL: postgresql://omnitech:omnitech@postgres:5432/omnitech
+  AUTH_SECRET: ${AUTH_SECRET:-docker-local-auth-secret-change-before-sharing-0123456789}
+  AGENT_PAYLOAD_SECRET: ${AGENT_PAYLOAD_SECRET:-docker-local-agent-payload-secret-change-me}
+  AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-docker-local-agent-service-token}
+  # The passwordless local sign-in, as in `pnpm dev`. Never enable on a shared host.
+  FAKE_AUTH_ENABLED: ${FAKE_AUTH_ENABLED:-true}
+  # Every published port below binds 127.0.0.1, so every client is on this machine;
+  # inside the container they arrive from the bridge gateway, which would otherwise
+  # read as "forwarded from elsewhere" and hide the local sign-in.
+  AUTH_ASSUME_LOOPBACK_CLIENTS: "true"
+  # LM Studio runs on THIS machine. The assistant's LM Studio transport only talks
+  # to loopback, so the web and worker containers start a forwarder
+  # (docker/app/forward.mjs) that listens on their own 127.0.0.1:1234 and relays
+  # to the host. The endpoint is therefore loopback and really is this device.
+  LM_STUDIO_BASE_URL: http://127.0.0.1:1234/v1
+  LM_STUDIO_FORWARD: ${DOCKER_LM_STUDIO_HOST:-host.docker.internal:1234}
+  # Declared locality: `device` is true only while the forward target is this
+  # machine. If you point DOCKER_LM_STUDIO_HOST elsewhere, set this to remote.
+  LM_STUDIO_LOCALITY: ${LM_STUDIO_LOCALITY:-device}
+  LM_STUDIO_MODEL: ${LM_STUDIO_MODEL:-qwen/qwen3-coder-30b}
+  AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-600000}
+  # The assistant is Claude Code, run by the agent worker on the host
+  # (scripts/docker-host-worker.sh); LM Studio is only used if you choose it.
+  INTERVIEW_ASSISTANT_DEFAULT_MODEL: ${INTERVIEW_ASSISTANT_DEFAULT_MODEL:-agent/claude-code}
+  CLAUDE_ASSISTANT_MODEL: ${CLAUDE_ASSISTANT_MODEL:-claude-sonnet-5-5}
+  INTERVIEW_DATA_DIR: /data
+  PLATFORM_HTTP_URL: http://web:3000
+  TERMINAL_GATEWAY_PORT: "3001"
+  TERMINAL_GATEWAY_ALLOWED_ORIGINS: http://127.0.0.1:3000,http://localhost:3000
+
+x-app-common: &app-common
+  <<: *app-image
+  profiles: [app]
+  env_file:
+    - path: .env
+      required: false
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  restart: unless-stopped
 
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      # The container's administrator; the app connects as `omnitech`.
+      # The container's administrator. The app connects as `omnitech` (DML
+      # only) and migrations as `omnitech_owner`; see docker/postgres.
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      # A port of its own, clear of other local Postgres servers.
-      - "54320:5432"
+      # A port of its own, clear of other local Postgres servers, published on
+      # loopback only: the passwords here are local-development values.
+      - "127.0.0.1:54320:5432"
     volumes:
       - omnitech-postgres:/var/lib/postgresql/data
-      - ./docker/postgres/app-role.sql:/docker-entrypoint-initdb.d/app-role.sql:ro
+      # The image runs initdb.d ONLY when the data volume is empty. A volume
+      # created earlier is upgraded by the same ensure-roles.sql, which
+      # `pnpm dev` applies on every start (idempotent, never touches data).
+      - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+      - ./docker/postgres/ensure-roles.sql:/docker/postgres/ensure-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U omnitech -d omnitech"]
       interval: 5s
       timeout: 3s
       retries: 10
 
+
+  # One-shot: roles, migrations (as the owner), grants, the local tenant and
+  # owner: the same steps `pnpm dev` runs on the host. Idempotent.
+  setup:
+    <<: *app-image
+    profiles: [app]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "/app/docker/app/setup.sh"]
+    environment:
+      <<: *app-environment
+      ADMIN_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/omnitech
+      OWNER_DATABASE_URL: postgresql://omnitech_owner:omnitech_owner@postgres:5432/omnitech
+    restart: "no"
+
+  web:
+    <<: *app-common
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      args:
+        NEXT_PUBLIC_FAKE_AUTH_ENABLED: ${NEXT_PUBLIC_FAKE_AUTH_ENABLED:-true}
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment: *app-environment
+    init: true
+    entrypoint: ["sh", "/app/docker/app/entrypoint.sh"]
+    # Overriding the entrypoint drops the image's CMD, so the command is spelled out.
+    command: ["pnpm", "--filter", "@omnitech/interview-web", "exec", "next", "start", "--hostname", "0.0.0.0", "--port", "3000"]
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - omnitech-data:/data
+      - ./docker/app:/app/docker/app:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/sign-in').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Active Session and the Codex/Claude jobs. Tests for a coding answer need the
+  # Docker runner, which would need the host's Docker socket; that is NOT mounted
+  # here, so ACTIVE_SESSION_CODE_RUNNER stays unset in this stack.
+  # Not part of the default `app` profile: the agents it launches (Claude Code,
+  # Codex) are signed-in CLIs that only exist on the host, so the worker runs
+  # there (scripts/docker-host-worker.sh). This container variant has no agent
+  # runtime and refuses screenshots; start it only with --profile container-worker.
+  agent-worker:
+    <<: *app-common
+    profiles: [container-worker]
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: ["pnpm", "--filter", "@omnitech/agent-worker", "run", "start"]
+    environment: *app-environment
+    init: true
+    entrypoint: ["sh", "/app/docker/app/entrypoint.sh"]
+    volumes:
+      - ./docker/app:/app/docker/app:ro
+
+  terminal-gateway:
+    <<: *app-common
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    command: ["pnpm", "--filter", "@omnitech/terminal-gateway", "run", "start"]
+    environment: *app-environment
+    ports:
+      - "127.0.0.1:3001:3001"
+
 volumes:
   omnitech-postgres:
+  omnitech-data:

@@ -1,0 +1,43 @@
+# What the app image does NOT need. The image builds from the repository root
+# (docker/app/Dockerfile) and installs its own dependencies, so nothing built or
+# secret on this machine goes in.
+
+# Secrets and machine-local configuration: never baked into an image.
+.env
+.env.*
+!.env.example
+**/.env.local
+
+# Dependencies and build output are produced inside the image.
+**/node_modules
+**/dist
+**/.next
+**/.next-*
+**/.turbo
+**/*.tsbuildinfo
+coverage
+apps/web/public/ocr
+
+# Version control, editor and OS files.
+.git
+.idea
+.DS_Store
+**/.DS_Store
+
+# Test output, browser reports and local stacks.
+**/.test-results
+**/.playwright-report
+e2e/live-session/.stack
+.stack
+.dev-local
+**/.data
+
+# The native macOS shell (Swift) and its build products are not part of the web
+# image; the docs tree is not read at runtime (e2e/ stays: the lockfile has an
+# importer for e2e/live-session, so its package.json must exist).
+apps/studio-shell
+apps/capture-companion
+bionic
+
+# Personal data and local tool settings never go into an image.
+.claude/settings.local.json

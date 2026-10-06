@@ -62,6 +62,22 @@ describe("session agent port selection (ships disabled)", () => {
     expect(enabled?.agentStaging).toBeDefined();
   });
 
+  it("serves the agent runner alone when no direct model is configured", () => {
+    // No LM Studio, no API endpoint: the Claude Code runner is the whole gateway.
+    const alone = createSessionGateway(
+      {
+        ACTIVE_SESSION_AGENT_PORT: "on",
+        ACTIVE_SESSION_AGENT_PROFILE: "claude",
+      },
+      { runtimes },
+    );
+    expect(alone?.visionProfileId).toBe(SESSION_AGENT_CLAUDE_PROFILE);
+    expect(alone?.profileIds).toContain(SESSION_AGENT_CLAUDE_PROFILE);
+    expect(alone?.agentStaging).toBeDefined();
+    // Without the agent port there is still nothing to serve.
+    expect(createSessionGateway({}, { runtimes })).toBeNull();
+  });
+
   it("names the vision profile only when the host pinned a configured provider", () => {
     const env = { ...REMOTE, ACTIVE_SESSION_AGENT_PORT: "on" };
     expect(

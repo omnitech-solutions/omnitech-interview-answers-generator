@@ -199,24 +199,33 @@ function createAgentPort(
   return { port, profiles };
 }
 
-// Null when no language model is configured: the caller disables the session
-// loop rather than crashing the worker.
+// Null when nothing can serve a session: neither a direct language model nor the
+// agent port. The agent runner (Claude Code) is a complete gateway on its own, so
+// a host with no LM Studio or API endpoint still runs sessions through it.
 export function createSessionGateway(
   env: Environment,
   options: SessionGatewayOptions = {},
 ): SessionGateway | null {
   const language = resolveDefaultLanguageModel(env);
-  if (!language) return null;
-  const adapter = createOpenAiModelAdapter({
-    id: SESSION_MODEL_TARGET,
-    label: language.label,
-    model: language.model,
-    baseUrl: language.baseUrl,
-    timeoutMs: language.timeoutMs,
-    ...(language.apiKey ? { apiKey: language.apiKey } : {}),
-    maxOutputTokens: outputTokens(env, language.baseUrl),
-    temperature: 0.3,
-  });
+  // Ships disabled: only an explicit flag and supplied runtimes select the
+  // worker's agent port; otherwise `noAgents` stays.
+  const agentPort =
+    env[SESSION_AGENT_FLAG] === "on" && options.runtimes
+      ? createAgentPort(env, options.runtimes, options)
+      : undefined;
+  if (!language && !agentPort) return null;
+  const adapter = language
+    ? createOpenAiModelAdapter({
+        id: SESSION_MODEL_TARGET,
+        label: language.label,
+        model: language.model,
+        baseUrl: language.baseUrl,
+        timeoutMs: language.timeoutMs,
+        ...(language.apiKey ? { apiKey: language.apiKey } : {}),
+        maxOutputTokens: outputTokens(env, language.baseUrl),
+        temperature: 0.3,
+      })
+    : undefined;
   const profile = (id: string, label: string): AiProfile =>
     withDeclaredLocality(
       {
@@ -227,34 +236,31 @@ export function createSessionGateway(
         taskTypes: ["structured-generation"],
         enabled: true,
       },
-      language.locality,
+      language?.locality ?? "remote",
     );
-  const profiles = [
-    profile(INTERVIEW_SESSION_FAST_PROFILE, "Interview session assistance"),
-    // The coding path's solution calls. Coding inference has no device
-    // implementation (rule:unlisted-stage-refused): the profile is always
-    // declared remote, so the gateway itself refuses it for a device-only
-    // request even when the model runs on this device.
-    withDeclaredLocality(
-      profile(INTERVIEW_ANSWER_PROFILE, "Interview session code solutions"),
-      "remote",
-    ),
-    // Only a model declared to run on the device may serve a device-only session.
-    ...(language.locality === "device"
-      ? [
-          profile(
-            INTERVIEW_SESSION_DEVICE_PROFILE,
-            "Interview session assistance (device)",
-          ),
-        ]
-      : []),
-  ];
-  // Ships disabled: only an explicit flag and supplied runtimes select the
-  // worker's agent port; otherwise `noAgents` stays.
-  const agentPort =
-    env[SESSION_AGENT_FLAG] === "on" && options.runtimes
-      ? createAgentPort(env, options.runtimes, options)
-      : undefined;
+  // The direct-model profiles exist only when a direct model does.
+  const profiles: AiProfile[] = language
+    ? [
+        profile(INTERVIEW_SESSION_FAST_PROFILE, "Interview session assistance"),
+        // The coding path's solution calls. Coding inference has no device
+        // implementation (rule:unlisted-stage-refused): the profile is always
+        // declared remote, so the gateway itself refuses it for a device-only
+        // request even when the model runs on this device.
+        withDeclaredLocality(
+          profile(INTERVIEW_ANSWER_PROFILE, "Interview session code solutions"),
+          "remote",
+        ),
+        // Only a model declared to run on the device may serve a device-only session.
+        ...(language.locality === "device"
+          ? [
+              profile(
+                INTERVIEW_SESSION_DEVICE_PROFILE,
+                "Interview session assistance (device)",
+              ),
+            ]
+          : []),
+      ]
+    : [];
   if (agentPort) profiles.push(...agentPort.profiles);
   const pinned = VISION_PROFILES[env[SESSION_VISION_PROFILE_ENV] ?? ""];
   const visionProfileId =
@@ -274,7 +280,7 @@ export function createSessionGateway(
       : {}),
     gateway: createAiExecutionGateway({
       profiles,
-      models: [adapter],
+      models: adapter ? [adapter] : [],
       images: [],
       agents: agentPort?.port ?? noAgents,
       authorize: async (context) =>

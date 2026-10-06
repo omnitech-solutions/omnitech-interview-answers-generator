@@ -68,10 +68,20 @@ The macOS app (step 7) also needs Xcode's Swift toolchain.
    pnpm dev
    ```
 
-   This starts PostgreSQL (Docker Compose, port 54320), migrates and seeds it,
-   builds the workspace, then runs the web app (port 3000), the terminal gateway
+   This starts PostgreSQL (Docker Compose, loopback port 54320), applies the
+   database roles step, migrates and seeds it, builds the workspace, then runs the web app (port 3000), the terminal gateway
    (3001) and the agent worker. The first start builds the whole workspace
    first, so it is the slow one.
+
+   **Database roles.** The app connects as `omnitech`, which has read/write
+   grants only; migrations connect as `omnitech_owner`, which owns the schemas
+   (`DATABASE_URL` and `DATABASE_OWNER_URL` in `.env.example`). The Postgres
+   image runs `docker/postgres/init.sh` only when its data volume is EMPTY, so an
+   existing volume never sees a changed init script. `pnpm dev` therefore runs
+   `docker/postgres/ensure-roles.sql` on every start, before and after
+   migrating: it is idempotent, changes ownership and privileges only, never
+   touches data, and upgrades a database created before the split in place.
+   Nothing needs the volume deleted. Postgres is published on `127.0.0.1` only.
 
 5. **Open the app.** Go to <http://127.0.0.1:3000/t/local/p/interview> and use
    the **Local development** sign-in (passwordless; local only).
@@ -97,17 +107,66 @@ The macOS app (step 7) also needs Xcode's Swift toolchain.
    It is a development bundle, ad-hoc signed, so macOS asks for Screen Recording
    access again after each rebuild.
 
-   The app loads Studio at `http://127.0.0.1:3100` unless you set another address
-   in its connect prompt. Against `pnpm dev` (port 3000, so set that address) it
-   needs no sign-in. Against a **production build** (`next start`) it signs in
-   itself on first launch, or after its web storage is cleared (a reinstall): a
-   system sign-in window appears, and with `FAKE_AUTH_ENABLED=true` it signs in
-   as the local user with no password. Give a server you keep running its own
+   The app loads Studio at `http://127.0.0.1:3000` (what `pnpm dev` and the Docker
+   stack serve) unless you set another address in its connect prompt (status menu,
+   "Change Connection..."; an empty field means the default). It remembers the
+   address it was last connected to, so an app that was connected to another port
+   needs "Change Connection..." once. Against `pnpm dev` it needs no sign-in.
+   Against a **production build** (`next start`, or the Docker stack) it signs in
+   itself on first launch, or after its web storage is cleared (a reinstall): the
+   default browser opens, and with `FAKE_AUTH_ENABLED=true` it signs in as the
+   local user with no password. Give a server you keep running its own
    `NEXT_DIST_DIR` (for example `.next-e2e-studio`); `pnpm verify` rebuilds the
    default `.next`, and a server still running from it then serves stale routes.
 
 Problems on first run: "no model" means step 3; a database error means Docker is
 not running; a Docker image error means step 2.
+
+## Run it in Docker
+
+The whole app can run in containers instead of on the host: Postgres, a one-shot
+database setup, the web app on <http://127.0.0.1:3000> and the terminal gateway
+(3001). It is one image (`docker/app/Dockerfile`) and compose services under the
+`app` profile; everything is published on `127.0.0.1` only. The agent worker runs
+on your Mac, not in a container (below).
+
+```bash
+pnpm dev:stop                                   # stop a host `pnpm dev` first (same ports, same database)
+pnpm app:up                                     # build, set up the database, start everything incl. the Claude Code worker
+docker compose --profile app logs -f web        # follow it
+pnpm app:down                                   # stop (the data volumes stay)
+```
+
+Open <http://127.0.0.1:3000/t/local/p/interview>. This is a production build, so
+you sign in once with **Continue as local user** (the macOS app signs in by itself
+the first time). Settings come from your root `.env` (optional); an image rebuild
+is needed after code changes. The first build installs and builds the whole
+workspace and is slow.
+
+What differs from `pnpm dev`:
+
+- **LM Studio** runs on the host. The assistant's LM Studio transport (a vendored
+  package) only talks to loopback and even rejects an API key, so the web and
+  worker containers run a 20-line forwarder (`docker/app/forward.mjs`) that
+  listens on their own `127.0.0.1:1234` and relays to `host.docker.internal:1234`
+  (`DOCKER_LM_STUDIO_HOST` changes the target). The model is therefore loopback
+  and really is this device, and the declared locality defaults to `device`; if
+  you point it at another machine, set `LM_STUDIO_LOCALITY=remote`.
+- **Running a coding answer's tests** needs the Docker runner, which would need
+  the host's Docker socket. It is not mounted, so `ACTIVE_SESSION_CODE_RUNNER`
+  stays unset in the containers and tests never run there.
+- **The agent worker runs on the host.** Claude Code and Codex are signed-in
+  command-line tools (their credentials live in your login Keychain) and only the
+  worker may launch them, so they cannot run in a container.
+  `scripts/docker-host-worker.sh start|stop|status` runs the worker against the
+  same database and secrets. It needs `ACTIVE_SESSION_AGENT_PORT=on` and
+  `ACTIVE_SESSION_AGENT_PROFILE=claude` (the script sets both; they are also in
+  `.env`), and it needs no LM Studio or API endpoint: the Claude Code runner is a
+  complete session gateway on its own, and a device-only session is refused
+  because no on-device model is configured. A `container-worker` compose profile
+  still exists for a worker with no agent runtime.
+- **Secrets** default to throwaway local values; set `AUTH_SECRET` and
+  `AGENT_PAYLOAD_SECRET` in `.env` for anything shared.
 
 ## Configuration
 
@@ -230,3 +289,17 @@ scripted model, as **4 parallel shards** by default (each with its own database
 and stack; `E2E_SHARDS=1` runs one process). It needs Docker and the Playwright
 browsers. Options, the claims inventory and the shard design are in
 `e2e/live-session/README.md`.
+
+## CI
+
+`.github/workflows/ci.yml` runs on pull requests, pushes to `master` and manual
+dispatch, with read-only permissions, no secrets, and superseded runs cancelled:
+
+- `verify` (Linux): `pnpm install --frozen-lockfile`, `pnpm runner:build`, `pnpm verify`.
+  The native step of `verify` skips itself on Linux and says so.
+- `native` (macOS): `node scripts/verify-native.mjs`, the Swift build and test harnesses.
+- `e2e` (Linux): the workspace build, Playwright browsers, then `pnpm test:browser`
+  (4 shards in the one job); the Playwright report is uploaded when it fails.
+
+The workflow has only been validated as YAML; it takes effect once pushed to
+GitHub, and actions are pinned to major versions, not commit SHAs.
