@@ -88,6 +88,11 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
           {access === "signed-out"
             ? "You’re signed out. Sign in to Studio again to continue."
             : "This session is unavailable."}
+          {access === "signed-out" && (
+            <a className="pn-bar-button" href="/sign-in">
+              Sign in
+            </a>
+          )}
         </p>
       </div>
     );

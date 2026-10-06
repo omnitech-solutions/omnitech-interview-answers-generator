@@ -99,4 +99,24 @@ func nativeSignInTests(_ t: Harness) async {
         t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: true), .signInRequired)
         t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: nil), .signInRequired)
     }
+
+    await t.test("the built-in signed-out screen is opaque, local, and starts sign-in only from its own button") {
+        // The shell shows it when a page is refused for want of a session, so the window is
+        // never empty or see-through: a plain screen with one button.
+        let html = SignedOutScreen.html
+        t.expect(html.contains("Sign in to Studio"), "says what to do")
+        t.expect(html.contains(SignedOutScreen.startURL.absoluteString), "its button is the start link")
+        t.expect(html.contains("background:#"), "an opaque background of its own")
+        t.expect(!html.contains("http://") && !html.contains("https://"), "loads nothing from anywhere")
+        t.expect(!html.contains("<script"), "needs no script")
+        t.expect(SignedOutScreen.isStart(SignedOutScreen.startURL))
+        for other in [
+            "omnitech-studio://signin?code=abcdefghijklmnop0123",  // the callback is not a start
+            "omnitech-studio://signin-start?x=1", "omnitech-studio://signin-start/x",
+            "omnitech-studio://u@signin-start", "https://studio.example.test/signin-start",
+            "omnitech-studio://other",
+        ] {
+            t.expect(!SignedOutScreen.isStart(URL(string: other)!), "must not start from \(other)")
+        }
+    }
 }

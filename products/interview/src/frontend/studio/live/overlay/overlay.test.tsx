@@ -628,6 +628,12 @@ describe("the chromeless overlay route", () => {
       "signed-out",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/signed out/i);
+    // A way forward, not just a message: the native shell starts its sign-in
+    // when the web view goes to Studio's sign-in page.
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
+      "href",
+      "/sign-in",
+    );
     const held = server.count("GET /:id/stream");
     await advance(10_000);
     expect(server.count("GET /:id/stream")).toBe(held);

@@ -23,6 +23,11 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
         guard let url = action.request.url else { return decisionHandler(.cancel) }
+        // The built-in signed-out screen's button: only that screen can start it.
+        if SignedOutScreen.isStart(url) {
+            model.onSignInRequested()
+            return decisionHandler(.cancel)
+        }
         // [SAFETY] Studio's sign-in page, or a login provider's page, is never
         // shown in this privileged web view: the native round trip (system
         // web-auth session, then a one-time code) replaces it. Only a main-frame
@@ -33,6 +38,13 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
             location.isSignInPage(url) || location.isLoginProvider(url)
         {
             if model.signInAvailable != false { model.onSignInRequested() }
+            // [SAFETY] With none of Studio's own pages on screen (a first launch, or storage
+            // cleared) the window would stay empty and see-through: show the signed-out
+            // screen, with its button, instead. A Studio page already showing keeps itself.
+            let showingStudio = webView.url.map { location.isStudio($0) } ?? false
+            if !showingStudio, model.signInAvailable != false {
+                DispatchQueue.main.async { webView.loadHTMLString(SignedOutScreen.html, baseURL: nil) }
+            }
             return decisionHandler(.cancel)
         }
         if let location = model.location, location.isStudio(url) || url.scheme == "about" {

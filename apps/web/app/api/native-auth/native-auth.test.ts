@@ -84,8 +84,9 @@ it("round trips: callback carries only the code, redemption sets the cookie once
   // `next start` derives its own origin as localhost, and the shell, which
   // keeps cookies and trust per host, would otherwise land on a host with no
   // session.
+  // ...and on the compact panel the shell itself loads, never the bare card.
   expect(first.headers.get("location")).toBe(
-    "/t/local/p/interview/live/overlay?host=native",
+    "/t/local/p/interview/live/overlay?host=native&panel=single&handsfree=1",
   );
   expect(first.headers.get("set-cookie")).toContain("omnitech.dev-session=");
   expect(first.headers.get("set-cookie")).toContain("HttpOnly");

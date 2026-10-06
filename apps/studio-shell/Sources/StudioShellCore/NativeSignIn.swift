@@ -128,3 +128,41 @@ public struct SignInAttempt: Sendable {
     // disconnected.
     public mutating func cancel() { pending = nil }
 }
+
+// [DOMAIN] What the shell shows when Studio refuses a page for want of a session
+// and nothing of Studio's own is on screen yet (a first launch, or after the web
+// storage is cleared): the sign-in redirect is cancelled, so without this the
+// window would be empty and, on the shell's clear window, see-through. It is a
+// plain opaque screen with one button; the button is a link to a start address
+// the shell recognises, so it needs no script and no bridge, and a page that is
+// not this screen cannot use it.
+public enum SignedOutScreen {
+    public static let startURL = URL(string: "omnitech-studio://signin-start")!
+
+    // [SAFETY] Exactly the start address: no user info, path, query or fragment.
+    public static func isStart(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == NativeSignIn.callbackScheme
+            && url.host?.lowercased() == "signin-start"
+            && url.user == nil && url.password == nil && url.query == nil && url.fragment == nil
+            && (url.path.isEmpty || url.path == "/")
+    }
+
+    // Local and self-contained: loaded as a string, no network, no script.
+    public static let html = """
+        <!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+        <title>Interview Studio</title>
+        <style>
+        html,body{margin:0;height:100%;background:#101010;color:#f2f2f2;font:15px -apple-system,system-ui,sans-serif}
+        main{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+        h1{font-size:18px;margin:0}
+        p{margin:0;color:#b5b5b5;line-height:1.4}
+        a{display:inline-block;margin-top:6px;padding:9px 18px;border-radius:10px;background:#3b6df2;color:#fff;text-decoration:none;font-weight:600}
+        </style>
+        <main>
+        <h1>Sign in to Studio</h1>
+        <p>Interview Studio needs you signed in to show your live session.</p>
+        <a href="\(startURL.absoluteString)">Sign in to Studio</a>
+        </main>
+        """
+}
+

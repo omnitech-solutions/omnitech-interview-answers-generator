@@ -45,8 +45,9 @@ export async function GET(request: Request) {
   const response = new NextResponse(null, {
     status: 302,
     headers: {
-      // Relative: the web view stays on the host it called (see the test).
-      location: `/t/${slug}/p/interview/live/overlay?host=native`,
+      // Relative: the web view stays on the host it called (see the test). The
+      // compact panel the shell loads itself, never the bare card.
+      location: `/t/${slug}/p/interview/live/overlay?host=native&panel=single&handsfree=1`,
       "cache-control": "no-store",
       "referrer-policy": "no-referrer",
     },

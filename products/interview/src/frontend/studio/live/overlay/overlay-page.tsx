@@ -24,14 +24,24 @@ import { tellHost } from "./overlay-url";
 import { PanelsRoot } from "./panels/panels-root";
 
 // `?panel=single|settings` is a native shell window of the same session;
-// without it (or with an unknown value) this is the card.
+// without it (or with an unknown value) a browser or picture-in-picture window
+// draws the card.
+//
+// [SAFETY] A native host never draws the card: it has no toolbar and no
+// background of its own, so on the shell's clear window it was a see-through
+// "No live session." with nothing to press (after a sign-in redirect, or any
+// URL without a panel). A native load without a valid panel draws the compact
+// window instead.
 export function OverlayPage() {
-  const panel = new URLSearchParams(window.location.search).get("panel");
-  return panel === "single" || panel === "settings" ? (
-    <PanelsRoot panel={panel} />
-  ) : (
-    <CardOverlayPage />
-  );
+  const params = new URLSearchParams(window.location.search);
+  const named = params.get("panel");
+  const panel =
+    named === "single" || named === "settings"
+      ? named
+      : isNativeSurface(params)
+        ? "single"
+        : null;
+  return panel ? <PanelsRoot panel={panel} /> : <CardOverlayPage />;
 }
 
 function CardOverlayPage() {
@@ -69,6 +79,11 @@ function CardOverlayPage() {
           {access === "signed-out"
             ? "You’re signed out. Sign in to Studio again to continue."
             : "This session is unavailable."}
+          {access === "signed-out" && (
+            <a className="ov-link" href="/sign-in">
+              Sign in
+            </a>
+          )}
         </p>
       </div>
     );
