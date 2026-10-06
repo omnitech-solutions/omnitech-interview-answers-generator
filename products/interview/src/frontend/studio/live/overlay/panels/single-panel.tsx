@@ -42,6 +42,8 @@ import {
 } from "./toolbar-config";
 import type { PanelWindowMode } from "./window-mode";
 
+const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
+
 export type Panes = {
   shown: PaneState;
   toggle(pane: PaneId): void;
@@ -124,7 +126,9 @@ export function SinglePanel({
   const [menuOpen, setMenuOpen] = useState(false);
   // A paused session shows no body: the toolbar, the strip that says it is paused
   // (with Resume session) and the footer stay; the panes come back on resume.
-  const anyPane = PANES.some((pane) => shown[pane.id]) && !(s.paused && !ended);
+  const holdBody = s.paused && !ended;
+  const anyPane = PANES.some((pane) => shown[pane.id]) && !holdBody;
+
   const mode = windowMode.mode;
 
   // The shell widens or narrows the window about its centre to fit what shows,
@@ -151,7 +155,9 @@ export function SinglePanel({
       const pill = root?.querySelector<HTMLElement>(".pn-pill");
       const toolbar =
         (pill?.offsetWidth ?? BARE_WIDTH - WINDOW_PAD) + WINDOW_PAD;
-      const width = windowWidthFor(shown, toolbar);
+      // With the body held the window is sized for nothing but the toolbar, so the
+      // strip and the footer are exactly as wide as it.
+      const width = windowWidthFor(holdBody ? NO_PANES : shown, toolbar);
       let height: number | undefined;
       if (!anyPane && root) {
         const content =
@@ -172,7 +178,16 @@ export function SinglePanel({
     const watch = new ResizeObserver(fit);
     for (const row of rows) watch.observe(row);
     return () => watch.disconnect();
-  }, [shown, anyPane, ended, menuOpen, stripShown, presentation, mode]);
+  }, [
+    shown,
+    holdBody,
+    anyPane,
+    ended,
+    menuOpen,
+    stripShown,
+    presentation,
+    mode,
+  ]);
 
   if (mode === "mini")
     return (

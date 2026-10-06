@@ -783,7 +783,7 @@
 }
 .pn-pill .pn-bar-button:hover:not(:disabled),
 .pn-split-main:hover:not(:disabled),
-.pn-split-menu:hover {
+.pn-split-menu:hover:not(:disabled) {
   background: var(--pn-glass-fill-hover);
 }
 .pn-pill .pn-bar-button:focus-visible,
@@ -861,7 +861,8 @@
   gap: 2px;
   padding: 0 6px 0 11px;
 }
-.pn-split-main:disabled {
+.pn-split-main:disabled,
+.pn-split-menu:disabled {
   opacity: 0.45;
   cursor: default;
 }

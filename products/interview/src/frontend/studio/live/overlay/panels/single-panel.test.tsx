@@ -672,6 +672,25 @@ describe("the capture split control and the microphone with a native engine", ()
 });
 
 describe("a paused session", () => {
+  it("sizes the window for the toolbar alone, so the strip and footer are as wide as it, and back for the panes on resume", async () => {
+    const sizes: number[] = [];
+    nativeHost({
+      capabilities: ["always-on-top"],
+      setWindowSize: async (size: { width: number }) => {
+        sizes.push(size.width);
+        return true;
+      },
+      setFullScreen: async () => true,
+      quit: async () => true,
+    });
+    serve(live({ status: "paused" }));
+    await show();
+    const held = sizes.at(-1) as number;
+    cleanup();
+    serve(live());
+    await show();
+    expect(sizes.at(-1) as number).toBeGreaterThan(held);
+  });
   it("shows no body panels: the toolbar, the paused strip and the footer stay, and the pane buttons are disabled with the reason", async () => {
     serve(live({ status: "paused" }));
     await show();
