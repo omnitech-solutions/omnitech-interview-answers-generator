@@ -926,19 +926,20 @@ describe("See-through: one control, clear glass and pass-through by region", () 
     );
   });
 
-  it("reports its surfaces to the shell only while on, and null when turned off", async () => {
+  it("reports its surfaces to the shell from the start (what is not drawn passes clicks through, glass clear or not), and null when the window goes", async () => {
     const { host, setHitRegions } = hitHost();
     await show();
-    expect(setHitRegions).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "See-through" }));
     expect(setHitRegions).toHaveBeenCalled();
     // jsdom lays nothing out, so no surface is found: that is `null` (the
     // window stays interactive), never an empty list.
     const sent = setHitRegions.mock.calls as unknown[][];
     expect(sent.at(-1)?.[0]).toBeNull();
+    // See-through changes the glass, not which surfaces are reported.
     fireEvent.click(screen.getByRole("button", { name: "See-through" }));
-    expect(setHitRegions).toHaveBeenLastCalledWith(null);
+    expect(sent.at(-1)?.[0]).toBeNull();
     expect(host.setInteractionMode).not.toHaveBeenCalled();
+    cleanup();
+    expect(setHitRegions).toHaveBeenLastCalledWith(null);
   });
 
   it("is toggled by the shell's see-through.toggle intent (⌘⇧I, the menu-bar item), the same control", async () => {

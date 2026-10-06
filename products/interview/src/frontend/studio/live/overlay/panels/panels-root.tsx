@@ -59,7 +59,8 @@ export function PanelsRoot({
     toggleSeeThrough: glass.toggle,
   });
   // See-through on: the shell takes the mouse only over the surfaces reported here.
-  useHitRegions(presentation, panel === "single" && glass.clear);
+  // Always: what the page does not draw passes clicks through, glass clear or not.
+  useHitRegions(presentation, panel === "single");
   const access: OverlayAccess = signedOut
     ? "signed-out"
     : overlayAccess(snapshot, tenantFromLocation());

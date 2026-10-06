@@ -3,7 +3,8 @@ import Foundation
 // Moving a floating window by any empty part of its page. A web view takes every
 // mouse event itself and WKWebView has no `-webkit-app-region`, so the shell watches
 // the press, and once the pointer travels `threshold` points it asks the page
-// whether that spot is empty (not a control, text field, code or selectable
+// whether that spot is drawn by the page (a surface from its hit list, so never
+// transparent glass) and empty (not a control, text field, code or selectable
 // result): if so the window is dragged, otherwise the page keeps the gesture.
 //
 // [DOMAIN] The toolbar and footer always drag (around their buttons). The rest of
@@ -27,6 +28,9 @@ public enum WindowDrag {
         (function () {
           var el = document.elementFromPoint(\(x), \(y));
           if (!el) return false;
+          // A page that has not said what it draws (an older page) is not restricted.
+          var drawn = document.documentElement.getAttribute('data-hit-surfaces');
+          if (drawn && !el.closest(drawn)) return false;
           if (el.closest('\(controls)')) return false;
           if (el.closest('\(chrome)')) return true;
           return !document.querySelector('[data-glass="clear"]');

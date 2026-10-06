@@ -12,6 +12,7 @@ func windowDragTests(_ t: Harness) async {
         for control in ["button", "textarea", "[contenteditable]", "pre", ".cm-editor", "[data-no-drag]"] {
             t.expect(script.contains(control), "\(control) keeps its own gesture")
         }
+        t.expect(script.contains("data-hit-surfaces"), "only a drawn surface drags, never transparent glass")
         t.expect(script.contains(".pn-pill,.pn-single-foot"), "toolbar and footer drag")
         t.expect(script.contains("[data-glass=\"clear\"]"), "see-through glass keeps the card for reading")
     }

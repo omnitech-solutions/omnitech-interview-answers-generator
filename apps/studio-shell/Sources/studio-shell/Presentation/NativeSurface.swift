@@ -206,7 +206,10 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     init(kind: WindowKind, webView: WKWebView, frame: CGRect, onFrame: @escaping (CGRect) -> Void) {
         self.webView = webView
         self.onFrame = onFrame
-        topInset = kind == .compact ? 16 : 0
+        // [DOMAIN] Nothing native sits over the compact window's page: whatever the page
+        // does not draw passes clicks to the app underneath, and the window is dragged
+        // by what it does draw (StudioPanel, WindowDrag).
+        topInset = 0
         // [DOMAIN] A titled window with its title bar hidden and the content drawn
         // under it: macOS gives edge-resize, dragging and a proper key window to a
         // titled window, but not to a .borderless one (which could not be resized
@@ -243,27 +246,22 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         webView.setValue(false, forKey: "drawsBackground")
         webView.underPageBackgroundColor = .clear
 
-        // The compact window keeps a visible grip strip over its page; Settings'
-        // page fills the whole frame and a transparent strip over its top edge
-        // drags the window (the page insets its content).
-        let strip: CGFloat = isCompact ? 16 : 22
+        // Settings' page fills the whole frame and a transparent strip over its top edge
+        // drags the window (the page insets its content). The compact window has none.
         let size = frame.size
-        let handle = DragHandle(frame: CGRect(x: 0, y: size.height - strip, width: size.width, height: strip))
-        handle.autoresizingMask = [.width, .minYMargin]
-        handle.showsGrip = isCompact
-        webView.frame = CGRect(x: 0, y: 0, width: size.width, height: size.height - (isCompact ? strip : 0))
-        webView.autoresizingMask = [.width, .height]
         let container = NSView(frame: CGRect(origin: .zero, size: frame.size))
         container.wantsLayer = true
         container.layer?.cornerRadius = 14
         container.layer?.masksToBounds = true
+        let strip: CGFloat = isCompact ? 0 : 22
+        webView.frame = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+        webView.autoresizingMask = [.width, .height]
         container.addSubview(webView)
-        container.addSubview(handle)
-        // The whole toolbar drags: the strip plus the bar's row of the compact window.
-        if isCompact {
-            let bar = ToolbarDragView(frame: CGRect(x: 0, y: size.height - 62, width: size.width, height: 62))
-            bar.autoresizingMask = [.width, .minYMargin]
-            container.addSubview(bar)
+        if !isCompact {
+            let handle = DragHandle(frame: CGRect(x: 0, y: size.height - strip, width: size.width, height: strip))
+            handle.autoresizingMask = [.width, .minYMargin]
+            handle.showsGrip = false
+            container.addSubview(handle)
         }
         // [DOMAIN] Resize handles on every edge and corner (a borderless-looking
         // window gets no native edge-resize where the web view covers the frame).
