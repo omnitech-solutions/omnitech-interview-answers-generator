@@ -101,6 +101,14 @@ describe("a product page", () => {
       pathSegments: ["briefings", "pack-1"],
       routeId: "interview.briefings",
       tenantSlug: "local",
+      // Who is signed in, so a product can show them and offer sign-out. The
+      // development bypass has no session to end, so it cannot sign out.
+      member: {
+        name: expect.any(String),
+        email: "local@omnitech.test",
+        kind: "local",
+        canSignOut: false,
+      },
       products: [
         expect.objectContaining({
           productId: "omnitech.interview",
@@ -120,6 +128,27 @@ describe("a product page", () => {
       params({ tenantSlug: "local", productId: "interview" }),
     )) as ReactElement<{ routeId: string }>;
     expect(home.props.routeId).toBe("interview.home");
+  });
+
+  it("tells the product whether the member can sign out", async () => {
+    const { default: ProductPage } = await import(
+      "./t/[tenantSlug]/p/[productId]/[[...productPath]]/page"
+    );
+    vi.stubEnv("FAKE_AUTH_ENABLED", "false");
+    try {
+      // A real session (here the bootstrapped local user's) can be ended.
+      session.current = { user: { email: "local@omnitech.test" } };
+      const page = (await ProductPage(
+        params({ tenantSlug: "local", productId: "interview" }),
+      )) as ReactElement<{ member: { canSignOut: boolean; kind: string } }>;
+      expect(page.props.member).toMatchObject({
+        kind: "local",
+        canSignOut: true,
+      });
+    } finally {
+      session.current = null;
+      vi.stubEnv("FAKE_AUTH_ENABLED", "true");
+    }
   });
 
   it("is not found for a non-member, an unknown product or route", async () => {

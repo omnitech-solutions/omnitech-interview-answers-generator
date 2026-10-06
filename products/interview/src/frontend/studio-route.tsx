@@ -36,7 +36,7 @@ const redirectTo = (): string | null =>
 
 // Every interview route renders the whole studio, which routes within
 // itself from the URL. It renders in the browser only.
-export function StudioRoute({ products }: ProductPageProps) {
+export function StudioRoute({ products, member }: ProductPageProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const away = mounted ? redirectTo() : null;
@@ -47,9 +47,9 @@ export function StudioRoute({ products }: ProductPageProps) {
   return mounted ? (
     <Suspense fallback={null}>
       {isOverlay(window.location.pathname) ? (
-        <OverlayPage />
+        <OverlayPage {...(member ? { member } : {})} />
       ) : (
-        <StudioPage products={products} />
+        <StudioPage products={products} {...(member ? { member } : {})} />
       )}
     </Suspense>
   ) : null;

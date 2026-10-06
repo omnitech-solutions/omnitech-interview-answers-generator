@@ -16,6 +16,7 @@ export {
   type ProductFrontendPlugin,
   type ProductLink,
   type ProductManifest,
+  type ProductMember,
   type ProductPageLoader,
   type ProductPageProps,
   type ProductRouteManifest,

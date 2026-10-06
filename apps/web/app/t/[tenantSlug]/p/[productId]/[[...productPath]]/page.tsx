@@ -4,6 +4,7 @@ import {
   refuseTenantAccess,
   resolvePlatformContext,
 } from "@/src/platform/context";
+import { LOCAL_USER_EMAIL, localSignInBypass } from "@/src/platform/fake-auth";
 import { getProductRegistry } from "@/src/platform/registry";
 import {
   isWebAppTenantSlug,
@@ -42,10 +43,23 @@ export default async function ProductPage({
     { tenantSlug, productId, path: productPath },
   );
   if (resolved.status === 404) return refuseTenantAccess();
+  // The same context the registry just resolved (one membership read per request).
+  const context = await resolvePlatformContext(tenantSlug);
   const Component = resolved.page;
   return (
     <Component
       pathSegments={productPath}
+      {...(context
+        ? {
+            member: {
+              name: context.user.displayName,
+              email: context.user.email,
+              kind:
+                context.user.email === LOCAL_USER_EMAIL ? "local" : "account",
+              canSignOut: !localSignInBypass(),
+            } as const,
+          }
+        : {})}
       products={resolved.products}
       routeId={resolved.route.id}
       tenantSlug={tenantSlug}

@@ -11,6 +11,7 @@
 // [SAFETY] On a 401 it shows a sign-in message, on a 404/403 a "session
 // unavailable" one, and in both the card is unmounted and the store stops
 // polling (the store halts on a terminal answer). Nothing is retained.
+import type { ProductMember } from "@omnitech/platform-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { parseRoute } from "../../use-studio-route";
@@ -32,7 +33,7 @@ import { PanelsRoot } from "./panels/panels-root";
 // "No live session." with nothing to press (after a sign-in redirect, or any
 // URL without a panel). A native load without a valid panel draws the compact
 // window instead.
-export function OverlayPage() {
+export function OverlayPage(_props: { member?: ProductMember } = {}) {
   const params = new URLSearchParams(window.location.search);
   const named = params.get("panel");
   const panel =

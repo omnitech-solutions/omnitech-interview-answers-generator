@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProductLink } from "@omnitech/platform-contracts";
+import type { ProductLink, ProductMember } from "@omnitech/platform-contracts";
 import { createAssistantClient } from "@omnitech-assistant/sdk";
 import { useEffect, useMemo, useState } from "react";
 import { INTERVIEW_ASSISTANT_PROFILE } from "../../assistant-profile";
@@ -14,6 +14,8 @@ export function StudioPage({
   products = [],
 }: {
   products?: readonly ProductLink[];
+  // Who is signed in; the account menu reads it.
+  member?: ProductMember;
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

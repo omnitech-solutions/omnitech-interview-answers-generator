@@ -6,6 +6,9 @@
 // disagree with the compiled bypass (a production build run with
 // NODE_ENV=development would still believe the bypass is on).
 
+// The fixed identity of the passwordless local sign-in.
+export const LOCAL_USER_EMAIL = "local@omnitech.test";
+
 // Development (`next dev`): requests are the bootstrapped owner without any
 // session, so nobody, the native shell included, needs to sign in.
 export const localSignInBypass = () =>

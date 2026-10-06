@@ -4,12 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { auth } from "@/auth";
-import { localSignInBypass } from "./fake-auth";
+import { LOCAL_USER_EMAIL, localSignInBypass } from "./fake-auth";
 
 const localContext: PlatformContext = {
   user: {
     id: "00000000-0000-4000-8000-000000000001",
-    email: "local@omnitech.test",
+    email: LOCAL_USER_EMAIL,
     displayName: "Local User",
     avatarUrl: null,
   },

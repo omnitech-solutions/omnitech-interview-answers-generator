@@ -64,10 +64,23 @@ export interface ProductLink {
   current: boolean;
 }
 
+// Who is signed in, so a product can show them and offer sign-out without
+// reaching into the platform's session.
+export interface ProductMember {
+  name: string;
+  email: string;
+  // An account, or the passwordless local user of this computer.
+  kind: "account" | "local";
+  // False where there is no session to end (the development bypass signs
+  // every request in as the local owner).
+  canSignOut: boolean;
+}
+
 export interface ProductPageProps {
   tenantSlug: string;
   routeId: string;
   pathSegments: readonly string[];
+  member?: ProductMember;
   // Every visible installed product, in navigation order, so a product can
   // offer a way to the others without knowing which exist.
   products: readonly ProductLink[];
