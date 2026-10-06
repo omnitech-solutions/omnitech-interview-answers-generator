@@ -6,7 +6,8 @@ import {
   startDisposablePostgres,
 } from "./test-support/postgres";
 
-// `pnpm db:migrate` runs as the application role, never the superuser.
+// `pnpm db:migrate` runs as the schema owner (DATABASE_OWNER_URL, else
+// DATABASE_URL), never the superuser.
 let pg: DisposablePostgres;
 let appUrl: string;
 beforeAll(async () => {
@@ -38,8 +39,28 @@ it("migrates the database named by DATABASE_URL", async () => {
   }
 }, 30_000);
 
+it("migrates as DATABASE_OWNER_URL when set, leaving DATABASE_URL to the runtime role", async () => {
+  const ownedUrl = await createMigratingApplicationDatabase(pg, "owned");
+  // The member role has no DDL rights: a migration that used it would fail.
+  vi.stubEnv("DATABASE_URL", pg.memberUrl);
+  vi.stubEnv("DATABASE_OWNER_URL", ownedUrl);
+
+  await migrateCommand();
+
+  const owned = createPlatformDatabase(ownedUrl);
+  try {
+    const applied = await owned.query<{ count: number }>(
+      "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
+    );
+    expect(applied.rows[0]?.count).toBeGreaterThan(0);
+  } finally {
+    await owned.close();
+  }
+}, 30_000);
+
 it("refuses to run without DATABASE_URL", async () => {
   vi.stubEnv("DATABASE_URL", "");
+  vi.stubEnv("DATABASE_OWNER_URL", "");
 
   await expect(migrateCommand()).rejects.toThrow(
     "DATABASE_URL is required for platform persistence.",
