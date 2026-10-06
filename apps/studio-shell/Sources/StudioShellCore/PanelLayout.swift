@@ -139,3 +139,15 @@ public struct PanelWindowTraits: Equatable, Sendable {
         PanelWindowTraits(level: pinned ? .floating : .normal)
     }
 }
+
+// [DOMAIN] A press on a floating window makes Interview Studio the active app, so
+// its name and menus (File, Edit, View, Window) show in the menu bar and in
+// Cmd-Tab, as for any app you are using. Hovering, dragging a window that is
+// already in front of an active app, and clicks that pass through clear glass do
+// not. Capture is unaffected: "focused window" is the last other application
+// (FocusSampling), sampled before the panel can take focus.
+public enum PanelActivation {
+    public static func shouldActivate(pressed: Bool, appIsActive: Bool) -> Bool {
+        pressed && !appIsActive
+    }
+}

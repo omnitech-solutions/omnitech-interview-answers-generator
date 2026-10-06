@@ -161,6 +161,11 @@ func presentationTests(_ t: Harness) async {
     }
 
     // MARK: window frames
+    await t.test("pressing a floating window makes the app active; nothing else does") {
+        t.expect(PanelActivation.shouldActivate(pressed: true, appIsActive: false), "a press brings the app forward")
+        t.expect(!PanelActivation.shouldActivate(pressed: true, appIsActive: true), "already active: nothing to do")
+        t.expect(!PanelActivation.shouldActivate(pressed: false, appIsActive: false), "hover, move or key events never steal focus")
+    }
     await t.test("the compact window is never narrower than the toolbar, by default or by resizing") {
         t.expect(WindowKind.compact.minSize.width >= WindowKind.toolbarWidth, "minimum fits the whole toolbar")
         t.expect(WindowKind.compact.defaultSize.width >= WindowKind.compact.minSize.width)
