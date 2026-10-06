@@ -138,17 +138,71 @@ export function isBackchannel(text: string): boolean {
   return SQUASHED_BACKCHANNELS.has(squash(tokens.join(" ")));
 }
 
+// [DOMAIN] Interviewers ask in statements as often as in questions: "I'd love to
+// hear what interested you", "my next question for you is...". They also wrap them
+// in a long preamble, so these cues count in a long utterance too. Matched on the
+// normalized text (lowercase, no punctuation: "i d love to hear").
+const ASK_INTENT = [
+  /\bi(?: d| would)? (?:really )?(?:love|like) to (?:hear|see|know|ask|understand|learn)\b/,
+  /\bi(?: d| would)? (?:really )?(?:love|like) (?:your|for you to)\b/,
+  /\bi(?: m| am) (?:curious|interested to (?:hear|know|learn))\b/,
+  /\bmy (?:next|last|final|first|second|third) question\b/,
+  /\bi wanted to ask (?:you|about)\b/,
+  /\bcould you (?:please )?(?:walk|talk|tell|describe|explain|share)\b/,
+];
+
+// [GUARD] Social and logistical checks carry question marks but are not interview
+// questions: greetings, "can you hear me", and the "any questions about what I've
+// just covered?" check-in after the role overview. A sentence like these is set
+// aside before the rest is judged ("Did you have any other questions for me?" is
+// still a question: it is the candidate's turn to ask).
+const SOCIAL_CHECKS = [
+  /\bhow(?: s| is) it going\b/,
+  /\bhow are you\b/,
+  /\bhow(?: have| s) your (?:day|week|morning|weekend)\b/,
+  /\b(?:can|could) you (?:hear|see) me\b/,
+  /\bhear me (?:ok|okay|alright|all right|clearly)\b/,
+  /\bsounds? (?:ok|okay|good|alright|all right) on your end\b/,
+  /\bhow about me\b/,
+  /\bis this a good time\b/,
+  /\b(?:can|could) you see (?:my|the) screen\b/,
+  /\bany questions (?:at all )?(?:about|on|regarding) (?:what|the (?:role|overview|team)|everything)\b/,
+  /\bbefore i continue\b/,
+];
+
+// A bare "?" on a very short remark ("huh?", "right?") is a reaction, not a
+// question; a short question that opens with a question word ("why?") still is.
+const MIN_WORDS_FOR_BARE_QUESTION_MARK = 4;
+
 function isQuestion(text: string, monologue: boolean): boolean {
-  if (text.includes("?")) return true;
-  // A long task-less utterance needs an explicit question mark; sentence
-  // starters alone would turn every answer's "How we did it..." into a task.
-  if (monologue) return false;
-  return text.split(/(?<=[.!?])\s+/).some((sentence) => {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .filter(
+      (sentence) =>
+        !SOCIAL_CHECKS.some((check) => check.test(normalize(sentence))),
+    );
+  if (sentences.length === 0) return false;
+  const startsAsQuestion = (sentence: string) => {
     let lead = sentence.trim().toLowerCase();
     for (let i = 0; i < 3 && DISCOURSE_LEAD.test(lead); i += 1)
       lead = lead.replace(DISCOURSE_LEAD, "");
     return QUESTION_STARTERS.test(lead);
-  });
+  };
+  if (ASK_INTENT.some((cue) => cue.test(normalize(sentences.join(" ")))))
+    return true;
+  if (
+    sentences.some(
+      (sentence) =>
+        sentence.includes("?") &&
+        (words(sentence).length >= MIN_WORDS_FOR_BARE_QUESTION_MARK ||
+          startsAsQuestion(sentence)),
+    )
+  )
+    return true;
+  // A long task-less utterance needs an explicit question mark or an ask cue;
+  // sentence starters alone would turn every answer's "How we did it..." into a task.
+  if (monologue) return false;
+  return sentences.some(startsAsQuestion);
 }
 
 export function decideBaseline(input: PolicyInput): PolicyVerdict {
