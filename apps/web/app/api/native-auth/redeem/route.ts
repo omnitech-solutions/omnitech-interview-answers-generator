@@ -45,10 +45,8 @@ export async function GET(request: Request) {
   const response = new NextResponse(null, {
     status: 302,
     headers: {
-      location: new URL(
-        `/t/${slug}/p/interview/live/overlay?host=native`,
-        url.origin,
-      ).toString(),
+      // Relative: the web view stays on the host it called (see the test).
+      location: `/t/${slug}/p/interview/live/overlay?host=native`,
       "cache-control": "no-store",
       "referrer-policy": "no-referrer",
     },

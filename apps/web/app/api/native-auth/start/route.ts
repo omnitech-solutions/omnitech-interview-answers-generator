@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { signIn } from "@/auth";
+import { localSignInNeeded } from "@/src/platform/fake-auth";
 import {
   configuredLoginProviders,
   isAttemptState,
@@ -18,7 +19,11 @@ export async function GET(request: Request) {
       { error: "The sign-in attempt is invalid." },
       { status: 400 },
     );
-  const configured = configuredLoginProviders();
+  // Real providers first; the local sign-in only where there is no bypass.
+  const configured: string[] = [
+    ...configuredLoginProviders(),
+    ...(localSignInNeeded() ? ["local"] : []),
+  ];
   const requested = url.searchParams.get("provider");
   const provider =
     configured.find((candidate) => candidate === requested) ?? configured[0];

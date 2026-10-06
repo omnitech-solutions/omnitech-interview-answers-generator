@@ -15,7 +15,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 // The sign-in session (NextAuth) is the identity boundary; local development
 // signs in through FAKE_AUTH_ENABLED instead.
-vi.mock("@/auth", () => ({ auth: async () => null }));
+// A test sets `session.current` to be signed in (with the member's e-mail).
+const session = vi.hoisted(() => ({
+  current: null as { user: { email: string } } | null,
+}));
+vi.mock("@/auth", () => ({ auth: async () => session.current }));
 
 const storageRoot = fileURLToPath(
   new URL("../../../packages/platform-storage", import.meta.url),
@@ -156,6 +160,44 @@ describe("the tenant's pages", () => {
         TenantLayout({ children: null, ...params({ tenantSlug: "other" }) }),
       ),
     ).toBe("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
+  // Studio's native shell starts its sign-in round trip when the web view reaches
+  // /sign-in; a bare 404 for a signed-out person left the panel stuck on "This
+  // page could not be found". A signed-in non-member still gets the 404, which
+  // does not reveal whether a tenant exists.
+  it("send a signed-out visitor to sign in, and a signed-in non-member to 404", async () => {
+    const { default: TenantLayout } = await import("./t/[tenantSlug]/layout");
+    const { default: ProductPage } = await import(
+      "./t/[tenantSlug]/p/[productId]/[[...productPath]]/page"
+    );
+    vi.stubEnv("FAKE_AUTH_ENABLED", "false");
+    try {
+      session.current = null;
+      for (const tenantSlug of ["local", "other"]) {
+        expect(
+          await digestOf(() =>
+            TenantLayout({ children: null, ...params({ tenantSlug }) }),
+          ),
+          `layout, signed out, ${tenantSlug}`,
+        ).toMatch(/^NEXT_REDIRECT;replace;\/sign-in;307;/);
+        expect(
+          await digestOf(() =>
+            ProductPage(params({ tenantSlug, productId: "interview" })),
+          ),
+          `page, signed out, ${tenantSlug}`,
+        ).toMatch(/^NEXT_REDIRECT;replace;\/sign-in;307;/);
+      }
+      session.current = { user: { email: "stranger@example.test" } };
+      expect(
+        await digestOf(() =>
+          TenantLayout({ children: null, ...params({ tenantSlug: "local" }) }),
+        ),
+      ).toBe("NEXT_HTTP_ERROR_FALLBACK;404");
+    } finally {
+      session.current = null;
+      vi.stubEnv("FAKE_AUTH_ENABLED", "true");
+    }
   });
 
   it("send the root and a tenant's root to Interview Studio", async () => {

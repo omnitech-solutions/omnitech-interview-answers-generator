@@ -97,6 +97,15 @@ The macOS app (step 7) also needs Xcode's Swift toolchain.
    It is a development bundle, ad-hoc signed, so macOS asks for Screen Recording
    access again after each rebuild.
 
+   The app loads Studio at `http://127.0.0.1:3100` unless you set another address
+   in its connect prompt. Against `pnpm dev` (port 3000, so set that address) it
+   needs no sign-in. Against a **production build** (`next start`) it signs in
+   itself on first launch, or after its web storage is cleared (a reinstall): a
+   system sign-in window appears, and with `FAKE_AUTH_ENABLED=true` it signs in
+   as the local user with no password. Give a server you keep running its own
+   `NEXT_DIST_DIR` (for example `.next-e2e-studio`); `pnpm verify` rebuilds the
+   default `.next`, and a server still running from it then serves stale routes.
+
 Problems on first run: "no model" means step 3; a database error means Docker is
 not running; a Docker image error means step 2.
 

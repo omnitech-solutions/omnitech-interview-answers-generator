@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 
-import { resolvePlatformContext } from "@/src/platform/context";
+import {
+  refuseTenantAccess,
+  resolvePlatformContext,
+} from "@/src/platform/context";
 
 export default async function IntegrationsPage({
   params,
@@ -10,7 +12,7 @@ export default async function IntegrationsPage({
 }) {
   const { tenantSlug } = await params;
   const context = await resolvePlatformContext(tenantSlug);
-  if (!context) notFound();
+  if (!context) return refuseTenantAccess();
   return (
     <section className="platform-settings">
       <p className="platform-eyebrow">Workspace settings</p>

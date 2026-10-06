@@ -357,3 +357,8 @@ Not re-verified by the lead (so still the worker's word only): the other ~75 fin
 ### Honest limits of this review
 
 The lead read about 10 code locations. A security-relevant claim here means "the code reads this way", not "this was exploited": none of the bypasses above was attempted.
+
+### Addendum (2026-10-05, after the signed-out 404 fix)
+
+AU-SEC-02 now has one more entry point to weigh: with `FAKE_AUTH_ENABLED=true` in a production build, `/api/native-auth/start` offers the same passwordless `local` provider to the native shell (`apps/web/src/platform/fake-auth.ts` `localSignInNeeded`, `apps/web/app/api/native-auth/start/route.ts`). It grants nothing the provider did not already grant through `/api/auth/callback/local`, and it is off whenever the flag is off. If AU-SEC-02 is fixed by refusing the flag in production, this entry point and the e2e harness (which runs a production build with the flag and signs in through `local` over HTTP) both need an explicit, separate switch instead.
+

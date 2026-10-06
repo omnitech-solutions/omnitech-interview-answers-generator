@@ -1,8 +1,10 @@
 import type { PlatformContext } from "@omnitech/platform-contracts";
 
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { auth } from "@/auth";
+import { localSignInBypass } from "./fake-auth";
 
 const localContext: PlatformContext = {
   user: {
@@ -73,10 +75,7 @@ async function resolveLocalContext(): Promise<PlatformContext | null> {
 export const resolvePlatformContext = cache(async function resolve(
   tenantSlug: string,
 ): Promise<PlatformContext | null> {
-  const localFakeAuth =
-    process.env["NODE_ENV"] !== "production" &&
-    process.env["FAKE_AUTH_ENABLED"] === "true";
-  if (localFakeAuth) {
+  if (localSignInBypass()) {
     return tenantSlug === localContext.tenant.slug
       ? await resolveLocalContext()
       : null;
@@ -93,3 +92,15 @@ export const resolvePlatformContext = cache(async function resolve(
     tenantSlug,
   );
 });
+
+// [SAFETY] A tenant route that resolves no context ends here. Nobody signed in
+// goes to sign-in, which names no tenant: the native shell starts its sign-in
+// round trip when its web view reaches /sign-in, so a bare 404 would strand the
+// panel on "This page could not be found". Someone signed in who is not a
+// member (or asks for an unknown tenant) gets the same 404 as before, so a
+// response never reveals whether a tenant exists.
+export async function refuseTenantAccess(): Promise<never> {
+  const signedOut = !localSignInBypass() && !(await auth())?.user?.email;
+  if (signedOut) redirect("/sign-in");
+  notFound();
+}

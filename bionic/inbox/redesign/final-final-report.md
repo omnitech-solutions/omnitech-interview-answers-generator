@@ -27,6 +27,10 @@ detailed record; this page is the index.
 | Boot-time migration check | Unit and DB-backed tests pass (worker refuses on pending/ahead; web only on a definite mismatch). | What `next start` does when `register()` throws: the Next docs do not say; unverified. |
 | Docs audit | 84 findings, 17 provenance rows (worker); lead re-verified 9 top findings in the code. | About 75 findings only on the worker's word; nothing was run. |
 
+## After the report: the panel 404 (screenshot 52)
+
+Root cause and fix are in `plan.md` 7.0aa. In one line: a signed-out native shell against a production-built server got a bare 404 instead of the sign-in it is designed to start, and the redeem redirect would have dropped it on `localhost`. Fixed and tested (`pnpm verify` green, 5017 tests); **what the panel looks like is not verified by me**: please relaunch the app and tell me. Files: `apps/web/src/platform/fake-auth.ts`, `context.ts`, `apps/web/app/api/native-auth/{providers,start,redeem}/route.ts`, the tenant layout and pages, `pages.test.tsx`, `native-auth.test.ts`.
+
 ## Open problems (honest list)
 
 1. **The flaky test was removed by your decision (2026-10-05).** `e2e/live-session/tests/glass-clear.spec.ts` (its one test, WebKit) failed in 2 of 4 runs with identical numbers (code-card contrast 0.138 vs 0.453) and the cause was never found. It was the only automated check that See-through keeps the backdrop visible and that toggling it twice restores the default look, so that behaviour is now covered only by your manual matrix (rows M11-M13 in `final-report.md`) and by unit tests. Restore it with `git revert` of the removal commit.

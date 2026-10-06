@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { resolvePlatformContext } from "@/src/platform/context";
+import {
+  refuseTenantAccess,
+  resolvePlatformContext,
+} from "@/src/platform/context";
 import { getProductRegistry } from "@/src/platform/registry";
 import {
   isWebAppTenantSlug,
@@ -39,7 +41,7 @@ export default async function ProductPage({
     resolvePlatformContext,
     { tenantSlug, productId, path: productPath },
   );
-  if (resolved.status === 404) notFound();
+  if (resolved.status === 404) return refuseTenantAccess();
   const Component = resolved.page;
   return (
     <Component
