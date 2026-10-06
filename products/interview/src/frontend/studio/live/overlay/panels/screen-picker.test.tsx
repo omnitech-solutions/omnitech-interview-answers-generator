@@ -177,8 +177,17 @@ describe("the screen button", () => {
   it("takes no thumbnails while the menu is closed: one pin read on mount, nothing after", async () => {
     const bridge = host();
     await show();
+    // Reads on mount only (the window may mount its toolbar once while loading,
+    // and once for the session): none while it sits idle, and no thumbnails ever.
+    const afterMount = bridge.listDisplays.mock.calls.length;
     await act(() => vi.advanceTimersByTimeAsync(10_000));
-    expect(bridge.listDisplays.mock.calls).toEqual([[{ thumbnails: false }]]);
+    expect(bridge.listDisplays.mock.calls).toHaveLength(afterMount);
+    expect(
+      bridge.listDisplays.mock.calls.every(
+        (call) =>
+          JSON.stringify(call) === JSON.stringify([{ thumbnails: false }]),
+      ),
+    ).toBe(true);
   });
 
   it("shows a saved pin on mount, before the menu is ever opened", async () => {
@@ -202,13 +211,19 @@ describe("the screen button", () => {
   });
 
   it("says once that a saved pin's display is gone", async () => {
+    // The shell reports the dropped pin once, then follows the browser.
+    let told = false;
     host({
-      list: async () => ({
-        ok: true,
-        displays: [{ display: d1 }],
-        pinnedDisplayId: null,
-        pinFallback: "display-unavailable",
-      }),
+      list: async () => {
+        const first = !told;
+        told = true;
+        return {
+          ok: true,
+          displays: [{ display: d1 }],
+          pinnedDisplayId: null,
+          ...(first ? { pinFallback: "display-unavailable" as const } : {}),
+        };
+      },
     });
     await show();
     expect(screen.getAllByText(PIN_DROPPED_NOTE)).toHaveLength(1);

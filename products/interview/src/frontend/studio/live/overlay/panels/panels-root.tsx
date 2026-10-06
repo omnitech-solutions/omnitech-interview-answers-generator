@@ -112,14 +112,17 @@ export function PanelsRoot({
     }
   }, [access, native, panel, snapshot.tenant, actions]);
 
-  // The compact native window before a session runs: the real toolbar and
-  // footer, locked, around the sign-in or start screen.
-  const startScreen =
-    native &&
-    panel === "single" &&
-    (access === "signed-out" ||
-      (access === "ok" && !snapshot.session && snapshot.hydration === "ready"));
-  if (startScreen)
+  // [SAFETY] The compact native window never draws without its toolbar. Whatever
+  // is wrong (signed out, the session gone, the store still loading, no session),
+  // it is the start screen inside the real toolbar and footer, with the reason
+  // said on it. Only a live session draws the session window.
+  const live = access === "ok" && snapshot.session !== null;
+  // The reason stays on the start screen after the window recovered from the loss,
+  // until a session is showing again.
+  const lostSession = useRef(false);
+  if (live) lostSession.current = false;
+  else if (access === "unavailable") lostSession.current = true;
+  if (native && panel === "single" && !live)
     return (
       <div
         className="pn-root"
@@ -131,13 +134,19 @@ export function PanelsRoot({
         <StartPanel
           s={s}
           controls={{ panes, presentation, glass, windowMode }}
-          signedIn={access === "ok"}
+          signedIn={access !== "signed-out"}
           member={member ?? null}
           expired={
             access === "signed-out" &&
             (!signedOut || params.get("notice") === "expired")
           }
-          notice={params.get("notice") === "signed-out" ? "signed-out" : null}
+          notice={
+            access === "unavailable" || lostSession.current
+              ? "unavailable"
+              : params.get("notice") === "signed-out"
+                ? "signed-out"
+                : null
+          }
           onStarted={autoSession.announceStarted}
         />
         {toastsHere && <Toasts s={s} />}
@@ -156,18 +165,6 @@ export function PanelsRoot({
           {access === "signed-out"
             ? "You’re signed out. Sign in to Studio again to continue."
             : "This session is unavailable."}
-          {access === "unavailable" && native && (
-            <button
-              type="button"
-              className="pn-bar-button"
-              onClick={() => {
-                recoveries.current = 0;
-                void actions.refresh();
-              }}
-            >
-              Try again
-            </button>
-          )}
           {access === "signed-out" && (
             <a className="pn-bar-button" href="/sign-in">
               Sign in

@@ -107,10 +107,15 @@ export type StartPanelProps = {
   // Studio refused a session that had been working: the "expired" banner.
   expired?: boolean;
   // Why this window opened signed out ("signed-out": the person just did).
-  notice?: "signed-out" | null;
+  // "unavailable": the session this window was showing is gone.
+  notice?: "signed-out" | "unavailable" | null;
   // A session was started here: other windows are told which one it is.
   onStarted(): void;
 };
+
+// Said above the start screen when the session the window was showing went away.
+const GONE_TEXT =
+  "That session is no longer available. Start a new one, or open a running one.";
 
 export function StartPanel(props: StartPanelProps) {
   const { s, controls, signedIn, member } = props;
@@ -176,6 +181,19 @@ export function StartPanel(props: StartPanelProps) {
         aria-label={STAGE_TITLE[stage]}
       >
         <header className="pn-start-title">{STAGE_TITLE[stage]}</header>
+        {props.notice === "unavailable" && stage === "idle" && (
+          <p className="pn-start-banner" data-tone="warn" role="status">
+            <Icon name="warning" />
+            <span>{GONE_TEXT}</span>
+            <button
+              type="button"
+              className="pn-bar-button"
+              onClick={() => void s.actions.refresh()}
+            >
+              Try again
+            </button>
+          </p>
+        )}
         {stage === "out" && (
           <SignedOut
             host={host}

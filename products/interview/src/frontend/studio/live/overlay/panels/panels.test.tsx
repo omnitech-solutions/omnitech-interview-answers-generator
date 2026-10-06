@@ -625,6 +625,14 @@ describe("a native window that loses its session", () => {
       "data-stage",
       "idle",
     );
+    // Never without its toolbar: the real one, locked, with the reason said and a
+    // way to recover on the screen.
+    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(
+      screen.getByText(/That session is no longer available/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start session" })).toBeVisible();
   });
   it("adopts a session that is running when the old one is gone", async () => {
     serve();
