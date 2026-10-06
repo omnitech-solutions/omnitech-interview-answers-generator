@@ -229,6 +229,10 @@ export type PanelRow = {
   // What the task is doing right now. The row shows it in place of the answer
   // until the answer exists, then beside it until the work is done.
   stage?: TaskStage;
+  // Words were merged into this bubble after it first appeared: the row is
+  // marked edited and shows the time of its newest words (it keeps its place).
+  edited?: true;
+  shownAt?: number;
 };
 
 // Whose words a heard line is, from the capture source it arrived on and
@@ -374,6 +378,75 @@ const PANEL_ROWS = 60;
 // the assistant's published answers, oldest first.
 export type SystemLine = { key: string; text: string; at: number };
 
+// [DOMAIN] One bubble per run of one speaker's phrases. The speech recogniser hands
+// over phrases, and a sentence often spans several ("Just to kick things off" ...
+// "I would like to understand why you're interested?"). Words appear in the
+// transcript as soon as they are heard; a phrase that follows within the
+// recogniser's own merge gap, or within the open-sentence window when the phrase
+// before did not end its sentence, is merged into the same bubble. The bubble is
+// then marked edited and shows the time of its newest words; it keeps its place.
+const MERGE_GAP_MS = 1_500;
+const OPEN_SENTENCE_MS = 6_000;
+const ENDS_SENTENCE = /[.?!…]["')\]]*\s*$/;
+
+type HeardPiece = {
+  key: string;
+  source: LiveCaptureSource | null;
+  text: string;
+  at: number;
+};
+export type HeardGroup = HeardPiece & {
+  // When its newest words arrived (shown as its time), and whether any were
+  // merged in after the first.
+  lastAt: number;
+  edited: boolean;
+};
+
+// "Just to kick things off" + "I would like..." reads "Just to kick things off,
+// I would like...": a phrase that did not end its sentence is joined with a comma
+// when the next begins like a new clause.
+function joinPhrases(before: string, next: string): string {
+  const joiner =
+    !ENDS_SENTENCE.test(before) && /^[A-Z]/.test(next) ? ", " : " ";
+  return `${before.trimEnd()}${joiner}${next.trimStart()}`;
+}
+
+function heardPieces(model: LiveViewModel): HeardPiece[] {
+  return model.transcript.flatMap((row) =>
+    row.type === "utterance" && !row.superseded
+      ? [
+          {
+            key: `h-${row.sourceId}/${row.eventId}`,
+            source: row.source,
+            text: row.text,
+            at: Date.parse(row.receivedAt),
+          },
+        ]
+      : [],
+  );
+}
+
+export function groupHeard(pieces: readonly HeardPiece[]): HeardGroup[] {
+  const groups: HeardGroup[] = [];
+  for (const piece of pieces) {
+    const previous = groups[groups.length - 1];
+    const gap = previous
+      ? piece.at - previous.lastAt
+      : Number.POSITIVE_INFINITY;
+    if (
+      previous &&
+      previous.source === piece.source &&
+      (gap <= MERGE_GAP_MS ||
+        (!ENDS_SENTENCE.test(previous.text) && gap <= OPEN_SENTENCE_MS))
+    ) {
+      previous.text = joinPhrases(previous.text, piece.text);
+      previous.lastAt = piece.at;
+      previous.edited = true;
+    } else groups.push({ ...piece, lastAt: piece.at, edited: false });
+  }
+  return groups;
+}
+
 export function panelRows(
   model: LiveViewModel,
   entries: readonly ChatEntry[],
@@ -384,19 +457,14 @@ export function panelRows(
   // Per task, the older revision on show (view-only; see focus-presentation).
   revisionPicks: Readonly<Record<string, number>> = {},
 ): PanelRow[] {
-  const heard: PanelRow[] = model.transcript.flatMap((row) =>
-    row.type === "utterance" && !row.superseded
-      ? [
-          {
-            key: `h-${row.sourceId}/${row.eventId}`,
-            kind: "heard" as const,
-            ...speakerOf(row.source),
-            text: row.text,
-            at: Date.parse(row.receivedAt),
-          },
-        ]
-      : [],
-  );
+  const heard: PanelRow[] = groupHeard(heardPieces(model)).map((group) => ({
+    key: group.key,
+    kind: "heard" as const,
+    ...speakerOf(group.source),
+    text: group.text,
+    at: group.at,
+    ...(group.edited ? { edited: true, shownAt: group.lastAt } : {}),
+  }));
   const mine: PanelRow[] = entries
     .filter((entry) => entry.kind !== "Auto")
     .map((entry) => ({

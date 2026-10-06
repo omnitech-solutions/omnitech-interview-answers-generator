@@ -1095,6 +1095,30 @@ function continuationOf(
   return null;
 }
 
+// [DOMAIN] Only the call's other side asks questions, and the policy ignores the
+// microphone to keep the candidate's own thinking aloud out. That rule is for a call
+// with someone on it: when the application's audio has never been heard in this
+// session, nobody else is on the call, and a question from the microphone (the owner
+// asking aloud, rehearsing, or the only voice) is answered. The moment an interviewer
+// is heard, the microphone is the candidate again and is ignored.
+const interviewerHeard = (run: SessionRun): boolean =>
+  effectiveSegments(run.transcript).some(
+    (segment) => segment.source === "application-audio",
+  );
+
+const soloAware = (
+  policy: InterviewSessionPolicy,
+  run: SessionRun,
+): InterviewSessionPolicy => ({
+  ...policy,
+  decide: (input) => {
+    if (input.utterance.source !== "microphone" || interviewerHeard(run))
+      return policy.decide(input);
+    const { source: _microphone, ...rest } = input.utterance;
+    return policy.decide({ ...input, utterance: rest });
+  },
+});
+
 // The same policy, except that a question it would open revises `taskId`.
 const continuing = (
   policy: InterviewSessionPolicy,
@@ -1119,13 +1143,14 @@ const continuing = (
 // it with the reason "correction" and the earlier answer stays marked stale.
 export async function processUtterances(
   run: SessionRun,
-  policy: InterviewSessionPolicy,
+  basePolicy: InterviewSessionPolicy,
   nowMs: number,
   settleMs: number,
   // Only segments stored before this observation sequence are considered
   // (an owner input's place among the utterances).
   beforeSequence = Number.POSITIVE_INFINITY,
 ): Promise<number> {
+  const policy = soloAware(basePolicy, run);
   // [STATE] Closed utterances are out of the picture: what is left coalesces
   // into new utterances, so a question that follows an already-handled
   // statement of the same speaker is still evaluated.
@@ -1299,6 +1324,45 @@ export function capturedFor(run: SessionRun, task: Task) {
     return text ? [{ speaker: "owner", text }] : [];
   });
   return [...spoken, ...typed];
+}
+
+// [DOMAIN] What the interviewer has said about the role, team and technology before
+// this question, kept as notes for later answers ("we're a NestJS shop", "you'd be
+// leading a team of four"). Only statements, from the other side of the call, that
+// carry a cue of a requirement or a fact about the job; bounded and newest-first
+// when over the limit. Derived from the run's own transcript each time, so there is
+// nothing to store, and it travels to the draft as untrusted data, never experience.
+const NOTE_CUES =
+  /\b(?:looking for|we(?:'re| are) (?:using|building|hiring|a )|we use|our (?:stack|tech|team|platform|stack)|tech stack|you(?:'ll| will) (?:be|work|own|lead|join)|responsible for|the role|the team|ideal candidate|nice to have|must have|experience (?:with|in)|you(?:'d| would) be|day[- ]to[- ]day|reporting to|report to|built (?:in|on|with)|microservices?|typescript|node|react|aws|azure|python|java|kubernetes|docker|postgres)\b/i;
+const NOTE_MIN_WORDS = 6;
+const NOTE_MAX_COUNT = 8;
+const NOTE_MAX_CHARS = 260;
+
+export function roleNotesFor(run: SessionRun, task: Task): string[] {
+  const own = new Set(task.revisions.flatMap((entry) => entry.basedOn));
+  const starts = effectiveSegments(run.transcript)
+    .filter((segment) => own.has(segment.eventId))
+    .map((segment) => segment.startMs);
+  if (starts.length === 0) return [];
+  const before = Math.min(...starts);
+  const notes: string[] = [];
+  for (const segment of effectiveSegments(run.transcript)) {
+    if (segment.startMs >= before) break;
+    if (
+      segment.speaker !== "interviewer" &&
+      segment.source !== "application-audio"
+    )
+      continue;
+    for (const sentence of segment.text.split(/(?<=[.!?])\s+/)) {
+      const text = sentence.trim();
+      if (text.endsWith("?") || text.split(/\s+/).length < NOTE_MIN_WORDS)
+        continue;
+      if (!NOTE_CUES.test(text)) continue;
+      const clipped = text.slice(0, NOTE_MAX_CHARS);
+      if (!notes.includes(clipped)) notes.push(clipped);
+    }
+  }
+  return notes.slice(-NOTE_MAX_COUNT);
 }
 
 // The owner's hints a task rests on: the newest skill and language any of its

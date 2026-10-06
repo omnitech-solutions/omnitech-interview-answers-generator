@@ -201,7 +201,12 @@ function Row({
         {row.kind !== "system" && (
           <span className="pn-who-label">{row.label}</span>
         )}
-        <span className="pn-time">{clock(row.at)}</span>
+        <span className="pn-time">{clock(row.shownAt ?? row.at)}</span>
+        {row.edited && (
+          <span className="pn-edited" data-testid="pn-edited">
+            edited
+          </span>
+        )}
         {row.kind !== "system" && bubbleText(row).trim() !== "" && (
           <CopyBubble text={bubbleText(row)} onCopy={onCopy} />
         )}

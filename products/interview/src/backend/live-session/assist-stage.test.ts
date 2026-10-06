@@ -1253,3 +1253,23 @@ describe("tidyBold", () => {
     );
   });
 });
+
+describe("what the interviewer said about the role", () => {
+  it("travels as a labelled untrusted data block beside the captured lines, and only when there is some", () => {
+    const notes = [
+      "We're a NestJS and Postgres shop and you'd be leading a team of four.",
+    ];
+    const withNotes = promptOf(
+      stage.prepare(input("Why this role?", SNAPSHOT, { roleNotes: notes })),
+    );
+    const notesBlock = block(withNotes.prompt, "INTERVIEWER NOTES");
+    expect(notesBlock).toContain("untrusted");
+    expect(notesBlock).toContain("NestJS and Postgres");
+    // It is data, never part of the policy text.
+    expect(withNotes.system).not.toContain("NestJS and Postgres");
+    // The policy says they are never evidence about the candidate.
+    expect(withNotes.system).toContain("never evidence about the candidate");
+    const without = promptOf(stage.prepare(input("Why this role?")));
+    expect(without.prompt).not.toContain("INTERVIEWER NOTES");
+  });
+});

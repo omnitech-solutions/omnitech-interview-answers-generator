@@ -437,7 +437,9 @@ export function usePanelSession(
 
   const engine = useEngine({
     sessionId,
-    wanted: owns && open && auto.on,
+    // The shell listens whenever the session is open: Auto and Manual decide only
+    // whether the screen is watched, never whether the microphone is heard.
+    wanted: owns && open,
     paused,
     // The shell listens (microphone, and the app's audio when the session has
     // it); the screen is captured on the capture command only.

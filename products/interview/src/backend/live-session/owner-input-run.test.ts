@@ -608,7 +608,29 @@ describe("heard speech from the owner microphone (ADR-0022)", () => {
     expect(Object.keys(run.tasks.tasks)).toHaveLength(1);
   });
 
-  it("is ignored when the very same words carry the candidate's microphone label", async () => {
+  it("is ignored when the very same words carry the candidate's microphone label and an interviewer is on the call", async () => {
+    const run = newRun();
+    await replay(run, [
+      observation("transcript.final", "app", "a-1", {
+        speaker: "interviewer",
+        source: "application-audio",
+        text: "Thanks for joining today.",
+        startMs: 0,
+        endMs: 500,
+      }),
+      observation("transcript.final", "mic", "m-1", {
+        speaker: "microphone",
+        source: "microphone",
+        text: "Can you implement a rate limiter in TypeScript?",
+        startMs: 1_000,
+        endMs: 1_000,
+      }),
+    ]);
+    await processUtterances(run, policy, 10_000, 0);
+    expect(Object.keys(run.tasks.tasks)).toHaveLength(0);
+  });
+
+  it("is answered when the microphone is the only voice heard (nobody else on the call)", async () => {
     const run = newRun();
     await replay(run, [
       observation("transcript.final", "mic", "m-1", {
@@ -620,6 +642,6 @@ describe("heard speech from the owner microphone (ADR-0022)", () => {
       }),
     ]);
     await processUtterances(run, policy, 10_000, 0);
-    expect(Object.keys(run.tasks.tasks)).toHaveLength(0);
+    expect(Object.keys(run.tasks.tasks)).toHaveLength(1);
   });
 });

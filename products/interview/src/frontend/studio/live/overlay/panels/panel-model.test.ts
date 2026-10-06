@@ -59,6 +59,7 @@ import {
 import {
   codePlaceholder,
   followUpPlaceholder,
+  groupHeard,
   panelRows,
   speakerOf,
   stoppedByYou,
@@ -109,17 +110,17 @@ describe("who said it", () => {
       [],
       [
         snapshot(1),
-        transcript(2, "a", { sourceId: "application-audio-run1" }),
-        transcript(3, "b", { sourceId: "microphone-run1" }),
-        transcript(4, "c", { sourceId: "studio.owner-microphone" }),
-        transcript(5, "d", { sourceId: "unknown-source" }),
+        transcript(2, "a.", { sourceId: "application-audio-run1" }),
+        transcript(3, "b.", { sourceId: "microphone-run1" }),
+        transcript(4, "c.", { sourceId: "studio.owner-microphone" }),
+        transcript(5, "d.", { sourceId: "unknown-source" }),
       ],
     );
     expect(panelRows(model, []).map((row) => [row.text, row.label])).toEqual([
-      ["a", "Interviewer · app audio"],
-      ["b", "You · mic"],
-      ["c", "You · mic"],
-      ["d", "Heard"],
+      ["a.", "Interviewer · app audio"],
+      // Both microphone ids are "You · mic", and phrases that close together are one bubble.
+      ["b. c.", "You · mic"],
+      ["d.", "Heard"],
     ]);
   });
 
@@ -301,5 +302,77 @@ describe("code placeholders", () => {
     expect(place(cancelled, { stoppedByYou: true }).text).toBe(
       "Stopped before code was written.",
     );
+  });
+});
+
+describe("one bubble per sentence: new words merge in and mark it edited", () => {
+  const piece = (at: number, text: string, source = "microphone") => ({
+    key: `h-${at}`,
+    source: source as "microphone",
+    text,
+    at,
+  });
+  it("shows the first words at once, unmarked", () => {
+    const [group] = groupHeard([piece(1_000, "Just to kick things off")]);
+    expect(group).toMatchObject({
+      text: "Just to kick things off",
+      edited: false,
+      at: 1_000,
+      lastAt: 1_000,
+    });
+  });
+  it("merges the rest of the sentence into the same bubble, with a comma where the first was cut off, marked edited with the newest time", () => {
+    const groups = groupHeard([
+      piece(1_000, "Just to kick things off"),
+      piece(
+        3_000,
+        "I would like to understand why you're interested in the role with Zensurance?",
+      ),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      text: "Just to kick things off, I would like to understand why you're interested in the role with Zensurance?",
+      edited: true,
+      at: 1_000,
+      lastAt: 3_000,
+    });
+  });
+  it("keeps two speakers, and a finished sentence followed by a pause, in separate bubbles", () => {
+    const groups = groupHeard([
+      piece(1_000, "Thanks for joining."),
+      piece(2_000, "Mm-hmm.", "application-audio"),
+      piece(9_000, "So, tell me about your background."),
+    ]);
+    expect(groups.map((group) => group.text)).toEqual([
+      "Thanks for joining.",
+      "Mm-hmm.",
+      "So, tell me about your background.",
+    ]);
+    expect(groups.some((group) => group.edited)).toBe(false);
+  });
+  it("does not run a finished sentence into a new one that follows after a pause", () => {
+    expect(
+      groupHeard([
+        piece(1_000, "That was my last role."),
+        piece(5_000, "What else?"),
+      ]),
+    ).toHaveLength(2);
+  });
+  it("puts the edited mark and the newest time on the row", () => {
+    const model = modelOf(
+      [],
+      [
+        snapshot(1),
+        transcript(2, "Just to kick things off", {
+          sourceId: "microphone-run1",
+        }),
+        transcript(3, "I would like to hear about you?", {
+          sourceId: "microphone-run1",
+        }),
+      ],
+    );
+    const [row] = panelRows(model, []);
+    expect(row).toMatchObject({ edited: true });
+    expect(row?.shownAt).toBeGreaterThan(row?.at ?? 0);
   });
 });

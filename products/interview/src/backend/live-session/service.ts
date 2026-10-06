@@ -24,7 +24,7 @@ import type { Task } from "./core/index";
 import type { SessionStorePort } from "./processor-ports";
 import type { ScreenshotText } from "./screenshot-text";
 import type { SessionContext } from "./session-context";
-import { capturedFor, type SessionRun } from "./session-run";
+import { capturedFor, roleNotesFor, type SessionRun } from "./session-run";
 
 export type AssistPlan =
   | {
@@ -94,6 +94,7 @@ export async function planAssist(
   if (!context) return { outcome: "context_unavailable" };
 
   const captured = capturedFor(run, task);
+  const roleNotes = roleNotesFor(run, task);
   // An open coding task carries its exercise (the brief read from the screen)
   // as provenance for the figures of its follow-ups.
   const exercise = exerciseFor(run, task);
@@ -109,6 +110,7 @@ export async function planAssist(
       taskId: task.taskId,
       revision: task.revision,
       captured,
+      ...(roleNotes.length > 0 ? { roleNotes } : {}),
       context,
       deviceOnly,
       imageCount: input.imageCount ?? 0,

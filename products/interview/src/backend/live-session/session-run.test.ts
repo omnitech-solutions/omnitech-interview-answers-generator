@@ -9,6 +9,7 @@ import {
   capturedFor,
   createRun,
   processUtterances,
+  roleNotesFor,
   type SessionRun,
 } from "./session-run";
 
@@ -38,6 +39,7 @@ function arrive(
     startMs: number;
     endMs: number;
     supersedes?: string;
+    source?: "microphone" | "application-audio";
   },
 ) {
   ordinal += 1;
@@ -506,4 +508,88 @@ describe("task identity does not depend on pacing (M2)", () => {
       expect(await taskKeys(name, 4)).toEqual(rebuilt);
     },
   );
+});
+
+describe("a session with nobody else on the call answers the owner's own questions", () => {
+  const ask =
+    "Yeah just kind of starting things off, love to hear why you're interested in the role you're applying for?";
+  it("opens a task for a question from the microphone when no interviewer has been heard", async () => {
+    const run = newRun();
+    arrive(run, 3_000, {
+      eventId: "m1",
+      speaker: "candidate",
+      source: "microphone",
+      text: ask,
+      startMs: 0,
+      endMs: 3_000,
+    });
+    await processUtterances(run, policy, 6_000, SETTLE_MS);
+    expect(taskList(run)).toEqual(["q-m1@r1"]);
+  });
+  it("ignores the microphone once an interviewer is heard, before or after", async () => {
+    const run = newRun();
+    arrive(run, 2_000, {
+      eventId: "i1",
+      speaker: "interviewer",
+      source: "application-audio",
+      text: "Thanks for joining today.",
+      startMs: 0,
+      endMs: 2_000,
+    });
+    arrive(run, 8_000, {
+      eventId: "m1",
+      speaker: "candidate",
+      source: "microphone",
+      text: ask,
+      startMs: 6_000,
+      endMs: 8_000,
+    });
+    await processUtterances(run, policy, 12_000, SETTLE_MS);
+    expect(taskList(run)).toEqual([]);
+  });
+});
+
+describe("what the interviewer said about the role is kept as notes for later answers", () => {
+  it("collects the interviewer's earlier statements about the job and stack, and nothing else", async () => {
+    const run = newRun();
+    const say = (
+      eventId: string,
+      speaker: "interviewer" | "candidate",
+      text: string,
+      startMs: number,
+    ) =>
+      arrive(run, startMs + 1_000, {
+        eventId,
+        speaker,
+        source: speaker === "interviewer" ? "application-audio" : "microphone",
+        text,
+        startMs,
+        endMs: startMs + 1_000,
+      });
+    say("i1", "interviewer", "Hi, thanks so much for joining us today.", 0);
+    say(
+      "i2",
+      "interviewer",
+      "We're a NestJS and Postgres shop and you'd be leading a team of four engineers.",
+      10_000,
+    );
+    say(
+      "c1",
+      "candidate",
+      "That sounds great, I use NestJS daily at work.",
+      20_000,
+    );
+    say(
+      "i3",
+      "interviewer",
+      "Why are you interested in the role with Zensurance?",
+      30_000,
+    );
+    await processUtterances(run, policy, 40_000, SETTLE_MS);
+    const task = Object.values(run.tasks.tasks)[0];
+    expect(task).toBeDefined();
+    expect(roleNotesFor(run, task as never)).toEqual([
+      "We're a NestJS and Postgres shop and you'd be leading a team of four engineers.",
+    ]);
+  });
 });
