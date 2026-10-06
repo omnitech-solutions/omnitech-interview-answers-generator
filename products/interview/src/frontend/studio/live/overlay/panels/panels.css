@@ -100,6 +100,32 @@
   padding: 0;
 }
 
+/* The native window is moved by anything it draws that is not a control (the
+   shell does the drag, WindowDrag): the open hand says so, and nothing under a
+   drag starts selecting text. Controls keep their own cursors (below); text
+   fields, code and the editor keep the text cursor and selection. See-through
+   keeps its cards for reading; only the toolbar and footer move the window. */
+:root[data-panel-host="native"] .pn-root {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+:root[data-panel-host="native"]
+  .pn-root
+  :is(pre, code, textarea, input:not([type="button"]), [contenteditable], .cm-editor) {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+:root[data-panel-host="native"] .pn-root[data-glass="clear"] {
+  cursor: default;
+}
+:root[data-panel-host="native"]
+  .pn-root[data-glass="clear"]
+  :is(.pn-pill, .pn-single-foot) {
+  cursor: grab;
+}
+
 .pn-card,
 .pn-pill,
 .pn-codecard {

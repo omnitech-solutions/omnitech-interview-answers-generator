@@ -279,6 +279,12 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         panel.contentView = container
         panel.contentView?.layer?.backgroundColor = CGColor.clear
         panel.dragSurface = webView
+        panel.acceptsMouseMovedEvents = true
+        BackgroundCursor.enable()
+        container.addTrackingArea(
+            NSTrackingArea(
+                rect: .zero, options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
+                owner: panel, userInfo: nil))
         audit()
     }
 

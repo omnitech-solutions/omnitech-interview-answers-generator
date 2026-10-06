@@ -8,6 +8,26 @@ import WebKit
 // and capture still reads the last other application (FocusSampling).
 // `sharingType` is left at its default on purpose: it shows in screen shares
 // (ADR-0019).
+// [DOMAIN] macOS lets only the frontmost app set the cursor. The panel is for use
+// beside another app's window (the interview), so it asks the window server to
+// honour its cursor while in the background: the same connection property other
+// overlay and utility apps set. A private symbol: if it ever goes missing the
+// panel still works and shows the arrow until the app is active.
+@_silgen_name("CGSMainConnectionID")
+private func CGSMainConnectionID() -> Int32
+@_silgen_name("CGSSetConnectionProperty")
+private func CGSSetConnectionProperty(_ cid: Int32, _ target: Int32, _ key: CFString, _ value: CFTypeRef) -> Int32
+
+enum BackgroundCursor {
+    @MainActor private static var enabled = false
+    @MainActor static func enable() {
+        guard !enabled else { return }
+        enabled = true
+        let connection = CGSMainConnectionID()
+        _ = CGSSetConnectionProperty(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue)
+    }
+}
+
 final class StudioPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -16,6 +36,50 @@ final class StudioPanel: NSPanel {
     weak var dragSurface: WKWebView?
     private var pressed: NSEvent?
     private var dragAsked = false
+
+    // [DOMAIN] The cursor over the page, set here because the web view does not apply
+    // CSS cursors while the app is inactive (the panel never takes the app forward by
+    // appearing). Moves are asked of the page one at a time, the newest point winning.
+    private var cursorBusy = false
+    private var cursorNext: NSPoint?
+    private var shownKind: WindowDrag.Kind = .arrow
+
+    override func mouseMoved(with event: NSEvent) {
+        cursorNext = event.locationInWindow
+        probeCursor()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        cursorNext = nil
+        shownKind = .arrow
+    }
+
+    private func probeCursor() {
+        guard !cursorBusy, let at = cursorNext, let web = dragSurface else { return }
+        cursorNext = nil
+        cursorBusy = true
+        var point = web.convert(at, from: nil)
+        if !web.isFlipped { point.y = web.bounds.height - point.y }
+        web.evaluateJavaScript(WindowDrag.probeScript(x: Double(point.x), y: Double(point.y))) {
+            [weak self] result, _ in
+            guard let self else { return }
+            self.cursorBusy = false
+            let kind = (result as? String).flatMap(WindowDrag.Kind.init(rawValue:)) ?? .arrow
+            // A held button is a drag or a press in progress: leave the cursor as it is.
+            if NSEvent.pressedMouseButtons == 0 { self.show(kind) }
+            self.probeCursor()
+        }
+    }
+
+    private func show(_ kind: WindowDrag.Kind) {
+        shownKind = kind
+        switch kind {
+        case .pointer: NSCursor.pointingHand.set()
+        case .text: NSCursor.iBeam.set()
+        case .grab: NSCursor.openHand.set()
+        case .arrow: NSCursor.arrow.set()
+        }
+    }
 
     // A press activates the app (and only this window's app, not every window).
     override func sendEvent(_ event: NSEvent) {
@@ -48,11 +112,14 @@ final class StudioPanel: NSPanel {
             if !web.isFlipped { point.y = web.bounds.height - point.y }
             web.evaluateJavaScript(WindowDrag.probeScript(x: Double(point.x), y: Double(point.y))) {
                 [weak self] result, _ in
-                guard let self, result as? Bool == true, let down = self.pressed,
+                guard let self, (result as? String) == WindowDrag.Kind.grab.rawValue, let down = self.pressed,
                     NSEvent.pressedMouseButtons & 1 == 1
                 else { return }
                 self.pressed = nil
+                // The closed hand for as long as the window is held; performDrag returns on release.
+                NSCursor.closedHand.set()
                 self.performDrag(with: down)
+                self.show(.grab)
             }
         default: break
         }
