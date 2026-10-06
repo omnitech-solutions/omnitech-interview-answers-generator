@@ -23,13 +23,13 @@ detailed record; this page is the index.
 | --- | --- | --- |
 | Gate green | `pnpm verify` exited 0 on the final tree `ab74035` (5015 tests passed, 2 skipped; build and native checks included), and earlier on `3ae02b9` and `d66da17`. | Nothing: this is the full gate on the tree you would push. |
 | Microphone dialog fixed | You watched the stubbed WebKit run and saw no dialog. The 20 WebKit spec files pass with the stub. | Which spec caused it: you asked me to stop replicating, so it was never bisected. |
-| Sharding works | One sharded run: 370 s against 19.1 min serial, all four shards on one build, 360 passed, 3 skipped, 1 failed (the ignored `glass-clear` flake). | More than one run; shard balance (2.8 to 6.2 min) is uneven; machine load under 4 stacks. |
+| Sharding works | One sharded run: 370 s against 19.1 min serial, all four shards on one build, 360 passed, 3 skipped, 1 failed (the `glass-clear` flake, since removed). | More than one run; shard balance (2.8 to 6.2 min) is uneven; machine load under 4 stacks. |
 | Boot-time migration check | Unit and DB-backed tests pass (worker refuses on pending/ahead; web only on a definite mismatch). | What `next start` does when `register()` throws: the Next docs do not say; unverified. |
 | Docs audit | 84 findings, 17 provenance rows (worker); lead re-verified 9 top findings in the code. | About 75 findings only on the worker's word; nothing was run. |
 
 ## Open problems (honest list)
 
-1. **Flaky tests are ignored by your decision (2026-10-05).** The one known case is `glass-clear` (WebKit): it failed in 2 of 4 runs with identical numbers (code-card contrast 0.138 vs 0.453, `glass-clear.spec.ts` ~line 364). The cause was not found and the test was left unchanged and enabled, so a sharded run can show it as the single failure.
+1. **The flaky test was removed by your decision (2026-10-05).** `e2e/live-session/tests/glass-clear.spec.ts` (its one test, WebKit) failed in 2 of 4 runs with identical numbers (code-card contrast 0.138 vs 0.453) and the cause was never found. It was the only automated check that See-through keeps the backdrop visible and that toggling it twice restores the default look, so that behaviour is now covered only by your manual matrix (rows M11-M13 in `final-report.md`) and by unit tests. Restore it with `git revert` of the removal commit.
 2. **The native app has not been reinstalled on the final commits** (the installed build is `5d416bd+`). You need to quit it first. Your live testing M1-M39 is still yours.
 3. **28 web claims are still pending** (`e2e/live-session/src/claims/claims.ts`; 170/198 covered).
 4. **Rare native no-question "Drafting" marker** was never reproduced.
