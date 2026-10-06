@@ -116,6 +116,7 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
           onClick={act[state.action.id]}
         >
           {state.action.id === "stop" && <Icon name="stop_circle" />}
+          {state.action.id === "resume" && <Icon name="play_arrow" />}
           {state.action.label}
         </button>
       )}
