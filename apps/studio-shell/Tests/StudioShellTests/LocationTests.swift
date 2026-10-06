@@ -5,9 +5,9 @@ private let session = "3f1c1e0a-5b7d-4c53-9a53-0d6a6a1d2b11"
 
 @MainActor
 func locationTests(_ t: Harness) async {
-    await t.test("an empty address means the local default") {
+    await t.test("an empty address means the local default, the port `pnpm dev` and the Docker stack serve") {
         let location = StudioLocation(address: "  ", tenantSlug: "local")
-        t.expectEqual(location?.origin.absoluteString, "http://127.0.0.1:3100")
+        t.expectEqual(location?.origin.absoluteString, "http://127.0.0.1:3000")
     }
 
     await t.test("an address is an origin only; a trailing slash is fine") {
@@ -28,12 +28,12 @@ func locationTests(_ t: Harness) async {
     await t.test("the overlay route is /t/:tenant/p/interview/live/overlay?host=native") {
         let location = StudioLocation(address: "", tenantSlug: "local")!
         t.expectEqual(location.overlayURL().absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
         t.expectEqual(location.overlayURL(sessionId: session).absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&session=\(session)")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&session=\(session)")
         // Not a session id: dropped, never put in the URL.
         t.expectEqual(location.overlayURL(sessionId: "x&host=evil").absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
     }
 
     await t.test("the probe is the public manifest; the session API path is the frontend's") {

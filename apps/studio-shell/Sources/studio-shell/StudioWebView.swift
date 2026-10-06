@@ -13,6 +13,15 @@ import WebKit
 // person's browser.
 final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate {
     private let model: ShellModel
+    // The URL of the page ON SCREEN (committed), never a pending one. While a redirect
+    // is being decided, `webView.url` already names the redirect's TARGET, so asking it
+    // whether "a Studio page is showing" answered yes for the sign-in page the shell
+    // was about to cancel, and the shell's own sign-in panel never loaded.
+    private var committedURL: URL?
+    private func studioPageOnScreen() -> Bool {
+        guard let location = model.location, let committedURL else { return false }
+        return location.isStudio(committedURL)
+    }
     // A page finished loading: the shell pushes it the presentation state and screen-watch status.
     var onPageFinished: (WKWebView) -> Void = { _ in }
 
@@ -22,39 +31,45 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
         _ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
-        guard let url = action.request.url else { return decisionHandler(.cancel) }
-        // The built-in signed-out screen's button: only that screen can start it.
-        if SignedOutScreen.isStart(url) {
+        let url = action.request.url
+        let isMainFrame = action.targetFrame?.isMainFrame ?? true
+        switch NavigationPolicy.decide(url: url, isMainFrame: isMainFrame, location: model.location) {
+        case .cancel:
+            decisionHandler(.cancel)
+        case .requestSignIn:
             model.onSignInRequested()
-            return decisionHandler(.cancel)
-        }
-        // [SAFETY] Studio's sign-in page, or a login provider's page, is never
-        // shown in this privileged web view: the native round trip (system
-        // web-auth session, then a one-time code) replaces it. Only a main-frame
-        // navigation counts, and only when Studio has a real provider; the
-        // coordinator refuses to stack attempts. Other external links still open
-        // in the browser.
-        if let location = model.location, action.targetFrame?.isMainFrame ?? true,
-            location.isSignInPage(url) || location.isLoginProvider(url)
-        {
-            if model.signInAvailable != false { model.onSignInRequested() }
-            // [SAFETY] With none of Studio's own pages on screen (a first launch, or storage
-            // cleared) the window would stay empty and see-through: show the signed-out
-            // screen, with its button, instead. A Studio page already showing keeps itself.
-            let showingStudio = webView.url.map { location.isStudio($0) } ?? false
-            if !showingStudio, model.signInAvailable != false {
-                DispatchQueue.main.async { webView.loadHTMLString(SignedOutScreen.html, baseURL: nil) }
+            decisionHandler(.cancel)
+        case .requestChangeConnection:
+            model.onChangeConnectionRequested()
+            decisionHandler(.cancel)
+        case .showSignIn:
+            // [SAFETY] Studio's sign-in page, or a login provider's page, is never
+            // shown in this privileged web view: the person signs in in their own
+            // browser (the sign-in panel's buttons start that, then a one-time code
+            // comes back). Other external links still open in the browser.
+            // With none of Studio's own pages on screen (a first launch, or storage
+            // cleared) the window would stay empty and see-through: show Studio's public
+            // sign-in panel, which draws the same panel with its Google, LinkedIn and
+            // local choices. A Studio page already showing keeps itself.
+            if let location = model.location {
+                if !studioPageOnScreen() {
+                    let panel = location.signInPanelURL(notice: model.signInNotice)
+                    model.signInNotice = nil
+                    DispatchQueue.main.async { webView.load(URLRequest(url: panel)) }
+                }
             }
-            return decisionHandler(.cancel)
-        }
-        if let location = model.location, location.isStudio(url) || url.scheme == "about" {
+            decisionHandler(.cancel)
+        case .allow(let startsNewPage):
             // A new main-frame page is a new generation: privileged requests
             // made by the previous page must not be answered to this one.
-            if action.targetFrame?.isMainFrame ?? true { model.epoch.advance() }
-            return decisionHandler(.allow)
+            if startsNewPage { model.epoch.advance() }
+            decisionHandler(.allow)
+        case .openExternally:
+            if let url, let external = HostCallDecoder.externalURL(url.absoluteString) {
+                NSWorkspace.shared.open(external)
+            }
+            decisionHandler(.cancel)
         }
-        if let external = HostCallDecoder.externalURL(url.absoluteString) { NSWorkspace.shared.open(external) }
-        decisionHandler(.cancel)
     }
 
     // A link that wants a new window opens in the person's browser.
@@ -77,17 +92,16 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
         initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
         decisionHandler: @escaping (WKPermissionDecision) -> Void
     ) {
-        let port = origin.port == 0 ? "" : ":\(origin.port)"
-        if frame.isMainFrame, let url = URL(string: "\(origin.protocol)://\(origin.host)\(port)/"),
-            model.location?.isStudio(url) == true
-        {
-            decisionHandler(.grant)
-        } else {
-            decisionHandler(.deny)
-        }
+        let allowed = NavigationPolicy.mediaCaptureAllowed(
+            originScheme: origin.protocol, host: origin.host, port: origin.port,
+            isMainFrame: frame.isMainFrame, location: model.location)
+        decisionHandler(allowed ? .grant : .deny)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { model.epoch.advance() }
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        committedURL = webView.url
+    }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         model.refresh()
         onPageFinished(webView)
@@ -95,7 +109,18 @@ final class StudioWebViewDelegate: NSObject, WKNavigationDelegate, WKUIDelegate 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { model.refresh() }
     func webView(
         _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
-    ) { model.refresh() }
+    ) {
+        model.refresh()
+        // [SAFETY] Nothing of Studio's on screen and its server will not answer: an
+        // opaque "can't reach Studio" screen, never an empty or see-through window.
+        // A navigation the shell cancelled on purpose (the sign-in redirect) is not a failure.
+        let failure = error as NSError
+        if NavigationFailure.isDeliberateCancel(domain: failure.domain, code: failure.code) { return }
+        if !studioPageOnScreen() {
+            let tried = model.location?.origin.absoluteString ?? ""
+            webView.loadHTMLString(SignedOutScreen.html(address: tried), baseURL: nil)
+        }
+    }
 }
 
 // A floating panel is rarely the key window. Without this, the first click on a

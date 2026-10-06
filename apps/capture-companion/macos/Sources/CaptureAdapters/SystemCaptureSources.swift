@@ -21,6 +21,10 @@ public struct CaptureEvents: Sendable {
 }
 
 // A counter read and bumped from adapter and main-actor contexts.
+// [SAFETY] INVARIANT (@unchecked Sendable): `count` is only touched inside
+// `lock.withLock`; there is no other state.
+// REMOVAL PLAN: `OSAllocatedUnfairLock<Int>` (macOS 13+) or `Mutex<Int>` (macOS 15) makes
+// this a plain Sendable type.
 private final class Generation: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0

@@ -65,6 +65,6 @@ func bridgeTrustTests(_ t: Harness) async {
         for forbidden in ["asc_", "keychain", "Authorization", "credential", "fetch(", "XMLHttpRequest"] {
             t.expect(!source.lowercased().contains(forbidden.lowercased()), forbidden)
         }
-        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch", "text-recognition", "display-selection"])
+        t.expectEqual(HostCapability.allCases.map(\.rawValue), ["capture-screen", "pin-on-top", "hotkeys", "open-external", "screen-watch", "text-recognition", "display-selection", "account"])
     }
 }

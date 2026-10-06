@@ -9,8 +9,19 @@ import ScreenCaptureKit
 // screen (a window or the main display) or application audio. Which of them
 // runs is the person's choice at start; this class cannot add a source.
 // Permission loss surfaces as a stream stop error, which Core turns into the
-// visible permission-revoked state. Unchecked Sendable is confined here: the
-// stream's callbacks run on `sampleQueue`, which owns all mutable state.
+// visible permission-revoked state.
+// [SAFETY] INVARIANT (@unchecked Sendable), PARTLY HOLDS: `policy` is touched only
+// by `handleScreen`, which runs on `sampleQueue`; the immutable `let`s (handlers, queue,
+// the thread-safe `CIContext`) are safe to share. It does NOT hold for `stream`, which
+// `start()` and `stop()` read and write from whatever executor their `Task` runs on,
+// nor for `label`, which `start()` writes and `handleScreen` reads on `sampleQueue`.
+// `label` is written before the stream starts, so in a start-then-stop order it is
+// ordered by `startCapture`; `stream` is unguarded, and a `stop()` that overlaps a
+// `start()` (callers launch both in unordered `Task`s) can race or miss the stream.
+// Reported as a finding, not fixed here: it needs a lock or an actor and a
+// ScreenCaptureKit double to test.
+// REMOVAL PLAN: make start/stop/stream state an actor (or guard `stream` with a lock) and
+// hop sample buffers to it, leaving only `policy` and `label` on `sampleQueue`.
 public final class ScreenKitSource: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     public enum Kind: Sendable {
         case screen(windowTitleContains: String?)

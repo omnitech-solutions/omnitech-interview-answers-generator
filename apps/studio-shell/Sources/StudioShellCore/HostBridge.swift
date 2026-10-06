@@ -21,6 +21,8 @@ public enum HostCapability: String, CaseIterable, Sendable {
     case screenWatch = "screen-watch"
     case textRecognition = "text-recognition"
     case displaySelection = "display-selection"
+    // Sign-in in the default browser, sign-out and the permission states.
+    case account
 
     // What the shell tells the page it can do: text recognition only where Vision answers.
     public static func offered(textRecognitionAvailable: Bool) -> [HostCapability] {
@@ -77,6 +79,15 @@ public enum HostCall: Equatable, Sendable {
     case listDisplays(thumbnails: Bool)
     // Pins capture to one display; nil follows the last-focused browser again.
     case setCaptureDisplay(UInt32?)
+    // The account part of the bridge (`window.studioHost.account`): sign-in in
+    // the default browser, the attempt's own controls, sign-out, and the Mac's
+    // permission states. None of them carries an address, code or credential.
+    case signIn(SignInProvider)
+    case cancelSignIn
+    case reopenSignIn
+    case copySignInLink
+    case signOut
+    case permissions
 }
 
 public enum HostCallError: Error, Equatable, Sendable {
@@ -117,6 +128,8 @@ public enum HostCallDecoder {
         case "recognizeText": allowed = ["mediaType", "base64"]
         case "listDisplays": allowed = ["thumbnails"]
         case "setCaptureDisplay": allowed = ["displayId"]
+        case "signIn": allowed = ["provider"]
+        case "cancelSignIn", "reopenSignIn", "copySignInLink", "signOut", "permissions": allowed = []
         default: return .failure(.unknownMethod)
         }
         guard Set(params.keys).isSubset(of: allowed) else { return .failure(.invalidParameters) }
@@ -125,6 +138,17 @@ public enum HostCallDecoder {
             return ScreenWatchDecoder.decodeStart(params).map { .success(.screenWatchStart($0)) }
                 ?? .failure(.invalidParameters)
         case "screenWatchStop": return .success(.screenWatchStop)
+        case "signIn":
+            // [GUARD] Exactly one of the two providers Studio knows; the key is required.
+            guard let name = params["provider"] as? String, let provider = SignInProvider(rawValue: name) else {
+                return .failure(.invalidParameters)
+            }
+            return .success(.signIn(provider))
+        case "cancelSignIn": return .success(.cancelSignIn)
+        case "reopenSignIn": return .success(.reopenSignIn)
+        case "copySignInLink": return .success(.copySignInLink)
+        case "signOut": return .success(.signOut)
+        case "permissions": return .success(.permissions)
         case "listDisplays":
             // [GUARD] Only a real boolean; absent means previews, as before.
             guard params["thumbnails"] != nil else { return .success(.listDisplays(thumbnails: true)) }
@@ -262,8 +286,11 @@ public enum HostCallDecoder {
     // openExternal, never for a page navigation, and no other settings pane is.
     public static let screenRecordingSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 
+    // The Microphone pane, on the same terms (the permission rows' "Allow…").
+    public static let microphoneSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+
     public static func screenRecordingSettingsURL(_ text: String) -> URL? {
-        text == screenRecordingSettings ? URL(string: text) : nil
+        text == screenRecordingSettings || text == microphoneSettings ? URL(string: text) : nil
     }
 
     public static func externalURL(_ text: String) -> URL? {
@@ -359,6 +386,11 @@ public enum HostReply {
 
     public static func failure(_ reason: String) -> [String: Any] { ["ok": false, "reason": reason] }
 
+    // The Mac's permission states, closed names only.
+    public static func permissions(microphone: PermissionState, screen: PermissionState) -> [String: Any] {
+        ["microphone": microphone.rawValue, "screen": screen.rawValue]
+    }
+
     // Additive: `no-focused-window` may name the application that was in front (a name
     // only, bounded; never a window title or an address) so the page can say what to leave.
     public static func failure(_ reason: String, frontApp: String?) -> [String: Any] {
@@ -396,6 +428,9 @@ public enum HostBridgeScript {
           var engineListeners = [];
           var watchListeners = [];
           var watchStatusListeners = [];
+          var accountListeners = [];
+          // Synchronous state() reads the last sign-in state the shell pushed.
+          var signInState = { phase: "idle" };
           // Synchronous status() reads the last state the shell pushed.
           var watching = { watching: false };
           function remover(list, listener) {
@@ -457,6 +492,28 @@ public enum HostBridgeScript {
             // The rectangles of every painted surface; null makes the whole window interactive.
             setHitRegions: function (regions) { return op("setHitRegions", { regions: regions === null || regions === undefined ? null : regions }); }
           });
+          // Sign-in runs in the person's default browser; the page only asks and
+          // hears the state. Nothing secret crosses this object: no address, no code.
+          function flag(reply) { return reply === true; }
+          function refused() { return false; }
+          var account = Object.freeze({
+            signIn: function (provider) { return call("signIn", { provider: String(provider) }).then(flag, refused); },
+            cancelSignIn: function () { return call("cancelSignIn").then(function () {}, function () {}); },
+            reopenSignIn: function () { return call("reopenSignIn").then(flag, refused); },
+            copySignInLink: function () { return call("copySignInLink").then(flag, refused); },
+            signOut: function () { return call("signOut").then(flag, refused); },
+            state: function () {
+              return signInState.provider
+                ? { phase: signInState.phase, provider: signInState.provider }
+                : { phase: signInState.phase };
+            },
+            onState: function (listener) { return remover(accountListeners, listener); },
+            permissions: function () {
+              return call("permissions").then(
+                function (reply) { return reply; },
+                function () { return { microphone: "undetermined", screen: "undetermined" }; });
+            }
+          });
           function call(method, params) {
             return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });
           }
@@ -484,6 +541,7 @@ public enum HostBridgeScript {
             openExternal: function (url) { return call("openExternal", { url: String(url) }); },
             \(engineMember)presentation: presentation,
             screenWatch: screenWatch,
+            account: account,
             // Only the image's type and text cross; a refusal for size is typed here, the rest by the shell.
             recognizeText: function (image) {
               var base64 = image && typeof image.base64 === "string" ? image.base64 : "";
@@ -513,6 +571,18 @@ public enum HostBridgeScript {
               var e = { at: Number(event.at), bits: Number(event.bits) };
               if (event.display) e.display = event.display;
               watchListeners.slice().forEach(function (listener) { try { listener(e); } catch (x) {} });
+            },
+            configurable: false
+          });
+          Object.defineProperty(window, "__studioHostAccountState", {
+            value: function (state) {
+              var phase = String(state && state.phase);
+              if (phase !== "idle" && phase !== "waiting" && phase !== "timed-out") return;
+              signInState = { phase: phase };
+              if (phase === "waiting" && typeof state.provider === "string") signInState.provider = state.provider;
+              var copy = { phase: signInState.phase };
+              if (signInState.provider) copy.provider = signInState.provider;
+              accountListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
             },
             configurable: false
           });
@@ -557,6 +627,13 @@ public enum HostBridgeScript {
         let json = (try? JSONSerialization.data(withJSONObject: status.wire, options: [.sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return "window.__studioHostScreenWatchStatus && window.__studioHostScreenWatchStatus(\(json));"
+    }
+
+    // The sign-in state, as the page's `account.onState` hears it.
+    public static func emitAccountState(_ state: AccountState) -> String {
+        let json = (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return "window.__studioHostAccountState && window.__studioHostAccountState(\(json));"
     }
 
     // Pushes the presentation state to a page: it reads it synchronously and

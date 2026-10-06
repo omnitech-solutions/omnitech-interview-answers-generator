@@ -449,6 +449,9 @@ test("web transcript screenshot Download: the link is the screenshot route and i
   const response = await page.request.get(href);
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toMatch(/^image\//);
+  // The route's own sandbox policy survives the app-wide frame-ancestors one.
+  expect(response.headers()["content-security-policy"]).toBe("sandbox");
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
   const [call] = await control.calls();
   expect((await response.body()).length).toBe(call?.imageBytes);
 });

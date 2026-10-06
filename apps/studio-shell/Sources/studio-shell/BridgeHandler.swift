@@ -12,8 +12,18 @@ import WebKit
 // proxy). The shell never starts an analysis: it returns pixels to the page,
 // and the page posts them to Studio's owner-authenticated capture route. The
 // paired capture credential is not reachable from here.
+// What the page's `account` object may ask of the shell. The app supplies each.
+struct AccountActions {
+    var signIn: (SignInProvider) -> Bool = { _ in false }
+    var cancelSignIn: () -> Void = {}
+    var reopenSignIn: () -> Bool = { false }
+    var copySignInLink: () -> Bool = { false }
+    var signOut: () -> Bool = { false }
+}
+
 final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
     let model: ShellModel
+    var account = AccountActions()
     private let capture: ShellCapture
     private let setPinned: (Bool) -> Void
     // See-through masks only the compact window: its page alone may report hit regions.
@@ -157,6 +167,15 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         case .success(.openExternal(let url)):
             NSWorkspace.shared.open(url)
             replyHandler(nil, nil)
+        case .success(.signIn(let provider)): replyHandler(account.signIn(provider), nil)
+        case .success(.cancelSignIn):
+            account.cancelSignIn()
+            replyHandler(nil, nil)
+        case .success(.reopenSignIn): replyHandler(account.reopenSignIn(), nil)
+        case .success(.copySignInLink): replyHandler(account.copySignInLink(), nil)
+        case .success(.signOut): replyHandler(account.signOut(), nil)
+        case .success(.permissions):
+            replyHandler(HostReply.permissions(microphone: ShellPermissions.microphone(), screen: ShellPermissions.screen()), nil)
         case .success(.captureScreen(let request, let displayId, let intent)):
             // Sampled now, before any await and before the panel can take focus.
             let sample = capture.sample(intent: intent)

@@ -19,6 +19,9 @@ import { db } from "../src/helpers/sql";
 // The hands-free note: the one alert line that says what went wrong with the
 // share or the microphone (other alerts on the page are about the companion).
 const note = (page: Page) => page.locator("p.ov-note");
+// The capture-problem banner (shared/capture-problem.ts): a declined or lost
+// share is drawn the same way as on the native page.
+const banner = (page: Page) => page.getByTestId("capture-problem");
 
 // The spies for this page, installed before its first script; `streams()` is
 // the reader the specs poll.
@@ -78,8 +81,9 @@ test("browser screen share lost: the browser's own Stop sharing ends it and the 
   await spies.endShare();
 
   await expect(live.stopSharing()).toBeHidden();
-  await expect(note(page)).toContainText(
-    "Sharing stopped. Share a window, tab or screen to capture again.",
+  await expect(banner(page)).toHaveAttribute("data-reason", "source-lost");
+  await expect(page.getByTestId("capture-problem-title")).toHaveText(
+    "The shared window or screen is gone",
   );
   await expect(page.getByTestId("light-screen")).toContainText(
     "Screen not shared",
@@ -87,7 +91,7 @@ test("browser screen share lost: the browser's own Stop sharing ends it and the 
   // The share can be started again from the same menu, with a new stream.
   await live.shareScreen();
   await expect.poll(async () => (await spies.streams()).shares.length).toBe(2);
-  await expect(note(page)).toHaveCount(0);
+  await expect(banner(page)).toHaveCount(0);
 });
 
 test("browser screen share refused: declining the picker shares nothing and says so", async ({
@@ -105,7 +109,14 @@ test("browser screen share refused: declining the picker shares nothing and says
     .getByRole("menuitem", { name: /Share a window, tab or screen/ })
     .click();
 
-  await expect(note(page)).toContainText("Nothing was shared.");
+  // The same capture-problem banner the native page shows (F8).
+  await expect(banner(page)).toHaveAttribute("data-reason", "share-cancelled");
+  await expect(page.getByTestId("capture-problem-title")).toHaveText(
+    "Nothing was shared",
+  );
+  await expect(page.getByTestId("capture-problem-fix")).toContainText(
+    "Choose a window, tab or screen",
+  );
   await expect(live.stopSharing()).toBeHidden();
   expect((await spies.streams()).shares).toEqual([]);
   await expect(page.getByTestId("light-screen")).toContainText(
@@ -114,7 +125,7 @@ test("browser screen share refused: declining the picker shares nothing and says
   // Declining is not a failure state: the next try works.
   await spies.refuseShare(false);
   await live.shareScreen();
-  await expect(note(page)).toHaveCount(0);
+  await expect(banner(page)).toHaveCount(0);
 });
 
 test("browser microphone in Auto: it listens through the fake device, a heard phrase is stored as the owner's microphone, and turning Auto off stops it", async ({

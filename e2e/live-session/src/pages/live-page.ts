@@ -93,6 +93,8 @@ export class LivePage {
 
   // A fresh capture that starts a NEW task (T{n}); shares first when needed.
   async captureNewTask(): Promise<void> {
+    // A branch, not an assertion: share only when no share is running yet; the
+    // menu item clicked next waits for itself (web-first).
     if (!(await this.stopSharing().isVisible())) await this.shareScreen();
     await this.captureAnalyze().click();
     await this.page

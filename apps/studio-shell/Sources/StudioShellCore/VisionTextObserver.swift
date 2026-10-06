@@ -58,6 +58,14 @@ public struct VisionTextObserver: TextObserving {
 }
 
 // Hands the running request to the cancellation handler, which runs on another thread.
+// [SAFETY] INVARIANT (@unchecked Sendable): `request` and `cancelled` are touched
+// only inside `lock.withLock`, and `cancel()` calls `VNRequest.cancel()` after the lock
+// is released. The one thing the lock does not cover is `VNRequest.cancel()` running on
+// the cancelling thread while `perform` runs on the global queue; Apple's Vision
+// documentation does not state that this is thread-safe, so that part is UNVERIFIED
+// (it is the intended use of `cancel()`, and the budget test only covers the fake observer).
+// REMOVAL PLAN: replace the box with `OSAllocatedUnfairLock<State>` holding the request
+// once Vision's request types are Sendable (or wrapped in a `sending` transfer).
 private final class RequestBox: @unchecked Sendable {
     private let lock = NSLock()
     private var request: VNRequest?

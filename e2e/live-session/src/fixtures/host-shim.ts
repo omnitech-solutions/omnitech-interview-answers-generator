@@ -136,6 +136,8 @@ function installShim(options: InstalledOptions): void {
     Object.keys(value).every((key) => allowed.includes(key));
   const SCREEN_RECORDING_SETTINGS =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
+  const MICROPHONE_SETTINGS =
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
 
   const record = (method: string, params: Json = {}) => {
     const op = method === "presentation" ? String(params["op"]) : null;
@@ -365,6 +367,60 @@ function installShim(options: InstalledOptions): void {
     },
   });
 
+  // The shell's sign-in, sign-out and permissions (HostBridge.swift `account`):
+  // the decoder takes exactly google or linkedin; the other calls take nothing.
+  // A signIn opens "the browser" (the state goes to waiting, as the shell's
+  // does); a spec ends the attempt with `setSignIn`. The shim never leaves the
+  // page: Studio's redemption is the real server's, done by the spec's navigation.
+  type AccountState = { phase: string; provider?: string };
+  const accountState = {
+    current: { phase: "idle" } as AccountState,
+    refuseSignIn: false,
+    permissions: { microphone: "granted", screen: "granted" } as Json,
+  };
+  const accountListeners: Array<(state: AccountState) => void> = [];
+  const setAccountState = (next: AccountState) => {
+    accountState.current = next;
+    for (const listener of [...accountListeners]) listener({ ...next });
+  };
+  const account = Object.freeze({
+    signIn: async (provider: unknown) => {
+      if (provider !== "google" && provider !== "linkedin")
+        refuse("signIn", { provider: String(provider) }, "provider");
+      record("signIn", { provider });
+      if (accountState.refuseSignIn || accountState.current.phase === "waiting")
+        return false;
+      setAccountState({ phase: "waiting", provider: String(provider) });
+      return true;
+    },
+    cancelSignIn: async () => {
+      record("cancelSignIn");
+      setAccountState({ phase: "idle" });
+    },
+    reopenSignIn: async () => {
+      record("reopenSignIn");
+      return accountState.current.phase === "waiting";
+    },
+    copySignInLink: async () => {
+      record("copySignInLink");
+      return accountState.current.phase === "waiting";
+    },
+    signOut: async () => {
+      record("signOut");
+      return true;
+    },
+    state: () => ({ ...accountState.current }),
+    onState: (listener: (state: AccountState) => void) => {
+      accountListeners.push(listener);
+      return () => {
+        const at = accountListeners.indexOf(listener);
+        if (at >= 0) accountListeners.splice(at, 1);
+      };
+    },
+    // Polled by the idle screen: not recorded, so it never floods the log.
+    permissions: async () => ({ ...accountState.permissions }),
+  });
+
   const host = {
     version: 1,
     hostKind: "native-macos",
@@ -477,7 +533,8 @@ function installShim(options: InstalledOptions): void {
     // info; or exactly the one Screen Recording settings address.
     openExternal: async (url: unknown) => {
       const text = String(url);
-      let allowed = text === SCREEN_RECORDING_SETTINGS;
+      let allowed =
+        text === SCREEN_RECORDING_SETTINGS || text === MICROPHONE_SETTINGS;
       if (!allowed && text.length <= 2048) {
         try {
           const parsed = new URL(text);
@@ -521,6 +578,7 @@ function installShim(options: InstalledOptions): void {
       );
     },
     ...(options.engine ? { engine } : {}),
+    account,
     ...(options.consent !== undefined
       ? {
           consent: Object.freeze({
@@ -598,6 +656,13 @@ function installShim(options: InstalledOptions): void {
         state.framePattern = pattern;
       },
       captures: () => state.captured.map((entry) => ({ ...entry })),
+      setSignIn: (next: unknown) => setAccountState(next as AccountState),
+      setSignInRefusal: (refuseIt: boolean) => {
+        accountState.refuseSignIn = refuseIt;
+      },
+      setPermissions: (next: unknown) => {
+        accountState.permissions = next as Json;
+      },
       state: () => ({ ...state }),
     },
     configurable: false,
@@ -611,6 +676,7 @@ const DEFAULT_CAPABILITIES = [
   "open-external",
   "screen-watch",
   "display-selection",
+  "account",
 ];
 
 const DEFAULTS: InstalledOptions = {
@@ -746,6 +812,52 @@ export class HostShim {
           }
         ).__e2eHost.setRecognizeText(value),
       result,
+    );
+  }
+
+  // The shell's sign-in state, as it pushes it to the page: waiting for a
+  // provider's browser, idle (cancelled, or finished), or timed out.
+  setSignIn(
+    state:
+      | { phase: "idle" }
+      | { phase: "waiting"; provider: "google" | "linkedin" }
+      | { phase: "timed-out" },
+  ): Promise<void> {
+    return this.page.evaluate(
+      (value) =>
+        (
+          window as unknown as { __e2eHost: { setSignIn(s: unknown): void } }
+        ).__e2eHost.setSignIn(value),
+      state,
+    );
+  }
+
+  // true: the shell cannot open the browser (signIn answers false).
+  setSignInRefusal(refuses: boolean): Promise<void> {
+    return this.page.evaluate(
+      (value) =>
+        (
+          window as unknown as {
+            __e2eHost: { setSignInRefusal(r: boolean): void };
+          }
+        ).__e2eHost.setSignInRefusal(value),
+      refuses,
+    );
+  }
+
+  // What macOS says about each permission ("granted" | "denied" | "undetermined").
+  setPermissions(permissions: {
+    microphone: "granted" | "denied" | "undetermined";
+    screen: "granted" | "denied" | "undetermined";
+  }): Promise<void> {
+    return this.page.evaluate(
+      (value) =>
+        (
+          window as unknown as {
+            __e2eHost: { setPermissions(p: unknown): void };
+          }
+        ).__e2eHost.setPermissions(value),
+      permissions,
     );
   }
 

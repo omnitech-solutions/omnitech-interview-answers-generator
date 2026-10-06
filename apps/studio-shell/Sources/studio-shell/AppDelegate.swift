@@ -68,15 +68,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         surface.onRender = { [weak self] state in self?.rendered(state) }
         controller.surface = surface
         controller.onChange = { [weak self] state in self?.push(state) }
-        signIn = SignInCoordinator(model: model) { [weak self] in self?.surface.anchorWindow }
-        model.onSignInRequested = { [weak self] in self?.signIn.start() }
+        signIn = SignInCoordinator(model: model)
+        signIn.onState = { [weak self] state in self?.pushAccount(state) }
+        // The fallback screen's "Try again": load Studio again; a refusal for want of a session
+        // then shows the sign-in panel.
+        model.onSignInRequested = { [weak self] in self?.surface.reloadAll() }
+        model.onChangeConnectionRequested = { [weak self] in self?.connect() }
         model.onSignInAbandoned = { [weak self] in self?.signIn.cancel() }
+        handler.account = AccountActions(
+            signIn: { [weak self] provider in self?.signIn?.start(provider) ?? false },
+            cancelSignIn: { [weak self] in self?.signIn.cancel() },
+            reopenSignIn: { [weak self] in self?.signIn.reopen() ?? false },
+            copySignInLink: { [weak self] in self?.signIn.copyLink() ?? false },
+            signOut: { [weak self] in self?.signOut() ?? false })
 
         statusMenu = StatusMenu(
             model: model,
             actions: .init(
                 openStudio: { [weak self] in self?.openStudio() },
-                signIn: { [weak self] in self?.signIn.start() },
+                signIn: { [weak self] in self?.showSignInPanel() },
+                signOut: { [weak self] in _ = self?.signOut() },
                 openInBrowser: { [weak self] in
                     if let url = self?.model.location?.studioURL { NSWorkspace.shared.open(url) }
                 },
@@ -150,6 +161,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return controller.perform(command)
     }
 
+    // The sign-in round trip comes back on the app's own scheme. [SAFETY] AppKit
+    // can deliver a scheme URL before `applicationDidFinishLaunching` has built the
+    // coordinator (a cold launch from a stale "You're signed in" page); with no
+    // attempt in flight there is nothing to redeem, so it is dropped, not unwrapped.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme?.lowercased() == NativeSignIn.callbackScheme { signIn?.handleCallback(url) }
+    }
+
     // After every render: the hotkey set, the menu and the pages follow the state.
     private func rendered(_ state: PresentationState) {
         let wanted = state.hotkeysEnabled
@@ -196,8 +215,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for view in model.allViews { view.evaluateJavaScript(HostBridgeScript.emitPresentation(state), completionHandler: nil) }
     }
 
+    private func pushAccount(_ state: AccountState) {
+        for view in model.allViews { view.evaluateJavaScript(HostBridgeScript.emitAccountState(state), completionHandler: nil) }
+    }
+
+    // [SAFETY] Ends this Mac's Studio session: the shell's own web view forgets Studio's
+    // session cookie, capture and listening stop, and every window shows the sign-in
+    // panel with "Signed out". It signs out HERE only: Studio's other browsers and
+    // devices are not told (a stateless token cannot be revoked remotely).
+    @discardableResult
+    private func signOut() -> Bool {
+        guard let location = model.location else { return false }
+        signIn.cancel()
+        model.epoch.advance()
+        handler.stopWatching()
+        Task { @MainActor in await self.engine.stop() }
+        let host = location.origin.host?.lowercased()
+        let store = WKWebsiteDataStore.default().httpCookieStore
+        store.getAllCookies { [weak self] cookies in
+            let studio = cookies.filter { $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() == host }
+            let group = DispatchGroup()
+            for cookie in studio {
+                group.enter()
+                store.delete(cookie) { group.leave() }
+            }
+            group.notify(queue: .main) {
+                MainActor.assumeIsolated { self?.showSignInPanel(notice: .signedOut) }
+            }
+        }
+        return true
+    }
+
+    // Every window shows Studio's sign-in panel (the menu's "Sign in to Studio…", a sign-out).
+    private func showSignInPanel(notice: SignInNotice? = nil) {
+        guard let location = model.location else { return }
+        let url = location.signInPanelURL(notice: notice)
+        for view in model.allViews { view.load(URLRequest(url: url)) }
+        if surface.anchorWindow == nil { present(.setVisible(true)) }
+        model.refresh()
+    }
+
     private func pageFinished(_ view: WKWebView) {
         view.evaluateJavaScript(HostBridgeScript.emitPresentation(controller.state), completionHandler: nil)
+        view.evaluateJavaScript(HostBridgeScript.emitAccountState(signIn.state), completionHandler: nil)
         view.evaluateJavaScript(HostBridgeScript.emitScreenWatchStatus(handler.watchStatus), completionHandler: nil)
         for command in pending.removeValue(forKey: ObjectIdentifier(view)) ?? [] {
             view.evaluateJavaScript(HostBridgeScript.emit(command), completionHandler: nil)

@@ -280,3 +280,33 @@ test("web band capture problem: a device-only session's Capture screen shows the
   await problem.getByRole("button", { name: "Dismiss message" }).click();
   await expect(problem).toHaveCount(0);
 });
+
+test("web band Manual analyzes only on a press: with a screen shared, Manual creates no task by itself over more than one Auto interval, and Auto then does", async ({
+  page,
+  live,
+  control,
+}) => {
+  await control.scenario("plain-answer");
+  await live.goto();
+  const session = await live.startRehearsal();
+  await live.useManual();
+  await live.shareScreen();
+  const captured = async () =>
+    (await db.observations(session.id)).filter(
+      (row) => row.kind === "screen.snapshot",
+    ).length;
+
+  // Auto's watch would take its first frame within one interval (8 s by
+  // default); Manual holds still for longer than that.
+  await page.waitForTimeout(12_000);
+  expect(await captured()).toBe(0);
+  expect(await db.actions(session.id)).toEqual([]);
+  expect(await control.calls()).toEqual([]);
+  await expect(live.task(1)).toHaveCount(0);
+
+  // The same share, in Auto, is captured and a task appears without a press.
+  await live.autoMode().click();
+  await expect(live.autoMode()).toHaveAttribute("aria-pressed", "true");
+  await expect(live.task(1)).toBeVisible({ timeout: 40_000 });
+  expect(await captured()).toBeGreaterThan(0);
+});

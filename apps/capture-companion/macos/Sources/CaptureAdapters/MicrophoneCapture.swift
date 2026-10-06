@@ -4,9 +4,18 @@ import Foundation
 
 // [DOMAIN] Microphone capture through AVAudioEngine, selected sources only.
 // Frames are mono Float32 handed straight to Core's bounded ring buffer by the
-// caller; nothing is written anywhere here. The engine is an OS object that
-// callbacks touch from the audio thread, so the unchecked Sendable conformance
-// is confined to this adapter.
+// caller; nothing is written anywhere here.
+// [SAFETY] INVARIANT (@unchecked Sendable), PARTLY HOLDS: the audio-thread tap and
+// the configuration-change observer capture only immutable copies of `onFrame` and
+// `onLost` (@Sendable closures) and the sample rate, never `self`. `engine` and
+// `observer` are NOT guarded: `start()` (async, on any executor) and `stop()` (called
+// synchronously from another context) mutate them with no lock or queue, and the
+// callers (`SystemCaptureSources`, `EngineSources`) launch `start()` in an unordered
+// `Task`, so a quick stop-after-start can interleave. AVAudioEngine does not document
+// thread safety for that. Reported as a finding; not fixed (needs an actor or a serial
+// queue and a fake engine to test).
+// REMOVAL PLAN: make the adapter an actor (async `stop`) or run start/stop on one serial
+// queue; the tap closure already captures only Sendable values.
 public final class MicrophoneCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let onFrame: @Sendable (AudioFrame) -> Void

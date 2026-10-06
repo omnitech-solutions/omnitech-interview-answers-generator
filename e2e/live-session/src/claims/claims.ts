@@ -246,6 +246,7 @@ const screenshotRows = (surface: Surface): Row[] => [
 // The capture problem banner (T32, plan 7.0o): why a capture or analysis did not
 // run, what to do, and a button where the app can help. One set of rows for both
 // surfaces. Covered: the dismiss on both surfaces and open-settings on native (see COVERED_BY).
+// PENDING web.capture-problem.open-settings: the button shows only when a native shell reports permission-denied; a plain web page has no host shim, so the web level cannot raise it (native covers the same control).
 const captureProblemRows = (surface: Surface): Row[] => [
   [
     `${surface}.capture-problem.dismiss`,
@@ -382,6 +383,7 @@ export const WEB_CLAIMS: Claim[] = make("web", [
     "a session cookie is set and /t/local loads signed in",
     SMOKE_SIGNIN,
   ],
+  // PENDING: needs the Google OAuth provider configured (real client credentials); the harness stack has none, and web sign-in is being reworked by the WEB package.
   [
     "web.signin.google",
     "sign-in",
@@ -391,6 +393,7 @@ export const WEB_CLAIMS: Claim[] = make("web", [
     "navigation",
     "redirects to the Google authorize URL (provider not reachable in the harness: assert the redirect target only)",
   ],
+  // PENDING: needs the LinkedIn OAuth provider configured (real client credentials); see web.signin.google.
   [
     "web.signin.linkedin",
     "sign-in",
@@ -654,8 +657,7 @@ export const WEB_CLAIMS: Claim[] = make("web", [
     "Analyzes only when you press",
     "dom",
     "pressed state; a changed frame creates no task",
-    // PENDING: the smoke spec only presses Manual; no spec yet shows that a
-    // changed frame creates no task (R5 found the old mapping overstated it).
+    // Covered through COVERED_BY: "web band Manual analyzes only on a press".
   ],
   [
     "web.hf.collapse",
@@ -746,6 +748,16 @@ export const WEB_CLAIMS: Claim[] = make("web", [
     "server",
     "a draft-answer action and a snapshot observation exist for the new task",
     SMOKE_START,
+  ],
+  [
+    "web.hf.capture-analyze-native-owner",
+    "hands-free",
+    "button",
+    /^Capture & analyze/,
+    "While the Interview Studio app owns capture, the web page says so and this control is disabled with that reason (still readable)",
+    "dom",
+    "the mirror line reads 'The Interview Studio app owns capture', the button is disabled and its title carries the reason; no 'No source shared' wording",
+    "the page says the Interview Studio app owns capture and its Capture & analyze is disabled",
   ],
   [
     "web.hf.share",
@@ -873,7 +885,7 @@ export const WEB_CLAIMS: Claim[] = make("web", [
     "a scripted no-question capture adds one muted note row (no T number, no chip, no answer bubble, the draft never repeated) and the server still holds the observation",
   ],
   // PENDING on the web: the Auto hold is proven only on the native panel
-  // (native.auto.no-question-hold); the web no-question spec runs in Manual.
+  // (native.auto.no-question-hold), which scripts a screen change through the host shim; Chromium's fake screen cannot be changed on cue, so a web spec could not tell the hold from an unchanged screen.
   [
     "web.auto.no-question-hold",
     "task",
@@ -1269,7 +1281,7 @@ export const NATIVE_CLAIMS: Claim[] = make("native", [
     "Opens consent review in the browser",
     "bridge",
     "the shell's consent bridge (`studioHost.consent.open`) is called; nothing starts until consent is granted",
-    "host consent: the panel with no session",
+    "host consent: with no session the start screen asks the shell",
   ],
 
   // ---- Toolbar: window dots -------------------------------------------------
@@ -1727,6 +1739,92 @@ WEB_CLAIMS.push(
   ]),
 );
 
+// ---- Account: sign-in states, the sidebar account menu, sign-out ----------------
+WEB_CLAIMS.push(
+  ...make("web", [
+    [
+      "web.account.footer",
+      "shell",
+      "button",
+      /^Account: /,
+      "Opens the account menu for the signed-in member named on it",
+      "dom",
+      "a menu opens (aria-expanded true) and Escape closes it, returning focus to this button",
+      "web account: the footer names the member",
+    ],
+    [
+      "web.account.connected",
+      "account-menu",
+      "menuitem",
+      "Connected accounts",
+      "Opens the workspace's connected accounts page",
+      "navigation",
+      "URL becomes /t/local/settings/integrations and its heading shows",
+      "web account: Connected accounts and Sign in with an account",
+    ],
+    [
+      "web.account.sign-in-with-account",
+      "account-menu",
+      "menuitem",
+      "Sign in with an account",
+      "Local user only: goes to sign-in, returning to the page the person was on",
+      "navigation",
+      "URL becomes /sign-in?next=<the current page> and the banner names that page",
+      "web account: Connected accounts and Sign in with an account",
+    ],
+    [
+      "web.account.sign-out",
+      "account-menu",
+      "menuitem",
+      "Sign out",
+      "Asks to confirm signing out of this browser",
+      "dom",
+      "an alertdialog opens with Cancel focused",
+      "web account: signing out without a live session",
+    ],
+    [
+      "web.account.sign-out-cancel",
+      "sign-out-dialog",
+      "button",
+      "Cancel",
+      "Keeps the person signed in",
+      "dom",
+      "the dialog closes, focus returns to the footer and a reload is still signed in",
+      "web account: signing out without a live session",
+    ],
+    [
+      "web.account.sign-out-confirm",
+      "sign-out-dialog",
+      "button",
+      /^(Sign out|End session and sign out)$/,
+      "Ends this browser's session (and a running live session first), then shows the signed-out page",
+      "server",
+      "the live session row is ended, /api/auth/session has no user, and the next page visit asks to sign in",
+      "web account: signing out with a live session",
+    ],
+    [
+      "web.account.welcome-dismiss",
+      "shell",
+      "button",
+      "Dismiss welcome message",
+      "Hides the one-time welcome after signing in",
+      "dom",
+      "the banner is removed",
+      "web account: the welcome banner shows once",
+    ],
+    [
+      "web.signedout.again",
+      "signed-out",
+      "link",
+      "Sign in again",
+      "Goes to the sign-in page",
+      "navigation",
+      "URL becomes /sign-in",
+      "web account: signing out without a live session",
+    ],
+  ]),
+);
+
 NATIVE_CLAIMS.push(
   ...make("native", [
     [
@@ -1852,6 +1950,191 @@ NATIVE_CLAIMS.push(
   ]),
 );
 
+// ---- Native sign-in and start screens: signed out, waiting, this Mac, idle, account menu --
+NATIVE_CLAIMS.push(
+  ...make("native", [
+    [
+      "native.signin.google",
+      "sign-in",
+      "button",
+      "Continue with Google",
+      "Signs in with Google in your default browser (the window waits and updates by itself)",
+      "bridge",
+      "the shell's account bridge records signIn with provider google, and the waiting screen names Google",
+      "sign-in Google: the click asks the shell for the browser",
+    ],
+    [
+      "native.signin.linkedin",
+      "sign-in",
+      "button",
+      "Continue with LinkedIn",
+      "Signs in with LinkedIn in your default browser",
+      "bridge",
+      "the shell's account bridge records signIn with provider linkedin, and the waiting screen names LinkedIn",
+      "sign-in a timed-out browser attempt returns to the choices",
+    ],
+    [
+      "native.signin.local",
+      "sign-in",
+      "button",
+      "Continue on this Mac, no account",
+      "Uses Studio on this Mac only: no account, no password (offered only where Studio runs on this computer)",
+      "dom",
+      "the confirm step opens with its facts; no browser is asked for",
+      "sign-in this Mac: confirm step with true facts",
+    ],
+    [
+      "native.signin.local-back",
+      "sign-in-local",
+      "button",
+      "Back",
+      "Returns from the local-profile step to the sign-in choices",
+      "dom",
+      "the sign-in choices show again",
+      "sign-in this Mac: confirm step with true facts",
+    ],
+    [
+      "native.signin.local-continue",
+      "sign-in-local",
+      "button",
+      "Continue on this Mac",
+      "Signs in as the local profile inside this window",
+      "navigation",
+      "Studio's own sign-in sets the session and the window goes to the compact panel with its idle start screen",
+      "sign-in this Mac: confirm step with true facts",
+    ],
+    [
+      "native.signin.reopen",
+      "sign-in-waiting",
+      "button",
+      "Open browser again",
+      "Opens the same sign-in in your default browser again",
+      "bridge",
+      "the shell's account bridge records reopenSignIn",
+      "sign-in Google: the click asks the shell for the browser",
+    ],
+    [
+      "native.signin.copy-link",
+      "sign-in-waiting",
+      "button",
+      "Copy link",
+      "Copies the sign-in link (the shell copies it; the page never sees it)",
+      "bridge",
+      "the shell's account bridge records copySignInLink and the window says the link was copied",
+      "sign-in Google: the click asks the shell for the browser",
+    ],
+    [
+      "native.signin.cancel",
+      "sign-in-waiting",
+      "button",
+      "Cancel",
+      "Gives up waiting for the browser (the same name as the crop editor's Cancel, which the inventory matches first)",
+      "bridge",
+      "the shell's account bridge records cancelSignIn and the sign-in choices return",
+      "sign-in Google: the click asks the shell for the browser",
+    ],
+    [
+      "native.chip.account",
+      "toolbar",
+      "button",
+      /^Account: /,
+      "Opens the account menu for who is signed in (this Mac, or the account's first name)",
+      "dom",
+      "a menu opens naming the account, with Open Studio on the web, Settings and the sign-out",
+      "sign-in account menu: the chip names this Mac",
+    ],
+    [
+      "native.chip.open-studio",
+      "account-menu",
+      "menuitem",
+      "Open Studio on the web",
+      "Opens Studio on the web in your browser",
+      "bridge",
+      "the shell's openExternal is called with the workspace's Live page address",
+      "sign-in account menu: the chip names this Mac",
+    ],
+    [
+      "native.chip.settings",
+      "account-menu",
+      "menuitem",
+      "Settings",
+      "Opens the Settings window",
+      "bridge",
+      "the shell's presentation openSettings is recorded",
+      "sign-in account menu: the chip names this Mac",
+    ],
+    [
+      "native.chip.sign-in-with",
+      "account-menu",
+      "menuitem",
+      "Sign in with Google or LinkedIn",
+      "Local profile only: leaves this Mac's local profile and returns to the sign-in choices (an account is a separate profile)",
+      "bridge",
+      "the shell's account bridge records signOut",
+      "sign-in account menu: the chip names this Mac",
+    ],
+    [
+      "native.chip.sign-out",
+      "account-menu",
+      "menuitem",
+      /^Sign out/,
+      "Signs out on this Mac only: the window forgets the session, capture stops, and the sign-in screen shows",
+      "bridge",
+      "the shell's account bridge records signOut",
+      "sign-in account menu: the chip names this Mac",
+    ],
+    [
+      "native.start.target",
+      "start",
+      "radio",
+      /./,
+      "Chooses what the session is for: the next interview, or Rehearsal",
+      "server",
+      "the started session row carries the chosen target (a Rehearsal has a rehearsal run id)",
+      "sign-in Start hands over to the live window",
+    ],
+    [
+      "native.start.agree",
+      "start",
+      "checkbox",
+      /^Everyone has agreed/,
+      "Confirms everyone agreed to recording and AI assistance (an interview only)",
+      "dom",
+      "Start stays blocked with 'Confirm everyone has agreed' until it is checked; covered at the unit level (start-panel.test.tsx), the e2e stack has no interview to start for",
+    ],
+    [
+      "native.start.allow",
+      "start",
+      "button",
+      "Allow…",
+      "Opens the macOS privacy pane for a permission that is not allowed yet",
+      "bridge",
+      "the shell's openExternal is called with the Screen Recording pane address",
+      "sign-in idle: the start screen waits for Start",
+    ],
+    [
+      "native.start.go",
+      "start",
+      "button",
+      "Start session",
+      "Starts the session (blocked, with the reason, until the Mac's permissions and the agreement are in place)",
+      "server",
+      "an interview.active_sessions row with status active, only after the press",
+      "sign-in Start hands over to the live window",
+    ],
+    [
+      "native.start.setup-link",
+      "start",
+      "button",
+      "Set up in Studio on the web",
+      "Opens Studio on the web in your browser, where a session is set up in full",
+      "bridge",
+      "the shell's openExternal is called with the workspace's Live page address",
+      "sign-in idle: the start screen waits for Start",
+    ],
+  ]),
+);
+
 const COVERED_BY: Record<string, string> = {
   "web.hf.attach": "web Capture & analyze menu Attach",
   "web.hf.followup": "web follow-up: a message sent while an earlier task",
@@ -1882,6 +2165,30 @@ const COVERED_BY: Record<string, string> = {
   "native.tool.analyze": "native Analyze screen in Manual",
   "native.tool.capture-target": "native capture target",
   "web.capture-problem.dismiss": "web band capture problem",
+  "web.code.open-workspace": "web code canvas Open in Workspace",
+  "web.ended.copy-draft": "web ended Copy Answer draft",
+  "web.ended.open-workspace": "web ended Open Workspace draft",
+  "web.shell.nav-home": "web shell view buttons",
+  "web.shell.nav-workspace": "web shell view buttons",
+  "web.shell.nav-briefings": "web shell view buttons",
+  "web.shell.nav-documents": "web shell view buttons",
+  "web.shell.nav-knowledge": "web shell view buttons",
+  "web.shell.nav-rehearsal": "web shell view buttons",
+  "web.shell.nav-live": "web shell Live session dot",
+  "web.shell.search": "web shell search",
+  "web.shell.theme": "web shell theme",
+  "web.shell.assistant": "web shell Assistant",
+  "web.shell.presentations": "web shell Presentations",
+  "web.hf.manual": "web band Manual analyzes only on a press",
+  "web.code.run": "web code canvas Run",
+  "web.code.tab-solution": "web code canvas: the file tabs",
+  "web.code.tab-usage": "web code canvas: the file tabs",
+  "web.code.tab-tests": "web code canvas: the file tabs",
+  "web.code.wrap": "web code canvas: the file tabs",
+  "web.code.copy-all": "web code canvas: the file tabs",
+  "web.code.editor": "web code canvas: the file tabs",
+  "web.code.results": "web code canvas: the file tabs",
+  "web.code.tab-output": "web code canvas: the file tabs",
   "native.capture-problem.dismiss": "native capture problem permission-denied",
   "native.capture-problem.open-settings":
     "native capture problem permission-denied",

@@ -244,15 +244,12 @@ test("@native native two documents of one profile: the See-through look is share
 // F-OWNER. In the shell the Studio main window and the panel are documents of one
 // web view profile, so they share the Web Lock: the panel (native, steals the
 // lock) owns hands-free and the Live page in the main window shows the mirror.
-// The mirror wording was written for a browser owner that needs a shared source.
-test("@native native owner and the web Live page in the same web view: the page's mirror does not tell the person to share a source that the native owner never needs", async ({
+// The mirror wording names the native app as the owner, and Capture & analyze
+// is disabled with that reason (F-OWNER, plan.md 7.16).
+test("@native native owner and the web Live page in the same web view: the page says the Interview Studio app owns capture and its Capture & analyze is disabled with that reason", async ({
   openPanel,
   stack,
 }) => {
-  test.fail(
-    true,
-    "F-OWNER (plan.md 7.16): with the NATIVE shell as owner the Live page's band says 'No source shared in the window that owns hands-free' and offers a Capture & analyze that asks the owner; a native owner captures through the shell and needs no shared source, so the line is misleading. Product fix pending; remove this mark when the mirror says what the native owner is doing.",
-  );
   const panel = await openPanel({ auto: "on" });
   await expect
     .poll(async () => (await panel.host.calls("engine.start")).length)
@@ -263,14 +260,23 @@ test("@native native owner and the web Live page in the same web view: the page'
   );
   const band = web.getByTestId("hands-free-band");
   await expect(band).toBeVisible();
-  // Documented current behaviour: the page is the mirror, not the owner.
+  // The page is the mirror, not the owner.
   await expect(band).toHaveAttribute("data-owner", "other-window");
   await expect(web.getByTestId("auto-mirror")).toContainText(
-    "Auto · running in another Studio window",
+    "Auto · running in the Interview Studio app",
   );
-  // The mirror is drawn (its label is there) before its words are judged.
-  await expect(web.getByTestId("share-mirror")).toBeVisible();
-  // The honest wording: a native owner is not 'a window with no source shared'.
-  const wording = await web.getByTestId("share-mirror").innerText();
-  expect(wording).not.toContain("No source shared in the window that owns");
+  await expect(web.getByTestId("share-mirror")).toContainText(
+    "The Interview Studio app owns capture",
+  );
+  // Still readable, not hidden: disabled, with the reason as its title.
+  const capture = band.getByRole("button", { name: /Capture & analyze/ });
+  await expect(capture).toBeVisible();
+  await expect(capture).toBeDisabled();
+  await expect(capture).toHaveAttribute(
+    "title",
+    /Interview Studio app owns capture/,
+  );
+  expect(await web.getByTestId("share-mirror").innerText()).not.toContain(
+    "No source shared",
+  );
 });

@@ -131,4 +131,35 @@ func bridgeDecodeTests(_ t: Harness) async {
         t.expectEqual(HostReply.capture(.lost(.captureFailed), screenAccessGranted: true)["reason"] as? String, "capture-failed")
         t.expectEqual(HostReply.capture(.lost(.captureFailed), screenAccessGranted: false)["reason"] as? String, "permission-denied")
     }
+
+    await t.test("account calls: a provider is exactly google or linkedin; the rest take no parameters") {
+        t.expectEqual(call("signIn", ["provider": "google"]), .success(.signIn(.google)))
+        t.expectEqual(call("signIn", ["provider": "linkedin"]), .success(.signIn(.linkedin)))
+        for bad: [String: Any] in [[:], ["provider": "github"], ["provider": 1], ["provider": "google", "url": "https://x.test"]] {
+            t.expectEqual(call("signIn", bad), .failure(.invalidParameters), "\(bad) is refused")
+        }
+        t.expectEqual(call("cancelSignIn"), .success(.cancelSignIn))
+        t.expectEqual(call("reopenSignIn"), .success(.reopenSignIn))
+        t.expectEqual(call("copySignInLink"), .success(.copySignInLink))
+        t.expectEqual(call("signOut"), .success(.signOut))
+        t.expectEqual(call("permissions"), .success(.permissions))
+        for method in ["cancelSignIn", "reopenSignIn", "copySignInLink", "signOut", "permissions"] {
+            t.expectEqual(call(method, ["x": 1]), .failure(.invalidParameters), "\(method) takes nothing")
+        }
+    }
+
+    await t.test("openExternal accepts the Microphone pane exactly, as it does Screen Recording, and no other pane") {
+        t.expect(HostCallDecoder.screenRecordingSettingsURL(HostCallDecoder.microphoneSettings) != nil)
+        t.expect(HostCallDecoder.screenRecordingSettingsURL(HostCallDecoder.screenRecordingSettings) != nil)
+        t.expect(HostCallDecoder.screenRecordingSettingsURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") == nil)
+        t.expectEqual(
+            call("openExternal", ["url": HostCallDecoder.microphoneSettings]),
+            .success(.openExternal(URL(string: HostCallDecoder.microphoneSettings)!)))
+    }
+
+    await t.test("the permission reply holds closed names only") {
+        let reply = HostReply.permissions(microphone: .granted, screen: .undetermined)
+        t.expect(reply["microphone"] as? String == "granted" && reply["screen"] as? String == "undetermined")
+        t.expectEqual(reply.count, 2)
+    }
 }

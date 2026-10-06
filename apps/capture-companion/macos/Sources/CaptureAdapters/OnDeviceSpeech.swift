@@ -63,8 +63,14 @@ public struct SystemPermissionProbe: PermissionProbe {
 }
 
 // Turns a stream of audio frames into final transcript segments for one source.
-// All mutable state is confined to `queue`; callers hand in Sendable values and
-// receive Sendable values, so the unchecked conformance stays at this edge.
+// [SAFETY] INVARIANT (@unchecked Sendable): every `var` is read and written only on
+// `queue`: the public `start`/`feed`/`stop` dispatch onto it, the timer handler and the
+// recognition callback hop onto it before touching state (`handle`, `checkSegmentEnd`,
+// `discardRequest`, `ensureRequest` are only called from queue blocks), and the `let`s
+// (`recognizer`, handlers) are set in `init` and used only there or on `queue`.
+// Callers hand in and receive Sendable values; `onFinal`/`onFailure` run on `queue`.
+// REMOVAL PLAN: an actor with a custom serial executor on `queue` (SE-0392) once the
+// callers can make `start`/`feed`/`stop` async, or keep this as the audited exception.
 public final class OnDeviceTranscriber: @unchecked Sendable {
     public typealias Final = @Sendable (_ text: String, _ startMs: Int, _ endMs: Int) -> Void
 

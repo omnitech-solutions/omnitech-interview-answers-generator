@@ -161,6 +161,16 @@ func presentationTests(_ t: Harness) async {
     }
 
     // MARK: window frames
+    await t.test("the compact window is never narrower than the toolbar, by default or by resizing") {
+        t.expect(WindowKind.compact.minSize.width >= WindowKind.toolbarWidth, "minimum fits the whole toolbar")
+        t.expect(WindowKind.compact.defaultSize.width >= WindowKind.compact.minSize.width)
+        // A saved frame from before the minimum rose (the old 440pt window) is not restored.
+        t.expectEqual(
+            PanelFrameCodec.restoreFrame(
+                PanelFrameCodec.encode(CGRect(x: 100, y: 100, width: 440, height: 640)),
+                minSize: WindowKind.compact.minSize, displays: [display]),
+            nil)
+    }
     await t.test("default frames sit bottom-right (compact) and top-right (Settings) and always fit the display") {
         let compact = PanelLayout.defaultFrame(.compact, in: display)
         t.expectEqual(compact.size, WindowKind.compact.defaultSize)
@@ -182,18 +192,18 @@ func presentationTests(_ t: Harness) async {
     await t.test("frames persist as text and are restored only when sane and reachable (never lost off-screen)") {
         let store = MemoryStore()
         let prefs = ShellPrefs(store: store)
-        let frame = CGRect(x: 120, y: 200, width: 500, height: 400)
+        let frame = CGRect(x: 120, y: 200, width: 760, height: 400)
         prefs.saveFrame(.compact, frame)
-        t.expectEqual(store.values["shell.compact.frame"], "120,200,500,400")
+        t.expectEqual(store.values["shell.compact.frame"], "120,200,760,400")
         t.expectEqual(prefs.savedFrame(.compact, displays: [display]), frame)
         // Off every display: default wins.
-        prefs.saveFrame(.compact, CGRect(x: 9000, y: 9000, width: 500, height: 400))
+        prefs.saveFrame(.compact, CGRect(x: 9000, y: 9000, width: 760, height: 400))
         t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
         t.expectEqual(prefs.frame(.compact, displays: [display], main: display), PanelLayout.defaultFrame(.compact, in: display))
         // Only a sliver on screen is not enough; a grabbable strip is.
-        prefs.saveFrame(.compact, CGRect(x: display.maxX - 20, y: 200, width: 500, height: 400))
+        prefs.saveFrame(.compact, CGRect(x: display.maxX - 20, y: 200, width: 760, height: 400))
         t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
-        prefs.saveFrame(.compact, CGRect(x: display.maxX - 200, y: 200, width: 500, height: 400))
+        prefs.saveFrame(.compact, CGRect(x: display.maxX - 200, y: 200, width: 760, height: 400))
         t.expect(prefs.savedFrame(.compact, displays: [display]) != nil)
         // Smaller than the window's minimum, junk, and non-finite are refused.
         prefs.saveFrame(.settings, CGRect(x: 0, y: 100, width: 10, height: 10))
@@ -493,10 +503,10 @@ func presentationTests(_ t: Harness) async {
     await t.test("a page is told it is a hands-free host through its address, and the window is selected by name") {
         let location = StudioLocation(address: "", tenantSlug: "local")!
         t.expectEqual(location.overlayURL(window: .compact, handsFree: true).absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=single&handsfree=1")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&panel=single&handsfree=1")
         t.expectEqual(location.overlayURL(window: .settings, handsFree: true).absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native&panel=settings&handsfree=1")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&panel=settings&handsfree=1")
         t.expectEqual(location.overlayURL().absoluteString,
-            "http://127.0.0.1:3100/t/local/p/interview/live/overlay?host=native")
+            "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
     }
 }

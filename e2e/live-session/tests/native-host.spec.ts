@@ -301,41 +301,55 @@ test("@native host capability open-external: Open summary hands the web summary 
   await missing.context.close();
 });
 
-test("@native host consent: the panel with no session shows Consent required and asks the shell for its dialog; once consent is granted it starts a session itself", async ({
+test("@native host consent: with no session the start screen asks the shell's consent first and starts nothing; with consent it still waits for Start", async ({
   browser,
   stack,
 }) => {
   const before = (await db.sessions()).length;
 
   // Not consented, and the shell offers its dialog: Review consent calls it,
-  // and nothing starts.
+  // and nothing starts, however long the window waits.
   const asking = await openPanel(
     browser,
     stack,
     { consent: false },
     { session: false },
   );
-  await expect(asking.page.getByText("Consent required")).toBeVisible();
+  await expect(asking.page.getByTestId("pn-start-hint")).toHaveText(
+    "Consent required",
+  );
   await asking.page.getByRole("button", { name: "Review consent" }).click();
   await expect
     .poll(async () => (await asking.host.calls("consent.open")).length)
     .toBe(1);
+  // A blocked Start still answers a press; Playwright treats aria-disabled as
+  // not clickable, so the press is forced.
+  await asking.page
+    .getByRole("button", { name: "Start session" })
+    .click({ force: true });
   expect(await db.sessions()).toHaveLength(before);
   await asking.context.close();
 
-  // Consented (the shell's flag, as StudioWebView.swift sets it): the same
-  // panel starts the session, once, and shows the controls.
+  // Consented (the shell's flag, as StudioWebView.swift sets it): the window
+  // shows the start screen and starts NOTHING by itself; Start starts one.
   const granted = await openPanel(
     browser,
     stack,
     {},
     { session: false, flag: true },
   );
-  await expect(granted.toolbar).toBeVisible();
+  await expect(granted.page.getByTestId("pn-start")).toBeVisible();
+  await expect(granted.page.getByTestId("pn-start-hint")).toHaveText(
+    "Listening starts right away",
+  );
+  await granted.page.waitForTimeout(2_500);
+  expect(await db.sessions()).toHaveLength(before);
+  await granted.page.getByRole("button", { name: "Start session" }).click();
   await expect.poll(async () => (await db.sessions()).length).toBe(before + 1);
   const created = (await db.sessions()).at(-1);
   expect(created?.status).toBe("active");
-  await expect(granted.page.getByText("Consent required")).toBeHidden();
+  await expect(granted.page.getByTestId("pn-start")).toBeHidden();
+  await expect(granted.toolbar).toBeVisible();
   await granted.context.close();
 });
 

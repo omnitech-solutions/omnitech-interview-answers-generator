@@ -21,9 +21,12 @@ final class ShellModel {
     // Whether Studio has a real login provider (nil: not asked yet). Without one
     // the shell never prompts to sign in: the default dev user needs none.
     private(set) var signInAvailable: Bool?
-    // Set by the app: runs the native sign-in round trip / abandons it.
+    // Set by the app: shows Studio's sign-in panel / abandons a sign-in in flight.
     var onSignInRequested: () -> Void = {}
+    var onChangeConnectionRequested: () -> Void = {}
     var onSignInAbandoned: () -> Void = {}
+    // Why the next sign-in panel opens (a sign-out), told to the panel once.
+    var signInNotice: SignInNotice?
     private var lastProbe: ProbeResult?
 
     let pairing = StudioPairing(credentials: KeychainCredentialStore(), paths: CompanionPaths())

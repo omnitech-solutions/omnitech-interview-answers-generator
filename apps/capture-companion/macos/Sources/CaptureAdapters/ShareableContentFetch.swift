@@ -14,6 +14,13 @@ public enum ShareableContent {
         public let reason: String
     }
 
+    // [SAFETY] INVARIANT (@unchecked Sendable): a single immutable `let`. The
+    // completion handler creates it and resumes the continuation exactly once; it
+    // keeps no reference afterwards, so the awaiting task becomes the sole owner and
+    // nothing mutates it. `SCShareableContent` is a read-only snapshot, but Apple does
+    // not mark it Sendable, so its internal thread-safety is UNVERIFIED.
+    // REMOVAL PLAN: return the content as a `sending` value (SE-0430) from the
+    // continuation, or drop the box once the SDK marks `SCShareableContent` Sendable.
     private final class Box: @unchecked Sendable {
         let content: SCShareableContent
         init(_ content: SCShareableContent) { self.content = content }
@@ -40,6 +47,13 @@ public enum ShareableContent {
         return box.content
     }
 
+    // [SAFETY] INVARIANT (@unchecked Sendable): a single immutable `let` holding an
+    // immutable CoreGraphics image, created in the completion handler and handed to the
+    // awaiting task once; nothing keeps a second reference or mutates it. CGImage is a
+    // Core Foundation immutable type, but whether the installed SDK marks it Sendable
+    // was not checked: UNVERIFIED.
+    // REMOVAL PLAN: same as `Box`: `sending` result, or delete the box when CGImage is
+    // Sendable in the SDK.
     private final class ImageBox: @unchecked Sendable {
         let image: CGImage
         init(_ image: CGImage) { self.image = image }

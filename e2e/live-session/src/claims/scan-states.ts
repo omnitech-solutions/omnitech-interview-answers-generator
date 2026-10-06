@@ -165,6 +165,49 @@ export async function scanNative(
     page.getByRole("button", { name: "Review consent" }),
   ).toBeVisible();
   await note("native-no-session", page);
+  // The idle start screen's account menu and a permission that is not allowed.
+  await page.getByRole("button", { name: /^Account: / }).click();
+  await note("native-account-menu", page);
+  await page.keyboard.press("Escape");
+  await shimFor(page).setPermissions({
+    microphone: "granted",
+    screen: "denied",
+  });
+  await expect(
+    page.getByRole("button", { name: "Allow…" }).first(),
+  ).toBeVisible();
+  await note("native-permission-denied", page);
+
+  // The signed-out window: Studio's public sign-in page with no session cookie,
+  // the waiting screen of the browser round trip, and the local-profile step.
+  const signedOut = await browser.newContext({
+    storageState: { cookies: [], origins: [] },
+    viewport: { width: 760, height: 640 },
+  });
+  await installHostShim(signedOut);
+  const out = await signedOut.newPage();
+  await out.route("**/api/native-auth/providers", (route) =>
+    route.fulfill({
+      json: { configured: true, providers: ["google", "linkedin", "local"] },
+    }),
+  );
+  await out.goto(`${stack.webUrl}/native/sign-in?tenant=${stack.tenantSlug}`);
+  await expect(
+    out.getByRole("button", { name: "Continue with Google" }),
+  ).toBeVisible();
+  await note("native-signed-out", out);
+  await out.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(
+    out.getByRole("button", { name: "Open browser again" }),
+  ).toBeVisible();
+  await note("native-signin-waiting", out);
+  await out.getByRole("button", { name: "Cancel" }).click();
+  await out.getByTestId("pn-start-local").click();
+  await expect(
+    out.getByRole("button", { name: "Continue on this Mac" }),
+  ).toBeVisible();
+  await note("native-signin-local", out);
+  await signedOut.close();
 
   const { id } = await startSessionViaApi();
   await page.goto(url({ panel: "single", handsFree: true, sessionId: id }));

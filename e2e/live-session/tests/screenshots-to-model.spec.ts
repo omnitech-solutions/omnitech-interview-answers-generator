@@ -351,6 +351,8 @@ async function openArea(page: Page) {
 // The caption of the first thumbnail says `text`, opening the area if needed.
 async function expectSentAs(page: Page, text: string) {
   await expect(async () => {
+    // A branch, not an assertion: the area may already be open, and the web-first
+    // expect below is what proves the caption; this retries as a whole.
     if (!(await page.getByTestId("sent-as").first().isVisible()))
       await openArea(page);
     await expect(page.getByTestId("sent-as").first()).toHaveText(text, {

@@ -53,3 +53,14 @@ public enum ConnectionRules {
 public enum VisibilityTruth {
     public static let line = "Visible window · shows in screen shares"
 }
+
+// Which sign-in items the menu-bar menu offers, decided apart from AppKit.
+public enum StatusMenuRules {
+    // "Sign in to Studio…" shows while Studio says the web view is signed out.
+    public static func showsSignIn(_ connection: ConnectionState) -> Bool { connection == .signInRequired }
+
+    // "Sign out" ends this Mac's Studio session, so it is offered only while
+    // Studio says someone is signed in (a development Studio that signs every
+    // request in still answers 200, so it reads as signed in).
+    public static func signOutEnabled(paired: Bool, signedIn: Bool?) -> Bool { paired && signedIn == true }
+}

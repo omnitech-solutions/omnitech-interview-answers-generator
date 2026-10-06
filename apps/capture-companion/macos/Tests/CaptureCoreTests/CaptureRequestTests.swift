@@ -43,6 +43,10 @@ private func screenshotRequestIds(_ transport: ScriptedTransport) async -> [Stri
     return ids
 }
 
+// Test-only. [SAFETY] Set to false by the test body after `await h.session.tick()` returns,
+// and read by the fake transport's responder during later ticks; the harness awaits each
+// tick, so reads and the write do not overlap (not proven by a lock: UNVERIFIED if ticks ever
+// run concurrently). REMOVAL PLAN: `OSAllocatedUnfairLock<Bool>`.
 private final class Flag: @unchecked Sendable { var on = true }
 
 @MainActor

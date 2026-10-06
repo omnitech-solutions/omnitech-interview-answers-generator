@@ -10,6 +10,15 @@ import StudioShellCore
 // adapters. The screen source holds NO stream: the shell captures one still
 // image per Studio request and never samples the screen on its own, so "screen
 // running" only means Screen Recording is allowed and Studio may ask.
+// [SAFETY] INVARIANT (@unchecked Sendable): every stored property is a `let`
+// holding a Sendable value (`CaptureEvents` is a Sendable struct of @Sendable
+// closures) or an object that is itself an audited @unchecked Sendable adapter
+// (`MicrophoneCapture`, `ScreenKitSource`); the only `var`, `generation`, is read
+// and written inside `lock.withLock`. This type adds no hazard of its own, but it
+// inherits the unguarded start/stop overlap noted on those adapters (the `Task`s
+// started here are not ordered with `stop`).
+// REMOVAL PLAN: drop it when the two adapters become Sendable or actors, and keep
+// `generation` in an `OSAllocatedUnfairLock<Int>`.
 final class EngineSources: SourceControl, @unchecked Sendable {
     private let microphone: MicrophoneCapture?
     private let applicationAudio: ScreenKitSource?
@@ -152,8 +161,11 @@ public final class SystemCompanionRun: EngineRun {
         box.run = self
     }
 
-    private final class EventBox: @unchecked Sendable {
-        @MainActor var run: SystemCompanionRun?
+    // [SAFETY] The only stored property is isolated to the main actor, so the box is
+    // Sendable by isolation, not by assertion: the OS-queue callbacks capture the box
+    // and read `run` only inside `Task { @MainActor in ... }`.
+    @MainActor private final class EventBox {
+        var run: SystemCompanionRun?
     }
 
     fileprivate func audio(_ source: CaptureSource, _ frame: AudioFrame) {

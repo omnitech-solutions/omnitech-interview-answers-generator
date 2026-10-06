@@ -141,6 +141,14 @@ public enum ReadingOrder {
 
 // [DOMAIN] A one-shot result: the first `finish` resumes the waiting caller and cancels
 // the tasks that raced for it; every later one is dropped.
+// [SAFETY] INVARIANT (@unchecked Sendable): every mutable field (`continuation`,
+// `tasks`, `done`, `early`) is read and written only inside `lock.withLock`; the
+// lock is never held across `resume` or `cancel`, which run after it is released.
+// `Value` is Sendable, so the value handed to the continuation is safe to cross.
+// `done` makes `finish` one-shot and `early` covers `finish` arriving before
+// `start`, so the continuation is resumed exactly once.
+// REMOVAL PLAN: hold the state in an `OSAllocatedUnfairLock<State>` (Sendable, macOS 13+)
+// and drop the unchecked conformance, or a `Mutex` once the deployment target is macOS 15.
 final class DeadlineRace<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Value?, Never>?

@@ -8,6 +8,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     struct Actions {
         var openStudio: () -> Void
         var signIn: () -> Void
+        var signOut: () -> Void
         var openInBrowser: () -> Void
         var switchSession: (SessionChoice) -> Void
         var togglePause: () -> Void
@@ -66,10 +67,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         let paired = model.location != nil
-        if model.connection == .signInRequired { add("Sign in to Studio…", #selector(signIn), enabled: true) }
+        if StatusMenuRules.showsSignIn(model.connection) { add("Sign in to Studio…", #selector(signIn), enabled: true) }
         add(actions.presentation().appMode == .expanded ? "Minify to Compact Window" : "Expand to Studio", #selector(toggleMode), enabled: paired)
         add("Open Studio", #selector(openStudio), enabled: paired)
         add("Open Studio in Browser", #selector(openInBrowser), enabled: paired)
+        // Ends this Mac's Studio session only; offered while Studio says someone is signed in.
+        add("Sign out", #selector(signOut), enabled: StatusMenuRules.signOutEnabled(paired: paired, signedIn: model.signedIn))
 
         let switcher = NSMenuItem(title: "Switch Session", action: nil, keyEquivalent: "")
         let sub = NSMenu()
@@ -141,6 +144,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     @objc private func openStudio() { actions.openStudio() }
     @objc private func signIn() { actions.signIn() }
+    @objc private func signOut() { actions.signOut() }
     @objc private func openInBrowser() { actions.openInBrowser() }
     @objc private func switchSession(_ sender: NSMenuItem) {
         if choices.indices.contains(sender.tag) { actions.switchSession(choices[sender.tag]) }

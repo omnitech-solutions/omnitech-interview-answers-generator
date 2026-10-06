@@ -1,7 +1,7 @@
 import AppKit
 import StudioShellCore
 
-// The connect flow: Studio's address (default http://127.0.0.1:3100), the
+// The connect flow: Studio's address (default http://127.0.0.1:3000), the
 // workspace slug, and optionally the credential Studio's pairing panel shows.
 // Plain AppKit form in a modal alert; the credential field is secure and its
 // value is passed straight to the Keychain.

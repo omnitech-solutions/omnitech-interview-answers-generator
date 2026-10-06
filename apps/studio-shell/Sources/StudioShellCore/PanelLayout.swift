@@ -11,16 +11,22 @@ public enum WindowKind: String, CaseIterable, Sendable {
     // The value of `?panel=` on the overlay route: the page decides what to draw.
     public var queryName: String { self == .compact ? "single" : "settings" }
 
+    // The toolbar (window controls, mode, microphone, domain, the tool buttons and
+    // the account control) is as wide as its items and never clipped, so the
+    // compact window is never narrower than it: 744pt measured in the page plus
+    // the window's side gutters.
+    public static let toolbarWidth = 760.0
+
     public var defaultSize: CGSize {
         switch self {
-        case .compact: CGSize(width: 440, height: 640)
+        case .compact: CGSize(width: 800, height: 640)
         case .settings: CGSize(width: 400, height: 380)
         }
     }
 
     public var minSize: CGSize {
         switch self {
-        case .compact: CGSize(width: 320, height: 360)
+        case .compact: CGSize(width: Self.toolbarWidth, height: 360)
         case .settings: CGSize(width: 320, height: 240)
         }
     }

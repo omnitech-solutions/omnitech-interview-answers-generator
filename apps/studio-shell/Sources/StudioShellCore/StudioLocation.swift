@@ -5,7 +5,7 @@ import Foundation
 // route from it, the overlay route every host loads (ADR-0017), and keeps every
 // other address out of the web view.
 public struct StudioLocation: Equatable, Sendable {
-    public static let defaultAddress = "http://127.0.0.1:3100"
+    public static let defaultAddress = "http://127.0.0.1:3000"
     public static let productId = "interview"
 
     public let endpoint: Endpoint
