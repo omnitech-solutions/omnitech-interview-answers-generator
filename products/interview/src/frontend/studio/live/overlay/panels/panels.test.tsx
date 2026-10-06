@@ -232,6 +232,31 @@ describe("analysis", () => {
     expect(screen.getByTestId("pn-language")).toHaveTextContent("TYPESCRIPT");
     expect(code.querySelector(".cm-editor")).not.toBeNull();
   });
+  it("shows an interview answer's talking points with bold key terms, inert, and copies them plain", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText: write } });
+    const draft = [
+      "- **Idempotency keys** make a retried charge safe",
+      "- Watch the **p99** <img src=x onerror=alert(1)> [link](https://x.test)",
+    ].join("\n");
+    serve(live(), [answerAction(answerResult({ draft, claims: [] }))]);
+    await show("single");
+    const pane = screen.getByTestId("pn-answer");
+    expect(
+      [...pane.querySelectorAll("p strong")].map((el) => el.textContent),
+    ).toEqual(["Idempotency keys", "p99"]);
+    expect(pane).toHaveTextContent(
+      "Idempotency keys make a retried charge safe",
+    );
+    expect(pane.querySelector("img")).toBeNull();
+    expect(pane.querySelector("a")).toBeNull();
+    expect(pane).toHaveTextContent("[link](https://x.test)");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Copy answer/ }));
+    });
+    expect(write).toHaveBeenCalledWith(draft.replaceAll("**", ""));
+    vi.unstubAllGlobals();
+  });
   it("asks for what the model says is missing, and lets the person say it looks complete", async () => {
     serve(live(), [
       {

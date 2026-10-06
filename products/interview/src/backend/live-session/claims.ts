@@ -402,6 +402,15 @@ const expectedKind = (kind: ClaimKind): SourceKind | null =>
       ? "candidate-preference"
       : null;
 
+// Typographic variants of one character: curly quotes, the dashes and the
+// ellipsis. Used only to compare a quote with its source.
+const quoteForm = (text: string) =>
+  normalizeText(text)
+    .replace(/[\u2018\u2019\u201b\u2032`]/gu, "'")
+    .replace(/[\u201c\u201d\u201e\u2033]/gu, '"')
+    .replace(/[\u2010-\u2015\u2212]/gu, "-")
+    .replace(/\u2026/gu, "...");
+
 // [SAFETY] A quote cut mid-word ("successfully" out of "unsuccessfully") can
 // flip the meaning, so each end of the quote must meet a word boundary in the
 // source (a hyphen or apostrophe joins words).
@@ -442,8 +451,11 @@ function refPathCode(
   )
     return "stale_revision";
   if (ref.pointer !== source.pointer) return "pointer_mismatch";
-  const quote = normalizeText(ref.quote);
-  if (!quote || !quoteOnWordBoundaries(normalizeText(source.text), quote))
+  // [STRATEGY] Verbatim up to case, whitespace and typography: a model that
+  // writes a curly apostrophe, an en dash or a closing period has not changed
+  // a word. A different, added, dropped or cut word still fails.
+  const quote = quoteForm(ref.quote).replace(/^[\s.,;:!?]+|[\s.,;:!?]+$/gu, "");
+  if (!quote || !quoteOnWordBoundaries(quoteForm(source.text), quote))
     return "quote_mismatch";
   return null;
 }

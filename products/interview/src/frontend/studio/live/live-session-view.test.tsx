@@ -303,6 +303,34 @@ describe("experience answer", () => {
     ).toBeVisible();
   });
 
+  it("shows a point-form draft as bullets with bold key terms, inert, and copies it without the markers", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText: write } });
+    const draft = [
+      "- **Idempotency keys** make a retried charge safe",
+      "- Watch the **p99** and the **dead-letter queue** <script>window.__pwned = 1</script>",
+    ].join("\n");
+    show({ actions: [answerAction(answerResult({ draft, claims: [] }))] });
+    const panel = screen.getByTestId("task-panel");
+    expect(
+      [...panel.querySelectorAll(".live-draft li")].map((li) => li.textContent),
+    ).toEqual([
+      "Idempotency keys make a retried charge safe",
+      "Watch the p99 and the dead-letter queue <script>window.__pwned = 1</script>",
+    ]);
+    expect(
+      [...panel.querySelectorAll(".live-draft strong")].map(
+        (el) => el.textContent,
+      ),
+    ).toEqual(["Idempotency keys", "p99", "dead-letter queue"]);
+    expect(panel.querySelector("script")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Copy answer/ }));
+    });
+    expect(write).toHaveBeenCalledWith(draft.replaceAll("**", ""));
+    vi.unstubAllGlobals();
+  });
+
   it("shows the withheld notice with the count when the server recorded it", () => {
     show({
       actions: [

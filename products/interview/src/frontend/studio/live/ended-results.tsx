@@ -11,6 +11,7 @@ import {
   type WithheldNotice,
 } from "./ended-summary";
 import { copyText } from "./shared/copy-text";
+import { DraftPoints, plainDraft } from "./shared/draft-text";
 import { useSessionDraftLink } from "./workspace-handoff";
 
 // "Copied" only after the write succeeded; a blocked clipboard says so.
@@ -63,10 +64,12 @@ function AnswerResult({ row }: { row: AnswerRow }) {
         </div>
         <details className="ended-draft">
           <summary>Show draft</summary>
-          <p className="ended-draft-text">{row.draft}</p>
+          <div className="ended-draft-text">
+            <DraftPoints text={row.draft} />
+          </div>
         </details>
       </div>
-      <CopyButton text={row.draft} label={`Copy ${row.title}`} />
+      <CopyButton text={plainDraft(row.draft)} label={`Copy ${row.title}`} />
     </li>
   );
 }

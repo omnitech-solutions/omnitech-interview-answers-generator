@@ -5,6 +5,7 @@
 import { type ReactNode, useState } from "react";
 import { Icon, type IconName } from "../../icon";
 import type { TaskView } from "../session-tasks";
+import { InlineBold } from "../shared/draft-text";
 import { TASK_KIND } from "../shared/task-kind";
 import type { SessionDraftLink } from "../workspace-handoff";
 import { LiveCodeCanvas } from "./code-canvas";
@@ -184,7 +185,9 @@ export function ApproachBlock({
                   .length + 1}
               </span>
             )}
-            <span>{item.text}</span>
+            <span>
+              <InlineBold text={item.text} />
+            </span>
           </div>
         ),
       )}

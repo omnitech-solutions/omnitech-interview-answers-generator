@@ -15,6 +15,7 @@ import { Fragment, useContext, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { cardSize, presentation, usePresentation } from "../focus-presentation";
 import type { ActivityKey } from "../session-banners";
+import { plainDraft } from "../shared/draft-text";
 import { pickOf, taskAtRevision } from "../shared/revisions";
 import { RevisionsControl } from "../shared/revisions-control";
 import { idleCopy } from "../task-panels";
@@ -471,7 +472,9 @@ function CardView({
                       <button
                         type="button"
                         className="ov-button"
-                        onClick={() => shown.answer && copy(shown.answer.draft)}
+                        onClick={() =>
+                          shown.answer && copy(plainDraft(shown.answer.draft))
+                        }
                       >
                         <Icon name="content_copy" />
                         Copy answer

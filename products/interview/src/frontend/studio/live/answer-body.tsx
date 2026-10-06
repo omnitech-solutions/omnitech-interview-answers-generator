@@ -1,5 +1,5 @@
-// The body of an answer task: the suggested answer as plain text with a Copy
-// button, the claims behind it (each with its provenance chip), STAR sections
+// The body of an answer task: the suggested answer as point form (bullets and
+// bold key terms, never markup) with a Copy button, the claims behind it (each with its provenance chip), STAR sections
 // for a behavioural question, and what was found or is missing for logistics.
 // The draft and every claim are session content: inert text only.
 import { Icon } from "../icon";
@@ -10,6 +10,7 @@ import type {
   StarElement,
 } from "./session-results";
 import type { TaskView } from "./session-tasks";
+import { DraftPoints, plainDraft } from "./shared/draft-text";
 import type { TaskCard } from "./shared/task-card-model";
 
 const STAR_LABEL: Record<StarElement, string> = {
@@ -23,21 +24,6 @@ const LOGISTICS_LABEL: Record<LogisticsField, string> = {
   compensation: "Compensation",
   "work-arrangement": "Work arrangement",
 };
-
-// Plain paragraphs: blank lines split them, nothing is interpreted as markup.
-function Paragraphs({ text }: { text: string }) {
-  const parts = text.split(/\n{2,}/).filter((part) => part.trim() !== "");
-  return (
-    <>
-      {parts.map((part, index) => (
-        // Index key: paragraphs are split from one string with no id and the list is replaced whole, never reordered.
-        <p key={index} className="live-draft-text">
-          {part}
-        </p>
-      ))}
-    </>
-  );
-}
 
 function Star({ answer }: { answer: AnswerResult }) {
   return (
@@ -152,7 +138,7 @@ export function AnswerBody({
         <button
           type="button"
           className="studio-button live-copy"
-          onClick={() => onCopy(text)}
+          onClick={() => onCopy(plainDraft(text))}
         >
           <Icon name="content_copy" />
           Copy answer
@@ -165,7 +151,7 @@ export function AnswerBody({
       </p>
       {text.trim() !== "" && (
         <div className="live-draft">
-          <Paragraphs text={text} />
+          <DraftPoints text={text} />
         </div>
       )}
       {answer.star ? (

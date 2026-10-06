@@ -8,6 +8,7 @@ import { Icon } from "../../../icon";
 import { captureProblem } from "../../shared/capture-problem";
 import { CaptureProblemBanner } from "../../shared/capture-problem-banner";
 import { copyText } from "../../shared/copy-text";
+import { InlineBold, plainDraft } from "../../shared/draft-text";
 import {
   type MissingContextActionId,
   MissingContextStrip,
@@ -289,12 +290,12 @@ export function AnswerPane({ s }: { s: PanelSession }) {
               <strong>Input/Output:</strong>
               {view.input.length > 0 && (
                 <p>
-                  <b>Input:</b> {view.input.join(" ")}
+                  <b>Input:</b> <InlineBold text={view.input.join(" ")} />
                 </p>
               )}
               {view.output.length > 0 && (
                 <p>
-                  <b>Output:</b> {view.output.join(" ")}
+                  <b>Output:</b> <InlineBold text={view.output.join(" ")} />
                 </p>
               )}
             </div>
@@ -303,7 +304,9 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             <div key={step.heading}>
               <strong>{step.heading}</strong>
               {step.lines.map((line) => (
-                <p key={line}>{line}</p>
+                <p key={line}>
+                  <InlineBold text={line} />
+                </p>
               ))}
             </div>
           ))}
@@ -311,7 +314,9 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             <div>
               <strong>Complexity</strong>
               {view.complexity.map((line) => (
-                <p key={line}>{line}</p>
+                <p key={line}>
+                  <InlineBold text={line} />
+                </p>
               ))}
             </div>
           )}
@@ -321,7 +326,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 type="button"
                 className="pn-mini-button"
                 onClick={() =>
-                  void copying.copy("answer", card.answerText ?? "")
+                  void copying.copy("answer", plainDraft(card.answerText ?? ""))
                 }
               >
                 <Icon

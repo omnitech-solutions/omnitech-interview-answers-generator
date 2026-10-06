@@ -89,6 +89,78 @@ describe("matrix-backed", () => {
     ).toEqual([]);
   });
 
+  // The model's typography differs from the matrix's (curly quotes, en dashes,
+  // a closing period) without changing a word: still the same quote.
+  describe("verbatim up to typography", () => {
+    const typed = snap({
+      matrix: {
+        candidate: { name: "Candidate" },
+        roles: [
+          {
+            company: "Example Corp",
+            title: "Engineer",
+            responsibilities: [
+              "Led the team's 2020\u20132022 platform rewrite - end to end",
+            ],
+          },
+        ],
+      } as unknown as CandidateMatrix,
+    });
+    const POINTER = "/roles/0/responsibilities/0";
+    const claimWith = (quote: string) =>
+      run(
+        [
+          matrixClaim("Led the team's platform rewrite", [
+            ref(typed, POINTER, quote),
+          ]),
+        ],
+        typed,
+      );
+
+    it.each([
+      [
+        "curly apostrophe",
+        "Led the team\u2019s 2020\u20132022 platform rewrite - end to end",
+      ],
+      [
+        "hyphen for en dash",
+        "Led the team's 2020-2022 platform rewrite - end to end",
+      ],
+      [
+        "em dash for hyphen",
+        "Led the team's 2020\u20132022 platform rewrite \u2014 end to end",
+      ],
+      [
+        "a closing period",
+        "Led the team's 2020\u20132022 platform rewrite - end to end.",
+      ],
+      [
+        "a trailing comma and space",
+        "Led the team's 2020\u20132022 platform rewrite - end to end , ",
+      ],
+    ])("accepts %s", (_name, quote) => {
+      expect(claimWith(quote)).toEqual([]);
+    });
+
+    it.each([
+      [
+        "a changed word",
+        "Led the team's 2020\u20132022 platform rebuild - end to end",
+      ],
+      ["a quote cut mid-word", "Led the team's 2020\u20132022 platform rewr"],
+      [
+        "an added word",
+        "Led the entire team's 2020\u20132022 platform rewrite - end to end",
+      ],
+      [
+        "a changed figure",
+        "Led the team's 2020\u20132023 platform rewrite - end to end",
+      ],
+    ])("still rejects %s", (_name, quote) => {
+      expect(claimWith(quote)).toEqual(["claims.0.refs.0:quote_mismatch"]);
+    });
+  });
+
   it("needs at least one ref", () => {
     expect(run([matrixClaim("Built pipelines", [])])).toEqual([
       "claims.0.refs:missing_reference",

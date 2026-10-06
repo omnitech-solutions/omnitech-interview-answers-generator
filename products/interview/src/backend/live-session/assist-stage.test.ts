@@ -230,13 +230,58 @@ describe("assist request", () => {
   });
 });
 
+// The owner reads these while speaking: point form, bold key terms, a bounded
+// length, and only what the approved experience supports.
+describe("talking-points policy", () => {
+  const { system } = promptOf(stage.prepare(input("Tell me about caching.")));
+
+  it("asks for Markdown point form with bold key terms, never paragraphs", () => {
+    expect(system).toContain("Markdown point form");
+    expect(system).toContain("**bold**");
+    expect(system).toContain('starting with "- "');
+    expect(system).toContain("never paragraphs");
+  });
+
+  it("bounds the draft to 30-60 seconds, 60-90 only for a multi-part question", () => {
+    expect(system).toContain("30-60 seconds");
+    expect(system).toContain("60-90 seconds");
+    expect(system).toContain("only for a question with several distinct parts");
+    expect(system).toContain("exactly three points");
+  });
+
+  it("shapes STAR, logistics and questions-to-ask as points", () => {
+    for (const label of ["Situation", "Task", "Action", "Result"])
+      expect(system).toContain(`"- **${label}:** ..."`);
+    expect(system).toContain("one point per field");
+    expect(system).toContain("three sharp questions for the interviewer");
+  });
+
+  it("keeps a claim an exact copy of a whole cited entry, with a 0-based index", () => {
+    expect(system).toContain("Quote the WHOLE entry text exactly as given");
+    expect(system).toContain("No commentary, no interpretation");
+    expect(system).toContain("0-based position");
+    expect(system).toContain("same role");
+  });
+
+  it("makes a greeting, backchannel or role description a no-question, in speech too", () => {
+    expect(system).toContain("the category is no-question");
+    expect(system).toContain("a greeting, small talk");
+    expect(system).toContain("is always a question");
+  });
+
+  it("never lets the model state notice period or compensation itself", () => {
+    expect(system).toContain("make NO claim about them");
+    expect(system).toContain("never repeat a figure the interviewer said");
+  });
+});
+
 describe("the device window", () => {
   const manySources = snapshotOf({ preferences: CANDIDATE_PREFERENCES });
 
   it("shrinks the sources (whole entries only) and never truncates one mid-text", () => {
     // About 5.7 KB of spoken text leaves little room in the device window.
     const text = "describe the order service migration to PostgreSQL ".repeat(
-      112,
+      90,
     );
     const remote = promptOf(stage.prepare(input(text, manySources)));
     expect(remote.byteCount).toBeGreaterThan(DEVICE_MAX_PROMPT_BYTES);
@@ -629,7 +674,7 @@ describe("logistics", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.draft.draft).toContain("Notice period: two weeks.");
+    expect(result.draft.draft).toBe("- **Notice period:** two weeks.");
     expect(result.draft.draft).not.toContain("available whenever");
     expect(result.draft.claims[0]?.text).toBe("Notice period: two weeks.");
   });
@@ -645,8 +690,10 @@ describe("logistics", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    // The question asked about notice period (the model flagged it) and the
+    // approved preferences lack it: one fixed point, no model prose.
     expect(result.draft.draft).toBe(
-      "Ask the candidate to confirm this directly; no preference was cited for this answer.",
+      "- **Notice period:** not in your approved preferences, say it in your own words",
     );
     expect(result.draft.claims).toEqual([]);
     expect(result.draft.logistics?.missing).toEqual([
@@ -736,7 +783,7 @@ describe("logistics", () => {
       { field: "work-arrangement", claimIndex: 0 },
     ]);
     expect(result.draft.draft).toBe(
-      "From your stated preferences: Work arrangement: remote with occasional office visits.",
+      "- **Work arrangement:** remote with occasional office visits.",
     );
     expect(result.draft.logistics?.missing).toEqual([
       "notice-period",
@@ -1052,8 +1099,11 @@ describe("no-question category", () => {
     expect(result.ok && result.draft.missingContext).toBeFalsy();
   });
 
+  // A no-question reply is only an observation: whatever else the model put in
+  // it (claims, a STAR outline, logistics, a coding brief, an empty draft) is
+  // cleared, never a reason to reject a correct classification.
   it.each([
-    ["claims", { claims: [migrationClaim] }, "claims:unexpected"],
+    ["claims", { claims: [migrationClaim] }],
     [
       "star",
       {
@@ -1065,13 +1115,8 @@ describe("no-question category", () => {
           missing: ["situation", "task", "action", "result"],
         },
       },
-      "star:unexpected",
     ],
-    [
-      "logistics",
-      { logistics: { found: [], missing: ["notice-period"] } },
-      "logistics:unexpected",
-    ],
+    ["logistics", { logistics: { found: [], missing: ["notice-period"] } }],
     [
       "codingBrief",
       {
@@ -1081,10 +1126,38 @@ describe("no-question category", () => {
           constraints: [],
         },
       },
-      "codingBrief:unexpected",
     ],
-  ])("rejects %s on a no-question result", (_name, extra, code) => {
-    expect(violationsOf(noQuestion(extra))).toContain(code);
+    ["an empty draft", { draft: "" }],
+    [
+      "everything at once",
+      {
+        draft: "",
+        claims: [migrationClaim],
+        logistics: { found: [], missing: ["compensation"] },
+      },
+    ],
+  ])(
+    "accepts a no-question result carrying %s and clears it",
+    (_name, extra) => {
+      const result = check(noQuestion(extra));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.draft).toMatchObject({
+        category: "no-question",
+        draft: NO_QUESTION_DRAFT,
+        claims: [],
+        star: null,
+        logistics: null,
+        codingBrief: null,
+        sections: [],
+      });
+    },
+  );
+
+  it("still requires a non-empty draft for every other category", () => {
+    expect(violationsOf(output({ draft: "" }))).toEqual(
+      expect.arrayContaining([expect.stringContaining("draft")]),
+    );
   });
 
   it("leaves other unchanged: it still needs no structure and keeps grounding", () => {
