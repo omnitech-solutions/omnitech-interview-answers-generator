@@ -1113,6 +1113,20 @@ export function createDocumentsApi(options: {
       interviewValues: candidate.interviewValues,
       profileValues: candidate.profileValues,
       missingProfileKeys: candidate.missingProfileKeys,
+      // Regenerating one field keeps the kind and length of what it replaces. A whole
+      // document rewrite does not pay for second tries, and "fix" mode replaces the
+      // very value that failed validation (often too long).
+      ...("fieldKey" in input
+        ? {
+            replacing: Object.fromEntries(
+              fields.map((item) => [
+                item.key,
+                (current.revision.values as Record<string, string>)[item.key] ??
+                  "",
+              ]),
+            ),
+          }
+        : {}),
       generation: config.generation,
       signal: c.req.raw.signal,
     })

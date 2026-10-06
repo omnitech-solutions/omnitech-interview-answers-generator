@@ -33,6 +33,8 @@ export function builtInTemplates(
         "Never invent roles, companies, systems, technologies or metrics. Prefer the strongest match to the role over recency. If the matrix has no evidence for a field, leave it empty.",
         "Tone: spoken and professional, concrete and impactful rather than analytical. Experience bullets are complete, action-oriented sentences showing impact, technical depth and leadership. Skills fields are comma-separated lists ordered by relevance and must reflect technologies proven in the experience sections.",
         "Summary paragraphs hook the reader with top achievements and core expertise. Achievements and interests are short, genuine and human.",
+        "Location: the city field holds the city only and the region field holds the province or state only, as its standard two-letter abbreviation (for example AB); never repeat the city in the region.",
+        "A strength is a short label of two to five words, never a sentence.",
         `Be brief: a bullet is one sentence of at most ${brevity.fieldWords} words, a summary paragraph at most ${brevity.summaryWords} words, a skills line at most ${brevity.skillItems} items. Shorter and specific beats long and general.`,
       ].join("\n\n"),
     },

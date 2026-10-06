@@ -580,3 +580,105 @@ describe("parallel section generation", () => {
     ]);
   });
 });
+
+describe("regenerating one field", () => {
+  const strength: DocumentField = {
+    key: "strength_1",
+    label: "Strength 1",
+    source: "candidate-profile",
+    required: true,
+    maxLength: null,
+  };
+  const base = {
+    ...input,
+    fields: [strength],
+    candidacyValues: {},
+    missingProfileKeys: [],
+  };
+  const gateway = (...answers: string[]) => {
+    const execute = vi.fn();
+    for (const answer of answers)
+      execute.mockResolvedValueOnce({ result: { strength_1: answer } });
+    return { execute } as unknown as Pick<AiExecutionGateway, "execute">;
+  };
+  const prompt = (call: unknown) =>
+    JSON.parse(
+      (call as [{ task: { prompt: string } }])[0].task.prompt,
+    ) as Record<string, unknown>;
+
+  it("tells the model what it is replacing and how long the new text may be", async () => {
+    const g = gateway("Payments modernization");
+    await generateDocumentValues(g, {
+      ...base,
+      replacing: { strength_1: "Payments platform modernization" },
+    });
+    const sent = prompt((g.execute as ReturnType<typeof vi.fn>).mock.calls[0]);
+    expect(sent["fields"]).toEqual([
+      expect.objectContaining({
+        key: "strength_1",
+        currentValue: "Payments platform modernization",
+        targetWords: 3,
+        maxWords: 7,
+      }),
+    ]);
+  });
+
+  it("asks once more when the answer is far longer than the field it replaces", async () => {
+    const g = gateway(
+      "Automated 95%+ reconciliation across 1,500+ daily accounts at a large financial firm.",
+      "Reconciliation automation",
+    );
+    const result = await generateDocumentValues(g, {
+      ...base,
+      replacing: { strength_1: "Payments platform modernization" },
+    });
+    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(result.values["strength_1"]).toBe("Reconciliation automation");
+    const second = prompt(
+      (g.execute as ReturnType<typeof vi.fn>).mock.calls[1],
+    );
+    expect(second["corrections"]).toEqual([
+      expect.objectContaining({
+        key: "strength_1",
+        problem: "too-long",
+        maxWords: 7,
+      }),
+    ]);
+  });
+
+  it("asks once more when the answer is the text already there", async () => {
+    const g = gateway(
+      "Payments platform modernization",
+      "Payments modernization lead",
+    );
+    const result = await generateDocumentValues(g, {
+      ...base,
+      replacing: { strength_1: "Payments platform modernization" },
+    });
+    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(result.values["strength_1"]).toBe("Payments modernization lead");
+  });
+
+  it("keeps what was there when the second answer is still too long", async () => {
+    const long = "word ".repeat(30).trim();
+    const g = gateway(long, long);
+    const result = await generateDocumentValues(g, {
+      ...base,
+      replacing: { strength_1: "Payments platform modernization" },
+    });
+    expect(g.execute).toHaveBeenCalledTimes(2);
+    expect(result.values["strength_1"]).toBe("Payments platform modernization");
+  });
+
+  it("never retries a first-time generation, and an empty field has no cap", async () => {
+    const g = gateway("anything at all, however long it runs on for");
+    await generateDocumentValues(g, base);
+    expect(g.execute).toHaveBeenCalledTimes(1);
+    const empty = gateway("A first value for an empty field here");
+    await generateDocumentValues(empty, {
+      ...base,
+      replacing: { strength_1: "" },
+    });
+    expect(empty.execute).toHaveBeenCalledTimes(1);
+  });
+});

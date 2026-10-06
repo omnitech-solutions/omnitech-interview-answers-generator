@@ -626,11 +626,21 @@ describe("Documents private API", () => {
       post({ baseRevision: 2, fieldKey: "phone", aiTargetId: "test-model" }),
     );
     expect(directField.status).toBe(400);
+    const execute = vi.spyOn(ai, "execute");
     const regenerated = await mine.request(
       `${url}/${documentId}/regenerate`,
       post({ baseRevision: 2, fieldKey: "summary", aiTargetId: "test-model" }),
     );
     expect(regenerated.status, await regenerated.clone().text()).toBe(201);
+    // The model is told what the field holds now, so it keeps its kind and length.
+    const sent = JSON.parse(
+      (execute.mock.calls.at(-1)?.[0] as { task: { prompt: string } }).task
+        .prompt,
+    ) as { fields: Array<{ key: string; currentValue?: string }> };
+    expect(sent.fields).toEqual([
+      expect.objectContaining({ key: "summary", currentValue: "Manual" }),
+    ]);
+    execute.mockRestore();
     const current = await mine.request(`${url}/${documentId}`, { headers });
     const latest = (await current.json()) as {
       revision: {
