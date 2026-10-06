@@ -2,6 +2,58 @@
 
 _Append-only. Newest first._
 
+## [2026-10-05] journal | decision: Accept ADR-0005, 0006 and 0023; refuse 0004 and 0007; refresh the invariant records
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-05T21:38-06:00. Refs: [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat]]
+
+## [2026-10-05] adr | ADR-0023: accepted
+
+Use the query builder by default and check the database role on every tenant-scoped path. Accepted after each numbered Decision was checked against the code (evidence in `bionic/inbox/redesign/gov-report.md`).
+
+## [2026-10-05] adr | ADR-0006: accepted
+
+Keep login identities separate from connected provider accounts. Accepted after each numbered Decision was checked against the code (evidence in `bionic/inbox/redesign/gov-report.md`).
+
+## [2026-10-05] adr | ADR-0005: accepted
+
+Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security. Accepted after each numbered Decision was checked against the code (evidence in `bionic/inbox/redesign/gov-report.md`).
+
+## [2026-10-05] adr | ADR-0032: Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray
+
+Proposed. File `bionic/adrs/ADR-0032-keep-the-toolbar-capture-a-one-shot-analysis-and-s.md`. Tags: active-session, capture, toolbar, live-ui.
+
+## [2026-10-05] adr | ADR-0031: Send baseline security headers now and defer a Content-Security-Policy
+
+Proposed. File `bionic/adrs/ADR-0031-send-baseline-security-headers-now-and-defer-a-con.md`. Tags: security, nextjs, headers, csp.
+
+## [2026-10-05] adr | ADR-0030: Keep prompt-and-parse JSON in the provider-neutral direct Anthropic adapter
+
+Proposed. File `bionic/adrs/ADR-0030-keep-prompt-and-parse-json-in-the-provider-neutral.md`. Tags: ai, anthropic, adapters, structured-output.
+
+## [2026-10-05] adr | ADR-0029: Render the data-model architecture page from a project extractor behind Crux's override seam
+
+Proposed. File `bionic/adrs/ADR-0029-render-the-data-model-architecture-page-from-a-pro.md`. Tags: architecture, crux, documentation, drizzle, tooling.
+
+## [2026-10-05] adr | ADR-0028: Pass pointer events through only the transparent regions of the see-through window
+
+Proposed. File `bionic/adrs/ADR-0028-pass-pointer-events-through-only-the-transparent-r.md`. Tags: active-session, overlay, native, macos, presentation.
+
+## [2026-10-05] adr | ADR-0027: Treat a capture that shows no interview question as a note, not a task
+
+Proposed. File `bionic/adrs/ADR-0027-treat-a-capture-that-shows-no-interview-question-a.md`. Tags: active-session, capture, tasks, live-ui.
+
+## [2026-10-05] adr | ADR-0026: Let the owner choose per session whether screenshots are sent to the model as images
+
+Proposed. File `bionic/adrs/ADR-0026-let-the-owner-choose-per-session-whether-screensho.md`. Tags: active-session, screenshots, privacy, ocr, settings.
+
+## [2026-10-05] adr | ADR-0025: Recognise screenshot text on the device before any screenshot reaches the model
+
+Proposed. File `bionic/adrs/ADR-0025-recognise-screenshot-text-on-the-device-before-any.md`. Tags: active-session, ocr, screenshots, privacy.
+
+## [2026-10-05] adr | ADR-0024: Record every regeneration as a new revision of the same task and stage added screenshots until Apply
+
+Proposed. File `bionic/adrs/ADR-0024-record-every-regeneration-as-a-new-revision-of-the.md`. Tags: active-session, revisions, screenshots, privacy, live-ui.
+
 ## [2026-10-05] journal | decision: File Drizzle docs as research sources and extend the technology-references router
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-05T03:13-06:00. Refs: [[research/references/technology-references]]

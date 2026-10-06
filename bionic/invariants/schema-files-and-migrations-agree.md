@@ -21,4 +21,4 @@ checks: [schema-files-and-migrations-agree.md]
 
 **Recovery confidence:** **shape** — high confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 3) and enforced by existing migrate and schema-drift tests.
 
-**Check:** [[invariants/checks/schema-files-and-migrations-agree]] — run 2026-10-02; `last_result: pass`.
+**Check:** [[invariants/checks/schema-files-and-migrations-agree]] — run 2026-10-05; `last_result: pass`.

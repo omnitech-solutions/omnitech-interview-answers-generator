@@ -32,11 +32,20 @@ See [[research/index]].
 - [[research/references/technology-references]] — layer-to-reference map: React, Swift, Next.js, Hono, Drizzle, Postgres, AI, review — sources: 9 — `last_reviewed: 2026-10-05`
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 
-## ADRs (24)
+## ADRs (33)
 
 | id | title | status | date |
 |---|---|---|---|
-| [[adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat]] | Use the query builder by default and check the database role on every tenant-scoped path | Proposed | 2026-10-04 |
+| [[adrs/ADR-0032-keep-the-toolbar-capture-a-one-shot-analysis-and-s]] | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 |
+| [[adrs/ADR-0031-send-baseline-security-headers-now-and-defer-a-con]] | Send baseline security headers now and defer a Content-Security-Policy | Proposed | 2026-10-05 |
+| [[adrs/ADR-0030-keep-prompt-and-parse-json-in-the-provider-neutral]] | Keep prompt-and-parse JSON in the provider-neutral direct Anthropic adapter | Proposed | 2026-10-05 |
+| [[adrs/ADR-0029-render-the-data-model-architecture-page-from-a-pro]] | Render the data-model architecture page from a project extractor behind Crux's override seam | Proposed | 2026-10-05 |
+| [[adrs/ADR-0028-pass-pointer-events-through-only-the-transparent-r]] | Pass pointer events through only the transparent regions of the see-through window | Proposed | 2026-10-05 |
+| [[adrs/ADR-0027-treat-a-capture-that-shows-no-interview-question-a]] | Treat a capture that shows no interview question as a note, not a task | Proposed | 2026-10-05 |
+| [[adrs/ADR-0026-let-the-owner-choose-per-session-whether-screensho]] | Let the owner choose per session whether screenshots are sent to the model as images | Proposed | 2026-10-05 |
+| [[adrs/ADR-0025-recognise-screenshot-text-on-the-device-before-any]] | Recognise screenshot text on the device before any screenshot reaches the model | Proposed | 2026-10-05 |
+| [[adrs/ADR-0024-record-every-regeneration-as-a-new-revision-of-the]] | Record every regeneration as a new revision of the same task and stage added screenshots until Apply | Proposed | 2026-10-05 |
+| [[adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat]] | Use the query builder by default and check the database role on every tenant-scoped path | Accepted | 2026-10-05 |
 | [[adrs/ADR-0022-allow-owner-enabled-hands-free-listening-and-automatic-capture]] | Allow owner-enabled hands-free listening and automatic capture | Proposed | 2026-10-04 |
 | [[adrs/ADR-0021-negotiate-companion-capture-requests-and-report-their-failures]] | Negotiate companion capture requests and report their failures | Proposed | 2026-10-04 |
 | [[adrs/ADR-0020-sign-in-to-studio-from-the-native-shell-through-a-one-time-handoff]] | Sign in to Studio from the native shell through a one-time handoff | Proposed | 2026-10-04 |
@@ -53,8 +62,8 @@ See [[research/index]].
 | [[adrs/ADR-0009-keep-interview-documents-in-the-interview-product]] | Keep candidate documents in the Interview product | Accepted | 2026-10-02 |
 | [[adrs/ADR-0008-interview-answers-are-structured-guides-that-rende]] | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 |
 | [[adrs/ADR-0007-route-ai-work-through-aiexecutiongateway-profiles]] | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | 2026-10-02 |
-| [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] | Keep login identities separate from connected provider accounts | Proposed | 2026-10-02 |
-| [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | 2026-10-02 |
+| [[adrs/ADR-0006-keep-login-identities-separate-from-connected-prov]] | Keep login identities separate from connected provider accounts | Accepted | 2026-10-05 |
+| [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Accepted | 2026-10-05 |
 | [[adrs/ADR-0004-build-products-as-verticals-inside-a-modular-monol]] | Build products as verticals inside a modular-monolith platform shell | Proposed | 2026-10-02 |
 | [[adrs/ADR-0003-keep-package-boundaries-narrow-with-one-public-ent]] | Keep package boundaries narrow with one public entrypoint per runtime surface | Accepted | 2026-10-02 |
 | [[adrs/ADR-0002-simplicity-first-the-least-complex-design-that-mee]] | Simplicity first: the least complex design that meets current requirements | Accepted | 2026-10-02 |

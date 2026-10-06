@@ -28,3 +28,12 @@ _Each ADR bound to the promptbooks and runs whose artifacts reference it. Regene
 | ADR-0021 | no | — | — |
 | ADR-0022 | no | — | — |
 | ADR-0023 | no | — | — |
+| ADR-0024 | no | — | — |
+| ADR-0025 | no | — | — |
+| ADR-0026 | no | — | — |
+| ADR-0027 | no | — | — |
+| ADR-0028 | no | — | — |
+| ADR-0029 | no | — | — |
+| ADR-0030 | no | — | — |
+| ADR-0031 | no | — | — |
+| ADR-0032 | no | — | — |

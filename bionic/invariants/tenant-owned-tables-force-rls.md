@@ -21,4 +21,4 @@ checks: [tenant-owned-tables-force-rls.md]
 
 **Recovery confidence:** **data** — medium confidence. Stated in [[research/concepts/interview-domain-model]] ("Invariants", item 1) and asserted by an existing integration test; recovered from documentation and test names, not from a full schema walk.
 
-**Check:** [[invariants/checks/tenant-owned-tables-force-rls]] — run 2026-10-02; `last_result: pass`.
+**Check:** [[invariants/checks/tenant-owned-tables-force-rls]] — run 2026-10-05; `last_result: pass`.

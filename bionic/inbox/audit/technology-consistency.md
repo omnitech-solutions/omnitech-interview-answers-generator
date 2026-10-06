@@ -362,3 +362,28 @@ The lead read about 10 code locations. A security-relevant claim here means "the
 
 AU-SEC-02 now has one more entry point to weigh: with `FAKE_AUTH_ENABLED=true` in a production build, `/api/native-auth/start` offers the same passwordless `local` provider to the native shell (`apps/web/src/platform/fake-auth.ts` `localSignInNeeded`, `apps/web/app/api/native-auth/start/route.ts`). It grants nothing the provider did not already grant through `/api/auth/callback/local`, and it is off whenever the flag is off. If AU-SEC-02 is fixed by refusing the flag in production, this entry point and the e2e harness (which runs a production build with the flag and signs in through `local` over HTTP) both need an explicit, separate switch instead.
 
+
+## Resolution log (2026-10-05, GOV)
+
+Decisions recorded with no code change. Each is the lead's decision on the owner's instruction to decide the open items; the tracker is `bionic/inbox/redesign/resolution-tracker.md`. Nothing here was verified beyond what each row cites.
+
+| Item | Decision | Reason |
+| --- | --- | --- |
+| AU-DEP-01 (`next-auth` v5 beta, docs from `main`) | Recorded, no change. Re-capture the docs at the beta tag when the version is upgraded. | The dependency is pinned exactly (`5.0.0-beta.30`), so behaviour does not move until someone upgrades; the docs mismatch matters only at that moment, so the re-capture belongs to the upgrade. |
+| DK-BLD-01 (floating image tags) | Accepted. | The images are development-only and are rebuilt by `pnpm runner:build`; no deployed image exists, so a digest pin would add maintenance for no reproducibility anyone depends on. Revisit if an image is deployed. |
+| NX-BLD-01 (multi-instance hosting) | No action until a hosted target is chosen. | The repository has no hosted target and no Dockerfile for the web app or the worker; the app runs as one local process. The build id, shared encryption key, `trustHost` and cookie decisions revisit together when a target exists (see also AU-SEC-03/04). |
+| PW-TST-03 (one worker, one shared stack) | Resolved by sharding, no separate action. | Each e2e shard runs its own stack and database, so specs no longer share state across shards; within a shard each spec still starts its own session. |
+| TS-DEV-01 (strictness) | No action. | `tsconfig.base.json` already enables `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` and `noPropertyAccessFromIndexSignature`, which is stricter than the default the audit compared against. |
+| RE-SEC-01 (Mermaid strictness is the library's claim) | Accepted; Mermaid docs are not captured and stay a backlog item for `refresh-research-sources`. | The code sets `securityLevel: "strict"` and uploaded documents render in a script-less sandboxed frame with a no-network policy; the residual is only that the strictness is the library's own claim. |
+| AN-DEP-02 (two `@anthropic-ai/sdk` copies) | Note only. | The two copies (direct adapter and the agent SDK's own) are independent and both pre-1.0 pins; nothing breaks, so the note is to check both when upgrading either. |
+| AN-ARC-02 (structured outputs for the direct adapter) | Keep prompt-and-parse JSON; recorded as the Proposed [[adrs/ADR-0030-keep-prompt-and-parse-json-in-the-provider-neutral]]. | The gateway is provider-neutral and its adapters are kept thin (ADR-0007, rule 1: least complex design); the gain from native output is unmeasured. Revisit when the repair path is measured to cost something. |
+| SW-ARC-01 (shell target in Swift 5 mode) | Accepted; already documented in `Package.swift`. | Core and companion are Swift 6; the shell executable keeps Swift 5 mode for AppKit, WebKit and Carbon main-thread APIs, with the reason stated beside the setting. |
+| SW-TST-01 (executable test harnesses) | Accepted; already documented in the `Package.swift` headers and run by `verify-native.mjs`. | The Command Line Tools ship neither XCTest nor Swift Testing, so the harnesses are the only runnable tests on this machine. |
+| SW-SEC-02 (ad-hoc signing resets TCC grants) | Accepted. | The bundle is a development bundle signed ad hoc; the cost is re-granting permissions after a rebuild, which affects only the developer. |
+| Final report item 11c (G8, a complexity field on answers) | Not now. | It adds schema and prompt surface that cannot be validated without a live model; revisit after live testing. |
+
+Also recorded by GOV in the same pass:
+
+- NX-SEC-01 (security headers and CSP): baseline headers now, CSP deferred with its reasons, as the Proposed [[adrs/ADR-0031-send-baseline-security-headers-now-and-defer-a-con]]. Implementation is the WEB-HARDEN package.
+- Cross-cutting 1 (ADR-0004 to 0007 still Proposed): ADR-0005 and ADR-0006 accepted after each Decision was checked against the code; ADR-0004 and ADR-0007 are not accepted because one Decision in each does not match the code (see `bionic/inbox/redesign/gov-report.md`).
+- Cross-cutting 8 (stale invariant records): INV-0002 and INV-0004 were stale and now pass; INV-0006 now fails on matches in product code that no owner has reviewed.

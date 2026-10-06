@@ -21,4 +21,4 @@ checks: [package-boundaries-hold.md]
 
 **Recovery confidence:** **contract** — high confidence. Enforced on every `pnpm verify` by an executable test over every package manifest and import.
 
-**Check:** [[invariants/checks/package-boundaries-hold]] — run 2026-10-02; `last_result: pass`.
+**Check:** [[invariants/checks/package-boundaries-hold]] — run 2026-10-05; `last_result: pass`.

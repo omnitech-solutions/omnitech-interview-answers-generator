@@ -127,9 +127,13 @@ features stay disabled until approval is confirmed.
 `pnpm dev` starts PostgreSQL with Docker Compose (`compose.yaml`, port 54320),
 applies migrations (`pnpm --filter @omnitech/database db:migrate`) and seeds the
 local owner and tenant (`pnpm --filter @omnitech/platform-storage
-db:bootstrap`). The app connects as `omnitech`, which owns the database but is
-neither a superuser nor exempt from row-level security; the container's
-administrator is `postgres`. Tests start a throwaway container from the same
+db:bootstrap`). Two roles keep a compromised app from changing its own
+security (ADR-0005): `omnitech_owner` owns the database and schemas and runs the
+migrations (`DATABASE_OWNER_URL`), while the app connects as `omnitech`, which
+has data-manipulation grants only, is neither a superuser nor exempt from
+row-level security, and cannot disable it, drop a policy or run DDL. `pnpm dev`
+runs an idempotent step that creates the roles and grants on an existing volume
+without touching data; the container's administrator is `postgres`. Tests start a throwaway container from the same
 image for each test file, so Docker is the only database dependency.
 
 Schemas are declared with Drizzle in the package that owns them and migrated by

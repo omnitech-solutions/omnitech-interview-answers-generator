@@ -21,4 +21,4 @@ checks: [product-frontend-never-imports-apps-web.md]
 
 **Recovery confidence:** **contract** — high confidence (mechanical import check).
 
-**Check:** [[invariants/checks/product-frontend-never-imports-apps-web]] — run 2026-10-02; `last_result: pass`.
+**Check:** [[invariants/checks/product-frontend-never-imports-apps-web]] — run 2026-10-05; `last_result: pass`.

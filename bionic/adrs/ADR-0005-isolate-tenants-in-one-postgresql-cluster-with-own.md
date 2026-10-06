@@ -1,10 +1,10 @@
 ---
 id: ADR-0005
 title: "Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security"
-status: Proposed
-date: 2026-10-02
+status: Accepted
+date: 2026-10-05
 proposed_date: 2026-10-02
-accepted_date: null
+accepted_date: 2026-10-05
 deprecated_date: null
 superseded_date: null
 supersedes: []

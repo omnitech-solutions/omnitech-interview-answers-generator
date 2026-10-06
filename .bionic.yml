@@ -27,6 +27,8 @@ artifact_prefix: ""        # OPTIONAL. ^[A-Z][A-Z0-9]{1,9}$ or blank. Blank/abse
 # Project-local arch extractor. Crux has no Drizzle reader, so bionic/arch/data-model.md
 # is rendered from the latest committed drizzle-kit snapshot by this function. Crux runs
 # it ONLY with CRUX_ARCH_ALLOW_OVERRIDES=1: use `pnpm docs:arch` / `pnpm docs:arch:check`,
-# or export the flag, otherwise data-model regenerates as a stub and shows false drift.
+# or prefix ONE command with the flag, otherwise data-model regenerates as a stub and
+# shows false drift. Never export it in a shell profile: it lets Crux run repository
+# Python in every repository (ADR-0029).
 arch_extractors:
   data-model: tools/crux/arch/drizzle_data_model.py:extract_data_model

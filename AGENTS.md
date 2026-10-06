@@ -64,8 +64,10 @@ Crux is the only development workflow (ADR-0001).
 5. One PostgreSQL cluster: a `platform` schema plus one schema per owner.
    Every tenant-owned row carries `tenant_id`, row-level security is forced,
    and tenant foreign keys are composite on `(tenant_id, id)`. Tenant-scoped
-   Drizzle access goes through `withTenant()`; migrations are one Drizzle
-   stream in `packages/database/drizzle`. (ADR-0005)
+   access goes through `withTenant()` or `tenantTransaction`, the query
+   builder is the default for new repository code, and every path runs the
+   same database-role check; migrations are one Drizzle stream in
+   `packages/database/drizzle`. (ADR-0005, ADR-0023)
 6. Login identities prove who the user is; connected accounts separately
    authorise provider actions through their own OAuth flow, with encrypted
    tokens never sent to the client. Never reuse login tokens for

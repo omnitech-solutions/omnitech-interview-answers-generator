@@ -2,6 +2,13 @@
 
 _Written by forge-skill. Entries newest-first. Events: authored | revised | used | evaluated | fallback | escalated | pruned. forge-skill is the sole writer of the lifecycle events (authored, revised, pruned); the usage events (used, evaluated, fallback, escalated) are written by the session that used the forged skill, in forge-skill's locked format._
 
+## [2026-10-05 21:45] evaluated | bionic-regeneration
+- verdict: effective | gap: closed | recommend: keep
+- evidence: after three ADR acceptances and nine new ADRs the table named all five ADR-derived generators and the repair order, and every dry-run exited 0 afterwards, but it does not say that the arch decision index also moves with ADR tags, so that gate was left to the lead's docs:arch run.
+
+## [2026-10-05 21:44] used | bionic-regeneration
+- Regenerated the ADR index, index rollup, lineage, summaries and doctrine after ADR transitions and proposals, and re-checked each with --dry-run (the GOV worker ran the regenerators the skill names; arch and code were deliberately not regenerated): ok
+
 ## [2026-10-05 03:13] revised | technology-references
 - Changed: Drizzle no longer routes to the official docs URL alone; the skill now lists the filed `drizzle-*` source pages and adds a per-layer Drizzle line (read the sources and the three invariants, generate through `db:generate`, finish with `pnpm docs:arch` then `pnpm docs:arch:check`); no rule text was added.
 - Self-test: every path and script the new line names was checked against the repo (`db:generate` in `packages/database/package.json`, `docs:arch` scripts in the root `package.json`, the six source pages); the router was not run on a live Drizzle task.

@@ -2,7 +2,16 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
-| ADR-0023 | Use the query builder by default and check the database role on every tenant-scoped path | Proposed | 2026-10-04 | — (amends ADR-0005) | — | tenancy, drizzle, postgresql, security, data-access |
+| ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 | — (amends ADR-0018) | — | active-session, capture, toolbar, live-ui |
+| ADR-0031 | Send baseline security headers now and defer a Content-Security-Policy | Proposed | 2026-10-05 | — | — | security, nextjs, headers, csp |
+| ADR-0030 | Keep prompt-and-parse JSON in the provider-neutral direct Anthropic adapter | Proposed | 2026-10-05 | — | — | ai, anthropic, adapters, structured-output |
+| ADR-0029 | Render the data-model architecture page from a project extractor behind Crux's override seam | Proposed | 2026-10-05 | — | — | architecture, crux, documentation, drizzle, tooling |
+| ADR-0028 | Pass pointer events through only the transparent regions of the see-through window | Proposed | 2026-10-05 | — (amends ADR-0019) | — | active-session, overlay, native, macos, presentation |
+| ADR-0027 | Treat a capture that shows no interview question as a note, not a task | Proposed | 2026-10-05 | — (amends ADR-0016) | — | active-session, capture, tasks, live-ui |
+| ADR-0026 | Let the owner choose per session whether screenshots are sent to the model as images | Proposed | 2026-10-05 | — (amends ADR-0016) | — | active-session, screenshots, privacy, ocr, settings |
+| ADR-0025 | Recognise screenshot text on the device before any screenshot reaches the model | Proposed | 2026-10-05 | — (amends ADR-0016) | — | active-session, ocr, screenshots, privacy |
+| ADR-0024 | Record every regeneration as a new revision of the same task and stage added screenshots until Apply | Proposed | 2026-10-05 | — (amends ADR-0016) | — | active-session, revisions, screenshots, privacy, live-ui |
+| ADR-0023 | Use the query builder by default and check the database role on every tenant-scoped path | Accepted | 2026-10-05 | — (amends ADR-0005) | — | tenancy, drizzle, postgresql, security, data-access |
 | ADR-0022 | Allow owner-enabled hands-free listening and automatic capture | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, overlay, capture, privacy, hands-free |
 | ADR-0021 | Negotiate companion capture requests and report their failures | Proposed | 2026-10-04 | — (amends ADR-0018) | — | active-session, companion, wire, negotiation, capture |
 | ADR-0020 | Sign in to Studio from the native shell through a one-time handoff | Proposed | 2026-10-04 | — (amends ADR-0019) | — | active-session, native, auth, oauth, privacy |
@@ -19,8 +28,8 @@
 | ADR-0009 | Keep candidate documents in the Interview product | Accepted | 2026-10-02 | — | — | interview, documents, privacy, artifacts, ai |
 | ADR-0008 | Interview answers are structured guides that render their Markdown | Accepted | 2026-10-02 | — | — | interview, answers, contracts, playground |
 | ADR-0007 | Route AI work through AiExecutionGateway profiles and run agents only in the isolated worker | Proposed | 2026-10-02 | — | — | ai, execution, agents, privacy |
-| ADR-0006 | Keep login identities separate from connected provider accounts | Proposed | 2026-10-02 | — | — | identity, oauth, security, integrations |
-| ADR-0005 | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Proposed | 2026-10-02 | — | — | tenancy, storage, postgresql, security, drizzle |
+| ADR-0006 | Keep login identities separate from connected provider accounts | Accepted | 2026-10-05 | — | — | identity, oauth, security, integrations |
+| ADR-0005 | Isolate tenants in one PostgreSQL cluster with owned schemas and forced row-level security | Accepted | 2026-10-05 | — | — | tenancy, storage, postgresql, security, drizzle |
 | ADR-0004 | Build products as verticals inside a modular-monolith platform shell | Proposed | 2026-10-02 | — | — | platform, architecture, products, routing, modular-monolith |
 | ADR-0003 | Keep package boundaries narrow with one public entrypoint per runtime surface | Accepted | 2026-10-02 | — | — | packages, boundaries, monorepo, database |
 | ADR-0002 | Simplicity first: the least complex design that meets current requirements | Accepted | 2026-10-02 | — | — | architecture, simplicity, scope |

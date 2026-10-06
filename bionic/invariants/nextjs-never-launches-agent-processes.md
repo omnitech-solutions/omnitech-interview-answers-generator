@@ -21,4 +21,4 @@ checks: [nextjs-never-launches-agent-processes.md]
 
 **Recovery confidence:** **contract** — high confidence for the dependency half (mechanical), lower for the process half (a grep cannot see every way to spawn a process).
 
-**Check:** [[invariants/checks/nextjs-never-launches-agent-processes]] — run 2026-10-02; `last_result: pass`.
+**Check:** [[invariants/checks/nextjs-never-launches-agent-processes]] — run 2026-10-05; `last_result: pass`.
