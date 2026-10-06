@@ -165,6 +165,19 @@ describe("Interview Studio host", () => {
     expect(await response.json()).toMatchObject({ code: "runner-unavailable" });
   });
 
+  it("says the same when the host's code runner service is not reachable", async () => {
+    runner.runAll.mockRejectedValueOnce(
+      new Error("The code runner is unavailable."),
+    );
+    const record = await (await call(`${drafts}/q1`)).json();
+    const response = await call(`${drafts}/q1/run-code`, {
+      method: "POST",
+      body: { origin: record.origin, requestId: "run-service-down" },
+    });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "runner-unavailable" });
+  });
+
   it("serves the plan, briefs, rehearsals and briefing packs for the member", async () => {
     for (const path of [
       "/api/interview/plan",

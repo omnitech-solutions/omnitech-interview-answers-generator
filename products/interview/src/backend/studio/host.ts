@@ -41,6 +41,14 @@ import { createBriefsApi } from "../briefs/api";
 import { createPlanApi } from "../plan/api";
 import { createRehearsalApi, rehearsalStatus } from "../rehearsal/api";
 
+// What the two code runners say when they cannot run anything: Docker is not running
+// (the local runner), or the host's runner service cannot be reached (a web app in a
+// container). Both are "the runner is unavailable", not a server fault.
+const RUNNER_UNAVAILABLE = new Set([
+  "Docker daemon is unavailable.",
+  "The code runner is unavailable.",
+]);
+
 const NEW_QUESTION = "New interview question";
 // The Workspace id prefix of a session-owned draft (live-session/session-drafts.ts).
 const SESSION_WORKSPACE_PREFIX = "active-session:";
@@ -348,10 +356,7 @@ export function createInterviewStudio(options: InterviewStudioOptions) {
     const result = await product
       .runCode(scope, input, context.req.raw.signal)
       .catch((error: unknown) => {
-        if (
-          error instanceof Error &&
-          error.message === "Docker daemon is unavailable."
-        )
+        if (error instanceof Error && RUNNER_UNAVAILABLE.has(error.message))
           throw new ApiError("runner-unavailable", 503);
         throw error;
       });

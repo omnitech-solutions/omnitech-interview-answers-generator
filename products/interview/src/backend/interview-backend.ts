@@ -1,5 +1,4 @@
 import type { AiExecutionGateway } from "@omnitech/ai-contracts";
-import { DockerCodeRunner } from "@omnitech/code-runner";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { PlatformContext } from "@omnitech/platform-contracts";
 import {
@@ -27,6 +26,7 @@ import { resolveDocumentsConfig } from "./documents/config";
 import { createSessionRoutes } from "./live-session/routes";
 import { loadLocalDefaultProfile } from "./local-default-profile";
 import { loadLocalTemplates, localMatrixPath } from "./local-seeds";
+import { createCodeRunner } from "./services";
 import { createInterviewStudio } from "./studio/host";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -178,7 +178,7 @@ async function build(
     models: assistantModels.catalog,
     modelVersion: services.modelVersion,
     generate: generator(services.ai, INTERVIEW_ASSISTANT_PROFILE),
-    runner: new DockerCodeRunner(),
+    runner: createCodeRunner(),
     contextCharacters: services.contextCharacters,
     // Local development starts briefing packs from the bundled profile, for
     // the local member only.
