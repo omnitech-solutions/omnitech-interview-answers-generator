@@ -32,11 +32,11 @@ main app's contract (`interview-contracts/src/workflows.ts`: header, labelled co
 usage cases, per-language rules). Its output has no guide.
 | # | Item | Status |
 | --- | --- | --- |
-| B1 | Live coding stage uses the main app's code contract | TODO |
-| B2 | Code card tabs: Solution / Usage / Tests (like the main page) | TODO (the card has Solution/Usage; tests are in a drawer) |
-| B3 | A failed test takes you to the failing test (tests tab, line) | TODO (link exists for the drawer; move to the tab) |
-| B4 | Tests are always generated and run | TODO (the host worker now has the Docker code runner) |
-| B5 | 15 different questions through the real model, output reviewed | TODO |
+| B1 | Live coding stage uses the main app's code contract | DONE (shared `codeQualityRules`; 565 tests) |
+| B2 | Code card tabs: Solution / Usage / Tests (like the main page) | DONE (unit tests; verify in the real card) |
+| B3 | A failed test takes you to the failing test (tests tab, line) | DONE (unit tests) |
+| B4 | Tests are always generated and run | DONE for the eval; the host worker runs them in Docker (verify in the stack) |
+| B5 | 15 different questions through the real model, output reviewed | DONE: 15/15 rubric, all tests green; lead reviewed the linked-list output (header, labelled reasons, usage, 6 tests) |
 
 ## C. AI generation
 | # | Item | Status |
@@ -74,12 +74,12 @@ answer; the next captured speech starts filling the box again.
 Fixture: `~/Desktop/Zensurance Pre-Screen 2026-10-02 11:45(GMT-6:00).txt`.
 | # | Item | Status |
 | --- | --- | --- |
-| E1 | Read how listening works today (companion segments, question detection, Auto vs Manual) and how the Manual box behaves | TODO |
-| E2 | A replay harness that feeds the transcript through the real server pipeline with realistic pacing and speaker turns (the same observations the companion posts) | TODO |
+| E1 | Read how listening works today | DONE: engine posts `transcript.final` to /ingest (mic = candidate, app audio = interviewer); server gate (`interview-policy`) opens tasks; assist stage classifies + drafts. Manual dictation fills the message box; the native engine runs only in Auto and its bridge is content-free |
+| E2 | A replay harness through the real ingest path | DONE: `.audit/replay.mts` (real envelope, credential, pacing; limit 120/min), eval stack on :3010 (cloned DB, own worker) |
 | E3 | Speech loopback test with macOS `say` through the speakers into the real mic (end to end on the Mac app) | TODO (optional, needs the user's room) |
-| E4 | Only real questions get answers (not small talk, backchannel, monologue); answers are talking points with bold key terms; grounded in the matrix; no invented claims | TODO |
+| E4 | Only real questions get answers; talking points with bold key terms; grounded; no invented claims | PARTLY: gate recall 13/13 on the real transcript, greetings/audio checks shut (table test); drafts now valid and point-form (12/12 + 6/6 in eval). TODO: one question split across fragments opens several tasks (058/061/065/067); verify in the pipeline |
 | E5 | Manual mode behaviour as described above | TODO |
-| E6 | Research: how the app that inspired the native app handles listening and manual mode | TODO (research worker) |
+| E6 | Research on Cluely and similar apps | DONE (report: little is public; clones use dual-source audio, LLM judges the question over a window, manual = hotkey/Ask button + text box; test with transcript replay, `say` + loopback) |
 
 ## F. Infrastructure for the above
 | # | Item | Status |
@@ -88,4 +88,5 @@ Fixture: `~/Desktop/Zensurance Pre-Screen 2026-10-02 11:45(GMT-6:00).txt`.
 | F2 | Commit and push in small commits; full `pnpm verify` before each push | ongoing |
 
 ## Log
+- 2026-10-06 (later): coding worker (15/15) and assist worker (12/12, 6/6) reviewed and committed; question gate fixed (greetings no longer open tasks, 'I'd love to hear' does); 3 commits. Orphaned worker bug found and fixed (kill the process tree).
 - 2026-10-06: crawl 1; D-1, D-2, D-3 fixed; A1, A2 built.
