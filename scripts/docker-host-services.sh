@@ -28,8 +28,9 @@ alive() { [ -f "$1.pid" ] && kill -0 "$(cat "$1.pid")" 2>/dev/null; }
 start_worker() {
   alive "$state-worker" && { echo "worker already running (pid $(cat "$state-worker.pid"))"; return; }
   command -v claude >/dev/null || { echo "claude CLI not found on PATH: install Claude Code and sign in" >&2; exit 1; }
-  # A fresh checkout has no build yet: build the worker and what it uses.
-  [ -f apps/agent-worker/dist/main.js ] || pnpm --filter "@omnitech/agent-worker..." run build
+  # Always build first (turbo skips what is unchanged): a worker started from an old
+  # bundle runs old prompts and an old question gate.
+  pnpm --filter "@omnitech/agent-worker..." run build >/dev/null
   # Same values compose.yaml gives the web service, so payloads verify. The worker
   # runs session tests in Docker directly, as it is on the host.
   DATABASE_URL="postgresql://omnitech:omnitech@127.0.0.1:54320/omnitech" \

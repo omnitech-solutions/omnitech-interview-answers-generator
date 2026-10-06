@@ -56,6 +56,10 @@ const NOT_QUESTIONS = [
   "Okay, fantastic. Let me take note.",
   "Understood?",
   "Agreed?",
+  // An announcement that trails off: the question text arrives in the next
+  // utterance, which opens the task; opening here would draft an empty question.
+  "Yeah, I completely agree with that, and thank you so much for sharing, and my next question for you now.",
+  "First off, thank you. And yeah, so, I'd love to ask how you",
   "Um, and yeah, that's the super quick overview. Do you have any questions at all about what I've discussed so far before I continue?",
 ];
 

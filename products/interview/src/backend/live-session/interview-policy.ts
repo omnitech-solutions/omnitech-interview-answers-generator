@@ -30,6 +30,10 @@ import {
 export interface InterviewSessionPolicy extends TaskPolicy {
   // Used to coalesce a split question across an interjected backchannel.
   isBackchannel(text: string): boolean;
+  // A reaction that carries no content of its own ("okay, sure", "yes ma'am",
+  // "that's great"): the one thing the other side may say between two pieces of one
+  // question. A short ANSWER ("two weeks") is not one.
+  isReaction(text: string): boolean;
   readonly assist: AssistStage;
   // The solution stage a coding task owes after its prose draft.
   readonly coding: CodingStage;
@@ -132,6 +136,29 @@ export function isFiller(text: string): boolean {
   return tokens.length > 0 && tokens.every((token) => FILLERS.has(token));
 }
 
+// The words a reaction is made of. Closed on purpose: a short answer shares none of
+// them ("two weeks", "about 165K"), so it is never mistaken for a reaction.
+const REACTION_WORDS = new Set(
+  [
+    "mm hm hmm mhm uh huh um er erm ah eh oh wow",
+    "yeah yep yes yup no nope right okay ok sure alright all",
+    "got it gotcha i see great cool nice awesome perfect lovely wonderful fantastic",
+    "good sounds exactly absolutely definitely totally of course interesting",
+    "thanks thank you ma am sir hang on one moment second well and so that s is really",
+  ]
+    .join(" ")
+    .split(" "),
+);
+export function isReaction(text: string): boolean {
+  const tokens = words(text);
+  return (
+    tokens.length > 0 &&
+    tokens.length <= 6 &&
+    !text.includes("?") &&
+    tokens.every((token) => REACTION_WORDS.has(squash(token)))
+  );
+}
+
 export function isBackchannel(text: string): boolean {
   const tokens = words(text);
   if (tokens.length === 0 || tokens.length > 4) return false;
@@ -150,6 +177,24 @@ const ASK_INTENT = [
   /\bi wanted to ask (?:you|about)\b/,
   /\bcould you (?:please )?(?:walk|talk|tell|describe|explain|share)\b/,
 ];
+
+// An ask cue only opens a task when the question text follows it. An announcement
+// that trails off ("...and my next question for you now.", "I'd love to ask how you")
+// is held: the question arrives in the next utterance, which opens the task, so
+// the draft is never written for an empty question.
+const MIN_WORDS_AFTER_ASK_CUE = 4;
+function hasAskWithContent(normalized: string): boolean {
+  return ASK_INTENT.some((cue) => {
+    for (const match of normalized.matchAll(new RegExp(cue.source, "g"))) {
+      const after = normalized
+        .slice((match.index ?? 0) + match[0].length)
+        .trim();
+      if (after !== "" && after.split(" ").length >= MIN_WORDS_AFTER_ASK_CUE)
+        return true;
+    }
+    return false;
+  });
+}
 
 // [GUARD] Social and logistical checks carry question marks but are not interview
 // questions: greetings, "can you hear me", and the "any questions about what I've
@@ -191,8 +236,7 @@ function isQuestion(text: string, monologue: boolean): boolean {
       lead = lead.replace(DISCOURSE_LEAD, "");
     return QUESTION_STARTERS.test(lead);
   };
-  if (ASK_INTENT.some((cue) => cue.test(normalize(sentences.join(" ")))))
-    return true;
+  if (hasAskWithContent(normalize(sentences.join(" ")))) return true;
   if (
     sentences.some(
       (sentence) =>
@@ -280,6 +324,8 @@ export function createInterviewSessionPolicy(
     assist: options.assist ?? createAssistStage(),
     coding: options.coding ?? createCodingStage(),
     isBackchannel: (text) => isBackchannel(text) || isFiller(text),
+    isReaction: (text) =>
+      isReaction(text) || isBackchannel(text) || isFiller(text),
     decide: async (input) => decideBaseline(input),
   };
 }

@@ -174,6 +174,90 @@ describe("a processed utterance is closed (M1)", () => {
   });
 });
 
+describe("one question said in two pieces is one task (E4)", () => {
+  const QUESTION =
+    "My next question is more of a storytelling opportunity, so I would love to hear if you can walk me through a project you are proud of.";
+  const CONTINUATION =
+    "What were some of the goals and maybe challenges you ran into?";
+
+  async function run2(
+    reaction: string | null,
+    gapMs: number,
+    reactionWords?: string,
+  ) {
+    const run = newRun();
+    arrive(run, 2_000, {
+      eventId: "e1",
+      speaker: "interviewer",
+      text: QUESTION,
+      startMs: 0,
+      endMs: 2_000,
+    });
+    await processUtterances(run, policy, 4_000, SETTLE_MS);
+    if (reaction !== null)
+      arrive(run, 4_500, {
+        eventId: "e2",
+        speaker: "candidate",
+        text: reaction,
+        startMs: 3_000,
+        endMs: 3_600,
+      });
+    const start = 2_000 + gapMs;
+    arrive(run, start + 2_000, {
+      eventId: "e3",
+      speaker: "interviewer",
+      text: reactionWords ?? CONTINUATION,
+      startMs: start,
+      endMs: start + 2_000,
+    });
+    await processUtterances(run, policy, start + 5_000, SETTLE_MS);
+    return taskList(run);
+  }
+
+  it("revises the open task when the rest of the question follows after a short reaction", async () => {
+    expect(await run2("Okay, sure.", 6_000)).toEqual(["q-e1@r2"]);
+  });
+
+  it("revises it when the rest follows with no reaction at all", async () => {
+    expect(await run2(null, 4_000)).toEqual(["q-e1@r2"]);
+  });
+
+  it("opens a new task when the candidate has answered in between", async () => {
+    expect(
+      await run2(
+        "Sure, so the project I would pick is the payments migration we did last year, where I led the team through the cutover.",
+        6_000,
+      ),
+    ).toEqual(["q-e1@r1", "q-e3@r1"]);
+  });
+
+  it("opens a new task when the next question comes long after", async () => {
+    expect(await run2("Okay.", 30_000)).toEqual(["q-e1@r1", "q-e3@r1"]);
+  });
+
+  it("holds an announcement that trails off, and the question that follows opens the one task", async () => {
+    const run = newRun();
+    arrive(run, 2_000, {
+      eventId: "a1",
+      speaker: "interviewer",
+      text: "Thank you so much for sharing that, and my next question for you now.",
+      startMs: 0,
+      endMs: 2_000,
+    });
+    await processUtterances(run, policy, 4_000, SETTLE_MS);
+    expect(taskList(run)).toEqual([]);
+    arrive(run, 12_000, {
+      eventId: "a2",
+      speaker: "interviewer",
+      text: "How would you estimate the way you currently split your time between coding, design and mentoring?",
+      startMs: 9_000,
+      endMs: 12_000,
+    });
+    await processUtterances(run, policy, 14_000, SETTLE_MS);
+    expect(taskList(run)).toEqual(["q-a2@r1"]);
+  });
+});
+
 // Every synthetic set, run paced (1x, 4x: segments arrive when their audio
 // ends and an ASR correction a few seconds later) and all at once (what a
 // rebuilt run does), must name the same questions. Revisions may differ: at 4x

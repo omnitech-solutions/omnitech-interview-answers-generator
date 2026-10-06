@@ -1016,6 +1016,74 @@ function correctionTarget(
   return null;
 }
 
+// [DOMAIN] A question is often said in pieces: the interviewer starts it, the
+// candidate reacts ("okay", "sure"), and the rest follows a few seconds later.
+// Each piece alone can look like a question, which would open a task (a model call
+// and a card) per piece. A question-like utterance that follows, within this window,
+// an earlier utterance of the same speaker that opened a task, with at most a short
+// reaction from the other side in between, continues that task: it revises it, so
+// the one card is redrafted from the whole question. A finished question (ending in
+// "?"), an answer in between (anything that is more than a reaction), or a long
+// pause, starts a new question.
+const CONTINUATION_GAP_MS = 12_000;
+
+function continuationTarget(
+  run: SessionRun,
+  policy: InterviewSessionPolicy,
+  utterance: Utterance,
+): string | null {
+  const segments = effectiveSegments(run.transcript);
+  let previous: (typeof segments)[number] | undefined;
+  for (const segment of segments)
+    if (
+      segment.speaker === utterance.speaker &&
+      segment.endMs <= utterance.startMs &&
+      !utterance.segmentIds.includes(segment.eventId)
+    )
+      previous = segment;
+  if (!previous || utterance.startMs - previous.endMs > CONTINUATION_GAP_MS)
+    return null;
+  // A finished question ("...your notice period?") is complete: what follows is a new
+  // one. The pieces of ONE question follow a statement-form or cut-off first piece
+  // ("I'd love to hear if you can walk me through a project...").
+  if (previous.text.trim().endsWith("?")) return null;
+  // Only reactions may come between the pieces: anything the other side says
+  // that carries content (an answer) closes the question.
+  const interjections = segments.filter(
+    (segment) =>
+      segment.speaker !== utterance.speaker &&
+      segment.startMs >= (previous?.endMs ?? 0) &&
+      segment.startMs < utterance.startMs,
+  );
+  if (!interjections.every((segment) => policy.isReaction(segment.text)))
+    return null;
+  const task = Object.values(run.tasks.tasks)
+    .reverse()
+    .find((candidate) =>
+      candidate.revisions.some((entry) =>
+        entry.basedOn.includes(previous?.eventId ?? ""),
+      ),
+    );
+  return task?.taskId ?? null;
+}
+
+// The same policy, except that a question it would open revises `taskId`.
+const continuing = (
+  policy: InterviewSessionPolicy,
+  taskId: string,
+): InterviewSessionPolicy => ({
+  ...policy,
+  decide: async (input) => {
+    const verdict = await policy.decide(input);
+    return verdict.decision.kind === "open"
+      ? {
+          segmentClass: verdict.segmentClass,
+          decision: { kind: "revise", taskId, reason: "follow_up" },
+        }
+      : verdict;
+  },
+});
+
 // Processes every effective utterance not yet processed, in time order, once
 // it has settled. The policy decides what an utterance means; a corrected
 // segment that replaces the source of a task is the correction of THAT task
@@ -1060,7 +1128,15 @@ export async function processUtterances(
           { kind: "revise", taskId: target, reason: "correction" },
           idsOf(run),
         )
-      : await processUtterance(run.tasks, policy, utterance, idsOf(run));
+      : await processUtterance(
+          run.tasks,
+          (() => {
+            const continues = continuationTarget(run, policy, utterance);
+            return continues ? continuing(policy, continues) : policy;
+          })(),
+          utterance,
+          idsOf(run),
+        );
     run.tasks = step.state;
     fromCore(run, step.trace);
     handled += 1;
