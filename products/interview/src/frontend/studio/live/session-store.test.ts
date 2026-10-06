@@ -85,7 +85,7 @@ describe("hydration", () => {
     expect(listener).toHaveBeenCalled();
   });
 
-  it("treats a 404 as no session and does not poll", async () => {
+  it("treats a 404 as no session: no stream is read, only a slow look for one started elsewhere", async () => {
     const server = createTestServer();
     const store = boot(server);
     store.subscribe(() => undefined);
@@ -94,7 +94,9 @@ describe("hydration", () => {
       hydration: "ready",
       session: null,
     });
-    expect(server.calls).toEqual(["GET /current"]);
+    expect(server.calls.every((call) => call === "GET /current")).toBe(true);
+    // At the discovery beat, not every second.
+    expect(server.count("GET /current")).toBe(3);
   });
 
   it("re-hydrates after a reload from the server, not from memory", async () => {
@@ -139,6 +141,88 @@ describe("hydration", () => {
       hydration: "ready",
       streamError: null,
     });
+  });
+});
+
+describe("discovery of a session started elsewhere", () => {
+  // A session the owner starts in the browser must show up in the Mac app's
+  // window (and the reverse) without a reload: the store keeps looking while none
+  // is open.
+  it("adopts a session that starts after the first read found none", async () => {
+    let started = false;
+    const server = createTestServer();
+    // The route answers 404 while no session is open.
+    server.on("GET /current", () =>
+      started
+        ? jsonResponse({ session: sessionView() })
+        : jsonResponse({ error: { code: "not_found" } }, 404),
+    );
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await advance(1_000);
+    expect(store.getSnapshot()).toMatchObject({
+      hydration: "ready",
+      session: null,
+    });
+    started = true;
+    await advance(5_000);
+    expect(store.getSnapshot().session?.id).toBe(SESSION_ID);
+    // And it is then read like any open session.
+    await advance(1_000);
+    expect(server.count("GET /:id/stream")).toBeGreaterThan(0);
+  });
+
+  it("adopts a new open session after the one on screen has ended", async () => {
+    const NEW_ID = "22222222-2222-4222-8222-222222222222";
+    let next = false;
+    const server = createTestServer();
+    // Each session answers its own stream: the first has ended, the new one is open.
+    server.on("GET /:id/stream", ({ url }) =>
+      jsonResponse(
+        streamPage({
+          session: url.pathname.includes(NEW_ID)
+            ? sessionView({ id: NEW_ID })
+            : sessionView({
+                status: "ended",
+                retention: "thirty-days",
+                endedAt: minutesAfter(2),
+              }),
+        }),
+      ),
+    );
+    // The first read finds the session open; once it has ended the route answers
+    // 404, until another starts.
+    let reads = 0;
+    server.on("GET /current", () => {
+      reads += 1;
+      if (next) return jsonResponse({ session: sessionView({ id: NEW_ID }) });
+      return reads === 1
+        ? jsonResponse({ session: sessionView() })
+        : jsonResponse({ error: { code: "not_found" } }, 404);
+    });
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await advance(2_000);
+    expect(store.getSnapshot().session?.status).toBe("ended");
+    next = true;
+    // Within two beats of the new session starting.
+    await advance(10_000);
+    expect(store.getSnapshot().session?.id).toBe(NEW_ID);
+    expect(store.getSnapshot().session?.status).not.toBe("ended");
+  });
+
+  it("looks only while the page is visible", async () => {
+    const server = createTestServer();
+    const store = boot(server);
+    store.subscribe(() => undefined);
+    await flush();
+    setVisible(false);
+    const before = server.count("GET /current");
+    await advance(30_000);
+    expect(server.count("GET /current")).toBe(before);
+    setVisible(true);
+    await advance(5_000);
+    expect(server.count("GET /current")).toBeGreaterThan(before);
   });
 });
 

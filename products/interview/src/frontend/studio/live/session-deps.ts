@@ -17,6 +17,9 @@ import type { TaskTarget } from "./shared/task-target";
 // changes, so every 5 s; failures back off from 5 s to 30 s.
 export const POLL_ACTIVE_MS = 1_000;
 export const POLL_PAUSED_MS = 5_000;
+// How often a store with no open session looks for one started elsewhere (another
+// browser tab, or the Mac app's window).
+export const DISCOVER_MS = 5_000;
 export const RETRY_BASE_MS = 5_000;
 export const RETRY_MAX_MS = 30_000;
 // A purging session is re-read until the purge finishes, at most this often.

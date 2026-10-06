@@ -18,6 +18,7 @@ import { createSessionActions } from "./session-actions";
 import { createSessionClient } from "./session-client";
 import { errorCodeOf as codeOf, TERMINAL_CODES } from "./session-codes";
 import {
+  DISCOVER_MS,
   isOpenSession as isOpen,
   POLL_ACTIVE_MS,
   POLL_PAUSED_MS,
@@ -283,7 +284,10 @@ export function createSessionStore(
       return;
     }
     const session = snapshot.session;
-    if (!session) return;
+    if (!session) {
+      scheduleDiscovery();
+      return;
+    }
     if (isOpen(session)) {
       if (visible() && !halted) void pump();
       return;
@@ -298,6 +302,39 @@ export function createSessionStore(
     }
     if (awaitingPurge(session) && settleAttempts < PURGE_SETTLE_ATTEMPTS)
       void settlePurge(session.id);
+    else scheduleDiscovery();
+  }
+
+  // [DOMAIN] With no open session on screen (none at all, or the last one has
+  // ended) the store keeps looking, slowly and only while the page is visible, for
+  // one started elsewhere: the owner starts a session in a browser tab and the Mac
+  // app's window must show it without a reload, and the other way round. A person
+  // who pinned a specific session is not moved off it.
+  function scheduleDiscovery() {
+    if (!watching || disposed || pinned !== null || !visible()) return;
+    schedule(() => void discover(), DISCOVER_MS);
+  }
+
+  async function discover() {
+    if (!watching || disposed || busy) return;
+    const bound = bindEpoch;
+    busy = true;
+    let found = false;
+    try {
+      const view = await client.current();
+      if (bound !== bindEpoch) return;
+      if (view && isOpen(view) && view.id !== snapshot.session?.id) {
+        adopt(view);
+        found = true;
+      }
+    } catch {
+      // A failed look is not a failure of any session: try again at the next beat.
+    }
+    busy = false;
+    if (found) {
+      failures = 0;
+      ensureRunning();
+    } else scheduleDiscovery();
   }
 
   function hydrate(): Promise<void> {
