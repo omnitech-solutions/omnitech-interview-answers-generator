@@ -10,6 +10,7 @@ const scope = { tenantId: "t", actorId: "a", productId: "omnitech.interview" };
 
 const {
   conceptExplanationSystemPrompt,
+  createCodeRunner,
   generateExplanation,
   generateInterviewAnswer,
 } = await import("./services");
@@ -263,5 +264,26 @@ describe("generateInterviewAnswer with a guide", () => {
         scope,
       ),
     ).rejects.toMatchObject({ code: "generation-failed" });
+  });
+});
+
+describe("createCodeRunner", () => {
+  it("runs code in Docker here, unless a runner service is named", async () => {
+    const { DockerCodeRunner, RemoteCodeRunner } = await import(
+      "@omnitech/code-runner"
+    );
+    expect(createCodeRunner({})).toBeInstanceOf(DockerCodeRunner);
+    expect(
+      createCodeRunner({
+        CODE_RUNNER_URL: "http://host.docker.internal:3002",
+        CODE_RUNNER_TOKEN: "t".repeat(32),
+      }),
+    ).toBeInstanceOf(RemoteCodeRunner);
+  });
+
+  it("refuses a runner service named without its token", () => {
+    expect(() =>
+      createCodeRunner({ CODE_RUNNER_URL: "http://host.docker.internal:3002" }),
+    ).toThrow(/CODE_RUNNER_TOKEN/);
   });
 });

@@ -152,14 +152,16 @@ What differs from `pnpm dev`:
   (`DOCKER_LM_STUDIO_HOST` changes the target). The model is therefore loopback
   and really is this device, and the declared locality defaults to `device`; if
   you point it at another machine, set `LM_STUDIO_LOCALITY=remote`.
-- **Running a coding answer's tests** needs the Docker runner, which would need
-  the host's Docker socket. It is not mounted, so `ACTIVE_SESSION_CODE_RUNNER`
-  stays unset in the containers and tests never run there.
+- **Running tests** needs Docker, which a container cannot reach: no Docker socket
+  is mounted, on purpose. The host runs a small code runner service
+  (`packages/code-runner/src/host-main.ts`, loopback only, bearer token, started with
+  `pnpm app:up`) and the web app calls it (`CODE_RUNNER_URL`, `CODE_RUNNER_TOKEN`).
+  The runner images come from `pnpm runner:build`, once.
 - **The agent worker runs on the host.** Claude Code and Codex are signed-in
   command-line tools (their credentials live in your login Keychain) and only the
   worker may launch them, so they cannot run in a container.
-  `scripts/docker-host-worker.sh start|stop|status` runs the worker against the
-  same database and secrets. It needs `ACTIVE_SESSION_AGENT_PORT=on` and
+  `scripts/docker-host-services.sh start|stop|status` runs the worker and the code
+  runner against the same database and secrets. It needs `ACTIVE_SESSION_AGENT_PORT=on` and
   `ACTIVE_SESSION_AGENT_PROFILE=claude` (the script sets both; they are also in
   `.env`), and it needs no LM Studio or API endpoint: the Claude Code runner is a
   complete session gateway on its own, and a device-only session is refused

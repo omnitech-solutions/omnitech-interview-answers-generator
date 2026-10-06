@@ -38,3 +38,6 @@ blob-report/
 # Local runtime state and the OCR copy docs:arch moves aside.
 /.dev-local/
 /apps/web/public/ocr.docs-arch-aside/
+
+# Scratch output of the UI audit harness.
+/e2e/live-session/.audit/

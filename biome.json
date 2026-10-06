@@ -10,6 +10,7 @@
       "!**/.test-results",
       "!apps/web/public/ocr",
       "!e2e/live-session/.stack",
+      "!e2e/live-session/.audit",
       "!**/.data",
       "!.dev-local",
       "!**/dist",

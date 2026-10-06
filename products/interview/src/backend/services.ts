@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { DockerCodeRunner } from "@omnitech/code-runner";
+import {
+  type CodeRunner,
+  DockerCodeRunner,
+  RemoteCodeRunner,
+} from "@omnitech/code-runner";
 import {
   type ExplanationRequest,
   type GeneratedAnswer,
@@ -39,7 +43,20 @@ export const libraryService = new LibraryService(
   join(dataDirectory, "library-index.msp"),
   interviewLibrarySeed,
 );
-export const codeRunner = new DockerCodeRunner();
+// [DOMAIN] Docker is only reachable from the host. A web app running in a container
+// names the host's runner service (scripts/docker-host-services.sh) with
+// CODE_RUNNER_URL and CODE_RUNNER_TOKEN; everywhere else the local Docker runs it.
+export function createCodeRunner(
+  env: Record<string, string | undefined> = process.env,
+): CodeRunner {
+  const url = env["CODE_RUNNER_URL"];
+  if (!url) return new DockerCodeRunner();
+  const token = env["CODE_RUNNER_TOKEN"];
+  if (!token)
+    throw new Error("CODE_RUNNER_URL needs CODE_RUNNER_TOKEN as well.");
+  return new RemoteCodeRunner({ baseUrl: url.replace(/\/$/, ""), token });
+}
+export const codeRunner = createCodeRunner();
 
 function normalizeCommentedConceptExample(markdown: string): string {
   const fencedCode = /```([a-z][\w+-]*)\n([\s\S]+?)\n```/i;

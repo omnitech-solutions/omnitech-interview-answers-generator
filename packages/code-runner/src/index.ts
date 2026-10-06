@@ -506,3 +506,6 @@ export class DockerCodeRunner implements CodeRunner {
     });
   }
 }
+
+export { RemoteCodeRunner, type RemoteCodeRunnerOptions } from "./remote";
+export { createRunnerHandler } from "./serve";

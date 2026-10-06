@@ -39,9 +39,14 @@ x-app-environment: &app-environment
   LM_STUDIO_MODEL: ${LM_STUDIO_MODEL:-qwen/qwen3-coder-30b}
   AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-600000}
   # The assistant is Claude Code, run by the agent worker on the host
-  # (scripts/docker-host-worker.sh); LM Studio is only used if you choose it.
+  # (scripts/docker-host-services.sh); LM Studio is only used if you choose it.
   INTERVIEW_ASSISTANT_DEFAULT_MODEL: ${INTERVIEW_ASSISTANT_DEFAULT_MODEL:-agent/claude-code}
   CLAUDE_ASSISTANT_MODEL: ${CLAUDE_ASSISTANT_MODEL:-claude-sonnet-5-5}
+  # Running tests needs Docker, which a container cannot reach (no Docker socket is
+  # mounted). The host runs a small code runner service (scripts/docker-host-services.sh)
+  # and the web app calls it; both ends share this token.
+  CODE_RUNNER_URL: http://host.docker.internal:3002
+  CODE_RUNNER_TOKEN: ${CODE_RUNNER_TOKEN:-docker-local-code-runner-token-change-me}
   INTERVIEW_DATA_DIR: /data
   PLATFORM_HTTP_URL: http://web:3000
   TERMINAL_GATEWAY_PORT: "3001"
@@ -134,7 +139,7 @@ services:
   # here, so ACTIVE_SESSION_CODE_RUNNER stays unset in this stack.
   # Not part of the default `app` profile: the agents it launches (Claude Code,
   # Codex) are signed-in CLIs that only exist on the host, so the worker runs
-  # there (scripts/docker-host-worker.sh). This container variant has no agent
+  # there (scripts/docker-host-services.sh). This container variant has no agent
   # runtime and refuses screenshots; start it only with --profile container-worker.
   agent-worker:
     <<: *app-common

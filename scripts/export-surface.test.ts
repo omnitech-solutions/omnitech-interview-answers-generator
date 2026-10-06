@@ -57,7 +57,9 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/ai-provider-images": { entrypoints: 1, names: 11 },
   "@omnitech/ai-provider-openai": { entrypoints: 1, names: 4 },
   "@omnitech/ai-runtime": { entrypoints: 2, names: 13 },
-  "@omnitech/code-runner": { entrypoints: 1, names: 3 },
+  // +3: the host runner service and its client (RemoteCodeRunner,
+  // RemoteCodeRunnerOptions, createRunnerHandler), for a containerised web app.
+  "@omnitech/code-runner": { entrypoints: 1, names: 6 },
   // +5 (T40): the boot-time pending-migration check, next to verifyDatabaseRole
   // (verifyMigrations, MigrationMismatchError, migrationStatus,
   // currentMigrationStatus, MigrationStatus).
