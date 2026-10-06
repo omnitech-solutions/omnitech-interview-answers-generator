@@ -1279,6 +1279,25 @@ describe("Documents private API", () => {
     expect(invalid.status).toBe(400);
   }, 30_000);
 
+  it("says why a template was refused, in fixed words that quote nothing from it", async () => {
+    const mine = app(ownerId);
+    const intake = new FormData();
+    intake.set("format", "docx");
+    intake.set("file", new File(["this is not a zip"], "broken.docx"));
+    const response = await mine.request(`${url}/templates/intake`, {
+      method: "POST",
+      headers,
+      body: intake,
+    });
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: { code: string; reason?: string };
+    };
+    expect(body.error.code).toBe("invalid-field-or-template");
+    expect(body.error.reason).toMatch(/\w{8}/);
+    expect(body.error.reason).not.toContain("this is not a zip");
+  });
+
   it("saves edited instructions as a new revision over the same fields", async () => {
     const mine = app(ownerId);
     const form = new FormData();

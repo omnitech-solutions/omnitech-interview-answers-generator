@@ -20,6 +20,7 @@ import { Hono } from "hono";
 import { ZodError, z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { createInFlight, linkedAbort, ndjsonResponse } from "../work-guards";
+import { builtInAssetUrl } from "./built-in-assets";
 import { type BuiltInKey, builtInTemplates } from "./built-in-templates";
 import { DEFAULT_DOCUMENTS_CONFIG, type DocumentsConfig } from "./config";
 import { DocumentContextNotFound, resolveDocumentContext } from "./context";
@@ -315,9 +316,7 @@ export function createDocumentsApi(options: {
         for (const template of builtInTemplates(config.brevity)) {
           const bytes =
             local[template.key] ??
-            (await readFile(
-              new URL(`./assets/${template.asset}`, import.meta.url),
-            ));
+            (await readFile(builtInAssetUrl(template.key)));
           const inspected = await inspectTemplate({
             format: template.format,
             bytes,
@@ -385,10 +384,19 @@ export function createDocumentsApi(options: {
       error instanceof DocumentSaveCancelled
     )
       return c.json({ error: { code: "cancelled" } }, 409);
-    if (
-      error instanceof InvalidField ||
-      error instanceof InvalidDocumentTemplateError
-    )
+    // The template's refusal reason is fixed text (never the file's own content),
+    // so it is safe to show and is what says which template check failed.
+    if (error instanceof InvalidDocumentTemplateError)
+      return c.json(
+        {
+          error: {
+            code: "invalid-field-or-template",
+            reason: error.message,
+          },
+        },
+        400,
+      );
+    if (error instanceof InvalidField)
       return c.json({ error: { code: "invalid-field-or-template" } }, 400);
     if (error instanceof ZodError)
       return c.json({ error: { code: "invalid-request" } }, 400);
