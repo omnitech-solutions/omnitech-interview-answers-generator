@@ -1,6 +1,6 @@
 # One component per job: UI component consolidation (plan and todos)
 
-Status: PHASE 1 (audit) dispatched 2026-10-06. Owner: the orchestrating session. Nothing is built until the audits are read and the plan below is revised from them.
+Status: PHASE 1 (audits) DONE 2026-10-06; PHASE 2 (decisions) DONE below; PHASE 3 (implementation) in progress. Owner: the orchestrating session.
 
 ## Why
 The owner found three different "resume" buttons (the web banner, the session bar, the native strip and footer) drawn by three different classes (`ov-button go`, `pn-mini-button`, `pn-bar-button`), and asked for ONE button component that is data/config driven (variant, size, state, icon, loading) and used by web and native alike, organised like `omni-ui-components/packages/core/src/components/ui` (one file per primitive; shadcn style: `cva` variants + sizes, `asChild`, `forwardRef`, `cn()`).
@@ -30,12 +30,12 @@ Read the four reports, decide: location, API (`variant`: primary | secondary | d
 Slice order (draft): 1) the component + tokens + docs/story page; 2) the live panel/footer/strip/banners/session bar (the "Resume" family); 3) the rest of the live and overlay UI; 4) rehearsal, documents, knowledge, settings, start; 5) native Swift wrapper(s) and any AppKit controls. Each slice: tests first or kept green, `pnpm verify` green, no behaviour change except the intended unification, class lists in hit-regions/WindowDrag updated, a short note of what moved.
 
 ## Todos
-- [ ] A: web buttons audit report
-- [ ] B: web primitives audit report
-- [ ] C: native audit report
-- [ ] D: reference and fit report
-- [ ] Orchestrator: read all four, spot-check claims against the code
-- [ ] Orchestrator: decide location and API; ADR if needed; revise this plan
+- [x] A: web buttons audit report
+- [x] B: web primitives audit report
+- [x] C: native audit report
+- [x] D: reference and fit report
+- [x] Orchestrator: read all four, spot-check claims against the code (419 buttons; .ov-button.go only in panels.css; .studio-button defined twice: confirmed)
+- [x] Orchestrator: decide location and API; ADR if needed; revise this plan (no ADR now; see decisions)
 - [ ] Orchestrator: write the Phase 3 worker briefs (one per slice, with the constraints above)
 - [ ] Slice 1: component + tokens + page
 - [ ] Slice 2: Resume family and live chrome
@@ -48,3 +48,25 @@ Slice order (draft): 1) the component + tokens + docs/story page; 2) the live pa
 
 ## Log
 - 2026-10-06: plan written; audits dispatched.
+
+## Phase 2 decisions (2026-10-06)
+Evidence: audit-web-buttons.md (419 `<button>`, 14+ class families, Resume drawn 7 ways, `.studio-button` defined twice with opposite defaults, heights 20-42px, radii 5-999px, three or four token systems and hundreds of hard-coded colours), audit-web-primitives.md (shared UI nearly absent: Icon, Dialog, Popover only), audit-native.md (native surface is tiny: no SwiftUI, no NSButton; every panel body is web content), audit-reference-fit.md (no Tailwind/cva/Radix here; recommends a product-internal ui folder).
+
+1. **Home**: `products/interview/src/frontend/ui/`, one file per primitive, `index.ts` the only import path. No new package, no ADR, no new dependency now (ADR-0002/0003: no boundary is crossed). Promote to `packages/ui` with an ADR when Presentation (its own product, 62 buttons) adopts it; everything imports from one `index.ts`, so that move is mechanical.
+2. **Design tokens are mandatory (owner, 2026-10-06)**: no component and no migrated rule may hard-code a colour, radius, height, spacing or opacity. One semantic token layer `ui/tokens.css` (`--ui-*`: colour roles per intent, radii, control heights, spacing, focus ring, disabled opacity, motion), with per-surface scopes (Studio, overlay `.ov-root`, native panels `.pn-root`, clear glass) that map the `--ui-*` roles onto the existing `--ov-*`/`--pn-*`/Studio values. Components read only `--ui-*`. Each migration slice also replaces hard-coded colour literals in the rules it touches with tokens.
+3. **API (mirrors the reference, adapted to plain CSS)**: `Button` with `variant` (primary | secondary | ghost | destructive | go | link | glass), `size` (sm | md | lg | icon), `icon` / `iconAfter` (Icon name), `loading`, `pressed`, `asChild`, `type="button"` default, `forwardRef`, `displayName`, defaults as default parameters; emits `data-slot="button"`, `data-variant`, `data-size`, `data-state` (idle|loading|pressed), `aria-busy`; disabled and loading use the native `disabled` attribute (the native shell's drag/cursor probe relies on `disabled`/`aria-disabled`). A typed config table (`Record<Variant, ...>` and a documented vocabulary) is the single place variants are defined; CSS selects on the data attributes. No cva needed (no dependency); `cn` replaced by a 3-line `join`.
+4. **Chip/Badge, Switch, Spinner, Banner, Tabs/ToggleGroup, Menu, Field/Input/Select, Card, Dialog/Toast/EmptyState** follow as later slices in the priority order of audit B, each one file in the same folder, same data-attribute convention, same tokens.
+5. **Native (Swift)**: no components layer (the native surface is windows, drag/resize handles, a status item, menus and two NSAlerts; nothing is a button the app styles). Slice 5 becomes: keep `HIT_SELECTORS`, `WindowDrag.swift` and their tests in step with the new `data-slot` markup; optional hygiene (delete the dead `ToolbarDragView`, drop the unused grip drawing, split `NativeSurface.swift` by type). A Swift wrapper layer is built only if a second native button ever appears.
+6. **Hard constraints for every slice**: a Button renders `<button>` (or `<a href>` via `asChild`), never a div; labels stay (tests use `getByRole("button", {name})`); legacy container classes stay (`.pn-pill`, `.pn-single-foot`, `.pn-strip`...); `layout-rules.test.ts` (40px hit area for live buttons) and `session-bar.test.tsx:644` (`.live-bar-button` min-height 40) keep passing; `glass-guard.test.ts` allow-list is updated with the migrated selectors; the scope checkpoint (1000 lines) applies per slice, so split per surface.
+
+## Phase 3 slices and briefs
+- **Slice 1 (worker 1)**: `ui/` skeleton: `join.ts`, `tokens.css`, `button.tsx`, `ui.css`, `index.ts`, `button.test.tsx` (variant x size x state matrix, roles, default type, loading, asChild, icon slots, token-only CSS assertion), a vocabulary reference at `bionic/research/references/ui-components.md`. NO consumers migrated.
+- **Slice 2 (worker 2)**: the Resume/Pause/End/Start family across the live panel strip and footer, the overlay card, the session bar and the banners; unify wording ("Resume session"), play icon, one look.
+- **Slice 3 (worker 3)**: the remaining live/overlay/panel buttons (`pn-bar-button`, `pn-mini-button`, `pn-primary`, `ov-button`, `ov-link`, task chips, file tabs where they are buttons).
+- **Slice 4 (worker 4)**: `.studio-button` consumers (home, workspace, rehearsal, documents, knowledge, settings, start) and the duplicate definition removed.
+- **Slice 5**: native upkeep as in decision 5.
+- **Slices 6+**: Chip/Badge, Switch, Spinner, Banner, Tabs/ToggleGroup, Menu, Field, Card, Dialog, one primitive per worker, each with its migrations.
+Each worker: reads this plan and the four audits first; works only in its slice's files; does NOT commit or push; runs the narrow tests, then reports the file list, what moved and anything it could not do. The orchestrator reviews the whole diff, runs `pnpm verify`, checks the real app where visible, and commits.
+
+## Log
+- 2026-10-06: audits done; decisions written; Slice 1 dispatched.
