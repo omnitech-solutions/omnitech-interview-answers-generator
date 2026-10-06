@@ -37,6 +37,7 @@ export function PreviewedCode({
   return (
     <div className="assistant-preview-code" aria-label="Previewed change">
       {rows.map((row, index) => (
+        // Index key: diff rows have no id and are rebuilt whole from the diff, never reordered.
         <div key={index} className={`assistant-preview-line ${row.kind}`}>
           <span className="assistant-preview-number">
             {row.kind === "removed" ? "" : ++line}

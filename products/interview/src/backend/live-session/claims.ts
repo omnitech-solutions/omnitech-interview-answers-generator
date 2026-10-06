@@ -562,6 +562,9 @@ type DraftCheck = {
   capturedFigures: ReadonlySet<string>;
   sourceFigures: ReadonlySet<string>;
   technicalScope: TechnicalScope | undefined;
+  // A coding task: technical, with an exercise on screen. Its drafts talk about
+  // durations and availability of tasks and slots, not the candidate's own.
+  coding: boolean;
 };
 
 // [DOMAIN] Reason-for-leaving lexicon (leaving-role drafts). A draft sentence
@@ -604,8 +607,12 @@ function checkDraft(draft: string, check: DraftCheck): void {
   // [SAFETY] Availability (notice period, start date, "join you in three
   // months") is the candidate's own fact whatever the sentence's wording: any
   // duration or date, spelled or digit, must be an approved preference figure.
+  // [STRATEGY] The wording rule does not apply on a coding task (L-1: "next
+  // available slot", "cooldown of 3 days" are scheduling, not availability).
+  // Notice and pay sentences are still decided by the topical rules below.
   if (
     !check.logistics &&
+    !check.coding &&
     AVAILABILITY_WORDING.test(foldSpoken(draft).toLowerCase())
   )
     for (const key of availabilityKeysOf(draft))
@@ -637,6 +644,7 @@ function checkDraft(draft: string, check: DraftCheck): void {
         continue;
       }
       if (
+        !check.coding &&
         AVAILABILITY_WORDING.test(foldSpoken(sentence).toLowerCase()) &&
         hasUnapprovedLogisticsFigure(sentence, check.preferenceQuotes)
       )
@@ -906,6 +914,8 @@ export function verifyClaims(
       capturedFigures,
       sourceFigures,
       technicalScope,
+      coding:
+        technicalScope !== undefined && (context.exercise?.length ?? 0) > 0,
     });
 
   return violations.length

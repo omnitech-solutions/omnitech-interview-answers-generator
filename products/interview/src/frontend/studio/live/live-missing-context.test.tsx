@@ -232,7 +232,10 @@ describe("Add another screenshot", () => {
     await open();
     await press("Add another screenshot");
     await flush();
-    expect(alerts()).toContain("Nothing was shared.");
+    expect(screen.getByTestId("capture-problem")).toHaveAttribute(
+      "data-reason",
+      "share-cancelled",
+    );
     expect(journey.captures).toEqual([]);
     expect(strip()).toHaveTextContent("Examples");
   });

@@ -18,6 +18,7 @@ import { nativeCaptureAvailable } from "../host-adapter";
 import type { SessionErrorCode } from "../session-client";
 import { isOpenSession } from "../session-deps";
 import { isRunInFlight } from "../session-runs";
+import type { CaptureProblemReason } from "../shared/capture-problem";
 import { copyText } from "../shared/copy-text";
 import { noQuestionStatus } from "../shared/no-question";
 import { selectedRevisionOf } from "../shared/revisions";
@@ -76,6 +77,14 @@ export type CaptureFlash = {
 
 export type HandsFree = ReturnType<typeof useHandsFree>;
 
+// Reasons that come from the share itself (see useScreenShare).
+const SHARE_REASONS: ReadonlySet<CaptureProblemReason> = new Set([
+  "share-unsupported",
+  "share-cancelled",
+  "share-failed",
+  "source-lost",
+]);
+
 export function useHandsFree(kind: OwnerKind) {
   const { snapshot, actions, model } = useLiveSession();
   const { pinnedTaskId, revisionPicks } = usePresentation();
@@ -92,6 +101,25 @@ export function useHandsFree(kind: OwnerKind) {
   const share = useScreenShare(open);
   // Why the last capture did not work: a banner until dismissed or the next capture works.
   const issue = useCaptureProblem();
+  // A share that did not start (declined, unsupported) or ended is a capture
+  // problem like any other: the same banner as the native page.
+  const shareProblem = share.problem;
+  const showIssue = issue.show;
+  useEffect(() => {
+    if (shareProblem)
+      showIssue({ reason: shareProblem, intent: "manual", frontApp: null });
+  }, [shareProblem, showIssue]);
+  // Starting to share ends a problem about the share (not one about a capture:
+  // only the moment the share begins is looked at).
+  const sharing = share.status === "sharing";
+  const issueReason = useRef(issue.state?.reason);
+  issueReason.current = issue.state?.reason;
+  const clearIssue = issue.clear;
+  useEffect(() => {
+    const reason = issueReason.current;
+    if (sharing && reason !== undefined && SHARE_REASONS.has(reason))
+      clearIssue();
+  }, [sharing, clearIssue]);
 
   const [captureMenu, setCaptureMenu] = useState(false);
   const [maskOpen, setMaskOpen] = useState(false);

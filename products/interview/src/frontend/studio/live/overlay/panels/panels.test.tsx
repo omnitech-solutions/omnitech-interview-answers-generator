@@ -532,12 +532,12 @@ describe("toasts", () => {
   });
 });
 
-describe("auto-session in a native window", () => {
+describe("no session in a native window", () => {
   const noSession = () =>
     server.on("GET /current", () =>
       jsonResponse({ error: { code: "not_found" } }, 404),
     );
-  it("starts one with the defaults once the shell has recorded consent, never saying 'Start one in Studio'", async () => {
+  it("never starts one behind the person's back, even with the shell's consent recorded", async () => {
     noSession();
     window.localStorage.setItem("studio.shell.consented", "1");
     const started: unknown[] = [];
@@ -550,25 +550,34 @@ describe("auto-session in a native window", () => {
     });
     nativeHost();
     await show("single", "&host=native");
-    await act(() => vi.advanceTimersByTimeAsync(10));
-    expect(started).toEqual([
-      {
-        processingPolicy: "permitted-remote",
-        captureSources: ["microphone", "application-audio", "screen"],
-      },
-    ]);
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(started).toEqual([]);
     expect(screen.queryByText(/Start one in Studio/)).toBeNull();
+    // The start screen is what the window shows (start-panel.test.tsx).
+    expect(screen.getByTestId("pn-start")).toHaveAttribute(
+      "data-stage",
+      "idle",
+    );
   });
-  it("shows one Consent required line with a button that opens the shell's consent, and starts nothing", async () => {
+  it("Settings with no session and no consent says Consent required, with a button that opens the shell's consent, and starts nothing", async () => {
     noSession();
     const open = vi.fn(async () => undefined);
     nativeHost({}, { consent: { granted: () => false, open } });
-    await show("single", "&host=native");
+    await show("settings", "&host=native");
     await act(() => vi.advanceTimersByTimeAsync(10));
     expect(screen.getByText("Consent required")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Review consent" }));
     expect(open).toHaveBeenCalledTimes(1);
     expect(server.calls.some((call) => call.startsWith("POST"))).toBe(false);
+  });
+  it("Settings with consent and no session says there is no live session", async () => {
+    noSession();
+    window.localStorage.setItem("studio.shell.consented", "1");
+    nativeHost();
+    await show("settings", "&host=native");
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(screen.getByText("No live session.")).toBeVisible();
+    expect(screen.queryByText("Consent required")).toBeNull();
   });
 });
 

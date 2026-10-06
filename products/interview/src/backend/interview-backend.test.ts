@@ -177,6 +177,29 @@ describe("Interview Studio's backend as the platform mounts it", () => {
     });
   });
 
+  // HO-SEC-02: the /api/v1 gate accepts a browser only as a verified member of
+  // the tenant it names; spoofed same-origin headers prove nothing.
+  it("refuses /api/v1 for a request with no tenant, an unknown tenant or only spoofed origin headers", async () => {
+    const app = backend().app;
+    const spoof = {
+      "sec-fetch-site": "same-origin",
+      origin: "http://studio.test",
+    };
+    for (const headers of [
+      spoof,
+      { ...spoof, "x-omnitech-tenant": "nobody" },
+    ]) {
+      const response = await app.request("http://studio.test/api/v1/answers", {
+        headers,
+      });
+      expect(response.status).toBe(401);
+    }
+    const member = await app.request("http://studio.test/api/v1/health", {
+      headers: { "x-omnitech-tenant": "local" },
+    });
+    expect(member.status).toBe(200);
+  });
+
   it("reports answers unavailable when no language model is configured", async () => {
     const response = await backend({ answersConfigured: false }).app.request(
       "http://studio.test/api/v1/generate",

@@ -1,6 +1,6 @@
-// A signed-out compact panel is a message WITH a way forward: a "Sign in" link.
-// The native shell starts its sign-in when its web view goes to /sign-in, so the
-// panel never strands the person on a card that only says they are signed out.
+// A signed-out panel in a plain browser is a message WITH a way forward: a "Sign
+// in" link to the web sign-in. (The Mac app's window draws the sign-in screen
+// instead: see start-panel.test.tsx.)
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +13,7 @@ vi.mock("../../use-live-session", () => ({
 }));
 vi.mock("./use-panel-session", () => ({ usePanelSession: () => ({}) }));
 vi.mock("./auto-session", () => ({
-  useAutoSession: () => ({ state: "idle", retry: () => {} }),
+  useAutoSession: () => ({ state: "idle", announceStarted: () => {} }),
 }));
 vi.mock("./hit-regions", () => ({
   useHitRegions: () => {},
@@ -33,12 +33,12 @@ import { PanelsRoot } from "./panels-root";
 
 afterEach(cleanup);
 
-describe("the compact panel when signed out", () => {
-  it("says so and offers Sign in, which the shell turns into its own sign-in", () => {
+describe("the compact panel when signed out, in a browser", () => {
+  it("says so and offers a Sign in link to the web sign-in", () => {
     window.history.replaceState(
       null,
       "",
-      "/t/local/p/interview/live/overlay?host=native&panel=single",
+      "/t/local/p/interview/live/overlay?panel=single",
     );
     render(<PanelsRoot panel="single" />);
     expect(screen.getByRole("alert")).toHaveTextContent(/signed out/i);

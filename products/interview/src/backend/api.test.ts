@@ -87,6 +87,8 @@ function createApi(options: Partial<InterviewApiOptions> = {}) {
   return createInterviewApi({
     resolveScope: mocks.resolveScope,
     generate: mocks.generate,
+    // A signed-in member by default; the gate's own tests override it.
+    verifySession: async () => true,
     ...options,
   });
 }
@@ -269,6 +271,7 @@ describe("web API", () => {
     );
     const unconfigured = await createInterviewApi({
       resolveScope: mocks.resolveScope,
+      verifySession: async () => true,
     }).request("http://localhost/api/v1/health");
 
     expect(await configured.json()).toEqual({ ok: true, aiConfigured: true });
@@ -418,7 +421,10 @@ describe("web API", () => {
   });
 
   it("tells the user when no AI model is configured", async () => {
-    const app = createInterviewApi({ resolveScope: mocks.resolveScope });
+    const app = createInterviewApi({
+      resolveScope: mocks.resolveScope,
+      verifySession: async () => true,
+    });
     for (const [path, body] of [
       ["generate", { question: "Build a counter", language: "react" }],
       ["explain", { topic: "React" }],
@@ -1111,23 +1117,174 @@ describe("web API", () => {
     ).toBe(404);
   });
 
-  it("requires a bearer token for cross-origin requests but permits same-origin requests", async () => {
-    process.env["INTERVIEW_API_TOKEN"] = "secret-token";
-    const app = createApi();
+  // HO-SEC-02: the gate never takes a client header as identity. A caller is
+  // the CLI (the configured bearer token) or a browser with a verified session.
+  describe("API gate", () => {
+    const url = "http://localhost/api/v1/answers";
+    const noSession = { verifySession: async () => false };
+    const fixed401 = {
+      error: {
+        code: "unauthorized",
+        message: "A valid API token or signed-in session is required.",
+      },
+    };
 
-    const unauthorized = await app.request("http://localhost/api/v1/answers", {
-      headers: { origin: "https://example.com" },
-    });
-    const authorized = await app.request("http://localhost/api/v1/answers", {
-      headers: { authorization: "Bearer secret-token" },
-    });
-    const sameOrigin = await app.request("http://localhost/api/v1/answers", {
-      headers: { origin: "http://localhost" },
+    it("accepts the configured bearer token", async () => {
+      process.env["INTERVIEW_API_TOKEN"] = "secret-token";
+      const response = await createApi(noSession).request(url, {
+        headers: { authorization: "Bearer secret-token" },
+      });
+      expect(response.status).toBe(200);
     });
 
-    expect(unauthorized.status).toBe(401);
-    expect(authorized.status).toBe(200);
-    expect(sameOrigin.status).toBe(200);
+    it.each([
+      ["a wrong token", { authorization: "Bearer other-token" }],
+      ["a longer token", { authorization: "Bearer secret-token-and-more" }],
+      ["a non-bearer scheme", { authorization: "Basic secret-token" }],
+      ["no credential", {}],
+    ])("refuses %s with a fixed 401", async (_name, headers) => {
+      process.env["INTERVIEW_API_TOKEN"] = "secret-token";
+      const response = await createApi(noSession).request(url, { headers });
+      expect(response.status).toBe(401);
+      expect(await responseJson(response)).toMatchObject(fixed401);
+    });
+
+    // A non-browser client can send any Origin or Sec-Fetch-Site it likes.
+    it.each([
+      ["a spoofed same-origin Origin", { origin: "http://localhost" }],
+      ["a spoofed Sec-Fetch-Site", { "sec-fetch-site": "same-origin" }],
+    ])("refuses %s without a token or session", async (_name, headers) => {
+      for (const token of ["secret-token", undefined]) {
+        if (token) process.env["INTERVIEW_API_TOKEN"] = token;
+        else delete process.env["INTERVIEW_API_TOKEN"];
+        const response = await createApi(noSession).request(url, { headers });
+        expect(response.status).toBe(401);
+      }
+    });
+
+    it("refuses everyone without a session when no token is configured", async () => {
+      delete process.env["INTERVIEW_API_TOKEN"];
+      const anonymous = await createApi(noSession).request(url);
+      const bearer = await createApi(noSession).request(url, {
+        headers: { authorization: "Bearer " },
+      });
+      expect(anonymous.status).toBe(401);
+      expect(bearer.status).toBe(401);
+    });
+
+    it("refuses when no session verifier is wired at all", async () => {
+      const response = await createApi({
+        verifySession: undefined as never,
+      }).request(url);
+      expect(response.status).toBe(401);
+    });
+
+    it("lets a verified session through, with or without a token configured", async () => {
+      for (const token of ["secret-token", undefined]) {
+        if (token) process.env["INTERVIEW_API_TOKEN"] = token;
+        else delete process.env["INTERVIEW_API_TOKEN"];
+        const response = await createApi().request(url, {
+          headers: { origin: "http://localhost" },
+        });
+        expect(response.status).toBe(200);
+      }
+    });
+
+    it("hands the verifier the request, so it can resolve the tenant", async () => {
+      const verifySession = vi.fn(async () => true);
+      await createApi({ verifySession }).request(url, {
+        headers: { "x-omnitech-tenant": "acme" },
+      });
+      expect(verifySession).toHaveBeenCalledTimes(1);
+      const [request] = verifySession.mock.calls[0] as unknown as [Request];
+      expect(request.headers.get("x-omnitech-tenant")).toBe("acme");
+    });
+
+    // A header can only narrow the session path, never widen it.
+    it("refuses a session request a browser marks cross-site", async () => {
+      const crossSite = await createApi().request(url, {
+        headers: { "sec-fetch-site": "cross-site" },
+      });
+      const foreignOrigin = await createApi().request(url, {
+        headers: { origin: "https://evil.example" },
+      });
+      expect(crossSite.status).toBe(401);
+      expect(foreignOrigin.status).toBe(401);
+    });
+
+    // `next start --hostname 127.0.0.1` builds the request URL as localhost
+    // even for a call to 127.0.0.1, while the browser's Origin names the host
+    // it really used. Comparing Origin to the URL's origin made every POST from
+    // the signed-in page look cross-site (the Code view's Run got a 401).
+    it("treats an Origin that matches the Host header as same-origin, whatever the server thinks its URL is", async () => {
+      const response = await createApi().request(
+        "http://localhost:3100/api/v1/health",
+        {
+          headers: {
+            host: "127.0.0.1:3100",
+            origin: "http://127.0.0.1:3100",
+          },
+        },
+      );
+      expect(response.status).toBe(200);
+      const foreign = await createApi().request(
+        "http://localhost:3100/api/v1/health",
+        {
+          headers: { host: "127.0.0.1:3100", origin: "http://evil.example" },
+        },
+      );
+      expect(foreign.status).toBe(401);
+    });
+
+    it("still accepts the token when the request is cross-origin (the CLI)", async () => {
+      process.env["INTERVIEW_API_TOKEN"] = "secret-token";
+      const response = await createApi(noSession).request(url, {
+        headers: {
+          authorization: "Bearer secret-token",
+          origin: "https://example.com",
+        },
+      });
+      expect(response.status).toBe(200);
+    });
+
+    it("treats a verifier that throws as no session", async () => {
+      const response = await createApi({
+        verifySession: async () => {
+          throw new Error("database down");
+        },
+      }).request(url);
+      expect(response.status).toBe(401);
+    });
+  });
+
+  // HO-SEC-03
+  describe("request id", () => {
+    const id = async (value?: string) => {
+      const response = await createApi().request(
+        "http://localhost/api/v1/health",
+        value === undefined ? {} : { headers: { "x-request-id": value } },
+      );
+      return response.headers.get("x-request-id") ?? "";
+    };
+
+    it("echoes a well-formed id", async () => {
+      expect(await id("req_1.2:3-abc")).toBe("req_1.2:3-abc");
+    });
+
+    it.each([
+      ["longer than 255 characters", "a".repeat(256)],
+      ["empty", ""],
+      ["spaces", "has space"],
+      ["non-ASCII", "id-é"],
+    ])("replaces an id that is %s with a generated one", async (_n, value) => {
+      const generated = await id(value);
+      expect(generated).not.toBe(value);
+      expect(generated).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it("accepts exactly 255 characters", async () => {
+      expect(await id("a".repeat(255))).toBe("a".repeat(255));
+    });
   });
 
   it("adds request IDs to responses and returns a structured unknown-route error", async () => {

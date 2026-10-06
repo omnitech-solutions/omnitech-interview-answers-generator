@@ -37,6 +37,10 @@ describe("surface table", () => {
       ".pn-menu",
       ".pn-toast",
       ".ss-viewer-scrim",
+      // The sign-in and start screens: with clear glass on, clicks on them must
+      // reach the page, not the app underneath.
+      ".pn-start-card",
+      ".pn-start-toast",
     ])
       expect(HIT_SELECTORS).toContain(surface);
   });

@@ -1,4 +1,5 @@
-import type { ProductLink } from "@omnitech/platform-contracts";
+import type { ProductLink, ProductMember } from "@omnitech/platform-contracts";
+import { AccountMenu } from "./account/account-menu";
 import { views } from "./config/views";
 import type { StudioTheme } from "./context";
 import { Icon } from "./icon";
@@ -21,6 +22,8 @@ export function Sidebar({
   onToggleTheme,
   products = [],
   mayLeave,
+  member,
+  tenant = "local",
   expanded,
   onToggleExpanded,
 }: {
@@ -36,6 +39,10 @@ export function Sidebar({
   // asks `mayLeave`, which protects unsaved preparation.
   products?: readonly ProductLink[];
   mayLeave?: () => boolean;
+  // Who is signed in; the footer names them and opens the account menu.
+  // Without one (a host that passes none) the footer is the plain local user.
+  member?: ProductMember | undefined;
+  tenant?: string;
   // Views that can fold the sidebar to a rail (the Workspace) pass these.
   expanded?: boolean;
   onToggleExpanded?: () => void;
@@ -154,16 +161,22 @@ export function Sidebar({
       </div>
 
       <div className="studio-identity">
-        <span className="studio-avatar" aria-hidden="true">
-          LU
-        </span>
-        <div className="studio-identity-text">
-          <div>Local user</div>
-          <div className="studio-identity-sub">
-            <span className="studio-online" aria-hidden="true" />
-            local · {artifact}
-          </div>
-        </div>
+        {member ? (
+          <AccountMenu member={member} tenant={tenant} secondary={artifact} />
+        ) : (
+          <>
+            <span className="studio-avatar" aria-hidden="true">
+              LU
+            </span>
+            <div className="studio-identity-text">
+              <div>Local user</div>
+              <div className="studio-identity-sub">
+                <span className="studio-online" aria-hidden="true" />
+                local · {artifact}
+              </div>
+            </div>
+          </>
+        )}
         <button
           type="button"
           className="studio-icon-button"

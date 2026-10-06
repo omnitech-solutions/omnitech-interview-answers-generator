@@ -226,3 +226,46 @@ describe("a follow-up on an open coding task", () => {
     expect(plan.validate(raw)).toMatchObject({ ok: true });
   });
 });
+
+// L-1: the availability-wording rule is for the candidate's own availability.
+// A scheduling-themed CODING draft ("start time", "cooldown", "can start in 5
+// seconds") must not be withheld as preference-only.
+describe("availability wording on a coding task", () => {
+  const SCHEDULING = [
+    "Schedule tasks on workers; a worker waits out a cooldown between tasks.",
+    "Each task needs 3 days and a 2 day cooldown follows it.",
+  ];
+  const draft =
+    "Sort the tasks by start time, then keep the workers in a min-heap by the moment each is available again. Each task holds a worker for 3 days plus a 2 day cooldown, so pop the earliest worker and push it back 5 days later.";
+
+  it("publishes a scheduling-themed coding draft", () => {
+    const result = validate(answer({ draft }), {
+      exercise: SCHEDULING,
+      captured: ["Schedule the tasks"],
+    });
+    expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+  });
+
+  it("still withholds the candidate's own availability on a logistics answer", () => {
+    const result = validate(
+      JSON.stringify({
+        category: "logistics",
+        draft: "I can start in 5 weeks.",
+        claims: [],
+        star: null,
+        logistics: { topic: "notice-period" },
+        codingBrief: null,
+      }),
+      { exercise: SCHEDULING },
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("still withholds a notice period said inside a coding draft", () => {
+    const result = validate(
+      answer({ draft: `${draft} Also, my notice period is 3 months.` }),
+      { exercise: SCHEDULING, captured: ["Schedule the tasks"] },
+    );
+    expect(result.ok).toBe(false);
+  });
+});

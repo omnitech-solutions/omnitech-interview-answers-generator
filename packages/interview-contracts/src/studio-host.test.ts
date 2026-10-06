@@ -3,6 +3,7 @@ import { liveOcrBlockSchema } from "./live-session";
 import {
   displayLabel,
   HIT_REGION_LIMITS,
+  isAccountProvider,
   isStudioHostDisplay,
   isStudioHostDisplayId,
   negotiatePresentation,
@@ -314,6 +315,7 @@ describe("capability names", () => {
       "screen-watch",
       "text-recognition",
       "display-selection",
+      "account",
     ]);
   });
 });
@@ -373,5 +375,43 @@ describe("display indicator and selection", () => {
     expect([...(withMethod?.capabilities ?? [])]).toEqual([
       "display-selection",
     ]);
+  });
+});
+
+describe("account capability", () => {
+  const account = {
+    signIn: async () => true,
+    cancelSignIn: async () => undefined,
+    reopenSignIn: async () => true,
+    copySignInLink: async () => true,
+    signOut: async () => true,
+    state: () => ({ phase: "idle" }),
+    onState: () => () => undefined,
+    permissions: async () => ({ microphone: "granted", screen: "denied" }),
+  };
+  it("is available only with a complete account object", () => {
+    const names = ["capture-screen", "account"];
+    expect(
+      negotiateStudioHost(
+        bridge({ capabilities: names, account }),
+      )?.capabilities.has("account"),
+    ).toBe(true);
+    for (const bad of [undefined, {}, { ...account, signOut: undefined }])
+      expect(
+        negotiateStudioHost(
+          bridge({ capabilities: names, account: bad }),
+        )?.capabilities.has("account"),
+      ).toBe(false);
+  });
+  it("is not assumed from the object alone", () => {
+    expect(
+      negotiateStudioHost(bridge({ account }))?.capabilities.has("account"),
+    ).toBe(false);
+  });
+  it("names exactly two providers", () => {
+    expect(isAccountProvider("google")).toBe(true);
+    expect(isAccountProvider("linkedin")).toBe(true);
+    expect(isAccountProvider("github")).toBe(false);
+    expect(isAccountProvider(undefined)).toBe(false);
   });
 });

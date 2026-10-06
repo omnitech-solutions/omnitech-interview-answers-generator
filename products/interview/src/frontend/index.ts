@@ -1,3 +1,4 @@
+export { NativeSignInRoute } from "./native-sign-in-route";
 export type { StudioProps } from "./studio/index";
 export { Studio } from "./studio/index";
 export { studioFetch } from "./studio/studio-fetch";

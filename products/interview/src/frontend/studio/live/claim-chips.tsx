@@ -95,6 +95,7 @@ export function ClaimList({
   return (
     <ul className="live-claims" aria-label={label}>
       {claims.map((claim, index) => (
+        // Index key: claims carry no id and are referenced by position elsewhere, so the list is only replaced whole, never reordered.
         <ClaimRow key={index} claim={claim} />
       ))}
     </ul>

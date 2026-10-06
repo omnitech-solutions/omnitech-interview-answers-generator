@@ -10,6 +10,7 @@ import type { PresentationHost } from "@omnitech/interview-contracts";
 import {
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
   type RefObject,
   useEffect,
   useRef,
@@ -36,6 +37,7 @@ import {
   SEE_THROUGH_CONTROL,
   seeThroughTitle,
 } from "./toolbar-config";
+import { ToolbarLock, useToolbarLock } from "./toolbar-lock";
 import { MIC_HELD_TEXT } from "./use-engine";
 import { WindowDots } from "./window-dots";
 import type { PanelWindowMode } from "./window-mode";
@@ -43,7 +45,12 @@ import type { PanelWindowMode } from "./window-mode";
 type Tone = "green" | "red" | "neutral";
 
 // green: the window takes clicks. red: recording.
-function pillTone(s: PanelSession): { tone: Tone; label: string } {
+function pillTone(
+  s: PanelSession,
+  locked = false,
+): { tone: Tone; label: string } {
+  // Before a session runs nothing has ended: it has not started.
+  if (locked) return { tone: "neutral", label: "No live session" };
   if (!s.open) return { tone: "neutral", label: "Ended" };
   if (s.live.mic === "listening") return { tone: "red", label: "Recording" };
   return { tone: "green", label: "Live" };
@@ -77,7 +84,8 @@ export function CaptureButton({
   menuOpen?: boolean;
   buttonRef?: RefObject<HTMLButtonElement | null>;
 }) {
-  const status = pillTone(s);
+  const lock = useToolbarLock();
+  const status = pillTone(s, lock !== null);
   const control = captureControl(Boolean(s.phase));
   const source = useCaptureSource();
   const chord = nativeChord("analyze");
@@ -98,8 +106,8 @@ export function CaptureButton({
               "aria-expanded": menuOpen === true,
             }
           : {})}
-        title={title}
-        disabled={!s.open || s.phase === "capturing"}
+        title={lock ?? title}
+        disabled={lock !== null || !s.open || s.phase === "capturing"}
         onClick={() => s.press("capture")}
         {...(onOpenTargets
           ? {
@@ -144,6 +152,7 @@ export function MicButton({ s }: { s: PanelSession }) {
   // held session shows the control disabled with the reason, never a label
   // the press would contradict.
   const held = s.micHeld;
+  const lock = useToolbarLock();
   const name = recording ? "Stop microphone" : "Start microphone";
   return (
     <button
@@ -151,14 +160,15 @@ export function MicButton({ s }: { s: PanelSession }) {
       className="pn-bar-button pn-icon-button pn-mic-button"
       aria-label={name}
       title={
-        held
+        lock ??
+        (held
           ? `${name} · ${MIC_HELD_TEXT.replace(/\.$/, "")}`
-          : `${name} · ${nativeChord("listening")}`
+          : `${name} · ${nativeChord("listening")}`)
       }
       aria-pressed={recording}
       data-mic={s.live.mic}
       data-held={held ? "true" : undefined}
-      disabled={!s.open || held}
+      disabled={lock !== null || !s.open || held}
       onClick={() => s.press("toggle-mic")}
     >
       <Icon name={recording ? "mic" : "mic_off"} filled={recording} />
@@ -187,6 +197,9 @@ export function SeeThroughButton({
   glass: PanelGlass;
   passThrough: boolean;
 }) {
+  // [SAFETY] Never locked: with clear glass on, See-through is how a person gets
+  // the window back, and the choice outlives sign-out. The lock names what is
+  // missing for the other controls; this one needs nothing.
   return (
     <button
       type="button"
@@ -205,10 +218,14 @@ export function SeeThroughButton({
 export function Toolbar({
   s,
   controls,
+  trailing,
 }: {
   s: PanelSession;
   controls: WindowControls;
+  // After the keyboard button: the start screens' account chip. None while live.
+  trailing?: ReactNode;
 }) {
+  const lock = useToolbarLock();
   const control = captureControl(Boolean(s.phase));
   const [menu, setMenu] = useState<MenuId | null>(null);
   const [dotPopup, setDotPopup] = useState(false);
@@ -229,6 +246,7 @@ export function Toolbar({
       role="toolbar"
       aria-label="Session controls"
       data-testid="pn-pill"
+      data-locked={lock !== null ? "true" : undefined}
     >
       <WindowDots
         s={s}
@@ -380,7 +398,8 @@ export function Toolbar({
           className="pn-bar-button pn-icon-button"
           aria-label={pane.label}
           aria-pressed={controls.panes.shown[pane.id]}
-          title={pane.title}
+          title={lock ?? pane.title}
+          disabled={lock !== null}
           onClick={() => controls.panes.toggle(pane.id)}
         >
           <Icon name={pane.icon} />
@@ -408,6 +427,10 @@ export function Toolbar({
           </ul>
         )}
       </Popover>
+      {/* The chip is not a session control: it stays live under the lock. */}
+      {trailing && (
+        <ToolbarLock.Provider value={null}>{trailing}</ToolbarLock.Provider>
+      )}
     </div>
   );
 }

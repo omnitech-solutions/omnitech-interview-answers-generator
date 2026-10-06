@@ -23,6 +23,9 @@ export const STUDIO_HOST_CAPABILITIES = [
   "screen-watch",
   "text-recognition",
   "display-selection",
+  // Sign-in, sign-out and the Mac's permissions, for the panel's own start
+  // screens (the `account` member, below).
+  "account",
 ] as const;
 export type StudioHostCapability = (typeof STUDIO_HOST_CAPABILITIES)[number];
 
@@ -255,7 +258,72 @@ export type StudioHost = {
   // Watches the screen for change, when the shell can (below). The page uses it
   // instead of the browser's frame sampler.
   readonly screenWatch?: ScreenWatchHost;
+  // Sign-in in the person's own browser, sign-out and the Mac's permission
+  // states, when the shell offers them ("account"; below).
+  readonly account?: AccountHost;
 };
+
+// ---- Account (native sign-in, sign-out, permissions) ------------------------
+// The shell opens Studio's own sign-in in the person's DEFAULT browser (never
+// inside this privileged web view) and receives a one-time code on its own
+// callback scheme; the page only asks, and hears typed state. No address, code,
+// nonce or token crosses this bridge: the page cannot read the sign-in link
+// (the shell copies it to the clipboard itself) and never sees a credential.
+export const ACCOUNT_PROVIDERS = ["google", "linkedin"] as const;
+export type AccountProvider = (typeof ACCOUNT_PROVIDERS)[number];
+export const isAccountProvider = (value: unknown): value is AccountProvider =>
+  ACCOUNT_PROVIDERS.some((provider) => provider === value);
+
+// idle: no sign-in running. waiting: the browser was opened for this provider.
+// timed-out: the attempt was abandoned after its time limit (it then reads as idle).
+export type AccountSignInState =
+  | { phase: "idle" }
+  | { phase: "waiting"; provider: AccountProvider }
+  | { phase: "timed-out" };
+
+// What the Mac says about each permission a session listens and watches with.
+// "undetermined": macOS has not been asked yet; it asks the first time.
+export type AccountPermissionState = "granted" | "denied" | "undetermined";
+export type AccountPermissions = {
+  microphone: AccountPermissionState;
+  // Screen Recording also gates the app's audio.
+  screen: AccountPermissionState;
+};
+
+export type AccountHost = {
+  // Opens the provider in the default browser; false when it could not (an
+  // attempt is already waiting, or the browser did not open).
+  signIn(provider: AccountProvider): Promise<boolean>;
+  // Abandons the waiting attempt.
+  cancelSignIn(): Promise<void>;
+  // Opens the same attempt in the browser again; false with none waiting.
+  reopenSignIn(): Promise<boolean>;
+  // Copies the waiting attempt's link to the clipboard; false with none waiting.
+  copySignInLink(): Promise<boolean>;
+  // Ends this Mac's Studio session (its cookie) and stops capture and listening.
+  signOut(): Promise<boolean>;
+  // The last state the shell pushed, read synchronously.
+  state(): AccountSignInState;
+  // Returns the remover.
+  onState(listener: (state: AccountSignInState) => void): () => void;
+  permissions(): Promise<AccountPermissions>;
+};
+
+// [GUARD] An account object with every method, or null.
+export function isAccountHost(value: unknown): value is AccountHost {
+  if (typeof value !== "object" || value === null) return false;
+  const host = value as Partial<AccountHost>;
+  return (
+    typeof host.signIn === "function" &&
+    typeof host.cancelSignIn === "function" &&
+    typeof host.reopenSignIn === "function" &&
+    typeof host.copySignInLink === "function" &&
+    typeof host.signOut === "function" &&
+    typeof host.state === "function" &&
+    typeof host.onState === "function" &&
+    typeof host.permissions === "function"
+  );
+}
 
 // ---- Screen watch -----------------------------------------------------------
 // The shell samples the focused window (or the owner's region) on its own timer
@@ -341,6 +409,7 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
     "screen-watch": "screenWatch",
     "text-recognition": "recognizeText",
     "display-selection": "listDisplays",
+    account: "account",
   };
   const capabilities = new Set<StudioHostCapability>();
   for (const name of host.capabilities as unknown[]) {
@@ -350,7 +419,9 @@ export function negotiateStudioHost(candidate: unknown): StudioHostInfo | null {
     if (
       known === "screen-watch"
         ? isScreenWatchHost(member)
-        : typeof member === "function"
+        : known === "account"
+          ? isAccountHost(member)
+          : typeof member === "function"
     )
       capabilities.add(known);
   }

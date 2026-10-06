@@ -13,7 +13,9 @@ const timeOf = (iso: string): number => {
 
 // Actions arrive created OR changed, with a short overlap, so one id can come
 // in many times: the newest updatedAt wins, and an older copy that arrives
-// late never replaces a newer one. Order is creation order, so a task's runs
+// late never replaces a newer one. On an exact tie the copy that is not
+// in_flight (the only non-final status) stands, so a late in-flight copy never
+// brings back a "drafting" marker for a finished action. Order is creation order, so a task's runs
 // read oldest first.
 export function mergeActions(
   held: readonly LiveAction[],
@@ -23,8 +25,16 @@ export function mergeActions(
   const byId = new Map(held.map((item) => [item.id, item]));
   for (const next of incoming) {
     const previous = byId.get(next.id);
-    if (!previous || timeOf(next.updatedAt) >= timeOf(previous.updatedAt))
+    if (!previous) {
       byId.set(next.id, next);
+      continue;
+    }
+    const delta = timeOf(next.updatedAt) - timeOf(previous.updatedAt);
+    const staleTie =
+      delta === 0 &&
+      next.dispatchStatus === "in_flight" &&
+      previous.dispatchStatus !== "in_flight";
+    if (delta > 0 || (delta === 0 && !staleTie)) byId.set(next.id, next);
   }
   return [...byId.values()].sort(
     (a, b) =>

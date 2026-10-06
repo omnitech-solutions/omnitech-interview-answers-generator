@@ -6,6 +6,7 @@ import type { StudioHostCaptureIntent } from "@omnitech/interview-contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureThroughHost, nativeCaptureAvailable } from "../host-adapter";
 import { holdAwake } from "../keep-awake";
+import type { CaptureProblemReason } from "../shared/capture-problem";
 import { type FrameHash, hashImage, sampleVideo } from "./auto-hash";
 import {
   type Frame,
@@ -21,13 +22,14 @@ import { takeParkedShare } from "./share-handoff";
 
 export type ShareStatus = "idle" | "starting" | "sharing";
 
-const SHARE_MESSAGES = {
-  unsupported:
-    "This browser can’t share a window, tab or screen. Use Chrome or Edge, or the companion’s capture.",
-  cancelled: "Nothing was shared.",
-  failed: "Couldn’t start sharing. Try again.",
-  ended: "Sharing stopped. Share a window, tab or screen to capture again.",
-} as const;
+// Why a share did not start or stopped, as a closed capture-problem reason (the
+// one table in shared/capture-problem.ts says it in words).
+const SHARE_PROBLEMS = {
+  unsupported: "share-unsupported",
+  cancelled: "share-cancelled",
+  failed: "share-failed",
+  ended: "source-lost",
+} as const satisfies Record<string, CaptureProblemReason>;
 
 // `ready` false holds the adoption of a parked share until a session is open
 // (a host that mounts before the session starts).
@@ -35,7 +37,7 @@ export function useScreenShare(ready = true) {
   const [status, setStatus] = useState<ShareStatus>("idle");
   const [kind, setKind] = useState<SourceKind | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [problem, setProblem] = useState<CaptureProblemReason | null>(null);
   const handle = useRef<ShareHandle | null>(null);
   const removeEnded = useRef<(() => void) | null>(null);
 
@@ -53,7 +55,7 @@ export function useScreenShare(ready = true) {
       handle.current = started;
       removeEnded.current = started.onEnded(() => {
         release();
-        setMessage(SHARE_MESSAGES.ended);
+        setProblem(SHARE_PROBLEMS.ended);
       });
       setKind(started.kind);
       setStream(started.stream);
@@ -80,7 +82,7 @@ export function useScreenShare(ready = true) {
   // Straight from a click handler: the browser requires the user gesture.
   const start = useCallback(async () => {
     if (handle.current) return true;
-    setMessage(null);
+    setProblem(null);
     setStatus("starting");
     try {
       const started = nativeCaptureAvailable()
@@ -91,7 +93,7 @@ export function useScreenShare(ready = true) {
     } catch (error) {
       setStatus("idle");
       const code = error instanceof ShareError ? error.code : "failed";
-      setMessage(SHARE_MESSAGES[code]);
+      setProblem(SHARE_PROBLEMS[code]);
       return false;
     }
   }, [release, adopt]);
@@ -144,5 +146,5 @@ export function useScreenShare(ready = true) {
     [],
   );
 
-  return { status, kind, stream, message, start, stop, grab, sample };
+  return { status, kind, stream, problem, start, stop, grab, sample };
 }

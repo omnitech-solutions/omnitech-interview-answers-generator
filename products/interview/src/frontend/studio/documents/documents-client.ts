@@ -73,7 +73,11 @@ export type DocumentContext = {
     label: string;
     kind: string;
   }>;
-  targets: Array<{ id: string; label: string }>;
+  targets: Array<{
+    id: string;
+    label: string;
+    family?: "direct-model" | "agent-runtime";
+  }>;
 };
 export type DocumentExport = {
   id: string;

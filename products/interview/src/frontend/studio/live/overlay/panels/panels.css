@@ -3,6 +3,7 @@
    a soft shadow, rounded corners, and no window chrome of their own (the native
    shell draws the window frame). They reuse the overlay's --ov-* tokens by
    redeclaring them on .pn-root, so a panel document needs nothing else. */
+@import "./start-panel.css";
 .pn-root {
   /* One stacking scale for the window. The toolbar sits above the strip and the
      panes so a popover hanging from it (a child of the toolbar's own stacking

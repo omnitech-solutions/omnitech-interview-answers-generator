@@ -33,7 +33,7 @@ import { PanelsRoot } from "./panels/panels-root";
 // "No live session." with nothing to press (after a sign-in redirect, or any
 // URL without a panel). A native load without a valid panel draws the compact
 // window instead.
-export function OverlayPage(_props: { member?: ProductMember } = {}) {
+export function OverlayPage({ member }: { member?: ProductMember } = {}) {
   const params = new URLSearchParams(window.location.search);
   const named = params.get("panel");
   const panel =
@@ -42,7 +42,11 @@ export function OverlayPage(_props: { member?: ProductMember } = {}) {
       : isNativeSurface(params)
         ? "single"
         : null;
-  return panel ? <PanelsRoot panel={panel} /> : <CardOverlayPage />;
+  return panel ? (
+    <PanelsRoot panel={panel} {...(member ? { member } : {})} />
+  ) : (
+    <CardOverlayPage />
+  );
 }
 
 function CardOverlayPage() {

@@ -271,6 +271,43 @@ describe("the Studio live view hosts hands-free", () => {
     expect(screen.getByTestId("ov-capture-mirror")).toBeInTheDocument();
   });
 
+  it("says the Interview Studio app owns capture when the owner is the native shell, and disables Capture & analyze with that reason", async () => {
+    autoOn();
+    anotherDocumentOwns();
+    await openStudioView();
+    // The native window reports its state over the panel bus.
+    const bus = new BroadcastChannel("interview-studio.panels");
+    bus.postMessage({
+      type: "state",
+      state: {
+        auto: true,
+        mic: "listening",
+        interim: "",
+        sharing: false,
+        phase: null,
+        native: true,
+      },
+    });
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("share-mirror")).toHaveTextContent(
+        "The Interview Studio app owns capture",
+      ),
+    );
+    bus.close();
+    expect(screen.getByTestId("auto-mirror")).toHaveTextContent(
+      /running in the Interview Studio app/,
+    );
+    expect(screen.getByTestId("share-mirror")).not.toHaveTextContent(
+      /No source shared/,
+    );
+    const capture = screen.getByRole("button", { name: /Capture & analyze/ });
+    expect(capture).toBeDisabled();
+    expect(capture).toHaveAttribute(
+      "title",
+      expect.stringContaining("Interview Studio app"),
+    );
+  });
+
   it("adopts the share parked by Start hands-free, and says hands-free is on", async () => {
     autoOn();
     parkShare(await startShare());

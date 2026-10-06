@@ -331,6 +331,12 @@ export {
   syntaxCheckRequestSchema,
 } from "./schemas";
 export {
+  ACCOUNT_PROVIDERS,
+  type AccountHost,
+  type AccountPermissionState,
+  type AccountPermissions,
+  type AccountProvider,
+  type AccountSignInState,
   displayLabel,
   ENGINE_PAIRING_STATES,
   ENGINE_SOURCE_HEALTH,
@@ -344,6 +350,8 @@ export {
   type EngineState,
   HIT_REGION_LIMITS,
   type HitRegion,
+  isAccountHost,
+  isAccountProvider,
   isScreenWatchHost,
   isStudioHostDisplay,
   isStudioHostDisplayId,

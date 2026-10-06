@@ -493,7 +493,7 @@ export function createDocumentsApi(options: {
       ...lists,
       targets: targets
         .filter((target) => target.kind === "language")
-        .map(({ id, label }) => ({ id, label })),
+        .map(({ id, label, family }) => ({ id, label, family })),
     });
   });
   app.patch(`${prefix}/candidacies/:id/job-description`, async (c) => {

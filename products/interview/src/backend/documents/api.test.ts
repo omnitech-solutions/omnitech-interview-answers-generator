@@ -258,7 +258,7 @@ describe("Documents private API", () => {
       profiles: Array<{ revision: unknown }>;
     };
     expect(writableBody.targets).toEqual([
-      expect.objectContaining({ id: "test-model" }),
+      expect.objectContaining({ id: "test-model", family: expect.any(String) }),
     ]);
     expect(writableBody.profiles[0]?.revision).toBe(1);
     expect(typeof writableBody.profiles[0]?.revision).toBe("number");

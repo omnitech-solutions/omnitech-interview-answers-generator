@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProductLink } from "@omnitech/platform-contracts";
+import type { ProductLink, ProductMember } from "@omnitech/platform-contracts";
 import type { Origin } from "@omnitech-assistant/contracts";
 import {
   type AssistantConfig,
@@ -17,6 +17,7 @@ import {
 } from "react";
 import { assistantFeatures, questionAssistant } from "../assistant-config";
 import { createOnDeviceProfile } from "../on-device";
+import { WelcomeBanner } from "./account/welcome-banner";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { available, type StudioActions } from "./config/commands";
 import { viewById } from "./config/views";
@@ -65,6 +66,8 @@ export type StudioProps = {
   assistant: Omit<WorkspaceAssistant, "artifactId">;
   // The other products the member can switch to, from the platform.
   products?: readonly ProductLink[];
+  // Who is signed in, for the sidebar's account menu and the welcome banner.
+  member?: ProductMember | undefined;
 };
 
 // Below these widths the sidebar shrinks to icons: always, or while the
@@ -114,7 +117,7 @@ function onDeviceModels(): AssistantConfig["localModels"] {
   };
 }
 
-export function Studio({ assistant, products = [] }: StudioProps) {
+export function Studio({ assistant, products = [], member }: StudioProps) {
   const { theme, toggleTheme } = useStudioTheme();
   const { route, navigate } = useStudioRoute();
   const tenant = /^\/t\/([^/]+)/.exec(route.base)?.[1] ?? "local";
@@ -260,6 +263,8 @@ export function Studio({ assistant, products = [] }: StudioProps) {
             setHeaderSlot={setHeaderSlot}
             leave={leave}
             products={products}
+            member={member}
+            tenant={tenant}
             mayLeave={mayLeave}
             runTests={() => binding.runTests?.()}
             toggleTheme={toggleTheme}
@@ -321,6 +326,8 @@ function StudioFrame({
   setHeaderSlot,
   leave,
   products,
+  member,
+  tenant,
   mayLeave,
   runTests,
   toggleTheme,
@@ -337,6 +344,8 @@ function StudioFrame({
   setHeaderSlot(slot: HTMLElement | null): void;
   leave(next: StudioNavigation): void;
   products: readonly ProductLink[];
+  member: ProductMember | undefined;
+  tenant: string;
   mayLeave(): boolean;
   runTests(): void;
   toggleTheme(): void;
@@ -444,6 +453,8 @@ function StudioFrame({
           }}
           onToggleTheme={toggleTheme}
           products={products}
+          member={member}
+          tenant={tenant}
           mayLeave={mayLeave}
           {...(collapsible
             ? {
@@ -454,6 +465,7 @@ function StudioFrame({
         />
       )}
       <main className="studio-main">
+        {member ? <WelcomeBanner member={member} /> : null}
         {/* The Live view carries its own header for the session. */}
         {route.view !== "live" && (
           <SessionBar

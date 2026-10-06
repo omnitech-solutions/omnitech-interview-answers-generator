@@ -238,6 +238,16 @@ export function createInterviewBackend(services: InterviewBackendServices) {
     "/",
     createApi({
       resolveScope,
+      // [SAFETY] HO-SEC-02: the browser UI is accepted only as a verified
+      // member of the tenant its request names (the header is a lookup key;
+      // the session cookie is the proof). No tenant, no session.
+      verifySession: async (request) => {
+        const slug =
+          request.headers.get(TENANT_HEADER) ??
+          new URL(request.url).searchParams.get("tenant") ??
+          "";
+        return slug !== "" && (await services.resolveContext(slug)) !== null;
+      },
       ...(services.answersConfigured
         ? { generate: generator(services.ai, INTERVIEW_ANSWER_PROFILE) }
         : {}),

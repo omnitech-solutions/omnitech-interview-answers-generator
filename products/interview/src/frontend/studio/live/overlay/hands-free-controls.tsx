@@ -26,6 +26,10 @@ import { SettingsPopover } from "./settings-popover";
 import { openStartPage } from "./studio-links";
 import { type HandsFree, useHandsFree } from "./use-hands-free";
 
+// The native app captures through the shell: a web page cannot ask it to.
+const OWNER_APP_LINE =
+  "The Interview Studio app owns capture. Capture from the app.";
+
 // The bar, the one line that says what Auto is doing (or that another window
 // is doing it), and the device-only notice.
 export function HandsFreeBar({
@@ -106,7 +110,9 @@ export function HandsFreeBar({
             >
               <Icon name="visibility" />
               <span className="ov-auto-text">
-                Auto · running in another Studio window
+                {hf.live.native
+                  ? "Auto · running in the Interview Studio app"
+                  : "Auto · running in another Studio window"}
                 {live.mic === "listening" ? " · listening" : ""}
                 {live.sharing ? " · screen shared" : ""}
               </span>
@@ -142,9 +148,11 @@ export function HandsFreeCapture({
         <div className="ov-capture-main">
           <div className="ov-capture-text">
             <div className="ov-capture-label" data-testid="share-mirror">
-              {hf.live.sharing
-                ? "Screen shared in another Studio window"
-                : "No source shared in the window that owns hands-free"}
+              {hf.live.native
+                ? OWNER_APP_LINE
+                : hf.live.sharing
+                  ? "Screen shared in another Studio window"
+                  : "No source shared in the window that owns hands-free"}
             </div>
           </div>
           {hf.working || hf.live.phase === "analyzing" ? (
@@ -162,7 +170,10 @@ export function HandsFreeCapture({
             <button
               type="button"
               className="ov-analyze"
-              disabled={hf.deviceOnly || hf.phase !== null}
+              disabled={
+                hf.live.native === true || hf.deviceOnly || hf.phase !== null
+              }
+              title={hf.live.native ? OWNER_APP_LINE : undefined}
               onClick={() => hf.press("capture")}
             >
               <Icon name="center_focus_strong" />
@@ -238,9 +249,7 @@ export function HandsFreeCapture({
 export function HandsFreeNote({ hf }: { hf: HandsFree }) {
   const dictation = hf.auto.dictation;
   const text =
-    hf.note ??
-    hf.share.message ??
-    (hf.deviceOnly && hf.live.auto ? null : dictation.error);
+    hf.note ?? (hf.deviceOnly && hf.live.auto ? null : dictation.error);
   const banner = hf.captureProblem && (
     <CaptureProblemBanner
       problem={hf.captureProblem}
@@ -450,7 +459,7 @@ function BandView({ hf }: { hf: HandsFree }) {
   // context" and "Add another screenshot" open it first when it is collapsed,
   // and the focus is asked for once the box is on screen.
   const focusWhenShown = useRef(false);
-  const problem = hf.captureProblem ?? hf.note ?? hf.share.message;
+  const problem = hf.captureProblem ?? hf.note;
   useEffect(() => {
     if (problem) setCollapsed(false);
   }, [problem]);

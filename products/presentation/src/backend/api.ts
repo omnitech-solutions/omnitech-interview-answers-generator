@@ -23,7 +23,7 @@ import { importPowerPointTheme } from "../theme-import";
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
   outline: z.array(z.string().trim().min(1)).optional(),
-  themeId: z.string().uuid().optional(),
+  themeId: z.uuid().optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
   idempotencyKey: z.string().trim().min(8).max(200),
 });
@@ -31,13 +31,13 @@ const createSchema = z.object({
 const saveSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   outline: z.array(z.string().trim().min(1)).optional(),
-  themeId: z.string().uuid().nullable().optional(),
+  themeId: z.uuid().nullable().optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
   expectedRevision: z.number().int().positive(),
 });
 
 const slideSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   position: z.number().int().nonnegative(),
   sourceXml: z.string().max(500_000),
   content: z.record(z.string(), z.unknown()).default({}),

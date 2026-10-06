@@ -12,6 +12,7 @@ import { studioFetch } from "./studio-fetch";
 // the browser only, where that URL and the person's settings are known.
 export function StudioPage({
   products = [],
+  member,
 }: {
   products?: readonly ProductLink[];
   // Who is signed in; the account menu reads it.
@@ -30,5 +31,7 @@ export function StudioPage({
     }),
     [],
   );
-  return mounted ? <Studio assistant={assistant} products={products} /> : null;
+  return mounted ? (
+    <Studio assistant={assistant} products={products} member={member} />
+  ) : null;
 }

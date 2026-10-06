@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const FILES: Record<string, string> = {
   "panels.css": join(here, "panels.css"),
+  "start-panel.css": join(here, "start-panel.css"),
   "screenshots.css": join(here, "../../shared/screenshots.css"),
   "overlay.css": join(here, "../overlay.css"),
 };
@@ -117,6 +118,42 @@ const ALLOWED: readonly Allowed[] = [
     "A warning must stay readable on any desktop.",
   ],
   ["panels.css", ".pn-quit-confirm", "background", "Small solid control."],
+  [
+    "start-panel.css",
+    '.pn-chip-initial[data-kind="local"]',
+    "background",
+    "A small round avatar, never a surface.",
+  ],
+  [
+    "start-panel.css",
+    '.pn-start-provider[data-provider="google"]',
+    "background",
+    "A provider's own brand button is a small solid control.",
+  ],
+  [
+    "start-panel.css",
+    '.pn-start-provider[data-provider="linkedin"]',
+    "background",
+    "A provider's own brand button is a small solid control.",
+  ],
+  [
+    "start-panel.css",
+    ".pn-start-mark-g",
+    "background",
+    "A provider's small brand mark inside its button.",
+  ],
+  [
+    "start-panel.css",
+    ".pn-start-mark-in",
+    "background",
+    "A provider's small brand mark inside its button.",
+  ],
+  [
+    "start-panel.css",
+    ".pn-start-toast",
+    "background",
+    "A toast is its own light chip for legibility, not a pane.",
+  ],
   [
     "screenshots.css",
     ".ss-thumb",
@@ -219,7 +256,9 @@ export type Finding = {
 };
 
 export function findings(file: string, source: string): Finding[] {
-  const css = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  const css = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/@import[^;]*;/g, "");
   const out: Finding[] = [];
   for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = (rule[1] ?? "").trim().replace(/\s+/g, " ");

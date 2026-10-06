@@ -11,6 +11,9 @@ export type PanelState = {
   sharing: boolean;
   // What the owner is doing for a capture, so every panel shows it at once.
   phase: "capturing" | "analyzing" | null;
+  // True when the owner is the native Interview Studio app: it captures through
+  // the shell, so another window needs no shared source and cannot capture.
+  native?: true;
 };
 
 export type PanelMessage =

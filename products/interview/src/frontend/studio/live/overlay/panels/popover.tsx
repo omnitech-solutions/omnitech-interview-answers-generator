@@ -11,6 +11,7 @@ import {
   useRef,
 } from "react";
 import { useDismiss } from "../use-dismiss";
+import { useToolbarLock } from "./toolbar-lock";
 
 const ITEM = '[role^="menuitem"]:not([aria-disabled="true"])';
 
@@ -41,6 +42,8 @@ export function Popover(props: PopoverProps) {
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const id = useId();
+  // Before a session runs the trigger is disabled and says what is missing.
+  const lock = useToolbarLock();
   const close = () => onOpenChange(false);
   useDismiss(root, open, close);
 
@@ -93,7 +96,8 @@ export function Popover(props: PopoverProps) {
         type="button"
         className={props.className}
         aria-label={props.triggerLabel ?? props.label}
-        title={props.title}
+        title={lock ?? props.title}
+        disabled={lock !== null}
         aria-haspopup={kind}
         aria-expanded={open}
         aria-controls={open ? id : undefined}

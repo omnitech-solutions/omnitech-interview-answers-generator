@@ -182,8 +182,9 @@ describe("capture & analyze", () => {
     act(() => display.endFromBrowser());
     await flush();
     expect(screen.getByTestId("share-none")).toBeVisible();
-    expect(within(card()).getByRole("alert")).toHaveTextContent(
-      /Sharing stopped/,
+    expect(within(card()).getByTestId("capture-problem")).toHaveAttribute(
+      "data-reason",
+      "source-lost",
     );
   });
 
@@ -193,14 +194,34 @@ describe("capture & analyze", () => {
       throw Object.assign(new Error("x"), { name: "NotAllowedError" });
     });
     await shareSource();
-    expect(within(card()).getByRole("alert")).toHaveTextContent(
-      "Nothing was shared.",
+    expect(within(card()).getByTestId("capture-problem")).toHaveAttribute(
+      "data-reason",
+      "share-cancelled",
     );
+    expect(
+      within(card()).getByTestId("capture-problem-title"),
+    ).toHaveTextContent("Nothing was shared");
     installDisplayMedia(undefined);
     await shareSource();
-    expect(within(card()).getByRole("alert")).toHaveTextContent(
-      /can’t share a window, tab or screen/,
+    expect(within(card()).getByTestId("capture-problem")).toHaveAttribute(
+      "data-reason",
+      "share-unsupported",
     );
+  });
+
+  it("a declined picker is the capture-problem banner, and sharing again removes it", async () => {
+    await openCard();
+    installDisplayMedia(async () => {
+      throw Object.assign(new Error("x"), { name: "NotAllowedError" });
+    });
+    await shareSource();
+    expect(within(card()).getByTestId("capture-problem")).toHaveAttribute(
+      "data-reason",
+      "share-cancelled",
+    );
+    installDisplayMedia(async () => fakeStream().stream);
+    await shareSource();
+    expect(within(card()).queryByTestId("capture-problem")).toBeNull();
   });
 
   it("posts one multipart capture with the right fields, the hints, and no title", async () => {

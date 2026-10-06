@@ -27,6 +27,8 @@ export const HIT_SELECTORS = [
   ".pn-ended", // the ended card
   ".pn-mini-card", // the Mini player
   ".pn-mini-foot",
+  ".pn-start-card", // the sign-in and start screens
+  ".pn-start-toast", // their toast
   ".pn-menu", // every popover and menu
   ".ov-rev-menu", // the revisions popover
   ".pn-toast", // a toast

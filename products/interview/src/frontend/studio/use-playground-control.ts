@@ -14,6 +14,7 @@ import {
   storeApplied,
   writeControlDraft,
 } from "./playground-control";
+import { studioFetch } from "./studio-fetch";
 import type { StudioNavigation } from "./use-studio-route";
 
 const POLL_MS = 500;
@@ -54,7 +55,7 @@ export function usePlaygroundControl(options: {
       if (polling) return;
       polling = true;
       try {
-        const response = await fetch(CONTROL_PATH, {
+        const response = await studioFetch(CONTROL_PATH, {
           cache: "no-store",
           signal: controller.signal,
         });

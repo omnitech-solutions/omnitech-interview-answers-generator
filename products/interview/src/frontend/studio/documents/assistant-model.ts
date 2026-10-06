@@ -3,7 +3,6 @@
 // live state). This is the one place that knows the key; everything else asks
 // for a document target.
 const ASSISTANT_MODEL_KEY = "omnitech-assistant:model";
-const CLAUDE_AGENT = "agent/claude-code";
 
 export function assistantModelId(): string | null {
   try {
@@ -15,7 +14,13 @@ export function assistantModelId(): string | null {
   }
 }
 
-export type DocumentTarget = { id: string; label: string };
+// `family` is the platform's own attribute for how a target runs; product code
+// reads it and never branches on a provider or model name (ADR-0007).
+export type DocumentTarget = {
+  id: string;
+  label: string;
+  family?: "direct-model" | "agent-runtime";
+};
 export type TargetResolution = {
   target: DocumentTarget | undefined;
   // The assistant's pick, when it cannot write documents and so was not used.
@@ -23,7 +28,8 @@ export type TargetResolution = {
 };
 
 // Generation follows the assistant's model when that model can write
-// documents. Otherwise Claude Code, then whatever the host offers first.
+// documents. Otherwise the first agent-runtime target the platform lists (the
+// signed-in CLI agents), then whatever the host offers first.
 export function documentTarget(
   targets: readonly DocumentTarget[],
   preferred: string | null = assistantModelId(),
@@ -33,7 +39,8 @@ export function documentTarget(
     : undefined;
   if (chosen) return { target: chosen, skipped: null };
   return {
-    target: targets.find((item) => item.id === CLAUDE_AGENT) ?? targets[0],
+    target:
+      targets.find((item) => item.family === "agent-runtime") ?? targets[0],
     skipped: preferred,
   };
 }

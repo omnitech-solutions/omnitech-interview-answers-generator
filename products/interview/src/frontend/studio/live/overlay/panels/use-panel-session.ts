@@ -462,6 +462,7 @@ export function usePanelSession(
         interim: engine.state?.speech ?? auto.dictation.interim,
         sharing: share.status === "sharing",
         phase: localPhase,
+        ...(nativeCaptureAvailable() ? { native: true as const } : {}),
       }
     : mirror;
   const liveRef = useRef(live);

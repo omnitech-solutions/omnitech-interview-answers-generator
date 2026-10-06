@@ -7,7 +7,11 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioActions } from "../config/commands";
-import type { Template, TemplateListItem } from "./documents-client";
+import type {
+  DocumentContext,
+  Template,
+  TemplateListItem,
+} from "./documents-client";
 import { DocumentsView } from "./documents-view";
 
 const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
@@ -55,7 +59,7 @@ const baseInterview = {
   label: "Hiring manager",
   kind: "hiring-manager",
 };
-const context = {
+const context: DocumentContext = {
   profiles: [{ id: "profile-1", name: "Experience matrix", revision: 3 }],
   candidacies: [baseCandidacy],
   interviews: [baseInterview],
@@ -519,8 +523,12 @@ describe("New document dialog", () => {
 
   it("says so when the assistant's model cannot write documents", async () => {
     context.targets = [
-      { id: "target-1", label: "Primary model" },
-      { id: "agent/claude-code", label: "Claude Code" },
+      { id: "target-1", label: "Primary model", family: "direct-model" },
+      {
+        id: "agent/claude-code",
+        label: "Claude Code",
+        family: "agent-runtime",
+      },
     ];
     localStorage.setItem(
       "omnitech-assistant:model",

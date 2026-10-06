@@ -52,23 +52,23 @@ export const generatedExplanationSchema = z.object({
 });
 
 export const savedExplanationSchema = generatedExplanationSchema.extend({
-  id: z.string().uuid(),
+  id: z.uuid(),
   topic: z.string().trim().min(1),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 export const saveExplanationRequestSchema = generatedExplanationSchema.extend({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   topic: z.string().trim().min(1),
 });
 
 export const savedAnswerSchema = generatedAnswerSchema.extend({
-  id: z.string().uuid(),
+  id: z.uuid(),
   question: z.string().trim().min(1),
   notes: z.string(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 // A save never takes the Markdown on trust: it is rendered from the guide, so
@@ -76,7 +76,7 @@ export const savedAnswerSchema = generatedAnswerSchema.extend({
 export const saveAnswerRequestSchema = generatedAnswerSchema
   .omit({ answerMarkdown: true })
   .extend({
-    id: z.string().uuid().optional(),
+    id: z.uuid().optional(),
     question: z.string().trim().min(1),
     notes: z.string().default(""),
   })
@@ -128,7 +128,7 @@ export const libraryStatusSchema = z.enum(["draft", "published", "archived"]);
 export const librarySourceSchema = z
   .object({
     publisher: z.string().trim().min(1),
-    canonicalUrl: z.string().url().startsWith("https://"),
+    canonicalUrl: z.url().startsWith("https://"),
     official: z.boolean(),
     version: z.string().trim().min(1).optional(),
     lastVerifiedAt: z.string().date(),
@@ -184,11 +184,11 @@ export const libraryItemInputSchema = z
   });
 
 export const libraryItemSchema = libraryItemInputSchema.extend({
-  id: z.string().uuid(),
+  id: z.uuid(),
   status: libraryStatusSchema,
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  publishedAt: z.string().datetime().optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  publishedAt: z.iso.datetime().optional(),
   revision: z.number().int().positive(),
 });
 
@@ -203,7 +203,7 @@ export const librarySearchQuerySchema = z.object({
 });
 
 export const librarySearchHitSchema = z.object({
-  itemId: z.string().uuid(),
+  itemId: z.uuid(),
   slug: z.string(),
   title: z.string(),
   summary: z.string(),
@@ -212,7 +212,7 @@ export const librarySearchHitSchema = z.object({
   tags: z.array(z.string()),
   official: z.boolean(),
   publisher: z.string().optional(),
-  canonicalUrl: z.string().url().optional(),
+  canonicalUrl: z.url().optional(),
   anchor: z.string(),
   headingPath: z.array(z.string()),
   excerpt: z.string(),

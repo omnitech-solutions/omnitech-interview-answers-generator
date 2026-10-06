@@ -4,9 +4,10 @@
 // untouched.
 //
 // [SAFETY] Signed out or unavailable: a message, no panel; the store stops.
+import type { ProductMember } from "@omnitech/platform-contracts";
 import { useEffect, useMemo, useRef } from "react";
 import { Icon } from "../../../icon";
-import { overlayAccess } from "../../float-access";
+import { type OverlayAccess, overlayAccess } from "../../float-access";
 import { holdAwake } from "../../keep-awake";
 import { tenantFromLocation } from "../../session-registry";
 import { useLiveSession } from "../../use-live-session";
@@ -20,6 +21,7 @@ import { SettingsPanel, Toasts } from "./panel-views";
 import { selectPresentation } from "./presentation-host";
 import { nativeToastsDrawn, openShellConsent } from "./shell-bridge";
 import { SinglePanel, usePanes } from "./single-panel";
+import { StartPanel } from "./start-panel";
 import { SeeThroughButton } from "./toolbar";
 import { usePanelSession } from "./use-panel-session";
 import { usePanelWindowMode } from "./window-mode";
@@ -29,7 +31,18 @@ const WINDOW_TITLE: Record<NativeWindowPage, string> = {
   settings: "Settings",
 };
 
-export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
+export function PanelsRoot({
+  panel,
+  member,
+  signedOut = false,
+}: {
+  panel: NativeWindowPage;
+  // Who is signed in (the account chip and the welcome line).
+  member?: ProductMember;
+  // The public native sign-in route: no session to read, so the window opens on
+  // the sign-in screen whatever the store says.
+  signedOut?: boolean;
+}) {
   const params = new URLSearchParams(window.location.search);
   const presentation = useMemo(() => selectPresentation(), []);
   const { snapshot, actions } = useLiveSession();
@@ -44,11 +57,14 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
   });
   // See-through on: the shell takes the mouse only over the surfaces reported here.
   useHitRegions(presentation, panel === "single" && glass.clear);
-  const access = overlayAccess(snapshot, tenantFromLocation());
+  const access: OverlayAccess = signedOut
+    ? "signed-out"
+    : overlayAccess(snapshot, tenantFromLocation());
   const requested = params.get("session");
   const opened = useRef(false);
   const native = isNativeSurface(params, presentation.capabilities.length);
-  // A native window starts its own session; it never sends the person away.
+  // A native window adopts a running session and shows the start screen when
+  // there is none; it starts one only from that screen's Start button.
   const autoSession = useAutoSession({
     panel,
     enabled: native && access === "ok" && snapshot.hydration === "ready",
@@ -75,6 +91,37 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
     if (access !== "ok") tellHost("lost");
   }, [access]);
 
+  // The compact native window before a session runs: the real toolbar and
+  // footer, locked, around the sign-in or start screen.
+  const startScreen =
+    native &&
+    panel === "single" &&
+    (access === "signed-out" ||
+      (access === "ok" && !snapshot.session && snapshot.hydration === "ready"));
+  if (startScreen)
+    return (
+      <div
+        className="pn-root"
+        data-panel={panel}
+        data-access={access}
+        data-testid="pn-start-root"
+        {...look}
+      >
+        <StartPanel
+          s={s}
+          controls={{ panes, presentation, glass, windowMode }}
+          signedIn={access === "ok"}
+          member={member ?? null}
+          expired={
+            access === "signed-out" &&
+            (!signedOut || params.get("notice") === "expired")
+          }
+          notice={params.get("notice") === "signed-out" ? "signed-out" : null}
+          onStarted={autoSession.announceStarted}
+        />
+        {toastsHere && <Toasts s={s} />}
+      </div>
+    );
   if (access !== "ok")
     return (
       <div
@@ -111,13 +158,9 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
           <span className="pn-muted">
             {snapshot.hydration !== "ready"
               ? "Loading…"
-              : !native
-                ? "No live session."
-                : autoSession.state === "consent"
-                  ? "Consent required"
-                  : autoSession.state === "failed"
-                    ? "Couldn’t start a session."
-                    : "Starting…"}
+              : native && autoSession.state === "consent"
+                ? "Consent required"
+                : "No live session."}
           </span>
           {native && autoSession.state === "consent" && (
             <button
@@ -126,15 +169,6 @@ export function PanelsRoot({ panel }: { panel: NativeWindowPage }) {
               onClick={() => void openShellConsent()}
             >
               Review consent
-            </button>
-          )}
-          {native && autoSession.state === "failed" && (
-            <button
-              type="button"
-              className="pn-bar-button"
-              onClick={autoSession.retry}
-            >
-              Try again
             </button>
           )}
           {/* Clear glass chosen earlier can be turned off with no session. */}

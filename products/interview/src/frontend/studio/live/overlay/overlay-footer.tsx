@@ -1,7 +1,13 @@
 // Follow-up input and the footer: the honest "Visible window" note, Pause or
 // Resume, and End (with its own confirmation). Each calls a store action.
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
@@ -116,7 +122,10 @@ export type FooterVariant =
       starting: boolean;
       onStart(): void;
       onOpenSummary?(): void;
-    };
+    }
+  // No session yet (signed out, or signed in and not started): the same bar with
+  // no session buttons, and who is signed in at its right end.
+  | { kind: "idle"; status: ReactNode };
 
 export function Footer({
   variant,
@@ -152,6 +161,23 @@ export function Footer({
     summary: () => variant.kind === "ended" && variant.onOpenSummary?.(),
   };
   const clock = variant.kind === "live" ? variant.clock : null;
+  const buttons =
+    variant.kind === "idle"
+      ? []
+      : footerButtons(
+          variant.kind === "ended"
+            ? {
+                kind: "ended",
+                starting: variant.starting,
+                canSummary: variant.onOpenSummary !== undefined,
+              }
+            : {
+                kind: "live",
+                paused: variant.paused,
+                busy: pending.includes("pause") || pending.includes("resume"),
+              },
+          wording,
+        );
   return (
     <div className="ov-footer">
       <div className="ov-footer-row">
@@ -177,20 +203,12 @@ export function Footer({
             {clock.label}
           </span>
         )}
-        {footerButtons(
-          variant.kind === "ended"
-            ? {
-                kind: "ended",
-                starting: variant.starting,
-                canSummary: variant.onOpenSummary !== undefined,
-              }
-            : {
-                kind: "live",
-                paused: variant.paused,
-                busy: pending.includes("pause") || pending.includes("resume"),
-              },
-          wording,
-        ).map((button) => (
+        {variant.kind === "idle" && (
+          <span className="ov-status" data-testid="ov-status">
+            {variant.status}
+          </span>
+        )}
+        {buttons.map((button) => (
           <button
             key={button.id}
             ref={button.id === "end" ? endButton : undefined}

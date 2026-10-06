@@ -30,6 +30,7 @@ function Paragraphs({ text }: { text: string }) {
   return (
     <>
       {parts.map((part, index) => (
+        // Index key: paragraphs are split from one string with no id and the list is replaced whole, never reordered.
         <p key={index} className="live-draft-text">
           {part}
         </p>

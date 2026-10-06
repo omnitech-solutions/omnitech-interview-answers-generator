@@ -19,6 +19,7 @@ import React, {
 } from "react";
 
 import { extractMarkdownHeadings, MarkdownContent } from "./markdown-content";
+import { studioFetch } from "./studio/studio-fetch";
 
 const contentTypeLabels: Record<LibraryContentType, string> = {
   "official-reference": "Official Reference",
@@ -40,7 +41,7 @@ const technologyTags: ReadonlySet<string> = new Set(
 );
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await studioFetch(path, init);
   const body = (await response.json()) as
     | T
     | {
