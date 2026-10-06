@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 import { applyTranscriptFinal, markSegmentsSuperseded } from "./core/index";
 import { createInterviewSessionPolicy } from "./interview-policy";
 import { ALL_REPLAY_SETS } from "./replay-fixture-sets";
-import { createRun, processUtterances, type SessionRun } from "./session-run";
+import {
+  capturedFor,
+  createRun,
+  processUtterances,
+  type SessionRun,
+} from "./session-run";
 
 const SETTLE_MS = 1_500;
 const policy = createInterviewSessionPolicy();
@@ -233,6 +238,57 @@ describe("one question said in two pieces is one task (E4)", () => {
 
   it("opens a new task when the next question comes long after", async () => {
     expect(await run2("Okay.", 30_000)).toEqual(["q-e1@r1", "q-e3@r1"]);
+  });
+
+  it("gives the one task every piece of the question, including a middle piece that is no question itself", async () => {
+    // Said in three pieces with short reactions between: the ask, the three buckets
+    // it refers to (which end on a dangling "I would love to ask how you"), and the
+    // last words of the question. The draft must see all three.
+    const run = newRun();
+    const piece = async (
+      eventId: string,
+      speaker: "interviewer" | "candidate",
+      text: string,
+      startMs: number,
+    ) => {
+      arrive(run, startMs + 2_000, {
+        eventId,
+        speaker,
+        text,
+        startMs,
+        endMs: startMs + 2_000,
+      });
+      await processUtterances(run, policy, startMs + 4_500, SETTLE_MS);
+    };
+    await piece(
+      "p1",
+      "interviewer",
+      "It is a bit tricky, but I would love to see how you might estimate your time.",
+      0,
+    );
+    await piece("r1", "candidate", "Okay, sure.", 5_000);
+    await piece(
+      "p2",
+      "interviewer",
+      "First bucket would be hands-on coding, second bucket would be architectural design, third bucket would be mentoring the team. So yeah, I would love to ask how you",
+      8_000,
+    );
+    await piece("r2", "candidate", "Mm-hmm.", 13_000);
+    await piece(
+      "p3",
+      "interviewer",
+      "currently split your time between those responsibilities?",
+      16_000,
+    );
+    expect(taskList(run)).toEqual(["q-p1@r2"]);
+    const task = Object.values(run.tasks.tasks)[0];
+    const heard = capturedFor(run, task as never)
+      .map((line) => line.text)
+      .join(" ");
+    expect(heard).toContain("estimate your time");
+    expect(heard).toContain("First bucket would be hands-on coding");
+    expect(heard).toContain("currently split your time");
+    expect(heard).not.toContain("Okay, sure");
   });
 
   it("holds an announcement that trails off, and the question that follows opens the one task", async () => {

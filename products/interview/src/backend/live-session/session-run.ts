@@ -1027,44 +1027,59 @@ function correctionTarget(
 // pause, starts a new question.
 const CONTINUATION_GAP_MS = 12_000;
 
-function continuationTarget(
+type Continuation = {
+  taskId: string;
+  // This speaker's pieces between the task's last piece and the new utterance that
+  // opened no task themselves (the middle of a question), in time order.
+  between: readonly ReturnType<typeof effectiveSegments>[number][];
+};
+
+function continuationOf(
   run: SessionRun,
   policy: InterviewSessionPolicy,
   utterance: Utterance,
-): string | null {
+): Continuation | null {
   const segments = effectiveSegments(run.transcript);
-  let previous: (typeof segments)[number] | undefined;
-  for (const segment of segments)
-    if (
+  const own = segments.filter(
+    (segment) =>
       segment.speaker === utterance.speaker &&
       segment.endMs <= utterance.startMs &&
-      !utterance.segmentIds.includes(segment.eventId)
-    )
-      previous = segment;
-  if (!previous || utterance.startMs - previous.endMs > CONTINUATION_GAP_MS)
-    return null;
-  // A finished question ("...your notice period?") is complete: what follows is a new
-  // one. The pieces of ONE question follow a statement-form or cut-off first piece
-  // ("I'd love to hear if you can walk me through a project...").
-  if (previous.text.trim().endsWith("?")) return null;
-  // Only reactions may come between the pieces: anything the other side says
-  // that carries content (an answer) closes the question.
-  const interjections = segments.filter(
-    (segment) =>
-      segment.speaker !== utterance.speaker &&
-      segment.startMs >= (previous?.endMs ?? 0) &&
-      segment.startMs < utterance.startMs,
+      !utterance.segmentIds.includes(segment.eventId),
   );
-  if (!interjections.every((segment) => policy.isReaction(segment.text)))
-    return null;
-  const task = Object.values(run.tasks.tasks)
-    .reverse()
-    .find((candidate) =>
-      candidate.revisions.some((entry) =>
-        entry.basedOn.includes(previous?.eventId ?? ""),
-      ),
-    );
-  return task?.taskId ?? null;
+  const taskOf = (eventId: string) =>
+    Object.values(run.tasks.tasks)
+      .reverse()
+      .find((candidate) =>
+        candidate.revisions.some((entry) => entry.basedOn.includes(eventId)),
+      );
+  const between: (typeof own)[number][] = [];
+  // Walk back over this speaker's earlier pieces. Each must follow the next within the
+  // window, say nothing that finishes a question, and have only reactions from the
+  // other side in between; the first one that belongs to a task is the one continued.
+  let nextStart = utterance.startMs;
+  for (let index = own.length - 1; index >= 0; index -= 1) {
+    const piece = own[index];
+    if (!piece || nextStart - piece.endMs > CONTINUATION_GAP_MS) return null;
+    // A finished question ("...your notice period?") is complete: what follows is a
+    // new one. The pieces of ONE question follow a statement-form or cut-off piece.
+    if (piece.text.trim().endsWith("?")) return null;
+    // Only reactions may come between the pieces: anything the other side says that
+    // carries content (an answer) closes the question.
+    const reactionsOnly = segments
+      .filter(
+        (segment) =>
+          segment.speaker !== utterance.speaker &&
+          segment.startMs >= piece.endMs &&
+          segment.startMs < nextStart,
+      )
+      .every((segment) => policy.isReaction(segment.text));
+    if (!reactionsOnly) return null;
+    const task = taskOf(piece.eventId);
+    if (task) return { taskId: task.taskId, between: between.reverse() };
+    between.push(piece);
+    nextStart = piece.startMs;
+  }
+  return null;
 }
 
 // The same policy, except that a question it would open revises `taskId`.
@@ -1128,15 +1143,34 @@ export async function processUtterances(
           { kind: "revise", taskId: target, reason: "correction" },
           idsOf(run),
         )
-      : await processUtterance(
-          run.tasks,
-          (() => {
-            const continues = continuationTarget(run, policy, utterance);
-            return continues ? continuing(policy, continues) : policy;
-          })(),
-          utterance,
-          idsOf(run),
-        );
+      : await (async () => {
+          const continues = continuationOf(run, policy, utterance);
+          // A continuation carries the unopened middle pieces too, so the revised
+          // draft sees the whole question (the revision rests on all of them).
+          const whole: Utterance = continues
+            ? {
+                ...utterance,
+                startMs: Math.min(
+                  utterance.startMs,
+                  ...continues.between.map((piece) => piece.startMs),
+                ),
+                segmentIds: [
+                  ...continues.between.map((piece) => piece.eventId),
+                  ...utterance.segmentIds,
+                ],
+                text: [
+                  ...continues.between.map((piece) => piece.text),
+                  utterance.text,
+                ].join(" "),
+              }
+            : utterance;
+          return processUtterance(
+            run.tasks,
+            continues ? continuing(policy, continues.taskId) : policy,
+            whole,
+            idsOf(run),
+          );
+        })();
     run.tasks = step.state;
     fromCore(run, step.trace);
     handled += 1;
