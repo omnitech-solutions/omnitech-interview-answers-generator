@@ -56,6 +56,13 @@ const rules: readonly RouteRule[] = [
   },
   {
     method: "ALL",
+    path: "/api/*",
+    class: "middleware",
+    reason:
+      "the shared origin guard (HO-SEC-01): refuses a mutating request the browser marks cross-site or whose Origin is not this host; it reads no identity and never blocks a read or a caller without Origin",
+  },
+  {
+    method: "ALL",
     path: "/api/interview/t/:tenantSlug/sessions/*",
     class: "middleware",
     reason:
@@ -79,7 +86,7 @@ const rules: readonly RouteRule[] = [
     path: "/api/v1/*",
     class: "middleware",
     reason:
-      "the optional INTERVIEW_API_TOKEN gate on the answers API (same-origin requests pass without a token); membership is not resolved here (deferred auth phase)",
+      "the /api/v1 gate: a constant-time INTERVIEW_API_TOKEN bearer or a verified signed-in session for the tenant the request names; client Origin/Sec-Fetch-Site headers never grant access; fails closed with a fixed 401 (HO-SEC-02)",
   },
   {
     method: "GET",
@@ -92,7 +99,7 @@ const rules: readonly RouteRule[] = [
     path: "/api/v1/*",
     class: "credential",
     reason:
-      "answers, library, explanations, playground control and code execution: gated only by the optional shared API token or a same-origin request, with no tenant membership today (deferred auth phase, tracked in the redesign plan)",
+      "answers, library, explanations, playground control and code execution: gated by the /api/v1 middleware (API token or verified member session); the token path carries no tenant membership, so it is an operator credential, not a member identity",
   },
   {
     method: "*",

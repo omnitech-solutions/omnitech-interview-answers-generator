@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@omnitech/platform-contracts": "workspace:*",
-    "hono": "^4.12.8"
+    "hono": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

@@ -13,6 +13,14 @@ const localEnvironment = {
   ...(await defaultLocalModelEnvironment(configuredEnvironment)),
   NODE_ENV: configuredEnvironment.NODE_ENV ?? "development",
   FAKE_AUTH_ENABLED: configuredEnvironment.FAKE_AUTH_ENABLED ?? "true",
+  // Claude Code is the assistant and the screenshot analyser by default; LM
+  // Studio is never required (set these in .env to change it).
+  INTERVIEW_ASSISTANT_DEFAULT_MODEL:
+    configuredEnvironment.INTERVIEW_ASSISTANT_DEFAULT_MODEL ?? "agent/claude-code",
+  ACTIVE_SESSION_AGENT_PORT:
+    configuredEnvironment.ACTIVE_SESSION_AGENT_PORT ?? "on",
+  ACTIVE_SESSION_AGENT_PROFILE:
+    configuredEnvironment.ACTIVE_SESSION_AGENT_PROFILE ?? "claude",
   NEXT_PUBLIC_FAKE_AUTH_ENABLED:
     configuredEnvironment.NEXT_PUBLIC_FAKE_AUTH_ENABLED ?? "true",
   AUTH_SECRET:
@@ -82,17 +90,62 @@ if (database.status !== 0) {
   process.exit(database.status ?? 1);
 }
 
-for (const [workspace, command] of [
-  ["@omnitech/database", "db:migrate"],
-  ["@omnitech/platform-storage", "db:bootstrap"],
+// Roles and grants (the owner/runtime split, ADR-0005 d4). The image's init
+// script runs only on an EMPTY volume, so an existing volume is upgraded here
+// instead: docker/postgres/ensure-roles.sql is idempotent, changes ownership
+// and privileges only, and never touches data. It runs before the migration
+// (so the owner exists) and after it (so new tables are granted).
+function ensureDatabaseRoles() {
+  const ensure = spawnSync(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "--single-transaction",
+      "-q",
+      "-U",
+      "postgres",
+      "-d",
+      "omnitech",
+      "-f",
+      "-",
+    ],
+    {
+      input: readFileSync(
+        new URL("../docker/postgres/ensure-roles.sql", import.meta.url),
+      ),
+      stdio: ["pipe", "inherit", "inherit"],
+    },
+  );
+  if (ensure.status !== 0) process.exit(ensure.status ?? 1);
+}
+
+ensureDatabaseRoles();
+for (const [workspace, command, extraEnvironment] of [
+  [
+    "@omnitech/database",
+    "db:migrate",
+    // Only the migration gets the owner; the app never sees this URL.
+    {
+      DATABASE_OWNER_URL:
+        "postgresql://omnitech_owner:omnitech_owner@127.0.0.1:54320/omnitech",
+    },
+  ],
+  ["@omnitech/platform-storage", "db:bootstrap", {}],
 ]) {
   const setup = spawnSync("pnpm", ["--filter", workspace, command], {
-    env: localEnvironment,
+    env: { ...localEnvironment, ...extraEnvironment },
     stdio: "inherit",
   });
   if (setup.status !== 0) {
     process.exit(setup.status ?? 1);
   }
+  if (command === "db:migrate") ensureDatabaseRoles();
 }
 
 // The web app loads every workspace package from its dist, so build the

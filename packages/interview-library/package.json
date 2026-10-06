@@ -22,7 +22,7 @@
     "@orama/orama": "^3.1.17",
     "@orama/plugin-data-persistence": "^3.1.17",
     "@omnitech/interview-contracts": "workspace:*",
-    "github-slugger": "^2.0.0"
+    "github-slugger": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

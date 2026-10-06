@@ -92,16 +92,16 @@ const surfaces: Record<string, SurfaceRow> = {
   //   StudioHostTextRecognitionResult) are no longer exported: -4 (T37).
   // - LIVE_SCREENSHOT_SENT stays exported with its schema; no consumer outside
   //   the package reads the tuple yet (live-session.ts is another worker's file).
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 365 },
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 373 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
   "@omnitech/platform-api": { entrypoints: 1, names: 2 },
-  "@omnitech/platform-contracts": { entrypoints: 1, names: 22 },
-  "@omnitech/platform-integrations": { entrypoints: 1, names: 9 },
+  "@omnitech/platform-contracts": { entrypoints: 1, names: 23 },
+  "@omnitech/platform-integrations": { entrypoints: 1, names: 12 },
   "@omnitech/platform-runtime": { entrypoints: 1, names: 7 },
   "@omnitech/platform-storage": { entrypoints: 3, names: 38 },
-  "@omnitech/product-interview": { entrypoints: 6, names: 82 },
+  "@omnitech/product-interview": { entrypoints: 6, names: 83 },
   "@omnitech/product-presentation": { entrypoints: 3, names: 11 },
 };
 

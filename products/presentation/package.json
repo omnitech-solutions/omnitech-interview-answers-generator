@@ -30,9 +30,9 @@
     "@omnitech/database": "workspace:*",
     "@omnitech/platform-contracts": "workspace:*",
     "@omnitech/platform-storage": "workspace:*",
-    "drizzle-orm": "1.0.0-rc.4",
-    "hono": "^4.12.8",
-    "jszip": "^3.10.1",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "jszip": "catalog:",
     "pdf-lib": "^1.17.1",
     "pptxgenjs": "^4.0.1",
     "react": "catalog:",
@@ -40,12 +40,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "^7.0.0",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "jsdom": "^29.1.1",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

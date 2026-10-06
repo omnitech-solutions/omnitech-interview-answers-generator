@@ -37,7 +37,7 @@
     "@omnitech/interview-contracts": "workspace:*",
     "@omnitech/interview-playground-control": "workspace:*",
     "@types/node": "catalog:",
-    "tsup": "^8.5.0",
+    "tsup": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

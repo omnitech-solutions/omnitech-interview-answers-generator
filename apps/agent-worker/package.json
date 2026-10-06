@@ -12,7 +12,7 @@
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@omnitech/agent-job-service": "workspace:*",
     "@omnitech/agent-runtime-claude": "workspace:*",
     "@omnitech/agent-runtime-codex": "workspace:*",
@@ -27,7 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "esbuild": "^0.28.0",
+    "esbuild": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

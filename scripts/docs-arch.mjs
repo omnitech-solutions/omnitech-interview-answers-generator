@@ -8,10 +8,11 @@
 // when the committed data-model page is a stub.
 //   pnpm docs:arch          regenerate bionic/arch
 //   pnpm docs:arch:check    --dry-run: report drift, write nothing
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { withAside } from "./docs-arch-aside.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const cache = join(homedir(), ".claude/plugins/cache/crux/crux");
@@ -55,13 +56,30 @@ function overridesFlag() {
   return "1";
 }
 
-const result = spawnSync(
-  "uv",
-  ["run", script, "--docs-dir", "bionic", ...process.argv.slice(2)],
-  {
-    cwd: root,
-    stdio: "inherit",
-    env: { ...process.env, CRUX_ARCH_ALLOW_OVERRIDES: overridesFlag() },
-  },
+// The scanners ignore .gitignore, so the generated OCR engine files would show
+// as drift. Move them aside while the scanner runs; docs-arch-aside.mjs always
+// puts them back (finally, SIGINT, SIGTERM, or a leftover from a killed run).
+const ocr = join(root, "apps/web/public/ocr");
+let child;
+const status = await withAside(
+  ocr,
+  () =>
+    new Promise((done) => {
+      child = spawn(
+        "uv",
+        ["run", script, "--docs-dir", "bionic", ...process.argv.slice(2)],
+        {
+          cwd: root,
+          stdio: "inherit",
+          env: { ...process.env, CRUX_ARCH_ALLOW_OVERRIDES: overridesFlag() },
+        },
+      );
+      child.on("error", (error) => {
+        console.error(`docs:arch could not start uv: ${error.message}`);
+        done(1);
+      });
+      child.on("close", (code) => done(code ?? 1));
+    }),
+  (signal) => child?.kill(signal),
 );
-process.exit(result.status ?? 1);
+process.exit(status);

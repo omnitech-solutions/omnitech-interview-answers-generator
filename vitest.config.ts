@@ -37,11 +37,25 @@ export default defineConfig({
     ],
   },
   test: {
+    // Undo vi.stubEnv after every test. Each project below is its own config
+    // and does not inherit this, so each sets it (the web project in its file).
     projects: [
       {
+        // `server-only` throws outside a server bundle by design (apps/web marks
+        // its Auth and context modules with it); guards that import those
+        // modules run in plain Node, so it resolves to an empty module.
+        resolve: {
+          alias: {
+            "server-only": new URL(
+              "./apps/web/src/platform/optional-module-stub.ts",
+              import.meta.url,
+            ).pathname,
+          },
+        },
         test: {
           name: "node",
           environment: "node",
+          unstubEnvs: true,
           // The suites boot real servers and workers; 10 s is the ceiling.
           testTimeout: 10_000,
           hookTimeout: 10_000,
@@ -61,6 +75,7 @@ export default defineConfig({
         test: {
           name: "docker",
           environment: "node",
+          unstubEnvs: true,
           // These tests start databases and worker processes, so on a busy
           // machine a single test legitimately needs far more than the 10 s of
           // the Docker-free projects; the container also waits up to 30 s to
@@ -75,6 +90,7 @@ export default defineConfig({
         test: {
           name: "integration",
           environment: "node",
+          unstubEnvs: true,
           // Real-provider checks (a signed-in agent CLI on this machine),
           // started by `pnpm test:integration`; never part of `pnpm test`.
           testTimeout: 120_000,
@@ -105,6 +121,7 @@ export default defineConfig({
         test: {
           name: "react",
           environment: "jsdom",
+          unstubEnvs: true,
           testTimeout: 10_000,
           hookTimeout: 10_000,
           include: ["products/*/src/frontend/**/*.test.{ts,tsx}"],

@@ -34,13 +34,13 @@
   },
   "dependencies": {
     "@omnitech-assistant/storage-postgres": "file:../../vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz",
-    "drizzle-orm": "1.0.0-rc.4",
+    "drizzle-orm": "catalog:",
     "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.15.5",
-    "drizzle-kit": "1.0.0-rc.4",
+    "drizzle-kit": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

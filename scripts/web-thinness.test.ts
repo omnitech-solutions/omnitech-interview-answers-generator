@@ -45,6 +45,12 @@ const sizeExemptions: readonly Ceiling[] = [
       "the platform agent-job HTTP routes (profiles, create, events, cancel, resume); they resolve the tenant member and delegate to agent-job-service",
   },
   {
+    file: "apps/web/src/platform/native-handoff.ts",
+    max: 170,
+    reason:
+      "the Mac app's login handoff store (single-use code, attempt nonce, S256 verifier binding, origin binding); it is the shell's own sign-in session logic, holds no product data and is used only by the native-auth routes",
+  },
+  {
     file: "apps/web/src/platform/agent-models.ts",
     max: 250,
     reason:

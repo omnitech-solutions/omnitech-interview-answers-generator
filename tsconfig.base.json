@@ -10,6 +10,7 @@
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "useUnknownInCatchVariables": true,
+    "isolatedModules": true,
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,

@@ -1,0 +1,100 @@
+# Continuous integration: the repository gate (`pnpm verify`) and the browser
+# suite (`pnpm test:browser`), on every pull request and push to master.
+#
+# - No secrets are used or needed: the suites run against a scripted model and
+#   disposable PostgreSQL containers; no real AI provider is called.
+# - Actions are pinned to major versions. Pinning to a full commit SHA needs a
+#   network lookup of each tag and has not been done; do it before relying on
+#   this workflow for anything sensitive.
+# - Node 22 matches `engines.node` (>=22) in package.json; pnpm comes from
+#   `packageManager` (pnpm@10.33.3) through corepack.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run for the same branch or pull request replaces an older one.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Never prompt or open a browser, and keep telemetry off.
+  CI: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  # lint, format, typecheck, tests with coverage thresholds, build, and the
+  # native check. On this Linux runner `scripts/verify-native.mjs` prints
+  # "verify-native skipped: not macOS" and exits 0 (so `pnpm verify` is green
+  # here without having built Swift); the `native` job below is what actually
+  # builds and tests the Swift packages.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      # The Docker-backed test projects run the code in these images
+      # (`--pull=never`), so they must exist before the tests start.
+      - run: pnpm runner:build
+      - run: pnpm verify
+
+  # The Swift half of `pnpm verify`. It runs only on macOS because the Swift
+  # packages (apps/studio-shell, apps/capture-companion/macos) use Apple
+  # frameworks. Needs no pnpm install: the script only invokes `swift`.
+  # UNVERIFIED on GitHub: the macOS runner's Xcode toolchain is assumed to be
+  # able to `swift build` and run the two test executables.
+  native:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: swift --version
+      - run: node scripts/verify-native.mjs
+
+  # The Playwright suite drives the built web app and worker against a scripted
+  # model. `pnpm test:browser` runs E2E_SHARDS=4 shards inside this one job
+  # (the default; each shard has its own PostgreSQL container and stack).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm runner:build
+      # The suite needs the built workspace (its global setup checks).
+      - run: pnpm build
+      # Chromium and WebKit; `--with-deps` is not part of the repository script,
+      # so the OS libraries are installed separately.
+      - run: pnpm test:browser:install
+      - run: pnpm --filter @omnitech/e2e-live-session exec playwright install-deps chromium webkit
+      - run: pnpm test:browser
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/live-session/.playwright-report
+            e2e/live-session/.test-results
+          if-no-files-found: ignore
+          retention-days: 7

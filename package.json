@@ -34,6 +34,8 @@
     "hooks:run:pre-push": "lefthook run pre-push",
     "prepare": "lefthook install",
     "dev:stop": "node scripts/dev-stop.mjs",
+    "app:up": "docker compose --profile app up -d --build && scripts/docker-host-worker.sh start",
+    "app:down": "scripts/docker-host-worker.sh stop; docker compose --profile app down",
     "docs:arch": "node scripts/docs-arch.mjs",
     "docs:arch:check": "node scripts/docs-arch.mjs --dry-run"
   },

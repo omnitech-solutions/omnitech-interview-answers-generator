@@ -40,6 +40,11 @@ const bypassOptIns: readonly Allowance[] = [
     reason: "proves an opted-in handle is served and unopted handles are not",
   },
   {
+    file: "packages/database/src/role-split.test.ts",
+    reason:
+      "applies docker/postgres/ensure-roles.sql as the cluster administrator (the step needs a superuser) and reads catalogs; the runtime and owner roles it proves run without the opt-in",
+  },
+  {
     file: "e2e/live-session/src/helpers/sql.ts",
     reason:
       "reads as the disposable database's owner, plus one write (moveClock) that runs with triggers off (session_replication_role = replica), on the disposable fixture database only; the stack under test never uses this handle",
@@ -69,6 +74,11 @@ const ownerUrlUses: readonly Allowance[] = [
   {
     file: "apps/agent-worker/src/main.test.ts",
     reason: "proves the worker refuses to boot on a superuser DATABASE_URL",
+  },
+  {
+    file: "packages/database/src/role-split.test.ts",
+    reason:
+      "builds the administrator handle that runs the ensure-roles step on its own disposable databases; the app roles it proves are NOSUPERUSER NOBYPASSRLS",
   },
   {
     file: "e2e/live-session/src/helpers/sql.ts",
@@ -318,4 +328,17 @@ it("keeps the fixture's owner opted in and the refusal message pointing at membe
   visit(parse(readFileSync(join(repoRoot, entryFile), "utf8")));
   expect(message).toMatch(/memberUrl/);
   expect(message).toMatch(/grantApplicationRole/);
+});
+
+// The owner URL migrates and nothing else: app code (the web server, the worker,
+// bootstrap) is given DATABASE_URL, the DML-only runtime role, never the role
+// that owns the schemas and can disable row-level security (ADR-0005 d4).
+it("reads DATABASE_OWNER_URL only in the migrate command", () => {
+  const readers = repoFiles()
+    .filter(
+      ({ path, source }) =>
+        source.includes("DATABASE_OWNER_URL") && !path.endsWith(".test.ts"),
+    )
+    .map(({ path }) => path);
+  expect(readers).toEqual(["packages/database/src/migrate-command.ts"]);
 });
