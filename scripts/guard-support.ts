@@ -22,6 +22,9 @@ const ignoredDirectories = new Set([
   "drizzle",
   ".data",
   ".build",
+  // Scratch output of the UI audit and evaluation scripts (gitignored): generated
+  // files that import test libraries no workspace declares.
+  ".audit",
 ]);
 
 /** A repository-relative path with forward slashes. */

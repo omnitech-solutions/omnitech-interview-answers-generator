@@ -19,6 +19,10 @@ mkdir -p .dev-local
 [ -f .env ] && { set -a; . ./.env; set +a; }
 RUNNER_TOKEN="${CODE_RUNNER_TOKEN:-docker-local-code-runner-token-change-me}"
 
+# Stop a process AND its children: the pnpm wrapper does not reliably stop the node
+# process it started, and an orphaned worker keeps claiming sessions with old code.
+kill_tree() { for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill "$1" 2>/dev/null || true; }
+
 alive() { [ -f "$1.pid" ] && kill -0 "$(cat "$1.pid")" 2>/dev/null; }
 
 start_worker() {
@@ -55,7 +59,7 @@ start_runner() {
 }
 
 stop_one() {
-  if alive "$state-$1"; then kill "$(cat "$state-$1.pid")"; echo "$1 stopped"; else echo "$1 not running"; fi
+  if alive "$state-$1"; then kill_tree "$(cat "$state-$1.pid")"; echo "$1 stopped"; else echo "$1 not running"; fi
   rm -f "$state-$1.pid"
 }
 

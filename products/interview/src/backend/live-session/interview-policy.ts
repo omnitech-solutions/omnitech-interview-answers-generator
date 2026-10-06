@@ -172,7 +172,10 @@ const SOCIAL_CHECKS = [
 
 // A bare "?" on a very short remark ("huh?", "right?") is a reaction, not a
 // question; a short question that opens with a question word ("why?") still is.
+// Length counts in characters too, so text written without spaces is not mistaken
+// for one short word.
 const MIN_WORDS_FOR_BARE_QUESTION_MARK = 4;
+const MIN_CHARS_FOR_BARE_QUESTION_MARK = 24;
 
 function isQuestion(text: string, monologue: boolean): boolean {
   const sentences = text
@@ -195,6 +198,7 @@ function isQuestion(text: string, monologue: boolean): boolean {
       (sentence) =>
         sentence.includes("?") &&
         (words(sentence).length >= MIN_WORDS_FOR_BARE_QUESTION_MARK ||
+          sentence.trim().length >= MIN_CHARS_FOR_BARE_QUESTION_MARK ||
           startsAsQuestion(sentence)),
     )
   )

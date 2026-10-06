@@ -36,6 +36,8 @@ const REAL_QUESTIONS = [
   "Alright, and my last question for you now is just regarding compensation, but rest assured that this is very preliminary. I'd love to ask if you had any preferences as to what type of compensation.",
   "Do you have any kind of more specific ranges within that that you're hoping for?",
   "Did you have any other questions for me for now?",
+  // Text written without spaces is long, not one short word.
+  "請問你能描述一下你如何設計這個系統的容錯機制嗎？ ?",
 ];
 
 const NOT_QUESTIONS = [
@@ -52,6 +54,8 @@ const NOT_QUESTIONS = [
   "That's really great to hear. Sorry, I'm just finishing up my notes surrounding this, but that was a really great description.",
   "Sorry, I'm just making a note not to forget to follow up.",
   "Okay, fantastic. Let me take note.",
+  "Understood?",
+  "Agreed?",
   "Um, and yeah, that's the super quick overview. Do you have any questions at all about what I've discussed so far before I continue?",
 ];
 

@@ -14,6 +14,8 @@ const ignoredDirectories = new Set([
   ".next",
   ".next-e2e",
   ".turbo",
+  // Gitignored scratch output of the UI audit and evaluation scripts.
+  ".audit",
 ]);
 
 // The only relative imports that leave a package. Each names the importing
