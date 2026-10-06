@@ -144,6 +144,8 @@ type Session = {
   query: Query;
   profileKey: string;
   cwd: string;
+  // The SDK's own handle on the CLI process: aborting it ends the process.
+  controller: AbortController;
   runId: string;
   lastUsed: number;
   sessionId?: string;
@@ -207,11 +209,22 @@ export function createClaudeRuntimeAdapter(
   const active = new Map<string, Session>();
   const MAX_IDLE_MS = 5 * 60_000;
   const MAX_SESSIONS = 4;
+  // A CLI that has stopped answering never settles interrupt(): a cancel waits this
+  // long for a polite stop, then ends the process.
+  const CANCEL_GRACE_MS = 3_000;
+  const REAP_EVERY_MS = 60_000;
   function close(session: Session) {
     if (session.closed) return;
     session.closed = true;
     session.input.close();
     session.query.close();
+    // Belt and braces: closing the query should end the process; aborting is the
+    // SDK's documented way to make sure it does.
+    try {
+      session.controller.abort();
+    } catch {
+      // Already ended.
+    }
     if (session.sessionId) sessions.delete(session.sessionId);
   }
   function prune() {
@@ -224,6 +237,12 @@ export function createClaudeRuntimeAdapter(
       .sort((a, b) => a.lastUsed - b.lastUsed)[0];
     if (oldest) close(oldest);
   }
+  // [SAFETY] An idle pooled session holds a live CLI process. It is closed by time,
+  // not only when the next run starts: a worker that goes quiet must not keep
+  // processes (about 100 MB each) alive indefinitely. Unref'd, so it never keeps
+  // the host process up.
+  const reaper = setInterval(prune, REAP_EVERY_MS);
+  reaper.unref?.();
   function pump(session: Session) {
     void (async () => {
       try {
@@ -441,6 +460,7 @@ export function createClaudeRuntimeAdapter(
         query: stream,
         profileKey: key,
         cwd: request.workingDirectory,
+        controller,
         runId: request.runId,
         lastUsed: Date.now(),
         closed: false,
@@ -498,13 +518,25 @@ export function createClaudeRuntimeAdapter(
       const session = active.get(runId);
       if (!session) return;
       session.cancelRequested = true;
+      // [SAFETY] A cancelled run's process must not outlive the cancel. A polite
+      // interrupt gets a short grace; a CLI that never answers it (the case that
+      // used to leave a process behind for every timed-out job) is ended.
+      let grace: ReturnType<typeof setTimeout> | undefined;
       try {
-        await session.query.interrupt();
+        await Promise.race([
+          session.query.interrupt(),
+          new Promise<void>((resolve) => {
+            grace = setTimeout(resolve, CANCEL_GRACE_MS);
+          }),
+        ]);
       } catch {
         close(session);
       }
+      clearTimeout(grace);
+      if (!session.closed && session.turn && !session.turn.done) close(session);
     },
     async close() {
+      clearInterval(reaper);
       for (const session of [...sessions.values(), ...active.values()])
         close(session);
     },
