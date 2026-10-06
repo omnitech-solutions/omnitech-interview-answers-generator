@@ -34,6 +34,15 @@ export const isTestSupportPath = (path: string): boolean =>
     path,
   );
 
+/**
+ * A file a build tool writes next to its config and deletes a moment later
+ * (tsup's `tsup.config.bundled_<id>.mjs`, vite's `vite.config.ts.timestamp-*`).
+ * It is never source, and a guard that lists it can find it gone when it reads it.
+ */
+export const isTransientBuildFile = (name: string): boolean =>
+  /\.bundled_[a-z0-9]+\.(mjs|cjs|js)$/.test(name) ||
+  /\.timestamp-\d+-[a-f0-9]+\.(mjs|cjs|js)$/.test(name);
+
 /** Every file under `directory` (repository-relative) whose name matches. */
 export function walk(directory: string, pattern: RegExp): string[] {
   const root = join(repoRoot, directory);
@@ -46,7 +55,9 @@ export function walk(directory: string, pattern: RegExp): string[] {
         return [];
       const path = join(dir, entry.name);
       if (entry.isDirectory()) return visit(path);
-      return pattern.test(entry.name) && !entry.name.endsWith(".d.ts")
+      return pattern.test(entry.name) &&
+        !entry.name.endsWith(".d.ts") &&
+        !isTransientBuildFile(entry.name)
         ? [repoPath(path)]
         : [];
     });
