@@ -258,8 +258,10 @@ export function Toolbar({
         windowMode={controls.windowMode}
         onPopup={setDotPopup}
       />
-      <ToolbarLock.Provider value={lock ?? (s.paused ? PAUSED_REASON : null)}>
-        <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
+      <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
+        {/* The capture button and its screen menu wait while paused; the mode menu
+            (Auto or Manual) never does, so it always opens. */}
+        <ToolbarLock.Provider value={lock ?? (s.paused ? PAUSED_REASON : null)}>
           <CaptureButton
             s={s}
             buttonRef={captureRef}
@@ -286,6 +288,8 @@ export function Toolbar({
               }
             />
           )}
+        </ToolbarLock.Provider>
+        <ToolbarLock.Provider value={lock}>
           <Popover
             open={menu === "mode"}
             onOpenChange={toggle("mode")}
@@ -338,8 +342,8 @@ export function Toolbar({
               })
             }
           </Popover>
-        </div>
-      </ToolbarLock.Provider>
+        </ToolbarLock.Provider>
+      </div>
       <MicButton s={s} />
       <Popover
         open={menu === "skill"}

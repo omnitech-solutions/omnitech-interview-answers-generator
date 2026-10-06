@@ -693,13 +693,22 @@ describe("a paused session", () => {
     expect(document.querySelector(".pn-single-body")).not.toBeNull();
   });
 
-  it("disables the capture button and both of its dropdowns, saying why, and enables them again once it runs", async () => {
+  it("disables the capture button and its screen menu (never the mode menu), saying why, and enables them again once it runs", async () => {
     serve(live({ status: "paused" }));
     await show();
     const split = document.querySelector(".pn-split") as HTMLElement;
     const buttons = within(split).getAllByRole("button");
     expect(buttons.length).toBeGreaterThanOrEqual(2);
-    for (const button of buttons) expect(button).toBeDisabled();
+    // The capture button and the screen menu wait; the mode menu never does.
+    const mode = within(split).getByRole("button", { name: /Capture mode/ });
+    expect(mode).toBeEnabled();
+    for (const button of buttons.filter((each) => each !== mode))
+      expect(button).toBeDisabled();
+    fireEvent.click(mode);
+    expect(
+      within(document.body).getAllByRole("menuitemradio").length,
+    ).toBeGreaterThanOrEqual(2);
+    fireEvent.keyDown(document.body, { key: "Escape" });
     expect(
       within(split).getByRole("button", { name: /Analyze screen/ }),
     ).toHaveAttribute("title", "Paused. Resume the session to capture.");
