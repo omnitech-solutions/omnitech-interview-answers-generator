@@ -25,6 +25,7 @@ import {
   SetupCard,
   setupOf,
 } from "./setup-card";
+import { Button } from "../../../ui";
 
 // The same JSON whatever order its keys arrive in: the server returns packs
 // as Postgres stores them (jsonb reorders object keys), not as they were sent.
@@ -505,14 +506,10 @@ export function BehaviouralPack({
                 : "every role considered"}
             </div>
           </div>
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => setEditingSetup(true)}
-          >
+          <Button onClick={() => setEditingSetup(true)}>
             <Icon name="tune" size={16} />
             Edit setup
-          </button>
+          </Button>
         </div>
       )}
       {showSetup && (
@@ -582,15 +579,14 @@ export function BehaviouralPack({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              className="studio-button primary"
+            <Button
+              variant="primary"
               disabled={isSaved || drafting}
               onClick={() => void save()}
             >
               <Icon name={isSaved ? "cloud_done" : "check"} size={16} />
               {isSaved ? "Saved" : "Save pack"}
-            </button>
+            </Button>
           </div>
           {tab === "answers" ? (
             <>

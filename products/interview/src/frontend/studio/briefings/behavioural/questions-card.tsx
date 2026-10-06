@@ -2,6 +2,7 @@ import { briefingCategoryOf } from "@omnitech/interview-contracts";
 import { useState } from "react";
 import { Icon } from "../../icon";
 import { CATEGORY_LABELS } from "./config";
+import { Button } from "../../../ui";
 
 const MAX_QUESTIONS = 20;
 
@@ -36,9 +37,7 @@ export function QuestionsCard({
         <span className="bp-meta">
           Suggested for a {stageLabel.toLowerCase()}
         </span>
-        <button type="button" className="studio-button" onClick={onReset}>
-          Reset
-        </button>
+        <Button onClick={onReset}>Reset</Button>
       </div>
       {questions.map((question, index) => (
         // Index key: questions are plain strings with no id; each row is fully controlled by its value, so removing one keeps no stale per-row state.
@@ -90,15 +89,15 @@ export function QuestionsCard({
       </div>
       <div className="bp-card-foot">
         <span className="bp-meta bp-grow">{note}</span>
-        <button
-          type="button"
-          className="studio-button primary large"
+        <Button
+          variant="primary"
+          size="lg"
           disabled={!canDraft}
           onClick={onDraft}
         >
           <Icon name="auto_awesome" />
           Draft answers
-        </button>
+        </Button>
       </div>
     </div>
   );

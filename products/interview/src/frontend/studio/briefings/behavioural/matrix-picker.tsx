@@ -11,6 +11,7 @@ import { formatRelativeTime } from "../../../format-timestamp";
 import { Icon } from "../../icon";
 import { Dialog } from "../../shared/dialog";
 import { DEFAULT_PROFILE_ID } from "./config";
+import { Button } from "../../../ui";
 
 export type ProfileRef = { id: string; revision: number };
 
@@ -339,17 +340,14 @@ function ImportMatrixDialog({
         )}
       </div>
       <div className="bp-dialog-foot">
-        <button type="button" className="studio-button" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="studio-button primary"
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
           disabled={!matrix || busy}
           onClick={() => void save()}
         >
           {busy ? "Importing…" : "Import matrix"}
-        </button>
+        </Button>
       </div>
     </Dialog>
   );

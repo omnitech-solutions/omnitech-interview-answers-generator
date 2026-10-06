@@ -2,6 +2,7 @@ import type { SavedAnswer } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime, formatTimestamp } from "../../format-timestamp";
 import { Icon } from "../icon";
+import { Button } from "../../ui";
 
 // Saved versions are immutable snapshots of the answer. Saving one is explicit;
 // restoring one replaces the draft (which is itself saved as you type).
@@ -41,9 +42,7 @@ export function VersionsMenu({
 
   return (
     <div className="ws-versions" ref={menu}>
-      <button
-        type="button"
-        className="studio-button"
+      <Button
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => {
@@ -53,7 +52,7 @@ export function VersionsMenu({
       >
         Versions
         <Icon name="expand_more" size={16} />
-      </button>
+      </Button>
       {open && (
         <div className="ws-versions-menu" role="menu" aria-label="Versions">
           <button

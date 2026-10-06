@@ -4,6 +4,7 @@ import { EndedView, SessionNotFound } from "./ended-view";
 import { LiveSessionPanel } from "./live-session-view";
 import { SetupView } from "./setup-view";
 import { useLiveSession } from "./use-live-session";
+import { Button } from "../../ui";
 
 export type LiveSessionViewProps = {
   // The path after `live`: a finished session's id addresses its summary.
@@ -42,13 +43,9 @@ function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
         <p className="live-note">
           Studio couldn’t reach the session service. It will keep trying.
         </p>
-        <button
-          type="button"
-          className="studio-button"
-          onClick={() => void actions.refresh()}
-        >
+        <Button size="lg" onClick={() => void actions.refresh()}>
           Try again
-        </button>
+        </Button>
       </div>
     ) : (
       <div className="live-page" data-testid="live-loading" aria-busy="true" />

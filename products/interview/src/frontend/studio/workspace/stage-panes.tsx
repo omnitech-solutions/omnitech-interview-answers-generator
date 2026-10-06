@@ -9,6 +9,7 @@ import { PracticeTimer } from "../practice-timer";
 import { type CoverageState, edgeCoverage } from "./coverage";
 import { InlineText } from "./inline-text";
 import { STAGES, stageIndex } from "./stages";
+import { Button } from "../../ui";
 
 const COVERAGE: Record<
   CoverageState,
@@ -51,25 +52,17 @@ export function StagePane(props: StagePaneProps) {
       <StageBody {...props} />
       <div className="ws-stage-nav">
         {previous && (
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => props.onStage(previous.id)}
-          >
+          <Button onClick={() => props.onStage(previous.id)}>
             <Icon name="chevron_left" />
             {previous.label}
-          </button>
+          </Button>
         )}
         <span className="ws-spacer" />
         {next && (
-          <button
-            type="button"
-            className="studio-button ws-next"
-            onClick={() => props.onStage(next.id)}
-          >
+          <Button variant="primary" onClick={() => props.onStage(next.id)}>
             Next: {next.label}
             <Icon name="chevron_right" />
-          </button>
+          </Button>
         )}
       </div>
     </div>

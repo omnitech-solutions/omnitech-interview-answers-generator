@@ -26,6 +26,7 @@ import {
   CAPABILITY_LOADING,
   type CompanionCapabilityState,
 } from "./use-companion-capability";
+import { Button } from "../../ui";
 
 const SOURCE_ICON: Record<string, IconName> = {
   microphone: "mic",
@@ -59,31 +60,26 @@ function ConfirmAction({
   const [failure, setFailure] = useState<string | null>(null);
   if (!asking)
     return (
-      <button
-        type="button"
-        className="studio-button"
+      <Button
+        size="lg"
         onClick={() => {
           setFailure(null);
           setAsking(true);
         }}
       >
         {label}
-      </button>
+      </Button>
     );
   return (
     <div className="live-confirm" role="group" aria-label={label}>
       <p>{question}</p>
       <div className="live-confirm-actions">
-        <button
-          type="button"
-          className="studio-button"
-          onClick={() => setAsking(false)}
-        >
+        <Button size="lg" onClick={() => setAsking(false)}>
           Cancel
-        </button>
-        <button
-          type="button"
-          className="studio-button primary"
+        </Button>
+        <Button
+          variant="primary"
+          size="lg"
           onClick={async () => {
             const result = await run();
             if (result.ok) setAsking(false);
@@ -91,7 +87,7 @@ function ConfirmAction({
           }}
         >
           {confirmLabel}
-        </button>
+        </Button>
       </div>
       {failure && (
         <p className="live-note" role="alert">
@@ -173,10 +169,10 @@ function CompanionRow({
         {pairingOpen ? (
           pairing
         ) : (
-          <button type="button" className="studio-button" onClick={onPair}>
+          <Button size="lg" onClick={onPair}>
             <Icon name="link" />
             Pair capture companion
-          </button>
+          </Button>
         )}
       </div>
     </li>

@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { Button } from "../ui";
 
 // A crash in one view leaves the sidebar, palette and assistant usable.
 export class ViewBoundary extends Component<
@@ -15,13 +16,9 @@ export class ViewBoundary extends Component<
       <div className="studio-page">
         <div className="studio-view-error" role="alert">
           <strong>This view hit an error.</strong>
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => this.setState({ failed: false })}
-          >
+          <Button onClick={() => this.setState({ failed: false })}>
             Reload view
-          </button>
+          </Button>
         </div>
       </div>
     );

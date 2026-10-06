@@ -28,6 +28,7 @@ import { createSessionClient } from "./session-client";
 import { tenantFromLocation } from "./session-registry";
 import type { LiveStats } from "./session-state";
 import { useLiveSession } from "./use-live-session";
+import { Button } from "../../ui";
 
 export type EndedViewProps = {
   // Studio navigation, for opening the session draft and the Live view.
@@ -184,9 +185,9 @@ export function EndedView({ studio }: EndedViewProps) {
         />
 
         <div className="ended-footer">
-          <button
-            type="button"
-            className="studio-button primary"
+          <Button
+            variant="primary"
+            size="lg"
             onClick={() => {
               actions.dismissFinished();
               studio.go("live");
@@ -194,7 +195,7 @@ export function EndedView({ studio }: EndedViewProps) {
           >
             <Icon name="add" />
             Start another session
-          </button>
+          </Button>
           <SessionHistory studio={studio} />
         </div>
       </div>
@@ -217,9 +218,9 @@ export function SessionNotFound({ studio }: EndedViewProps) {
           </p>
         </header>
         <div className="ended-footer">
-          <button
-            type="button"
-            className="studio-button primary"
+          <Button
+            variant="primary"
+            size="lg"
             onClick={() => {
               actions.dismissFinished();
               studio.go("live");
@@ -227,7 +228,7 @@ export function SessionNotFound({ studio }: EndedViewProps) {
           >
             <Icon name="add" />
             Start a session
-          </button>
+          </Button>
           <SessionHistory studio={studio} />
         </div>
       </div>

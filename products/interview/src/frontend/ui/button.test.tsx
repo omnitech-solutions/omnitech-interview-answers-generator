@@ -252,3 +252,14 @@ describe("ui.css and tokens.css", () => {
     expect(tokens).toContain('.pn-root[data-glass="clear"]');
   });
 });
+
+describe("the button wins over surface resets", () => {
+  it("styles its base rule with two attribute selectors, so a surface's `:is(button, ...)` reset cannot override its colour", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "ui.css"), "utf8");
+    // A surface reset such as `.studio-frame :is(button, input) { color: inherit }`
+    // has specificity (0,1,1); one attribute selector is (0,1,0) and loses.
+    expect(css).toMatch(/\n\[data-slot="button"\]\[data-variant\]\s*\{/);
+    expect(css).not.toMatch(/\n\[data-slot="button"\]\s*\{/);
+  });
+});

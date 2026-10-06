@@ -17,6 +17,7 @@ import {
 } from "./ended-summary";
 import type { SessionErrorCode } from "./session-client";
 import type { CommandResult } from "./session-snapshot";
+import { Button } from "../../ui";
 
 const SHORTEN_ERROR: Partial<Record<SessionErrorCode, string>> = {
   retention_lengthening_refused: "Retention can only be shortened.",
@@ -104,16 +105,15 @@ export function EndedRetention({
             >
               <span className="live-note">Shorten to</span>
               {RETENTION_MODES.map((mode) => (
-                <button
+                <Button
+                  size="lg"
                   key={mode}
-                  type="button"
-                  className="studio-button"
                   disabled={!shorter.includes(mode)}
-                  aria-pressed={mode === session.retention}
+                  pressed={mode === session.retention}
                   onClick={() => void choose(mode)}
                 >
                   {RETENTION_LABEL[mode]}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -142,29 +142,27 @@ export function EndedRetention({
                 in Workspace. Copies in backups remain until they rotate.
               </p>
               <div className="ended-actions">
-                <button
-                  type="button"
-                  className="studio-button ended-danger"
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  className="ended-danger"
                   onClick={() => void confirmDelete()}
                 >
                   <Icon name="delete" />
                   Delete permanently
-                </button>
-                <button
-                  type="button"
-                  className="studio-button"
-                  onClick={() => setConfirming(false)}
-                >
+                </Button>
+                <Button size="lg" onClick={() => setConfirming(false)}>
                   Keep session data
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             <div className="ended-actions">
-              <button
+              <Button
+                variant="destructive"
+                size="lg"
                 ref={deleteButton}
-                type="button"
-                className="studio-button ended-danger"
+                className="ended-danger"
                 onClick={() => {
                   setDeleteError(null);
                   setConfirming(true);
@@ -172,21 +170,17 @@ export function EndedRetention({
               >
                 <Icon name="delete" />
                 Delete session data
-              </button>
+              </Button>
             </div>
           )}
           {deleteError && (
             <p className="ended-error" role="alert">
               {deleteError}{" "}
               {!confirming && !purging && (
-                <button
-                  type="button"
-                  className="studio-button"
-                  onClick={() => void confirmDelete()}
-                >
+                <Button size="lg" onClick={() => void confirmDelete()}>
                   <Icon name="refresh" />
                   Retry deletion
-                </button>
+                </Button>
               )}
             </p>
           )}

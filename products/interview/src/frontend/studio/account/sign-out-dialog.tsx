@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { getSessionStore, tenantFromLocation } from "../live/session-registry";
 import { goTo } from "./navigate";
 import { signedOutPath, signOutOfBrowser } from "./sign-out";
+import { Button } from "../../ui";
 
 // The sign-out confirmation. With a live session it warns, and confirming ends
 // the session first (so capture stops) and only then signs out; if the
@@ -101,24 +102,21 @@ export function SignOutDialog({
           </p>
         ) : null}
         <div className="studio-modal-actions">
-          <button
+          <Button
             ref={cancelRef}
-            type="button"
-            className="studio-button"
             disabled={state === "working"}
             onClick={onCancel}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive"
             ref={confirmRef}
-            type="button"
-            className="studio-button studio-button-danger"
             disabled={state === "working"}
             onClick={() => void confirm()}
           >
             {liveSession ? "End session and sign out" : "Sign out"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

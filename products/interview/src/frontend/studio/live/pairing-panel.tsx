@@ -4,6 +4,7 @@ import type { CommandResult } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import { copyText } from "./shared/copy-text";
 import { useLiveSession } from "./use-live-session";
+import { Button } from "../../ui";
 
 // Pairing the capture companion with the open session: the credential controls
 // that sit INSIDE the one companion block of the Sources tab (sources-tab.tsx
@@ -84,23 +85,18 @@ export function PairingPanel() {
             <code className="pairing-value" data-testid="pairing-credential">
               {shown ? pairing.value : MASK}
             </code>
-            <button
-              type="button"
-              className="studio-button"
-              aria-pressed={shown}
+            <Button
+              size="lg"
+              pressed={shown}
               onClick={() => setShown((current) => !current)}
             >
               <Icon name={shown ? "visibility_off" : "visibility"} />
               {shown ? "Hide" : "Show"}
-            </button>
-            <button
-              type="button"
-              className="studio-button"
-              onClick={() => void copy()}
-            >
+            </Button>
+            <Button size="lg" onClick={() => void copy()}>
               <Icon name="content_copy" />
               Copy
-            </button>
+            </Button>
           </div>
           <p className="setup-muted" aria-live="polite">
             {copied === "done" && "Copied. Paste it into the companion."}
@@ -116,52 +112,42 @@ export function PairingPanel() {
         </p>
       )}
       <div className="pairing-actions">
-        <button
-          type="button"
-          className="studio-button"
+        <Button
+          size="lg"
           disabled={busy}
           onClick={() => void run(actions.renewCredential())}
         >
           Renew
-        </button>
+        </Button>
         {confirmRevoke ? (
           <>
-            <button
-              type="button"
-              className="studio-button danger"
+            <Button
+              variant="destructive"
+              size="lg"
               disabled={busy}
               onClick={() => void run(actions.revokeCredential(), true)}
             >
               {snapshot.session?.status === "active"
                 ? "Revoke and pause"
                 : "Confirm revoke"}
-            </button>
-            <button
-              type="button"
-              className="studio-button"
-              onClick={() => setConfirmRevoke(false)}
-            >
+            </Button>
+            <Button size="lg" onClick={() => setConfirmRevoke(false)}>
               Keep it
-            </button>
+            </Button>
           </>
         ) : (
-          <button
-            type="button"
-            className="studio-button"
+          <Button
+            size="lg"
             disabled={busy}
             onClick={() => setConfirmRevoke(true)}
           >
             Revoke
-          </button>
+          </Button>
         )}
         {pairing && (
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => actions.dismissPairing()}
-          >
+          <Button size="lg" onClick={() => actions.dismissPairing()}>
             Dismiss
-          </button>
+          </Button>
         )}
       </div>
       {revoked && (

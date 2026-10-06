@@ -431,10 +431,3 @@
 .setup-footer-title.blocked {
   color: var(--amber);
 }
-.setup-footer .studio-button {
-  height: 38px;
-}
-.setup-footer .studio-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}

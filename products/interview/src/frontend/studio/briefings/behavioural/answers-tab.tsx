@@ -7,6 +7,7 @@ import { MarkdownContent } from "../../../markdown-content";
 import { Icon } from "../../icon";
 import { PracticeTimer } from "../../practice-timer";
 import { CATEGORY_LABELS, spokenSeconds } from "./config";
+import { Button } from "../../../ui";
 
 // A question still being answered, shown in place until its answer lands.
 export type PendingAnswer = {
@@ -108,14 +109,12 @@ export function AnswersTab({
             />
           </div>
         </div>
-        <button
-          type="button"
-          className="studio-button"
+        <Button
           disabled={!answers.length || accepted === answers.length}
           onClick={onAcceptAll}
         >
           Accept all
-        </button>
+        </Button>
       </div>
       {answers.map((answer) => (
         <AnswerCard
@@ -254,16 +253,9 @@ function AnswerCard({
                 onChange={(event) => setEditing(event.target.value)}
               />
               <div className="bp-row end">
-                <button
-                  type="button"
-                  className="studio-button"
-                  onClick={() => setEditing(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="studio-button primary"
+                <Button onClick={() => setEditing(null)}>Cancel</Button>
+                <Button
+                  variant="primary"
                   disabled={!editing.trim()}
                   onClick={() => {
                     onEdit(editing.trim());
@@ -271,7 +263,7 @@ function AnswerCard({
                   }}
                 >
                   Save
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -326,33 +318,24 @@ function AnswerCard({
             />
           )}
           <div className="bp-row wrap">
-            <button
-              type="button"
-              className="studio-button"
-              aria-pressed={practising}
+            <Button
+              pressed={practising}
               onClick={() => setPractising(!practising)}
             >
               <Icon name="mic" size={16} />
               {practising ? "Stop practising" : "Practise"}
-            </button>
-            <button
-              type="button"
-              className="studio-button"
-              disabled={busy}
-              onClick={onRedraft}
-            >
+            </Button>
+            <Button disabled={busy} onClick={onRedraft}>
               <Icon name="refresh" size={16} />
               New draft
-            </button>
-            <button
-              type="button"
-              className="studio-button"
+            </Button>
+            <Button
               disabled={busy || editing !== null}
               onClick={() => setEditing(answer.answerMarkdown)}
             >
               <Icon name="edit" size={16} />
               Edit
-            </button>
+            </Button>
             <span className="bp-grow" />
             {answer.accepted ? (
               <button

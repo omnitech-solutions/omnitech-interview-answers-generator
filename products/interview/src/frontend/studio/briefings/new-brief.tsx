@@ -1,5 +1,6 @@
 import type { BriefKind } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
+import { Button } from "../../ui";
 
 // The three kinds of briefing. Behavioural answers come from the person's own
 // experience, so they are built as an evidence-backed preparation pack.
@@ -89,13 +90,13 @@ export function NewBrief({
           />
           <div className="ws-new-actions">
             <span className="ws-spacer" />
-            <button
+            <Button
+              variant="primary"
               type="submit"
-              className="studio-button primary"
               disabled={!topic.trim() || busy}
             >
               {busy ? "Building…" : "Build briefing"}
-            </button>
+            </Button>
           </div>
           {error && (
             <p className="ws-error" role="alert">

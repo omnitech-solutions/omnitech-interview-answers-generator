@@ -162,15 +162,6 @@
   justify-content: flex-end;
   gap: 8px;
 }
-.studio-modal .studio-button.studio-button-danger {
-  border: 0;
-  background: var(--red);
-  color: var(--on-accent);
-}
-.studio-modal .studio-button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
 .studio-welcome {
   display: flex;
   align-items: center;

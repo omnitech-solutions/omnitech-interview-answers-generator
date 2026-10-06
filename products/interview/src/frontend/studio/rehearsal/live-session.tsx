@@ -18,6 +18,7 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
+import { Button } from "../../ui";
 
 // A running session: the phase clock, the question, hints and the checklist.
 export function LiveSession({
@@ -108,27 +109,19 @@ export function LiveSession({
         </span>
         <span className="rehearsal-muted">session {clock(at.sessionLeft)}</span>
         {at.phase === "concept" && format.codingMinutes > 0 && (
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => update({ elapsed: at.conceptSeconds })}
-          >
+          <Button onClick={() => update({ elapsed: at.conceptSeconds })}>
             Start coding
-          </button>
+          </Button>
         )}
         {!settings.strict && (
-          <button
-            type="button"
-            className="studio-button"
-            onClick={() => update({ paused: !session.paused })}
-          >
+          <Button onClick={() => update({ paused: !session.paused })}>
             <Icon name={session.paused ? "play_arrow" : "pause"} />
             {session.paused ? "Resume" : "Pause"}
-          </button>
+          </Button>
         )}
-        <button type="button" className="studio-button primary" onClick={onEnd}>
+        <Button variant="primary" onClick={onEnd}>
           End session
-        </button>
+        </Button>
       </div>
       {at.warning && (
         <div className={`rehearsal-banner ${at.warning}`} role="status">
@@ -323,13 +316,7 @@ function FollowUps({ questions }: { questions: readonly string[] }) {
         <p key={question}>“{question}”</p>
       ))}
       {asked < questions.length && (
-        <button
-          type="button"
-          className="studio-button"
-          onClick={() => setAsked(asked + 1)}
-        >
-          Ask a follow-up
-        </button>
+        <Button onClick={() => setAsked(asked + 1)}>Ask a follow-up</Button>
       )}
     </div>
   );

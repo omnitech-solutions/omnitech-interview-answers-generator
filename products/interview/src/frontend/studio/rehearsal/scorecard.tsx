@@ -24,6 +24,7 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
+import { Button } from "../../ui";
 
 // What to tell the owner about the live session's hints. Only what the server
 // confirmed is stated as a count; nothing is claimed before the save returns.
@@ -234,20 +235,10 @@ export function Scorecard({
         </div>
       )}
       <div className="rehearsal-actions">
-        <button
-          type="button"
-          className="studio-button primary"
-          onClick={onAgain}
-        >
+        <Button variant="primary" onClick={onAgain}>
           Rehearse again
-        </button>
-        <button
-          type="button"
-          className="studio-button"
-          onClick={() => actions.go("home")}
-        >
-          Back to prep plan
-        </button>
+        </Button>
+        <Button onClick={() => actions.go("home")}>Back to prep plan</Button>
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ import {
   useCanonicalDraft,
 } from "./use-canonical-draft";
 import { VersionsMenu } from "./versions-menu";
+import { Button } from "../../ui";
 
 // The assistant connection and the question it is bound to.
 export interface WorkspaceAssistant {
@@ -417,15 +418,14 @@ export function WorkspaceView({
   const stage = STAGES[current] ?? STAGES[0]!;
 
   const newQuestion = onNewQuestion && (
-    <button
-      type="button"
-      className="studio-button ws-new-question"
+    <Button
+      className="ws-new-question"
       title="New question (N)"
       onClick={onNewQuestion}
     >
       <Icon name="add" />
       New question
-    </button>
+    </Button>
   );
 
   return (
@@ -488,13 +488,7 @@ export function WorkspaceView({
             {status || SAVE_LABEL[canonical.saveState]}
           </span>
           {canonical.saveState === "conflict" && (
-            <button
-              type="button"
-              className="studio-button"
-              onClick={() => void canonical.reload()}
-            >
-              Reload
-            </button>
+            <Button onClick={() => void canonical.reload()}>Reload</Button>
           )}
           <VersionsMenu
             disabled={!answer}
@@ -502,9 +496,9 @@ export function WorkspaceView({
             onList={canonical.listVersions}
             onRestore={(version) => update({ answer: answerOf(version) })}
           />
-          <button
-            type="button"
-            className="studio-button ws-run"
+          <Button
+            variant="go"
+            className="ws-run"
             title="Run tests (⌘↵)"
             disabled={!answer?.code.trim() || run.kind === "running"}
             onClick={() => void runTests()}
@@ -512,7 +506,7 @@ export function WorkspaceView({
             <Icon name="play_arrow" filled />
             Run tests
             <kbd>⌘↵</kbd>
-          </button>
+          </Button>
         </>,
       )}
       {sessionDraft?.(sessionState)}

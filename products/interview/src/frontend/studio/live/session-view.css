@@ -348,11 +348,6 @@
 .live-answer[data-stale] .live-draft {
   opacity: 0.6;
 }
-.live-copy {
-  height: 26px;
-  font-size: 12px;
-  padding: 0 8px;
-}
 .live-draft {
   display: flex;
   flex-direction: column;

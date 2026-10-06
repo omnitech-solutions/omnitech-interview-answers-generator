@@ -7,6 +7,7 @@ import { LANGUAGE_LABELS } from "../workspace/stages";
 import { daysUntil, InterviewCard } from "./interview-card";
 import { PlanCard } from "./plan-card";
 import { usePlan } from "./use-plan";
+import { Button } from "../../ui";
 
 const CONTINUE_LIMIT = 8;
 
@@ -42,22 +43,14 @@ export function HomeView({
             <h1>{greeting(new Date().getHours())}</h1>
             <p>{subtitle}</p>
           </div>
-          <button
-            type="button"
-            className="studio-button"
-            onClick={actions.newQuestion}
-          >
+          <Button onClick={actions.newQuestion}>
             <Icon name="add" />
             New question
-          </button>
-          <button
-            type="button"
-            className="studio-button primary"
-            onClick={() => actions.go("rehearsal")}
-          >
+          </Button>
+          <Button variant="primary" onClick={() => actions.go("rehearsal")}>
             <Icon name="play_arrow" filled />
             Start a rehearsal
-          </button>
+          </Button>
         </div>
 
         {state.error && (

@@ -135,13 +135,6 @@
 }
 .rehearsal-start {
   align-self: flex-start;
-  height: 38px;
-  padding: 0 16px 0 12px;
-  font-size: 14px;
-}
-.rehearsal-start:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Live */

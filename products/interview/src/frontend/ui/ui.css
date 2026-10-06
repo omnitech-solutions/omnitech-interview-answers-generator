@@ -3,7 +3,11 @@
    length, opacity or duration is written here (button.test.tsx enforces it).
    --ui-btn-* are this file's per-button locals, set by variant and size. */
 
-[data-slot="button"] {
+/* Two attribute selectors, on purpose: surfaces reset form controls with rules such
+   as `.studio-frame :is(button, input) { color: inherit }`, which are more specific
+   than one attribute selector and would win over the button's own colour, font and
+   border. The component must beat the resets of every surface it is used on. */
+[data-slot="button"][data-variant] {
   --ui-btn-height: var(--ui-height-md);
   --ui-btn-pad: var(--ui-pad-md);
   --ui-btn-font-size: var(--ui-font-size-md);

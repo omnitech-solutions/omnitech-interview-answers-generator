@@ -8,6 +8,7 @@ import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
 import type { PlanState } from "./use-plan";
+import { Button } from "../../ui";
 
 const KIND_ICON: Record<PlanItemKind, IconName> = {
   question: "terminal",
@@ -75,13 +76,9 @@ export function PlanCard({
               )}
             </div>
             {item.kind !== "task" && (
-              <button
-                type="button"
-                className="studio-button home-open"
-                onClick={() => open(item)}
-              >
+              <Button size="sm" onClick={() => open(item)}>
                 Open
-              </button>
+              </Button>
             )}
             <button
               type="button"
@@ -123,16 +120,14 @@ function AddToPlan({
   };
   return (
     <div className="ws-versions" ref={menu}>
-      <button
-        type="button"
-        className="studio-button"
+      <Button
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen(!open)}
       >
         <Icon name="add" size={16} />
         Add
-      </button>
+      </Button>
       {open && (
         <div className="ws-versions-menu" role="menu" aria-label="Add to plan">
           <form

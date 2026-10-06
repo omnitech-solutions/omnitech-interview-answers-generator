@@ -49,8 +49,3 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.pairing-actions .studio-button.danger {
-  border-color: var(--red);
-  background: var(--red-soft);
-  color: var(--red);
-}

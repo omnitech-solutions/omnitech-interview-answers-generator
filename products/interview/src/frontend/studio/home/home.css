@@ -182,10 +182,6 @@
 .home-plan-status.warn {
   color: var(--amber);
 }
-.home-open {
-  height: 28px;
-  font-size: 12.5px;
-}
 .home-remove {
   border: 0;
   background: transparent;

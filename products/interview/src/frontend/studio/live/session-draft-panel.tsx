@@ -20,6 +20,7 @@ import {
   stateLines,
 } from "./session-draft-facts";
 import type { CodeResult } from "./session-results";
+import { Button } from "../../ui";
 
 const EDITED_NOTE =
   "You’ve edited this draft. Any later AI result will be offered as a suggestion, not applied.";
@@ -83,10 +84,10 @@ export function SessionDraftPanel({
       <span className="sd-subtitle">
         Private session draft{from} · {target}
       </span>
-      <button type="button" className="studio-button" onClick={onBack}>
+      <Button size="lg" onClick={onBack}>
         <Icon name="arrow_back" size={16} />
         Back to session
-      </button>
+      </Button>
     </div>
   );
 
@@ -317,9 +318,8 @@ function Suggestion({
           The session finished a solution after you edited this draft, so it was
           not applied. Applying replaces your solution, usage and tests.
         </span>
-        <button
-          type="button"
-          className="studio-button"
+        <Button
+          size="lg"
           disabled={busy}
           onClick={() => {
             dismissed.add(held.runId);
@@ -327,27 +327,26 @@ function Suggestion({
           }}
         >
           Dismiss
-        </button>
-        <button
-          type="button"
-          className="studio-button primary"
+        </Button>
+        <Button
+          variant="primary"
+          size="lg"
           disabled={busy}
           onClick={() => void apply()}
         >
           Apply
-        </button>
+        </Button>
       </div>
       {message === "conflict" && (
         <p className="sd-note error" role="alert">
           <Icon name="error" size={16} />
           {CONFLICT_NOTE}{" "}
-          <button
-            type="button"
-            className="studio-button"
+          <Button
+            size="lg"
             onClick={() => void state.reload().then(() => setMessage(null))}
           >
             Reload draft
-          </button>
+          </Button>
         </p>
       )}
       {message === "failed" && (

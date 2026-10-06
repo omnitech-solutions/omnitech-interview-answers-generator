@@ -63,17 +63,6 @@
 .bp-note .studio-icon {
   color: var(--amber);
 }
-.bp .studio-button:disabled,
-.bp-dialog .studio-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.studio-button.large {
-  height: 36px;
-  padding: 0 16px 0 12px;
-  border-radius: 9px;
-  font-size: 13.5px;
-}
 .bp-link {
   border: 0;
   background: transparent;
@@ -417,7 +406,7 @@
   gap: 8px;
   border-bottom: 1px solid var(--border);
 }
-.bp-tabs > .studio-button {
+.bp-tabs > [data-slot="button"] {
   margin-bottom: 6px;
 }
 .bp-tab-list {

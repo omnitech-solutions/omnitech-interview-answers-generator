@@ -426,12 +426,18 @@ body,
 :where(.studio-main) button {
   color: var(--text);
 }
+/* LEGACY: the only elements still drawn by .studio-button are the live session
+   bar's buttons (live/session-bar.tsx, live/end-confirm.tsx), which another
+   slice migrates to the shared Button (ui/button.tsx); delete this rule with
+   them. Every other Studio button is a <Button>. */
 .studio-button {
   height: 32px;
+  min-height: 36px;
   padding: 0 12px 0 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
+  color: var(--color-primary-contrast);
   font-size: 13px;
   font-weight: 500;
   display: inline-flex;
@@ -443,13 +449,9 @@ body,
 .studio-button:hover {
   background: var(--subtle);
 }
-.studio-button.primary {
-  border: 0;
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.studio-button.primary:hover {
-  filter: brightness(1.05);
+.studio-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 .studio-assistant-toggle .oa-icon,
 .studio-assistant-toggle .studio-icon {
@@ -527,11 +529,6 @@ body,
 .studio-page-head p {
   margin: 2px 0 0;
   color: var(--muted);
-}
-.studio-page-head .studio-button {
-  height: 36px;
-  font-size: 13.5px;
-  border-radius: 9px;
 }
 .studio-section {
   display: flex;

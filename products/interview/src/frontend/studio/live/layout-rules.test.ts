@@ -203,7 +203,7 @@ describe("live stylesheets", () => {
 
   it("gives every button a 40 px touch target, by height or by an enlarged hit area", () => {
     const buttons = buttonClassLists();
-    expect(buttons.length).toBeGreaterThan(20);
+    expect(buttons.length).toBeGreaterThan(10); // the rest are shared <Button>s, below
     expect(buttons.filter((button) => button.classes.length === 0)).toEqual([]);
     const minHeight = (rule: Rule) =>
       Math.max(0, ...px(rule.decls["min-height"] ?? ""));
@@ -225,7 +225,7 @@ describe("live stylesheets", () => {
       return tall || hit;
     };
     // A button is covered when any of its classes is (".studio-button" via the
-    // shared rule in live.css, a modifier such as ".live-copy" rides on it).
+    // shared rule in live.css; a shared <Button> is checked separately below).
     const uncovered = buttons.filter((button) => !button.classes.some(covered));
     expect(
       uncovered.map((button) => `${button.file}: ${button.classes.join(" ")}`),
@@ -251,6 +251,34 @@ describe("live stylesheets", () => {
             !/^0/.test(rule.decls["min-height"]))),
     );
     expect(undercut.map(where)).toEqual([]);
+  });
+
+  it("draws every shared <Button> in the live views at size lg, the 40 px target", () => {
+    // The shared Button's lg size is the --ui-height-lg token (40 px); md and sm
+    // are shorter, so a live view's Button must say "lg".
+    const small: string[] = [];
+    let seen = 0;
+    for (const file of readdirSync(here).filter(
+      (name) => name.endsWith(".tsx") && !name.includes(".test."),
+    )) {
+      const text = readFileSync(join(here, file), "utf8");
+      for (const match of text.matchAll(/<Button\b/g)) {
+        let depth = 0;
+        let end = (match.index ?? 0) + 7;
+        for (; end < text.length; end += 1) {
+          const char = text[end];
+          if (char === "{") depth += 1;
+          else if (char === "}") depth -= 1;
+          else if (char === ">" && depth === 0 && text[end - 1] !== "=") break;
+        }
+        const tag = text.slice(match.index, end);
+        seen += 1;
+        if (!/\bsize="lg"/.test(tag))
+          small.push(`${file}: ${tag.slice(0, 60)}`);
+      }
+    }
+    expect(seen).toBeGreaterThan(20);
+    expect(small).toEqual([]);
   });
 
   it("honours reduced motion for every animation and transition", () => {

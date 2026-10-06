@@ -13,6 +13,7 @@ import {
 import { copyText } from "./shared/copy-text";
 import { DraftPoints, plainDraft } from "./shared/draft-text";
 import { useSessionDraftLink } from "./workspace-handoff";
+import { Button } from "../../ui";
 
 // "Copied" only after the write succeeded; a blocked clipboard says so.
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -26,9 +27,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         ? "Copy failed"
         : "Copy";
   return (
-    <button
-      type="button"
-      className="studio-button"
+    <Button
+      size="lg"
       aria-label={outcome ? `${label}: ${word.toLowerCase()}` : label}
       onClick={() => {
         void copyText(text).then((written) => {
@@ -48,7 +48,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         }
       />
       {word}
-    </button>
+    </Button>
   );
 }
 
@@ -123,15 +123,14 @@ function CodingResult({
         )}
       </div>
       {row.hasDraft && link && (
-        <button
-          type="button"
-          className="studio-button"
+        <Button
+          size="lg"
           aria-label={`Open ${row.title}`}
           onClick={() => link.open()}
         >
           <Icon name="open_in_new" />
           Open
-        </button>
+        </Button>
       )}
     </li>
   );

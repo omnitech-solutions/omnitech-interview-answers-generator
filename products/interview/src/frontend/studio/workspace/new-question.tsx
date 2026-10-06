@@ -9,6 +9,7 @@ import {
 } from "../../example-templates";
 import { Icon } from "../icon";
 import { LANGUAGE_LABELS } from "./stages";
+import { Button } from "../../ui";
 
 const LANGUAGES: readonly { id: LanguageSelection; label: string }[] = [
   { id: "auto", label: "Auto-detect language" },
@@ -73,23 +74,20 @@ export function NewQuestion({
               ))}
             </select>
             <span className="ws-spacer" />
-            <button
-              type="button"
-              className="studio-button"
+            <Button
               disabled={!ready}
               onClick={() => onSolve(question.trim(), language)}
             >
               Solve it myself
-            </button>
-            <button
-              type="button"
-              className="studio-button primary"
+            </Button>
+            <Button
+              variant="primary"
               disabled={!ready}
               onClick={() => onDraft(question.trim(), language)}
             >
               <Icon name="auto_awesome" />
               {busy ? "Drafting…" : "Draft with assistant"}
-            </button>
+            </Button>
           </div>
           {busy ? (
             <p className="ws-new-status" role="status">

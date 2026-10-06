@@ -2,6 +2,7 @@ import type { InterviewPlan, PlanItem } from "@omnitech/interview-contracts";
 import { type FormEvent, useState } from "react";
 import { Icon } from "../icon";
 import type { PlanState } from "./use-plan";
+import { Button } from "../../ui";
 
 const when = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -212,14 +213,10 @@ function InterviewForm({
         </label>
       </div>
       <div className="home-form-actions">
-        {onCancel && (
-          <button type="button" className="studio-button" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        <button type="submit" className="studio-button primary">
+        {onCancel && <Button onClick={onCancel}>Cancel</Button>}
+        <Button variant="primary" type="submit">
           {plan ? "Save" : "Add interview"}
-        </button>
+        </Button>
       </div>
     </form>
   );

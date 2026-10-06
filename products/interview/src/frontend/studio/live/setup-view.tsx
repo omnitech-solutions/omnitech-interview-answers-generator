@@ -54,6 +54,7 @@ import {
 import { useCompanionCapability } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 import { useSetupChoices } from "./use-setup-choices";
+import { Button } from "../../ui";
 
 export type SetupViewProps = {
   // Studio navigation, for the matrix link.
@@ -380,13 +381,9 @@ export function SetupView({
         <div role="alert" className="setup-error" data-testid="setup-failure">
           <span>{startErrorMessage(failure)}</span>
           {failure === "open_session_exists" && (
-            <button
-              type="button"
-              className="studio-button"
-              onClick={() => void actions.refresh()}
-            >
+            <Button size="lg" onClick={() => void actions.refresh()}>
               Open it
-            </button>
+            </Button>
           )}
         </div>
       )}

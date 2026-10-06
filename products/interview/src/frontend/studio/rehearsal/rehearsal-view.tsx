@@ -20,6 +20,7 @@ import {
   loadConcept,
 } from "./material";
 import { Scorecard } from "./scorecard";
+import { Button } from "../../ui";
 
 export type RehearsalSettings = {
   format: RehearsalFormat;
@@ -256,14 +257,12 @@ function Setup({
                 : summary}
             </div>
           </div>
-          <button
-            type="button"
-            className="studio-button"
+          <Button
             aria-expanded={changing}
             onClick={() => setChanging(!changing)}
           >
             {changing ? "Done" : "Change"}
-          </button>
+          </Button>
         </div>
         {changing && (
           <div className="rehearsal-pickers">
@@ -317,9 +316,10 @@ function Setup({
           {error}
         </p>
       )}
-      <button
-        type="button"
-        className="studio-button primary rehearsal-start"
+      <Button
+        variant="primary"
+        size="lg"
+        className="rehearsal-start"
         disabled={starting || missingCoding}
         onClick={() => void start()}
       >
@@ -327,7 +327,7 @@ function Setup({
         {starting
           ? "Loading questions…"
           : `Start ${format.title.toLowerCase()}`}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import type {
 import type { TaskView } from "./session-tasks";
 import { DraftPoints, plainDraft } from "./shared/draft-text";
 import type { TaskCard } from "./shared/task-card-model";
+import { Button } from "../../ui";
 
 const STAR_LABEL: Record<StarElement, string> = {
   situation: "Situation",
@@ -135,14 +136,10 @@ export function AnswerBody({
             Checked against matrix revision {answer.pinned.revision}
           </span>
         )}
-        <button
-          type="button"
-          className="studio-button live-copy"
-          onClick={() => onCopy(plainDraft(text))}
-        >
+        <Button size="lg" onClick={() => onCopy(plainDraft(text))}>
           <Icon name="content_copy" />
           Copy answer
-        </button>
+        </Button>
       </div>
       <p className="live-note">
         This suggested draft does not set candidate preferences. For notice,

@@ -29,12 +29,12 @@
   color: var(--muted);
 }
 
-/* Touch targets: every button in the live views is at least 40 px tall. The
-   shell's .studio-button is 32 px elsewhere in Studio. Controls that must keep
-   a small look (a 22 px chip, a switch, an inline link) get the target from an
-   invisible hit area instead (see .live-chip-button, .setup-switch,
-   .setup-link). */
-.live-page .studio-button,
+/* Touch targets: every button in the live views is at least 40 px tall: a
+   shared <Button> in these views is size "lg" (the --ui-height-lg token;
+   layout-rules.test.ts checks it), the session bar's legacy .studio-button has
+   the min-height below. Controls that must keep a small look (a 22 px chip, a
+   switch, an inline link) get the target from an invisible hit area instead
+   (see .live-chip-button, .setup-switch, .setup-link). */
 .live-session-bar .studio-button {
   min-height: 40px;
 }

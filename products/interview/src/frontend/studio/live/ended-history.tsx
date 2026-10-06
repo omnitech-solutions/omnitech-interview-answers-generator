@@ -8,6 +8,7 @@ import { Icon } from "../icon";
 import { formatDayTime, RETENTION_LABEL } from "./ended-summary";
 import { createSessionClient } from "./session-client";
 import { tenantFromLocation } from "./session-registry";
+import { Button } from "../../ui";
 
 const PAGE = 10;
 
@@ -63,9 +64,8 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
 
   return (
     <section className="ended-history" aria-label="Session history">
-      <button
-        type="button"
-        className="studio-button"
+      <Button
+        size="lg"
         aria-expanded={open}
         aria-controls="ended-history-list"
         onClick={() => {
@@ -76,7 +76,7 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
       >
         <Icon name="history" />
         {open ? "Hide session history" : "Open session history"}
-      </button>
+      </Button>
       {open && (
         <div id="ended-history-list" data-testid="session-history">
           {loaded && sessions.length === 0 && (
@@ -98,14 +98,13 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
                   <span className="live-chip neutral">
                     {RETENTION_LABEL[session.retention]}
                   </span>
-                  <button
-                    type="button"
-                    className="studio-button"
+                  <Button
+                    size="lg"
                     aria-label={`Open ${targetOf(session)} session from ${formatDayTime(session.createdAt)}`}
                     onClick={() => studio.go("live", [session.id])}
                   >
                     Open
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -113,24 +112,19 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
           {failed && (
             <p className="ended-error" role="alert">
               Studio couldn’t load your sessions.{" "}
-              <button
-                type="button"
-                className="studio-button"
-                onClick={() => void load(next ?? undefined)}
-              >
+              <Button size="lg" onClick={() => void load(next ?? undefined)}>
                 Try again
-              </button>
+              </Button>
             </p>
           )}
           {next && !failed && (
-            <button
-              type="button"
-              className="studio-button"
+            <Button
+              size="lg"
               disabled={loading}
               onClick={() => void load(next)}
             >
               Load more
-            </button>
+            </Button>
           )}
         </div>
       )}

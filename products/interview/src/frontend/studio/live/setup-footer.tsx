@@ -2,6 +2,7 @@
 // one Start button. A disabled Start points at the reason with aria-describedby.
 import type { Ref } from "react";
 import { Icon } from "../icon";
+import { Button } from "../../ui";
 
 export function SetupFooter({
   blocker,
@@ -35,9 +36,9 @@ export function SetupFooter({
         </div>
         <div className="setup-muted">{note}</div>
       </div>
-      <button
-        type="button"
-        className="studio-button primary"
+      <Button
+        variant="primary"
+        size="lg"
         disabled={blocker !== null || pending}
         aria-describedby="setup-footer-state"
         data-testid="start-session"
@@ -46,7 +47,7 @@ export function SetupFooter({
       >
         <Icon name="sensors" />
         {pending ? "Starting…" : "Start session"}
-      </button>
+      </Button>
     </div>
   );
 }

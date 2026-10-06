@@ -6,6 +6,7 @@ import type {
 import { useState } from "react";
 import { Icon } from "../../icon";
 import { copyText } from "../../live/shared/copy-text";
+import { Button } from "../../../ui";
 
 type Tab = "overview" | "stories" | "ask" | "watch";
 
@@ -49,14 +50,10 @@ export function BriefingTab({
               yourself, the stories to reuse, questions to ask and what to
               avoid.
             </p>
-            <button
-              type="button"
-              className="studio-button primary"
-              onClick={onPrepare}
-            >
+            <Button variant="primary" onClick={onPrepare}>
               <Icon name="auto_awesome" />
               Prepare the briefing
-            </button>
+            </Button>
           </>
         )}
         {error && (
@@ -94,15 +91,10 @@ export function BriefingTab({
             </ul>
           )}
           <div className="bp-row">
-            <button
-              type="button"
-              className="studio-button"
-              disabled={preparing}
-              onClick={onPrepare}
-            >
+            <Button disabled={preparing} onClick={onPrepare}>
               <Icon name="refresh" size={16} />
               {preparing ? "Preparing…" : "Prepare again"}
-            </button>
+            </Button>
             {error && (
               <p className="bp-error" role="alert">
                 {error}

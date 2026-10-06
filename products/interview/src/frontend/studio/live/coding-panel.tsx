@@ -20,6 +20,7 @@ import {
   type TaskCard,
 } from "./shared/task-card-model";
 import { useSessionDraftLink } from "./workspace-handoff";
+import { Button } from "../../ui";
 
 type CodingTabId = "answer" | "code";
 const CODING_TABS: readonly { id: CodingTabId; label: string }[] = [
@@ -289,14 +290,10 @@ export function CodingPanel({
                 <span className="live-chip green">{draftLabel}</span>
               )}
               {link && (
-                <button
-                  type="button"
-                  className="studio-button"
-                  onClick={() => link.open()}
-                >
+                <Button size="lg" onClick={() => link.open()}>
                   <Icon name="terminal" />
                   Open in Workspace
-                </button>
+                </Button>
               )}
             </div>
           )}

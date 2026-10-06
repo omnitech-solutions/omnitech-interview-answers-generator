@@ -37,10 +37,10 @@ Slice order (draft): 1) the component + tokens + docs/story page; 2) the live pa
 - [x] Orchestrator: read all four, spot-check claims against the code (419 buttons; .ov-button.go only in panels.css; .studio-button defined twice: confirmed)
 - [x] Orchestrator: decide location and API; ADR if needed; revise this plan (no ADR now; see decisions)
 - [ ] Orchestrator: write the Phase 3 worker briefs (one per slice, with the constraints above)
-- [ ] Slice 1: component + tokens + page
+- [x] Slice 1: component + tokens + reference doc (committed 5fd4bb9)
 - [ ] Slice 2: Resume family and live chrome
 - [ ] Slice 3: remaining live/overlay UI
-- [ ] Slice 4: rehearsal, documents, knowledge, settings, start
+- [~] Slice 4: 74 `.studio-button` sites migrated (home, workspace, rehearsal, briefings, live setup/ended, account); Documents (`dx-button`, 22 sites), session-bar and end-confirm and the other families remain: see slice4-remaining.md
 - [ ] Slice 5: native wrappers
 - [ ] Each slice: orchestrator reviews the diff and runs `pnpm verify` before committing
 - [ ] Regenerate `bionic/arch` (`pnpm docs:arch`) and journal the work (`log-work`)
@@ -70,3 +70,5 @@ Each worker: reads this plan and the four audits first; works only in its slice'
 
 ## Log
 - 2026-10-06: audits done; decisions written; Slice 1 dispatched.
+- 2026-10-06: Slice 1 reviewed and committed. Slice 4 (first part) reviewed, verified (5531 tests) and checked in a real browser. The browser check found what tests could not: surface resets such as `.studio-frame :is(button, input) { color: inherit }` out-specified the Button's single-attribute base rule, so the primary button inherited light text on the accent fill (about 2.4:1). Fixed by giving the base rule two attribute selectors (`[data-slot="button"][data-variant]`) plus a regression test. LESSON FOR EVERY SLICE: after a migration, read the computed colours of one button per variant in the browser (`e2e/live-session/.audit/colors.mts`), not only the tests.
+- 2026-10-06: Slice 2 (Resume/Pause/End/Start family, footer, strip) is ON HOLD until the owner's Claude Design footer is final; Slice 3 is blocked on the same design (panels). Presentation product adoption needs an ADR (`packages/ui`) and is the owner's call.

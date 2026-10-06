@@ -46,6 +46,7 @@ import {
   useStudioRoute,
 } from "./use-studio-route";
 import { useStudioTheme } from "./use-studio-theme";
+import { Button } from "../ui";
 import { ViewBoundary } from "./view-boundary";
 import type { WorkspaceAssistant } from "./workspace/workspace-view";
 
@@ -485,16 +486,15 @@ function StudioFrame({
             sees: {sees}
           </span>
           {focus !== "strict" && (
-            <button
-              type="button"
-              className={`studio-button studio-assistant-toggle${host.open ? " open" : ""}`}
-              aria-pressed={host.open}
+            <Button
+              className={`studio-assistant-toggle${host.open ? " open" : ""}`}
+              pressed={host.open}
               title={`Assistant (${host.shortcut})`}
               onClick={host.toggle}
             >
               <Icon name="auto_awesome" />
               Assistant
-            </button>
+            </Button>
           )}
         </header>
         {/* One hands-free controller for this document: the live view's band
