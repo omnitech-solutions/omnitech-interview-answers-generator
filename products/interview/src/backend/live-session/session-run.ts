@@ -1039,6 +1039,11 @@ function continuationOf(
   policy: InterviewSessionPolicy,
   utterance: Utterance,
 ): Continuation | null {
+  // A sentence that only acknowledges what was just said ("Okay, fantastic, great.")
+  // ends the earlier turn: what follows it is a new question, never the rest of an
+  // earlier, cut-off one, wherever in the coalesced utterance the acknowledgement sits.
+  const sentences = utterance.text.split(/(?<=[.!?])\s+/);
+  if (sentences.some((sentence) => policy.isReaction(sentence))) return null;
   const segments = effectiveSegments(run.transcript);
   const own = segments.filter(
     (segment) =>
@@ -1075,7 +1080,15 @@ function continuationOf(
       .every((segment) => policy.isReaction(segment.text));
     if (!reactionsOnly) return null;
     const task = taskOf(piece.eventId);
-    if (task) return { taskId: task.taskId, between: between.reverse() };
+    if (task) {
+      // A question that was already completed (what the task heard has a question
+      // mark) is closed: later statements are comments, and the next question is its own.
+      const heard = capturedFor(run, task)
+        .map((line) => line.text)
+        .join(" ");
+      if (heard.includes("?")) return null;
+      return { taskId: task.taskId, between: between.reverse() };
+    }
     between.push(piece);
     nextStart = piece.startMs;
   }

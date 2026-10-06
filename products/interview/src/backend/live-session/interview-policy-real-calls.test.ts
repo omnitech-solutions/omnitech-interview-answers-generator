@@ -36,6 +36,8 @@ const REAL_QUESTIONS = [
   "Alright, and my last question for you now is just regarding compensation, but rest assured that this is very preliminary. I'd love to ask if you had any preferences as to what type of compensation.",
   "Do you have any kind of more specific ranges within that that you're hoping for?",
   "Did you have any other questions for me for now?",
+  // A deferral and a real question in one breath: the question still opens.
+  "Okay, fantastic, great. And again, we'll put a pin on this for now, but we'll definitely have a more thorough conversation on this later. Did you have any other questions for me for now?",
   // Text written without spaces is long, not one short word.
   "請問你能描述一下你如何設計這個系統的容錯機制嗎？ ?",
 ];
@@ -70,5 +72,71 @@ describe("the question gate, on how a recruiter screen really sounds", () => {
 
   it.each(NOT_QUESTIONS)("opens nothing for: %s", (text) => {
     expect(decide(text)).not.toBe("open");
+  });
+});
+
+describe("the follow-up cue means a follow-up question", () => {
+  const withOpenTask = (text: string) =>
+    decideBaseline({
+      utterance: {
+        id: "u2",
+        speaker: "interviewer",
+        source: "application-audio",
+        segmentIds: ["u2"],
+        startMs: 5_000,
+        endMs: 6_000,
+        text,
+      },
+      openTasks: [{ taskId: "task-q-u1", taskKey: "q-u1", revision: 1 }],
+      deferredTopics: [],
+    }).decision.kind;
+
+  it("treats a statement that merely says 'follow up' as a statement", () => {
+    for (const text of [
+      "Oh yeah, I'll send you a follow up email after our chat today, but it is not a big rush.",
+      "Sorry, I'm just making a note not to forget to follow up. Okay.",
+    ])
+      expect(withOpenTask(text)).not.toBe("revise");
+  });
+
+  it("still revises on a real follow-up or a short changed constraint", () => {
+    for (const text of [
+      "Part two: what about duplicates?",
+      "Now handle negative numbers.",
+      "What if the list is empty?",
+      "Can you follow up on that with an example?",
+    ])
+      expect(withOpenTask(text)).toBe("revise");
+  });
+});
+
+describe("deferring a topic", () => {
+  const kind = (text: string) =>
+    decideBaseline({
+      utterance: {
+        id: "u3",
+        speaker: "interviewer",
+        source: "application-audio",
+        segmentIds: ["u3"],
+        startMs: 0,
+        endMs: 1,
+        text,
+      },
+      openTasks: [],
+      deferredTopics: [],
+    }).decision.kind;
+
+  it("defers when the cue stands alone, as before", () => {
+    expect(
+      kind(
+        "Let's put a pin on that and maybe circle back to that in a minute.",
+      ),
+    ).toBe("defer");
+  });
+
+  it("does not defer when a question follows the cue", () => {
+    expect(
+      kind("Let's circle back to that later. How do you handle code review?"),
+    ).toBe("open");
   });
 });

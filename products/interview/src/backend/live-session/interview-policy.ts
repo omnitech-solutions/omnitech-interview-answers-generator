@@ -94,7 +94,11 @@ const DEFER_CUES = [
 ];
 const REVISE_CUES: ReadonlyArray<readonly [RegExp, RevisionReason]> = [
   [/\bpart (two|2)\b/, "follow_up"],
-  [/\bfollow[- ]?up\b/, "follow_up"],
+  // "follow up" as a verb or in "a follow up email/call/note" is not a follow-up question.
+  [
+    /(?<!\bto )\bfollow[- ]?up\b(?! (?:email|call|note|message|meeting|chat|conversation))/,
+    "follow_up",
+  ],
   [/\bnow handle\b/, "constraint_changed"],
   [/\balso handle\b/, "constraint_changed"],
   [/\bwhat about\b/, "constraint_changed"],
@@ -276,12 +280,23 @@ export function decideBaseline(input: PolicyInput): PolicyVerdict {
       decision: { kind: "ignore" },
     };
 
-  // A deferred topic stays in task state; it is not a question.
-  if (DEFER_CUES.some((cue) => cue.test(normalized)))
-    return {
-      segmentClass: "substantive",
-      decision: { kind: "defer", topic: handleOf("topic", utterance.id) },
-    };
+  // A deferred topic stays in task state; it is not a question. But a deferral and a
+  // real question often come in one breath ("we'll put a pin on this... did you have any
+  // other questions for me?"): the sentences that are not the deferral are judged too,
+  // and a question among them still opens a task.
+  if (DEFER_CUES.some((cue) => cue.test(normalized))) {
+    const rest = text
+      .split(/(?<=[.!?])\s+/)
+      .filter(
+        (sentence) => !DEFER_CUES.some((cue) => cue.test(normalize(sentence))),
+      )
+      .join(" ");
+    if (rest.trim() === "" || !isQuestion(rest, monologue))
+      return {
+        segmentClass: "substantive",
+        decision: { kind: "defer", topic: handleOf("topic", utterance.id) },
+      };
+  }
 
   // [STRATEGY] A follow-up or changed constraint revises the latest task; a
   // long utterance is a monologue and never revises.

@@ -291,6 +291,142 @@ describe("one question said in two pieces is one task (E4)", () => {
     expect(heard).not.toContain("Okay, sure");
   });
 
+  it("never continues a question that was already completed: the next question is its own task", async () => {
+    const run = newRun();
+    const piece = async (
+      eventId: string,
+      speaker: "interviewer" | "candidate",
+      text: string,
+      startMs: number,
+    ) => {
+      arrive(run, startMs + 2_000, {
+        eventId,
+        speaker,
+        text,
+        startMs,
+        endMs: startMs + 2_000,
+      });
+      await processUtterances(run, policy, startMs + 4_500, SETTLE_MS);
+    };
+    await piece(
+      "n1",
+      "interviewer",
+      "Is that something you have used previously that maybe was not mentioned on your resume?",
+      0,
+    );
+    await piece("r1", "candidate", "Yeah, sure.", 4_000);
+    await piece(
+      "n2",
+      "interviewer",
+      "Oh lovely. I will send you a follow up email after our chat today.",
+      7_000,
+    );
+    await piece(
+      "n3",
+      "interviewer",
+      "Sorry, I am just making a note so I do not forget to follow up.",
+      10_000,
+    );
+    await piece(
+      "n4",
+      "interviewer",
+      "And then my next question for you is regarding best practices, and I would love to hear if you have considered observability and security before.",
+      13_000,
+    );
+    expect(taskList(run)).toEqual(["q-n1@r1", "q-n4@r1"]);
+  });
+
+  it("treats a turn that starts by acknowledging the answer as a new question, not the rest of a cut-off one", async () => {
+    const run = newRun();
+    const piece = async (
+      eventId: string,
+      speaker: "interviewer" | "candidate",
+      text: string,
+      startMs: number,
+    ) => {
+      arrive(run, startMs + 2_000, {
+        eventId,
+        speaker,
+        text,
+        startMs,
+        endMs: startMs + 2_000,
+      });
+      await processUtterances(run, policy, startMs + 4_500, SETTLE_MS);
+    };
+    // An ask, a short reaction, a middle piece that is cut off (no question mark, no
+    // task of its own), another reaction, then the interviewer's next turn.
+    await piece(
+      "c1",
+      "interviewer",
+      "And regarding paid time off, I would love your input, because we would offer three weeks every year.",
+      0,
+    );
+    await piece("r1", "candidate", "Mm-hmm.", 4_000);
+    await piece(
+      "c1b",
+      "interviewer",
+      "So that is fifteen business days plus five wellbeing days. Does that sound, uh...",
+      7_000,
+    );
+    await piece("r2", "candidate", "Yeah, sounds good.", 11_000);
+    await piece(
+      "c2",
+      "interviewer",
+      "Okay, fantastic, great. Did you have any other questions for me for now?",
+      14_000,
+    );
+    expect(taskList(run)).toEqual(["q-c1@r1", "q-c2@r1"]);
+  });
+
+  it("treats an acknowledgement inside the utterance as the end of the old turn", async () => {
+    // The cut-off ask and the closing turn arrive as one coalesced utterance (the same
+    // speaker, a reaction in between, under the merge gap): the acknowledgement in the
+    // middle marks where the old turn ended.
+    const run = newRun();
+    const piece = async (
+      eventId: string,
+      speaker: "interviewer" | "candidate",
+      text: string,
+      startMs: number,
+      endMs: number,
+    ) => {
+      arrive(run, endMs, { eventId, speaker, text, startMs, endMs });
+      await processUtterances(run, policy, endMs + 100, SETTLE_MS);
+    };
+    await piece(
+      "d1",
+      "interviewer",
+      "And regarding paid time off, I would love your input, because we would offer three weeks every year.",
+      0,
+      3_000,
+    );
+    await piece("e1", "candidate", "Mm-hmm.", 3_500, 4_000);
+    // These two arrive within the merge gap and with a reaction between: one utterance.
+    arrive(run, 8_000, {
+      eventId: "d2",
+      speaker: "interviewer",
+      text: "So that is fifteen business days plus five wellbeing days. Does that sound, uh...",
+      startMs: 6_000,
+      endMs: 7_000,
+    });
+    arrive(run, 8_100, {
+      eventId: "e2",
+      speaker: "candidate",
+      text: "Yeah.",
+      startMs: 7_100,
+      endMs: 7_400,
+    });
+    arrive(run, 10_000, {
+      eventId: "d3",
+      speaker: "interviewer",
+      text: "Okay, fantastic, great. Did you have any other questions for me for now?",
+      startMs: 7_800,
+      endMs: 10_000,
+    });
+    await processUtterances(run, policy, 12_000, SETTLE_MS);
+    expect(taskList(run)).toEqual(["q-d1@r1", "q-d3@r1"]);
+  });
+
   it("holds an announcement that trails off, and the question that follows opens the one task", async () => {
     const run = newRun();
     arrive(run, 2_000, {
