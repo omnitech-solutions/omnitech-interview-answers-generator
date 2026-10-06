@@ -414,6 +414,26 @@ describe("elapsed time", () => {
     expect(elapsedMs(session, 0, browserNow)).toBe(5 * 60_000);
   });
 
+  it("leaves paused time out: the pauses that are over, and the one in progress, do not count", () => {
+    const created = "2026-10-03T12:00:00.000Z";
+    const now = Date.parse("2026-10-03T12:30:00.000Z");
+    // 30 minutes since the start, 10 of them in pauses that are over.
+    expect(
+      elapsedMs(
+        sessionView({ createdAt: created, pausedMs: 10 * 60_000 }),
+        0,
+        now,
+      ),
+    ).toBe(20 * 60_000);
+    // Paused since 12:20: the clock stands still at 20 minutes however long it lasts.
+    const paused = sessionView({
+      createdAt: created,
+      pausedAt: "2026-10-03T12:20:00.000Z",
+    });
+    expect(elapsedMs(paused, 0, now)).toBe(20 * 60_000);
+    expect(elapsedMs(paused, 0, now + 60 * 60_000)).toBe(20 * 60_000);
+  });
+
   it("stops at the end and is never negative", () => {
     const ended = sessionView({
       createdAt: "2026-10-03T12:00:00.000Z",

@@ -2,7 +2,7 @@
 
 _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling GraphQL resolvers as a residual rather than reading them); the app is not executed._
 
-## Routes (73)
+## Routes (81)
 
 | method | path | handler |
 |---|---|---|
@@ -17,10 +17,16 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | DELETE | `/presentation/v1/documents/:id/slides/:slideId` | — |
 | DELETE | `/presentation/v1/shares/:id` | — |
 | GET | `/:workspace/artifacts` | — |
+| GET | `/api/auth/csrf` | — |
+| GET | `/api/auth/session` | — |
+| GET | `/api/boom` | — |
 | GET | `/api/fake/v1/models` | — |
+| GET | `/api/native-auth/complete` | — |
 | GET | `/api/platform/v1/ai-targets` | — |
 | GET | `/api/platform/v1/context` | — |
 | GET | `/api/platform/v1/products` | — |
+| GET | `/api/read` | — |
+| GET | `/api/teapot` | — |
 | GET | `/api/v1/answers` | — |
 | GET | `/api/v1/answers/:id` | — |
 | GET | `/api/v1/explanations` | — |
@@ -43,10 +49,12 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 | GET | `/presentation/v1/images` | — |
 | GET | `/presentation/v1/shared/:token` | — |
 | GET | `/presentation/v1/themes` | — |
+| GET | `/sign-in` | — |
 | GET | `/unrelated` | — |
 | PATCH | `/api/v1/playground-control` | — |
 | PATCH | `/presentation/v1/documents/:id` | — |
 | PATCH | `/presentation/v1/documents/:id/slides/:slideId` | — |
+| POST | `/api/auth/callback/local` | — |
 | POST | `/api/fake/v1/chat/completions` | — |
 | POST | `/api/v1/answers` | — |
 | POST | `/api/v1/explain` | — |
@@ -82,4 +90,5 @@ _Static route scan (Express/Fastify verb calls + NestJS decorators, labeling Gra
 
 ## Residuals
 
+- Skipped for exceeding the 2 MB bound: `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-relaxedsimd-lstm.wasm.js`, `apps/web/public/ocr.docs-arch-aside/core/tesseract-core-simd-lstm.wasm.js`
 - 10 route declarations dropped: the path is composed at runtime and has no static value, and the application is not executed, so no path is rendered for them (a named residual) — `products/interview/src/backend/live-session/hardening/cross-user.test.ts` lines 118, 123, 141, 142, 154, 208, 211, 217, 247; `products/interview/src/backend/live-session/hardening/world.ts` line 172.

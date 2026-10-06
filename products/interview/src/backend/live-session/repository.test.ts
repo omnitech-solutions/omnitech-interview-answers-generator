@@ -331,6 +331,29 @@ describe("control authority (rule:owner-starts-and-resumes)", () => {
     ).toBe("status_refused");
   });
 
+  it("keeps the length of its pauses so the session clock can leave them out", async () => {
+    const sam = await fresh("sam");
+    const { session } = await start(sam);
+    const scope = scopeOf(sam);
+    expect(session.pausedMs).toBe(0);
+    expect(session.pausedAt).toBeNull();
+    const paused = await repo.controlSession(scope, session.id, "pause");
+    expect(paused.pausedAt).not.toBeNull();
+    await new Promise((done) => setTimeout(done, 250));
+    // A second pause command changes nothing: the pause began once.
+    const again = await repo.controlSession(scope, session.id, "pause");
+    expect(again.pausedAt).toBe(paused.pausedAt);
+    const resumed = await repo.controlSession(scope, session.id, "resume");
+    expect(resumed.pausedAt).toBeNull();
+    expect(resumed.pausedMs).toBeGreaterThanOrEqual(200);
+    // Ending a paused session adds that pause to the total too.
+    await repo.controlSession(scope, session.id, "pause");
+    await new Promise((done) => setTimeout(done, 150));
+    const ended = await repo.controlSession(scope, session.id, "end");
+    expect(ended.pausedAt).toBeNull();
+    expect(ended.pausedMs).toBeGreaterThanOrEqual(resumed.pausedMs + 100);
+  });
+
   it("lets only the owner's control start or resume; expiry and companion stop only pause", async () => {
     const tia = await fresh("tia");
     const { session } = await start(tia);

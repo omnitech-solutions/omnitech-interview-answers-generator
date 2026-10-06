@@ -132,6 +132,10 @@ export const activeSessions = interview.table.withRLS(
     // The duration cap: the credential never outlives it.
     expiresAt: timestamptz("expires_at").notNull(),
     lastHeartbeatAt: timestamptz("last_heartbeat_at"),
+    // While paused: when the pause began. The closed pauses add up in paused_ms,
+    // so the session clock can leave paused time out (status-transition.ts).
+    pausedAt: timestamptz("paused_at"),
+    pausedMs: bigint("paused_ms", { mode: "number" }).notNull().default(0),
     endedAt: timestamptz("ended_at"),
     // Tombstone: purged_at is set once a final check found zero content rows.
     purgeStartedAt: timestamptz("purge_started_at"),

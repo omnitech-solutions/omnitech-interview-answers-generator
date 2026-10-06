@@ -56,7 +56,16 @@ export async function transitionLocked(
       credential_revoked_at = CASE WHEN ${to}::text IN ('ended', 'purging')
         THEN COALESCE(credential_revoked_at, now()) ELSE credential_revoked_at END,
       last_heartbeat_at = CASE WHEN ${command}::text = 'resume'
-        THEN NULL ELSE last_heartbeat_at END
+        THEN NULL ELSE last_heartbeat_at END,
+      -- The session clock leaves paused time out: a pause stamps its start, and
+      -- leaving the pause (resume or end) adds its length to the total.
+      paused_ms = paused_ms + CASE WHEN ${row.status}::text = 'paused' AND ${to}::text <> 'paused'
+        THEN GREATEST(0, (EXTRACT(EPOCH FROM (now() - COALESCE(paused_at, now()))) * 1000)::bigint)
+        ELSE 0 END,
+      paused_at = CASE
+        WHEN ${to}::text = 'paused' THEN COALESCE(paused_at, now())
+        WHEN ${row.status}::text = 'paused' THEN NULL
+        ELSE paused_at END
     WHERE tenant_id = ${row.tenantId}::uuid
       AND owner_user_id = ${row.ownerUserId}::uuid
       AND id = ${row.id}::uuid`);

@@ -68,18 +68,25 @@ function estimateServerNow(offsetMs: number, browserNowMs: number): number {
 }
 
 // Elapsed time of a session: server time minus a SERVER timestamp, never the
-// browser clock alone. It is wall time since the session was created, up to
-// its end; pauses are not subtracted because the session record does not keep
-// them. Never negative.
+// browser clock alone. It is the time since the session was created, up to its
+// end, leaving paused time out: the pauses that are over (`pausedMs`) and the one
+// in progress (since `pausedAt`) do not count, so a paused session's clock stands
+// still. Never negative.
 export function elapsedMs(
-  session: Pick<LiveSessionView, "createdAt" | "endedAt">,
+  session: Pick<LiveSessionView, "createdAt" | "endedAt"> &
+    Partial<Pick<LiveSessionView, "pausedAt" | "pausedMs">>,
   offsetMs: number,
   browserNowMs: number,
 ): number {
-  const end = session.endedAt
-    ? timeOf(session.endedAt)
-    : estimateServerNow(offsetMs, browserNowMs);
-  return Math.max(0, end - timeOf(session.createdAt));
+  const now = estimateServerNow(offsetMs, browserNowMs);
+  const end = session.endedAt ? timeOf(session.endedAt) : now;
+  const pausing = session.pausedAt
+    ? Math.max(0, end - timeOf(session.pausedAt))
+    : 0;
+  return Math.max(
+    0,
+    end - timeOf(session.createdAt) - (session.pausedMs ?? 0) - pausing,
+  );
 }
 
 // "m:ss" or "h:mm:ss".

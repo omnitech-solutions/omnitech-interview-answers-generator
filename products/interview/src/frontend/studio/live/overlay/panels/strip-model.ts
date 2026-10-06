@@ -56,7 +56,7 @@ const STRIP_TABLE: readonly Entry[] = [
       sub: "Nothing is captured and no new work starts",
       action: {
         id: "resume",
-        label: "Resume",
+        label: "Resume session",
         title: "Carry on listening and analysing",
       },
     }),

@@ -33,7 +33,7 @@ describe("the strip's one table of states", () => {
     expect(state).toMatchObject({
       id: "paused",
       label: "Paused",
-      action: { id: "resume", label: "Resume" },
+      action: { id: "resume", label: "Resume session" },
     });
   });
 

@@ -40,6 +40,9 @@ export type SessionRecord = {
   createdAt: Date;
   expiresAt: Date;
   lastHeartbeatAt: Date | null;
+  // The pause in progress, and the length of the pauses that are over (ms).
+  pausedAt: Date | null;
+  pausedMs: number;
   endedAt: Date | null;
   purgeStartedAt: Date | null;
   purgedAt: Date | null;
@@ -90,6 +93,8 @@ export function toRecord(row: Raw): SessionRecord {
     createdAt: date(row["created_at"]) as Date,
     expiresAt: date(row["expires_at"]) as Date,
     lastHeartbeatAt: date(row["last_heartbeat_at"]),
+    pausedAt: date(row["paused_at"]),
+    pausedMs: Number(row["paused_ms"] ?? 0),
     endedAt: date(row["ended_at"]),
     purgeStartedAt: date(row["purge_started_at"]),
     purgedAt: date(row["purged_at"]),
@@ -156,6 +161,8 @@ export type SessionView = {
   profile: { id: string; revision: number } | null;
   workspaceDraft: WorkspaceDraftKey | null;
   lastHeartbeatAt: string | null;
+  pausedAt: string | null;
+  pausedMs: number;
   endedAt: string | null;
   purged: boolean;
   purgeOutcome: string | null;
@@ -188,6 +195,8 @@ export function toView(record: SessionRecord): SessionView {
         : null,
     workspaceDraft: decodeDraftKey(record.workspaceDraftId),
     lastHeartbeatAt: iso(record.lastHeartbeatAt),
+    pausedAt: iso(record.pausedAt),
+    pausedMs: record.pausedMs,
     endedAt: iso(record.endedAt),
     purged: record.purgedAt !== null,
     purgeOutcome: record.purgeOutcome,

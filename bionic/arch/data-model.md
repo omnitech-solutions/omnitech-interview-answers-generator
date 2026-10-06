@@ -1,6 +1,6 @@
 # Data model
 
-_Derived from `packages/database/drizzle/20261005073811_screenshot_send/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
+_Derived from `packages/database/drizzle/20261006152815_session_paused_time/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
 
 ## Entities (67 tables)
 
@@ -108,6 +108,8 @@ _Derived from `packages/database/drizzle/20261005073811_screenshot_send/snapshot
 | interview.active_sessions | `lease_expires_at` | timestamp with time zone | yes | — | — | — |
 | interview.active_sessions | `lease_holder_id` | text | yes | — | — | — |
 | interview.active_sessions | `owner_user_id` | uuid | no | — | — | — |
+| interview.active_sessions | `paused_at` | timestamp with time zone | yes | — | — | — |
+| interview.active_sessions | `paused_ms` | bigint | no | 0 | — | — |
 | interview.active_sessions | `processed_through` | bigint | yes | — | — | — |
 | interview.active_sessions | `processing_policy` | text | no | — | — | — |
 | interview.active_sessions | `profile_id` | text | yes | — | — | — |

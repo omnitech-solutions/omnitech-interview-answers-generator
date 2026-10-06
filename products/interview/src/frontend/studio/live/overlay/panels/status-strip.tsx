@@ -108,7 +108,9 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
       {state?.action && (
         <button
           type="button"
-          className="pn-mini-button"
+          className={
+            state.action.id === "resume" ? "ov-button go" : "pn-mini-button"
+          }
           data-action={state.action.id}
           title={state.action.title}
           onClick={act[state.action.id]}

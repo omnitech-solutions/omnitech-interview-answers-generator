@@ -38,6 +38,9 @@ import {
   seeThroughTitle,
 } from "./toolbar-config";
 import { ToolbarLock, useToolbarLock } from "./toolbar-lock";
+
+// What the capture controls say while the session is paused: nothing is captured.
+const PAUSED_REASON = "Paused. Resume the session to capture.";
 import { MIC_HELD_TEXT } from "./use-engine";
 import { WindowDots } from "./window-dots";
 import type { PanelWindowMode } from "./window-mode";
@@ -254,86 +257,88 @@ export function Toolbar({
         windowMode={controls.windowMode}
         onPopup={setDotPopup}
       />
-      <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
-        <CaptureButton
-          s={s}
-          buttonRef={captureRef}
-          menuOpen={menu === "screen"}
-          {...(displaySelectionAvailable()
-            ? {
-                onOpenTargets: () => {
-                  openedFromCapture.current = true;
-                  setMenu("screen");
-                },
-              }
-            : {})}
-        />
-        {displaySelectionAvailable() && (
-          <ScreenPicker
+      <ToolbarLock.Provider value={lock ?? (s.paused ? PAUSED_REASON : null)}>
+        <div className="pn-split" data-stop={control.stop ? "true" : undefined}>
+          <CaptureButton
             s={s}
-            open={menu === "screen"}
-            onOpenChange={(open) => {
-              if (!open) openedFromCapture.current = false;
-              toggle("screen")(open);
-            }}
-            returnFocus={() =>
-              openedFromCapture.current ? captureRef.current : null
-            }
+            buttonRef={captureRef}
+            menuOpen={menu === "screen"}
+            {...(displaySelectionAvailable()
+              ? {
+                  onOpenTargets: () => {
+                    openedFromCapture.current = true;
+                    setMenu("screen");
+                  },
+                }
+              : {})}
           />
-        )}
-        <Popover
-          open={menu === "mode"}
-          onOpenChange={toggle("mode")}
-          className="pn-split-menu"
-          label="Capture mode"
-          triggerLabel={`Capture mode: ${mode.label}`}
-          title="How the screen is captured"
-          kind="menu"
-          panelClassName="pn-menu"
-          trigger={
-            <>
-              {mode.label}
-              <Icon name="expand_more" />
-            </>
-          }
-        >
-          {(close) =>
-            captureMenuItems({
-              mode: mode.id,
-              auto: s.auto.limits,
-              target: s.target?.targetLabel ?? null,
-              open: s.open,
-            }).map((item) => {
-              const isMode = item.id !== "attach";
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role={isMode ? "menuitemradio" : "menuitem"}
-                  aria-checked={isMode ? item.checked : undefined}
-                  aria-disabled={item.disabledReason !== null}
-                  className="pn-menu-item"
-                  onClick={() => {
-                    if (item.disabledReason !== null) return;
-                    if (item.id === "attach") s.press("attach");
-                    else s.setAuto(captureModeOf(item.id === "auto").on);
-                    close();
-                  }}
-                >
-                  <Icon
-                    name="check"
-                    style={{ opacity: item.checked ? 1 : 0 }}
-                  />
-                  <span>
-                    <span className="pn-menu-label">{item.label}</span>
-                    <span className="pn-menu-sub">{item.subtitle}</span>
-                  </span>
-                </button>
-              );
-            })
-          }
-        </Popover>
-      </div>
+          {displaySelectionAvailable() && (
+            <ScreenPicker
+              s={s}
+              open={menu === "screen"}
+              onOpenChange={(open) => {
+                if (!open) openedFromCapture.current = false;
+                toggle("screen")(open);
+              }}
+              returnFocus={() =>
+                openedFromCapture.current ? captureRef.current : null
+              }
+            />
+          )}
+          <Popover
+            open={menu === "mode"}
+            onOpenChange={toggle("mode")}
+            className="pn-split-menu"
+            label="Capture mode"
+            triggerLabel={`Capture mode: ${mode.label}`}
+            title="How the screen is captured"
+            kind="menu"
+            panelClassName="pn-menu"
+            trigger={
+              <>
+                {mode.label}
+                <Icon name="expand_more" />
+              </>
+            }
+          >
+            {(close) =>
+              captureMenuItems({
+                mode: mode.id,
+                auto: s.auto.limits,
+                target: s.target?.targetLabel ?? null,
+                open: s.open,
+              }).map((item) => {
+                const isMode = item.id !== "attach";
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role={isMode ? "menuitemradio" : "menuitem"}
+                    aria-checked={isMode ? item.checked : undefined}
+                    aria-disabled={item.disabledReason !== null}
+                    className="pn-menu-item"
+                    onClick={() => {
+                      if (item.disabledReason !== null) return;
+                      if (item.id === "attach") s.press("attach");
+                      else s.setAuto(captureModeOf(item.id === "auto").on);
+                      close();
+                    }}
+                  >
+                    <Icon
+                      name="check"
+                      style={{ opacity: item.checked ? 1 : 0 }}
+                    />
+                    <span>
+                      <span className="pn-menu-label">{item.label}</span>
+                      <span className="pn-menu-sub">{item.subtitle}</span>
+                    </span>
+                  </button>
+                );
+              })
+            }
+          </Popover>
+        </div>
+      </ToolbarLock.Provider>
       <MicButton s={s} />
       <Popover
         open={menu === "skill"}

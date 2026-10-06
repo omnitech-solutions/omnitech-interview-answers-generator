@@ -671,6 +671,27 @@ describe("the capture split control and the microphone with a native engine", ()
   });
 });
 
+describe("a paused session", () => {
+  it("disables the capture button and both of its dropdowns, saying why, and enables them again once it runs", async () => {
+    serve(live({ status: "paused" }));
+    await show();
+    const split = document.querySelector(".pn-split") as HTMLElement;
+    const buttons = within(split).getAllByRole("button");
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+    for (const button of buttons) expect(button).toBeDisabled();
+    expect(
+      within(split).getByRole("button", { name: /Analyze screen/ }),
+    ).toHaveAttribute("title", "Paused. Resume the session to capture.");
+    cleanup();
+    serve(live());
+    await show();
+    const running = within(document.querySelector(".pn-split") as HTMLElement);
+    expect(
+      running.getByRole("button", { name: /Analyze screen/ }),
+    ).toBeEnabled();
+  });
+});
+
 describe("popovers", () => {
   it("every toolbar popover is drawn inside the toolbar, in its stacking layer", async () => {
     nativeHost({
@@ -1046,7 +1067,9 @@ describe("status strip", () => {
     expect(strip).toHaveTextContent(
       "Nothing is captured and no new work starts",
     );
-    fireEvent.click(within(strip).getByRole("button", { name: "Resume" }));
+    fireEvent.click(
+      within(strip).getByRole("button", { name: "Resume session" }),
+    );
     await flush();
     expect(resumed).toHaveBeenCalledWith(
       expect.objectContaining({

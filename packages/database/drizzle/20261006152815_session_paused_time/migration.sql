@@ -1,0 +1,2 @@
+ALTER TABLE "interview"."active_sessions" ADD COLUMN "paused_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "interview"."active_sessions" ADD COLUMN "paused_ms" bigint DEFAULT 0 NOT NULL;

@@ -96,6 +96,11 @@ export const liveSessionViewSchema = z.object({
   // The server's record of the companion's last contact; null means no
   // contact has been recorded, so nothing may claim it is connected.
   lastHeartbeatAt: isoTime.nullable(),
+  // The pause in progress (when it began), and the total length of the pauses
+  // that are over, so the session clock can leave paused time out. Absent from
+  // an older server: nothing was ever paused.
+  pausedAt: isoTime.nullable().optional(),
+  pausedMs: z.number().int().nonnegative().optional(),
   endedAt: isoTime.nullable(),
   purged: z.boolean(),
   purgeOutcome: z.string().nullable(),

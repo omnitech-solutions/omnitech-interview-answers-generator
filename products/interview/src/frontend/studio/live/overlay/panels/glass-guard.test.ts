@@ -81,6 +81,12 @@ const ALLOWED: readonly Allowed[] = [
   ],
   [
     "panels.css",
+    ".pn-strip .ov-button.go",
+    "background",
+    "Small solid control (the same Resume session button as the footer's).",
+  ],
+  [
+    "panels.css",
     ".pn-single-foot .ov-button.go",
     "background",
     "Small solid control.",

@@ -123,7 +123,10 @@
     .pn-log,
     .pn-interim,
     .pn-analysis-text,
-    .pn-codecard
+    .pn-codecard,
+    .pn-strip-main,
+    .pn-strip-sub,
+    .pn-note
   ) {
   cursor: text;
   user-select: text;
@@ -582,6 +585,7 @@
   color: var(--ov-muted);
   font-size: 11px;
 }
+.pn-strip .ov-button,
 .pn-single-foot .ov-button {
   color: var(--ov-text);
 }
@@ -640,7 +644,13 @@
   white-space: nowrap;
 }
 
-/* Resume and Start are green; End is red. */
+/* Resume and Start are green; End is red. The paused strip's Resume session is the
+   same button as the footer's. */
+.pn-strip .ov-button.go {
+  background: rgba(46, 160, 90, 0.9);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
 .pn-single-foot .ov-button.go {
   background: rgba(46, 160, 90, 0.9);
   border-color: rgba(255, 255, 255, 0.45);
@@ -651,6 +661,7 @@
   border-color: rgba(255, 255, 255, 0.45);
   color: #fff;
 }
+.pn-strip .ov-button,
 .pn-single-foot .ov-button {
   display: inline-flex;
   align-items: center;
@@ -797,6 +808,13 @@
 .pn-pill .pn-icon-button[aria-pressed="true"] {
   color: var(--pn-link);
   background: rgba(143, 176, 255, 0.28);
+}
+.pn-pill .pn-mic-button:not([data-mic="listening"]) {
+  /* The muted microphone's outline is white like the other controls, not grey. */
+  color: #fff;
+}
+.pn-pill .pn-mic-button:disabled {
+  opacity: 0.7;
 }
 .pn-pill .pn-mic-button[data-mic="listening"] {
   background: rgba(229, 72, 77, 0.3);
