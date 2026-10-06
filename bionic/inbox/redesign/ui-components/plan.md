@@ -72,3 +72,77 @@ Each worker: reads this plan and the four audits first; works only in its slice'
 - 2026-10-06: audits done; decisions written; Slice 1 dispatched.
 - 2026-10-06: Slice 1 reviewed and committed. Slice 4 (first part) reviewed, verified (5531 tests) and checked in a real browser. The browser check found what tests could not: surface resets such as `.studio-frame :is(button, input) { color: inherit }` out-specified the Button's single-attribute base rule, so the primary button inherited light text on the accent fill (about 2.4:1). Fixed by giving the base rule two attribute selectors (`[data-slot="button"][data-variant]`) plus a regression test. LESSON FOR EVERY SLICE: after a migration, read the computed colours of one button per variant in the browser (`e2e/live-session/.audit/colors.mts`), not only the tests.
 - 2026-10-06: Slice 2 (Resume/Pause/End/Start family, footer, strip) is ON HOLD until the owner's Claude Design footer is final; Slice 3 is blocked on the same design (panels). Presentation product adoption needs an ADR (`packages/ui`) and is the owner's call.
+
+
+---
+
+# Native App components: the merged gap list and todos (2026-10-06)
+
+Inputs: `native-panel-cleanup-brief.md` (the owner's T1-F6 brief and component direction), `gap-toolbar.md` (Worker E), `gap-panels-footer.md` (Worker F). Both reports were read and key claims spot-checked against the library and this repo (Button has no loading/pressed and its `asChild` is declared but unused; `Empty` is a dashed box with no tile; `IconButton` has no badge/tone/pressed; the footer tint is `panels.css:588`; the recording system line is `use-panel-session.ts:103`).
+
+## Direction (supersedes Phase 2 decision 1, pending the owner's confirmation)
+- Native and Storybook use the SAME components. The home is the library `~/dev/omnitech-solutions/omni-ui-components` (`packages/core/src/<Component>/`), each with types, variants, stories, factories, and a row in the Component Overview. A new **Native App** showcase reproduces the designer gallery.
+- `products/interview/src/frontend/ui/` (Slice 1) becomes a thin adapter: one import path for products, repo defaults, and the token mapping (`--oui-*` from `--ui-*`/`--pn-*`/`--ov-*` per surface). Its own `Button` is retired once the library Button covers `go`, `glass`, `loading`, `pressed`.
+- Nothing is a "native component". Native-only code stays only where it is genuinely custom.
+
+## The list: what is missing in the library
+| # | Item | Kind | Used by | Config-driven shape (callbacks and placement included) |
+|---|---|---|---|---|
+| 1 | Tokens: control heights (36 / 52 labelled), tone scale (neutral, accent/blue, success, warning/amber, danger/red, dim), panel (header 40, dock, scroll-fade 28), see-through (background opacity only), footer, clock | TOKENS | all | CSS variables in `styles/tokens.css`; surfaces map them |
+| 2 | **Button**: `tone`, control size, `shortcut`, `loading`, `pressed`, `soft` (outlined), `fillIcon`, `labelMaxWidth`, `tooltip`, working `asChild` | VARIATION | T5, T9, M3, M6, M8, M9, F3, F4, empty-state action | `tone`, `size`, `onClick`, `shortcut: string[]`, `fillIcon` |
+| 3 | **IconButton**: `tone`, `pressed`, `badge`, `caption`, `tooltip`, `disabledReason` (aria-disabled so a tooltip can still show), control sizes | VARIATION | T1-T4, T7, T8, T9, M1 copy, M8 | `badge: { tone, label }`, `onClick`, `disabledReason` |
+| 4 | **Progress** `shape="ring"` | VARIATION | T2 | `value` or indeterminate, `tone` |
+| 5 | **Segmented** `mode="multiple"`, control appearance, icon options, "last active can't be turned off" | VARIATION | T6 | `options[{value, icon, label, disabledReason}]`, `value`, `onChange`, `minActive` |
+| 6 | **Empty** tile variant (40 px icon tile, optional title, one line, optional action) | VARIATION | M7 (x3 panels) | `icon`, `title`, `description`, `action: { label, onClick }` |
+| 7 | **Steps** checklist variant (done check / current ring / pending circle) | VARIATION | M3 | `items[{label, state}]` |
+| 8 | **Tag** mono / copy-on-click / tooltip | VARIATION | F2 build tag, event chips | `copyValue`, `tooltip`, `onCopy` |
+| 9 | **Divider** as control separator (20 px) | NONE (class + token) | T9 | token only |
+| 10 | **Toolbar** container (role=toolbar, control-size context, groups, separators) | NEW (thin) | T1-T9 | `size`, `groups[]`, children |
+| 11 | **SplitButton** (main + caret sharing one border, 1 px divider; tone; status badge; ring state) | NEW | T1, T2, T3, T4, T8, T9 | `main: ControlSpec`, `menu: ActionMenuSpec`, `onPress`, `onOpenChange`, `status` |
+| 12 | **ActionMenu** over Dropdown: sections, items (check column, sub-label, shortcut keys, destructive, disabled reason), notice row, hint row, `kind: "list"`, viewport max-height | NEW (the only one with real logic) | T1, T3, T4, T5, T7 | `sections[]`, `onSelect`, `notice`, `hint`, `onOpenChange` |
+| 13 | **Panel**: 40 px header (title, meta, actions), scrolling body, optional dock, scroll config | NEW | M2, M4-M7, M9, M10 | `title`, `meta`, `actions`, `dock`, `children`, `scroll: { fade, stickToBottom }` |
+| 14 | **Transcript**: speech turns, chat messages, one-line event chips, `edited` flag, copy per bubble, fade mask, thin scrollbar, stick-to-bottom, "Jump to latest" | NEW | M1, M2, M9 | `items[]`, `onCopy`, `onSelect`, `onJump` |
+| 15 | **SessionBar + StatusClock**: record icon + monospace timer, paused state, dev build tag, Pause/Resume, outlined End with confirm | NEW | F1-F6 | `status`, `elapsed`, `buildTag`, `onPauseResume`, `onEnd` |
+| 16 | **Composer** (input + neutral mic + muted send) | NEW or FOLD into `Input` with a trailing `actions` slot: recommend FOLD | M8 | `value`, `onChange`, `onSend`, `onToggleMic`, `dictating` |
+| 17 | `useFollowLatest` hook moves into the library unchanged | HOOK | M9 | |
+| - | WindowDots (traffic lights tied to the Swift shell), the `.pn-pill` frame, `ToolbarLock` (maps to `disabledReason`), the code editor body, the tests drawer, the screenshots tray content (renders into `Panel.dock`) | CUSTOM, stays in this repo | | |
+
+**Net:** 5 genuinely new components (Toolbar, SplitButton, ActionMenu, Panel, Transcript) plus SessionBar, with Composer folded into Input = 6; 7 variations; 1 token set; 1 hook. Everything else is configuration.
+
+## Needs from the app (data that does not exist today)
+Mic device list, "attempt n" and a Retry action (T3); skill groups and shortcut groups in the contracts (T5, T7); a persistent "screen problem" state: permission lost, display disconnected, last capture failed (T4; today toasts only); build tag data: full SHA, branch and an isPackaged signal (F2; `BUILD_ID` is a short SHA only); panel widths 330/300 (today hard-coded 320/480/420).
+
+## Todos
+### Phase L: library (omni-ui-components). Each slice: types, variants, story, factory, test, a Component Overview row, library `pnpm verify`
+- [ ] L0 Spike (before anything): consume the library from this repo; confirm Tailwind `@layer` order vs `panels.css`, no preflight reset leaks, React peer range, bundle size in the web view, Radix portals vs native hit regions
+- [ ] L1 Tokens (item 1) and the Button + IconButton variations (items 2, 3), `asChild` fixed
+- [ ] L2 Progress ring, Segmented, Empty tile, Steps checklist, Tag (items 4-8), Divider token (9)
+- [ ] L3 Toolbar, SplitButton, ActionMenu (items 10-12)
+- [ ] L4 Panel and `useFollowLatest` (items 13, 17)
+- [ ] L5 Transcript, and Composer as an `Input` actions slot (items 14, 16)
+- [ ] L6 SessionBar + StatusClock (item 15)
+- [ ] L7 Native App showcase (below), Component Overview rows for every new component and variation, Table Overview untouched
+- [ ] L8 Publish (npm `@oc-tech` publish and re-vendor, or `link:` while developing)
+### Phase A: this repo adopts (after L0; footer first because it closes the held Slice 2)
+- [ ] A1 Dependency + adapter: `ui/index.ts` re-exports library components with repo defaults, `ui/tokens.css` maps `--oui-*`; products import only `../ui`
+- [ ] A2 Footer F1-F6: replaces the amber tint and the "Paused" notice I built (F6: the footer never tints; F3: no paused banner); updates tests that assert the removed items
+- [ ] A3 Toolbar T1-T9: merged capture control, ring, mic and screen badges, answer-style menu, segmented toggles, shortcuts menu, paused state, size system; `HIT_SELECTORS`/`WindowDrag` updated for portals; amend the 40 px hit-area rule for the toolbar
+- [ ] A4 Answer and Code panels M3-M7, M10-M11 (reflow 330/300, see-through on backgrounds only)
+- [ ] A5 Transcript and composer M1, M2, M8, M9 (no recording line, no header dot)
+- [ ] A6 Retire `ui/button.tsx` and the leftover `.studio-button`, `pn-*`/`ov-*` button families, other families from `slice4-remaining.md`
+- [ ] Each slice: orchestrator reviews the full diff, `pnpm verify`, reads computed colours in the browser, regenerates `bionic/arch`, then reinstalls the native app and checks it on screen
+
+## Native App showcase (matches the designer gallery)
+`packages/core/src/Showcase/NativeApp/` with `NativeApp.stories.tsx`, `NativeApp.fixtures.ts` (pure config objects and a shared `handlers` object of Storybook actions) and a shell; Storybook title `omni-ui-components/Showcase/Native App`, sorted after Getting Started. One story per gallery board, each composing ONLY library components from config: Toolbar (compact, labelled-mode variants not used, capture/mic/answer-style/shortcuts menus, paused), Panels (ready, analysing, answer ready with code hidden), Footer (live dev, live production, paused dev). Controls: `seeThrough` (100/60/22), `width` (900/1180), `paused`, `devBuild`. The Zoom-style board 1b is excluded.
+
+## Decisions needed from the owner (my recommendation first)
+1. Library is the single home, `ui/` becomes an adapter, our `ui/Button` retires. Recommend YES (supersedes Phase 2 decision 1).
+2. Publish path: `link:` while developing, npm publish + re-vendor once stable. Recommend YES.
+3. Fold Composer into `Input` (6 new components, not 7). Recommend YES.
+4. Rename `buttonSize` to `size` in the library (breaking, pre-1.0) or keep an adapter translation. Recommend RENAME.
+5. Icons: components take caller-supplied icon nodes (this app passes its Material Symbols `Icon`; stories use a small Material helper). Recommend YES.
+6. New app data (mic devices and retry, skill and shortcut groups in the contracts, persistent screen-problem state, build tag data): build them in Phase A, or ship the UI with those parts optional first. Recommend UI first, data behind it.
+7. Paused behaviour: panel toggles stay usable (the brief says so; today they are disabled, and I disabled them this session) and the capture caret menu still opens while paused. Recommend FOLLOW THE BRIEF.
+8. Amend the 40 px hit-area rule for the 36 px toolbar. Recommend YES.
+9. Accept a portal marker in the native hit-region selector table (shell contract change) for Radix menus and tooltips. Recommend YES.
+10. Drop gallery board 1f (footer with sensor icons). Recommend DROP.
