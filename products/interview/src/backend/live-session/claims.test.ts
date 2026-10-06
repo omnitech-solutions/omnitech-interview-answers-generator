@@ -8,6 +8,7 @@ import {
   figuresOf,
   MAX_REFS_PER_CLAIM,
   MIN_SUPPORT_SHARE,
+  rebindClaims,
   significantWords,
   summarizeClaims,
   verifyClaims,
@@ -741,5 +742,99 @@ describe("shape", () => {
     expect(significantWords("Migration of service")).toEqual(
       significantWords("migrate service"),
     );
+  });
+});
+
+// The pointer and sourceId are labels; the verbatim quote is the evidence. A
+// ref with a wrong label whose quote matches exactly one approved entry is
+// re-bound to that entry; otherwise it is left alone and still rejected.
+describe("re-binding a mislabelled ref", () => {
+  const built = snap();
+  const entry = "Used S3 for archival storage";
+  const wrong = (quote: string): ClaimRef => ({
+    ...ref(built, R0),
+    pointer: "/roles/0/responsibilities/99",
+    quote,
+  });
+  const claim = (refs: ClaimRef[]) =>
+    matrixClaim("Used S3 for archival storage", refs);
+  const bound = (refs: ClaimRef[]) => {
+    const [c] = rebindClaims([claim(refs)], built);
+    return c as Claim;
+  };
+
+  it("re-binds a wrong pointer to the one entry the quote matches", () => {
+    const fixed = bound([wrong(entry)]);
+    expect(fixed.refs[0]).toEqual(
+      ref(built, "/roles/0/responsibilities/2", entry),
+    );
+    expect(run([fixed], built)).toEqual([]);
+  });
+
+  it("re-binds an unknown sourceId and a stale revision the same way", () => {
+    const good = ref(built, "/roles/0/responsibilities/2");
+    expect(bound([{ ...good, sourceId: "nope" }]).refs[0]).toEqual(good);
+    expect(bound([{ ...good, revision: 99 }]).refs[0]).toEqual(good);
+  });
+
+  it("leaves a ref that already verifies untouched", () => {
+    const good = ref(built, "/roles/0/responsibilities/2");
+    expect(bound([good]).refs[0]).toBe(good);
+  });
+
+  it("still rejects an invented quote", () => {
+    const fixed = bound([wrong("Ran the Mars colony")]);
+    expect(fixed.refs[0]?.pointer).toBe("/roles/0/responsibilities/99");
+    expect(run([fixed], built)).toContain("claims.0.refs.0:pointer_mismatch");
+  });
+
+  it("still rejects an ambiguous quote that matches several entries", () => {
+    const twice = snap({
+      matrix: {
+        candidate: { name: "Candidate" },
+        roles: [
+          { company: "A Corp", title: "Engineer", technologies: ["Terraform"] },
+          { company: "B Corp", title: "Engineer", technologies: ["Terraform"] },
+        ],
+      } as unknown as CandidateMatrix,
+    });
+    const source = twice.sources.find((s) => s.text === "Terraform");
+    if (!source) throw new Error("fixture");
+    const bad = {
+      sourceId: "nope",
+      revision: source.revision,
+      pointer: "/roles/0/technologies/0",
+      quote: "Terraform",
+    };
+    const [out] = rebindClaims([matrixClaim("Terraform", [bad])], twice);
+    expect(out?.refs[0]).toEqual(bad);
+  });
+
+  it("keeps the support rules: a re-bound ref cannot back an unsupported claim", () => {
+    const fixed = bound([wrong(entry)]);
+    const stretched = { ...fixed, text: "Used S3 and cut costs by 40%" };
+    expect(run([stretched], built)).toContain(
+      "claims.0.refs.0:unsupported_reference",
+    );
+  });
+
+  it("never re-binds a ref across source kinds or touches other claim kinds", () => {
+    const pref = snap({ candidatePreferences: "Notice period: two weeks." });
+    const pointer = "/context/candidatePreferences/0";
+    const preferenceRef = { ...ref(pref, pointer), pointer: "/x" };
+    const claims: Claim[] = [
+      {
+        kind: "preference-backed",
+        text: "Notice period: two weeks.",
+        refs: [preferenceRef],
+      },
+      { kind: "general-knowledge", text: "x", refs: [] },
+    ];
+    expect(rebindClaims(claims, pref)).toEqual(claims);
+    // A matrix claim quoting a preference line is not re-bound to it.
+    const crossed = matrixClaim("Notice period: two weeks.", [
+      { ...preferenceRef, quote: "Notice period: two weeks." },
+    ]);
+    expect(rebindClaims([crossed], pref)[0]?.refs[0]).toEqual(crossed.refs[0]);
   });
 });

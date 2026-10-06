@@ -39,6 +39,7 @@ import {
   figuresOf,
   LEAVING_REASON_PLACEHOLDER,
   MAX_REFS_PER_CLAIM,
+  rebindClaims,
   supportedFigureKeys,
   verifyClaims,
 } from "./claims";
@@ -393,18 +394,18 @@ const SYSTEM_POLICY = [
   'Reply with one JSON object and nothing else, with exactly the fields "category", "draft", "claims", "star", "logistics" and "codingBrief".',
   "Category is one of: background, motivation, technical-concept, experience-story, leadership-behavioural, logistics, leaving-role, questions-to-ask, coding, other, no-question.",
   'The captured lines are what the interviewer just said. When they are not a question or an invitation to speak (a greeting, small talk, a sound or connection check, a backchannel or acknowledgement such as "perfect" or "lovely", the interviewer describing the role or the next steps), the category is no-question: "draft" is "", "claims" is [], and "star", "logistics" and "codingBrief" are null. A question or invitation ("walk me through", "tell me about", "do you have any questions for me") is always a question.',
-  'DRAFT FORMAT: "draft" is Markdown point form, never paragraphs and never a script. Each point is one short line starting with "- " that the candidate can say in a breath, with the key terms, technologies, invariants and numbers in **bold**. Use exactly three points where a point list fits; speakable in 30-60 seconds (at most about 100 words), or 60-90 seconds (at most about 160 words) only for a question with several distinct parts. Never quote filler words or backchannel.',
-  'Shape by category. technical-concept: three points (what it is, how it works or its trade-off, a practical example). experience-story and leadership-behavioural: four points "- **Situation:** ...", "- **Task:** ...", "- **Action:** ...", "- **Result:** ...", and a part the approved experience cannot support reads "- **Result:** not in your approved experience, say it from memory". motivation: three points that are SUGGESTED angles, each ending "(suggested)". questions-to-ask: three sharp questions for the interviewer, each a point, tied to the role or to employer material, with no statement about the candidate and no digits or number words at all (write "in the first months", never "90 days"). background and other: three points.',
+  'DRAFT FORMAT: "draft" is Markdown point form, never paragraphs. Each point starts with "- " and is ONE complete first-person sentence the candidate can say aloud as written, in natural speech, for example "- At **Helcim** I led the modernization of a legacy **PHP monolith**, which cut scaffolding by **80%**." Never paste an approved entry or a fragment of one into a sentence, never string terms together, and never write a point that is not a sentence you could say. Bold only KEY words: at most 3 bold spans per point (the label of a STAR point counts as one), each 1-4 words (an employer, a technology, a metric or the one key idea; never a whole job title); never bold a whole sentence or a clause, and count the spans of every point before you answer. Every point about the candidate, a STAR Result included, speaks as "I", "my" or "we". Use exactly three points where a point list fits; speakable in 30-60 seconds (at most about 100 words), or 60-90 seconds (at most about 160 words) only for a question with several distinct parts. Never quote filler words or backchannel.',
+  'Shape by category. technical-concept: three points (what it is, how it works or its trade-off, a practical example). experience-story and leadership-behavioural: four points "- **Situation:** ...", "- **Task:** ...", "- **Action:** ...", "- **Result:** ...", each label bold then one full first-person sentence, and a part the approved experience cannot support reads "- **Result:** Not in your approved experience, say it from memory." motivation: three full first-person sentences that are SUGGESTED angles, each ending "(suggested)", in your own words and never a pasted entry. questions-to-ask: three sharp questions for the interviewer, each a point with its one key term in **bold**, tied to the role or to employer material, with no statement about the candidate and no digits or number words at all (write "in the first months", never "90 days"). background and other: three points.',
   'Every statement about the candidate goes in "claims", each {"kind","text","refs"}. Kind is one of: matrix-backed, preference-backed, suggested-interpretation, general-knowledge, not-in-matrix.',
   'A matrix-backed claim has refs {"sourceId","revision","pointer","quote"}, each to an entry of BEGIN APPROVED EXPERIENCE. Quote the WHOLE entry text exactly as given (entries are short; never a fragment, never reworded). All refs of one claim come from the same role (the same /roles/N/ pointer prefix); a role entry is more recent the lower its N is, so prefer a recent role unless an older one answers the question clearly better.',
   'The "text" of a matrix-backed claim is the cited entries\' own words copied together (add at most one connecting word such as "used" or "at"). No commentary, no interpretation, no "which shows" or "covering": the claim is evidence, and anything else belongs in the draft. A figure, employer name or technology appears only if a cited entry carries it.',
   'A preference-backed claim cites an entry of BEGIN CANDIDATE PREFERENCES the same way. Notice period and compensation come only from candidate preferences: when none is given, make NO claim about them (not even a not-in-matrix one), list them in "missing", and write no number, date or amount about them anywhere. Never invent them, and never repeat a figure the interviewer said.',
   "A suggested-interpretation is the candidate's own motive or opinion and carries no refs and no figure. A general-knowledge claim is technical, has no refs and says nothing personal about the candidate. Without a cited entry, use only complexity notation, integers up to 10 or a standards token such as HTTP 404; every other figure needs a cited entry.",
-  "A claim the approved experience does not support is not-in-matrix, with no refs and no figure: label it, never present it as fact. Prefer saying so in one not-in-matrix claim over stretching an unrelated entry.",
-  "The draft obeys the same rules as the claims and says only what the verified claims support: a figure, a year, an employer name, a project, a metric, a notice period or a compensation figure appears only if a cited claim carries it, so never echo a number or year the interviewer said. A STAR element text only restates what its cited entries say, in their own words.",
+  "A claim the approved experience does not support is not-in-matrix, with no refs and no figure or year (not even one the interviewer said): label it, never present it as fact. Prefer saying so in one not-in-matrix claim over stretching an unrelated entry.",
+  "The draft obeys the same rules as the claims and says only what the verified claims support: a figure, a year, an employer name, a project, a metric, a notice period or a compensation figure appears only if a cited claim carries it, so never echo a number or year the interviewer said. A STAR element's \"text\" is separate from the draft and is NOT speech: copy the cited entries' own words there, and put the fluent first-person sentence only in the draft.",
   'For leadership-behavioural, "star" is {situation, task, action, result, missing}; each element is {"text","claimIndexes"} citing at least one matrix-backed claim by its 0-based position in "claims" (the first claim is 0), or it is listed in "missing" with empty text and no claim indexes. Never invent a story. For experience-story, "star" may be used the same way or be null.',
   'For logistics, "logistics" is {"found":[{"field","claimIndex"}],"missing":[fields]}; found lists only preference-backed claims. The draft has one point per field the question touches: the preference line verbatim, or "- **Notice period:** not in your approved preferences, say it in your own words".',
-  `For leaving-role, never generate the reason for leaving: the draft's first point is exactly "${LEAVING_REASON_PLACEHOLDER}" and the only suggested-interpretation claim is exactly that text. Any other point is delivery advice with its key phrase in **bold** that states no reason (for example keep it **brief and positive**, then **bridge** to the next role's scope). Avoid the words because, since, want, left, leave and too there. Employer names and dates only as matrix-backed claims. Never disparage an employer.`,
+  `For leaving-role, never generate the reason for leaving: the draft's first point is "- ${LEAVING_REASON_PLACEHOLDER}" and the only suggested-interpretation claim is exactly that text. Any other point is delivery advice with its key phrase in **bold** that states no reason (for example keep it **brief and positive**, then **bridge** to the next role's scope). Avoid the words because, since, want, left, leave and too there. Employer names and dates only as matrix-backed claims. Never disparage an employer.`,
   `For coding, "codingBrief" is {"language":${LIVE_OWNER_LANGUAGES.map((l) => `"${l}"`).join("|")},"restatement","constraints"}.`,
   'Use null for "star", "logistics" and "codingBrief" when the category does not need them.',
 ].join("\n");
@@ -790,6 +791,40 @@ function hasLogisticsCue(output: Output, captured: readonly string[]): boolean {
   );
 }
 
+// [STRATEGY] Bold is emphasis on KEY words: at most 3 spans a bullet, each 1-4
+// words, never a whole bullet. A model overrun is un-bolded here (markers only,
+// never a word), so the owner's style rule holds without a second model call.
+export function tidyBold(draft: string): string {
+  const span = /\*\*([^*\n]+)\*\*/g;
+  return draft
+    .split("\n")
+    .map((line) => {
+      const lead = /^(\s*(?:[-*•]|\d+[.)])\s+)?(.*)$/s.exec(line);
+      const prefix = lead?.[1] ?? "";
+      let rest = lead?.[2] ?? line;
+      let kept = 0;
+      rest = rest.replace(span, (whole, inner: string) => {
+        const long = inner.trim().split(/\s+/).length > 4;
+        const label = /:\s*$/.test(inner);
+        if (long || (kept >= 3 && !label)) return inner;
+        kept += 1;
+        return whole;
+      });
+      // Nothing but bold (apart from a label and punctuation): not emphasis.
+      const bare = rest.replace(span, "").replace(/[\s:.,;()!?-]/g, "");
+      const labelOnly = /^\*\*[^*\n]+:\*\*/.test(rest);
+      if (
+        bare === "" &&
+        !(labelOnly && rest.replace(/^\*\*[^*\n]+:\*\*/, "").trim() === "")
+      )
+        rest = rest.replace(span, (whole, inner: string) =>
+          /:\s*$/.test(inner) ? whole : inner,
+        );
+      return prefix + rest;
+    })
+    .join("\n");
+}
+
 export function createAssistStage(
   options: { deviceImplementation?: boolean } = {},
 ): AssistStage {
@@ -863,7 +898,12 @@ export function createAssistStage(
       const parsed = outputSchema.safeParse(checkedBody);
       if (!parsed.success)
         return { ok: false, violations: zodViolations(parsed.error) };
-      const output = parsed.data;
+      // [STRATEGY] A mislabelled ref whose quote names exactly one approved
+      // entry is re-bound to it before anything is checked (claims.ts).
+      const output = {
+        ...parsed.data,
+        claims: rebindClaims(parsed.data.claims, ctx.snapshot),
+      };
       const violations = crossFieldViolations(output);
       if (output.category === "no-question") {
         // [SAFETY] No grounding, claim or logistics checks: nothing to ground.
@@ -898,7 +938,10 @@ export function createAssistStage(
         snapshot: ctx.snapshot,
         captured: ctx.captured,
         category: output.category,
-        draft: output.draft,
+        // [SAFETY] A logistics draft is rebuilt from the pinned preference
+        // sources (renderLogistics); the model's own text is never shown, so
+        // it is not checked as if it were.
+        draft: output.category === "logistics" ? undefined : output.draft,
         technical:
           TECHNICAL_CATEGORIES.has(output.category) ||
           (output.category === "other" && (ctx.exercise?.length ?? 0) > 0),
@@ -942,6 +985,7 @@ export function createAssistStage(
         ok: true,
         draft: {
           ...output,
+          draft: tidyBold(output.draft),
           sections: output.claims.map(({ kind, text }) => ({ kind, text })),
           ...(missingContext ? { missingContext } : {}),
         },

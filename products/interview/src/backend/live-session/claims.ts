@@ -460,6 +460,47 @@ function refPathCode(
   return null;
 }
 
+// [STRATEGY] The pointer, sourceId and revision of a ref are labels; the
+// verbatim quote is the evidence. A matrix-backed ref that fails its label
+// check but whose quote appears in EXACTLY ONE approved entry is re-bound to
+// that entry (its true pointer, id and pinned revision). A quote that matches
+// none or several entries is left as written and is rejected by verifyClaims.
+// Re-binding changes labels only: the support rules still run on the result.
+export function rebindClaims(
+  claims: readonly Claim[],
+  snapshot: ContextSnapshot,
+): Claim[] {
+  const candidates = snapshot.sources.filter(
+    (source) => source.sourceKind === "candidate",
+  );
+  const rebound = (ref: ClaimRef): ClaimRef => {
+    const own = sourceById(snapshot, ref.sourceId);
+    if (refPathCode(ref, own, snapshot, "candidate") === null) return ref;
+    const quote = quoteForm(ref.quote).replace(
+      /^[\s.,;:!?]+|[\s.,;:!?]+$/gu,
+      "",
+    );
+    if (!quote || hasConfusableText(ref.quote)) return ref;
+    const found = candidates.filter((source) =>
+      quoteOnWordBoundaries(quoteForm(source.text), quote),
+    );
+    const only = found.length === 1 ? found[0] : undefined;
+    return only
+      ? {
+          sourceId: only.id,
+          revision: only.revision,
+          pointer: only.pointer,
+          quote: ref.quote,
+        }
+      : ref;
+  };
+  return claims.map((claim) =>
+    claim.kind === "matrix-backed" && Array.isArray(claim.refs)
+      ? { ...claim, refs: claim.refs.map(rebound) }
+      : claim,
+  );
+}
+
 // [DOMAIN] The reference SUPPORTS the text (a claim, or a STAR element against
 // the union of its cited claims' quotes) when: every figure of the text is in
 // the cited quotes (or in the cited role's own metric values); every employer

@@ -14,6 +14,7 @@ import {
   MAX_CAPTURED_CHARS,
   NO_QUESTION_DRAFT,
   STAR_ELEMENTS,
+  tidyBold,
 } from "./assist-stage";
 import { LEAVING_REASON_PLACEHOLDER } from "./claims";
 import { buildContextSnapshot, type ContextSnapshot } from "./context-snapshot";
@@ -238,8 +239,16 @@ describe("talking-points policy", () => {
   it("asks for Markdown point form with bold key terms, never paragraphs", () => {
     expect(system).toContain("Markdown point form");
     expect(system).toContain("**bold**");
-    expect(system).toContain('starting with "- "');
+    expect(system).toContain('Each point starts with "- "');
     expect(system).toContain("never paragraphs");
+  });
+
+  it("asks for full first-person sentences with at most 3 short bold spans, never a pasted entry", () => {
+    expect(system).toContain("ONE complete first-person sentence");
+    expect(system).toContain("Never paste an approved entry");
+    expect(system).toContain("at most 3 bold spans per point");
+    expect(system).toContain("each 1-4 words");
+    expect(system).toContain("never bold a whole sentence or a clause");
   });
 
   it("bounds the draft to 30-60 seconds, 60-90 only for a multi-part question", () => {
@@ -279,9 +288,9 @@ describe("the device window", () => {
   const manySources = snapshotOf({ preferences: CANDIDATE_PREFERENCES });
 
   it("shrinks the sources (whole entries only) and never truncates one mid-text", () => {
-    // About 5.7 KB of spoken text leaves little room in the device window.
+    // About 3.6 KB of spoken text leaves little room in the device window.
     const text = "describe the order service migration to PostgreSQL ".repeat(
-      90,
+      70,
     );
     const remote = promptOf(stage.prepare(input(text, manySources)));
     expect(remote.byteCount).toBeGreaterThan(DEVICE_MAX_PROMPT_BYTES);
@@ -494,12 +503,27 @@ describe("assist output validation", () => {
         output({ claims: [{ ...migrationClaim, refs: [fabricated] }] }),
       ),
     ).toContain("claims.0.refs.0:quote_mismatch");
-    const unknown = { ...refTo(MIGRATION), sourceId: "0".repeat(64) };
+    // An invented id with a fabricated quote has nothing to re-bind to.
+    const unknown = {
+      ...refTo(MIGRATION),
+      sourceId: "0".repeat(64),
+      quote: "Ran the whole company",
+    };
     expect(
       violationsOf(
         output({ claims: [{ ...migrationClaim, refs: [unknown] }] }),
       ),
     ).toContain("claims.0.refs.0:unknown_reference");
+  });
+
+  it("re-binds an invented id whose quote is one approved entry, and publishes the true ref", () => {
+    const mislabelled = { ...refTo(MIGRATION), sourceId: "0".repeat(64) };
+    const result = check(
+      output({ claims: [{ ...migrationClaim, refs: [mislabelled] }] }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(result.draft.claims[0]?.refs).toEqual([refTo(MIGRATION)]);
   });
 });
 
@@ -701,6 +725,17 @@ describe("logistics", () => {
       "compensation",
       "work-arrangement",
     ]);
+  });
+
+  it("does not judge the model's own logistics text, which is never shown", () => {
+    const result = check(
+      logistics({ draft: "I can start on 2031-01-01 for 999000 a year." }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.draft).not.toContain("999000");
+      expect(result.draft.draft).toBe("- **Notice period:** two weeks.");
+    }
   });
 
   it("does not let the model hide an absent preference field", () => {
@@ -1172,5 +1207,49 @@ describe("no-question category", () => {
     expect(system).toContain("never quoting or paraphrasing");
     expect(system).toContain("this assistant's own interface");
     expect(system).not.toContain("with the category other");
+  });
+});
+
+// Bold is emphasis on KEY words: at most 3 spans a bullet, each 1-4 words, never
+// a whole bullet. The model's overruns are un-bolded, never the text changed.
+describe("tidyBold", () => {
+  it("keeps short spans and a STAR label as they are", () => {
+    const good =
+      "- **Situation:** At **Helcim** I led a **PHP monolith** move.";
+    expect(tidyBold(good)).toBe(good);
+  });
+  it("un-bolds a span longer than four words", () => {
+    expect(
+      tidyBold(
+        "- I was **Lead Senior Software Developer / Architect** at **Relay**",
+      ),
+    ).toBe("- I was Lead Senior Software Developer / Architect at **Relay**");
+  });
+  it("keeps only the first three spans of a bullet", () => {
+    expect(tidyBold("- **a** and **b** and **c** and **d**")).toBe(
+      "- **a** and **b** and **c** and d",
+    );
+  });
+  it("un-bolds a bullet that is bold throughout, keeping a STAR label", () => {
+    expect(tidyBold("- **Led the whole migration**.")).toBe(
+      "- Led the whole migration.",
+    );
+    expect(tidyBold("- **Task:** **Set standards**.")).toBe(
+      "- **Task:** Set standards.",
+    );
+  });
+  it("changes no words, only the markers", () => {
+    const text = "- **x y z w v** and **Alpha** \n\nplain **";
+    expect(tidyBold(text).replaceAll("**", "")).toBe(text.replaceAll("**", ""));
+  });
+  it("is applied to the published draft and not to a no-question note", () => {
+    const result = check(
+      output({
+        draft: "- **Led the whole order service migration yesterday** fast",
+      }),
+    );
+    expect(result.ok && result.draft.draft).toBe(
+      "- Led the whole order service migration yesterday fast",
+    );
   });
 });
