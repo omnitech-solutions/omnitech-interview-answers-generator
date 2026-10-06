@@ -103,7 +103,8 @@
 /* The native window is moved by anything it draws that is not a control (the
    shell does the drag, WindowDrag): the open hand says so, and nothing under a
    drag starts selecting text. Controls keep their own cursors (below); text
-   fields, code and the editor keep the text cursor and selection. See-through
+   fields, code, the transcript and the answers keep the text cursor and
+   selection (the list is also in WindowDrag.swift). See-through
    keeps its cards for reading; only the toolbar and footer move the window. */
 :root[data-panel-host="native"] .pn-root {
   cursor: grab;
@@ -112,7 +113,18 @@
 }
 :root[data-panel-host="native"]
   .pn-root
-  :is(pre, code, textarea, input:not([type="button"]), [contenteditable], .cm-editor) {
+  :is(
+    pre,
+    code,
+    textarea,
+    input:not([type="button"]),
+    [contenteditable],
+    .cm-editor,
+    .pn-log,
+    .pn-interim,
+    .pn-analysis-text,
+    .pn-codecard
+  ) {
   cursor: text;
   user-select: text;
   -webkit-user-select: text;
@@ -1373,6 +1385,30 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
+}
+.pn-copy {
+  margin-left: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.pn-copy:hover,
+.pn-copy:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.16);
+}
+.pn-copy .material-symbols-rounded,
+.pn-copy svg {
+  font-size: 14px;
 }
 .pn-who-label {
   font-size: 10.5px;

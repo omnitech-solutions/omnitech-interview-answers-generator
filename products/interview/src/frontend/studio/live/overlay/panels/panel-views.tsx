@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { Icon } from "../../../icon";
+import { copyText } from "../../shared/copy-text";
 import { followUpNote } from "../../shared/revisions";
 import { ScreenshotSendControl } from "../../shared/screenshot-send-control";
 import { SKILLS } from "../../shared/skills";
@@ -37,7 +38,7 @@ import {
 } from "./panel-model";
 import { phaseLabel } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
-import type { usePanelSession } from "./use-panel-session";
+import { TOAST_TEXT, type usePanelSession } from "./use-panel-session";
 
 export type PanelSession = ReturnType<typeof usePanelSession>;
 
@@ -115,14 +116,53 @@ function Stage({ stage, label }: { stage: TaskStage; label?: string }) {
   );
 }
 
+// The words of a bubble, as they would be copied: an answer's lines, or the text.
+const bubbleText = (row: PanelRow): string =>
+  (row.items ? row.items.map((item) => item.text).join("\n") : row.text) ?? "";
+
+// One button on a bubble: copies its text. "Copied" shows only after the write
+// succeeded. It sits inside a bubble that can itself be pressed (to show an
+// answer), so its press stops there.
+function CopyBubble({
+  text,
+  onCopy,
+}: {
+  text: string;
+  onCopy(text: string): Promise<boolean>;
+}) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1_600);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      className="pn-copy"
+      aria-label={copied ? "Copied" : "Copy message"}
+      title={copied ? "Copied" : "Copy message"}
+      onClick={(event) => {
+        event.stopPropagation();
+        void onCopy(text).then(setCopied);
+      }}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <Icon name={copied ? "check" : "content_copy"} />
+    </button>
+  );
+}
+
 function Row({
   row,
   selected,
   onSelect,
+  onCopy,
 }: {
   row: PanelRow;
   selected: boolean;
   onSelect(taskId: string): void;
+  onCopy(text: string): Promise<boolean>;
 }) {
   if (row.kind === "marker")
     return (
@@ -162,6 +202,9 @@ function Row({
           <span className="pn-who-label">{row.label}</span>
         )}
         <span className="pn-time">{clock(row.at)}</span>
+        {row.kind !== "system" && bubbleText(row).trim() !== "" && (
+          <CopyBubble text={bubbleText(row)} onCopy={onCopy} />
+        )}
       </span>
       {row.kind === "assistant" && row.items ? (
         <AnswerText items={row.items} />
@@ -197,6 +240,13 @@ export function ChatPanel({ s }: { s: PanelSession }) {
     rows.length,
     `${loading}-${answering}-${last?.stage?.label}-${last?.items?.length ?? 0}`,
   );
+  // Copying a bubble: the toast says so after the write, or says it failed.
+  const copyBubble = async (text: string): Promise<boolean> => {
+    const ok = await copyText(text);
+    if (ok) s.toast(TOAST_TEXT.copied("message"));
+    else s.notify("Couldn’t copy the message. Select it and copy by hand.");
+    return ok;
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const focus = () => inputRef.current?.focus();
@@ -244,6 +294,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
               row.taskId !== undefined && row.taskId === s.selected?.taskId
             }
             onSelect={s.select}
+            onCopy={copyBubble}
           />
         ))}
         {loading && (

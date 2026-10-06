@@ -381,6 +381,34 @@ describe("chat", () => {
     expect(card).toHaveAttribute("data-kind", "typed");
     expect(screen.getByLabelText("Message")).toHaveValue("");
   });
+  it("puts a copy button on each bubble: it copies that bubble's words, says Copied once the clipboard accepted, and never presses the bubble", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText: write } });
+    serve(live(), codingActions());
+    await show("single");
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "and the cost?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await flush();
+    const typed = screen.getByText("and the cost?").closest(".pn-row");
+    const button = within(typed as HTMLElement).getByRole("button", {
+      name: "Copy message",
+    });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(write).toHaveBeenCalledWith("and the cost?");
+    expect(button).toHaveAttribute("aria-label", "Copied");
+    // Every answer bubble has its own, and a system line has none.
+    const assistant = document.querySelector(
+      '.pn-row[data-kind="assistant"]',
+    ) as HTMLElement;
+    expect(
+      within(assistant).getByRole("button", { name: "Copy message" }),
+    ).toBeVisible();
+    vi.unstubAllGlobals();
+  });
   it("shows the assistant reply as a purple card with the answer's lines", async () => {
     serve(live(), codingActions());
     await show("single");

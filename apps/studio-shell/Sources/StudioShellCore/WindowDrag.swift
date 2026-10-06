@@ -36,7 +36,10 @@ public enum WindowDrag {
         "[role=menuitemradio]", "[role=slider]", "[role=tab]", "[role=switch]", "[role=checkbox]",
         "[role=radio]",
     ].joined(separator: ",")
-    static let typing = "input:not([type=button]):not([type=submit]),textarea,[contenteditable],pre,code,.cm-editor"
+    // Text to read and copy: the fields, the code, the transcript, the answers. The
+    // same list is in panels.css (user-select and the text cursor); keep them together.
+    static let typing =
+        "input:not([type=button]):not([type=submit]),textarea,[contenteditable],pre,code,.cm-editor,.pn-log,.pn-interim,.pn-analysis-text,.pn-codecard"
 
     // The page's answer at (x, y) in page points: a `Kind`, as its raw value.
     public static func probeScript(x: Double, y: Double) -> String {
