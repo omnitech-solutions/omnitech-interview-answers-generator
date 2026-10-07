@@ -422,6 +422,18 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 </Button>
               </div>
             )}
+            <div className="pn-regenerate">
+              <Button
+                buttonSize="sm"
+                variant="outline"
+                icon={<Icon name="refresh" />}
+                disabled={s.tray.applying || !s.open}
+                data-testid="pn-regenerate"
+                onClick={() => void s.tray.apply()}
+              >
+                Regenerate
+              </Button>
+            </div>
           </div>
         )}
         {note && (

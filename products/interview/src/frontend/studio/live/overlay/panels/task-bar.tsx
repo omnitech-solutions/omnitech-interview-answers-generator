@@ -40,7 +40,7 @@ export function TaskBar({ s }: { s: PanelSession }) {
   // A new problem captured and not yet applied is what the panes show.
   const drafting = s.tray.intent === "new" && s.tray.items.length > 0;
   if (!current && !drafting) return null;
-  const currentText = drafting ? "New problem · not sent yet" : current?.text;
+  const currentText = drafting ? "Select problem…" : current?.text;
   const running = card.stages.some((stage) => stage.state === "running");
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">

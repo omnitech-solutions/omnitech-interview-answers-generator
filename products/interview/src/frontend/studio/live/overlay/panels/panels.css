@@ -624,6 +624,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A fresh revision of the task on show, from the end of its answer. */
+.pn-regenerate {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
 .pn-task-bar-rev {
   font-size: 12px;
   color: var(--ov-muted);
