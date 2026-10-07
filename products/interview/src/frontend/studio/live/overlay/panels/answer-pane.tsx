@@ -313,7 +313,6 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 controls={areaId}
               />
             </div>
-            {area}
             <div className="pn-problem-head">
               <h2 className="pn-problem" data-testid="pn-problem">
                 {card.name}
@@ -422,6 +421,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 </Button>
               </div>
             )}
+            {area}
             <div className="pn-regenerate">
               <Button
                 buttonSize="sm"
