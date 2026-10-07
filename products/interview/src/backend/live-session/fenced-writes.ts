@@ -439,7 +439,7 @@ export class FencedSessionWrites {
       await tx.execute(sql`
         UPDATE interview.session_actions SET
           dispatch_status = 'succeeded', result = ${JSON.stringify(stored)}::jsonb,
-          shown = ${show}
+          progress = NULL, shown = ${show}
         WHERE tenant_id = ${input.scope.tenantId}::uuid
           AND owner_user_id = ${input.scope.actorId}::uuid
           AND id = ${input.actionId}::uuid`);
@@ -484,6 +484,38 @@ export class FencedSessionWrites {
         liveAssistance: row.sources?.liveAssistance === true,
         fence: row.fence,
       };
+    });
+  }
+
+  // The draft's text so far, while the action is in flight: rewritten as the
+  // model writes (the browser shows it), under the same holder check as every
+  // write. A settled action is left alone (the publish or failure owns it).
+  async recordProgress(input: {
+    scope: OwnerScope;
+    sessionId: string;
+    holder: FenceHolder;
+    actionId: string;
+    progress: { draft: string };
+  }): Promise<SettleOutcome> {
+    assertUuid(input.sessionId);
+    return inOwnerScope(this.database, input.scope, async (tx) => {
+      const guard = await guardHolder(
+        tx,
+        input.scope,
+        input.sessionId,
+        input.holder,
+      );
+      if (!guard.ok) return guard.refused;
+      const updated = await tx.execute(sql`
+        UPDATE interview.session_actions SET
+          progress = ${JSON.stringify(input.progress)}::jsonb
+        WHERE tenant_id = ${input.scope.tenantId}::uuid
+          AND owner_user_id = ${input.scope.actorId}::uuid
+          AND session_id = ${input.sessionId}::uuid
+          AND id = ${input.actionId}::uuid AND dispatch_status = 'in_flight'`);
+      return (updated.rowCount ?? 0) === 1
+        ? { outcome: "recorded" }
+        : refused("action_settled", false);
     });
   }
 

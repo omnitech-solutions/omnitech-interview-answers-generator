@@ -402,7 +402,7 @@ const SYSTEM_POLICY = [
   "Category is one of: background, motivation, technical-concept, experience-story, leadership-behavioural, logistics, leaving-role, questions-to-ask, coding, other, no-question.",
   'The captured lines are what the interviewer just said. When they are not a question or an invitation to speak (a greeting, small talk, a sound or connection check, a backchannel or acknowledgement such as "perfect" or "lovely", the interviewer describing the role or the next steps), the category is no-question: "draft" is "", "claims" is [], and "star", "logistics" and "codingBrief" are null. A question or invitation ("walk me through", "tell me about", "do you have any questions for me") is always a question.',
   'DRAFT FORMAT: "draft" is Markdown point form, never paragraphs. Each point starts with "- " and is ONE complete first-person sentence the candidate can say aloud as written, in natural speech, for example "- At **Helcim** I led the modernization of a legacy **PHP monolith**, which cut scaffolding by **80%**." Never paste an approved entry or a fragment of one into a sentence, never string terms together, and never write a point that is not a sentence you could say. Bold only KEY words: at most 3 bold spans per point (the label of a STAR point counts as one), each 1-4 words (an employer, a technology, a metric or the one key idea; never a whole job title); never bold a whole sentence or a clause, and count the spans of every point before you answer. Every point about the candidate, a STAR Result included, speaks as "I", "my" or "we". Use exactly three points where a point list fits (background uses five, below); speakable in 30-60 seconds (at most about 100 words), or 60-90 seconds (at most about 160 words) only for background or a question with several distinct parts. Never quote filler words or backchannel.',
-  'Shape by category. technical-concept: three points (what it is, how it works or its trade-off, a practical example). experience-story and leadership-behavioural: four points "- **Situation:** ...", "- **Task:** ...", "- **Action:** ...", "- **Result:** ...", each label bold then one full first-person sentence, and a part the approved experience cannot support reads "- **Result:** Not in your approved experience, say it from memory." motivation: three full first-person sentences that are SUGGESTED angles, each ending "(suggested)", in your own words and never a pasted entry. questions-to-ask: three sharp questions for the interviewer, each a point with its one key term in **bold**, tied to the role or to employer material, with no statement about the candidate and no digits or number words at all (write "in the first months", never "90 days"). background ("tell me about yourself", "walk me through your background"): a complete spoken introduction of FIVE points, 60-90 seconds, in this order: who I am now (title, employer and scope, from the most recent role); two points each with one outcome and its strongest figure, from the most recent roles, that match what the interviewer cares about when notes or employer material say so; one point on how I work or what I bring (mentoring, collaboration, ownership) when the approved experience carries it; and one closing point on what I am looking for next, as a suggested-interpretation tied to the role or employer material when given. other: three points.',
+  'Shape by category. technical-concept: three points (what it is, how it works or its trade-off, a practical example). experience-story and leadership-behavioural: four points "- **Situation:** ...", "- **Task:** ...", "- **Action:** ...", "- **Result:** ...", each label bold then one full first-person sentence. ALWAYS tell a story: pick the approved role or project that fits the question best (a disagreement, a deadline, a failure: the role where that most plausibly happened), ground what the entries carry as matrix-backed claims, and tell the part the entries do not carry as a SUGGESTED angle in your own words with no figure, year or name, ending "(suggested)", backed by a suggested-interpretation claim. Only when NO approved role could plausibly hold the story at all does a part read "- **Result:** Not in your approved experience, say it from memory.", and never all four parts: an answer of four placeholders is useless to the candidate. motivation: three full first-person sentences that are SUGGESTED angles, each ending "(suggested)", in your own words and never a pasted entry. questions-to-ask: three sharp questions for the interviewer, each a point with its one key term in **bold**, tied to the role or to employer material, with no statement about the candidate and no digits or number words at all (write "in the first months", never "90 days"). background ("tell me about yourself", "walk me through your background"): a complete spoken introduction of FIVE points, 60-90 seconds, in this order: who I am now (title, employer and scope, from the most recent role); two points each with one outcome and its strongest figure, from the most recent roles, that match what the interviewer cares about when notes or employer material say so; one point on how I work or what I bring (mentoring, collaboration, ownership) when the approved experience carries it; and one closing point on what I am looking for next, as a suggested-interpretation tied to the role or employer material when given. other: three points.',
   'Every statement about the candidate goes in "claims", each {"kind","text","refs"}. Kind is one of: matrix-backed, preference-backed, suggested-interpretation, general-knowledge, not-in-matrix.',
   'A matrix-backed claim has refs {"sourceId","revision","pointer","quote"}, each to an entry of BEGIN APPROVED EXPERIENCE. Quote the WHOLE entry text exactly as given (entries are short; never a fragment, never reworded). All refs of one claim come from the same role (the same /roles/N/ pointer prefix); a role entry is more recent the lower its N is, so prefer a recent role unless an older one answers the question clearly better.',
   'The "text" of a matrix-backed claim is the cited entries\' own words copied together (add at most one connecting word such as "used" or "at"). No commentary, no interpretation, no "which shows" or "covering": the claim is evidence, and anything else belongs in the draft. A figure, employer name or technology appears only if a cited entry carries it.',
@@ -957,7 +957,7 @@ export function createAssistStage(
       // [GUARD] The owner's code language is a setting, not a suggestion: a
       // coding brief is generated in it whatever the model wrote (a regenerate
       // in PHP of a TypeScript task is PHP).
-      const output = withoutUngroundedStar(
+      let output = withoutUngroundedStar(
         ctx.language && validated.codingBrief
           ? {
               ...validated,
@@ -968,6 +968,34 @@ export function createAssistStage(
             }
           : validated,
       );
+      const verifyOptions = (
+        out: Output,
+        draft: string | undefined,
+      ): Parameters<typeof verifyClaims>[1] => ({
+        snapshot: ctx.snapshot,
+        captured: ctx.captured,
+        category: out.category,
+        draft,
+        technical:
+          TECHNICAL_CATEGORIES.has(out.category) ||
+          (out.category === "other" && (ctx.exercise?.length ?? 0) > 0),
+        exercise: [
+          ...(ctx.exercise ?? []),
+          ...(out.codingBrief
+            ? [out.codingBrief.restatement, ...out.codingBrief.constraints]
+            : []),
+        ],
+        star: out.star
+          ? STAR_ELEMENTS.filter(
+              (element) => !out.star?.missing.includes(element),
+            ).map((element) => ({
+              element,
+              text: (out.star as NonNullable<Output["star"]>)[element].text,
+              claimIndexes: (out.star as NonNullable<Output["star"]>)[element]
+                .claimIndexes,
+            }))
+          : undefined,
+      });
       const violations = crossFieldViolations(output);
       if (output.category === "no-question") {
         // [SAFETY] No grounding, claim or logistics checks: nothing to ground.
@@ -1000,38 +1028,79 @@ export function createAssistStage(
         hasLogisticsCue(output, ctx.captured)
       )
         violations.push("category:logistics_required");
-      const verified = verifyClaims(output.claims, {
-        snapshot: ctx.snapshot,
-        captured: ctx.captured,
-        category: output.category,
-        // [SAFETY] A logistics draft is rebuilt from the pinned preference
-        // sources (renderLogistics); the model's own text is never shown, so
-        // it is not checked as if it were.
-        draft: output.category === "logistics" ? undefined : output.draft,
-        technical:
-          TECHNICAL_CATEGORIES.has(output.category) ||
-          (output.category === "other" && (ctx.exercise?.length ?? 0) > 0),
-        exercise: [
-          ...(ctx.exercise ?? []),
-          ...(output.codingBrief
-            ? [
-                output.codingBrief.restatement,
-                ...output.codingBrief.constraints,
-              ]
-            : []),
-        ],
-        star: output.star
-          ? STAR_ELEMENTS.filter(
-              (element) => !output.star?.missing.includes(element),
-            ).map((element) => ({
-              element,
-              text: (output.star as NonNullable<Output["star"]>)[element].text,
-              claimIndexes: (output.star as NonNullable<Output["star"]>)[
-                element
-              ].claimIndexes,
-            }))
-          : undefined,
-      });
+      // [DOMAIN] A claim the verification rejects (an unsourced personal
+      // statement, a figure its entries do not carry) is DROPPED, never a
+      // reason to withhold the answer: its STAR citations go with it (an
+      // element left with none is missing), and the draft pass below drops any
+      // point that carried what it claimed.
+      if (output.category !== "logistics") {
+        const checked = verifyClaims(
+          output.claims,
+          verifyOptions(output, undefined),
+        );
+        const failing = new Set<number>();
+        if (!checked.ok)
+          for (const violation of checked.violations) {
+            const match = /^claims\.(\d+):/.exec(violation);
+            if (match) failing.add(Number(match[1]));
+          }
+        if (failing.size > 0) {
+          const kept = new Map<number, number>();
+          const claims: Output["claims"] = [];
+          output.claims.forEach((claim, index) => {
+            if (failing.has(index)) return;
+            kept.set(index, claims.length);
+            claims.push(claim);
+          });
+          let star = output.star;
+          if (star) {
+            star = { ...star, missing: [...star.missing] };
+            for (const element of STAR_ELEMENTS) {
+              if (star.missing.includes(element)) continue;
+              const indexes = star[element].claimIndexes
+                .map((index) => kept.get(index))
+                .filter((index): index is number => index !== undefined);
+              if (indexes.length === 0) {
+                star[element] = { text: "", claimIndexes: [] };
+                star.missing.push(element);
+              } else
+                star[element] = { ...star[element], claimIndexes: indexes };
+            }
+          }
+          output = { ...output, claims, star };
+        }
+      }
+      // [DOMAIN] The draft is grounded by SUBTRACTION too (owner's rule): a
+      // point the draft rules reject (a figure, pay, notice or availability the
+      // approved sources do not carry) is dropped and the rest is published;
+      // only a draft with nothing left falls through to the withhold below.
+      const verifyDraft = (draft: string): string[] => {
+        const result = verifyClaims(
+          output.claims,
+          verifyOptions(output, draft),
+        );
+        return result.ok
+          ? []
+          : result.violations.filter((violation) =>
+              violation.startsWith("draft:"),
+            );
+      };
+      if (output.category !== "logistics" && verifyDraft(output.draft).length) {
+        const points = output.draft.split(/\n(?=- )/);
+        const kept = points.filter((point) => verifyDraft(point).length === 0);
+        if (kept.length > 0 && kept.length < points.length)
+          output = { ...output, draft: kept.join("\n") };
+      }
+      const verified = verifyClaims(
+        output.claims,
+        verifyOptions(
+          output,
+          // [SAFETY] A logistics draft is rebuilt from the pinned preference
+          // sources (renderLogistics); the model's own text is never shown, so
+          // it is not checked as if it were.
+          output.category === "logistics" ? undefined : output.draft,
+        ),
+      );
       if (!verified.ok) violations.unshift(...verified.violations);
       if (violations.length > 0)
         return { ok: false, violations: violations.slice(0, 30) };

@@ -25,6 +25,7 @@ import {
   type AiGeneratedBy,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
+import { ASSIST_ACTION_KIND } from "./assist-stage";
 import type { Clock, ProcessingPolicy, Task } from "./core/index";
 import type { AgentEscalationPort } from "./escalation";
 import type { PublishEffect } from "./fenced-writes";
@@ -53,6 +54,40 @@ import {
   summarizeWithheld,
   type WithheldSummary,
 } from "./withheld";
+
+// How often the draft so far is written for the browser while it streams.
+const PROGRESS_INTERVAL_MS = 600;
+
+// The "draft" field's text from a JSON object still being written: the model
+// writes {"category":...,"draft":"- ...\n- ..." ...} and the draft is complete
+// once its closing quote arrives. Escapes are undone; a cut escape is dropped.
+export function partialDraft(json: string): string {
+  const start = json.indexOf('"draft":');
+  if (start < 0) return "";
+  const open = json.indexOf('"', start + 8);
+  if (open < 0) return "";
+  let out = "";
+  for (let i = open + 1; i < json.length; i += 1) {
+    const ch = json[i] as string;
+    if (ch === '"') break;
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const next = json[i + 1];
+    if (next === undefined) break;
+    if (next === "n") out += "\n";
+    else if (next === "t") out += "\t";
+    else if (next === "u") {
+      const hex = json.slice(i + 2, i + 6);
+      if (hex.length < 4) break;
+      out += String.fromCharCode(Number.parseInt(hex, 16));
+      i += 4;
+    } else out += next;
+    i += 1;
+  }
+  return out;
+}
 
 export type DispatchDeps = {
   store: SessionStorePort;
@@ -402,6 +437,48 @@ export async function beginDispatch(
     return true;
   };
 
+  // Runs a structured request through the gateway's stream, recording the
+  // draft's text so far on the action as it grows, and resolves like
+  // execute() once the result arrives. A refusal or failure throws the same
+  // way execute() does (the policy error is the gateway's own).
+  async function streamed(
+    request: AiExecutionRequest,
+  ): Promise<{ result: unknown; generatedBy?: AiGeneratedBy }> {
+    let text = "";
+    let lastWrite = 0;
+    let lastDraft = "";
+    const write = async (force: boolean) => {
+      const now = Date.now();
+      if (!force && now - lastWrite < PROGRESS_INTERVAL_MS) return;
+      const draft = partialDraft(text);
+      if (draft === lastDraft || draft === "") return;
+      lastWrite = now;
+      lastDraft = draft;
+      await store
+        .recordProgress({
+          scope: run.scope,
+          sessionId,
+          holder: run.holder,
+          actionId,
+          progress: { draft },
+        })
+        .catch(() => undefined);
+    };
+    for await (const event of gateway.stream(request)) {
+      if (stopped()) break;
+      if (event.type === "text-delta") {
+        text += event.text;
+        await write(false);
+      } else if (event.type === "completed") {
+        return { result: event.result };
+      } else if (event.type === "failed") {
+        throw Object.assign(new Error(event.error.message), {
+          ...event.error,
+        });
+      }
+    }
+    throw new Error("The stream ended without a result.");
+  }
   return {
     run,
     task,
@@ -454,7 +531,13 @@ export async function beginDispatch(
         signal,
       };
       try {
-        const execution = await gateway.execute(request);
+        // The answer draft is streamed so the person reads it as it is written
+        // (recordProgress, about twice a second); other stages wait for the
+        // whole result.
+        const execution =
+          stage.actionKind === ASSIST_ACTION_KIND
+            ? await streamed(request)
+            : await gateway.execute(request);
         const result: unknown = execution.result;
         bytesOut += Buffer.byteLength(
           typeof result === "string" ? result : (JSON.stringify(result) ?? ""),

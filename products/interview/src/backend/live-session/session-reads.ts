@@ -277,6 +277,8 @@ export type StoredAction = {
   // a row written before the column existed.
   sourceEventIds?: readonly string[] | null;
   result: unknown;
+  // The draft's text so far while in flight (browser feed; absent otherwise).
+  progress?: { draft: string };
   // The screenshots the revision rests on, as (sourceId, eventId) pairs lifted
   // from the snapshot provenance ids. Ids only; the browser's feed carries this
   // and never the raw sourceEventIds.
@@ -303,7 +305,17 @@ export type StoredAction = {
 
 export const ACTION_COLUMNS = sql`id, task_id, task_revision, action_kind,
   dispatch_status, attempt, fence_at_dispatch, job_id, job_created, result,
-  shown, suppression_reason, created_at, updated_at`;
+  progress, shown, suppression_reason, created_at, updated_at`;
+
+// The draft's text so far on an in-flight action (recordProgress), when well
+// formed; a settled action carries none.
+function progressOf(
+  row: Record<string, unknown>,
+): { draft: string } | undefined {
+  if (row["dispatch_status"] !== "in_flight") return undefined;
+  const draft = (row["progress"] as { draft?: unknown } | null)?.draft;
+  return typeof draft === "string" && draft !== "" ? { draft } : undefined;
+}
 
 function generatedByOf(
   result: unknown,
@@ -405,6 +417,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
   const noQuestion = noQuestionOf(result);
   const screenshotsSent = screenshotsSentOf(result);
   const sourceSnapshots = sourceSnapshotsOf(row);
+  const progress = progressOf(row);
   const reason = liveRevisionReasonSchema.safeParse(row["revision_reason"]);
   return {
     id: String(row["id"]),
@@ -417,6 +430,7 @@ export function toStoredAction(row: Record<string, unknown>): StoredAction {
     jobId: row["job_id"] ? String(row["job_id"]) : null,
     jobCreated: Boolean(row["job_created"]),
     result,
+    ...(progress === undefined ? {} : { progress }),
     ...(generatedBy === undefined ? {} : { generatedBy }),
     ...(missingContext === undefined ? {} : { missingContext }),
     ...(noQuestion === undefined ? {} : { noQuestion }),

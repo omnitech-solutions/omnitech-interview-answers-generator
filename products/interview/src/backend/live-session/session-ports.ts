@@ -66,6 +66,7 @@ export function createDatabaseStorePort(
     publishResult: (input) => writes.publishResult(input),
     recordFailure: (input) => writes.recordFailure(input),
     abandonAction: (input) => writes.abandonAction(input),
+    recordProgress: (input) => writes.recordProgress(input),
     reconcile: (scope, sessionId) =>
       repository.reconcileSession(scope, sessionId),
     observationsAfter: (scope, sessionId, afterSequence, limit) =>

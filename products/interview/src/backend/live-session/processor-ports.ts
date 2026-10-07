@@ -48,6 +48,7 @@ export type SessionStorePort = Pick<
   | "publishResult"
   | "recordFailure"
   | "abandonAction"
+  | "recordProgress"
   | "recordProcessedThrough"
 > & {
   // The time-derived standing: the duration cap ends, an expired credential or

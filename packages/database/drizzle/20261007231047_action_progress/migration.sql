@@ -1,0 +1,1 @@
+ALTER TABLE "interview"."session_actions" ADD COLUMN "progress" jsonb;

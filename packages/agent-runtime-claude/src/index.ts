@@ -170,12 +170,17 @@ function finish(turn: Turn) {
   turn.wake?.();
   turn.wake = undefined;
 }
+// Text as the model writes it. A structured-output run writes its answer as
+// the input of the structured-output tool, so that JSON streams as text too:
+// it is the answer, and a consumer that shows a draft while it is written
+// reads it from here.
 function streamedText(message: SDKMessage): string | undefined {
   if (message.type !== "stream_event") return undefined;
-  return message.event.type === "content_block_delta" &&
-    message.event.delta.type === "text_delta"
-    ? message.event.delta.text
-    : undefined;
+  if (message.event.type !== "content_block_delta") return undefined;
+  const delta = message.event.delta;
+  if (delta.type === "text_delta") return delta.text;
+  if (delta.type === "input_json_delta") return delta.partial_json;
+  return undefined;
 }
 function profileKey(request: AgentRunRequest) {
   return JSON.stringify([

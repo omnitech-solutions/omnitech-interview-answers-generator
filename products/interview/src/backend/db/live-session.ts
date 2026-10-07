@@ -376,6 +376,9 @@ export const sessionActions = interview.table.withRLS(
     jobCreated: boolean("job_created").notNull().default(false),
     // The published result (a structured guide or draft); session content.
     result: jsonb("result"),
+    // While a draft is being written: the draft's text so far ({ draft }),
+    // rewritten as it grows and cleared by the publish. Session content.
+    progress: jsonb("progress"),
     fenceAtDispatch: bigint("fence_at_dispatch", { mode: "number" }).notNull(),
     // The transcript segment ids (event ids, never text) this task revision
     // was built on. A rebuilt run restores its task state and utterance

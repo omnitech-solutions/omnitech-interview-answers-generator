@@ -224,6 +224,16 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
         fence: state.fence,
       };
     },
+    async recordProgress(input) {
+      const blocked = guard(input.holder);
+      if (blocked) return blocked;
+      const action = find(input.actionId);
+      if (!action) return refuse("action_not_found");
+      if (action.dispatchStatus !== "in_flight")
+        return refuse("action_settled", false);
+      action.progress = input.progress;
+      return { outcome: "recorded" };
+    },
     async publishResult(input) {
       const blocked = guard(input.holder);
       if (blocked) return blocked;

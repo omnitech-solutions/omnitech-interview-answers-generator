@@ -736,6 +736,9 @@ export const liveActionSchema = z.object({
   // withheld carries only { withheld } (liveWithheldResultSchema), no content.
   // Render only as inert text.
   result: z.unknown(),
+  // The draft's text so far while the action is in flight (streamed from the
+  // model); absent once it is settled. Render only as inert text.
+  progress: z.object({ draft: z.string().max(20_000) }).optional(),
   // Absent on actions recorded before this field, or by a non-agent executor.
   generatedBy: liveGeneratedBySchema.optional(),
   // Context the draft says it could not see; lifted from result.missingContext.

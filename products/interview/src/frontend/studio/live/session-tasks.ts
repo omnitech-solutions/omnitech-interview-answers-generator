@@ -162,8 +162,18 @@ function revisionView(
     answerRun,
     codeRun,
     agentRun,
+    // A draft still being written shows as the answer so far (its claims come
+    // with the publish); the run stays "running" beside it.
     answer:
-      answer && shows(answerRun) ? parseAnswerResult(answer.result) : null,
+      answer && shows(answerRun)
+        ? parseAnswerResult(answer.result)
+        : answer?.progress
+          ? parseAnswerResult({
+              category: "other",
+              draft: answer.progress.draft,
+              claims: [],
+            })
+          : null,
     code: code && shows(codeRun) ? parseCodeResult(code.result) : null,
     agent: agent ? parseAgentResult(agent.result) : null,
     reason: actions.find((a) => a.revisionReason)?.revisionReason ?? null,
