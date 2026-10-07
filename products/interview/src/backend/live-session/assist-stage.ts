@@ -1133,7 +1133,13 @@ export function createAssistStage(
         output.category !== "logistics" &&
         output.draft.trim() !== ""
       ) {
-        output = { ...output, claims: [], star: null, logistics: null };
+        output = {
+          ...output,
+          claims: [],
+          star: null,
+          logistics: null,
+          codingBrief: output.category === "coding" ? output.codingBrief : null,
+        };
         violations.length = 0;
       }
       if (violations.length > 0)
