@@ -262,14 +262,12 @@ describe("code placeholders", () => {
     });
 
   it("waits for the approach before there is one, and before any task exists", () => {
-    expect(place(null).text).toBe(
-      "Code appears here after the approach is drafted.",
-    );
+    expect(place(null).text).toBe("Code appears once the approach is drafted.");
     expect(place(null, { approachPending: true }).text).toBe(
-      "Waits for the approach. Starts automatically.",
+      "Starts automatically after the approach.",
     );
     expect(place(cardOf([first]), { approachPending: true }).text).toBe(
-      "Waits for the approach. Starts automatically.",
+      "Starts automatically after the approach.",
     );
   });
 

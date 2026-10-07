@@ -125,6 +125,9 @@ export const stoppedByYou = (task: TaskView): boolean =>
 
 // What the code pane says while there is no code: one sentence per state of the
 // task's code stage, never a promise the session has not made.
+// The board's waiting sentence (shown with the hourglass-style icon).
+export const WAITS_FOR_APPROACH = "Starts automatically after the approach.";
+
 type CodePlaceholder = { text: string; busy: boolean };
 
 export function codePlaceholder(input: {
@@ -139,13 +142,13 @@ export function codePlaceholder(input: {
   if (!card)
     return {
       text: input.approachPending
-        ? "Waits for the approach. Starts automatically."
-        : "Code appears here after the approach is drafted.",
+        ? WAITS_FOR_APPROACH
+        : "Code appears once the approach is drafted.",
       busy: false,
     };
   if (input.approachPending)
     return {
-      text: "Waits for the approach. Starts automatically.",
+      text: WAITS_FOR_APPROACH,
       busy: false,
     };
   const code = card.stages[1];
@@ -170,9 +173,7 @@ export function codePlaceholder(input: {
     case "waiting":
       return {
         text:
-          card.stages[0].state === "done"
-            ? "No code yet."
-            : "Waits for the approach. Starts automatically.",
+          card.stages[0].state === "done" ? "No code yet." : WAITS_FOR_APPROACH,
         busy: false,
       };
     default:

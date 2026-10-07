@@ -22,7 +22,7 @@ export const HIT_SELECTORS = [
   ".pn-pill", // the toolbar (and the empty-session pill)
   ".pn-strip", // the status strip
   ".pn-card", // a pane's card: chat, answer, code, settings, unavailable
-  ".pn-codecard", // the code card inside the answer pane
+  '[data-slot="panel"]', // a library Panel: the Code panel (and the other native panels)
   ".pn-single-foot", // the footer
   ".pn-single-confirm", // an inline confirmation
   ".pn-ended", // the ended card

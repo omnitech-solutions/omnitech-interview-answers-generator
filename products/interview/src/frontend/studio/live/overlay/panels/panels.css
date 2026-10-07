@@ -126,7 +126,8 @@
     .pn-log,
     .pn-interim,
     .pn-analysis-text,
-    .pn-codecard,
+    .pn-code-body,
+    .pn-example,
     .pn-strip-main,
     .pn-strip-sub,
     .pn-note
@@ -144,9 +145,8 @@
   cursor: grab;
 }
 
-.pn-card,
 .pn-pill,
-.pn-codecard {
+.pn-card {
   background: var(--ov-bg);
   border-radius: var(--pn-radius);
   box-shadow: var(--pn-shadow), var(--pn-ring);
@@ -377,37 +377,28 @@
   background: none;
   cursor: pointer;
 }
-.pn-codecol {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pn-codecard {
-  padding: 8px 10px;
-  min-height: 0;
-  overflow: auto;
-}
-.pn-codecard-head {
+.pn-code-heading {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--ov-muted);
-  margin-bottom: 4px;
+  margin: 0 0 4px;
 }
-.pn-codecard-pre {
+.pn-example {
+  margin-bottom: 8px;
+}
+.pn-example-pre {
   margin: 0;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap;
 }
-.pn-codecard .cm-editor,
-.pn-codecard .cm-scroller,
-.pn-codecard .cm-gutters {
+.pn-code-body .cm-editor,
+.pn-code-body .cm-scroller,
+.pn-code-body .cm-gutters {
   background: transparent;
   font-size: 12px;
 }
-.pn-codecard .cm-content {
+.pn-code-body .cm-content {
   padding: 0;
 }
 
@@ -629,10 +620,6 @@
   }
   .pn-analysis-text {
     flex: 1.4;
-    min-height: 0;
-  }
-  .pn-codecol {
-    flex: 1;
     min-height: 0;
   }
 }
@@ -1384,18 +1371,6 @@
   display: flex;
   gap: 6px;
 }
-.pn-codecard {
-  background: var(--pn-glass-code);
-}
-.pn-codecard-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.pn-codecard-language {
-  flex: 1;
-}
 .pn-badges {
   list-style: none;
   margin: 0 0 6px;
@@ -1624,9 +1599,9 @@
     .pn-muted,
     .pn-strip-main,
     .pn-strip-sub,
-    .pn-codecard-head,
+    .pn-code-heading,
     .pn-code-line,
-    .pn-codecard-pre,
+    .pn-example-pre,
     .pn-ended-stats li,
     .pn-test-row,
     .pn-tests-counts,
@@ -1735,9 +1710,11 @@
 }
 
 /* ---- The code pane's Tests drawer (left edge), file tabs and problems ---- */
-.pn-codecard-split {
+.pn-code-body {
   display: flex;
   gap: 8px;
+  padding: 8px 10px;
+  min-height: 100%;
 }
 .pn-codemain {
   flex: 1 1 0;
@@ -1832,32 +1809,10 @@
   flex-direction: column;
   align-items: flex-start;
 }
-.pn-linkbtn {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ov-accent);
-  font-size: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-}
 .pn-file-tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
-}
-.pn-file-tab {
-  height: 22px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--pn-chip);
-  font-size: 11px;
-  cursor: pointer;
-}
-.pn-file-tab[aria-pressed="true"] {
-  background: var(--pn-chip-strong);
-  font-weight: 600;
 }
 .pn-code-line {
   margin: 0 0 6px;

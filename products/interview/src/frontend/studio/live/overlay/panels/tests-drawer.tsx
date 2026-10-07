@@ -3,6 +3,7 @@
 // reported test. The generated test source is the card's Tests tab, not here.
 // Read-only: the app never runs or types for the person, so there is no Run
 // control.
+import { Button, IconButton, Tag } from "@oc-tech/omni-ui-components";
 import { Icon } from "../../../icon";
 import {
   NO_FAILURE_DETAILS,
@@ -22,18 +23,18 @@ export function TestsHandle({
   onToggle(): void;
 }) {
   return (
-    <button
-      type="button"
+    <IconButton
       className="pn-tests-handle"
-      aria-label="Tests"
+      variant="ghost"
+      iconSize="sm"
+      label="Tests"
       aria-expanded={open}
       aria-controls={TESTS_DRAWER_ID}
       title={open ? "Hide generated tests" : "Show generated tests"}
       data-testid="pn-tests-handle"
       onClick={onToggle}
-    >
-      <span aria-hidden="true">{open ? "|<|" : "|>|"}</span>
-    </button>
+      icon={<span aria-hidden="true">{open ? "|<|" : "|>|"}</span>}
+    />
   );
 }
 
@@ -62,16 +63,16 @@ function TestRow({
           {failure.message && <span>{failure.message}</span>}
           {failure.link &&
             (canReveal(failure.link.editor) ? (
-              <button
-                type="button"
-                className="pn-linkbtn"
+              <Button
+                variant="link"
+                buttonSize="sm"
                 onClick={() =>
                   failure.link &&
                   onReveal(failure.link.editor, failure.link.line)
                 }
               >
                 {failure.link.label}
-              </button>
+              </Button>
             ) : (
               <span>{failure.link.label}</span>
             ))}
@@ -113,7 +114,9 @@ export function TestsDrawer({
             <ul className="pn-tests-counts" aria-label={view.summary}>
               {view.counts.map((count) => (
                 <li key={count.id}>
-                  {count.label} <strong>{count.value}</strong>
+                  <Tag variant="filled">
+                    {count.label} <strong>{count.value}</strong>
+                  </Tag>
                 </li>
               ))}
             </ul>
