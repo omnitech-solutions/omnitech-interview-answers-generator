@@ -1036,6 +1036,10 @@ export function createAssistStage(
       // reason to withhold the answer: its STAR citations go with it (an
       // element left with none is missing), and the draft pass below drops any
       // point that carried what it claimed.
+      // The claims as the model cited them: the draft is grounded against
+      // these (what the model attributed to the approved entries), even where
+      // a claim's own bookkeeping (an inexact quote) fails and it is dropped.
+      const cited = output;
       if (output.category !== "logistics") {
         const checked = verifyClaims(
           output.claims,
@@ -1078,10 +1082,7 @@ export function createAssistStage(
       // approved sources do not carry) is dropped and the rest is published;
       // only a draft with nothing left falls through to the withhold below.
       const verifyDraft = (draft: string): string[] => {
-        const result = verifyClaims(
-          output.claims,
-          verifyOptions(output, draft),
-        );
+        const result = verifyClaims(cited.claims, verifyOptions(cited, draft));
         return result.ok
           ? []
           : result.violations.filter((violation) =>
