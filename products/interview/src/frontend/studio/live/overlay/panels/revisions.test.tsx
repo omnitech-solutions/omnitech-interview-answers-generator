@@ -25,6 +25,7 @@ import {
 import { minutesAfter } from "../../testing/session-fixtures";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { keyOpen, pointerOpen } from "./toolbar-test-kit";
 
 let journey: Journey;
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
@@ -61,11 +62,18 @@ const chatRows = () =>
   ]
     .filter((row) => row.getAttribute("data-testid") !== "pn-loading")
     .map((row) => row.textContent ?? "");
-const revisionsButton = () => screen.getByTestId("revisions-button");
-const openList = () => fireEvent.click(revisionsButton());
+// The task bar's Revisions menu (library ActionMenu), newest first.
+const revisionsButton = () => screen.getByTestId("pn-bar-revisions-button");
+const menu = () => screen.getByRole("menu", { name: "Revisions" });
+const items = () => within(menu()).getAllByRole("menuitemradio");
+const item = (revision: number) =>
+  within(menu()).getByRole("menuitemradio", {
+    name: new RegExp(`^rev ${revision}\\b`),
+  });
+const openList = () => pointerOpen(revisionsButton());
 const choose = (revision: number) => {
   openList();
-  fireEvent.click(screen.getByTestId(`revision-${revision}`));
+  fireEvent.click(item(revision));
 };
 const publish = async (revision: number, draft: string) => {
   journey.publish(
@@ -118,28 +126,31 @@ describe("the Revisions control", () => {
     );
     expect(revisionsButton()).toHaveAccessibleName("Revisions: rev 2 of 2");
     openList();
-    const menu = screen.getByRole("menu", { name: "Revisions" });
-    const items = within(menu).getAllByRole("menuitemradio");
-    expect(items.map((item) => item.getAttribute("data-testid"))).toEqual([
-      "revision-2",
-      "revision-1",
+    const rows = items();
+    expect(rows.map((row) => row.textContent?.slice(0, 5))).toEqual([
+      "rev 2",
+      "rev 1",
     ]);
-    expect(items[0]).toHaveTextContent("rev 2 · Current");
-    expect(items[0]).toHaveAttribute("aria-checked", "true");
-    expect(items[1]).toHaveTextContent("rev 1 · Outdated");
-    expect(items[1]).toHaveTextContent("First answer");
-    expect(items[0]).toHaveTextContent("Follow-up");
-    expect(items[1]).toHaveAttribute("aria-checked", "false");
+    expect(rows[0]).toHaveTextContent("rev 2 · Current");
+    expect(rows[0]).toHaveAttribute("aria-checked", "true");
+    expect(rows[1]).toHaveTextContent("rev 1 · Outdated");
+    expect(rows[1]).toHaveTextContent("First answer");
+    expect(rows[0]).toHaveTextContent("Follow-up");
+    expect(rows[1]).toHaveAttribute("aria-checked", "false");
   });
 
-  it("is operable from the keyboard", () => {
-    openList();
-    const menu = screen.getByRole("menu", { name: "Revisions" });
-    // Opening puts focus on the revision on show.
-    expect(screen.getByTestId("revision-2")).toHaveFocus();
-    fireEvent.keyDown(menu, { key: "ArrowDown" });
-    expect(screen.getByTestId("revision-1")).toHaveFocus();
+  it("is operable from the keyboard", async () => {
+    keyOpen(revisionsButton());
+    await flush();
+    // Opening from the keyboard puts focus on the first row: the revision on show.
+    expect(item(2)).toHaveFocus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, {
+      key: "ArrowDown",
+    });
+    await flush();
+    expect(item(1)).toHaveFocus();
     fireEvent.click(document.activeElement as HTMLElement);
+    await flush();
     expect(screen.queryByRole("menu", { name: "Revisions" })).toBeNull();
     expect(revisionsButton()).toHaveFocus();
     expect(answer()).toHaveTextContent(FIRST);
@@ -147,9 +158,7 @@ describe("the Revisions control", () => {
 
   it("closes on Escape without changing the revision", () => {
     openList();
-    fireEvent.keyDown(screen.getByRole("menu", { name: "Revisions" }), {
-      key: "Escape",
-    });
+    fireEvent.keyDown(menu(), { key: "Escape" });
     expect(screen.queryByRole("menu", { name: "Revisions" })).toBeNull();
     expect(answer()).toHaveTextContent(SECOND);
   });
@@ -246,6 +255,8 @@ describe("a revision with no text yet", () => {
     });
     expect(chatRows()).toHaveLength(1);
     expect(chatRows()[0]).not.toContain(SECOND);
-    expect(chatRows()[0]).toMatch(/withheld|checked|claim/i);
+    // The note tells the truth: the reply did not fit the format; nothing was published.
+    expect(chatRows()[0]).toMatch(/did not fit the answer format/);
+    expect(chatRows()[0]).toMatch(/nothing was published/);
   });
 });

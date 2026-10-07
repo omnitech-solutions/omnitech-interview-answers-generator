@@ -1417,7 +1417,7 @@ describe("status strip", () => {
   });
 });
 
-describe("task chips and the earlier task", () => {
+describe("the Problem menu and the earlier task", () => {
   const twoTasks = () => [
     named("Rate limiter"),
     answerAction(answerResult(), {
@@ -1426,23 +1426,37 @@ describe("task chips and the earlier task", () => {
       updatedAt: minutesAfter(1, 9),
     }),
   ];
+  // The task bar's Problem menu (library ActionMenu): the trigger names the
+  // problem on show; the list is newest first, the one on show checked.
+  const problemButton = () => screen.getByTestId("pn-problem-button");
+  const openProblems = () => {
+    pointerOpen(problemButton());
+    return within(screen.getByRole("menu", { name: "Problem" }));
+  };
+  const chooseProblem = (name: RegExp) => {
+    fireEvent.click(openProblems().getByRole("menuitemradio", { name }));
+  };
 
-  it("lists a chip per task and shows the earlier task with a way back", async () => {
+  it("lists a problem per task, newest first, and shows the earlier task with a way back", async () => {
     serve(live(), twoTasks());
     await show();
-    const chips = within(screen.getByRole("group", { name: "Tasks" }));
-    expect(chips.getAllByRole("button")).toHaveLength(2);
-    expect(chips.getByRole("button", { name: /^T1 · / })).toBeVisible();
-    expect(chips.getByRole("button", { name: /^T2 · / })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.queryByRole("group", { name: "Tasks" })).toBeNull();
+    expect(problemButton()).toHaveTextContent(/^T2 · /);
+    const items = openProblems().getAllByRole("menuitemradio");
+    expect(items.map((item) => item.textContent?.slice(0, 2))).toEqual([
+      "T2",
+      "T1",
+    ]);
+    expect(items[0]).toHaveAttribute("aria-checked", "true");
+    expect(items[0]).toHaveTextContent("Current");
     expect(screen.queryByTestId("pn-earlier")).toBeNull();
-    fireEvent.click(chips.getByRole("button", { name: /^T1 · / }));
+    fireEvent.click(items[1] as HTMLElement);
     expect(screen.getByTestId("pn-earlier")).toHaveTextContent("earlier task");
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T1 · rev 1");
+    expect(problemButton()).toHaveTextContent(/^T1 · /);
     fireEvent.click(screen.getByRole("button", { name: "Back to T2" }));
     expect(screen.queryByTestId("pn-earlier")).toBeNull();
+    expect(problemButton()).toHaveTextContent(/^T2 · /);
   });
 
   it("shares its selection with the transcript", async () => {
@@ -1453,19 +1467,17 @@ describe("task chips and the earlier task", () => {
     );
     expect(rows).toHaveLength(2);
     fireEvent.click(rows[0] as HTMLElement);
-    expect(screen.getByRole("button", { name: /^T1 · / })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(problemButton()).toHaveTextContent(/^T1 · /);
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
   });
 
-  it("keeps an earlier pinned task when a new one arrives, and aims at it", async () => {
+  it("a new task takes the screen, even when an earlier one was chosen, and the box follows it", async () => {
     serve(live(), twoTasks());
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^T1 · / }));
+    chooseProblem(/^T1 · /);
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
-    // A third task arrives on a later poll.
+    expect(presentation.get().pinnedTaskId).toBe("task-1");
+    // A third task arrives on a later poll: the earlier choice is forgotten.
     served = [
       ...twoTasks(),
       answerAction(answerResult(), {
@@ -1477,30 +1489,29 @@ describe("task chips and the earlier task", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    expect(screen.getByRole("button", { name: /^T3 · / })).toBeVisible();
-    expect(screen.getByTestId("pn-earlier")).toBeVisible();
-    expect(screen.getByRole("button", { name: /^T1 · / })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(presentation.get().pinnedTaskId).toBe("task-1");
+    expect(problemButton()).toHaveTextContent(/^T3 · /);
+    expect(screen.queryByTestId("pn-earlier")).toBeNull();
+    expect(presentation.get().pinnedTaskId).toBeNull();
+    expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T3 · rev 1");
     const box = screen.getByLabelText("Message");
     expect(box).toHaveAttribute(
       "placeholder",
-      "Add context to T1, or ask a follow-up",
+      "Add context to T3, or ask a follow-up",
     );
-    fireEvent.change(box, { target: { value: "still about the first" } });
+    fireEvent.change(box, { target: { value: "about the newest" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await flush();
     expect(submitFollowUp).toHaveBeenCalledWith(
       expect.any(String),
-      "still about the first",
-      { taskId: "task-1", revision: 1 },
+      "about the newest",
+      { taskId: "task-3", revision: 1 },
       expect.anything(),
     );
+    // The earlier task is still there to go back to.
+    chooseProblem(/^T1 · /);
+    expect(screen.getByTestId("pn-earlier")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Back to T3" }));
     expect(screen.queryByTestId("pn-earlier")).toBeNull();
-    expect(presentation.get().pinnedTaskId).toBeNull();
   });
 
   it("shares the pin with the shared presentation, as the web page does", async () => {
@@ -1508,14 +1519,14 @@ describe("task chips and the earlier task", () => {
     await show();
     act(() => presentation.pin("task-1"));
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: /^T2 · / }));
+    chooseProblem(/^T2 · /);
     expect(presentation.get().pinnedTaskId).toBeNull();
   });
 
   it("sends a follow-up to the task on show, and says so in the box", async () => {
     serve(live(), twoTasks());
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^T1 · / }));
+    chooseProblem(/^T1 · /);
     const box = screen.getByLabelText("Message");
     expect(box).toHaveAttribute(
       "placeholder",
@@ -1888,7 +1899,11 @@ describe("code pane", () => {
       configurable: true,
     });
     await show();
-    expect(screen.getByTestId("pn-language")).toHaveTextContent("TYPESCRIPT");
+    // The Code card's own language tag (the task bar names the language too).
+    expect(
+      within(screen.getByTestId("pn-code")).getByTestId("pn-language"),
+    ).toHaveTextContent("TYPESCRIPT");
+    expect(screen.getByTestId("pn-task-bar")).toHaveTextContent("TypeScript");
     const badges = within(screen.getByLabelText(/established about this code/));
     expect(badges.getByText("Generated")).toBeVisible();
     expect(badges.getByText("5/5 generated tests")).toBeVisible();

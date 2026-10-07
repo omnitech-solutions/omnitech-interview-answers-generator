@@ -82,18 +82,14 @@ function useCopy(s: PanelSession) {
   };
 }
 
-// A job is in flight and the task on show is not what it is working on (or has
-// no answer yet): the panes show its steps in place of the old answer.
-function stepsShown(
-  s: Pick<PanelSession, "phase" | "card" | "selected">,
-): boolean {
+// A job is in flight and the task on show has no answer yet: the panes show
+// its steps in place of an answer. Once the task on show has an answer the
+// steps never replace it: work running on ANOTHER task leaves this one's
+// answer and code alone, and this task's own code being written is said by
+// the Code panel ("Writing code…"), not by hiding the approach.
+function stepsShown(s: Pick<PanelSession, "phase" | "card">): boolean {
   if (!s.phase) return false;
-  if (!s.card || s.card.answerText === null) return true;
-  // Work running on ANOTHER task never hides this one's answer and code: the
-  // steps show only while the task on show is itself being worked on.
-  return (
-    s.selected?.current.runs.some((run) => run.state === "running") ?? false
-  );
+  return !s.card || s.card.answerText === null;
 }
 
 // Adding a screenshot sends the screen, so it waits for what a capture needs.

@@ -1,8 +1,15 @@
 // A capture with no interview question (D36) in the native window, through the real page and store over a fake server: no task,
-// no chip, no answer bubble, a muted note, and the honest line.
+// no Problem entry, no answer bubble, a muted note, and the honest line.
 
 import type { LiveAction } from "@omnitech/interview-contracts";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
 import {
@@ -18,6 +25,7 @@ import { minutesAfter } from "../../testing/session-fixtures";
 import { answerResult } from "../../testing/session-result-fixtures";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { pointerOpen } from "./toolbar-test-kit";
 
 let journey: Journey;
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
@@ -84,19 +92,24 @@ describe("native window", () => {
     ).toBeVisible();
   });
 
-  it("makes no chip or Back target for a no-question capture beside real tasks", async () => {
+  it("offers no Problem entry or Back target for a no-question capture beside real tasks", async () => {
     await open(NATIVE, true);
     await publish(
       { ...revisionAction("task-b", 1), result: answerResult() },
       junkAction("x"),
     );
-    const chips = within(
-      screen.getByRole("group", { name: "Tasks" }),
-    ).getAllByRole("button");
-    expect(chips.map((chip) => chip.textContent?.slice(0, 2))).toEqual([
-      "T1",
+    // The task bar's Problem menu lists real problems only, newest first.
+    pointerOpen(screen.getByTestId("pn-problem-button"));
+    const problems = within(
+      screen.getByRole("menu", { name: "Problem" }),
+    ).getAllByRole("menuitemradio");
+    expect(problems.map((item) => item.textContent?.slice(0, 2))).toEqual([
       "T2",
+      "T1",
     ]);
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Problem" }), {
+      key: "Escape",
+    });
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T2");
     expect(screen.getByTestId("pn-no-question")).toBeInTheDocument();
   });

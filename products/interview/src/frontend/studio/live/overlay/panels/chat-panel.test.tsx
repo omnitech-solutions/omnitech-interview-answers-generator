@@ -57,6 +57,8 @@ function fake(extra: Record<string, unknown> = {}) {
     selected: undefined,
     card: null,
     revisionPicks: {},
+    // Nothing staged: the conversation ends with the last real row.
+    tray: { intent: "add", items: [] },
     live: { mic: "off", interim: "" },
     select: () => undefined,
     setDraft: calls.setDraft,
@@ -303,6 +305,27 @@ describe("what the transcript holds", () => {
     const { session } = fake({ clearedAt: Date.parse(minutesAfter(5)) });
     render(<ChatPanel s={session} />);
     expect(document.querySelector('[data-slot="transcript-event"]')).toBeNull();
+  });
+
+  it("ends with a 'Studio · New problem' row while a new capture is staged, and never for one that adds", () => {
+    const staged = { id: "staged-1" };
+    const { rerender } = render(
+      <ChatPanel
+        s={fake({ tray: { intent: "new", items: [staged, staged] } }).session}
+      />,
+    );
+    const rows = document.querySelectorAll('[data-slot="transcript-speech"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Studio · New problem");
+    expect(rows[0]).toHaveTextContent("2 screenshots staged");
+    rerender(
+      <ChatPanel
+        s={fake({ tray: { intent: "add", items: [staged] } }).session}
+      />,
+    );
+    expect(
+      document.querySelector('[data-slot="transcript-speech"]'),
+    ).toBeNull();
   });
 
   it("has no record dot and no system line while the microphone listens", () => {

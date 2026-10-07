@@ -28,11 +28,38 @@ import {
 import { jsonResponse, minutesAfter } from "../../testing/session-fixtures";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { pointerOpen } from "./toolbar-test-kit";
 
 let journey: Journey;
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const strip = () => screen.queryByTestId("missing-context");
+// The strip is always offered: with nothing named it only asks the question.
+const nothingMissing = () => {
+  expect(strip()).toHaveTextContent("Did AI miss anything?");
+  expect(strip()).not.toHaveAttribute("data-missing");
+};
+// Add context opens a field in the strip; the text revises the task on show.
+const contextField = () => screen.getByLabelText("Context for this problem");
+const sendContext = async (text: string) => {
+  fireEvent.change(contextField(), { target: { value: text } });
+  fireEvent.click(
+    within(screen.getByTestId("missing-context-form")).getByRole("button", {
+      name: "Send",
+    }),
+  );
+  await flush();
+};
+// The task bar's Problem menu chooses the task on show.
+const chooseProblem = (name: RegExp) => {
+  pointerOpen(screen.getByTestId("pn-problem-button"));
+  fireEvent.click(
+    within(screen.getByRole("menu", { name: "Problem" })).getByRole(
+      "menuitemradio",
+      { name },
+    ),
+  );
+};
 // The note appears in the conversation and beside the answer.
 const alerts = () =>
   screen
@@ -111,10 +138,13 @@ describe("the strip", () => {
     );
   });
 
-  it("has no strip when the answer reports nothing missing", async () => {
+  it("only asks whether anything was missed when the answer reports nothing missing", async () => {
     serve(startJourney({ first: undefined }));
     await open();
-    expect(strip()).toBeNull();
+    nothingMissing();
+    expect(strip()).not.toHaveTextContent("The AI may be missing:");
+    expect(button("Add context")).toBeEnabled();
+    expect(button("Looks complete")).toBeEnabled();
   });
 });
 
@@ -147,12 +177,15 @@ describe("the Mini player", () => {
 });
 
 describe("Add context", () => {
-  it("focuses the message box, then the typed text revises the same task and the strip clears", async () => {
+  it("opens a field in the strip, then the typed text revises the same task and the strip clears", async () => {
     await open();
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T1 · rev 1");
+    expect(screen.queryByTestId("missing-context-form")).toBeNull();
     await press("Add context");
-    expect(box()).toHaveFocus();
-    await typeAndSend("  A list of n integers, 1 <= n <= 1e5  ");
+    expect(contextField()).toHaveFocus();
+    // The composer is left alone: no jump to the chat.
+    expect(box()).not.toHaveFocus();
+    await sendContext("  A list of n integers, 1 <= n <= 1e5  ");
     expect(journey.inputs).toHaveLength(1);
     expect(journey.inputs[0]).toMatchObject({
       operation: "follow-up",
@@ -162,7 +195,8 @@ describe("Add context", () => {
     });
     await advance(1_500);
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T1 · rev 2");
-    expect(strip()).toBeNull();
+    nothingMissing();
+    expect(screen.queryByTestId("missing-context-form")).toBeNull();
     expect(screen.getByTestId("pn-answer")).toHaveTextContent(
       "Revised with the added context.",
     );
@@ -179,12 +213,13 @@ describe("Add context", () => {
     expect(strip()).not.toHaveTextContent("Examples");
   });
 
-  it("opens the chat first when it is hidden, then focuses the box", async () => {
+  it("opens its own field while the chat is hidden, without opening the chat", async () => {
     await open();
     fireEvent.click(button(/^Chat/));
     expect(screen.queryByLabelText("Message")).toBeNull();
     await press("Add context");
-    expect(box()).toHaveFocus();
+    expect(contextField()).toHaveFocus();
+    expect(screen.queryByLabelText("Message")).toBeNull();
   });
 
   it("goes to the task on show, not the newest, when an earlier one is chosen", async () => {
@@ -197,11 +232,12 @@ describe("Add context", () => {
     serve(journey);
     await open();
     // The newest task reports nothing missing; the earlier one still does.
-    expect(strip()).toBeNull();
-    fireEvent.click(button(/^T1 · /));
-    expect(strip()).toBeVisible();
+    nothingMissing();
+    chooseProblem(/^T1 · /);
+    expect(strip()).toHaveAttribute("data-missing");
+    expect(strip()).toHaveTextContent("Examples");
     await press("Add context");
-    await typeAndSend("the constraints");
+    await sendContext("the constraints");
     expect(journey.inputs[0]).toMatchObject({
       target: { taskId: CUT_OFF_TASK, revision: 1 },
     });
@@ -216,7 +252,7 @@ describe("Add context", () => {
     );
     serve(journey);
     await open();
-    fireEvent.click(button(/^T1 · /));
+    chooseProblem(/^T1 · /);
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent(/^T1 /);
     // A third task arrives (a new problem captured, or heard): it is on show
     // and the earlier choice is forgotten.
@@ -314,7 +350,7 @@ describe("Add another screenshot", () => {
     });
     await advance(1_500);
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T1 · rev 2");
-    expect(strip()).toBeNull();
+    nothingMissing();
   });
 
   it("makes one request for a double press", async () => {
@@ -416,7 +452,7 @@ describe("capture failures are not missing context", () => {
     await flush();
     await flush();
     expect(alerts()).toMatch(/Screen Recording/);
-    expect(strip()).toBeNull();
+    nothingMissing();
   });
 
   it("a refused capture is a note, and it does not clear the strip", async () => {
@@ -443,12 +479,12 @@ describe("Looks complete", () => {
   it("hides the strip for this revision and stays hidden after a reload", async () => {
     const view = await open();
     await press("Looks complete");
-    expect(strip()).toBeNull();
+    nothingMissing();
     view.unmount();
     resetSessionStores();
     serve(journey);
     await open();
-    expect(strip()).toBeNull();
+    nothingMissing();
   });
 
   it("shows the strip again when a newer revision reports missing context again", async () => {
@@ -469,9 +505,9 @@ describe("Looks complete", () => {
       throw new Error("blocked");
     });
     await open();
-    expect(strip()).toBeVisible();
+    expect(strip()).toHaveAttribute("data-missing");
     await press("Looks complete");
-    expect(strip()).toBeNull();
+    nothingMissing();
   });
 });
 
@@ -485,7 +521,7 @@ describe("reload, stop and late results", () => {
     );
     serve(journey);
     const view = await open();
-    fireEvent.click(button(/^T1 · /));
+    chooseProblem(/^T1 · /);
     expect(screen.getByTestId("pn-earlier")).toBeVisible();
     view.unmount();
     resetSessionStores();
@@ -544,7 +580,7 @@ describe("reload, stop and late results", () => {
     await open();
     await typeAndSend("the examples");
     await advance(1_500);
-    expect(strip()).toBeNull();
+    nothingMissing();
     // A result for revision 1 arrives after revision 2 is on show.
     journey.publish(
       journey.revision(
@@ -553,7 +589,7 @@ describe("reload, stop and late results", () => {
       ),
     );
     await advance(1_500);
-    expect(strip()).toBeNull();
+    nothingMissing();
     expect(screen.getByTestId("pn-answer")).not.toHaveTextContent(
       "Late first read.",
     );
