@@ -45,6 +45,7 @@
     "@codemirror/language": "^6.12.4",
     "@codemirror/legacy-modes": "^6.5.4",
     "@codemirror/view": "^6.43.6",
+    "@oc-tech/omni-ui-components": "file:../../vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz",
     "@omnitech-assistant/contracts": "file:../../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz",
     "@omnitech-assistant/provider-on-device": "file:../../../vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz",
     "@omnitech-assistant/react": "file:../../../vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz",
