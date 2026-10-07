@@ -1,0 +1,13 @@
+/* Adapter between the app and the shared component library (@oc-tech/omni-ui-components).
+   The library paints with its own --oui-* tokens (dark and light follow the page's data-theme).
+   The only values the app owns are the ones that change per surface; they are mapped here and nowhere else.
+
+   See-through: the native panels' "clear" glass (data-glass="clear") is the library's see-through
+   contract: 1 = opaque surfaces, 0.22 = see-through. It applies to backgrounds only; text and icons stay opaque. */
+.pn-root {
+  --oui-panel-see-through: 1;
+}
+
+.pn-root[data-glass="clear"] {
+  --oui-panel-see-through: 0.22;
+}

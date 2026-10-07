@@ -35,6 +35,7 @@ export const HIT_SELECTORS = [
   ".pn-toast", // a toast
   ".pn-jump", // the jump-to-latest control
   ".ss-viewer-scrim", // the screenshot viewer, when open: covers the window
+  "[data-oui-surface]", // every portalled library surface (menus, popovers, tooltips, dialogs, toasts)
 ] as const;
 
 // Reports follow changes after this pause, and repeat on this beat; the shell
