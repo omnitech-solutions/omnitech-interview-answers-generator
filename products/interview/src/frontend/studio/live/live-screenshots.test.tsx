@@ -2,9 +2,9 @@
 // and the web task panel), through the real page, hands-free controller, store
 // and routes' wire shapes (a fake server: no model). The parts themselves are
 // covered in shared/screenshots-area.test.tsx; these show them wired: the icon
-// in the task line, the strip from the read route, the Manual tray staging on
-// the device, and Apply as ONE request that revises the SAME task or starts a
-// new one.
+// in the task line (the card is closed until the icon opens it, in every
+// mode), the strip from the read route, the Manual tray staging on the device,
+// and Apply as ONE request that revises the SAME task.
 import {
   act,
   cleanup,
@@ -35,6 +35,13 @@ const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const click = async (element: HTMLElement) => {
   fireEvent.click(element);
   await flush();
+};
+// The Screenshots icon in the task line: the card is closed until it opens it.
+const toggle = () => screen.getByTestId("screenshots-toggle");
+const openCard = async () => {
+  expect(toggle()).toHaveAttribute("aria-expanded", "false");
+  await click(toggle());
+  expect(toggle()).toHaveAttribute("aria-expanded", "true");
 };
 
 const SHOT = {
@@ -125,27 +132,29 @@ describe.each(SURFACES)("$name", (surface) => {
     await flush();
   };
 
-  it("has the Screenshots icon in the task line, counting the task's screenshots, and the tray open in Manual", async () => {
+  it("has the Screenshots icon in the task line, counting the task's screenshots, and the card closed until opened", async () => {
     await open();
-    const toggle = within(surface.line()).getByRole("button", {
+    const icon = within(surface.line()).getByRole("button", {
       name: "Screenshots (1)",
     });
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("screenshots-area")).toBeNull();
+    // The icon opens it (in Manual too), and closes it again.
+    await click(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
     const area = screen.getByTestId("screenshots-area");
     expect(area).toHaveAttribute("data-mode", "manual");
     const strip = within(area).getByTestId("screenshot-strip");
     expect(strip).toHaveTextContent("S1");
     expect(strip).toHaveTextContent("Display 2 of 3");
     expect(strip).toHaveTextContent("rev 1");
-    // The icon closes and reopens it.
-    await click(toggle);
+    await click(icon);
     expect(screen.queryByTestId("screenshots-area")).toBeNull();
-    await click(toggle);
-    expect(screen.getByTestId("screenshots-area")).toBeVisible();
   });
 
   it("opens a stored image in the viewer from the existing screenshot route only", async () => {
     await open();
+    await openCard();
     await click(screen.getByRole("button", { name: "Open S1" }));
     const dialog = screen.getByRole("dialog", { name: "Screenshot S1" });
     expect(within(dialog).getByAltText("Screenshot S1")).toHaveAttribute(
@@ -158,6 +167,7 @@ describe.each(SURFACES)("$name", (surface) => {
 
   it("stages on the device and Apply makes ONE request: a new revision of the SAME task", async () => {
     await open();
+    await openCard();
     await click(screen.getByTestId("add-screenshot"));
     expect(journey.captures).toHaveLength(0);
     expect(screen.getByTestId("staged-1")).toHaveTextContent("Not sent yet");
@@ -179,6 +189,7 @@ describe.each(SURFACES)("$name", (surface) => {
   // (Capture new problem); staged screenshots always add to the task on show.
   it("forces a plain regenerate with nothing staged: one new revision, no image", async () => {
     await open();
+    await openCard();
     let regenerated: unknown;
     journey.server.on("POST /:id/input", ({ body }) => {
       regenerated = body;
@@ -212,6 +223,8 @@ describe("native 'To apply' dock", () => {
   it("is inside the Answer panel and present only while a screenshot is staged", async () => {
     await open();
     expect(dock()).toBeNull();
+    await openCard();
+    expect(dock()).toBeNull();
     await click(screen.getByTestId("add-screenshot"));
     const found = dock();
     expect(found).not.toBeNull();
@@ -233,6 +246,7 @@ describe("native 'To apply' dock", () => {
 
   it("Clear removes the staged screenshot and the dock with it, sending nothing", async () => {
     await open();
+    await openCard();
     await click(screen.getByTestId("add-screenshot"));
     await click(screen.getByTestId("discard-screenshots"));
     expect(dock()).toBeNull();
@@ -241,6 +255,7 @@ describe("native 'To apply' dock", () => {
 
   it("removes one staged screenshot from its thumbnail", async () => {
     await open();
+    await openCard();
     await click(screen.getByTestId("add-screenshot"));
     await click(screen.getByRole("button", { name: "Remove New 1" }));
     expect(dock()).toBeNull();
@@ -261,6 +276,7 @@ describe("device-only", () => {
       await surface.open();
       await flush();
       await flush();
+      await openCard();
       expect(screen.getByTestId("add-screenshot")).toBeDisabled();
       expect(screen.getByTestId("add-reason")).toHaveTextContent(
         "Device-only mode never sends a screenshot",

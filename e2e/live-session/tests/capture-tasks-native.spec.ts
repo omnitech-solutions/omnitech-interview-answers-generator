@@ -1,7 +1,7 @@
 // Capture and tasks in the native panel, through the recording host shim: what
 // Analyze, the hotkey intent and the Capture mode menu do (stage on the device
 // versus send), how a typed or spoken question becomes a task, how the task
-// chips, the Back control and the chat entries choose the task on show, and
+// bar's Problem menu, the Back control and the chat entries choose the task on show, and
 // where a follow-up goes. The proof is a server row, a recorded model call, a
 // recorded bridge call or a DOM change only that behaviour produces.
 import type { Page } from "@playwright/test";
@@ -252,7 +252,7 @@ test("@native native spoken question: a phrase the companion hears becomes a tas
   ).toBeVisible();
 });
 
-test("@native native task chips and Back: choosing an earlier chip shows that task and names it, a follow-up goes to it, and Back returns to the newest", async ({
+test("@native native Problem menu and Back: choosing an earlier problem shows that task and names it, a follow-up goes to it, and Back returns to the newest", async ({
   openPanel,
   control,
 }) => {
@@ -265,20 +265,21 @@ test("@native native task chips and Back: choosing an earlier chip shows that ta
   const both = await settled(id, 2);
   const [first, second] = taskIdsOf(both) as [string, string];
 
-  const chips = page.getByRole("group", { name: "Tasks" });
-  await expect(chips.getByRole("button")).toHaveCount(2);
-  await expect(chips.getByRole("button", { name: /^T2 · / })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  // The task bar's Problem menu: its trigger names the problem on show; the
+  // list is newest first, the one on show checked.
+  const problem = page.getByTestId("pn-problem-button");
+  await expect(problem).toHaveText(/^T2 · /);
+  await problem.click();
+  const problems = page.getByRole("menu", { name: "Problem" });
+  await expect(problems.getByRole("menuitemradio")).toHaveCount(2);
+  await expect(
+    problems.getByRole("menuitemradio", { name: /^T2 · / }),
+  ).toHaveAttribute("aria-checked", "true");
 
   // Choose T1: it is the one on show, it is labelled earlier, and the message
   // box now names it.
-  await chips.getByRole("button", { name: /^T1 · / }).click();
-  await expect(chips.getByRole("button", { name: /^T1 · / })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await problems.getByRole("menuitemradio", { name: /^T1 · / }).click();
+  await expect(problem).toHaveText(/^T1 · /);
   await expect(page.getByTestId("pn-earlier")).toHaveText("earlier task");
   await expect(message(page)).toHaveAttribute(
     "placeholder",
@@ -303,10 +304,7 @@ test("@native native task chips and Back: choosing an earlier chip shows that ta
   // Back to T2 returns to the newest task.
   await page.getByRole("button", { name: "Back to T2" }).click();
   await expect(page.getByTestId("pn-earlier")).toHaveCount(0);
-  await expect(chips.getByRole("button", { name: /^T2 · / })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(problem).toHaveText(/^T2 · /);
   await expect(message(page)).toHaveAttribute(
     "placeholder",
     "Add context to T2, or ask a follow-up",

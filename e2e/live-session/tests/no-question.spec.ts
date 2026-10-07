@@ -55,11 +55,11 @@ test("@native native no-question in Manual: the pane says what the last capture 
   const marker = markers(page);
   await expect(marker).toHaveCount(1);
   await expect(marker).toContainText(EVENT(1));
-  // No task anywhere: no chat answer, no chip group, the empty pane.
+  // No task anywhere: no chat answer, no task bar, the empty pane.
   await expect(page.getByRole("button", { name: /^Studio · T/ })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("group", { name: "Tasks" })).toHaveCount(0);
+  await expect(page.getByTestId("pn-task-bar")).toHaveCount(0);
   await expect(page.getByTestId("pn-analysis-empty")).toBeVisible();
 
   // Manual does not hold: a second press is a second capture, a second model
@@ -84,7 +84,8 @@ test("@native native no-question in Manual: the pane says what the last capture 
   await expect(
     page.getByRole("button", { name: /^Studio · T1/ }),
   ).toBeVisible();
-  await expect(page.getByRole("group", { name: "Tasks" })).toHaveCount(0);
+  // The task bar names the one real problem; the notes are not problems.
+  await expect(page.getByTestId("pn-problem-button")).toHaveText(/^T1 · /);
 });
 
 test("@native native no-question and Back: with an earlier task on show, a no-question capture leaves Back pointing at the newest real task", async ({
@@ -102,10 +103,10 @@ test("@native native no-question and Back: with an earlier task on show, a no-qu
   await settled(id, 1);
   await say(credential, "What is the event loop?");
   await settled(id, 2);
-  await page
-    .getByRole("group", { name: "Tasks" })
-    .getByRole("button", { name: /^T1 · / })
-    .click();
+  const problem = page.getByTestId("pn-problem-button");
+  const problems = page.getByRole("menu", { name: "Problem" });
+  await problem.click();
+  await problems.getByRole("menuitemradio", { name: /^T1 · / }).click();
   await expect(page.getByTestId("pn-earlier")).toBeVisible();
 
   await control.scenario("no-question");
@@ -113,10 +114,11 @@ test("@native native no-question and Back: with an earlier task on show, a no-qu
   await page.getByTestId("apply-screenshots").click();
   await expect.poll(async () => (await answers(id)).at(-1)).toBe("no-question");
 
-  // No third task or chip; Back says T2, and goes there.
-  await expect(
-    page.getByRole("group", { name: "Tasks" }).getByRole("button"),
-  ).toHaveCount(2);
+  // No third problem in the menu; Back says T2, and goes there.
+  await problem.click();
+  await expect(problems.getByRole("menuitemradio")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(problems).toHaveCount(0);
   const back = page.getByRole("button", { name: "Back to T2" });
   await expect(back).toBeVisible();
   await back.click();
