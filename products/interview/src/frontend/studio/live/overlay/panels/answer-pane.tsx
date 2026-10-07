@@ -77,7 +77,11 @@ function stepsShown(
 ): boolean {
   if (!s.phase) return false;
   if (!s.card || s.card.answerText === null) return true;
-  return !s.selected?.current.runs.some((run) => run.state === "running");
+  // Work running on ANOTHER task never hides this one's answer and code: the
+  // steps show only while the task on show is itself being worked on.
+  return (
+    s.selected?.current.runs.some((run) => run.state === "running") ?? false
+  );
 }
 
 // Adding a screenshot sends the screen, so it waits for what a capture needs.
