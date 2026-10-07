@@ -11,6 +11,7 @@ import { expect, type OpenPanel, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import { say, settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
+import { chooseCaptureMode } from "../src/helpers/toolbar";
 import type { LivePage } from "../src/pages/live-page";
 import type { Control } from "../src/stack/control";
 import { SCRIPTED } from "../src/stack/scenarios";
@@ -167,8 +168,7 @@ for (const kind of ["web", "native"] as const) {
     await expect(staged(page)).toHaveCount(0);
     if (kind === "web") await live.autoMode().click();
     else {
-      await page.getByRole("button", { name: /^Capture mode:/ }).click();
-      await page.getByRole("menuitemradio", { name: /^Auto / }).click();
+      await chooseCaptureMode(page, "Auto");
     }
     await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
     await expect(area(page)).toBeHidden();

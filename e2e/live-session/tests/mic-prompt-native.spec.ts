@@ -17,21 +17,11 @@ import {
 } from "../src/fixtures/browser-spies";
 import { installHostShim } from "../src/fixtures/host-shim";
 import { expect, test } from "../src/fixtures/panel-test";
+import { chooseCaptureMode, expectCaptureMode } from "../src/helpers/toolbar";
 import { SetupPage } from "../src/pages/setup-page";
 
 const micButton = (page: Page) =>
   page.getByRole("button", { name: /^(Stop|Start) microphone$/ }).first();
-const modeMenu = (page: Page) =>
-  page.getByRole("button", { name: /^Capture mode:/ });
-
-async function chooseMode(page: Page, mode: "Auto" | "Manual") {
-  await modeMenu(page).click();
-  await page
-    .getByRole("menuitemradio", { name: new RegExp(`^${mode} `) })
-    .click();
-  await expect(modeMenu(page)).toHaveText(mode);
-}
-
 const nothingAsked = { getUserMedia: 0, speechConstructed: 0 };
 
 test("@native native T31 Auto with the engine present: over 30 seconds the page asks for no microphone and builds no recogniser, through an engine refusal and a restart", async ({
@@ -59,8 +49,8 @@ test("@native native T31 Auto with the engine present: over 30 seconds the page 
   // The shell now refuses to start (a transient store failure): the old page
   // started dictation + the meter here, which raised the WebKit prompt.
   await host.setEngineRefusal("store-failed");
-  await chooseMode(page, "Manual");
-  await chooseMode(page, "Auto");
+  await chooseCaptureMode(page, "Manual");
+  await chooseCaptureMode(page, "Auto");
   // The shell refused: the engine is not listening, so the label says so.
   await expect(micButton(page)).toHaveAccessibleName("Start microphone");
   await expect
@@ -72,8 +62,8 @@ test("@native native T31 Auto with the engine present: over 30 seconds the page 
 
   // The shell recovers and the engine restarts: still nothing from the page.
   await host.setEngineRefusal(null);
-  await chooseMode(page, "Manual");
-  await chooseMode(page, "Auto");
+  await chooseCaptureMode(page, "Manual");
+  await chooseCaptureMode(page, "Auto");
   await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
   await page.clock.runFor(30_000);
   expect(await spies.asked()).toEqual(nothingAsked);
@@ -111,7 +101,7 @@ test("@native native T31 Manual microphone press with an engine present: falls b
     init: [browserSpiesInit()],
   });
   const spies = spiesFor(page);
-  await expect(modeMenu(page)).toHaveText("Manual");
+  await expectCaptureMode(page, "Manual");
   await host.clear();
   expect(await spies.asked()).toEqual(nothingAsked);
 

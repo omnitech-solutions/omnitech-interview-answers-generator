@@ -217,7 +217,8 @@ export async function scanNative(
   for (const [button, state] of [
     ["Keyboard shortcuts", "native-keys"],
     [/^Answer style/, "native-style-menu"],
-    [/^Capture mode/, "native-mode-menu"],
+    [/^Screen to capture/, "native-mode-menu"],
+    ["Microphone options", "native-mic-menu"],
   ] as const) {
     await toolbar.getByRole("button", { name: button }).click();
     await note(state, page);
@@ -264,7 +265,10 @@ export async function scanNative(
   await sizeDot.focus();
   await page.keyboard.press("ArrowDown");
   await note("native-size-menu", page);
-  await page.getByTestId("pn-size-mini").click();
+  await page
+    .getByRole("menu", { name: "Window size" })
+    .getByRole("menuitemradio", { name: /^Mini player/ })
+    .click();
   await expect(page.getByTestId("pn-mini-card")).toBeVisible();
   await note("native-mini-player", page);
   await page.getByTestId("pn-mini-back").click();

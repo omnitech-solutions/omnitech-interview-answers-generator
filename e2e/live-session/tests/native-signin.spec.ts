@@ -14,6 +14,7 @@ import {
 } from "../src/fixtures/host-shim";
 import { expect, test } from "../src/fixtures/test";
 import { db } from "../src/helpers/sql";
+import { expectLocked } from "../src/helpers/toolbar";
 import type { StackConfig } from "../src/stack/config";
 
 const PROVIDERS = {
@@ -61,6 +62,16 @@ async function sessionControls(page: Page) {
     if (!own) controls.push(button);
   }
   return controls;
+}
+
+// The session controls that are locked: disabled, or aria-disabled so they stay
+// hoverable for their tooltip. The library's controls lock the second way, the
+// answer-style button the first. See-through is never locked.
+async function lockedControls(page: Page) {
+  const locked = [];
+  for (const control of await sessionControls(page))
+    if (await control.isDisabled()) locked.push(control);
+  return locked;
 }
 
 // The shell's first-run consent, as StudioWebView.swift records it for the page.
@@ -115,13 +126,12 @@ test("@native sign-in signed out: the card sits in the same chrome, every sessio
     "Google and LinkedIn open in your browser. Studio never sees your password.",
   );
 
-  // The toolbar is the real one: its buttons exist, disabled, with a reason.
-  const controls = await sessionControls(page);
-  expect(controls.length).toBeGreaterThanOrEqual(7);
-  for (const control of controls) {
-    await expect(control).toBeDisabled();
-    await expect(control).toHaveAttribute("title", "Sign in first");
-  }
+  // The toolbar is the real one: its buttons exist, disabled, with a reason
+  // (See-through is the one control that is never locked).
+  const locked = await lockedControls(page);
+  expect(locked.length).toBeGreaterThanOrEqual(7);
+  for (const control of locked)
+    await expectLocked(page, control, "Sign in first");
   await expect(
     bar(page).getByRole("button", { name: "Analyze screen" }),
   ).toBeDisabled();
@@ -129,11 +139,10 @@ test("@native sign-in signed out: the card sits in the same chrome, every sessio
     "Not signed in",
   );
 
-  // The footer: the visible-window note and build id stay, "Not signed in" at the end.
+  // The footer: the build id stays, "Not signed in" at the end.
   await expect(
-    page.getByText("Visible window · shows in screen shares"),
+    page.getByRole("button", { name: /^Copy build / }),
   ).toBeVisible();
-  await expect(page.getByTestId("ov-build")).toBeVisible();
   await expect(page.getByTestId("ov-status")).toHaveText("Not signed in");
   await expect(page.getByRole("button", { name: /^(Pause|End)/ })).toHaveCount(
     0,
@@ -149,26 +158,34 @@ test("@native sign-in a Studio that offers no local profile draws no local butto
   browser,
   stack,
 }) => {
+  // The designed sign-in is always drawn: a provider the Studio has not set up
+  // is a disabled button, and the card says so.
   const first = await signedOutWindow(browser, stack, {
     configured: true,
     providers: ["google"],
   });
   await expect(
     first.page.getByRole("button", { name: "Continue with Google" }),
-  ).toBeVisible();
+  ).toBeEnabled();
   await expect(
     first.page.getByRole("button", { name: /Continue with LinkedIn/ }),
-  ).toHaveCount(0);
+  ).toBeDisabled();
+  await expect(
+    first.page.getByText("LinkedIn isn’t set up on this Studio."),
+  ).toBeVisible();
   await expect(first.page.getByTestId("pn-start-local")).toHaveCount(0);
   await first.context.close();
   const none = await signedOutWindow(browser, stack, {
     configured: false,
     providers: [],
   });
-  await expect(none.page.getByText(/Signing in isn’t set up/)).toBeVisible();
   await expect(
-    none.page.getByRole("button", { name: /Continue with/ }),
-  ).toHaveCount(0);
+    none.page.getByText(/Google and LinkedIn aren’t set up on this Studio/),
+  ).toBeVisible();
+  for (const provider of ["Google", "LinkedIn"])
+    await expect(
+      none.page.getByRole("button", { name: `Continue with ${provider}` }),
+    ).toBeDisabled();
   await none.context.close();
 });
 
@@ -337,11 +354,10 @@ test("@native sign-in idle: the start screen waits for Start, shows the Mac's pe
   await expect(page.getByRole("radio")).toContainText("Rehearsal");
 
   // The toolbar is the same one, disabled, saying a session must start first.
-  const controls = await sessionControls(page);
-  for (const control of controls) {
-    await expect(control).toBeDisabled();
-    await expect(control).toHaveAttribute("title", "Start a session first");
-  }
+  const locked = await lockedControls(page);
+  expect(locked.length).toBeGreaterThanOrEqual(7);
+  for (const control of locked)
+    await expectLocked(page, control, "Start a session first");
 
   // "Set up in Studio on the web" opens the browser through the shell, never in this window.
   await page
@@ -414,7 +430,7 @@ test("@native sign-in Start hands over to the live window, which is the one that
   await expect(page.getByTestId("pn-root")).toBeVisible();
   const analyze = bar(page).getByRole("button", { name: "Analyze screen" });
   await expect(analyze).toBeEnabled();
-  expect(await analyze.getAttribute("title")).not.toMatch(/first/);
+  await expect(analyze).not.toHaveAttribute("aria-disabled", "true");
   await expect(
     page.getByRole("button", { name: "Pause session" }),
   ).toBeVisible();
