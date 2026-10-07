@@ -1087,10 +1087,9 @@ export function createAssistStage(
             );
       };
       if (output.category !== "logistics" && verifyDraft(output.draft).length) {
-        // Finest cut first: a point that fails keeps the sentences of it that
-        // pass; a labelled STAR element with nothing left keeps its label and
-        // says so ("say it from memory"), so the story stays whole on screen;
-        // an unlabelled point with nothing left is dropped.
+        // Finest cut first: an unlabelled point that fails keeps the sentences
+        // of it that pass; a labelled STAR element, or a point with nothing
+        // left, is kept whole (owner's rule: never a placeholder, never a hole).
         const points = output.draft.split(/\n(?=- )/);
         const kept = points.flatMap((point) => {
           if (verifyDraft(point).length === 0) return [point];
