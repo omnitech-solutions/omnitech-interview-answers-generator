@@ -450,7 +450,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             {area}
             <div className="pn-regenerate">
               <ActionMenu
-                label="Regenerate in another language"
+                label="Language for Regenerate"
                 title="Regenerate in"
                 width={240}
                 sections={[
@@ -467,10 +467,9 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                     ],
                   },
                 ]}
-                onValueChange={(_group, id) => {
-                  s.setLanguage(id as LiveOwnerLanguage | "auto");
-                  void s.tray.apply();
-                }}
+                onValueChange={(_group, id) =>
+                  s.setLanguage(id as LiveOwnerLanguage | "auto")
+                }
                 trigger={
                   <Button
                     buttonSize="sm"
