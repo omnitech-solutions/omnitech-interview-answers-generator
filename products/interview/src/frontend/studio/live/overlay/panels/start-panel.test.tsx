@@ -194,6 +194,10 @@ function configure() {
   vi.stubGlobal("fetch", globalFetch);
 }
 
+// The library menu opens on the press, as Radix does (a bare click does not).
+const openMenu = (trigger: HTMLElement) =>
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+
 async function show(
   query = "?host=native&panel=single&handsfree=1",
   path = "/t/local/p/interview/live/overlay",
@@ -260,7 +264,9 @@ describe("signed out", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "out");
     expect(
-      within(card).getByText("Sign in", { selector: "header" }),
+      within(card).getByText("Sign in", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(
       within(card).getByRole("heading", { name: "Sign in to start a session" }),
@@ -574,7 +580,9 @@ describe("idle: signed in, no live session", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "idle");
     expect(
-      within(card).getByText("No live session", { selector: "header" }),
+      within(card).getByText("No live session", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(server.calls.some((call) => call.startsWith("POST"))).toBe(false);
     // The toolbar is the same one, disabled, saying a session must start first.
@@ -601,7 +609,7 @@ describe("idle: signed in, no live session", () => {
     expect(chip).toHaveTextContent("Alex");
     expect(chip).toHaveTextContent("A");
     expect(chip).toBeEnabled();
-    fireEvent.click(chip);
+    openMenu(chip);
     const menu = screen.getByRole("menu", { name: "Account" });
     expect(menu).toHaveTextContent("Alex Morgan");
     expect(menu).toHaveTextContent("alex@example.test");
@@ -612,12 +620,12 @@ describe("idle: signed in, no live session", () => {
     ).toEqual(["Open Studio on the web", "Settings", "Sign out"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Settings" }));
     expect(host.settings).toHaveBeenCalled();
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Open Studio on the web" }),
     );
     expect(host.opened.at(-1)).toMatch(/\/t\/local\/p\/interview\/live$/);
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(host.calls).toContain("signOut");
   });
@@ -638,7 +646,7 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByTestId("ov-status").textContent).not.toMatch(
       /nothing leaves/i,
     );
-    fireEvent.click(chip);
+    openMenu(chip);
     expect(
       within(screen.getByRole("menu", { name: "Account" }))
         .getAllByRole("menuitem")
@@ -659,7 +667,7 @@ describe("idle: signed in, no live session", () => {
     bridge();
     idleStudio();
     await show(undefined, undefined, { ...LOCAL, canSignOut: false });
-    fireEvent.click(screen.getByTestId("pn-chip"));
+    openMenu(screen.getByTestId("pn-chip"));
     const names = within(screen.getByRole("menu", { name: "Account" }))
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
