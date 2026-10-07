@@ -261,6 +261,33 @@ export type StudioHost = {
   // Sign-in in the person's own browser, sign-out and the Mac's permission
   // states, when the shell offers them ("account"; below).
   readonly account?: AccountHost;
+  // What the shell was built from, for the dev build tag. Absent from an older
+  // shell; the page then falls back to its own build id.
+  readonly build?: StudioHostBuild;
+};
+
+// ---- Build (the dev build tag) --------------------------------------------------
+// Closed, content-free: a short commit, the branch it was built from (null when
+// unknown) and whether this is a packaged (released) app. The page shows the tag
+// only when `isPackaged` is false.
+export const STUDIO_HOST_BUILD_FIELD_MAX = 80;
+export type StudioHostBuild = {
+  sha: string;
+  branch: string | null;
+  isPackaged: boolean;
+};
+export const isStudioHostBuild = (value: unknown): value is StudioHostBuild => {
+  if (typeof value !== "object" || value === null) return false;
+  const { sha, branch, isPackaged } = value as Partial<StudioHostBuild>;
+  const text = (each: unknown): each is string =>
+    typeof each === "string" &&
+    each.length > 0 &&
+    each.length <= STUDIO_HOST_BUILD_FIELD_MAX;
+  return (
+    text(sha) &&
+    (branch === null || text(branch)) &&
+    typeof isPackaged === "boolean"
+  );
 };
 
 // ---- Account (native sign-in, sign-out, permissions) ------------------------
@@ -628,7 +655,17 @@ export type EngineState = {
   // Settings"), or null.
   hint: string | null;
   speech?: string | undefined;
+  // The microphones the shell can listen to and the one in use (null: the
+  // system default). Absent from an older shell.
+  microphoneDevices?: readonly EngineMicrophoneDevice[] | undefined;
+  microphoneDeviceId?: string | null | undefined;
+  // While the microphone is "lost": which automatic retry the shell is on (1 is
+  // the first). 0 or absent: not retrying (yet).
+  microphoneRetryAttempt?: number | undefined;
 };
+
+// A name for the menu only; never an address or content.
+export type EngineMicrophoneDevice = { id: string; name: string };
 
 export type EngineReply =
   | { ok: true; engine: EngineState }
@@ -643,6 +680,12 @@ export type EngineHost = {
   pause(): Promise<EngineReply>;
   resume(): Promise<EngineReply>;
   status(): Promise<EngineReply>;
+  // Tries the lost microphone now instead of waiting for the next automatic
+  // retry. Optional: an older shell lacks it and the page restarts the engine.
+  retryMicrophone?(): Promise<EngineReply>;
+  // Listens to this device instead (an id from `microphoneDevices`; null: the
+  // system default). Optional like `retryMicrophone`.
+  selectMicrophone?(deviceId: string | null): Promise<EngineReply>;
   // Typed events as state changes. Returns the remover.
   onEvent(listener: (state: EngineState) => void): () => void;
 };

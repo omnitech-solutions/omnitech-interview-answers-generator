@@ -19,6 +19,7 @@ import {
 } from "@omnitech/interview-contracts";
 import { noteCaptureResult, noteSource } from "./host-display";
 import { FULL, isFull, type Rect } from "./overlay/mask-geometry";
+import { noteScreenProblem } from "./screen-problems";
 import { cleanFrontApp } from "./shared/capture-problem";
 import { ocrBlockForHostCapture } from "./shared/text-recognizer";
 
@@ -171,7 +172,7 @@ export async function captureThroughHost(
   intent: StudioHostCaptureIntent = "auto",
 ): Promise<HostFrame> {
   const info = studioHostInfo();
-  if (!info || !info.capabilities.has("capture-screen"))
+  if (!info?.capabilities.has("capture-screen"))
     return { ok: false, reason: "unavailable" };
   let result: Awaited<ReturnType<typeof info.host.captureScreen>>;
   const request = {
@@ -290,7 +291,10 @@ export async function syncHostPin(): Promise<void> {
     return;
   try {
     const result = await info.host.listDisplays({ thumbnails: false });
-    if (result.ok) notePinFrom(result);
+    if (result.ok) {
+      notePinFrom(result);
+      noteScreenProblem({ kind: "permission-granted" });
+    }
   } catch {
     // The picker still lists on demand; the pin shows after the first capture.
   }
@@ -311,7 +315,9 @@ export async function listHostDisplays(): Promise<DisplayListing> {
     return { ok: false, reason: "capture-failed" };
   try {
     const result = await info.host.listDisplays();
-    if (!result.ok)
+    if (!result.ok) {
+      if (result.reason === "permission-denied")
+        noteScreenProblem({ kind: "problem", problem: "permission-missing" });
       return {
         ok: false,
         reason:
@@ -319,7 +325,9 @@ export async function listHostDisplays(): Promise<DisplayListing> {
             ? "permission-denied"
             : "capture-failed",
       };
+    }
     notePinFrom(result);
+    noteScreenProblem({ kind: "permission-granted" });
     const displays: DisplayChoice[] = [];
     for (const preview of result.displays) {
       const { thumbnail } = preview;
