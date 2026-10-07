@@ -2,4 +2,4 @@
 
 _Source: `packages/ai-contracts/src/index.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+Creating the stream and asking for its iterator never throws...

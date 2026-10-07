@@ -2,4 +2,4 @@
 
 _Source: `apps/web/src/platform/api.ts` (header-comment fallback)_
 
-Each registered product's router, with the platform services it needs.
+Sub-apps with their own onError keep it; every other route gets this one.

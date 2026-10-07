@@ -4,5 +4,4 @@ _Source: `products/interview/src/frontend/studio/live/overlay/panels/summary-lin
 
 Opens a finished session's summary in Studio. The native window hands the
 address to the person's browser through the shell's openExternal bridge; with
-no bridge it uses the same navigation the card uses (the Studio tab, or a
-new one).
+no bridge it sends a navigation intent (the Studio tab, or a new one).

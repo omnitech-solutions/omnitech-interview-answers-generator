@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/live/session-client.test.ts` (header-comment fallback)_
 
-A later failure without a reason carries none: no module-global leak.
+The owner's code language rides the regenerate: the new revision is PHP.

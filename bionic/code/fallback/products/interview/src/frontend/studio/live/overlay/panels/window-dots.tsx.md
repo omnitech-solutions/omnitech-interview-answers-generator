@@ -2,7 +2,9 @@
 
 _Source: `products/interview/src/frontend/studio/live/overlay/panels/window-dots.tsx` (header-comment fallback)_
 
-The window's own controls, drawn from WINDOW_CONTROLS: red quits (after a
+The window's own controls, drawn from WINDOW_CONTROLS (the dots are library
+IconButtons in the macOS colours, the size menu is the library ActionMenu and
+the quit confirmation the library Popover): red quits (after a
 confirmation), yellow hides the window (pausing a live session first so
 nothing keeps capturing out of sight), green toggles full screen and, when
 the pointer rests on it, opens the window-size menu (WINDOW_MODES).

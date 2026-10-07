@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/backend/documents/api.test.ts` (header-comment fallback)_
 
-A reload closes the connection: the reader cancels the stream.
+The model is told what the field holds now, so it keeps its kind and length.

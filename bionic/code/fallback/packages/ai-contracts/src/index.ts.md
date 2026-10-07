@@ -2,5 +2,5 @@
 
 _Source: `packages/ai-contracts/src/index.ts` (header-comment fallback)_
 
-An attachment list stays small: a request names a few frozen images, not a
-folder (ADR-0016). The gateway refuses a longer list before any dispatch.
+Agent runtimes: model turns the run took and time spent in the API, so a
+slow run can be read as retries or as thinking.

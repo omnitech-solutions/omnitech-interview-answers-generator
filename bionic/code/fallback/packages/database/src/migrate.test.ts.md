@@ -2,5 +2,6 @@
 
 _Source: `packages/database/src/migrate.test.ts` (header-comment fallback)_
 
-No workflow engine exists: no thread table, no conversation link to one,
-and profiles name only the execution families the runtime can dispatch.
+The expected stream is the migration folders themselves, in timestamp order:
+every committed migration must have run, in order, and nothing else (like
+Rails' schema_migrations against db/migrate). No list to keep in step.

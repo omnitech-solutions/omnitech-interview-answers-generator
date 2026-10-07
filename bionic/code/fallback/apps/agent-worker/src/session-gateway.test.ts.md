@@ -2,4 +2,4 @@
 
 _Source: `apps/agent-worker/src/session-gateway.test.ts` (header-comment fallback)_
 
-An unknown name, or the pin without the flag, selects nothing.
+No LM Studio, no API endpoint: the Claude Code runner is the whole gateway.

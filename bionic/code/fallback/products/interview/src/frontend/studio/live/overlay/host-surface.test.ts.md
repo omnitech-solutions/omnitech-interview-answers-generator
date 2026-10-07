@@ -2,5 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/live/overlay/host-surface.test.ts` (header-comment fallback)_
 
-A native shell window paints translucent surfaces; a tab and a PiP window are
-untouched.
+A native shell window paints translucent surfaces; a plain tab is untouched.

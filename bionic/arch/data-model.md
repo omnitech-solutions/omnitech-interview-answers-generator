@@ -1,6 +1,6 @@
 # Data model
 
-_Derived from `packages/database/drizzle/20261006152815_session_paused_time/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
+_Derived from `packages/database/drizzle/20261007231047_action_progress/snapshot.json` (drizzle-kit snapshot; static read, no Drizzle executed)._
 
 ## Entities (67 tables)
 
@@ -403,6 +403,7 @@ _Derived from `packages/database/drizzle/20261006152815_session_paused_time/snap
 | interview.session_actions | `job_created` | boolean | no | false | — | — |
 | interview.session_actions | `job_id` | uuid | yes | — | — | — |
 | interview.session_actions | `owner_user_id` | uuid | no | — | — | interview.active_sessions.owner_user_id |
+| interview.session_actions | `progress` | jsonb | yes | — | — | — |
 | interview.session_actions | `result` | jsonb | yes | — | — | — |
 | interview.session_actions | `session_id` | uuid | no | — | — | interview.active_sessions.id |
 | interview.session_actions | `shown` | boolean | no | false | — | — |

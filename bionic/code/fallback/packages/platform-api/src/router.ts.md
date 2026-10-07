@@ -2,4 +2,4 @@
 
 _Source: `packages/platform-api/src/router.ts` (header-comment fallback)_
 
-_No leading comment block found._
+A body that is not JSON is an invalid body (400), not a server error.

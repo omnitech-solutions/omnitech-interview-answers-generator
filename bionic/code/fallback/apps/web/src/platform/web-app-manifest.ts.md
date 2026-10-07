@@ -3,8 +3,8 @@
 _Source: `apps/web/src/platform/web-app-manifest.ts` (header-comment fallback)_
 
 The Web App Manifest that lets a browser offer "Install app" for Interview
-Studio's live overlay (ADR-0019). The installed window loads the same overlay
-route every other host loads (ADR-0017); the manifest only names it. Chrome
+Studio's live session page (ADR-0019). The installed window opens the Studio
+live page; the manifest only names it. Chrome
 needs no service worker to install (a manifest with icons, a start_url and a
 standalone display is enough), so none is shipped: the page is online-only
 and nothing is cached.

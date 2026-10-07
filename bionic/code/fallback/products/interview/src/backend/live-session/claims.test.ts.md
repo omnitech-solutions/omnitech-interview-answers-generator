@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/backend/live-session/claims.test.ts` (header-comment fallback)_
 
-An unstated lower bound is an overclaim.
+The model's typography differs from the matrix's (curly quotes, en dashes,
+a closing period) without changing a word: still the same quote.
