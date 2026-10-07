@@ -238,10 +238,11 @@ export function Footer({
           />
         </>
       }
-      // The library's own buttons, composed here so the build tag can sit at
-      // the far right after them.
+      // The library's own buttons, composed here so the build tag can sit
+      // just before them (owner's rule).
       actions={
         <>
+          {buildTag && <BuildTagChip tag={buildTag} />}
           {paused ? (
             <Button
               buttonSize="control"
@@ -287,7 +288,6 @@ export function Footer({
               {end?.label}
             </Button>
           </Popconfirm>
-          {buildTag && <BuildTagChip tag={buildTag} />}
         </>
       }
     />
