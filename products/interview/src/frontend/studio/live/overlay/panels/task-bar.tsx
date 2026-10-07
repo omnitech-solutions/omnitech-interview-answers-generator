@@ -29,7 +29,6 @@ export function TaskBar({ s }: { s: PanelSession }) {
   }, []);
   const tasks = s.model.tasks;
   const card = s.card;
-  if (!s.open || !card) return null;
   // Only real problems are offered: a task with a question (a title, an
   // answer or code, or work still running). A stopped analysis that published
   // nothing is not a problem the person would go back to.
@@ -47,9 +46,9 @@ export function TaskBar({ s }: { s: PanelSession }) {
     chips.find((chip) => chip.selected) ?? chips[chips.length - 1];
   // A new problem captured and not yet applied is what the panes show.
   const drafting = s.tray.intent === "new" && s.tray.items.length > 0;
-  if (!current && !drafting) return null;
   const currentText = drafting ? "Select problem…" : current?.text;
-  const running = card.stages.some((stage) => stage.state === "running");
+  const running =
+    card?.stages.some((stage) => stage.state === "running") ?? false;
   // The menu shows and sets the hint in force. Switching to a problem sets the
   // hint to that problem's code language (the effect below), so the menu reads
   // the problem on show and a choice made afterwards still sticks.
@@ -59,7 +58,7 @@ export function TaskBar({ s }: { s: PanelSession }) {
       ? "Language: auto"
       : LIVE_OWNER_LANGUAGE_LABELS[shownLanguage];
   const taskLanguage =
-    !drafting && card.code && isOwnerLanguage(card.code.language)
+    !drafting && card?.code && isOwnerLanguage(card.code.language)
       ? card.code.language
       : null;
   const lastTask = useRef<string | null>(null);
@@ -70,6 +69,7 @@ export function TaskBar({ s }: { s: PanelSession }) {
     lastTask.current = id;
     if (id && taskLanguage) setLanguage(taskLanguage);
   }, [current?.taskId, drafting, taskLanguage, setLanguage]);
+  if (!s.open || !card || (!current && !drafting)) return null;
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">
       <Popconfirm
