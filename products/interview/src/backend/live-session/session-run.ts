@@ -1099,12 +1099,22 @@ function continuationOf(
 // microphone to keep the candidate's own thinking aloud out. That rule is for a call
 // with someone on it: when the application's audio has never been heard in this
 // session, nobody else is on the call, and a question from the microphone (the owner
-// asking aloud, rehearsing, or the only voice) is answered. The moment an interviewer
-// is heard, the microphone is the candidate again and is ignored.
-const interviewerHeard = (run: SessionRun): boolean =>
-  effectiveSegments(run.transcript).some(
-    (segment) => segment.source === "application-audio",
-  );
+// asking aloud, rehearsing, or the only voice) is answered. While an interviewer
+// is being heard, the microphone is the candidate again and is ignored — but
+// only while: an interviewer is "being heard" when the application's audio is
+// among the last few accepted segments before this utterance. A video that
+// ended, or a call that is over, hands the microphone back to the owner (the
+// owner's rule, 2026-10-07: a session with app audio played earlier must still
+// answer a question spoken into the microphone afterwards).
+const RECENT_SEGMENTS = 6;
+const interviewerHeard = (run: SessionRun, utterance: Utterance): boolean => {
+  const own = new Set(utterance.segmentIds);
+  const before = effectiveSegments(run.transcript)
+    .filter((segment) => !own.has(segment.eventId))
+    .sort((a, b) => a.seq - b.seq)
+    .slice(-RECENT_SEGMENTS);
+  return before.some((segment) => segment.source === "application-audio");
+};
 
 const soloAware = (
   policy: InterviewSessionPolicy,
@@ -1112,7 +1122,10 @@ const soloAware = (
 ): InterviewSessionPolicy => ({
   ...policy,
   decide: (input) => {
-    if (input.utterance.source !== "microphone" || interviewerHeard(run))
+    if (
+      input.utterance.source !== "microphone" ||
+      interviewerHeard(run, input.utterance)
+    )
       return policy.decide(input);
     const { source: _microphone, ...rest } = input.utterance;
     return policy.decide({ ...input, utterance: rest });
