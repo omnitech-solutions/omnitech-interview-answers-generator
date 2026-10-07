@@ -93,7 +93,11 @@ export function answerView(task: TaskView): AnswerView {
     sections.find((section) => section.name === name)?.lines ?? [];
   let number = 0;
   const steps = sections.flatMap((section) => {
-    const label = STEP_HEADING[section.name];
+    // A spoken answer has no "approach": its points are what to say.
+    const label =
+      section.name === "Approach" && task.kind !== "programming-challenge"
+        ? "What to say"
+        : STEP_HEADING[section.name];
     if (!label) return [];
     number += 1;
     return [{ heading: `${number}. ${label}`, lines: section.lines }];

@@ -34,6 +34,10 @@ export interface AiUsage {
   outputTokens?: number;
   totalTokens?: number;
   costUsd?: number;
+  // Agent runtimes: model turns the run took and time spent in the API, so a
+  // slow run can be read as retries or as thinking.
+  turns?: number;
+  apiMs?: number;
 }
 
 export interface InstructionSource {

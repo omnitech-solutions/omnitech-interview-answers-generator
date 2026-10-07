@@ -309,7 +309,10 @@ export function createAiExecutionGateway(
           profile,
           startedAt,
           "ok",
-          { executionId: execution.executionId },
+          {
+            executionId: execution.executionId,
+            ...(execution.usage ? { usage: execution.usage } : {}),
+          },
           { task: request.task, execution },
         );
         return execution as AiExecution<T>;

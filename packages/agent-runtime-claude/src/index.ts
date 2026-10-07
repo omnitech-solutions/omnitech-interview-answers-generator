@@ -282,6 +282,8 @@ export function createClaudeRuntimeAdapter(
                   totalTokens:
                     message.usage.input_tokens + message.usage.output_tokens,
                   costUsd: message.total_cost_usd,
+                  turns: message.num_turns,
+                  apiMs: message.duration_api_ms,
                 },
               });
               push(turn, {
@@ -411,6 +413,9 @@ export function createClaudeRuntimeAdapter(
           abortController: controller,
           cwd: request.workingDirectory,
           model: request.profile.model,
+          // The profile's effort, or the SDK thinks at its default (high) on
+          // every call: a one-reply assistant turn took a minute that way.
+          effort: request.profile.effort,
           maxTurns: request.profile.maximumTurns,
           permissionMode:
             request.profile.approvalPolicy === "never" ? "dontAsk" : "default",
