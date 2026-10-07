@@ -554,6 +554,13 @@
   min-height: 0;
   display: flex;
 }
+/* The Code pane's wrapper (panel-views.tsx): a flex box, so the library Panel inside (which carries its
+   own flex: 1 1 0) fills the pane in both directions instead of shrinking to its content. */
+.pn-analysis {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .pn-single-body:has(> :not([data-which="chat"])) > [data-which="chat"] {
   flex: 0 0 330px;
   min-width: 300px;

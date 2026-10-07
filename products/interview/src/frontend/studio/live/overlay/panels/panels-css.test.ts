@@ -53,6 +53,12 @@ describe("panels.css rules", () => {
       expect(css, old).not.toContain(old);
   });
 
+  it("the Code pane's wrapper is a flex box that fills the pane, so its Panel is not left at its content size", () => {
+    const wrapper = rule(".pn-analysis");
+    expect(wrapper).toMatch(/flex: 1/);
+    expect(wrapper).toMatch(/display: flex/);
+  });
+
   it("the transcript is 330 px (never under 300) beside other panels, which share the rest equally; alone it takes the row", () => {
     const chat = rule(
       '.pn-single-body:has(> :not([data-which="chat"])) > [data-which="chat"]',
