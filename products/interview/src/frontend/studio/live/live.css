@@ -30,15 +30,11 @@
 }
 
 /* Touch targets: every button in the live views is at least 40 px tall: a
-   shared <Button> in these views is size "lg" (the --ui-height-lg token;
-   layout-rules.test.ts checks it), the session bar's legacy .studio-button has
-   the min-height below. Controls that must keep a small look (a 22 px chip, a
+   library <Button> in these views is buttonSize "lg" (layout-rules.test.ts
+   checks it), the session bar's buttons have .live-bar-button's min-height
+   (session-bar.css). Controls that must keep a small look (a 22 px chip, a
    switch, an inline link) get the target from an invisible hit area instead
    (see .live-chip-button, .setup-switch, .setup-link). */
-.live-session-bar .studio-button {
-  min-height: 40px;
-}
-
 /* One visible focus ring for every interactive control in the live views, in
    the accent token so it follows the theme. */
 .live-page :is(button, input, select, textarea, summary, a):focus-visible,

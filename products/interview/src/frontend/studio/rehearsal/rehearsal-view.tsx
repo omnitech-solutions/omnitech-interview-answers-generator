@@ -1,9 +1,9 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   RehearsalFormat,
   RehearsalReveal,
 } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
@@ -258,6 +258,7 @@ function Setup({
             </div>
           </div>
           <Button
+            variant="outline"
             aria-expanded={changing}
             onClick={() => setChanging(!changing)}
           >
@@ -317,8 +318,8 @@ function Setup({
         </p>
       )}
       <Button
-        variant="primary"
-        size="lg"
+        variant="default"
+        buttonSize="lg"
         className="rehearsal-start"
         disabled={starting || missingCoding}
         onClick={() => void start()}

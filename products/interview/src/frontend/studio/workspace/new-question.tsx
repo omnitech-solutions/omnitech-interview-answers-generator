@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import {
   type LanguageSelection,
   routeQuestion,
@@ -7,7 +8,6 @@ import {
   type ExampleTemplate,
   exampleTemplates,
 } from "../../example-templates";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { LANGUAGE_LABELS } from "./stages";
 
@@ -75,13 +75,14 @@ export function NewQuestion({
             </select>
             <span className="ws-spacer" />
             <Button
+              variant="outline"
               disabled={!ready}
               onClick={() => onSolve(question.trim(), language)}
             >
               Solve it myself
             </Button>
             <Button
-              variant="primary"
+              variant="default"
               disabled={!ready}
               onClick={() => onDraft(question.trim(), language)}
             >

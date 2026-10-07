@@ -2,9 +2,9 @@
 // and the fixed statement that nothing was promoted. Every draft is rendered as
 // plain text (rule:inert-draft-rendering): no Markdown, no HTML, no links.
 
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import type { AnswerRow, CodingRow, WithheldNotice } from "./ended-summary";
 import { copyText } from "./shared/copy-text";
@@ -24,7 +24,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         : "Copy";
   return (
     <Button
-      size="lg"
+      variant="outline"
+      buttonSize="lg"
       aria-label={outcome ? `${label}: ${word.toLowerCase()}` : label}
       onClick={() => {
         void copyText(text).then((written) => {
@@ -120,7 +121,8 @@ function CodingResult({
       </div>
       {row.hasDraft && link && (
         <Button
-          size="lg"
+          variant="outline"
+          buttonSize="lg"
           aria-label={`Open ${row.title}`}
           onClick={() => link.open()}
         >

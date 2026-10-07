@@ -1,5 +1,5 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import { useEffect, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import type { CommandResult } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
@@ -86,14 +86,19 @@ export function PairingPanel() {
               {shown ? pairing.value : MASK}
             </code>
             <Button
-              size="lg"
+              variant="outline"
+              buttonSize="lg"
               pressed={shown}
               onClick={() => setShown((current) => !current)}
             >
               <Icon name={shown ? "visibility_off" : "visibility"} />
               {shown ? "Hide" : "Show"}
             </Button>
-            <Button size="lg" onClick={() => void copy()}>
+            <Button
+              variant="outline"
+              buttonSize="lg"
+              onClick={() => void copy()}
+            >
               <Icon name="content_copy" />
               Copy
             </Button>
@@ -113,7 +118,8 @@ export function PairingPanel() {
       )}
       <div className="pairing-actions">
         <Button
-          size="lg"
+          variant="outline"
+          buttonSize="lg"
           disabled={busy}
           onClick={() => void run(actions.renewCredential())}
         >
@@ -123,7 +129,7 @@ export function PairingPanel() {
           <>
             <Button
               variant="destructive"
-              size="lg"
+              buttonSize="lg"
               disabled={busy}
               onClick={() => void run(actions.revokeCredential(), true)}
             >
@@ -131,13 +137,18 @@ export function PairingPanel() {
                 ? "Revoke and pause"
                 : "Confirm revoke"}
             </Button>
-            <Button size="lg" onClick={() => setConfirmRevoke(false)}>
+            <Button
+              variant="outline"
+              buttonSize="lg"
+              onClick={() => setConfirmRevoke(false)}
+            >
               Keep it
             </Button>
           </>
         ) : (
           <Button
-            size="lg"
+            variant="outline"
+            buttonSize="lg"
             disabled={busy}
             onClick={() => setConfirmRevoke(true)}
           >
@@ -145,7 +156,11 @@ export function PairingPanel() {
           </Button>
         )}
         {pairing && (
-          <Button size="lg" onClick={() => actions.dismissPairing()}>
+          <Button
+            variant="outline"
+            buttonSize="lg"
+            onClick={() => actions.dismissPairing()}
+          >
             Dismiss
           </Button>
         )}

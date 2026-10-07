@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   BriefingClient,
   BriefingProfileSummary,
@@ -8,7 +9,6 @@ import {
 } from "@omnitech/interview-contracts";
 import { useRef, useState } from "react";
 import { formatRelativeTime } from "../../../format-timestamp";
-import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { Dialog } from "../../shared/dialog";
 import { DEFAULT_PROFILE_ID } from "./config";
@@ -340,9 +340,11 @@ function ImportMatrixDialog({
         )}
       </div>
       <div className="bp-dialog-foot">
-        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
         <Button
-          variant="primary"
+          variant="default"
           disabled={!matrix || busy}
           onClick={() => void save()}
         >

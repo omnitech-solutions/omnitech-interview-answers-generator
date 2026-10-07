@@ -8,9 +8,10 @@
 //     clears observations and actions while purging, and this view then shows
 //     only the tombstone's content-free facts (rule:complete-purge-except-retained-drafts,
 //     rule:tombstone-keeps-hint-count).
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { SessionHistory } from "./ended-history";
@@ -186,8 +187,8 @@ export function EndedView({ studio }: EndedViewProps) {
 
         <div className="ended-footer">
           <Button
-            variant="primary"
-            size="lg"
+            variant="default"
+            buttonSize="lg"
             onClick={() => {
               actions.dismissFinished();
               studio.go("live");
@@ -219,8 +220,8 @@ export function SessionNotFound({ studio }: EndedViewProps) {
         </header>
         <div className="ended-footer">
           <Button
-            variant="primary"
-            size="lg"
+            variant="default"
+            buttonSize="lg"
             onClick={() => {
               actions.dismissFinished();
               studio.go("live");

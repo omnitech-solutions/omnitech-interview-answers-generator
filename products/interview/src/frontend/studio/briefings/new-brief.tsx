@@ -1,6 +1,6 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { BriefKind } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
-import { Button } from "../../ui";
 
 // The three kinds of briefing. Behavioural answers come from the person's own
 // experience, so they are built as an evidence-backed preparation pack.
@@ -91,7 +91,7 @@ export function NewBrief({
           <div className="ws-new-actions">
             <span className="ws-spacer" />
             <Button
-              variant="primary"
+              variant="default"
               type="submit"
               disabled={!topic.trim() || busy}
             >

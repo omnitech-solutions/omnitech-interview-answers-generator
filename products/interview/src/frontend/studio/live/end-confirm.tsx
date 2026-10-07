@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import { useEffect, useId, useRef } from "react";
 import { END_BODY, END_HOST_LINE, END_TITLE } from "./session-bar-model";
 
@@ -68,24 +69,28 @@ export function EndConfirm({
           {inMacApp ? `${END_BODY} ${END_HOST_LINE}` : END_BODY}
         </div>
         <div className="live-end-actions">
-          <button
+          <Button
             ref={keepRef}
             type="button"
-            className="studio-button live-bar-button"
+            variant="outline"
+            buttonSize="lg"
+            className="live-bar-button"
             onClick={onKeepGoing}
           >
             Keep going
-          </button>
-          <button
+          </Button>
+          <Button
             ref={endRef}
             type="button"
-            className="studio-button live-bar-button danger"
+            variant="destructive"
+            buttonSize="lg"
+            className="live-bar-button"
             aria-busy={busy}
             disabled={busy}
             onClick={onEnd}
           >
             End session
-          </button>
+          </Button>
         </div>
       </div>
     </>
