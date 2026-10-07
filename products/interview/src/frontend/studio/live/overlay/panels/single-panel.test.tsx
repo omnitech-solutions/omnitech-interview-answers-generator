@@ -1856,3 +1856,81 @@ describe("See-through background", () => {
     expect(within(foot).getByRole("button", { name: /^Pause/ })).toBeVisible();
   });
 });
+
+describe("toolbar contract: order, locks and the microphone press", () => {
+  const engineState = {
+    v: 1,
+    pairing: "paired",
+    listening: true,
+    paused: false,
+    sources: { microphone: "listening", "system-audio": "off", screen: "off" },
+    lastHeardAgeSeconds: null,
+    hint: null,
+  };
+
+  it("draws the session controls in one row, in this order", async () => {
+    await show();
+    const bar = within(screen.getByRole("toolbar"));
+    const order = [
+      "Analyze screen",
+      "Start microphone",
+      /^Answer style/,
+      "Chat",
+      "Answer",
+      "Code",
+      "See-through",
+      "Keyboard shortcuts",
+    ];
+    const buttons = bar.getAllByRole("button");
+    const at = order.map((name) =>
+      buttons.indexOf(bar.getByRole("button", { name })),
+    );
+    expect(at.every((index) => index >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+
+  it("an ended session locks capture and the microphone but not see-through, answer style or the shortcuts", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(5) }));
+    await show();
+    const bar = within(screen.getByRole("toolbar"));
+    expect(bar.getByRole("button", { name: "Analyze screen" })).toBeDisabled();
+    expect(
+      bar.getByRole("button", { name: "Start microphone" }),
+    ).toBeDisabled();
+    for (const name of [/^Answer style/, "See-through", "Keyboard shortcuts"])
+      expect(bar.getByRole("button", { name })).toBeEnabled();
+  });
+
+  it("pressing the microphone while it listens stops the engine, and the name follows the engine's report", async () => {
+    const calls: string[] = [];
+    nativeHost();
+    const ok = (name: string) => async () => (
+      calls.push(name), { ok: true, engine: engineState }
+    );
+    (
+      window as unknown as { studioHost: { engine: unknown } }
+    ).studioHost.engine = {
+      start: ok("start"),
+      stop: async () => (
+        calls.push("stop"),
+        { ok: true, engine: { ...engineState, listening: false } }
+      ),
+      pause: ok("pause"),
+      resume: ok("resume"),
+      status: ok("status"),
+      onEvent: () => () => undefined,
+    };
+    await show();
+    await flush();
+    const bar = within(screen.getByRole("toolbar"));
+    const mic = bar.getByRole("button", { name: "Stop microphone" });
+    expect(mic).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(mic);
+    await flush();
+    await flush();
+    expect(calls).toContain("stop");
+    expect(
+      bar.getByRole("button", { name: "Start microphone" }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+});
