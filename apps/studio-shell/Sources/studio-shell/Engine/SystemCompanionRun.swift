@@ -273,6 +273,7 @@ public final class SystemCompanionRun: EngineRun {
                 [
                     "ms": fedMs.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
                     "segments": "\(segments)", "transcribing": transcribing ? "true" : "false",
+                    "micLevel": "\(levels[.microphone] ?? 0)", "appLevel": "\(levels[.applicationAudio] ?? 0)",
                 ])
             fedMs = [:]
             segments = 0
