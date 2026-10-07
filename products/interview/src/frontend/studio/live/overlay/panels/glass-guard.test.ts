@@ -102,13 +102,13 @@ const ALLOWED: readonly Allowed[] = [
   ],
   [
     "start-panel.css",
-    '.pn-start-provider[data-provider="google"]',
+    '.pn-start-wide[data-provider="google"]',
     "background",
     "A provider's own brand button is a small solid control.",
   ],
   [
     "start-panel.css",
-    '.pn-start-provider[data-provider="linkedin"]',
+    '.pn-start-wide[data-provider="linkedin"]',
     "background",
     "A provider's own brand button is a small solid control.",
   ],

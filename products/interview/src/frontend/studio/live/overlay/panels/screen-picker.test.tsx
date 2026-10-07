@@ -249,6 +249,15 @@ describe("the menu", () => {
     expect(image).toHaveAttribute("src", `data:image/jpeg;base64,${JPEG}`);
   });
 
+  it("is drawn inside the panel root as a hit-tested surface", async () => {
+    host();
+    await show();
+    await open();
+    const menu = screen.getByRole("menu", { name: "Screen to capture" });
+    expect(menu.closest(".pn-root")).not.toBeNull();
+    expect(menu).toHaveAttribute("data-oui-surface");
+  });
+
   it("refreshes at most every 2 s while open and stops when closed", async () => {
     const bridge = host();
     await show();

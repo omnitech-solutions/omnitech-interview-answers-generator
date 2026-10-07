@@ -42,3 +42,19 @@ if (
 afterEach(() => {
   cleanup();
 });
+
+// Radix (the component library's menus, popovers and tooltips) measures and
+// captures pointers; jsdom has neither.
+if (typeof window !== "undefined") {
+  const win = window as unknown as Record<string, unknown>;
+  win.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  const proto = Element.prototype as unknown as Record<string, unknown>;
+  proto.hasPointerCapture ??= () => false;
+  proto.setPointerCapture ??= () => undefined;
+  proto.releasePointerCapture ??= () => undefined;
+  proto.scrollIntoView ??= () => undefined;
+}

@@ -1,10 +1,16 @@
 // What a companion source light means: its real state, the reason the companion
 // reported, and what to do about it. Never just "disconnected".
-import { useEffect, useRef } from "react";
+import {
+  Button,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  Tag,
+} from "@oc-tech/omni-ui-components";
+import { useRef } from "react";
 import { Icon } from "../../icon";
-import { useMenuPlacement } from "./menu-placement";
 import type { SourceAdvice } from "./overlay-model";
-import { closeOnEscape, useDismiss } from "./use-dismiss";
+import { usePortalRoot } from "./panels/portal-root";
 
 export function SourcePopover({
   advice,
@@ -16,46 +22,55 @@ export function SourcePopover({
   action?: { label: string; run(): void } | undefined;
   onClose(): void;
 }) {
-  const root = useRef<HTMLDivElement>(null);
-  useDismiss(root, true, onClose);
-  useMenuPlacement(root, true);
-  useEffect(() => root.current?.focus(), []);
+  const panel = useRef<HTMLDivElement>(null);
+  const portal = usePortalRoot();
   return (
-    <div
-      ref={root}
-      className="ov-menu ov-popover ov-source-popover"
-      role="dialog"
-      tabIndex={-1}
-      aria-label={advice.title}
-      data-testid="source-popover"
-      onKeyDown={closeOnEscape(onClose)}
-    >
-      <div className="ov-popover-head">
-        <span className={`ov-dot ${advice.tone}`} aria-hidden="true" />
-        <strong>{advice.title}</strong>
-        <span className="ov-muted">{advice.state}</span>
-      </div>
-      <p className="ov-popover-text" data-testid="source-reason">
-        {advice.reason}
-      </p>
-      {advice.fix && (
-        <p className="ov-popover-text" data-testid="source-fix">
-          <Icon name="info" />
-          {advice.fix}
+    <Popover open onOpenChange={(open) => !open && onClose()}>
+      {/* The light's own wrapper is the anchor: the popover hangs from it. */}
+      <PopoverAnchor asChild>
+        <span className="ov-popover-anchor" ref={portal.ref} />
+      </PopoverAnchor>
+      <PopoverContent
+        ref={panel}
+        container={portal.container}
+        role="dialog"
+        aria-label={advice.title}
+        data-testid="source-popover"
+        className="ov-popover"
+        align="end"
+        tabIndex={-1}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          panel.current?.focus();
+        }}
+      >
+        <div className="ov-popover-head">
+          <span className={`ov-dot ${advice.tone}`} aria-hidden="true" />
+          <strong>{advice.title}</strong>
+          <Tag variant="filled">{advice.state}</Tag>
+        </div>
+        <p className="ov-popover-text" data-testid="source-reason">
+          {advice.reason}
         </p>
-      )}
-      {action && (
-        <button
-          type="button"
-          className="ov-button"
-          onClick={() => {
-            onClose();
-            action.run();
-          }}
-        >
-          {action.label}
-        </button>
-      )}
-    </div>
+        {advice.fix && (
+          <p className="ov-popover-text" data-testid="source-fix">
+            <Icon name="info" />
+            {advice.fix}
+          </p>
+        )}
+        {action && (
+          <Button
+            variant="outline"
+            buttonSize="sm"
+            onClick={() => {
+              onClose();
+              action.run();
+            }}
+          >
+            {action.label}
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

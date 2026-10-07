@@ -2,6 +2,9 @@
 // store and a scripted Studio: the sign-in screen with the locked toolbar and
 // footer, the waiting and local steps, the idle start screen and its gates, the
 // account menu, and the hand-off to the live window that is not changed.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AccountPermissions,
   AccountSignInState,
@@ -194,6 +197,10 @@ function configure() {
   vi.stubGlobal("fetch", globalFetch);
 }
 
+// The library menu opens on the press, as Radix does (a bare click does not).
+const openMenu = (trigger: HTMLElement) =>
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+
 async function show(
   query = "?host=native&panel=single&handsfree=1",
   path = "/t/local/p/interview/live/overlay",
@@ -260,7 +267,9 @@ describe("signed out", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "out");
     expect(
-      within(card).getByText("Sign in", { selector: "header" }),
+      within(card).getByText("Sign in", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(
       within(card).getByRole("heading", { name: "Sign in to start a session" }),
@@ -574,7 +583,9 @@ describe("idle: signed in, no live session", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "idle");
     expect(
-      within(card).getByText("No live session", { selector: "header" }),
+      within(card).getByText("No live session", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(server.calls.some((call) => call.startsWith("POST"))).toBe(false);
     // The toolbar is the same one, disabled, saying a session must start first.
@@ -601,7 +612,7 @@ describe("idle: signed in, no live session", () => {
     expect(chip).toHaveTextContent("Alex");
     expect(chip).toHaveTextContent("A");
     expect(chip).toBeEnabled();
-    fireEvent.click(chip);
+    openMenu(chip);
     const menu = screen.getByRole("menu", { name: "Account" });
     expect(menu).toHaveTextContent("Alex Morgan");
     expect(menu).toHaveTextContent("alex@example.test");
@@ -612,14 +623,40 @@ describe("idle: signed in, no live session", () => {
     ).toEqual(["Open Studio on the web", "Settings", "Sign out"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Settings" }));
     expect(host.settings).toHaveBeenCalled();
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Open Studio on the web" }),
     );
     expect(host.opened.at(-1)).toMatch(/\/t\/local\/p\/interview\/live$/);
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(host.calls).toContain("signOut");
+  });
+
+  it("the account menu is drawn inside the window's panel root as a hit-tested surface, and Escape gives focus back to the chip", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    const chip = screen.getByTestId("pn-chip");
+    openMenu(chip);
+    const menu = screen.getByRole("menu", { name: "Account" });
+    expect(menu.closest(".pn-root")).toBe(screen.getByTestId("pn-start-root"));
+    expect(menu).toHaveAttribute("data-oui-surface");
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Account" })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(chip).toHaveFocus();
+  });
+
+  it("Start stays clickable while blocked (pressing it says why), and the card keeps its hit region", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    expect(screen.getByTestId("pn-start")).toHaveClass("pn-start-card");
+    const css = readFileSync(join(__dirname, "start-panel.css"), "utf8");
+    expect(css).toMatch(
+      /button\.pn-start-go\[aria-disabled="true"\]\s*\{\s*pointer-events: auto;/,
+    );
   });
 
   it("a local profile: 'This Mac' chip, Rehearsal only, honest footer, sign out of the local profile", async () => {
@@ -638,7 +675,7 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByTestId("ov-status").textContent).not.toMatch(
       /nothing leaves/i,
     );
-    fireEvent.click(chip);
+    openMenu(chip);
     expect(
       within(screen.getByRole("menu", { name: "Account" }))
         .getAllByRole("menuitem")
@@ -659,7 +696,7 @@ describe("idle: signed in, no live session", () => {
     bridge();
     idleStudio();
     await show(undefined, undefined, { ...LOCAL, canSignOut: false });
-    fireEvent.click(screen.getByTestId("pn-chip"));
+    openMenu(screen.getByTestId("pn-chip"));
     const names = within(screen.getByRole("menu", { name: "Account" }))
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
