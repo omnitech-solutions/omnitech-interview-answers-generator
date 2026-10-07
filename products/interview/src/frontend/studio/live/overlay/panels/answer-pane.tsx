@@ -105,6 +105,22 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   // never the previous task's answer or stored screenshots.
   const drafting = s.open && s.tray.intent === "new" && s.tray.items.length > 0;
   const showSteps = !drafting && stepsShown(s);
+  // Always offered: what the AI may have missed (a warning when it named
+  // something, under the problem's kind) or the question whether it did
+  // (neutral, at the end of the answer).
+  const missingStrip = (
+    <MissingContextStrip
+      items={s.missing ?? []}
+      variant="native"
+      unavailable={missingUnavailable(s)}
+      onAction={(id) => {
+        if (id === "screenshot") s.press("attach");
+        else if (id === "context")
+          window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+        else s.dismissMissing();
+      }}
+    />
+  );
   const stopped =
     !s.phase && card && task && card.answerText === null && stoppedByYou(task);
   const newest = taskLabel(s.model.tasks.length);
@@ -340,19 +356,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 {card.stages[0].detail ? ` · ${card.stages[0].detail}` : ""}
               </p>
             )}
-            {s.missing && (
-              <MissingContextStrip
-                items={s.missing}
-                variant="native"
-                unavailable={missingUnavailable(s)}
-                onAction={(id) => {
-                  if (id === "screenshot") s.press("attach");
-                  else if (id === "context")
-                    window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
-                  else s.dismissMissing();
-                }}
-              />
-            )}
+            {(s.missing?.length ?? 0) > 0 && missingStrip}
             {card.constraints.some((each) => each.status === "current") && (
               <div className="pn-constraints">
                 <strong>Constraints:</strong>
@@ -425,6 +429,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 </Button>
               </div>
             )}
+            {(s.missing?.length ?? 0) === 0 && missingStrip}
             {area}
             <div className="pn-regenerate">
               <Button

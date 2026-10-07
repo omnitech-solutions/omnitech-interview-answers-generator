@@ -6,6 +6,7 @@
 // Supplying context REVISES the same task: the screenshot or typed text goes to
 // the task on show at its current revision. "Looks complete" only hides the
 // strip for that revision (see use-missing-context.ts).
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveMissingContext } from "@omnitech/interview-contracts";
 
 type Kind = LiveMissingContext[number]["kind"];
@@ -63,28 +64,38 @@ export function MissingContextStrip({
     return reason ? [{ id: action.id, reason }] : [];
   });
   return (
-    <div className={look.root} role="note" data-testid="missing-context">
-      <strong>The AI may be missing:</strong>
-      <ul>
-        {items.map((item) => (
-          <li key={item.kind}>
-            {MISSING_CONTEXT_LABEL[item.kind]}
-            {item.note ? `: ${item.note}` : ""}
-          </li>
-        ))}
-      </ul>
+    <div
+      className={look.root}
+      role="note"
+      data-testid="missing-context"
+      data-missing={items.length > 0 || undefined}
+    >
+      <strong>
+        {items.length > 0 ? "The AI may be missing:" : "Did AI miss anything?"}
+      </strong>
+      {items.length > 0 && (
+        <ul>
+          {items.map((item) => (
+            <li key={item.kind}>
+              {MISSING_CONTEXT_LABEL[item.kind]}
+              {item.note ? `: ${item.note}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className={look.actions}>
         {MISSING_CONTEXT_ACTIONS.map((action) => (
-          <button
+          <Button
             key={action.id}
-            type="button"
+            buttonSize="sm"
+            variant="outline"
             className={look.button}
             data-action={action.id}
             disabled={unavailable[action.id] !== undefined}
             onClick={() => onAction(action.id)}
           >
             {action.label}
-          </button>
+          </Button>
         ))}
       </div>
       {reasons.map(({ id, reason }) => (

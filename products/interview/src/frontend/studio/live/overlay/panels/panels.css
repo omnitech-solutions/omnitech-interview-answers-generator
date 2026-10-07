@@ -693,9 +693,14 @@
 .pn-missing {
   margin: 6px 0 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--pn-hair);
   border-radius: 8px;
-  background: var(--ov-chip);
+  background: var(--pn-chip);
+}
+/* Something named: a warning outline and background. */
+.pn-missing[data-missing="true"] {
+  border-color: var(--ov-amber, #f5c04a);
+  background: var(--pn-warn-bg);
 }
 .pn-missing ul {
   margin: 4px 0 6px;
@@ -705,10 +710,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-.pn-missing-actions .pn-bar-button {
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 3px 9px;
 }
 
 /* ---- The toolbar's controls: round translucent glass, no solid fills ---- */
