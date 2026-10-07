@@ -35,4 +35,11 @@ describe("the stacking scale", () => {
   it("is not changed by clear glass", () => {
     expect(block('.pn-root[data-glass="clear"]')).not.toMatch(/z-index/);
   });
+
+  it("keeps the panel root below the library's body-level popovers (z-50)", () => {
+    // The footer's End confirmation portals to <body>; a root above it would
+    // sit over the popover and take its clicks (found by the claims e2e).
+    const zIndex = Number(/z-index:\s*(\d+)/.exec(block(".pn-root"))?.[1]);
+    expect(zIndex).toBeLessThan(50);
+  });
 });
