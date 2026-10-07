@@ -302,4 +302,3 @@ export function useCanonicalDraft({
     listVersions,
   };
 }
-export type CanonicalDraft = ReturnType<typeof useCanonicalDraft>;

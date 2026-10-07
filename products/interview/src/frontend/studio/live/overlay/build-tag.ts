@@ -49,7 +49,3 @@ export function hostBuild(): StudioHostBuild | null {
   const build = studioHostInfo()?.host.build;
   return isStudioHostBuild(build) ? build : null;
 }
-
-// Read once per render of the host surface: the bridge is injected before the
-// page runs and does not change.
-export const currentBuildTag = (): BuildTag | null => buildTagOf(hostBuild());
