@@ -9,12 +9,15 @@ import { expect, test } from "../src/fixtures/panel-test";
 import { controlSession, startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import { say, settled, taskIdsOf } from "../src/helpers/tasks";
+import {
+  chooseCaptureMode,
+  expectCaptureMode,
+  openCaptureMenu,
+} from "../src/helpers/toolbar";
 import { SCRIPTED } from "../src/stack/scenarios";
 
 const apply = (page: Page) => page.getByTestId("apply-screenshots");
 const message = (page: Page) => page.getByRole("textbox", { name: "Message" });
-const modeMenu = (page: Page) =>
-  page.getByRole("button", { name: /^Capture mode:/ });
 
 // One screenshot staged and applied: a NEW task from the toolbar's Analyze.
 async function analyzeAndApply(panel: {
@@ -105,7 +108,7 @@ test("@native native Capture mode menu: Auto starts the shell's screen watch and
 }) => {
   await control.scenario("plain-answer");
   const { page, host, id } = await openPanel({ auto: "off" });
-  await expect(modeMenu(page)).toHaveText("Manual");
+  await expectCaptureMode(page, "Manual");
   await host.clear();
 
   // Manual: a changed screen is not captured.
@@ -115,9 +118,8 @@ test("@native native Capture mode menu: Auto starts the shell's screen watch and
 
   // Choose Auto: the watch starts, the menu now says Auto, and a change is
   // captured and analysed as a new task.
-  await modeMenu(page).click();
-  await page.getByRole("menuitemradio", { name: /^Auto / }).click();
-  await expect(modeMenu(page)).toHaveText("Auto");
+  await chooseCaptureMode(page, "Auto");
+  await expectCaptureMode(page, "Auto");
   await expect
     .poll(async () => (await host.calls("screenWatchStart")).length)
     .toBeGreaterThan(0);
@@ -132,9 +134,8 @@ test("@native native Capture mode menu: Auto starts the shell's screen watch and
   await expect(page.getByText(SCRIPTED.plain).first()).toBeVisible();
 
   // Back to Manual: the watch stops and the next change captures nothing.
-  await modeMenu(page).click();
-  await page.getByRole("menuitemradio", { name: /^Manual / }).click();
-  await expect(modeMenu(page)).toHaveText("Manual");
+  await chooseCaptureMode(page, "Manual");
+  await expectCaptureMode(page, "Manual");
   await expect
     .poll(async () => (await host.calls("screenWatchStop")).length)
     .toBeGreaterThan(0);
@@ -154,7 +155,7 @@ test("@native native Add screen to T1: disabled with its reason before any task,
   const { page, id, analyze } = await openPanel({ auto: "off" });
 
   // Before any task the item is disabled and says why; pressing it does nothing.
-  await modeMenu(page).click();
+  await openCaptureMenu(page);
   const item = page.getByRole("menuitem", { name: /^Add screen to / });
   await expect(item).toHaveAttribute("aria-disabled", "true");
   await expect(item).toContainText("Needs a task first");
@@ -166,7 +167,7 @@ test("@native native Add screen to T1: disabled with its reason before any task,
   const first = await settled(id, 1);
   const taskId = taskIdsOf(first)[0] as string;
 
-  await modeMenu(page).click();
+  await openCaptureMenu(page);
   const enabled = page.getByRole("menuitem", { name: "Add screen to T1" });
   await expect(enabled).not.toHaveAttribute("aria-disabled", "true");
   await enabled.click();

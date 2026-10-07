@@ -20,8 +20,10 @@ async function openPanel(
   return panel;
 }
 
+// The footer's End confirmation is the library's popover (a dialog that carries
+// its question as text, not as a name).
 const endDialog = (page: Page) =>
-  page.getByRole("alertdialog", { name: "End this session?" });
+  page.getByRole("dialog").filter({ hasText: "End this session?" });
 
 test("@native native footer Pause and Resume: toggle the session on the server and the engine and strip follow", async ({
   native,
@@ -49,10 +51,9 @@ test("@native native footer Pause and Resume: toggle the session on the server a
   await expect(strip).toContainText(
     "Nothing is captured and no new work starts",
   );
-  await expect(page.getByRole("timer")).toHaveAttribute(
-    "aria-label",
-    /, paused$/,
-  );
+  await expect(
+    page.getByRole("group", { name: /^Session time .*, paused$/ }),
+  ).toBeVisible();
 
   // The strip's own Resume resumes the same session (and re-arms the engine).
   await host.clear();

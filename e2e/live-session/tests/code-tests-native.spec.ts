@@ -15,6 +15,12 @@ import { SCRIPTED } from "../src/stack/scenarios";
 const handle = (page: Page): Locator =>
   page.getByRole("button", { name: "Tests", exact: true });
 const drawer = (page: Page): Locator => page.getByTestId("pn-tests-drawer");
+// The code card's file tabs: the generated test source is its Tests file (the
+// drawer holds the counts and rows, not the source).
+const testsFile = (page: Page): Locator =>
+  page
+    .getByRole("group", { name: "File" })
+    .getByRole("button", { name: /test|spec/i });
 
 // A coding task through the toolbar: one screenshot staged and applied, then
 // wait for the server to finish the solution action (the runner takes a few
@@ -75,8 +81,9 @@ test("@native native Tests drawer: |>| opens and closes it, the counts and the t
     "Generated tests passing is not full verification.",
   );
   await expect(drawer(page).getByTestId("pn-tests-notverified")).toHaveCount(0);
+  await testsFile(page).click();
   await expect(
-    drawer(page).getByRole("textbox", { name: "Generated test source" }),
+    page.getByRole("textbox", { name: "Generated test source" }),
   ).toContainText(`it("${SCRIPTED.testName}"`);
 
   // The choice is the viewer's own and survives a reload.
@@ -104,13 +111,15 @@ test("@native native Tests drawer Copy tests: the clipboard holds the generated 
   );
   await panel.context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await codingTask(panel);
-  await handle(panel.page).click();
+  // The Tests file is shown; the panel's Copy puts the shown file on the
+  // clipboard.
+  await testsFile(panel.page).click();
 
-  await drawer(panel.page).getByTestId("pn-tests-copy").click();
+  await panel.page.getByRole("button", { name: "Copy code" }).click();
 
-  await expect(drawer(panel.page).getByTestId("pn-tests-copy")).toHaveText(
-    "Copied",
-  );
+  await expect(
+    panel.page.getByRole("button", { name: "Copied" }).first(),
+  ).toBeVisible();
   const copied = await panel.page.evaluate(() =>
     navigator.clipboard.readText(),
   );

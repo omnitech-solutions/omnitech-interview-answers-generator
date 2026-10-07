@@ -11,6 +11,14 @@ import { say, settled, taskIdsOf } from "../src/helpers/tasks";
 import { SCRIPTED } from "../src/stack/scenarios";
 
 const NOTE = (n: number) => `S${n} captured: no question found`;
+// In the native chat a capture with no question is an event line of the
+// transcript, one per capture: "S1 · no question found · 14:05".
+const EVENT = (n: number) => `S${n} · no question found`;
+const markers = (page: Page) =>
+  page
+    .getByTestId("pn-chat")
+    .locator('[data-slot="transcript-event"]')
+    .filter({ hasText: "no question found" });
 const AUTO_LINE =
   "No question on screen. Auto is holding until the screen changes.";
 const MANUAL_LINE = "No question found in the last capture.";
@@ -151,9 +159,9 @@ test("@native native no-question in Manual: the pane says what the last capture 
 
   await expect(page.getByTestId("pn-no-question")).toHaveText(MANUAL_LINE);
   await expect.poll(async () => await answers(id)).toEqual(["no-question"]);
-  const marker = page.getByTestId("pn-marker");
+  const marker = markers(page);
   await expect(marker).toHaveCount(1);
-  await expect(marker).toHaveText(NOTE(1));
+  await expect(marker).toContainText(EVENT(1));
   // No task anywhere: no chat answer, no chip group, the empty pane.
   await expect(page.getByRole("button", { name: /^Studio · T/ })).toHaveCount(
     0,
@@ -162,16 +170,18 @@ test("@native native no-question in Manual: the pane says what the last capture 
   await expect(page.getByTestId("pn-analysis-empty")).toBeVisible();
 
   // Manual does not hold: a second press is a second capture, a second model
-  // call and a second note; a third collapses them.
+  // call and a second note; a third is a third (the transcript draws one event
+  // per capture; the old "n captures with no question" collapse is not drawn).
   await analyze.click();
   await apply.click();
   await expect.poll(async () => (await control.calls()).length).toBe(2);
-  await expect(marker).toHaveText(`${NOTE(1)} · ${NOTE(2)}`);
+  await expect(marker).toHaveCount(2);
+  await expect(marker).toContainText([EVENT(1), EVENT(2)]);
   await analyze.click();
   await apply.click();
   await expect.poll(async () => (await control.calls()).length).toBe(3);
-  await expect(marker).toHaveText(/3 captures with no question/);
-  await expect(marker).toHaveCount(1);
+  await expect(marker).toHaveCount(3);
+  await expect(marker).toContainText([EVENT(1), EVENT(2), EVENT(3)]);
   expect((await host.calls("captureScreen")).length).toBe(3);
 
   // A real question after them is T1 (the notes took no number).
@@ -258,5 +268,6 @@ test("@native native Auto after a no-question capture: it holds through a small 
     .poll(async () => await answers(id))
     .toEqual(["no-question", "no-question"]);
   await expect(page.getByTestId("pn-no-question")).toHaveText(AUTO_LINE);
-  await expect(page.getByTestId("pn-marker")).toHaveCount(1);
+  // Two captures, two events (the old row joined consecutive notes into one).
+  await expect(markers(page)).toHaveCount(2);
 });

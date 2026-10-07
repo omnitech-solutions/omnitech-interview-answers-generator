@@ -14,21 +14,53 @@ import { installHostShim, nativeOverlayUrl } from "../src/fixtures/host-shim";
 import { expect, test } from "../src/fixtures/test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
+import { expectCaptureMode } from "../src/helpers/toolbar";
 import { SCRIPTED } from "../src/stack/scenarios";
 
-// What the keys popover must say, mirrored from the product table so a change
-// to a label or chord (or a row dropped) fails here, not silently.
-const POPOVER: ReadonlyArray<[label: string, chord: string]> = [
-  ["Analyze / stop", "⌘⇧S"],
-  ["Listening on or off", "⌥R"],
-  ["See-through on or off", "⌘⇧I"],
-  ["Show or hide", "⌘⇧V"],
-  ["Focus chat", "⌘⇧C"],
-  ["Clear session memory", "⌘⇧\\"],
-  ["Previous answer style", "⌘↑"],
-  ["Next answer style", "⌘↓"],
-  ["Auto on or off", "⌥⇧U"],
-  ["Settings", "⌘,"],
+// What the shortcut list must say, mirrored from the product tables (the
+// page's own Alt chords for the commands, the shell's chords for Show or hide
+// and Settings; toolbar-config.ts SHORTCUT_GROUPS) so a change to a label, a
+// chord or a group fails here, not silently. Clear session memory closes the
+// App group, in the destructive colour.
+const SHORTCUT_GROUPS: ReadonlyArray<
+  [group: string, rows: ReadonlyArray<[label: string, chord: string]>]
+> = [
+  [
+    "Capture",
+    [
+      ["Capture & analyze", "⌥⇧A"],
+      ["Generate the solution", "⌥⇧S"],
+    ],
+  ],
+  [
+    "Listening",
+    [
+      ["Microphone on or off", "⌥R"],
+      ["Auto (hands-free) on or off", "⌥⇧H"],
+    ],
+  ],
+  [
+    "View",
+    [
+      ["See-through on or off", "⌥⇧I"],
+      ["Focus the chat", "⌥⇧F"],
+    ],
+  ],
+  [
+    "Answer style",
+    [
+      ["Next skill", "⌥]"],
+      ["Previous skill", "⌥["],
+    ],
+  ],
+  [
+    "App",
+    [
+      ["Show or hide", "⌘⇧V"],
+      ["Settings", "⌘,"],
+      ["Clear session memory", "⌥⇧C"],
+    ],
+  ],
 ];
 
 // A native panel on its own session, with the recording shim and the browser
@@ -85,8 +117,6 @@ const nextPress = (page: Page): Promise<void> =>
     COMMAND_WINDOW_MS,
   );
 
-const modeButton = (page: Page, name: "Auto" | "Manual") =>
-  page.getByRole("button", { name: `Capture mode: ${name}` });
 const styleButton = (page: Page) =>
   page.getByRole("button", { name: /^Answer style:/ });
 const micButton = (page: Page) =>
@@ -98,14 +128,26 @@ test("@native keys popover: lists every shortcut the shell registers, with its c
 }) => {
   const { context, page, toolbar } = await openPanel(browser, stack);
   await toolbar.getByRole("button", { name: "Keyboard shortcuts" }).click();
-  const rows = page.locator(".pn-keys-list li");
-  await expect(rows).toHaveCount(POPOVER.length);
-  for (const [index, [label, chord]] of POPOVER.entries()) {
-    const row = rows.nth(index);
-    await expect(row.locator("span").first()).toHaveText(label);
-    await expect(row.locator("kbd")).toHaveText(chord);
-    await expect(row).not.toHaveAttribute("aria-disabled", "true");
+  const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(dialog).toBeVisible();
+  const groups = dialog.getByRole("group");
+  await expect(groups).toHaveCount(SHORTCUT_GROUPS.length);
+  for (const [at, [name, rows]] of SHORTCUT_GROUPS.entries()) {
+    const group = groups.nth(at);
+    await expect(group).toHaveAccessibleName(name);
+    const items = group.locator('[data-slot="action-menu-item"]');
+    await expect(items).toHaveCount(rows.length);
+    for (const [index, [label, chord]] of rows.entries()) {
+      const row = items.nth(index);
+      await expect(row).toContainText(label);
+      await expect(row.locator("kbd")).toHaveText(chord);
+      await expect(row).not.toHaveAttribute("aria-disabled", "true");
+    }
   }
+  const clear = groups.last().locator('[data-slot="action-menu-item"]').last();
+  await expect(clear).toHaveAttribute("data-tone", "danger");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
   await context.close();
 });
 
@@ -126,20 +168,20 @@ test("@native shortcut ⌥⇧U Auto on or off: toggles the mode and starts and s
   stack,
 }) => {
   const { context, page, host } = await openPanel(browser, stack);
-  await expect(modeButton(page, "Auto")).toBeVisible();
+  await expectCaptureMode(page, "Auto");
   await expect
     .poll(async () => (await host.calls("screenWatchStart")).length)
     .toBe(1);
 
   await host.fireIntent("auto.toggle");
-  await expect(modeButton(page, "Manual")).toBeVisible();
+  await expectCaptureMode(page, "Manual");
   await expect
     .poll(async () => (await host.calls("screenWatchStop")).length)
     .toBe(1);
 
   await nextPress(page);
   await host.fireIntent("auto.toggle");
-  await expect(modeButton(page, "Auto")).toBeVisible();
+  await expectCaptureMode(page, "Auto");
   await expect
     .poll(async () => (await host.calls("screenWatchStart")).length)
     .toBe(2);
@@ -156,7 +198,7 @@ test("@native shortcut ⌘⇧S Analyze: the intent captures through the shell an
   const { context, page, host, id } = await openPanel(browser, stack, {
     auto: "off",
   });
-  await expect(modeButton(page, "Manual")).toBeVisible();
+  await expectCaptureMode(page, "Manual");
   await host.clear();
 
   await host.fireIntent("capture.analyze");
@@ -265,7 +307,7 @@ test("@native shortcut ⌥R Listening on or off: in Manual the intent starts and
   const { context, page, host, spies } = await openPanel(browser, stack, {
     auto: "off",
   });
-  await expect(modeButton(page, "Manual")).toBeVisible();
+  await expectCaptureMode(page, "Manual");
   await expect(micButton(page)).toHaveAccessibleName("Start microphone");
   await expect.poll(async () => (await spies.speech.stats()).listening).toBe(0);
 
@@ -340,13 +382,13 @@ test("@native web chords on the panel: Alt+Shift+F focuses the chat, Alt+Shift+H
   await expect(page.getByRole("textbox", { name: "Message" })).toBeFocused();
 
   await page.keyboard.press("Alt+Shift+H");
-  await expect(modeButton(page, "Manual")).toBeVisible();
+  await expectCaptureMode(page, "Manual");
   await expect
     .poll(async () => (await host.calls("screenWatchStop")).length)
     .toBe(1);
   await nextPress(page);
   await page.keyboard.press("Alt+Shift+H");
-  await expect(modeButton(page, "Auto")).toBeVisible();
+  await expectCaptureMode(page, "Auto");
 
   await page.keyboard.press("Alt+BracketRight");
   await expect(styleButton(page)).toHaveAccessibleName(
@@ -373,7 +415,7 @@ test("@native web chord Alt+Shift+A captures and analyzes, and Alt+Shift+S gener
   const { context, page, host, id } = await openPanel(browser, stack, {
     auto: "off",
   });
-  await expect(modeButton(page, "Manual")).toBeVisible();
+  await expectCaptureMode(page, "Manual");
   await page.locator("body").click({ position: { x: 4, y: 4 } });
   await host.clear();
 
