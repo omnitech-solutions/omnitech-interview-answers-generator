@@ -14,8 +14,6 @@ const UNSUPPORTED: readonly { value: string; label: string }[] = [
   { value: "java", label: "Java" },
   { value: "cpp", label: "C++" },
   { value: "go", label: "Go" },
-  { value: "php", label: "PHP" },
-  { value: "ruby", label: "Ruby" },
 ];
 
 export type LanguageOption = {

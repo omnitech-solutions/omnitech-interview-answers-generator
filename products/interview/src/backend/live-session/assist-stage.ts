@@ -464,6 +464,8 @@ export const LANGUAGE_POLICY: Record<LiveOwnerLanguage, string> = {
     'The candidate wants any code in TypeScript: when the category is coding, set codingBrief "language" to "typescript".',
   react:
     'The candidate wants any code as a React component: when the category is coding, set codingBrief "language" to "react".',
+  php: 'The candidate wants any code in PHP: when the category is coding, set codingBrief "language" to "php".',
+  ruby: 'The candidate wants any code in Ruby: when the category is coding, set codingBrief "language" to "ruby".',
 };
 
 export interface AssistStage {

@@ -9,7 +9,7 @@ import {
   LIVE_OWNER_LANGUAGES,
   type LiveOwnerLanguage,
 } from "@omnitech/interview-contracts";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../../icon";
 import { revisionLine, revisionList } from "../../shared/revisions";
 import { nativeChord } from "../../shared/shortcuts";
@@ -51,15 +51,26 @@ export function TaskBar({ s }: { s: PanelSession }) {
   if (!current && !drafting) return null;
   const currentText = drafting ? "Select problem…" : current?.text;
   const running = card.stages.some((stage) => stage.state === "running");
-  // The language on show: the task's code when it has some, else the hint.
-  const shownLanguage: LiveOwnerLanguage | "auto" =
-    !drafting && card.code && isOwnerLanguage(card.code.language)
-      ? card.code.language
-      : s.hints.language;
+  // The menu shows and sets the hint in force. Switching to a problem sets the
+  // hint to that problem's code language (the effect below), so the menu reads
+  // the problem on show and a choice made afterwards still sticks.
+  const shownLanguage: LiveOwnerLanguage | "auto" = s.hints.language;
   const languageLabel =
     shownLanguage === "auto"
       ? "Language: auto"
       : LIVE_OWNER_LANGUAGE_LABELS[shownLanguage];
+  const taskLanguage =
+    !drafting && card.code && isOwnerLanguage(card.code.language)
+      ? card.code.language
+      : null;
+  const lastTask = useRef<string | null>(null);
+  const setLanguage = s.setLanguage;
+  useEffect(() => {
+    const id = drafting ? null : (current?.taskId ?? null);
+    if (id === lastTask.current) return;
+    lastTask.current = id;
+    if (id && taskLanguage) setLanguage(taskLanguage);
+  }, [current?.taskId, drafting, taskLanguage, setLanguage]);
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">
       <Popconfirm

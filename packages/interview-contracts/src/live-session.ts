@@ -280,12 +280,19 @@ export const LIVE_OWNER_SKILL_LABELS: Record<LiveOwnerSkill, string> = {
 // the owner hints, the assist stage's coding brief and the coding stage's
 // solution all import it, so a language added here is offered, accepted and
 // generated everywhere or nowhere.
-export const LIVE_OWNER_LANGUAGES = ["typescript", "react"] as const;
+export const LIVE_OWNER_LANGUAGES = [
+  "typescript",
+  "react",
+  "php",
+  "ruby",
+] as const;
 export const liveOwnerLanguageSchema = z.enum(LIVE_OWNER_LANGUAGES);
 export type LiveOwnerLanguage = z.infer<typeof liveOwnerLanguageSchema>;
 export const LIVE_OWNER_LANGUAGE_LABELS: Record<LiveOwnerLanguage, string> = {
   typescript: "TypeScript",
   react: "React",
+  php: "PHP",
+  ruby: "Ruby",
 };
 // A hint value on the wire: a closed value, or "auto". The owner's hints are
 // sticky within a task: the newest input that carries one wins and an input
