@@ -52,6 +52,29 @@ describe("task classification", () => {
     expect(task?.answer).toBeNull();
   });
 
+  // A draft still being written shows as the answer so far; the run stays
+  // running beside it and the claims come with the publish.
+  it("shows the draft so far from an in-flight action's progress", () => {
+    const [task] = deriveTasks(
+      [
+        action({
+          actionKind: "draft-answer",
+          dispatchStatus: "in_flight",
+          progress: { draft: "- First point\n- Sec" },
+        }),
+      ],
+      "active",
+    );
+    expect(task?.answer).toMatchObject({
+      draft: "- First point\n- Sec",
+      claims: [],
+    });
+    expect(task?.revisions[0]?.answerRun?.state).toBe("running");
+    // The partial answer carries no category of its own; the publish
+    // classifies the task.
+    expect(task?.kind).toBe("other");
+  });
+
   it("treats a task with a coding action as a programming challenge", () => {
     const [task] = deriveTasks(
       [

@@ -5,6 +5,7 @@
 // fixture. Tests, not production code, import this.
 import { randomUUID } from "node:crypto";
 import type {
+  AiEvent,
   AiExecution,
   AiExecutionGateway,
   AiExecutionRequest,
@@ -113,7 +114,21 @@ export function createFakeGateway(
       };
     },
     streamStructured: unsupported,
-    stream: unsupported,
+    // The draft-answer stage streams (session-dispatch.ts): the canned result
+    // is written as text in two deltas, then completed, exactly as a runtime
+    // writes the structured-output JSON. It goes through `this.execute`, so a
+    // suite that wraps execute (a hold, a count) still sees every call.
+    async *stream<T = unknown>(
+      this: AiExecutionGateway,
+      request: AiExecutionRequest,
+    ): AsyncIterable<AiEvent<T>> {
+      const execution = await this.execute<T>(request);
+      const text = JSON.stringify(execution.result) ?? "";
+      const half = Math.ceil(text.length / 2);
+      yield { type: "text-delta", text: text.slice(0, half) };
+      yield { type: "text-delta", text: text.slice(half) };
+      yield { type: "completed", result: execution.result };
+    },
     cancel: async () => undefined,
     resume: unsupported,
     listAvailableTargets: async () => [],

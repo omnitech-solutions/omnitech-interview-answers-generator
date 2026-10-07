@@ -251,11 +251,32 @@ describe("talking-points policy", () => {
     expect(system).toContain("never bold a whole sentence or a clause");
   });
 
-  it("bounds the draft to 30-60 seconds, 60-90 only for a multi-part question", () => {
+  it("bounds the draft to 30-60 seconds, 60-90 only for background or a multi-part question", () => {
     expect(system).toContain("30-60 seconds");
     expect(system).toContain("60-90 seconds");
-    expect(system).toContain("only for a question with several distinct parts");
+    expect(system).toContain(
+      "only for background or a question with several distinct parts",
+    );
     expect(system).toContain("exactly three points");
+  });
+
+  it("drafts a background question as a five-point 60-90 second introduction", () => {
+    expect(system).toContain("background uses five");
+    expect(system).toContain("FIVE points, 60-90 seconds");
+    expect(system).toContain("who I am now");
+    expect(system).toContain("what I am looking for next");
+  });
+
+  it("always tells the closest approved story for a STAR question, never four placeholders", () => {
+    expect(system).toContain("ALWAYS tell a story");
+    expect(system).toContain("never all four parts");
+    expect(system).toContain('ending "(suggested)"');
+  });
+
+  it("asks for the object through the structured-output tool in the first turn, never as text first", () => {
+    expect(system).toContain("produce the object ONLY through that tool");
+    expect(system).toContain("in your first turn");
+    expect(system).toContain("never write the object as text first");
   });
 
   it("shapes STAR, logistics and questions-to-ask as points", () => {
@@ -288,9 +309,10 @@ describe("the device window", () => {
   const manySources = snapshotOf({ preferences: CANDIDATE_PREFERENCES });
 
   it("shrinks the sources (whole entries only) and never truncates one mid-text", () => {
-    // About 3.6 KB of spoken text leaves little room in the device window.
+    // The policy text alone is about 9 KB of the 12 KB device window; 1.5 KB
+    // of spoken text leaves room for only a few whole sources.
     const text = "describe the order service migration to PostgreSQL ".repeat(
-      70,
+      30,
     );
     const remote = promptOf(stage.prepare(input(text, manySources)));
     expect(remote.byteCount).toBeGreaterThan(DEVICE_MAX_PROMPT_BYTES);
@@ -310,6 +332,16 @@ describe("the device window", () => {
   });
 
   it("refuses, never truncates, a prompt that cannot fit even with no source", () => {
+    // About 3.6 KB of spoken text no longer fits beside the policy text, even
+    // with every source dropped.
+    const crowded = stage.prepare(
+      input(
+        "describe the order service migration to PostgreSQL ".repeat(70),
+        manySources,
+        { deviceOnly: true },
+      ),
+    );
+    expect(crowded).toMatchObject({ ok: false, reason: "prompt_too_large" });
     // Three-byte characters: 6,000 of them are 18 KB on their own.
     const text = "字".repeat(MAX_CAPTURED_CHARS);
     const device = stage.prepare(
@@ -361,6 +393,18 @@ const violationsOf = (
   const result = check(raw, snapshot, captured);
   if (result.ok) throw new Error("expected a rejection");
   return result.violations;
+};
+// Grounding never withholds an answer (owner's rule, 2026-10-07): what the
+// verification rejects is subtracted and the rest is published. This returns
+// the published draft, or fails the test naming the violations.
+const publishedOf = (
+  raw: unknown,
+  snapshot = SNAPSHOT,
+  captured: string[] = [],
+) => {
+  const result = check(raw, snapshot, captured);
+  if (!result.ok) throw new Error(result.violations.join(","));
+  return result.draft;
 };
 
 describe("assist output validation", () => {
@@ -475,13 +519,15 @@ describe("assist output validation", () => {
     expect(JSON.stringify(violations)).not.toContain("CANARY");
   });
 
-  it("accepts a supported matrix-backed claim and rejects a reference that does not support its claim", () => {
+  it("keeps a supported matrix-backed claim and drops one whose reference does not support it, keeping the others", () => {
     expect(
       check(output({ category: "experience-story", claims: [migrationClaim] }))
         .ok,
     ).toBe(true);
-    // The cited entry exists and is quoted verbatim, but is about mentoring.
-    const violations = violationsOf(
+    // The cited entry exists and is quoted verbatim, but is about mentoring:
+    // that claim is gone (rejected at claims.0.refs.0), the supported one and
+    // the draft are published.
+    const published = publishedOf(
       output({
         category: "experience-story",
         claims: [
@@ -490,30 +536,35 @@ describe("assist output validation", () => {
             text: "Owned the Kubernetes platform for the company",
             refs: [refTo(MENTOR)],
           },
+          migrationClaim,
         ],
       }),
     );
-    expect(violations).toContain("claims.0.refs.0:unsupported_reference");
+    expect(published.claims).toEqual([migrationClaim]);
+    expect(published.sections).toEqual([
+      { kind: "matrix-backed", text: migrationClaim.text },
+    ]);
+    expect(published.draft).toBe("A short spoken outline.");
   });
 
-  it("rejects an invented entry id and a fabricated quote", () => {
+  it("drops a claim with a fabricated quote or an invented entry id, and publishes the draft without it", () => {
     const fabricated = { ...refTo(MIGRATION), quote: "Ran the whole company" };
-    expect(
-      violationsOf(
-        output({ claims: [{ ...migrationClaim, refs: [fabricated] }] }),
-      ),
-    ).toContain("claims.0.refs.0:quote_mismatch");
+    const quoteMismatch = publishedOf(
+      output({ claims: [{ ...migrationClaim, refs: [fabricated] }] }),
+    );
+    expect(quoteMismatch.claims).toEqual([]);
+    expect(quoteMismatch.draft).toBe("A short spoken outline.");
     // An invented id with a fabricated quote has nothing to re-bind to.
     const unknown = {
       ...refTo(MIGRATION),
       sourceId: "0".repeat(64),
       quote: "Ran the whole company",
     };
-    expect(
-      violationsOf(
-        output({ claims: [{ ...migrationClaim, refs: [unknown] }] }),
-      ),
-    ).toContain("claims.0.refs.0:unknown_reference");
+    const unknownRef = publishedOf(
+      output({ claims: [{ ...migrationClaim, refs: [unknown] }] }),
+    );
+    expect(unknownRef.claims).toEqual([]);
+    expect(JSON.stringify(unknownRef)).not.toContain("Ran the whole company");
   });
 
   it("re-binds an invented id whose quote is one approved entry, and publishes the true ref", () => {
@@ -558,49 +609,78 @@ describe("STAR outline (leadership-behavioural)", () => {
     expect(check(leadership())).toMatchObject({ ok: true });
   });
 
-  it("P8: element text the cited entries do not support is rejected, whatever claim it cites", () => {
-    expect(
-      violationsOf(
-        leadership({
-          claims: [migrationClaim],
-          star: star({
-            situation: element("The datacentre flooded overnight.", 0),
-            task: element("Rescue the entire payments platform.", 0),
-            action: element("Led the staged migration.", 0),
-            result: element("Executives awarded a promotion.", 0),
-          }),
+  it("P8: element text the cited entries do not support strips the whole outline and its claims; the draft is published", () => {
+    const published = publishedOf(
+      leadership({
+        claims: [migrationClaim],
+        star: star({
+          situation: element("The datacentre flooded overnight.", 0),
+          task: element("Rescue the entire payments platform.", 0),
+          action: element("Led the staged migration.", 0),
+          result: element("Executives awarded a promotion.", 0),
         }),
-      ),
-    ).toEqual([
-      "star.situation:unsupported_element",
-      "star.task:unsupported_element",
-      "star.result:unsupported_element",
-    ]);
+      }),
+    );
+    // The invented story is nowhere in what is published.
+    expect(published.star).toBeNull();
+    expect(published.claims).toEqual([]);
+    expect(published.sections).toEqual([]);
+    expect(JSON.stringify(published)).not.toContain("flooded");
+    expect(JSON.stringify(published)).not.toContain("promotion");
+    expect(published.draft).toBe("A short spoken outline.");
   });
 
-  it("P1/P2: the spoken draft is grounded whatever category the model chose", () => {
-    expect(
-      violationsOf(
-        output({
-          category: "experience-story",
-          draft: "At Example Corp I led 2500 engineers and cut costs by 70%.",
-        }),
-        SNAPSHOT,
-        ["We have 2500 engineers"],
-      ),
-    ).toEqual(["draft:spoken_figure", "draft:personal_claim_unsourced"]);
-    const disguised = violationsOf(
+  it("P1/P2: a draft point the grounding rejects is dropped and the rest is published, whatever the category", () => {
+    const published = publishedOf(
+      output({
+        category: "experience-story",
+        draft: [
+          "- I led the migration of the order service to PostgreSQL.",
+          "- I led 2500 engineers and cut costs by 70%.",
+        ].join("\n"),
+        claims: [migrationClaim],
+      }),
+      SNAPSHOT,
+      ["We have 2500 engineers"],
+    );
+    expect(published.draft).toBe(
+      "- I led the migration of the order service to PostgreSQL.",
+    );
+    expect(published.draft).not.toContain("2500");
+    expect(published.draft).not.toContain("70%");
+    expect(published.claims).toEqual([migrationClaim]);
+  });
+
+  it("P1/P2: a one-point draft that still fails is published without its claims, never withheld", () => {
+    // Nothing can be subtracted from a single point: the spoken draft stays,
+    // its evidence chips do not (owner's rule: grounding never blocks).
+    const published = publishedOf(
+      output({
+        category: "experience-story",
+        draft: "At Example Corp I led 2500 engineers and cut costs by 70%.",
+        claims: [migrationClaim],
+      }),
+      SNAPSHOT,
+      ["We have 2500 engineers"],
+    );
+    expect(published.claims).toEqual([]);
+    expect(published.sections).toEqual([]);
+    const disguised = publishedOf(
       output({
         category: "other",
         draft: "My expected salary is 150k and my notice period is 3 months.",
       }),
     );
-    expect(disguised).toContain("draft:preference_only_topic");
-    expect(disguised).toContain("category:logistics_required");
+    expect(disguised.category).toBe("other");
+    expect(disguised.claims).toEqual([]);
+    expect(disguised.logistics).toBeNull();
   });
 
-  it("requires a STAR object for leadership-behavioural", () => {
-    expect(violationsOf(leadership({ star: null }))).toContain("star:required");
+  it("publishes a leadership-behavioural answer without its STAR object when the model gave none", () => {
+    const published = publishedOf(leadership({ star: null }));
+    expect(published.star).toBeNull();
+    expect(published.claims).toEqual([]);
+    expect(published.draft).toBe("A short spoken outline.");
   });
 
   it("drops a STAR outside the categories that use one, and publishes the answer", () => {
@@ -619,17 +699,19 @@ describe("STAR outline (leadership-behavioural)", () => {
       claims: [migrationClaim],
     });
     expect(check(missing)).toMatchObject({ ok: true });
-    // A missing element that still carries a story is rejected.
-    expect(
-      violationsOf(
-        leadership({
-          star: star({
-            result: element("We cut costs by a third.", 0),
-            missing: ["result"],
-          }),
+    // A missing element that still carries a story loses the whole outline
+    // and the claims; the invented sentence is published nowhere.
+    const published = publishedOf(
+      leadership({
+        star: star({
+          result: element("We cut costs by a third.", 0),
+          missing: ["result"],
         }),
-      ),
-    ).toContain("star.result:missing_element_has_content");
+      }),
+    );
+    expect(published.star).toBeNull();
+    expect(published.claims).toEqual([]);
+    expect(JSON.stringify(published)).not.toContain("a third");
   });
 
   // The experience matrix never blocks an answer: an element it cannot stand
@@ -661,10 +743,13 @@ describe("STAR outline (leadership-behavioural)", () => {
     expect(bare.draft.star?.missing).toContain("task");
   });
 
-  it("still rejects out-of-range claim indexes, and strips a figure the cited claims do not carry", () => {
-    expect(
-      violationsOf(leadership({ star: star({ action: element("Led.", 9) }) })),
-    ).toContain("star.action.claimIndexes:out_of_range");
+  it("strips an outline with an out-of-range claim index, and a figure the cited claims do not carry", () => {
+    const outOfRange = publishedOf(
+      leadership({ star: star({ action: element("Led.", 9) }) }),
+    );
+    expect(outOfRange.star).toBeNull();
+    expect(outOfRange.claims).toEqual([]);
+    expect(outOfRange.draft).toBe("A short spoken outline.");
     const result = check(
       leadership({
         star: star({ result: element("Latency fell by 73% overall.", 1) }),
@@ -843,17 +928,23 @@ describe("logistics", () => {
     ]);
   });
 
-  it("refuses a model category that hides an availability answer", () => {
-    expect(
-      violationsOf(
-        output({
-          category: "other",
-          draft: "I am available whenever you need me.",
-          claims: [],
-        }),
-        snapshotOf({ preferences: "" }),
-      ),
-    ).toContain("category:logistics_required");
+  it("publishes an availability answer under a model category other than logistics without claims or a logistics block", () => {
+    // The logistics cue is still detected (category:logistics_required), but
+    // it no longer withholds the spoken draft: it is published bare.
+    const published = publishedOf(
+      output({
+        category: "other",
+        draft: "I am available whenever you need me.",
+        claims: [
+          { kind: "general-knowledge", text: "Availability.", refs: [] },
+        ],
+      }),
+      snapshotOf({ preferences: "" }),
+    );
+    expect(published.category).toBe("other");
+    expect(published.claims).toEqual([]);
+    expect(published.logistics).toBeNull();
+    expect(published.draft).toBe("I am available whenever you need me.");
   });
 
   it("keeps uncited free text a suggestion rather than a preference value", () => {
@@ -877,13 +968,15 @@ describe("logistics", () => {
     ]);
   });
 
-  it("requires the logistics object and refuses it for other categories", () => {
+  it("still withholds a logistics answer without its object, and drops the object from any other category", () => {
+    // A logistics draft is rebuilt from preferences, so there is nothing to
+    // publish bare: this is one of the two withholds that remain.
     expect(violationsOf(logistics({ logistics: null }))).toContain(
       "logistics:required",
     );
-    expect(violationsOf(logistics({ category: "other" }))).toContain(
-      "logistics:unexpected",
-    );
+    const published = publishedOf(logistics({ category: "other" }));
+    expect(published.logistics).toBeNull();
+    expect(published.claims).toEqual([]);
   });
 
   it("lists everything missing and states no figure when no preference exists", () => {
@@ -1000,8 +1093,8 @@ describe("leaving a role", () => {
     expect(check(leaving())).toMatchObject({ ok: true });
   });
 
-  it("rejects a generated reason for leaving", () => {
-    const violations = violationsOf(
+  it("drops a generated reason for leaving and publishes the placeholder draft without it", () => {
+    const published = publishedOf(
       leaving({
         claims: [
           {
@@ -1009,20 +1102,27 @@ describe("leaving a role", () => {
             text: "I wanted a bigger challenge and more growth.",
             refs: [],
           },
+          placeholder,
         ],
       }),
     );
-    expect(violations).toContain("claims.0:generated_reason");
+    expect(published.claims).toEqual([placeholder]);
+    expect(JSON.stringify(published)).not.toContain("bigger challenge");
+    expect(published.draft).toContain(LEAVING_REASON_PLACEHOLDER);
   });
 
-  it("requires the placeholder in the draft itself", () => {
-    expect(
-      violationsOf(leaving({ draft: "I left for a better opportunity." })),
-    ).toContain("draft:missing_reason_placeholder");
+  it("publishes a draft that lacks the placeholder without its claims", () => {
+    // The placeholder rule (draft:missing_reason_placeholder) no longer
+    // withholds the draft: the spoken text stays, the evidence chips do not.
+    const published = publishedOf(
+      leaving({ draft: "I left for a better opportunity." }),
+    );
+    expect(published.draft).toBe("I left for a better opportunity.");
+    expect(published.claims).toEqual([]);
   });
 
-  it("rejects disparagement of an employer", () => {
-    const violations = violationsOf(
+  it("drops a claim that disparages an employer and keeps the rest", () => {
+    const published = publishedOf(
       leaving({
         claims: [
           placeholder,
@@ -1034,9 +1134,8 @@ describe("leaving a role", () => {
         ],
       }),
     );
-    expect(violations.some((v) => v.endsWith("disparages_employer"))).toBe(
-      true,
-    );
+    expect(published.claims).toEqual([placeholder]);
+    expect(JSON.stringify(published)).not.toContain("toxic");
   });
 });
 
@@ -1047,16 +1146,21 @@ describe("coding brief", () => {
     constraints: ["O(n) time"],
   };
 
-  it("requires a brief for coding and refuses it elsewhere", () => {
-    expect(
-      check(output({ category: "coding", codingBrief: brief })),
-    ).toMatchObject({ ok: true });
-    expect(violationsOf(output({ category: "coding" }))).toContain(
-      "codingBrief:required",
+  it("keeps a coding brief on a coding answer, and publishes a coding answer without one bare", () => {
+    const withBrief = publishedOf(
+      output({ category: "coding", codingBrief: brief }),
     );
-    expect(violationsOf(output({ codingBrief: brief }))).toContain(
-      "codingBrief:unexpected",
-    );
+    expect(withBrief.codingBrief).toEqual(brief);
+    // codingBrief:required no longer withholds: the draft is published with
+    // no brief and no claims (the coding path has nothing to solve from).
+    const noBrief = publishedOf(output({ category: "coding" }));
+    expect(noBrief.codingBrief).toBeNull();
+    expect(noBrief.claims).toEqual([]);
+    // A brief on another category is a violation that publishes the draft
+    // bare too.
+    const misplaced = publishedOf(output({ codingBrief: brief }));
+    expect(misplaced.category).toBe("technical-concept");
+    expect(misplaced.claims).toEqual([]);
   });
 
   it("accepts the supported code languages and refuses any other", () => {
@@ -1088,13 +1192,22 @@ describe("coding brief", () => {
 });
 
 describe("spoken-figure hazard (7b)", () => {
-  it("rejects a figure the interviewer said that no source carries", () => {
-    const violations = violationsOf(
+  it("drops a claim carrying a figure the interviewer said that no source carries, and a draft point that echoes it", () => {
+    const published = publishedOf(
       output({
+        draft: [
+          "- A staged cutover keeps rollback cheap.",
+          "- The migration cut latency by 85%.",
+        ].join("\n"),
         claims: [
           {
             kind: "suggested-interpretation",
             text: "The migration cut latency by 85%.",
+            refs: [],
+          },
+          {
+            kind: "general-knowledge",
+            text: "A staged cutover keeps rollback cheap.",
             refs: [],
           },
         ],
@@ -1102,7 +1215,15 @@ describe("spoken-figure hazard (7b)", () => {
       SNAPSHOT,
       ["Did you cut latency by 85% in that migration?"],
     );
-    expect(violations).toContain("claims.0:spoken_figure");
+    expect(JSON.stringify(published)).not.toContain("85%");
+    expect(published.draft).toBe("- A staged cutover keeps rollback cheap.");
+    expect(published.claims).toEqual([
+      {
+        kind: "general-knowledge",
+        text: "A staged cutover keeps rollback cheap.",
+        refs: [],
+      },
+    ]);
   });
 });
 
