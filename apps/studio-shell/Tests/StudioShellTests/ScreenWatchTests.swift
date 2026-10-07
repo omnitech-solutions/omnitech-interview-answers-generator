@@ -110,32 +110,45 @@ func screenWatchTests(_ t: Harness) async {
         t.expectEqual(ScreenWatchDecoder.decodeStart(["mode": "focused-window"])?.intervalMs, 2000)
         t.expectEqual(ScreenWatchDecoder.decodeStart(["mode": "focused-window", "intervalMs": 100])?.intervalMs, 1000)
         t.expect(ScreenWatchDecoder.decodeStart(["mode": "region"]) == nil, "region needs a region")
-        t.expect(ScreenWatchDecoder.decodeStart(["mode": "focused-window", "region": ["x": 0, "y": 0, "width": 1, "height": 1]]) == nil)
-        t.expect(ScreenWatchDecoder.decodeStart(["mode": "region", "region": ["x": 0.5, "y": 0, "width": 0.6, "height": 1]]) == nil)
-        t.expect(ScreenWatchDecoder.decodeStart(["mode": "region", "region": ["x": 0.1, "y": 0.1, "width": 0.5, "height": 0.5], "displayId": 3]) != nil)
+        t.expect(
+            ScreenWatchDecoder.decodeStart([
+                "mode": "focused-window", "region": ["x": 0, "y": 0, "width": 1, "height": 1],
+            ]) == nil)
+        t.expect(
+            ScreenWatchDecoder.decodeStart(["mode": "region", "region": ["x": 0.5, "y": 0, "width": 0.6, "height": 1]])
+                == nil)
+        t.expect(
+            ScreenWatchDecoder.decodeStart([
+                "mode": "region", "region": ["x": 0.1, "y": 0.1, "width": 0.5, "height": 0.5], "displayId": 3,
+            ]) != nil)
         t.expect(ScreenWatchDecoder.decodeStart(["mode": "display"]) == nil)
         t.expect(ScreenWatchDecoder.decodeStart(["mode": "focused-window", "extra": 1]) == nil)
         switch HostCallDecoder.decode(["v": 1, "method": "screenWatchStart", "params": ["mode": "focused-window"]]) {
         case .success(.screenWatchStart): t.expect(true)
         default: t.expect(false, "start decodes")
         }
-        t.expect(HostCallDecoder.decode(["v": 1, "method": "screenWatchStop", "params": [:]]) == .success(.screenWatchStop))
+        t.expect(
+            HostCallDecoder.decode(["v": 1, "method": "screenWatchStop", "params": [:]]) == .success(.screenWatchStop))
     }
 
     await t.test("page object: start/stop/status/onChange over the bridge script") {
         let context = JSContext()!
         context.evaluateScript("var window = this; var sent = [];")
-        context.evaluateScript("""
-            window.webkit = { messageHandlers: { studioHost: { postMessage: function (m) { sent.push(m.method); return { then: function (ok) { ok({ ok: true }); return { then: function () {} }; } }; } } } };
-        """)
+        context.evaluateScript(
+            """
+                window.webkit = { messageHandlers: { studioHost: { postMessage: function (m) { sent.push(m.method); return { then: function (ok) { ok({ ok: true }); return { then: function () {} }; } }; } } } };
+            """)
         context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
         t.expectEqual(context.evaluateScript("typeof window.studioHost.screenWatch.start")?.toString(), "function")
         t.expectEqual(context.evaluateScript("window.studioHost.screenWatch.status().watching")?.toBool(), false)
-        context.evaluateScript("var got = []; window.studioHost.screenWatch.onChange(function (e) { got.push(e.bits); });")
+        context.evaluateScript(
+            "var got = []; window.studioHost.screenWatch.onChange(function (e) { got.push(e.bits); });")
         context.evaluateScript(HostBridgeScript.emitScreenWatchChange(at: 5, bits: 20))
         t.expectEqual(context.evaluateScript("got.join(',')")?.toString(), "20")
-        context.evaluateScript(HostBridgeScript.emitScreenWatchStatus(ScreenWatchStatus(watching: false, reason: "permission-denied")))
-        t.expectEqual(context.evaluateScript("window.studioHost.screenWatch.status().reason")?.toString(), "permission-denied")
+        context.evaluateScript(
+            HostBridgeScript.emitScreenWatchStatus(ScreenWatchStatus(watching: false, reason: "permission-denied")))
+        t.expectEqual(
+            context.evaluateScript("window.studioHost.screenWatch.status().reason")?.toString(), "permission-denied")
     }
 
     await t.test("window chrome: the intended configuration is see-through; each opaque trait is named") {

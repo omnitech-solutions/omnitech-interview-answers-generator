@@ -43,9 +43,12 @@ public enum PanelLayout {
         let frame: CGRect
         switch kind {
         case .compact:
-            frame = CGRect(x: area.maxX - margin - size.width, y: area.minY + margin, width: size.width, height: size.height)
+            frame = CGRect(
+                x: area.maxX - margin - size.width, y: area.minY + margin, width: size.width, height: size.height)
         case .settings:
-            frame = CGRect(x: area.maxX - margin - size.width, y: area.maxY - topInset - size.height, width: size.width, height: size.height)
+            frame = CGRect(
+                x: area.maxX - margin - size.width, y: area.maxY - topInset - size.height, width: size.width,
+                height: size.height)
         }
         return fit(frame, in: area, min: kind.minSize)
     }

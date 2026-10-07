@@ -103,7 +103,8 @@ func engineTests(_ t: Harness) async {
         t.expectEqual(b.engine.snapshot.stage, .idle)
     }
 
-    await t.test("start pairs through the owner route, stores the credential and listens to exactly the named sources") {
+    await t.test("start pairs through the owner route, stores the credential and listens to exactly the named sources")
+    {
         let b = Bench()
         await b.started([.microphone, .screen])
         t.expectEqual(b.store.value, credentialA)
@@ -121,7 +122,8 @@ func engineTests(_ t: Harness) async {
         let data = try JSONSerialization.data(withJSONObject: b.engine.snapshot.bridgeValue)
         let text = String(decoding: data, as: UTF8.self)
         t.expect(!text.contains("asc_") && !text.contains(credentialA), "no credential in the bridge value")
-        t.expect(!"\(IssuedCredential(value: credentialA, expiresAt: Date()))".contains("asc_"), "description is redacted")
+        t.expect(
+            !"\(IssuedCredential(value: credentialA, expiresAt: Date()))".contains("asc_"), "description is redacted")
     }
 
     await t.test("a repeated start for the same plan is idempotent; a new session replaces the run") {
@@ -196,7 +198,8 @@ func engineTests(_ t: Harness) async {
         t.expectEqual(b.runs.count, 1)
     }
 
-    await t.test("a renewal storm is refused: a credential that expires with the session renews at most once a minute") {
+    await t.test("a renewal storm is refused: a credential that expires with the session renews at most once a minute")
+    {
         var lifecycle = CredentialLifecycle(random: { 0.5 })
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         lifecycle.issued(expiresAt: now.addingTimeInterval(300), at: now)
@@ -269,9 +272,11 @@ func engineTests(_ t: Harness) async {
     await t.test("screen recording and speech permission have their own plain lines") {
         var snapshot = EngineSnapshot(stage: .paired, sources: [.screen: .permissionDenied])
         t.expectEqual(snapshot.hint, "Grant Screen Recording in System Settings › Privacy & Security.")
-        snapshot = EngineSnapshot(stage: .paired, sources: [.microphone: .permissionDenied], speechFailure: .notAuthorized)
+        snapshot = EngineSnapshot(
+            stage: .paired, sources: [.microphone: .permissionDenied], speechFailure: .notAuthorized)
         t.expectEqual(snapshot.hint, "Grant Speech Recognition in System Settings › Privacy & Security.")
-        snapshot = EngineSnapshot(stage: .paired, sources: [.microphone: .unavailable], speechFailure: .onDeviceUnsupported)
+        snapshot = EngineSnapshot(
+            stage: .paired, sources: [.microphone: .unavailable], speechFailure: .onDeviceUnsupported)
         t.expect(snapshot.hint?.contains("on the device") == true, "device-only refusal says why")
     }
 
@@ -344,8 +349,11 @@ func engineTests(_ t: Harness) async {
     }
 
     await t.test("engine calls from the page are decoded strictly") {
-        func body(_ method: String, _ params: [String: Any]) -> [String: Any] { ["v": 1, "method": method, "params": params] }
-        let ok = EngineCallDecoder.decode(body("engineStart", ["sessionId": sessionId, "sources": ["microphone", "screen"]]))
+        func body(_ method: String, _ params: [String: Any]) -> [String: Any] {
+            ["v": 1, "method": method, "params": params]
+        }
+        let ok = EngineCallDecoder.decode(
+            body("engineStart", ["sessionId": sessionId, "sources": ["microphone", "screen"]]))
         t.expect(ok == .success(.start(sessionId: sessionId, sources: [.microphone, .screen])))
         t.expect(EngineCallDecoder.decode(body("captureScreen", [:])) == nil, "not an engine method")
         let bad: [[String: Any]] = [
@@ -356,7 +364,11 @@ func engineTests(_ t: Harness) async {
             body("engineStop", ["extra": 1]),
             ["v": 2, "method": "engineStop"],
         ]
-        for each in bad { t.expect(EngineCallDecoder.decode(each).map { if case .failure = $0 { true } else { false } } == true, "refused \(each)") }
+        for each in bad {
+            t.expect(
+                EngineCallDecoder.decode(each).map { if case .failure = $0 { true } else { false } } == true,
+                "refused \(each)")
+        }
         t.expect(EngineCallDecoder.decode(["v": 1, "method": "engineStatus"]) == .success(.status))
     }
 }

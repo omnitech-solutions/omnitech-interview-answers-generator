@@ -21,7 +21,8 @@ public final class WebViewOwnerRoutes: OwnerRoutes {
 
     public func issueCredential(sessionId: String) async -> Result<IssuedCredential, OwnerRouteFailure> {
         guard let location, StudioLocation.isSessionId(sessionId) else { return .failure(.gone) }
-        guard let answer = await request(path: "\(location.sessionsPath)/\(sessionId)/credential", method: "POST") else {
+        guard let answer = await request(path: "\(location.sessionsPath)/\(sessionId)/credential", method: "POST")
+        else {
             return .failure(.unreachable)
         }
         switch answer.status {

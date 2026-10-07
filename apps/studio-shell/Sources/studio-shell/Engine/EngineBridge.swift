@@ -19,7 +19,9 @@ public enum EngineCall: Equatable, Sendable {
 }
 
 public enum EngineCallDecoder {
-    public static let methods: Set<String> = ["engineStart", "engineStop", "enginePause", "engineResume", "engineStatus"]
+    public static let methods: Set<String> = [
+        "engineStart", "engineStop", "enginePause", "engineResume", "engineStatus",
+    ]
 
     // nil: not an engine method (let the main decoder handle it).
     // [GUARD] Everything the page sends is untrusted: exactly the expected keys,
@@ -90,29 +92,29 @@ public enum EngineBridge {
 
     // Splice into HostBridgeScript's host object: `engine: <this>`.
     public static let pageObjectSource = """
-    Object.freeze({
-      start: function (request) { return call("engineStart", { sessionId: String(request && request.sessionId), sources: (request && request.sources) || [] }); },
-      stop: function () { return call("engineStop"); },
-      pause: function () { return call("enginePause"); },
-      resume: function () { return call("engineResume"); },
-      status: function () { return call("engineStatus"); },
-      onEvent: function (listener) {
-        if (typeof listener !== "function") return function () {};
-        engineListeners.push(listener);
-        return function () { engineListeners = engineListeners.filter(function (each) { return each !== listener; }); };
-      }
-    })
-    """
+        Object.freeze({
+          start: function (request) { return call("engineStart", { sessionId: String(request && request.sessionId), sources: (request && request.sources) || [] }); },
+          stop: function () { return call("engineStop"); },
+          pause: function () { return call("enginePause"); },
+          resume: function () { return call("engineResume"); },
+          status: function () { return call("engineStatus"); },
+          onEvent: function (listener) {
+            if (typeof listener !== "function") return function () {};
+            engineListeners.push(listener);
+            return function () { engineListeners = engineListeners.filter(function (each) { return each !== listener; }); };
+          }
+        })
+        """
 
     // Defined next to `listeners` in the script; the emit entry the shell calls.
     public static let pageEmitSource = """
-    Object.defineProperty(window, "__studioHostEngineEmit", {
-      value: function (state) {
-        engineListeners.slice().forEach(function (listener) { try { listener(state); } catch (e) {} });
-      },
-      configurable: false
-    });
-    """
+        Object.defineProperty(window, "__studioHostEngineEmit", {
+          value: function (state) {
+            engineListeners.slice().forEach(function (listener) { try { listener(state); } catch (e) {} });
+          },
+          configurable: false
+        });
+        """
 }
 
 public enum SystemEngine {

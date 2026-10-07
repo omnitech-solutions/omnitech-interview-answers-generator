@@ -47,12 +47,14 @@ func nativeSignInTests(_ t: Harness) async {
         t.expect(NativeSignIn.makeVerifier() != NativeSignIn.makeVerifier())
     }
 
-    await t.test("no URL the shell builds carries a session token, only nonce, challenge, code, verifier and workspace") {
+    await t.test("no URL the shell builds carries a session token, only nonce, challenge, code, verifier and workspace")
+    {
         let start = location.nativeSignInStartURL(state: state, challenge: challenge)
         t.expectEqual(start.path, "/api/native-auth/start")
         t.expectEqual(
             URLComponents(url: start, resolvingAgainstBaseURL: false)?.queryItems?.map(\.name), ["state", "challenge"])
-        t.expect(!start.absoluteString.contains(verifier), "the start link, which can be copied, never holds the verifier")
+        t.expect(
+            !start.absoluteString.contains(verifier), "the start link, which can be copied, never holds the verifier")
         t.expect(location.isStudio(start))
         let redeem = location.nativeSignInRedeemURL(code: "abcdefghijklmnop0123", state: state, verifier: verifier)
         t.expectEqual(
@@ -73,10 +75,16 @@ func nativeSignInTests(_ t: Harness) async {
         guard case .success(let redeem) = attempt.receive(callback, at: location, now: t0.addingTimeInterval(10)) else {
             return t.expect(false, "expected a redeem URL")
         }
-        t.expect(redeem.absoluteString.contains("state=\(state)") && redeem.absoluteString.contains("code=abcdefghijklmnop0123"))
-        t.expect(redeem.absoluteString.contains("verifier=\(verifier)"), "the shell presents its own secret on redemption")
-        t.expect(start?.absoluteString.contains("challenge=\(challenge)") == true && start?.absoluteString.contains(verifier) == false)
-        t.expect(attempt.receive(callback, at: location, now: t0.addingTimeInterval(11)) == .failure(.noAttempt), "replay")
+        t.expect(
+            redeem.absoluteString.contains("state=\(state)")
+                && redeem.absoluteString.contains("code=abcdefghijklmnop0123"))
+        t.expect(
+            redeem.absoluteString.contains("verifier=\(verifier)"), "the shell presents its own secret on redemption")
+        t.expect(
+            start?.absoluteString.contains("challenge=\(challenge)") == true
+                && start?.absoluteString.contains(verifier) == false)
+        t.expect(
+            attempt.receive(callback, at: location, now: t0.addingTimeInterval(11)) == .failure(.noAttempt), "replay")
     }
 
     await t.test("cancel, timeout and a malformed callback end the attempt") {
@@ -88,7 +96,8 @@ func nativeSignInTests(_ t: Harness) async {
         _ = attempt.begin(at: location, now: t0, makeState: { state }, makeVerifier: { verifier })
         let good = URL(string: "omnitech-studio://signin?code=abcdefghijklmnop0123")!
         t.expect(
-            attempt.receive(good, at: location, now: t0.addingTimeInterval(NativeSignIn.attemptTimeout)) == .failure(.timedOut))
+            attempt.receive(good, at: location, now: t0.addingTimeInterval(NativeSignIn.attemptTimeout))
+                == .failure(.timedOut))
         t.expect(!attempt.isPending(now: t0))
 
         _ = attempt.begin(at: location, now: t0, makeState: { state }, makeVerifier: { verifier })
@@ -100,23 +109,33 @@ func nativeSignInTests(_ t: Harness) async {
     await t.test("a live attempt is not stacked; a timed-out one is replaced") {
         var attempt = SignInAttempt()
         t.expect(attempt.begin(at: location, now: t0, makeState: { state }, makeVerifier: { verifier }) != nil)
-        t.expect(attempt.begin(at: location, now: t0.addingTimeInterval(5), makeState: { state }, makeVerifier: { verifier }) == nil)
         t.expect(
-            attempt.begin(at: location, now: t0.addingTimeInterval(NativeSignIn.attemptTimeout + 1), makeState: { state }, makeVerifier: { verifier }) != nil)
+            attempt.begin(at: location, now: t0.addingTimeInterval(5), makeState: { state }, makeVerifier: { verifier })
+                == nil)
+        t.expect(
+            attempt.begin(
+                at: location, now: t0.addingTimeInterval(NativeSignIn.attemptTimeout + 1), makeState: { state },
+                makeVerifier: { verifier }) != nil)
     }
 
     await t.test("a sign-in prompt shows only when Studio reports signed out and a provider exists") {
         let ok = ProbeResult.answered(status: 200)
         // Default dev user: Studio never answers 401, so signedIn is true or unknown.
-        t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: true, signInAvailable: false), .connected)
+        t.expectEqual(
+            ConnectionRules.state(paired: true, probe: ok, signedIn: true, signInAvailable: false), .connected)
         t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: nil, signInAvailable: nil), .connected)
         // Signed out but no real provider configured: no prompt.
-        t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: false), .connected)
-        t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: true), .signInRequired)
-        t.expectEqual(ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: nil), .signInRequired)
+        t.expectEqual(
+            ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: false), .connected)
+        t.expectEqual(
+            ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: true), .signInRequired)
+        t.expectEqual(
+            ConnectionRules.state(paired: true, probe: ok, signedIn: false, signInAvailable: nil), .signInRequired)
     }
 
-    await t.test("the built-in fallback screen is opaque, local, names the address it tried, and acts only from its own buttons") {
+    await t.test(
+        "the built-in fallback screen is opaque, local, names the address it tried, and acts only from its own buttons"
+    ) {
         // The shell shows it when Studio's own pages cannot load, so the window is
         // never empty or see-through. It names the address that failed and offers
         // a retry and a way to change the connection: without the second, a
@@ -126,9 +145,12 @@ func nativeSignInTests(_ t: Harness) async {
         t.expect(html.contains("Can’t reach Studio"), "says what is wrong")
         t.expect(html.contains(tried), "names the address it tried, as text")
         t.expect(html.contains("href=\"\(SignedOutScreen.startURL.absoluteString)\""), "Try again is the start link")
-        t.expect(html.contains("href=\"\(SignedOutScreen.changeConnectionURL.absoluteString)\""), "Change connection is its own link")
+        t.expect(
+            html.contains("href=\"\(SignedOutScreen.changeConnectionURL.absoluteString)\""),
+            "Change connection is its own link")
         t.expect(html.contains("background:#"), "an opaque background of its own")
-        t.expect(!html.contains("src=") && !html.contains("href=\"http"), "loads nothing and links nowhere on the network")
+        t.expect(
+            !html.contains("src=") && !html.contains("href=\"http"), "loads nothing and links nowhere on the network")
         t.expect(!html.contains("<script"), "needs no script")
         // A hostile address can never become markup.
         let hostile = SignedOutScreen.html(address: "http://x\"><script>alert(1)</script>")
@@ -148,16 +170,21 @@ func nativeSignInTests(_ t: Harness) async {
             "omnitech-studio://u@change-connection", "https://studio.example.test/change-connection",
             "omnitech-studio://signin-start", "omnitech-studio://signin?code=abcdefghijklmnop0123",
         ] {
-            t.expect(!SignedOutScreen.isChangeConnection(URL(string: other)!), "must not change the connection from \(other)")
+            t.expect(
+                !SignedOutScreen.isChangeConnection(URL(string: other)!), "must not change the connection from \(other)"
+            )
         }
     }
 
     await t.test("the chosen provider rides the start link beside the nonce, and nothing else") {
         let google = location.nativeSignInStartURL(state: state, challenge: challenge, provider: .google)
         t.expectEqual(
-            URLComponents(url: google, resolvingAgainstBaseURL: false)?.queryItems?.map(\.name), ["state", "challenge", "provider"])
+            URLComponents(url: google, resolvingAgainstBaseURL: false)?.queryItems?.map(\.name),
+            ["state", "challenge", "provider"])
         t.expect(google.absoluteString.hasSuffix("provider=google"))
-        t.expect(location.nativeSignInStartURL(state: state, challenge: challenge, provider: .linkedin).absoluteString.hasSuffix("provider=linkedin"))
+        t.expect(
+            location.nativeSignInStartURL(state: state, challenge: challenge, provider: .linkedin).absoluteString
+                .hasSuffix("provider=linkedin"))
         t.expectEqual(SignInProvider.allCases.map(\.rawValue), ["google", "linkedin"])
     }
 
@@ -197,7 +224,8 @@ func nativeSignInTests(_ t: Harness) async {
         t.expect(!script.contains("http") && !script.contains("code"), "no address or code in the event")
     }
 
-    await t.test("the menu-bar menu offers Sign in only when signed out, and Sign out only while someone is signed in") {
+    await t.test("the menu-bar menu offers Sign in only when signed out, and Sign out only while someone is signed in")
+    {
         t.expect(StatusMenuRules.showsSignIn(.signInRequired))
         for other: ConnectionState in [.notPaired, .connecting, .connected, .unreachable] {
             t.expect(!StatusMenuRules.showsSignIn(other), "no sign-in prompt for \(other)")

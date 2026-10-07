@@ -57,7 +57,9 @@ public final class CompanionStateMachine {
     // True only while audio or screen is actually being captured.
     public var isCapturing: Bool { state == .listening }
 
-    public func running() -> [CaptureSource] { selection.filter { statuses[$0] == .running }.sorted { $0.rawValue < $1.rawValue } }
+    public func running() -> [CaptureSource] {
+        selection.filter { statuses[$0] == .running }.sorted { $0.rawValue < $1.rawValue }
+    }
 
     // MARK: transitions (all ignored once terminal)
 

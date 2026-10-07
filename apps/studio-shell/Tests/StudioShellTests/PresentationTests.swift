@@ -52,11 +52,13 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(surface.fullScreens, [true, false])
         t.expectEqual(controller.state, before, "the page owns the mode; the shell state is unchanged")
     }
-    await t.test("full screen fills the visible frame, remembers the frame it left and gives it back, never off-screen") {
+    await t.test("full screen fills the visible frame, remembers the frame it left and gives it back, never off-screen")
+    {
         let minimum = WindowKind.compact.minSize
         var full = FullScreenFrame()
         let before = CGRect(x: 600, y: 100, width: 540, height: 300)
-        t.expectEqual(full.enter(from: before, visible: display, min: minimum), display, "fills the display's visible frame")
+        t.expectEqual(
+            full.enter(from: before, visible: display, min: minimum), display, "fills the display's visible frame")
         t.expect(full.isOn)
         // Entering again never overwrites the frame to go back to.
         _ = full.enter(from: display, visible: display, min: minimum)
@@ -73,16 +75,20 @@ func presentationTests(_ t: Harness) async {
         let filled = tiny.enter(from: before, visible: CGRect(x: 0, y: 0, width: 300, height: 300), min: minimum)
         t.expect(filled.width <= 300 && filled.height <= 300, "never larger than the display")
     }
-    await t.test("the whole-window click-through is retired: OFF and the toggle never make the window inert, ON still works") {
+    await t.test(
+        "the whole-window click-through is retired: OFF and the toggle never make the window inert, ON still works"
+    ) {
         let store = MemoryStore()
         let controller = PresentationController(prefs: ShellPrefs(store: store))
         let surface = RecordingSurface()
         controller.surface = surface
-        t.expect(controller.state.compactShown && !controller.state.interaction.ignoresMouseEvents, "interactive by default")
+        t.expect(
+            controller.state.compactShown && !controller.state.interaction.ignoresMouseEvents, "interactive by default")
         // [SAFETY] An old page asking for OFF is refused (the reply is false) and nothing is rendered inert.
         let refused = controller.perform(.setInteractionMode(false))
         t.expect(refused.interaction.isInteractive, "OFF is refused")
-        t.expectEqual(HostReply.tookEffect(.setInteractionMode(false), refused), false, "the page is told it did not take effect")
+        t.expectEqual(
+            HostReply.tookEffect(.setInteractionMode(false), refused), false, "the page is told it did not take effect")
         controller.perform(.toggleInteractionMode)
         t.expect(controller.state.interaction.isInteractive, "a toggle only ever restores interaction")
         t.expect(surface.rendered.allSatisfy { !$0.interaction.ignoresMouseEvents }, "no render is ever click-through")
@@ -94,8 +100,9 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(HotkeyRouting.effect(for: .toggleInteraction, interactive: false), .intent(.seeThroughToggle))
         // A stale saved "off" (an earlier build) never leaves the window inert at launch.
         store.values["interactive2"] = "0"
-        t.expect(PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive,
-                 "launch is interactive whatever was saved")
+        t.expect(
+            PresentationController(prefs: ShellPrefs(store: store)).state.interaction.isInteractive,
+            "launch is interactive whatever was saved")
     }
 
     await t.test("surface-only commands (hit regions, size, full screen) never render when the state is unchanged") {
@@ -150,7 +157,8 @@ func presentationTests(_ t: Harness) async {
         // The chat key sends an intent to the page; the page owns the input.
         t.expectEqual(HotkeyRouting.effect(for: .showChat, interactive: false), .intent(.chatFocus))
         t.expectEqual(HostCommand.chatFocus.wireName, "chat.focus")
-        t.expectEqual(HostBridgeScript.emit(.chatFocus), "window.__studioHostEmit && window.__studioHostEmit(\"chat.focus\");")
+        t.expectEqual(
+            HostBridgeScript.emit(.chatFocus), "window.__studioHostEmit && window.__studioHostEmit(\"chat.focus\");")
         t.expectEqual(HotkeyRouting.effect(for: .openSettings, interactive: false), .present(.openSettings))
         // Settings hides with the window and never survives into the expanded form.
         controller.perform(.openSettings)
@@ -164,7 +172,9 @@ func presentationTests(_ t: Harness) async {
     await t.test("pressing a floating window makes the app active; nothing else does") {
         t.expect(PanelActivation.shouldActivate(pressed: true, appIsActive: false), "a press brings the app forward")
         t.expect(!PanelActivation.shouldActivate(pressed: true, appIsActive: true), "already active: nothing to do")
-        t.expect(!PanelActivation.shouldActivate(pressed: false, appIsActive: false), "hover, move or key events never steal focus")
+        t.expect(
+            !PanelActivation.shouldActivate(pressed: false, appIsActive: false),
+            "hover, move or key events never steal focus")
     }
     await t.test("the compact window is never narrower than the toolbar, by default or by resizing") {
         t.expect(WindowKind.compact.minSize.width >= WindowKind.toolbarWidth, "minimum fits the whole toolbar")
@@ -186,7 +196,9 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(settings.maxX, display.maxX - PanelLayout.margin)
         t.expectEqual(settings.maxY, display.maxY - PanelLayout.topInset)
         for kind in WindowKind.allCases {
-            for area in [display, CGRect(x: 0, y: 0, width: 800, height: 500), CGRect(x: 0, y: 0, width: 1920, height: 1055)] {
+            for area in [
+                display, CGRect(x: 0, y: 0, width: 800, height: 500), CGRect(x: 0, y: 0, width: 1920, height: 1055),
+            ] {
                 t.expect(area.contains(PanelLayout.defaultFrame(kind, in: area)), "\(kind) fits \(area.size)")
             }
         }
@@ -204,7 +216,8 @@ func presentationTests(_ t: Harness) async {
         // Off every display: default wins.
         prefs.saveFrame(.compact, CGRect(x: 9000, y: 9000, width: 760, height: 400))
         t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
-        t.expectEqual(prefs.frame(.compact, displays: [display], main: display), PanelLayout.defaultFrame(.compact, in: display))
+        t.expectEqual(
+            prefs.frame(.compact, displays: [display], main: display), PanelLayout.defaultFrame(.compact, in: display))
         // Only a sliver on screen is not enough; a grabbable strip is.
         prefs.saveFrame(.compact, CGRect(x: display.maxX - 20, y: 200, width: 760, height: 400))
         t.expectEqual(prefs.savedFrame(.compact, displays: [display]), nil)
@@ -220,7 +233,8 @@ func presentationTests(_ t: Harness) async {
         prefs.saveFrame(.settings, CGRect(x: 300, y: 300, width: 400, height: 380))
         t.expectEqual(store.values["panel.settings.frame2"], "300,300,400,380")
         prefs.saveMainWindowFrame(CGRect(x: 50, y: 60, width: 1000, height: 700))
-        t.expectEqual(prefs.mainWindowFrame(displays: [display], main: display), CGRect(x: 50, y: 60, width: 1000, height: 700))
+        t.expectEqual(
+            prefs.mainWindowFrame(displays: [display], main: display), CGRect(x: 50, y: 60, width: 1000, height: 700))
     }
 
     // MARK: interaction mode
@@ -228,7 +242,8 @@ func presentationTests(_ t: Harness) async {
         var state = InteractionState()
         t.expect(state.isInteractive && !state.ignoresMouseEvents, "panels must be usable by default")
         t.expectEqual(state.dot, .green)
-        t.expectEqual(state.toast, Toast("Interaction Mode: ON", "Green dot, Interact with window like scroll, copy, move"))
+        t.expectEqual(
+            state.toast, Toast("Interaction Mode: ON", "Green dot, Interact with window like scroll, copy, move"))
         state.toggle()
         t.expect(!state.isInteractive && state.ignoresMouseEvents)
         t.expectEqual(state.dot, .red)
@@ -242,7 +257,8 @@ func presentationTests(_ t: Harness) async {
     }
 
     // MARK: window policy
-    await t.test("the windows stay over any app, Space and full-screen window, and are never hidden from screen shares") {
+    await t.test("the windows stay over any app, Space and full-screen window, and are never hidden from screen shares")
+    {
         let pinned = PanelWindowTraits.of()
         t.expectEqual(pinned.level, .floating)
         t.expect(pinned.joinsAllSpaces && pinned.fullScreenAuxiliary && pinned.stationary, "collection behaviour")
@@ -250,7 +266,9 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(PanelWindowTraits.of(pinned: false).level, .normal)
         // No concealment: the type has no sharing/capture-exclusion trait at all.
         let names = Mirror(reflecting: pinned).children.compactMap(\.label)
-        t.expect(!names.contains { $0.lowercased().contains("shar") || $0.lowercased().contains("protect") }, "no sharing trait")
+        t.expect(
+            !names.contains { $0.lowercased().contains("shar") || $0.lowercased().contains("protect") },
+            "no sharing trait")
         t.expect(VisibilityTruth.line.contains("shows in screen shares"))
     }
 
@@ -285,17 +303,23 @@ func presentationTests(_ t: Harness) async {
         // The panel move and resize keys are gone: the one window is moved by its toolbar and resized by its edges.
         t.expectEqual(HotkeyBinding.all.count, 18)
         t.expect(!HotkeyBinding.all.contains { $0.label.contains("⌃") }, "no control chords")
-        t.expectEqual(HotkeyBinding.all.filter { $0.label.hasPrefix("⌘") || $0.label.hasPrefix("⌥") }.count, HotkeyBinding.all.count)
+        t.expectEqual(
+            HotkeyBinding.all.filter { $0.label.hasPrefix("⌘") || $0.label.hasPrefix("⌥") }.count,
+            HotkeyBinding.all.count)
         // Only the skill keys are interaction-only; the others are always registered.
         t.expectEqual(HotkeyBinding.all.filter(\.requiresInteractive).map(\.action), [.skillPrevious, .skillNext])
     }
 
     await t.test("the video's hotkey table: Carbon codes and modifiers, secondary aliases after, skill keys gated") {
         let c = HotkeyBinding.command, sh = HotkeyBinding.shift, o = HotkeyBinding.option
-        func binding(_ action: HotkeyBinding.Action) -> HotkeyBinding? { HotkeyBinding.all.first { $0.action == action } }
+        func binding(_ action: HotkeyBinding.Action) -> HotkeyBinding? {
+            HotkeyBinding.all.first { $0.action == action }
+        }
         let table: [(HotkeyBinding.Action, UInt32, UInt32, String)] = [
-            (.captureAnalyze, 0x01, c | sh, "⌘⇧S"), (.toggleMic, 0x0F, o, "⌥R"), (.toggleInteraction, 0x22, c | sh, "⌘⇧I"),
-            (.toggleVisibility, 0x09, c | sh, "⌘⇧V"), (.showChat, 0x08, c | sh, "⌘⇧C"), (.clearSession, 0x2A, c | sh, "⌘⇧\\"),
+            (.captureAnalyze, 0x01, c | sh, "⌘⇧S"), (.toggleMic, 0x0F, o, "⌥R"),
+            (.toggleInteraction, 0x22, c | sh, "⌘⇧I"),
+            (.toggleVisibility, 0x09, c | sh, "⌘⇧V"), (.showChat, 0x08, c | sh, "⌘⇧C"),
+            (.clearSession, 0x2A, c | sh, "⌘⇧\\"),
             (.skillPrevious, 0x7E, c, "⌘↑"), (.skillNext, 0x7D, c, "⌘↓"), (.openSettings, 0x2B, c, "⌘,"),
         ]
         for (action, code, mods, label) in table {
@@ -314,7 +338,8 @@ func presentationTests(_ t: Harness) async {
         t.expect(HotkeyBinding.all.contains { $0.label == "⌥⇧A" && $0.action == .captureAnalyze })
         t.expect(HotkeyBinding.all.contains { $0.label == "⌥⇧R" && $0.action == .toggleMic })
         // No two bindings share a key combination.
-        t.expectEqual(Set(HotkeyBinding.all.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count, HotkeyBinding.all.count)
+        t.expectEqual(
+            Set(HotkeyBinding.all.map { "\($0.keyCode)/\($0.carbonModifiers)" }).count, HotkeyBinding.all.count)
     }
 
     await t.test("toasts use the video's exact words and appear for the right keys") {
@@ -337,7 +362,9 @@ func presentationTests(_ t: Harness) async {
         let store = MemoryStore()
         t.expect(!Consent.isGranted(store))
         t.expect(Consent.pageScript(store) == nil, "no flag before consent")
-        t.expect(Consent.prompt.hasPrefix("Everyone in this conversation agrees to it being recorded and to using AI assistance"))
+        t.expect(
+            Consent.prompt.hasPrefix(
+                "Everyone in this conversation agrees to it being recorded and to using AI assistance"))
         Consent.grant(store)
         t.expect(Consent.isGranted(store))
         t.expect(Consent.pageScript(store)?.contains("studio.shell.consented") == true)
@@ -353,9 +380,15 @@ func presentationTests(_ t: Harness) async {
         t.expect(controller.state.compactShown && !controller.state.settingsShown, "one window by default")
         controller.perform(.openSettings)
         t.expect(controller.state.settingsShown)
-        t.expect(!PresentationController(prefs: ShellPrefs(store: store)).state.settingsOpen, "settings never reopens by itself")
-        t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit"]]), .success(.presentation(.quitApp)))
-        t.expectEqual(HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit", "x": 1]]), .failure(.invalidParameters))
+        t.expect(
+            !PresentationController(prefs: ShellPrefs(store: store)).state.settingsOpen,
+            "settings never reopens by itself")
+        t.expectEqual(
+            HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit"]]),
+            .success(.presentation(.quitApp)))
+        t.expectEqual(
+            HostCallDecoder.decode(["v": 1, "method": "presentation", "params": ["op": "quit", "x": 1]]),
+            .failure(.invalidParameters))
         controller.perform(.quitApp)
         t.expectEqual(surface.quits, 1)
         controller.perform(.bringToFront)
@@ -390,11 +423,13 @@ func presentationTests(_ t: Harness) async {
         // up), and showing it again returns to the expanded form, not the compact one.
         controller.perform(.setAppMode(.expanded))
         controller.perform(.setVisible(false))
-        t.expect(controller.state.hidden && !controller.state.mainWindowShown && !controller.state.compactShown,
-                 "yellow Hide hides the expanded window")
+        t.expect(
+            controller.state.hidden && !controller.state.mainWindowShown && !controller.state.compactShown,
+            "yellow Hide hides the expanded window")
         controller.perform(.setVisible(true))
-        t.expect(controller.state.mainWindowShown && controller.state.appMode == .expanded && !controller.state.compactShown,
-                 "show returns to the expanded form")
+        t.expect(
+            controller.state.mainWindowShown && controller.state.appMode == .expanded && !controller.state.compactShown,
+            "show returns to the expanded form")
         controller.perform(.setVisible(false))
         controller.perform(.toggleVisible)
         t.expect(controller.state.mainWindowShown, "the toggle shows the expanded form again")
@@ -427,7 +462,9 @@ func presentationTests(_ t: Harness) async {
         t.expect(pushed > 5)
 
         // The pages never read layout, panels or opacity: they no longer exist.
-        for key in ["layout", "panels", "opacity"] { t.expect(controller.state.wire[key] == nil, "no \(key) on the wire") }
+        for key in ["layout", "panels", "opacity"] {
+            t.expect(controller.state.wire[key] == nil, "no \(key) on the wire")
+        }
 
         // A restart restores the last mode and interaction choice.
         controller.perform(.setAppMode(.minified))
@@ -444,20 +481,34 @@ func presentationTests(_ t: Harness) async {
         t.expectEqual(decode(["op": "openSettings"]), .success(.presentation(.openSettings)))
         t.expectEqual(decode(["op": "closeSettings"]), .success(.presentation(.closeSettings)))
         t.expectEqual(decode(["op": "setVisible", "visible": false]), .success(.presentation(.setVisible(false))))
-        t.expectEqual(decode(["op": "setInteractionMode", "on": true]), .success(.presentation(.setInteractionMode(true))))
-        t.expectEqual(decode(["op": "setAppMode", "mode": "minified"]), .success(.presentation(.setAppMode(.minified))))
-        t.expectEqual(decode(["op": "setWindowSize", "width": 1260.0]), .success(.presentation(.setWindowSize(width: 1260, height: nil))))
-        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 120.0]), .success(.presentation(.setWindowSize(width: 540, height: 120))))
-        t.expectEqual(decode(["op": "setWindowSize", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
-        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "height": 5.0]), .failure(.invalidParameters), "too short is refused")
-        t.expectEqual(decode(["op": "setWindowSize", "width": 540.0, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
+        t.expectEqual(
+            decode(["op": "setInteractionMode", "on": true]), .success(.presentation(.setInteractionMode(true))))
+        t.expectEqual(
+            decode(["op": "setAppMode", "mode": "minified"]), .success(.presentation(.setAppMode(.minified))))
+        t.expectEqual(
+            decode(["op": "setWindowSize", "width": 1260.0]),
+            .success(.presentation(.setWindowSize(width: 1260, height: nil))))
+        t.expectEqual(
+            decode(["op": "setWindowSize", "width": 540.0, "height": 120.0]),
+            .success(.presentation(.setWindowSize(width: 540, height: 120))))
+        t.expectEqual(
+            decode(["op": "setWindowSize", "width": 10.0]), .failure(.invalidParameters), "too narrow is refused")
+        t.expectEqual(
+            decode(["op": "setWindowSize", "width": 540.0, "height": 5.0]), .failure(.invalidParameters),
+            "too short is refused")
+        t.expectEqual(
+            decode(["op": "setWindowSize", "width": 540.0, "x": 1]), .failure(.invalidParameters),
+            "extra keys are refused")
         t.expectEqual(decode(["op": "setFullScreen", "on": true]), .success(.presentation(.setFullScreen(true))))
         t.expectEqual(decode(["op": "setFullScreen", "on": false]), .success(.presentation(.setFullScreen(false))))
-        t.expectEqual(decode(["op": "setFullScreen", "on": "yes"]), .failure(.invalidParameters), "non-booleans are refused")
+        t.expectEqual(
+            decode(["op": "setFullScreen", "on": "yes"]), .failure(.invalidParameters), "non-booleans are refused")
         t.expectEqual(decode(["op": "setFullScreen", "on": 1]), .failure(.invalidParameters), "numbers are refused")
         t.expectEqual(decode(["op": "setFullScreen"]), .failure(.invalidParameters), "the flag is required")
-        t.expectEqual(decode(["op": "setFullScreen", "on": true, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
-        t.expectEqual(decode(["op": "setHotkeysEnabled", "enabled": false]), .success(.presentation(.setHotkeysEnabled(false))))
+        t.expectEqual(
+            decode(["op": "setFullScreen", "on": true, "x": 1]), .failure(.invalidParameters), "extra keys are refused")
+        t.expectEqual(
+            decode(["op": "setHotkeysEnabled", "enabled": false]), .success(.presentation(.setHotkeysEnabled(false))))
         t.expectEqual(decode(["op": "openSettings", "extra": 1]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "setInteractionMode", "on": "yes"]), .failure(.invalidParameters))
         t.expectEqual(decode(["op": "setInteractionMode"]), .failure(.invalidParameters))
@@ -474,27 +525,42 @@ func presentationTests(_ t: Harness) async {
     await t.test("the page-side presentation object matches the contract and mirrors pushed state") {
         let context = JSContext()!
         context.exceptionHandler = { _, value in print("js exception: \(value?.toString() ?? "?")") }
-        context.evaluateScript("""
-        var window = this; var __posted = [];
-        window.webkit = { messageHandlers: { studioHost: { postMessage: function (m) { __posted.push(JSON.stringify(m)); return Promise.resolve(true); } } } };
-        """)
+        context.evaluateScript(
+            """
+            var window = this; var __posted = [];
+            window.webkit = { messageHandlers: { studioHost: { postMessage: function (m) { __posted.push(JSON.stringify(m)); return Promise.resolve(true); } } } };
+            """)
         context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
-        t.expectEqual(context.evaluateScript("window.studioHost.presentation.capabilities.join(',')")?.toString(),
+        t.expectEqual(
+            context.evaluateScript("window.studioHost.presentation.capabilities.join(',')")?.toString(),
             "always-on-top,all-spaces,hit-regions")
-        t.expectEqual(context.evaluateScript("window.studioHost.presentation.nativeToasts")?.toBool(), true, "pages must not duplicate toasts")
-        for method in ["quit", "openSettings", "closeSettings", "setVisible", "interactionMode", "setInteractionMode", "onInteractionMode", "appMode", "setAppMode", "setHotkeysEnabled", "setWindowSize", "setFullScreen", "setHitRegions"] {
-            t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "function", method)
+        t.expectEqual(
+            context.evaluateScript("window.studioHost.presentation.nativeToasts")?.toBool(), true,
+            "pages must not duplicate toasts")
+        for method in [
+            "quit", "openSettings", "closeSettings", "setVisible", "interactionMode", "setInteractionMode",
+            "onInteractionMode", "appMode", "setAppMode", "setHotkeysEnabled", "setWindowSize", "setFullScreen",
+            "setHitRegions",
+        ] {
+            t.expectEqual(
+                context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "function",
+                method)
         }
         for method in ["open", "close", "focus", "openPanels", "setLayout", "opacity", "setOpacity"] {
-            t.expectEqual(context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "undefined", "\(method) is gone")
+            t.expectEqual(
+                context.evaluateScript("typeof window.studioHost.presentation.\(method)")?.toString(), "undefined",
+                "\(method) is gone")
         }
-        context.evaluateScript("""
-        var heard = [];
-        window.studioHost.presentation.onInteractionMode(function (on) { heard.push(on); });
-        window.studioHost.presentation.closeSettings();
-        window.studioHost.presentation.setInteractionMode(true);
-        """)
-        t.expectEqual(context.evaluateScript("__posted[0]")?.toString(), #"{"v":1,"method":"presentation","params":{"op":"closeSettings"}}"#)
+        context.evaluateScript(
+            """
+            var heard = [];
+            window.studioHost.presentation.onInteractionMode(function (on) { heard.push(on); });
+            window.studioHost.presentation.closeSettings();
+            window.studioHost.presentation.setInteractionMode(true);
+            """)
+        t.expectEqual(
+            context.evaluateScript("__posted[0]")?.toString(),
+            #"{"v":1,"method":"presentation","params":{"op":"closeSettings"}}"#)
         t.expect(context.evaluateScript("__posted[1]")?.toString().contains("\"op\":\"setInteractionMode\"") == true)
         var state = PresentationState.initial
         state.appMode = .minified
@@ -507,11 +573,14 @@ func presentationTests(_ t: Harness) async {
 
     await t.test("a page is told it is a hands-free host through its address, and the window is selected by name") {
         let location = StudioLocation(address: "", tenantSlug: "local")!
-        t.expectEqual(location.overlayURL(window: .compact, handsFree: true).absoluteString,
+        t.expectEqual(
+            location.overlayURL(window: .compact, handsFree: true).absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&panel=single&handsfree=1")
-        t.expectEqual(location.overlayURL(window: .settings, handsFree: true).absoluteString,
+        t.expectEqual(
+            location.overlayURL(window: .settings, handsFree: true).absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&panel=settings&handsfree=1")
-        t.expectEqual(location.overlayURL().absoluteString,
+        t.expectEqual(
+            location.overlayURL().absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
     }
 }

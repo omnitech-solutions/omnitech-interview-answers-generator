@@ -64,4 +64,3 @@ public enum NavigationFailure {
             || (domain == "WebKitErrorDomain" && code == 102)
     }
 }
-

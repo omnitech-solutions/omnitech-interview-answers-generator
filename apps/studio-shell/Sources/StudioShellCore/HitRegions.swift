@@ -94,7 +94,8 @@ public enum HitTest {
     public static func clamped(_ rects: [HitRect], to size: CGSize) -> [HitRect] {
         rects.compactMap { rect in
             let minX = max(rect.x, 0), minY = max(rect.y, 0)
-            let maxX = min(rect.x + rect.width, Double(size.width)), maxY = min(rect.y + rect.height, Double(size.height))
+            let maxX = min(rect.x + rect.width, Double(size.width)),
+                maxY = min(rect.y + rect.height, Double(size.height))
             guard maxX > minX, maxY > minY else { return nil }
             return HitRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
         }

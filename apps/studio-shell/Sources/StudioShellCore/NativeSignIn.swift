@@ -70,7 +70,8 @@ public enum NativeSignIn {
     }
 
     public static func isCode(_ text: String) -> Bool {
-        (16...128).contains(text.count) && text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+        (16...128).contains(text.count)
+            && text.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
     }
 
     // The attempt nonce: 32 random bytes, URL-safe base64 (43 characters).
@@ -109,7 +110,9 @@ extension StudioLocation {
 
     // [SAFETY] https only, a known provider host, nothing with user info.
     public func isLoginProvider(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https", url.user == nil, let host = url.host?.lowercased() else { return false }
+        guard url.scheme?.lowercased() == "https", url.user == nil, let host = url.host?.lowercased() else {
+            return false
+        }
         return NativeSignIn.providerHosts.contains(host)
     }
 

@@ -81,7 +81,9 @@ public final class PreviewThrottle<Value> {
 public enum FrameSize {
     public static let maxLongEdge = 1568
 
-    public static func fit(width: Int, height: Int, maxLongEdge: Int = FrameSize.maxLongEdge) -> (width: Int, height: Int) {
+    public static func fit(width: Int, height: Int, maxLongEdge: Int = FrameSize.maxLongEdge) -> (
+        width: Int, height: Int
+    ) {
         let w = max(1, width), h = max(1, height)
         let long = max(w, h)
         guard long > maxLongEdge else { return (w, h) }

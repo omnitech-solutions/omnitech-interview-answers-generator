@@ -13,8 +13,9 @@ private final class MemoryCredentials: CredentialStore {
 private let credential = "asc_" + String(repeating: "A", count: 43)
 
 private func tempPaths() -> CompanionPaths {
-    CompanionPaths(directory: FileManager.default.temporaryDirectory
-        .appendingPathComponent("studio-shell-tests-\(UUID().uuidString)", isDirectory: true))
+    CompanionPaths(
+        directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("studio-shell-tests-\(UUID().uuidString)", isDirectory: true))
 }
 
 @MainActor
@@ -52,7 +53,9 @@ func pairingTests(_ t: Harness) async {
         let store = MemoryCredentials()
         let paths = tempPaths()
         let pairing = StudioPairing(credentials: store, paths: paths)
-        t.expectEqual(pairing.pair(address: "http://studio.example.com", tenantSlug: "x", credential: credential), .invalidAddress)
+        t.expectEqual(
+            pairing.pair(address: "http://studio.example.com", tenantSlug: "x", credential: credential), .invalidAddress
+        )
         t.expect(store.value == nil, "nothing stored")
     }
 }

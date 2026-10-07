@@ -91,7 +91,8 @@ public enum CaptureTarget {
             frontmostWindow(sampledPid: sampledPid, ownPid: ownPid, ordered: ordered, on: display) != nil
         else { return [] }
         return ordered.filter {
-            $0.ownerPid == sampledPid && $0.layer == 0 && $0.frame.width >= minimumSide && $0.frame.height >= minimumSide
+            $0.ownerPid == sampledPid && $0.layer == 0 && $0.frame.width >= minimumSide
+                && $0.frame.height >= minimumSide
         }.map(\.windowId)
     }
 

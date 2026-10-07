@@ -21,12 +21,14 @@ func captureTargetTests(_ t: Harness) async {
     await t.test("a browser in front is the target for both kinds of capture") {
         t.expectEqual(decide(.explicit, front: chrome), chrome)
         t.expectEqual(decide(.auto, front: chrome), chrome)
-        t.expectEqual(decide(.explicit, front: safari, lastBrowser: chrome), safari, "the one in front, not the last other")
+        t.expectEqual(
+            decide(.explicit, front: safari, lastBrowser: chrome), safari, "the one in front, not the last other")
     }
 
     await t.test("explicit: another app in front falls back to the last focused browser") {
         t.expectEqual(decide(.explicit, front: claude, lastOther: claude, lastBrowser: chrome), chrome)
-        t.expectEqual(decide(.explicit, front: own, lastOther: claude, lastBrowser: chrome), chrome, "the shell itself in front")
+        t.expectEqual(
+            decide(.explicit, front: own, lastOther: claude, lastBrowser: chrome), chrome, "the shell itself in front")
         t.expectEqual(decide(.explicit, front: nil, lastOther: claude, lastBrowser: chrome), chrome, "nothing in front")
     }
 
@@ -70,7 +72,9 @@ func captureTargetTests(_ t: Harness) async {
         t.expectEqual(reply["reason"] as? String, "no-focused-window")
         t.expectEqual(reply["frontApp"] as? String, "Claude")
         t.expect(HostReply.failure("no-focused-window", frontApp: nil)["frontApp"] == nil, "absent when unknown")
-        t.expect(HostReply.failure("permission-denied", frontApp: "Claude")["frontApp"] == nil, "only no-focused-window names it")
+        t.expect(
+            HostReply.failure("permission-denied", frontApp: "Claude")["frontApp"] == nil,
+            "only no-focused-window names it")
         t.expectEqual(HostReply.failure("busy")["reason"] as? String, "busy")
     }
 
@@ -80,11 +84,15 @@ func captureTargetTests(_ t: Harness) async {
         ]
         if case .success(.captureScreen(_, _, let intent)) = HostCallDecoder.decode(message, requestId: "r") {
             t.expectEqual(intent, .explicit)
-        } else { t.expect(false, "decodes") }
+        } else {
+            t.expect(false, "decodes")
+        }
         let plain: [String: Any] = ["v": 1, "method": "captureScreen", "params": ["mode": "display"]]
         if case .success(.captureScreen(_, _, let intent)) = HostCallDecoder.decode(plain, requestId: "r") {
             t.expectEqual(intent, .auto)
-        } else { t.expect(false, "decodes") }
+        } else {
+            t.expect(false, "decodes")
+        }
         let bad: [String: Any] = ["v": 1, "method": "captureScreen", "params": ["mode": "display", "intent": "all"]]
         t.expectEqual(HostCallDecoder.decode(bad, requestId: "r"), .failure(.invalidParameters))
     }
@@ -92,7 +100,8 @@ func captureTargetTests(_ t: Harness) async {
     await t.test("openExternal allows the exact Screen Recording settings address and no other settings address") {
         let exact = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         let message: (String) -> [String: Any] = { ["v": 1, "method": "openExternal", "params": ["url": $0]] }
-        t.expectEqual(HostCallDecoder.decode(message(exact), requestId: "r"), .success(.openExternal(URL(string: exact)!)))
+        t.expectEqual(
+            HostCallDecoder.decode(message(exact), requestId: "r"), .success(.openExternal(URL(string: exact)!)))
         for other in [
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera",
             "x-apple.systempreferences:com.apple.preference.security",

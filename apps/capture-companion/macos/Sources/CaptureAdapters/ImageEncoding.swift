@@ -17,10 +17,11 @@ enum ImageEncoder {
         let rows = PerceptualHash.gridRows
         var pixels = [UInt8](repeating: 0, count: columns * rows)
         let drawn = pixels.withUnsafeMutableBytes { raw -> Bool in
-            guard let context = CGContext(
-                data: raw.baseAddress, width: columns, height: rows, bitsPerComponent: 8,
-                bytesPerRow: columns, space: CGColorSpaceCreateDeviceGray(),
-                bitmapInfo: CGImageAlphaInfo.none.rawValue)
+            guard
+                let context = CGContext(
+                    data: raw.baseAddress, width: columns, height: rows, bitsPerComponent: 8,
+                    bytesPerRow: columns, space: CGColorSpaceCreateDeviceGray(),
+                    bitmapInfo: CGImageAlphaInfo.none.rawValue)
             else { return false }
             context.interpolationQuality = .medium
             context.draw(image, in: CGRect(x: 0, y: 0, width: columns, height: rows))
@@ -47,10 +48,11 @@ enum ImageEncoder {
     private static func scale(_ image: CGImage, toWidth width: Int) -> CGImage? {
         if image.width == width { return image }
         let height = max(1, image.height * width / image.width)
-        guard let context = CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
         else { return nil }
         context.interpolationQuality = .high
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))

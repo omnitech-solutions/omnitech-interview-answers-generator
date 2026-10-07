@@ -125,7 +125,9 @@ public final class Outbox {
     // duplicate both mean Studio has it; rate_limited and session_paused keep
     // the message; every other refusal is permanent and drops it.
     @discardableResult
-    public func handle(_ ack: Acknowledgement, for observation: Observation, retryAfterSeconds: Double? = nil) -> AckOutcome {
+    public func handle(_ ack: Acknowledgement, for observation: Observation, retryAfterSeconds: Double? = nil)
+        -> AckOutcome
+    {
         let key = observation.envelope
         switch ack {
         case .accepted(let accepted), .duplicate(let accepted):

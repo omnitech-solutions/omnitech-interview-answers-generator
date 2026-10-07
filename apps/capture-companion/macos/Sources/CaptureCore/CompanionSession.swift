@@ -59,7 +59,8 @@ public final class CompanionSession {
         self.clock = clock
         self.buffers = buffers
         self.backoff = backoff
-        self.heartbeatIntervalSeconds = max(heartbeatIntervalSeconds, Double(ActiveSessionLimits.minHeartbeatIntervalMs) / 1000)
+        self.heartbeatIntervalSeconds = max(
+            heartbeatIntervalSeconds, Double(ActiveSessionLimits.minHeartbeatIntervalMs) / 1000)
     }
 
     // [GUARD] Starts the selected sources, but only after a passing capability
@@ -216,7 +217,9 @@ public final class CompanionSession {
         var sentThisPass = 0
         while let queued = outbox.next(now: clock.now()), sentThisPass < ActiveSessionLimits.maxIngestPerMinute {
             sentThisPass += 1
-            guard let result = await send(.observation(queued.observation), payload: queued.payload, answering: queued.observation)
+            guard
+                let result = await send(
+                    .observation(queued.observation), payload: queued.payload, answering: queued.observation)
             else {
                 if stoppedLocally { outbox.clear() }
                 return
@@ -253,7 +256,9 @@ public final class CompanionSession {
 
     // Sends one message and reads control from the answer. Returns nil when
     // there was no usable answer (unreachable, malformed, server error).
-    private func send(_ message: IngestMessage, payload: Data?, answering observation: Observation?) async -> (ack: Acknowledgement, retryAfter: Double?)? {
+    private func send(_ message: IngestMessage, payload: Data?, answering observation: Observation?) async -> (
+        ack: Acknowledgement, retryAfter: Double?
+    )? {
         guard let credential = try? credentials.load(),
             let request = endpoint.request(
                 for: message, payload: payload, credential: credential, screenSelection: screenSelection())

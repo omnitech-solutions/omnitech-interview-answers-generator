@@ -5,6 +5,12 @@ pre-commit:
       run: pnpm lint
     format:
       run: pnpm format
+    swift-format:
+      glob: "**/*.swift"
+      run: node scripts/swift-format.mjs {staged_files}
+    swiftlint:
+      glob: "**/*.swift"
+      run: node scripts/swiftlint.mjs {staged_files}
 
 pre-push:
   commands:

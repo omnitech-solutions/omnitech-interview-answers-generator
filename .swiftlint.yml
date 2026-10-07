@@ -1,0 +1,53 @@
+# SwiftLint owns correctness and complexity; Apple swift-format (.swift-format)
+# owns layout. Run through scripts/swiftlint.mjs (it sets TOOLCHAIN_DIR and the baseline).
+included:
+  - apps/studio-shell/Sources
+  - apps/studio-shell/Tests
+  - apps/capture-companion/macos/Sources
+  - apps/capture-companion/macos/Tests
+excluded:
+  - "**/.build"
+  - "**/.build-cov"
+
+disabled_rules:
+  - line_length # layout: swift-format enforces lineLength 120
+  - trailing_comma # layout: swift-format adds/removes trailing commas
+  - opening_brace # layout: swift-format places braces
+  - statement_position # layout: swift-format places else/catch
+  - closure_parameter_position # layout: swift-format wraps closure parameters
+  - trailing_newline # layout: swift-format normalises the file end
+  - vertical_whitespace # layout: swift-format caps blank lines
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - contains_over_first_not_nil
+  - sorted_first_last
+  - redundant_nil_coalescing
+  - fatal_error_message
+  - explicit_init
+  - overridden_super_call
+  - unowned_variable_capture
+
+# Analyzer-only (needs `swiftlint analyze` with a compiler log); listed so it is enabled when run.
+analyzer_rules:
+  - unused_import
+
+# Test harnesses are plain executables, so test files are long and use short names.
+file_length:
+  warning: 600
+  error: 1200
+function_body_length:
+  warning: 60
+  error: 120
+type_body_length:
+  warning: 400
+  error: 800
+cyclomatic_complexity:
+  warning: 12
+  error: 25
+large_tuple:
+  warning: 3
+  error: 4
+identifier_name:
+  min_length: 1 # short math/test names (w, h, t) are idiomatic here

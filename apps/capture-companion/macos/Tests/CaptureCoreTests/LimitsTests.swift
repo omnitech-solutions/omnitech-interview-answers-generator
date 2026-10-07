@@ -17,9 +17,12 @@ func limitsTests(_ t: Harness) async {
             var product = 1
             var valid = true
             for factor in expression.split(separator: "*") {
-                if let number = Int(factor.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "_", with: "")) {
+                if let number = Int(factor.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "_", with: ""))
+                {
                     product *= number
-                } else { valid = false }
+                } else {
+                    valid = false
+                }
             }
             if valid { parsed[name] = product }
         }

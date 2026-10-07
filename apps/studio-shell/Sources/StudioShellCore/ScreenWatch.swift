@@ -20,7 +20,8 @@ public struct ScreenWatchRequest: Equatable, Sendable {
     public let displayId: UInt32?
     public let intervalMs: Int
 
-    public init(mode: Mode, region: CaptureRegion? = nil, displayId: UInt32? = nil, intervalMs: Int = defaultIntervalMs) {
+    public init(mode: Mode, region: CaptureRegion? = nil, displayId: UInt32? = nil, intervalMs: Int = defaultIntervalMs)
+    {
         self.mode = mode
         self.region = region
         self.displayId = displayId
@@ -147,7 +148,9 @@ public final class ScreenWatcher {
     public var onChange: (_ at: Int, _ bits: Int, _ display: DisplayInfo?) -> Void = { _, _, _ in }
     public var onStatus: (ScreenWatchStatus) -> Void = { _ in }
 
-    public init(sampler: ScreenWatchSampler, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+    public init(
+        sampler: ScreenWatchSampler, now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    ) {
         self.sampler = sampler
         self.now = now
     }

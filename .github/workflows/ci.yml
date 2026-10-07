@@ -54,8 +54,12 @@ jobs:
   # The Swift half of `pnpm verify`. It runs only on macOS because the Swift
   # packages (apps/studio-shell, apps/capture-companion/macos) use Apple
   # frameworks. Needs no pnpm install: the script only invokes `swift`.
+  # `verify-native.mjs` also runs the swift-format and SwiftLint gates (the
+  # runner image ships both; scripts/swiftlint.mjs fails if swiftlint is
+  # missing), and `swift-coverage.mjs` fails below 80% line coverage.
   # UNVERIFIED on GitHub: the macOS runner's Xcode toolchain is assumed to be
-  # able to `swift build` and run the two test executables.
+  # able to `swift build` and run the two test executables, and its SwiftLint
+  # version is assumed to match the baseline (.swiftlint.baseline.json, made with 0.65.1).
   native:
     runs-on: macos-latest
     timeout-minutes: 45
@@ -66,6 +70,7 @@ jobs:
           node-version: 22
       - run: swift --version
       - run: node scripts/verify-native.mjs
+      - run: node scripts/swift-coverage.mjs
 
   # The Playwright suite drives the built web app and worker against a scripted
   # model. `pnpm test:browser` runs E2E_SHARDS=4 shards inside this one job

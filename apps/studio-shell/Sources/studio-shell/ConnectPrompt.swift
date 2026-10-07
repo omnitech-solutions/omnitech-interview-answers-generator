@@ -25,7 +25,8 @@ enum ConnectPrompt {
 
             let alert = NSAlert()
             alert.messageText = "Connect to Interview Studio"
-            alert.informativeText = problem
+            alert.informativeText =
+                problem
                 ?? "The Studio window opens inside this app. \(VisibilityTruth.line)."
             alert.accessoryView = stack
             alert.addButton(withTitle: "Connect")

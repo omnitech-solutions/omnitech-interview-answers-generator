@@ -127,9 +127,13 @@ public struct Endpoint: Equatable, Sendable {
         }
         var body = Data()
         func append(_ text: String) { body.append(Data(text.utf8)) }
-        append("--\(boundary)\r\nContent-Disposition: form-data; name=\"envelope\"\r\nContent-Type: application/json\r\n\r\n")
+        append(
+            "--\(boundary)\r\nContent-Disposition: form-data; name=\"envelope\"\r\nContent-Type: application/json\r\n\r\n"
+        )
         body.append(envelope)
-        append("\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"payload\"; filename=\"payload\"\r\nContent-Type: \(content.mediaType.rawValue)\r\n\r\n")
+        append(
+            "\r\n--\(boundary)\r\nContent-Disposition: form-data; name=\"payload\"; filename=\"payload\"\r\nContent-Type: \(content.mediaType.rawValue)\r\n\r\n"
+        )
         body.append(payload)
         append("\r\n--\(boundary)--\r\n")
         headers["Content-Type"] = "multipart/form-data; boundary=\(boundary)"

@@ -36,10 +36,10 @@ final class ShellCapture {
         let outcome: CaptureOutcome
         let displayId: UInt32
         // The frame's on-device text, when recognition finished within its budget.
-        var ocr: OcrText? = nil
-        var display: DisplayInfo? = nil
+        var ocr: OcrText?
+        var display: DisplayInfo?
         var pinned = false
-        var pinFallback: PinFallback? = nil
+        var pinFallback: PinFallback?
     }
 
     // Shared with the recognizeText bridge op: one recognizer, one budget policy.
@@ -95,14 +95,16 @@ final class ShellCapture {
         let pinnedId = pin.effective(available: infos.map(\.id))
         let pinnedFrame = pinnedId.flatMap { id in Displays.frames(of: infos).first { $0.id == id } }
         let ordered = Displays.windows(ofPid: chosen)
-        let windowIds = CaptureTarget.browserWindowIds(sampledPid: chosen, ownPid: ownPid, ordered: ordered, on: pinnedFrame)
+        let windowIds = CaptureTarget.browserWindowIds(
+            sampledPid: chosen, ownPid: ownPid, ordered: ordered, on: pinnedFrame)
         let pid = windowIds.isEmpty ? nil : chosen
         let (id, pinned) = resolveDisplay(sampledPid: pid)
         // What was in front instead (never the shell itself): its name only, for the page's message.
         let front = pid == nil ? FocusSampling.sample(frontmost: frontmost, ownPid: ownPid, lastOther: lastOther) : nil
         let name = front.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
         return Sample(
-            focusedPid: pid, displayId: id, pinned: pinned, windowIds: windowIds, frontAppName: FrontAppName.sanitize(name))
+            focusedPid: pid, displayId: id, pinned: pinned, windowIds: windowIds,
+            frontAppName: FrontAppName.sanitize(name))
     }
 
     // Pinned display, else where the sampled browser's frontmost window is, else main.
@@ -120,10 +122,12 @@ final class ShellCapture {
 
     // The sampled app's frontmost qualifying window (on the pinned display, when pinned).
     func window(in windows: [SCWindow], for sample: Sample) -> SCWindow? {
-        let frame = sample.pinned ? Displays.frames(of: Displays.infos()).first { $0.id == UInt32(sample.displayId) } : nil
+        let frame =
+            sample.pinned ? Displays.frames(of: Displays.infos()).first { $0.id == UInt32(sample.displayId) } : nil
         guard !(sample.pinned && frame == nil),
             let chosen = CaptureTarget.frontmostWindow(
-                sampledPid: sample.focusedPid, ownPid: ownPid, ordered: Displays.windows(ofPid: sample.focusedPid), on: frame)
+                sampledPid: sample.focusedPid, ownPid: ownPid, ordered: Displays.windows(ofPid: sample.focusedPid),
+                on: frame)
         else { return nil }
         return windows.first { $0.windowID == chosen.windowId }
     }
@@ -143,7 +147,9 @@ final class ShellCapture {
         if request.mode == .region,
             !DisplayBinding.allows(
                 requested: requested, sampled: id, current: UInt32(resolveDisplay(sampledPid: sample.focusedPid).id))
-        { return lost(.captureFailed) }
+        {
+            return lost(.captureFailed)
+        }
         guard CGPreflightScreenCaptureAccess(),
             let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         else { return lost(.captureFailed) }
@@ -158,8 +164,10 @@ final class ShellCapture {
         case .display, .region:
             // The display resolved at receipt, not whatever it is by now.
             guard let display = content.displays.first(where: { $0.displayID == sample.displayId }),
-                request.mode == .display || DisplayBinding.allows(
-                    requested: requested, sampled: id, current: UInt32(resolveDisplay(sampledPid: sample.focusedPid).id))
+                request.mode == .display
+                    || DisplayBinding.allows(
+                        requested: requested, sampled: id,
+                        current: UInt32(resolveDisplay(sampledPid: sample.focusedPid).id))
             else { return lost(.captureFailed) }
             // [SAFETY] Only the browser's windows are rendered (never the whole display minus the
             // shell): another app in front of the browser cannot reach the JPEG or the OCR text.
@@ -184,7 +192,8 @@ final class ShellCapture {
             configuration.sourceRect = rect
             pointSize = rect.size
         }
-        let fitted = FrameSize.fit(width: Int((pointSize.width * scale).rounded()), height: Int((pointSize.height * scale).rounded()))
+        let fitted = FrameSize.fit(
+            width: Int((pointSize.width * scale).rounded()), height: Int((pointSize.height * scale).rounded()))
         configuration.width = fitted.width
         configuration.height = fitted.height
         configuration.showsCursor = false
@@ -193,7 +202,9 @@ final class ShellCapture {
         guard let image = await ShareableContent.screenshot(filter: filter, configuration: configuration)
         else { return lost(.captureFailed) }
 
-        guard let jpeg = autoreleasepool(invoking: { Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) }) else {
+        guard
+            let jpeg = autoreleasepool(invoking: { Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) })
+        else {
             return lost(.captureFailed)
         }
         return Result(
@@ -212,14 +223,18 @@ final class ShellCapture {
         for info in Displays.infos() {
             guard let display = content.displays.first(where: { $0.displayID == info.id }) else { continue }
             let configuration = SCStreamConfiguration()
-            let size = FrameSize.fit(width: Int(display.width), height: Int(display.height), maxLongEdge: Self.previewLongEdge)
+            let size = FrameSize.fit(
+                width: Int(display.width), height: Int(display.height), maxLongEdge: Self.previewLongEdge)
             configuration.width = size.width
             configuration.height = size.height
             configuration.showsCursor = false
             configuration.queueDepth = 1
-            guard let image = await ShareableContent.screenshot(
-                filter: SCContentFilter(display: display, excludingWindows: own), configuration: configuration),
-                let jpeg = autoreleasepool(invoking: { Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes) })
+            guard
+                let image = await ShareableContent.screenshot(
+                    filter: SCContentFilter(display: display, excludingWindows: own), configuration: configuration),
+                let jpeg = autoreleasepool(invoking: {
+                    Self.jpeg(image, maxBytes: ActiveSessionLimits.maxScreenshotBytes)
+                })
             else { continue }
             previews.append((info, jpeg))
         }
@@ -235,9 +250,10 @@ final class ShellCapture {
                 if let data = encode(current, quality: quality), data.count <= maxBytes { return data }
             }
             let width = max(1, current.width / 2), height = max(1, current.height / 2)
-            guard let context = CGContext(
-                data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+            guard
+                let context = CGContext(
+                    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
             else { return nil }
             context.interpolationQuality = .high
             context.draw(current, in: CGRect(x: 0, y: 0, width: width, height: height))

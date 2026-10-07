@@ -38,7 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // starts (the pages see no `studio.shell.consented` flag).
         guard requireConsent() else { exit(0) }
         model.load()
-        engine = SystemEngine.make(webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location })
+        engine = SystemEngine.make(
+            webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location })
         engine.onChange = { [weak self] snapshot in
             guard let self, let script = EngineBridge.emitScript(snapshot) else { return }
             for view in self.model.allViews { view.evaluateJavaScript(script, completionHandler: nil) }
@@ -51,11 +52,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             perform: { [weak self] command in self?.present(command) ?? PresentationState.initial })
         handler.onWatchChange = { [weak self] at, bits, display in
             guard let self else { return }
-            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchChange(at: at, bits: bits, display: display), completionHandler: nil) }
+            for view in self.model.allViews {
+                view.evaluateJavaScript(
+                    HostBridgeScript.emitScreenWatchChange(at: at, bits: bits, display: display), completionHandler: nil
+                )
+            }
         }
         handler.onWatchStatus = { [weak self] status in
             guard let self else { return }
-            for view in self.model.allViews { view.evaluateJavaScript(HostBridgeScript.emitScreenWatchStatus(status), completionHandler: nil) }
+            for view in self.model.allViews {
+                view.evaluateJavaScript(HostBridgeScript.emitScreenWatchStatus(status), completionHandler: nil)
+            }
         }
         webDelegate = StudioWebViewDelegate(model: model)
         webDelegate.onPageFinished = { [weak self] view in self?.pageFinished(view) }
@@ -132,7 +139,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let signedOut = self.model.connection == .signInRequired
             if self.wasSignedOut, !signedOut, self.model.connection.isConnected { self.reloadIdleViews() }
             // A web-view sign-out ends any run: the engine cannot act without it.
-            if signedOut, !self.wasSignedOut { self.handler.stopWatching(); Task { @MainActor in await self.engine.stop() } }
+            if signedOut, !self.wasSignedOut {
+                self.handler.stopWatching(); Task { @MainActor in await self.engine.stop() }
+            }
             self.wasSignedOut = signedOut
         }
         installMainMenu()
@@ -171,7 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // After every render: the hotkey set, the menu and the pages follow the state.
     private func rendered(_ state: PresentationState) {
-        let wanted = state.hotkeysEnabled
+        let wanted =
+            state.hotkeysEnabled
             ? HotkeyBinding.all.filter { !$0.requiresInteractive || state.interaction.isInteractive } : []
         hotkeys.set(wanted) { [weak self] action in self?.fire(action) }
         statusMenu?.setUnavailable(hotkeys.unavailable)
@@ -179,7 +189,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func fire(_ action: HotkeyBinding.Action) {
-        guard let effect = HotkeyRouting.effect(for: action, interactive: controller.state.interaction.isInteractive) else { return }
+        guard let effect = HotkeyRouting.effect(for: action, interactive: controller.state.interaction.isInteractive)
+        else { return }
         switch effect {
         case .intent(let command): send(command)
         case .present(let command): present(command)
@@ -212,11 +223,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func push(_ state: PresentationState) {
-        for view in model.allViews { view.evaluateJavaScript(HostBridgeScript.emitPresentation(state), completionHandler: nil) }
+        for view in model.allViews {
+            view.evaluateJavaScript(HostBridgeScript.emitPresentation(state), completionHandler: nil)
+        }
     }
 
     private func pushAccount(_ state: AccountState) {
-        for view in model.allViews { view.evaluateJavaScript(HostBridgeScript.emitAccountState(state), completionHandler: nil) }
+        for view in model.allViews {
+            view.evaluateJavaScript(HostBridgeScript.emitAccountState(state), completionHandler: nil)
+        }
     }
 
     // [SAFETY] Ends this Mac's Studio session: the shell's own web view forgets Studio's
@@ -233,7 +248,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let host = location.origin.host?.lowercased()
         let store = WKWebsiteDataStore.default().httpCookieStore
         store.getAllCookies { [weak self] cookies in
-            let studio = cookies.filter { $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() == host }
+            let studio = cookies.filter {
+                $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased() == host
+            }
             let group = DispatchGroup()
             for cookie in studio {
                 group.enter()
@@ -316,11 +333,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About Interview Studio", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(
+            withTitle: "About Interview Studio", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide Interview Studio", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(
+            withTitle: "Hide Interview Studio", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Interview Studio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(
+            withTitle: "Quit Interview Studio", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
@@ -345,7 +366,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
-        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(
+            withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         window.submenu = windowMenu
         main.addItem(window)
         NSApp.mainMenu = main
@@ -358,8 +380,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // window the yellow dot hid.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            if controller.state.appMode == .expanded { present(.setAppMode(.expanded)) }
-            else if controller.state.hidden { present(.setVisible(true)) }
+            if controller.state.appMode == .expanded {
+                present(.setAppMode(.expanded))
+            } else if controller.state.hidden {
+                present(.setVisible(true))
+            }
         }
         return true
     }

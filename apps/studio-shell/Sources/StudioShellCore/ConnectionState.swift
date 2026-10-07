@@ -36,7 +36,9 @@ public enum ConnectionRules {
     // `signedIn` is the web view's own session (nil: not yet known);
     // `signInAvailable` is whether Studio has a real login provider. The paired
     // capture credential never decides it; only Studio's answer to the page does.
-    public static func state(paired: Bool, probe: ProbeResult?, signedIn: Bool? = nil, signInAvailable: Bool? = nil) -> ConnectionState {
+    public static func state(paired: Bool, probe: ProbeResult?, signedIn: Bool? = nil, signInAvailable: Bool? = nil)
+        -> ConnectionState
+    {
         guard paired else { return .notPaired }
         guard let probe else { return .connecting }
         if case .answered(let status) = probe, status == 200 {

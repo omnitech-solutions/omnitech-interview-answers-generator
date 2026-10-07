@@ -19,11 +19,16 @@ final class Harness {
         if !currentFailed { passed += 1 }
     }
 
-    func expect(_ condition: Bool, _ message: @autoclosure () -> String = "expectation failed", line: UInt = #line, file: String = #fileID) {
+    func expect(
+        _ condition: Bool, _ message: @autoclosure () -> String = "expectation failed", line: UInt = #line,
+        file: String = #fileID
+    ) {
         if !condition { record("\(message()) (\(file):\(line))") }
     }
 
-    func expectEqual<T: Equatable>(_ actual: T, _ expected: T, _ label: String = "", line: UInt = #line, file: String = #fileID) {
+    func expectEqual<T: Equatable>(
+        _ actual: T, _ expected: T, _ label: String = "", line: UInt = #line, file: String = #fileID
+    ) {
         if actual != expected {
             record("\(label) expected \(expected) but got \(actual) (\(file):\(line))")
         }

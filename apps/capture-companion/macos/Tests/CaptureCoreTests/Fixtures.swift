@@ -76,11 +76,14 @@ func acceptedResult(for request: OutgoingRequest, state: String = "active") -> T
     let sourceId = stringField(envelope, "sourceId") ?? "x"
     var eventId = stringField(envelope, "eventId")
     if eventId == nil { eventId = stringField(envelope, "kind") == "heartbeat" ? "heartbeat" : "capability" }
-    let body = #"{"version":1,"status":"accepted","sourceId":"\#(sourceId)","eventId":"\#(eventId ?? "x")","control":\#(controlJSON(state))}"#
+    let body =
+        #"{"version":1,"status":"accepted","sourceId":"\#(sourceId)","eventId":"\#(eventId ?? "x")","control":\#(controlJSON(state))}"#
     return .response(status: 200, body: Data(body.utf8), retryAfterSeconds: nil)
 }
 
-func refusedResult(_ code: String, state: String? = nil, issuesJSON: String? = nil, status: Int = 409, retryAfter: Double? = nil) -> TransportResult {
+func refusedResult(
+    _ code: String, state: String? = nil, issuesJSON: String? = nil, status: Int = 409, retryAfter: Double? = nil
+) -> TransportResult {
     var body = #"{"version":1,"status":"refused","code":"\#(code)""#
     if let state { body += #","control":\#(controlJSON(state))"# }
     if let issuesJSON { body += #","issues":\#(issuesJSON)"# }

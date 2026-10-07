@@ -15,8 +15,9 @@ public struct StudioLocation: Equatable, Sendable {
     // field means the default. The same rules as the companion's pairing.
     public init?(address: String, tenantSlug: String) {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let endpoint = Endpoint(
-            studioAddress: trimmed.isEmpty ? Self.defaultAddress : trimmed, tenantSlug: tenantSlug)
+        guard
+            let endpoint = Endpoint(
+                studioAddress: trimmed.isEmpty ? Self.defaultAddress : trimmed, tenantSlug: tenantSlug)
         else { return nil }
         self.endpoint = endpoint
     }
