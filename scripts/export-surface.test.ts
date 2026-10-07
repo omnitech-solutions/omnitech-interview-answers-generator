@@ -52,7 +52,7 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/agent-runtime-claude": { entrypoints: 1, names: 2 },
   "@omnitech/agent-runtime-codex": { entrypoints: 1, names: 2 },
   "@omnitech/agent-runtime-contracts": { entrypoints: 1, names: 17 },
-  "@omnitech/ai-contracts": { entrypoints: 1, names: 34 },
+  "@omnitech/ai-contracts": { entrypoints: 1, names: 35 },
   "@omnitech/ai-provider-anthropic": { entrypoints: 1, names: 2 },
   "@omnitech/ai-provider-images": { entrypoints: 1, names: 11 },
   "@omnitech/ai-provider-openai": { entrypoints: 1, names: 4 },

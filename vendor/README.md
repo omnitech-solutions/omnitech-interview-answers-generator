@@ -28,7 +28,7 @@ those of the local sibling checkouts at the time of writing.
 | `omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz` | `@omnitech-assistant/provider-on-device` | 0.1.0 | `omnitech-assistant` | `packages/provider-on-device` |
 | `omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz` | `@omnitech/local-assistant` | 0.1.0 | `omnitech-on-device-llm` | `packages/assistant` (its directory name differs from the package name) |
 | `omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz` | `@omnitech/local-inference` | 0.1.0 | `omnitech-on-device-llm` | `packages/runtime` (its directory name differs from the package name) |
-| `omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz` | `@oc-tech/omni-ui-components` | 0.0.2 | `omni-ui-components` | `packages/core` |
+| `omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz` | `@oc-tech/omni-ui-components` | 0.1.0 | `omni-ui-components` | `packages/core` |
 
 - `omnitech-assistant` local remote: `git@github.com:desoleary/omnitech-assistant.git`.
 - `omnitech-on-device-llm` local remote: `git@github.com:omnitech-solutions/omnitech-on-device-llm.git`.

@@ -77,7 +77,7 @@ overrides:
   '@omnitech-assistant/storage-postgres': file:vendor/omnitech-assistant/omnitech-assistant-storage-postgres-0.1.0.tgz
   '@omnitech-assistant/sdk': file:vendor/omnitech-assistant/omnitech-assistant-sdk-0.1.0.tgz
   '@omnitech-assistant/react': file:vendor/omnitech-assistant/omnitech-assistant-react-0.1.0.tgz
-  '@oc-tech/omni-ui-components': file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz
+  '@oc-tech/omni-ui-components': file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz
   '@omnitech-assistant/provider-on-device': file:vendor/omnitech-assistant/omnitech-assistant-provider-on-device-0.1.0.tgz
   '@omnitech/local-assistant': file:vendor/omnitech-on-device-llm/omnitech-local-assistant-0.1.0.tgz
   '@omnitech/local-inference': file:vendor/omnitech-on-device-llm/omnitech-local-inference-0.1.0.tgz
@@ -210,8 +210,8 @@ importers:
         specifier: 5.3.0
         version: 5.3.0
       '@oc-tech/omni-ui-components':
-        specifier: file:../../vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz
-        version: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz(@floating-ui/dom@1.8.0)(@rjsf/core@6.11.0(@rjsf/utils@6.11.0(react@19.3.0))(react@19.3.0))(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/extensions@3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: file:../../vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz
+        version: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz(@floating-ui/dom@1.8.0)(@rjsf/core@6.11.0(@rjsf/utils@6.11.0(react@19.3.0))(react@19.3.0))(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/extensions@3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@omnitech-assistant/contracts':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
@@ -2206,9 +2206,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz':
-    resolution: {integrity: sha512-LPJGt2PHow6SpzGdDYRw6O/NDcD0dyGhZ4UU95ul2Q7Jiae4+X3dyl8cc5sWRzMI2OovczpiGRpxMl9d5F/I+Q==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz}
-    version: 0.0.2
+  '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz':
+    resolution: {integrity: sha512-/A1HHXq1xnT/x5qUYlYGR5aeUauyQSTVqRrf+esS/tUFlE2hd8iKrl2CEHJAXhOEHiZR+Lfi0MEbJo3lPvcseA==, tarball: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz}
+    version: 0.1.0
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
@@ -6859,7 +6859,7 @@ snapshots:
   '@next/swc-win32-x64-msvc@16.2.11':
     optional: true
 
-  '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.0.2.tgz(@floating-ui/dom@1.8.0)(@rjsf/core@6.11.0(@rjsf/utils@6.11.0(react@19.3.0))(react@19.3.0))(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/extensions@3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@oc-tech/omni-ui-components@file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz(@floating-ui/dom@1.8.0)(@rjsf/core@6.11.0(@rjsf/utils@6.11.0(react@19.3.0))(react@19.3.0))(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/extensions@3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@dnd-kit/core': 6.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@dnd-kit/modifiers': 9.0.0(@dnd-kit/core@6.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
@@ -6899,11 +6899,15 @@ snapshots:
       classnames: 2.5.1
       clsx: 2.1.1
       cmdk: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      diff: 9.0.0
       input-otp: 1.5.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      lowlight: 3.3.0
       lucide-react: 1.49.0(@types/react@19.3.0)(react@19.3.0)
       react: 19.3.0
       react-day-picker: 9.14.0(react@19.3.0)
       react-dom: 19.3.0(react@19.3.0)
+      react-markdown: 10.1.0(@types/react@19.3.0)(react@19.3.0)
+      remark-gfm: 4.0.1
       tailwind-merge: 3.7.0
       zod: 4.6.5
     transitivePeerDependencies:
@@ -6915,6 +6919,7 @@ snapshots:
       - '@tiptap/pm'
       - '@types/react'
       - '@types/react-dom'
+      - supports-color
 
   '@omnitech-assistant/contracts@file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz':
     dependencies:
