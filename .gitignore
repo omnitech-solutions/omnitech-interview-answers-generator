@@ -41,3 +41,4 @@ blob-report/
 
 # Scratch output of the UI audit harness.
 /e2e/live-session/.audit/
+.build-cov/
