@@ -1562,6 +1562,39 @@ describe("answer pane", () => {
   });
 });
 
+describe("answer pane: error line and ended session", () => {
+  it("shows one dismissible error line", async () => {
+    serve(live(), [named("Rate limiter")]);
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async () => {
+          throw new Error("denied");
+        },
+      },
+      configurable: true,
+    });
+    document.execCommand = vi.fn(() => false);
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Copy answer" }));
+    await flush();
+    const dismiss = () =>
+      screen.queryByRole("button", { name: "Dismiss message" });
+    expect(dismiss()).not.toBeNull();
+    fireEvent.click(dismiss() as HTMLElement);
+    expect(dismiss()).toBeNull();
+  });
+
+  it("disables the empty-state capture and says why when the session is not taking captures", async () => {
+    serve(live({ status: "ended", endedAt: minutesAfter(1, 9) }), []);
+    await show();
+    const empty = screen.getByTestId("pn-analysis-empty");
+    expect(
+      within(empty).getByRole("button", { name: /^(Analyze screen|Capture)/ }),
+    ).toBeDisabled();
+    expect(screen.getByTestId("pn-capture-off")).toBeVisible();
+  });
+});
+
 describe("code pane", () => {
   it("shows the language, the server's own badges, the code and Copy code", async () => {
     serve(live(), [named("Rate limiter"), solved()]);
