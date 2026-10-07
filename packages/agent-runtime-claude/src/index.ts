@@ -266,6 +266,41 @@ export function createClaudeRuntimeAdapter(
             close(session);
             break;
           }
+          // [STRATEGY] A structured answer is complete the moment the model
+          // has called the StructuredOutput tool: its input IS the output.
+          // The SDK would now make one more API round trip (the tool result
+          // and the model's closing turn) that adds nothing and, when the
+          // account is rate-limited, takes up to a minute. The run completes
+          // here instead and the process is closed.
+          if (message.type === "assistant" && session.toolless) {
+            const structured = message.message.content.find(
+              (block) =>
+                block.type === "tool_use" &&
+                block.name === STRUCTURED_OUTPUT_TOOL,
+            );
+            if (structured && structured.type === "tool_use") {
+              const used = message.message.usage;
+              push(turn, {
+                type: "usage",
+                usage: {
+                  inputTokens: used.input_tokens,
+                  outputTokens: used.output_tokens,
+                  totalTokens: used.input_tokens + used.output_tokens,
+                  turns: 1,
+                },
+              });
+              push(turn, {
+                type: "completed",
+                result: {
+                  sessionId: session.sessionId ?? message.session_id,
+                  output: structured.input,
+                },
+              });
+              finish(turn);
+              close(session);
+              break;
+            }
+          }
           const delta = streamedText(message);
           if (delta) {
             turn.streamed = true;
