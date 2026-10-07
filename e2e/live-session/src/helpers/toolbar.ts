@@ -102,7 +102,14 @@ export const sizeMenu = (page: Page): Locator =>
 export const sizeRow = (page: Page, name: RegExp): Locator =>
   sizeMenu(page).getByRole("menuitemradio", { name });
 export async function openSizeMenu(page: Page): Promise<void> {
-  await page.getByTestId("pn-dot-size").focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(sizeMenu(page)).toBeVisible();
+  // A menu that was just closed returns focus to its trigger a moment later; an ArrowDown that
+  // lands in that window is taken by the closing menu and the new one never opens. So wait until
+  // no menu is open, then focus the dot and press: the press is retried only if the menu still did
+  // not open (a swallowed key), never to hide a menu that cannot open.
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(async () => {
+    await page.getByTestId("pn-dot-size").focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(sizeMenu(page)).toBeVisible({ timeout: 2_500 });
+  }).toPass({ timeout: 9_000 });
 }
