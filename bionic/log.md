@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-07] adr | ADR-0034: Record native-app and companion events through one redacting event log
+
+Proposed (amends ADR-0007). File `bionic/adrs/ADR-0034-record-native-app-and-companion-events-through-one.md`. Tags: observability, native, logging, active-session.
+
 ## [2026-10-06] adr | ADR-0033: Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface
 
 Proposed (amends ADR-0017). File `bionic/adrs/ADR-0033-remove-document-picture-in-picture-and-the-in-tab.md`. Tags: active-session, overlay, pip, native, live-ui.

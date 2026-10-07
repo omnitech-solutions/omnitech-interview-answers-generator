@@ -39,6 +39,7 @@
     "prepare": "lefthook install",
     "dev:stop": "node scripts/dev-stop.mjs",
     "app:up": "docker compose --profile app up -d --build && scripts/docker-host-services.sh start",
+    "app:dev": "scripts/app-dev.sh",
     "app:down": "scripts/docker-host-services.sh stop; docker compose --profile app down",
     "knip": "knip --no-exit-code",
     "docs:arch": "node scripts/docs-arch.mjs",

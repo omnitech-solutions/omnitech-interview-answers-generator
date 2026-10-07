@@ -159,6 +159,22 @@ export const acknowledgementSchema = z.discriminatedUnion("status", [
 ]);
 export type Acknowledgement = z.infer<typeof acknowledgementSchema>;
 
+// The companion's own state as codes (never content): what it is doing, each
+// selected source's status and a speech failure if any. Optional, so an older
+// companion that does not send it is still understood; it exists so Studio can
+// log WHY a heartbeat stopped capturing instead of silently pausing.
+const diagnosticCode = z.string().regex(/^[A-Za-z0-9_.:-]{1,32}$/);
+export const heartbeatDiagnosticsSchema = z.strictObject({
+  state: diagnosticCode,
+  sources: z
+    .record(diagnosticCode, diagnosticCode)
+    .refine((sources) => Object.keys(sources).length <= 8, {
+      message: "at most eight sources",
+    }),
+  speechFailure: diagnosticCode.nullable().optional(),
+});
+export type HeartbeatDiagnostics = z.infer<typeof heartbeatDiagnosticsSchema>;
+
 // Content-free heartbeat: lets Studio see resume without any capture content.
 export const heartbeatSchema = z.strictObject({
   version: wireVersionSchema,
@@ -166,6 +182,7 @@ export const heartbeatSchema = z.strictObject({
   sourceId: opaqueIdSchema,
   sentAt: isoTimestampSchema,
   capturing: z.boolean(),
+  diagnostics: heartbeatDiagnosticsSchema.optional(),
 });
 export type Heartbeat = z.infer<typeof heartbeatSchema>;
 

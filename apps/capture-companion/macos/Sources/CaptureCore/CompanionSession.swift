@@ -250,7 +250,21 @@ public final class CompanionSession {
         // has stopped. While Studio alone has paused it the companion is doing what it was told and says
         // so; otherwise the owner's resume would be undone by the very next heartbeat.
         let capturing = machine.isCapturing || machine.state == .paused
-        let beat = Heartbeat(sourceId: factory.companionId, sentAt: TimeText.iso(now), capturing: capturing)
+        // The companion's own state rides along (codes only), so Studio can say
+        // WHY a heartbeat stopped capturing instead of just pausing.
+        let diagnostics = HeartbeatDiagnostics(
+            state: "\(machine.state)",
+            sources: Dictionary(uniqueKeysWithValues: machine.statuses.map { ("\($0.key)", "\($0.value)") }),
+            speechFailure: machine.speechFailure.map { "\($0)" })
+        CompanionEvents.record(
+            .heartbeat, "heartbeat",
+            [
+                "capturing": "\(capturing)", "state": diagnostics.state,
+                "sources": diagnostics.sources.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(
+                    separator: ","),
+            ])
+        let beat = Heartbeat(
+            sourceId: factory.companionId, sentAt: TimeText.iso(now), capturing: capturing, diagnostics: diagnostics)
         _ = await send(.heartbeat(beat), payload: nil, answering: nil)
     }
 

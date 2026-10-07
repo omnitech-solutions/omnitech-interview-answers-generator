@@ -103,7 +103,10 @@
   background: transparent;
 }
 :root[data-panel-host="native"] .pn-root {
-  padding: 0;
+  /* Half of WINDOW_PAD (toolbar-config.ts) on each side: the shell sizes the
+     window with that margin, so the toolbar, panels and footer keep their
+     rounded corners instead of running into the window's edge. */
+  padding: 8px;
 }
 
 .pn-contents {

@@ -1,5 +1,6 @@
 import CaptureCore
 import Foundation
+import StudioShellCore
 
 // [DOMAIN] What one hands-free run needs: the session Studio named and the
 // sources Studio's owner chose for it. The engine never adds a source.
@@ -392,6 +393,13 @@ public final class HandsFreeEngine: EngineHost {
         let next = makeSnapshot()
         guard next != snapshot else { return }
         snapshot = next
+        EventLog.shared.record(
+            .system, "engine.state",
+            [
+                "stage": "\(next.stage)", "paused": "\(next.paused)",
+                "sources": next.sources.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
+                "speechFailure": next.speechFailure.map { "\($0)" } ?? "none",
+            ])
         onChange(next)
     }
 

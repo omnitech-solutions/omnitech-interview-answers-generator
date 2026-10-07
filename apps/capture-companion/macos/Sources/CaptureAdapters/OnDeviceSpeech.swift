@@ -152,19 +152,30 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
             let segments = result?.bestTranscription.segments ?? []
             let start = segments.first.map { Int($0.timestamp * 1000) }
             let end = segments.last.map { Int(($0.timestamp + $0.duration) * 1000) }
-            let failed = error != nil && result == nil
+            // [GUARD] The recogniser ends a request after a stretch of silence
+            // (kAFAssistantErrorDomain 1110 "No speech detected"). Silence is not
+            // a failure: the request is dropped and the next audio opens a new one.
+            let outcome: Outcome =
+                error != nil && result == nil ? (Self.isSilenceEnd(error) ? .silence : .failed) : .result
             guard let transcriber = self else { return }
             transcriber.queue.async {
-                transcriber.handle(generation: mine, text: text, startMs: start, endMs: end, failed: failed)
+                transcriber.handle(generation: mine, text: text, startMs: start, endMs: end, outcome: outcome)
             }
         }
         self.request = request
         return request
     }
 
-    private func handle(generation mine: Int, text: String?, startMs: Int?, endMs: Int?, failed: Bool) {
+    private enum Outcome { case result, silence, failed }
+
+    private func handle(generation mine: Int, text: String?, startMs: Int?, endMs: Int?, outcome: Outcome) {
         guard mine == generation else { return }
-        if failed {
+        if outcome == .silence {
+            flushSegment()
+            discardRequest()
+            return
+        }
+        if outcome == .failed {
             discardRequest()
             onFailure()
             return
@@ -181,11 +192,23 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
         let quiet = Date().timeIntervalSince(lastUpdate) >= silenceSeconds
         let long = Date().timeIntervalSince(requestStartedAt) >= maxRequestSeconds
         guard quiet || long else { return }
+        flushSegment()
+        discardRequest()
+    }
+
+    // Hands over whatever text the current request produced, if any.
+    private func flushSegment() {
+        guard !latestText.isEmpty else { return }
         let text = latestText
         let start = latestStartMs
         let end = max(latestEndMs, start)
-        discardRequest()
+        latestText = ""
         onFinal(text, start, end)
+    }
+
+    static func isSilenceEnd(_ error: Error?) -> Bool {
+        guard let error = error as NSError? else { return false }
+        return error.domain == "kAFAssistantErrorDomain" && error.code == 1110
     }
 
     private func discardRequest() {

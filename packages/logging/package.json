@@ -1,34 +1,33 @@
 {
-  "name": "@omnitech/ai-runtime",
+  "name": "@omnitech/logging",
   "version": "0.1.0",
-  "private": true,
+  "description": "One structured logger for every Omnitech service: levels from the environment, JSON or pretty lines, redaction built in",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./config": {
-      "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsup",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config ../../vitest.package.config.ts"
   },
-  "dependencies": {
-    "@omnitech/agent-runtime-contracts": "workspace:*",
-    "@omnitech/logging": "workspace:*",
-    "@omnitech/ai-contracts": "workspace:*",
-    "@omnitech-assistant/contracts": "file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz"
-  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsup": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

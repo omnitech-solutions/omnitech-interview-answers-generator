@@ -32,6 +32,7 @@ import {
   WIRE_VERSION,
 } from "@omnitech/active-session-contracts";
 import type { PlatformDatabase, TenantDatabase } from "@omnitech/database";
+import { createLogger } from "@omnitech/logging";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { sql } from "drizzle-orm";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
@@ -69,6 +70,9 @@ import { cancelSessionJobs, type SessionJobs } from "./session-jobs";
 import { lockSession, type SessionRecord } from "./session-record";
 import { reconcileLocked, transitionLocked } from "./status-transition";
 
+// Companion lifecycle events: ids, codes and permission states, never content.
+const log = createLogger({ service: "interview-web" });
+
 export type IngestOptions = {
   // The screenshot's bytes, which travel apart from the envelope.
   payload?: Uint8Array;
@@ -91,13 +95,16 @@ type Refused = Extract<Acknowledgement, { status: "refused" }>;
 const refusal = (
   code: RefusalCode,
   extra: { control?: ControlStatus; issues?: ObservationIssue[] } = {},
-): Refused => ({
-  version: WIRE_VERSION,
-  status: "refused",
-  code,
-  ...(extra.control ? { control: extra.control } : {}),
-  ...(extra.issues ? { issues: extra.issues.slice(0, 20) } : {}),
-});
+): Refused => {
+  log.debug("companion.refused", { code, control: extra.control?.state });
+  return {
+    version: WIRE_VERSION,
+    status: "refused",
+    code,
+    ...(extra.control ? { control: extra.control } : {}),
+    ...(extra.issues ? { issues: extra.issues.slice(0, 20) } : {}),
+  };
+};
 
 // A session that has not started capturing reads as paused to the companion.
 const controlState = (status: SessionStatus): ControlStatus["state"] =>
@@ -648,6 +655,15 @@ async function heartbeatLocked(
     return rateLimited(control, cancelJobs, limits);
   await touch(tx, scope, row.id);
   if (status === "active" && !parsed.data.capturing) {
+    // The one line that says WHY a session paused by itself: the companion's
+    // own state rides the heartbeat as codes (rule:id-only-traces).
+    log.info("companion.heartbeat_stop", {
+      sessionId: row.id,
+      sourceId: parsed.data.sourceId,
+      state: parsed.data.diagnostics?.state ?? "unknown",
+      sources: parsed.data.diagnostics?.sources ?? {},
+      speechFailure: parsed.data.diagnostics?.speechFailure ?? null,
+    });
     await transitionLocked(tx, { ...row, status }, "pause", "companion-stop");
     return {
       ack: refusal("session_paused", {
@@ -685,6 +701,7 @@ async function capabilityLocked(
   limits: IngestLimits,
   declaration: CompanionDeclaration,
 ): Promise<Locked> {
+  log.debug("companion.capability", { sessionId: row.id, report: envelope });
   const validated = validateWireMessage<CapabilityReport>(
     capabilityReportSchema,
     envelope,

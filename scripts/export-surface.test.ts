@@ -47,7 +47,8 @@ const extraEntrypointReasons: Record<string, string> = {
 
 const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/capture-companion": { entrypoints: 2, names: 75 },
-  "@omnitech/active-session-contracts": { entrypoints: 1, names: 79 },
+  // +2: heartbeatDiagnosticsSchema and HeartbeatDiagnostics, the companion's state as codes on a heartbeat.
+  "@omnitech/active-session-contracts": { entrypoints: 1, names: 81 },
   "@omnitech/agent-job-service": { entrypoints: 1, names: 12 },
   "@omnitech/agent-runtime-claude": { entrypoints: 1, names: 2 },
   "@omnitech/agent-runtime-codex": { entrypoints: 1, names: 2 },
@@ -100,6 +101,8 @@ const surfaces: Record<string, SurfaceRow> = {
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },
+  // The one logger (levels, format and content from the environment; redaction built in).
+  "@omnitech/logging": { entrypoints: 1, names: 9 },
   "@omnitech/platform-api": { entrypoints: 1, names: 2 },
   "@omnitech/platform-contracts": { entrypoints: 1, names: 23 },
   "@omnitech/platform-integrations": { entrypoints: 1, names: 12 },

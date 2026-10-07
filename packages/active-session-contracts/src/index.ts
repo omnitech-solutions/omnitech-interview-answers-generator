@@ -23,6 +23,8 @@ export {
   duplicateAckSchema,
   HEARTBEAT_ACK_EVENT_ID,
   type Heartbeat,
+  type HeartbeatDiagnostics,
+  heartbeatDiagnosticsSchema,
   heartbeatSchema,
   type IngestMessage,
   ingestMessageSchema,

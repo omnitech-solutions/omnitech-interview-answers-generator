@@ -152,10 +152,19 @@ export function SinglePanel({
       return;
     }
     const root = document.querySelector<HTMLElement>(".pn-root");
-    const rows = [...(root?.children ?? [])].filter(
-      (row): row is HTMLElement =>
-        row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
-    );
+    // A `display: contents` wrapper (the toolbar's drag handle) has no box, so
+    // nothing observes it and it measures 0: stand in its first child, the real box.
+    const rows = [...(root?.children ?? [])]
+      .filter(
+        (row): row is HTMLElement =>
+          row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
+      )
+      .map((row) =>
+        row.classList.contains("pn-contents") &&
+        row.firstElementChild instanceof HTMLElement
+          ? row.firstElementChild
+          : row,
+      );
     const fit = () => {
       const pill = root?.querySelector<HTMLElement>(".pn-toolbar");
       const toolbar =
@@ -182,6 +191,10 @@ export function SinglePanel({
     if (typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(fit);
     for (const row of rows) watch.observe(row);
+    // The toolbar is observed itself: its wrapper has no box, so growing labels
+    // (an account chip, a device name) would never reach the rows above.
+    const pill = root?.querySelector<HTMLElement>(".pn-toolbar");
+    if (pill) watch.observe(pill);
     return () => watch.disconnect();
   }, [
     shown,

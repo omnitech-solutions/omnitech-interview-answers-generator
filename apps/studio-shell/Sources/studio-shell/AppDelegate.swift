@@ -37,6 +37,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // First run: one native consent, before any page exists. Without it nothing
         // starts (the pages see no `studio.shell.consented` flag).
         guard requireConsent() else { exit(0) }
+        EventLog.shared.captureCompanionEvents()
+        EventLog.shared.record(
+            .system, "app.launch",
+            ["build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev"])
         model.load()
         engine = SystemEngine.make(
             webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location })

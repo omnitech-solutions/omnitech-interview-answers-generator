@@ -31,6 +31,15 @@ public final class ControlPull {
     // Reads control out of one acknowledgement. `observation` is the message
     // the ack answers, when there was one (a heartbeat has none).
     public func observe(_ ack: Acknowledgement, answering observation: Observation? = nil) {
+        switch ack {
+        case .accepted(let accepted):
+            CompanionEvents.record(.server, "ack.accepted", ["control": "\(accepted.control.state)"])
+        case .refused(let code, let control, _):
+            CompanionEvents.record(
+                .server, "ack.refused", ["code": "\(code)", "control": control.map { "\($0.state)" } ?? "none"])
+        case .duplicate:
+            CompanionEvents.record(.server, "ack.duplicate")
+        }
         guard !machine.isTerminal else { return }
         if case .refused(let code, _, let issues) = ack {
             switch code {

@@ -1,3 +1,5 @@
+import Foundation
+
 // [DOMAIN] What the companion shows the person, derived from facts rather than
 // set freely, so a revoked permission can never read as "listening".
 
@@ -54,8 +56,14 @@ public final class CompanionStateMachine {
         return .idle
     }
 
-    // True only while audio or screen is actually being captured.
-    public var isCapturing: Bool { state == .listening }
+    // True while any selected source is actually being captured. A LOST source
+    // (device gone, recogniser error) is a visible problem but does not stop the
+    // others: the microphone keeps the session live when application audio drops.
+    // A revoked permission, a failed capability, Studio's pause and a terminal
+    // state still stop everything (`state` ranks them above a running source).
+    public var isCapturing: Bool {
+        state == .listening || (state == .sourceLost && statuses.values.contains(.running))
+    }
 
     public func running() -> [CaptureSource] {
         selection.filter { statuses[$0] == .running }.sorted { $0.rawValue < $1.rawValue }
@@ -64,6 +72,7 @@ public final class CompanionStateMachine {
     // MARK: transitions (all ignored once terminal)
 
     public func capabilityFailed(_ failure: SpeechFailure) {
+        CompanionEvents.record(.system, "capability.failed", ["failure": "\(failure)"])
         guard !isTerminal else { return }
         speechFailure = failure
     }
@@ -82,11 +91,13 @@ public final class CompanionStateMachine {
     }
 
     public func markLost(_ source: CaptureSource, reason: DisconnectReason) {
+        CompanionEvents.record(.system, "source.lost", ["source": "\(source)", "reason": "\(reason)"])
         guard !isTerminal, selection.contains(source), statuses[source] != .refused else { return }
         statuses[source] = reason == .permissionRevoked ? .revoked : .lost
     }
 
     public func refuse(_ source: CaptureSource) {
+        CompanionEvents.record(.server, "source.refused", ["source": "\(source)"])
         guard !isTerminal, selection.contains(source) else { return }
         statuses[source] = .refused
     }
@@ -117,6 +128,7 @@ public final class CompanionStateMachine {
     public func refuseCredential() { terminate(.credentialRefused) }
 
     private func terminate(_ state: CompanionState) {
+        CompanionEvents.record(.system, "run.terminal", ["state": "\(state)"])
         guard terminal == nil else { return }
         terminal = state
         for source in selection where statuses[source] == .running || statuses[source] == .pausedByStudio {

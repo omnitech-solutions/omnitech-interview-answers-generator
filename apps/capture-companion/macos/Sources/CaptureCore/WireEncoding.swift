@@ -54,13 +54,22 @@ extension Observation {
 
 extension Heartbeat {
     public var json: JSONValue {
-        .object([
+        var object: [String: JSONValue] = [
             "version": .number(Double(wireVersion)),
             "kind": .string("heartbeat"),
             "sourceId": .string(sourceId),
             "sentAt": .string(sentAt),
             "capturing": .bool(capturing),
-        ])
+        ]
+        if let diagnostics {
+            var block: [String: JSONValue] = [
+                "state": .string(diagnostics.state),
+                "sources": .object(diagnostics.sources.mapValues { .string($0) }),
+            ]
+            if let failure = diagnostics.speechFailure { block["speechFailure"] = .string(failure) }
+            object["diagnostics"] = .object(block)
+        }
+        return .object(object)
     }
 }
 

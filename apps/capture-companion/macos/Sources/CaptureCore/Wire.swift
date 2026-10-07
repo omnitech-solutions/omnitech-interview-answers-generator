@@ -218,15 +218,32 @@ public struct Observation: Equatable, Sendable {
     }
 }
 
+// The companion's state as codes (never content): what it is doing, each
+// selected source's status, and a speech failure if any. Optional on the wire,
+// so an older Studio that does not know it still accepts the heartbeat.
+public struct HeartbeatDiagnostics: Equatable, Sendable {
+    public let state: String
+    public let sources: [String: String]
+    public let speechFailure: String?
+
+    public init(state: String, sources: [String: String], speechFailure: String?) {
+        self.state = state
+        self.sources = sources
+        self.speechFailure = speechFailure
+    }
+}
+
 public struct Heartbeat: Equatable, Sendable {
     public let sourceId: String
     public let sentAt: String
     public let capturing: Bool
+    public let diagnostics: HeartbeatDiagnostics?
 
-    public init(sourceId: String, sentAt: String, capturing: Bool) {
+    public init(sourceId: String, sentAt: String, capturing: Bool, diagnostics: HeartbeatDiagnostics? = nil) {
         self.sourceId = sourceId
         self.sentAt = sentAt
         self.capturing = capturing
+        self.diagnostics = diagnostics
     }
 }
 

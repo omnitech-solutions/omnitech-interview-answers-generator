@@ -14,6 +14,7 @@ import {
   MAX_TASK_ATTACHMENTS,
   type ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
+import { createLogger, type Logger } from "@omnitech/logging";
 import type {
   ModelInfo,
   ModelPart,
@@ -65,6 +66,10 @@ export interface AgentExecutionPort {
 }
 
 export interface CreateAiExecutionGatewayOptions {
+  // Where the gateway reports each call (profile, target, duration, outcome;
+  // prompts and output only at trace with LOG_CONTENT=true). Default: a
+  // logger named ai-gateway configured from the environment.
+  logger?: Logger;
   profiles: readonly AiProfile[];
   models: readonly ModelProviderAdapter[];
   images: readonly ImageProviderAdapter[];
@@ -205,6 +210,65 @@ export function createAiExecutionGateway(
     };
   }
 
+  // The call itself, after resolution: which port runs it.
+  async function dispatch(
+    request: AiExecutionRequest,
+    profile: AiProfile,
+  ): Promise<AiExecution> {
+    let execution: AiExecution;
+    if (profile.family === "agent-runtime") {
+      requirePolicy(request.processingPolicy, profile);
+      execution = await options.agents.execute(request, profile);
+    } else if (request.task.type.startsWith("image-")) {
+      const adapter = images.get(profile.targetId);
+      if (!adapter)
+        throw new Error("The configured image provider is unavailable.");
+      requirePolicy(request.processingPolicy, profile);
+      const result =
+        request.task.type === "image-editing" && adapter.edit
+          ? await adapter.edit(request)
+          : await adapter.generate(request);
+      execution = {
+        executionId: crypto.randomUUID(),
+        family: "direct-model",
+        targetId: adapter.providerId,
+        result,
+      };
+    } else {
+      const adapter = models.get(profile.targetId);
+      if (!adapter)
+        throw new Error("The configured model provider is unavailable.");
+      requirePolicy(request.processingPolicy, profile);
+      execution = await adapter.execute(request);
+    }
+    return execution;
+  }
+
+  const log = options.logger ?? createLogger({ service: "ai-gateway" });
+  // One event per call. Content (the task, the result) is attached only when
+  // the logger is allowed to write it (rule 8: nothing by default).
+  const report = (
+    event: string,
+    request: AiExecutionRequest,
+    profile: AiProfile | null,
+    startedAt: number,
+    outcome: string,
+    extra: Record<string, unknown> = {},
+    content: Record<string, unknown> = {},
+  ) =>
+    log[outcome === "ok" ? "info" : "warn"](event, {
+      taskType: request.task.type,
+      profileId: profile?.id ?? request.profileId ?? null,
+      family: profile?.family ?? null,
+      targetId: profile?.targetId ?? null,
+      durationMs: Date.now() - startedAt,
+      outcome,
+      ...extra,
+      ...(log.config.content ? { content } : {}),
+    });
+  const message = (error: unknown) =>
+    error instanceof Error ? error.message : String(error);
+
   return {
     async *streamStructured(request: AiStructuredChatRequest) {
       request.signal?.throwIfAborted();
@@ -234,36 +298,36 @@ export function createAiExecutionGateway(
       yield* adapter.streamStructured(request);
     },
     async execute<T>(request: AiExecutionRequest) {
-      const profile = await resolve(request);
-      let execution: AiExecution;
-      if (profile.family === "agent-runtime") {
-        requirePolicy(request.processingPolicy, profile);
-        execution = await options.agents.execute(request, profile);
-      } else if (request.task.type.startsWith("image-")) {
-        const adapter = images.get(profile.targetId);
-        if (!adapter)
-          throw new Error("The configured image provider is unavailable.");
-        requirePolicy(request.processingPolicy, profile);
-        const result =
-          request.task.type === "image-editing" && adapter.edit
-            ? await adapter.edit(request)
-            : await adapter.generate(request);
-        execution = {
-          executionId: crypto.randomUUID(),
-          family: "direct-model",
-          targetId: adapter.providerId,
-          result,
-        };
-      } else {
-        const adapter = models.get(profile.targetId);
-        if (!adapter)
-          throw new Error("The configured model provider is unavailable.");
-        requirePolicy(request.processingPolicy, profile);
-        execution = await adapter.execute(request);
+      const startedAt = Date.now();
+      let profile: AiProfile | null = null;
+      try {
+        profile = await resolve(request);
+        const execution = await dispatch(request, profile);
+        report(
+          "ai.execute",
+          request,
+          profile,
+          startedAt,
+          "ok",
+          { executionId: execution.executionId },
+          { task: request.task, execution },
+        );
+        return execution as AiExecution<T>;
+      } catch (error) {
+        report(
+          "ai.execute",
+          request,
+          profile,
+          startedAt,
+          "error",
+          { error: message(error) },
+          { task: request.task },
+        );
+        throw error;
       }
-      return execution as AiExecution<T>;
     },
     async *stream<T>(request: AiExecutionRequest) {
+      const startedAt = Date.now();
       const profile = await resolve(request);
       // [SAFETY] Second policy check, immediately before dispatch.
       requirePolicy(request.processingPolicy, profile);
@@ -273,7 +337,33 @@ export function createAiExecutionGateway(
           : models.get(profile.targetId)?.stream(request);
       if (!source)
         throw new Error("The configured target cannot stream this task.");
-      for await (const event of source) yield event as AiEvent<T>;
+      let events = 0;
+      try {
+        for await (const event of source) {
+          events += 1;
+          yield event as AiEvent<T>;
+        }
+        report(
+          "ai.stream",
+          request,
+          profile,
+          startedAt,
+          "ok",
+          { events },
+          { task: request.task },
+        );
+      } catch (error) {
+        report(
+          "ai.stream",
+          request,
+          profile,
+          startedAt,
+          "error",
+          { events, error: message(error) },
+          { task: request.task },
+        );
+        throw error;
+      }
     },
     cancel: (context, executionId) =>
       options.agents.cancel(context, executionId),

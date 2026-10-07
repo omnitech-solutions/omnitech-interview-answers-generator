@@ -182,6 +182,33 @@ describe("validateIngestMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts the companion's diagnostics on a heartbeat, codes only", () => {
+    const beat = {
+      version: 1,
+      kind: "heartbeat",
+      sourceId: "mic-1",
+      sentAt: "2026-10-03T10:00:00Z",
+      capturing: false,
+    };
+    expect(
+      validateIngestMessage({
+        ...beat,
+        diagnostics: {
+          state: "sourceLost",
+          sources: { microphone: "running", applicationAudio: "lost" },
+          speechFailure: null,
+        },
+      }).ok,
+    ).toBe(true);
+    // Free text is not a code: a transcript can never ride a heartbeat.
+    expect(
+      validateIngestMessage({
+        ...beat,
+        diagnostics: { state: "lost because the user said hello", sources: {} },
+      }).ok,
+    ).toBe(false);
+  });
+
   it("refuses identity fields anywhere in the new message", () => {
     expect(
       validateIngestMessage({

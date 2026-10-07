@@ -20,6 +20,8 @@ await textRecognitionTests(harness)
 await captureDisplayTests(harness)
 await navigationPolicyTests(harness)
 await windowDragTests(harness)
+await eventLogTests(harness)
+await eventLogSinkTests(harness)
 
 for failure in harness.failures { print(failure) }
 print("studio-shell-tests: \(harness.passed) passed, \(harness.failures.count) failed")

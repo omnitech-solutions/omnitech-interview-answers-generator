@@ -69,10 +69,20 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
     // Disconnect, sign-out, quit: the watch ends with them.
     func stopWatching() { watcher.stop() }
 
+    // The page origin of the event log: the method name only, plus a
+    // presentation op; parameters stay out (they may carry a URL or image).
+    private func recordPageCall(_ message: WKScriptMessage) {
+        let body = message.body as? [String: Any]
+        var fields = ["method": body?["method"] as? String ?? "unknown", "channel": message.name]
+        if let op = (body?["params"] as? [String: Any])?["op"] as? String { fields["op"] = op }
+        EventLog.shared.record(.page, "bridge.call", fields)
+    }
+
     func userContentController(
         _ controller: WKUserContentController, didReceive message: WKScriptMessage,
         replyHandler: @escaping (Any?, String?) -> Void
     ) {
+        recordPageCall(message)
         let origin = message.frameInfo.securityOrigin
         let sender = SenderFacts(
             isMainFrame: message.frameInfo.isMainFrame, scheme: origin.protocol, host: origin.host,

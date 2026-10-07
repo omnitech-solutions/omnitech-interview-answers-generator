@@ -149,25 +149,31 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         return entry
     }
 
-    @objc private func openStudio() { actions.openStudio() }
-    @objc private func signIn() { actions.signIn() }
-    @objc private func signOut() { actions.signOut() }
-    @objc private func openInBrowser() { actions.openInBrowser() }
+    // One line per press: the menu is the user origin of the event log.
+    private func tap(_ name: String) { EventLog.shared.record(.user, "menu." + name) }
+
+    @objc private func openStudio() { tap("openStudio"); actions.openStudio() }
+    @objc private func signIn() { tap("signIn"); actions.signIn() }
+    @objc private func signOut() { tap("signOut"); actions.signOut() }
+    @objc private func openInBrowser() { tap("openInBrowser"); actions.openInBrowser() }
     @objc private func switchSession(_ sender: NSMenuItem) {
+        tap("switchSession")
         if choices.indices.contains(sender.tag) { actions.switchSession(choices[sender.tag]) }
     }
-    @objc private func togglePause() { actions.togglePause() }
-    @objc private func togglePin() { actions.togglePin() }
-    @objc private func captureAnalyze() { actions.send(.captureAnalyze) }
-    @objc private func stopListening() { actions.stopListening() }
-    @objc private func toggleMic() { actions.send(.transcribeToggle) }
-    @objc private func clearSession() { actions.send(.sessionClear) }
-    @objc private func toggleMode() { actions.present(.toggleAppMode) }
-    @objc private func toggleVisibility() { actions.present(.toggleVisible) }
-    @objc private func toggleInteraction() { actions.send(.seeThroughToggle) }
-    @objc private func openSettings() { actions.present(.openSettings) }
-    @objc private func toggleHotkeys() { actions.present(.setHotkeysEnabled(!actions.presentation().hotkeysEnabled)) }
-    @objc private func connect() { actions.connect() }
-    @objc private func disconnect() { actions.disconnect() }
-    @objc private func quit() { actions.quit() }
+    @objc private func togglePause() { tap("togglePause"); actions.togglePause() }
+    @objc private func togglePin() { tap("togglePin"); actions.togglePin() }
+    @objc private func captureAnalyze() { tap("captureAnalyze"); actions.send(.captureAnalyze) }
+    @objc private func stopListening() { tap("stopListening"); actions.stopListening() }
+    @objc private func toggleMic() { tap("toggleMic"); actions.send(.transcribeToggle) }
+    @objc private func clearSession() { tap("clearSession"); actions.send(.sessionClear) }
+    @objc private func toggleMode() { tap("toggleMode"); actions.present(.toggleAppMode) }
+    @objc private func toggleVisibility() { tap("toggleVisibility"); actions.present(.toggleVisible) }
+    @objc private func toggleInteraction() { tap("toggleInteraction"); actions.send(.seeThroughToggle) }
+    @objc private func openSettings() { tap("openSettings"); actions.present(.openSettings) }
+    @objc private func toggleHotkeys() {
+        tap("toggleHotkeys"); actions.present(.setHotkeysEnabled(!actions.presentation().hotkeysEnabled))
+    }
+    @objc private func connect() { tap("connect"); actions.connect() }
+    @objc private func disconnect() { tap("disconnect"); actions.disconnect() }
+    @objc private func quit() { tap("quit"); actions.quit() }
 }
