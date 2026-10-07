@@ -108,3 +108,16 @@ add a small TypeScript test that the published lists are non-empty and each sele
 toolbar, footer, transcript, answer and code; (c) Swift dead code: Periphery (`periphery scan` on the SwiftPM packages)
 for unused types and functions. It needs a toolchain that can index the build; on this Command-Line-Tools-only machine
 (Xcode licence unaccepted) it may not run: try it, and if it cannot, record it as an owner step instead of claiming it ran.
+
+## 6. Decision (owner): delete Picture-in-Picture and the in-tab overlay card
+
+The Document Picture-in-Picture float and the in-tab overlay card (the whole web overlay surface and its `ov-*` styles)
+are to be deleted; the native app is the live-session experience. Consequences: (1) ADR-0017 ("host the active session
+overlay as one route") names the PiP window and the in-tab card as hosts of the overlay route, so removal needs a NEW ADR
+that amends it (`propose-adr`, left Proposed for the owner to accept; the repo's rules do not allow auto-accepting);
+(2) the AUDIT job's file-by-file reachability table (which overlay files the native path or shared code still import: e.g.
+`use-hands-free`, `mask-editor`, the screenshots viewer/tray, the session store and engine) decides exactly what is deleted
+and what stays; (3) the matching tests (`focus-float.test.tsx`, `overlay-*.test.*`, `host-surface.test.ts`, the web e2e spec
+`session-lifecycle-web.spec.ts`) are deleted or rewritten to the native surface; (4) the raw-primitive audit's overlay
+allow-list disappears with the files; (5) docs are regenerated (`docs:arch`, `bionic/code`). Order: merge DRAG, AUDIT and E2E,
+then run the removal as its own job from the reachability table, then the final full gate.
