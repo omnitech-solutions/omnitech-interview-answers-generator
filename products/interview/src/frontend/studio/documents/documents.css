@@ -454,7 +454,7 @@
 .dx-menu-item.dx-center { align-items: center; }
 .dx-menu-item:hover:not(:disabled) { background: var(--hover); }
 .dx-menu-item[aria-current="true"] { background: var(--accent-soft); }
-.dx-menu-item > .dx-icon, .dx-menu-item > svg { margin-top: 1px; color: var(--muted); }
+.dx-menu-item > svg { margin-top: 1px; color: var(--muted); }
 .dx-menu-line { display: flex; gap: 8px; font-size: 13px; }
 .dx-ok-line { display: block; font-size: 12px; color: var(--green); }
 .dx-menu-model { padding: 8px 10px 4px; }

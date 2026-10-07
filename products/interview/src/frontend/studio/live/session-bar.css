@@ -120,11 +120,6 @@
   min-width: 40px;
   justify-content: center;
 }
-/* Icon-only toolbar buttons: square, with the label as tooltip and aria-label. */
-.live-bar-icon {
-  width: 40px;
-  padding: 0;
-}
 .live-bar-button:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -226,7 +221,7 @@
     flex-wrap: wrap;
     margin-left: 0;
   }
-  .live-bar-actions .live-bar-button:not(.live-bar-icon) {
+  .live-bar-actions .live-bar-button {
     flex: 1 1 auto;
   }
 }
