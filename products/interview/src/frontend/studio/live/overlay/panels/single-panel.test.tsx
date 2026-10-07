@@ -415,6 +415,52 @@ describe("window controls", () => {
     expect(dot("size")).toBeDisabled();
   });
 
+  describe("window height", () => {
+    it("asks the panes' height back when they show in a short window (after a pause, or a short start)", async () => {
+      const host = windowHost();
+      const tall = window.innerHeight;
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: 144,
+      });
+      try {
+        await show();
+        const sizes = host.calls.filter((call) =>
+          call.startsWith("setWindowSize("),
+        );
+        expect(sizes.length).toBeGreaterThan(0);
+        expect(sizes.at(-1)).toContain('"height":640');
+      } finally {
+        Object.defineProperty(window, "innerHeight", {
+          configurable: true,
+          value: tall,
+        });
+      }
+    });
+
+    it("leaves the person's own height alone when the window is already tall enough", async () => {
+      const host = windowHost();
+      const tall = window.innerHeight;
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: 820,
+      });
+      try {
+        await show();
+        const sizes = host.calls.filter((call) =>
+          call.startsWith("setWindowSize("),
+        );
+        expect(sizes.length).toBeGreaterThan(0);
+        expect(sizes.at(-1)).not.toContain("height");
+      } finally {
+        Object.defineProperty(window, "innerHeight", {
+          configurable: true,
+          value: tall,
+        });
+      }
+    });
+  });
+
   describe("yellow hides", () => {
     it("pauses a capturing session first, then hides, and says it paused", async () => {
       const host = windowHost();

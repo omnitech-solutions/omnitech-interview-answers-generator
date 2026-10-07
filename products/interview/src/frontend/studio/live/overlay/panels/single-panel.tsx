@@ -43,6 +43,8 @@ import {
 import type { PanelWindowMode } from "./window-mode";
 
 const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
+// The least height a window with panes showing is asked for (the shell opens at 640).
+const PANE_HEIGHT = 640;
 
 export type Panes = {
   shown: PaneState;
@@ -135,6 +137,8 @@ export function SinglePanel({
   const anyPane = PANES.some((pane) => shown[pane.id]) && !holdBody;
 
   const mode = windowMode.mode;
+  // The window height the panes last had, asked back when they return.
+  const paneHeight = useRef<number | null>(null);
 
   // The shell widens or narrows the window about its centre to fit what shows,
   // never narrower than the toolbar. With no pane showing, the window is only as
@@ -179,6 +183,13 @@ export function SinglePanel({
           WINDOW_GAP * Math.max(rows.length - 1, 0) +
           WINDOW_PAD;
         height = Math.max(content, menuOpen ? POPOVER_ROOM : 0);
+      } else if (anyPane) {
+        // Panes need room: a window left at a paused or empty height (no pane
+        // showing asks for a short one) gets back the height the panes last had,
+        // never less than PANE_HEIGHT. Otherwise the person's own height stands.
+        const current = window.innerHeight;
+        if (current >= PANE_HEIGHT) paneHeight.current = current;
+        else height = Math.max(paneHeight.current ?? 0, PANE_HEIGHT);
       }
       void presentation.setWindowSize?.({
         width,
