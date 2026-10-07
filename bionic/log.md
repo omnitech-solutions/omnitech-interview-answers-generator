@@ -2,6 +2,10 @@
 
 _Append-only. Newest first._
 
+## [2026-10-06] adr | ADR-0033: Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface
+
+Proposed (amends ADR-0017). File `bionic/adrs/ADR-0033-remove-document-picture-in-picture-and-the-in-tab.md`. Tags: active-session, overlay, pip, native, live-ui.
+
 ## [2026-10-05] journal | decision: Accept ADR-0005, 0006 and 0023; refuse 0004 and 0007; refresh the invariant records
 
 Entry in `bionic/journal/2026-10.md` at 2026-10-05T21:38-06:00. Refs: [[adrs/ADR-0005-isolate-tenants-in-one-postgresql-cluster-with-own]] [[adrs/ADR-0023-use-the-query-builder-by-default-and-check-the-dat]]

@@ -1,138 +1,15 @@
-// The chromeless overlay route: /t/<tenant>/p/<product>/live/overlay.
-// It renders only the card, filling its viewport, and is a page of its own:
-// its own session store and polling (same-origin cookies), the switcher and
-// every action. It does not depend on the Studio live page being mounted or
-// visible, so any host can load it: the PiP window (in an iframe), the
-// installed web app, or a normal browser window. `?session=<id>` opens that
-// session; `?host=pip` adds "Back to Studio" (a message to the embedding
-// window). The native shell loads the same route with `?panel=single` (its one
-// compact window) or `?panel=settings`.
-//
-// [SAFETY] On a 401 it shows a sign-in message, on a 404/403 a "session
-// unavailable" one, and in both the card is unmounted and the store stops
-// polling (the store halts on a terminal answer). Nothing is retained.
+// The overlay route: /t/<tenant>/p/<product>/live/overlay. Only the native
+// shell loads it: `?panel=single` is its one compact window, `?panel=settings`
+// the small Settings window beside it, and a load that names neither is the
+// compact window. (An ordinary browser tab on this route is sent to the Studio
+// live page by overlay-guard.ts before this page is drawn.) The page is its
+// own: its own session store and polling (same-origin cookies), so it does not
+// depend on the Studio live page being mounted or visible.
 import type { ProductMember } from "@omnitech/platform-contracts";
-import { useEffect, useRef, useState } from "react";
-import { Icon } from "../../icon";
-import { parseRoute } from "../../use-studio-route";
-import { overlayAccess } from "../float-access";
-import { tenantFromLocation } from "../session-registry";
-import { useLiveSession } from "../use-live-session";
-import { installHostSurface, isNativeSurface } from "./host-surface";
-import { OverlayCard } from "./overlay-card";
-import { sendIntent } from "./overlay-intents";
-import { tellHost } from "./overlay-url";
 import { PanelsRoot } from "./panels/panels-root";
 
-// `?panel=single|settings` is a native shell window of the same session;
-// without it (or with an unknown value) a browser or picture-in-picture window
-// draws the card.
-//
-// [SAFETY] A native host never draws the card: it has no toolbar and no
-// background of its own, so on the shell's clear window it was a see-through
-// "No live session." with nothing to press (after a sign-in redirect, or any
-// URL without a panel). A native load without a valid panel draws the compact
-// window instead.
 export function OverlayPage({ member }: { member?: ProductMember } = {}) {
-  const params = new URLSearchParams(window.location.search);
-  const named = params.get("panel");
-  const panel =
-    named === "single" || named === "settings"
-      ? named
-      : isNativeSurface(params)
-        ? "single"
-        : null;
-  return panel ? (
-    <PanelsRoot panel={panel} {...(member ? { member } : {})} />
-  ) : (
-    <CardOverlayPage />
-  );
-}
-
-function CardOverlayPage() {
-  const { snapshot, actions } = useLiveSession();
-  const params = new URLSearchParams(window.location.search);
-  const requested = params.get("session");
-  const embedded = params.get("host") === "pip";
-  const access = overlayAccess(snapshot, tenantFromLocation());
-  const [missing, setMissing] = useState(false);
-  const opened = useRef(false);
-
-  useEffect(() => {
-    document.title = "Interview Studio · Live overlay";
-    return installHostSurface(isNativeSurface(params));
-  }, []);
-  // Open the requested session once the store has its first answer.
-  useEffect(() => {
-    if (!requested || opened.current || snapshot.hydration !== "ready") return;
-    opened.current = true;
-    if (snapshot.session?.id === requested) return;
-    void actions.switchSession(requested).then((result) => {
-      if (!result.ok) setMissing(true);
-    });
-  }, [requested, snapshot.hydration, snapshot.session?.id, actions]);
-  // A window embedding this page closes it when access is lost.
-  useEffect(() => {
-    if (access !== "ok") tellHost("lost");
-  }, [access]);
-
-  if (access !== "ok")
-    return (
-      <div className="ov-root" data-testid="overlay-root" data-access={access}>
-        <p className="ov-unavailable" role="alert">
-          <Icon name={access === "signed-out" ? "lock" : "warning"} />
-          {access === "signed-out"
-            ? "You’re signed out. Sign in to Studio again to continue."
-            : "This session is unavailable."}
-          {access === "signed-out" && (
-            <a className="ov-link" href="/sign-in">
-              Sign in
-            </a>
-          )}
-        </p>
-      </div>
-    );
-
-  return (
-    <div className="ov-root" data-testid="overlay-root">
-      {missing && snapshot.session && (
-        <p className="ov-note ov-missing" role="alert">
-          That session couldn’t be opened. Showing the session below instead.
-        </p>
-      )}
-      {snapshot.session ? (
-        <OverlayCard
-          variant="overlay"
-          {...(embedded ? { onLeave: () => tellHost("close") } : {})}
-        />
-      ) : (
-        <div className="ov-empty" data-testid="overlay-empty">
-          {snapshot.hydration !== "ready" ? (
-            <p className="ov-muted" aria-busy="true">
-              Loading…
-            </p>
-          ) : (
-            <>
-              <p className="ov-muted">
-                {missing
-                  ? "That session couldn’t be opened."
-                  : "No live session."}
-              </p>
-              <button
-                type="button"
-                className="ov-link"
-                onClick={() =>
-                  sendIntent(parseRoute(window.location).base, {
-                    type: "open-start",
-                  })
-                }
-              >
-                Start one in Studio
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const named = new URLSearchParams(window.location.search).get("panel");
+  const panel = named === "settings" ? "settings" : "single";
+  return <PanelsRoot panel={panel} {...(member ? { member } : {})} />;
 }

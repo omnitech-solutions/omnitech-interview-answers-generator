@@ -1,8 +1,5 @@
-// Closing a popover: a press outside it (listened for on its own document, so it
-// works in the PiP's iframe too), or Escape inside it (not while an IME
-// composition is active). The Escape handler marks the event handled so the card
-// does not also act on it (it restores a maximized card on Escape).
-import { type KeyboardEvent, type RefObject, useEffect } from "react";
+// Closing a popover by a press outside it (listened for on its own document).
+import { type RefObject, useEffect } from "react";
 
 export function useDismiss(
   ref: RefObject<HTMLElement | null>,
@@ -19,12 +16,3 @@ export function useDismiss(
     return () => doc.removeEventListener("pointerdown", onDown);
   }, [ref, open, onClose]);
 }
-
-export const closeOnEscape =
-  (onClose: () => void) =>
-  (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onClose();
-  };

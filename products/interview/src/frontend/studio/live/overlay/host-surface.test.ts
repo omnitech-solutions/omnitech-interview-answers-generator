@@ -1,5 +1,4 @@
-// A native shell window paints translucent surfaces; a tab and a PiP window are
-// untouched.
+// A native shell window paints translucent surfaces; a plain tab is untouched.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -50,12 +49,11 @@ describe("installHostSurface", () => {
 });
 
 describe("isNativeSurface", () => {
-  it("is native for host=native or a bridge, never for PiP or a plain tab", () => {
+  it("is native for host=native or a bridge, never for a plain tab", () => {
     expect(isNativeSurface(new URLSearchParams("host=native"))).toBe(true);
     expect(isNativeSurface(new URLSearchParams(""))).toBe(false);
     bridge();
     expect(isNativeSurface(new URLSearchParams(""))).toBe(true);
-    expect(isNativeSurface(new URLSearchParams("host=pip"))).toBe(false);
   });
 });
 
@@ -81,17 +79,11 @@ describe("the native-host stylesheet", () => {
           /#[0-9a-f]{3,8}\b|(?<![a-z])rgb\(|oklch\(|\bwhite\b|\bblack\b/i,
         );
   });
-  it("makes every card, pill, menu and the code canvas translucent with a blur", () => {
+  it("makes every panel card, pill, toast and the code canvas translucent with a blur", () => {
     const text = native
       .map((rule) => `${rule.selector}{${rule.body}}`)
       .join("\n");
-    for (const surface of [
-      ".ov-card",
-      ".pn-card",
-      ".pn-pill",
-      ".ov-menu",
-      ".lc-canvas",
-    ])
+    for (const surface of [".pn-card", ".pn-pill", ".pn-toast", ".lc-canvas"])
       expect(text).toContain(surface);
     expect(text).toMatch(/backdrop-filter: blur/);
     expect(text).toMatch(/--lc-surface: rgba\(/);
@@ -103,19 +95,16 @@ describe("the native-host stylesheet", () => {
     expect(text).toMatch(/\[data-panel-host="native"\] body/);
     expect(text).toMatch(/\.pn-root[\s\S]*background: transparent/);
   });
-  it("keeps the tint light enough to see through, with text kept legible by shadow and lifted muted text", () => {
-    const tint = [
-      ...css.matchAll(
-        /:root\[data-panel-host="native"\] \.ov-root \{\s*--ov-a: ([0-9.]+);/g,
-      ),
-    ].map((m) => Number(m[1]));
-    expect(tint.length).toBeGreaterThan(0);
-    // The user asked for genuinely see-through windows: a light tint, with legibility from the text shadow.
-    for (const value of tint) expect(value).toBeLessThan(0.5);
-    expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.5/);
+  it("keeps text legible by shadow and lifts muted text on the translucent panels", () => {
+    expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.55/);
     expect(css).toMatch(/--ov-muted: rgba\(255, 255, 255, 0\.84\)/);
   });
-  it("leaves the plain tab appearance on the unconditional rules", () => {
-    expect(css).toMatch(/\.ov-root \{[^}]*background: #14141a/);
+  it("leaves the plain tab appearance alone: every translucent rule is native-only", () => {
+    const overlay = readFileSync(here("overlay.css"), "utf8");
+    const selectors = [...overlay.matchAll(/([^{}]+)\{/g)].map((m) =>
+      (m[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    );
+    for (const selector of selectors)
+      expect(selector, selector).toContain('[data-panel-host="native"]');
   });
 });

@@ -455,22 +455,3 @@ test("@native web chord Alt+Shift+A captures and analyzes, and Alt+Shift+S gener
   expect((await control.calls()).map((call) => call.stage)).toContain("solve");
   await context.close();
 });
-
-// Fixed by T27: the Live page prints only the chords it binds, so the band
-// shows no "Alt+" text at all (the card and the panels print theirs).
-test("web Live page: Capture & analyze prints no chord the page does not bind", async ({
-  live,
-  page,
-}) => {
-  await live.goto();
-  await live.startRehearsal();
-  await live.useManual();
-  await live.shareScreen();
-  const band = page.getByRole("region", { name: "Hands-free controls" });
-  await expect(live.captureAnalyze()).toBeVisible();
-  await expect(band).not.toContainText("Alt+");
-  const titles = await band
-    .locator("[title]")
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("title") ?? ""));
-  for (const title of titles) expect(title).not.toContain("Alt+");
-});

@@ -16,8 +16,6 @@ export type LiveSessionViewProps = {
 // states of one view, chosen from the session store, not from this component's
 // own state, so leaving and coming back lands on the same screen.
 export function LiveSessionView(props: LiveSessionViewProps) {
-  // The float host lives in the Studio shell (studio.tsx), not here, so the
-  // floating window persists across pages.
   return <LiveSessionState {...props} />;
 }
 
@@ -58,8 +56,7 @@ function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
   // The address names a session the server does not know.
   if (requested && snapshot.notFoundSessionId === requested)
     return <SessionNotFound studio={studio} />;
-  // The dashboard (or the ended summary, or setup) is the page; the card is the
-  // shell's (live/card-host.tsx), so it stays when the person changes page.
+  // The dashboard (or the ended summary, or setup) is the page.
   if (model.phase === "open") return <LiveSessionPanel />;
   if (model.phase === "finished") return <EndedView studio={studio} />;
   return <SetupView studio={studio} />;

@@ -13,7 +13,6 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
-import { say, settled, taskIdsOf } from "../src/helpers/tasks";
 import { chooseCaptureMode, expectCaptureMode } from "../src/helpers/toolbar";
 
 const POLL = { timeout: 45_000 };
@@ -25,7 +24,6 @@ test("web page and native panel on one session: Pause on the web page shows Paus
 }) => {
   const started = await startSessionViaApi();
   await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
   const panel = await openPanel({ sessionId: started.id, auto: "off" });
 
   await bar(page).getByRole("button", { name: "Pause", exact: true }).click();
@@ -55,7 +53,6 @@ test("web page and native panel on one session: Pause in the panel shows Paused 
 }) => {
   const started = await startSessionViaApi();
   await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
   const panel = await openPanel({ sessionId: started.id, auto: "off" });
 
   await panel.page.getByRole("button", { name: "Pause session" }).click();
@@ -78,7 +75,6 @@ test("web page and native panel on one session: End on the web page shows the en
 }) => {
   const started = await startSessionViaApi();
   await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
   const panel = await openPanel({ sessionId: started.id, auto: "off" });
 
   await live.end();
@@ -101,7 +97,6 @@ test("web page and native panel on one session: End in the panel shows the ended
 }) => {
   const started = await startSessionViaApi();
   await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
   const panel = await openPanel({ sessionId: started.id, auto: "off" });
 
   await panel.page.getByRole("button", { name: "End session" }).click();
@@ -114,72 +109,6 @@ test("web page and native panel on one session: End in the panel shows the ended
     page.getByRole("button", { name: "Delete session data" }),
   ).toBeVisible(POLL);
   await expect(page.getByTestId("session-bar")).toHaveCount(0);
-});
-
-test("web page and native panel on one session: a pin on one surface never moves the other, and each surface's follow-up goes to the task ITS pin or newest names", async ({
-  page,
-  live,
-  control,
-  openPanel,
-}) => {
-  await control.scenario("plain-answer");
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  const panel = await openPanel({ sessionId: started.id, auto: "off" });
-  const credential = started.response.credential.value;
-  await say(credential, "What is a closure in JavaScript?");
-  await expect(live.task(1)).toBeVisible();
-  await settled(started.id, 1);
-  await say(credential, "What is the event loop?");
-  await expect(live.task(2)).toBeVisible();
-  await settled(started.id, 2);
-
-  // Pin T1 on the web page, then a third task arrives.
-  await live.chip(1).click();
-  await expect(live.chip(1)).toHaveAttribute("aria-pressed", "true");
-  await say(credential, "What is a promise?");
-  const all = await settled(started.id, 3);
-  const [first, , second] = taskIdsOf(all) as [string, string, string];
-
-  // The web page stays on its pinned T1; the panel, with no pin, shows the newest.
-  await expect(live.task(1)).toBeVisible();
-  await expect(page.getByText("Viewing an earlier task.")).toBeVisible();
-  await expect(panel.page.getByTestId("pn-task-line")).toContainText(
-    "T3",
-    POLL,
-  );
-  await expect(panel.page.getByTestId("pn-earlier")).toHaveCount(0);
-
-  // Follow-ups go where each surface points.
-  await live.followUp().fill("Add an example to this one.");
-  await live.sendFollowUp().click();
-  await expect
-    .poll(async () =>
-      (await db.actions(started.id)).some(
-        (a) => a.task_id === first && a.task_revision === 2,
-      ),
-    )
-    .toBe(true);
-  await settled(started.id, 3);
-  const message = panel.page.getByRole("textbox", { name: "Message" });
-  await message.fill("Add a caveat to the newest.");
-  await panel.page.getByRole("button", { name: "Send message" }).click();
-  await expect
-    .poll(async () =>
-      (await db.actions(started.id)).some(
-        (a) => a.task_id === second && a.task_revision === 2,
-      ),
-    )
-    .toBe(true);
-  expect(taskIdsOf(await db.actions(started.id))).toEqual(
-    expect.arrayContaining([first, second]),
-  );
-
-  // One pin rule: the web page's Back returns it to the newest task.
-  await page.getByRole("button", { name: "Back to T3" }).click();
-  await expect(live.task(3)).toBeVisible();
-  await expect(page.getByText("Viewing an earlier task.")).toHaveCount(0);
 });
 
 test("@native native two documents of one profile: Auto or Manual is one state, shared through storage in both directions", async ({
@@ -206,67 +135,4 @@ test("@native native two documents of one profile: Auto or Manual is one state, 
 
   await chooseCaptureMode(second, "Auto");
   await expectCaptureMode(first.page, "Auto");
-});
-
-test("@native native two documents of one profile: the See-through look is shared, and a reload keeps it", async ({
-  openPanel,
-}) => {
-  const first = await openPanel({ auto: "off" });
-  const second = await first.context.newPage();
-  await second.goto(first.page.url());
-  await expect(
-    second.getByRole("toolbar", { name: "Session controls" }),
-  ).toBeVisible();
-  const root = (page: Page) => page.locator(".pn-root");
-  await expect(root(first.page)).not.toHaveAttribute("data-glass", /.*/);
-  await expect(root(second)).not.toHaveAttribute("data-glass", /.*/);
-
-  await first.page.getByRole("button", { name: "See-through" }).click();
-  await expect(root(first.page)).toHaveAttribute("data-glass", "clear");
-  await expect(root(second)).toHaveAttribute("data-glass", "clear");
-
-  await second.reload();
-  await expect(root(second)).toHaveAttribute("data-glass", "clear");
-  await second.getByRole("button", { name: "See-through" }).click();
-  await expect(root(first.page)).not.toHaveAttribute("data-glass", /.*/);
-});
-
-// F-OWNER. In the shell the Studio main window and the panel are documents of one
-// web view profile, so they share the Web Lock: the panel (native, steals the
-// lock) owns hands-free and the Live page in the main window shows the mirror.
-// The mirror wording names the native app as the owner, and Capture & analyze
-// is disabled with that reason (F-OWNER, plan.md 7.16).
-test("@native native owner and the web Live page in the same web view: the page says the Interview Studio app owns capture and its Capture & analyze is disabled with that reason", async ({
-  openPanel,
-  stack,
-}) => {
-  const panel = await openPanel({ auto: "on" });
-  await expect
-    .poll(async () => (await panel.host.calls("engine.start")).length)
-    .toBe(1);
-  const web = await panel.context.newPage();
-  await web.goto(
-    `${stack.webUrl}/t/${stack.tenantSlug}/p/interview/live/${panel.id}`,
-  );
-  const band = web.getByTestId("hands-free-band");
-  await expect(band).toBeVisible();
-  // The page is the mirror, not the owner.
-  await expect(band).toHaveAttribute("data-owner", "other-window");
-  await expect(web.getByTestId("auto-mirror")).toContainText(
-    "Auto · running in the Interview Studio app",
-  );
-  await expect(web.getByTestId("share-mirror")).toContainText(
-    "The Interview Studio app owns capture",
-  );
-  // Still readable, not hidden: disabled, with the reason as its title.
-  const capture = band.getByRole("button", { name: /Capture & analyze/ });
-  await expect(capture).toBeVisible();
-  await expect(capture).toBeDisabled();
-  await expect(capture).toHaveAttribute(
-    "title",
-    /Interview Studio app owns capture/,
-  );
-  expect(await web.getByTestId("share-mirror").innerText()).not.toContain(
-    "No source shared",
-  );
 });

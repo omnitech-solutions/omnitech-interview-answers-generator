@@ -4,7 +4,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../float-access", () => ({ overlayAccess: () => "signed-out" }));
+vi.mock("../../overlay-access", () => ({ overlayAccess: () => "signed-out" }));
 vi.mock("../../use-live-session", () => ({
   useLiveSession: () => ({
     snapshot: { hydration: "ready", session: null },

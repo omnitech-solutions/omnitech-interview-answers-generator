@@ -7,7 +7,10 @@
 import { Button, Empty, Panel, Steps, Tag } from "@oc-tech/omni-ui-components";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
-import { captureProblem } from "../../shared/capture-problem";
+import {
+  captureProblem,
+  DEVICE_ONLY_ANALYZE,
+} from "../../shared/capture-problem";
 import { CaptureProblemBanner } from "../../shared/capture-problem-banner";
 import { copyText } from "../../shared/copy-text";
 import { InlineBold, plainDraft } from "../../shared/draft-text";
@@ -30,7 +33,6 @@ import {
   actionsVersion,
   useScreenshotsView,
 } from "../../shared/use-screenshots-view";
-import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
 import { AnswerDock } from "./answer-dock";
 import { complexityChips, lastCaptureMeta } from "./answer-header";
 import { CodeCard, CodeEmpty } from "./code-card";

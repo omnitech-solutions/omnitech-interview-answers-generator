@@ -1,7 +1,5 @@
-// The native shell must never show the bare card page: it has no toolbar and no
-// background of its own, so on the shell's clear window it was a see-through
-// "No live session." with nothing to press. Any native-host load of the overlay
-// route draws the panels UI (the compact window unless it names another).
+// The overlay route draws the panels UI and nothing else: the compact window
+// unless the URL names the Settings window. There is no card page any more.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,12 +7,6 @@ vi.mock("./panels/panels-root", () => ({
   PanelsRoot: ({ panel }: { panel: string }) => (
     <div data-testid="panels" data-panel={panel} />
   ),
-}));
-vi.mock("../use-live-session", () => ({
-  useLiveSession: () => ({
-    snapshot: { hydration: "loading", session: null },
-    actions: {},
-  }),
 }));
 
 import { OverlayPage } from "./overlay-page";
@@ -41,12 +33,12 @@ describe("the overlay route", () => {
     expect(screen.getByTestId("panels").dataset["panel"]).toBe("settings");
   });
 
-  it("still draws the card for a browser tab and the picture-in-picture window", () => {
+  it("draws the compact panel for any other load too: the browser tab is redirected before it gets here", () => {
     at("");
-    expect(screen.getByTestId("overlay-root")).toBeTruthy();
+    expect(screen.getByTestId("panels").dataset["panel"]).toBe("single");
     cleanup();
     at("?host=pip");
-    expect(screen.getByTestId("overlay-root")).toBeTruthy();
-    expect(screen.queryByTestId("panels")).toBeNull();
+    expect(screen.getByTestId("panels").dataset["panel"]).toBe("single");
+    expect(screen.queryByTestId("overlay-root")).toBeNull();
   });
 });

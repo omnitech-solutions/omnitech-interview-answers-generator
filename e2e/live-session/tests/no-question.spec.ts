@@ -8,7 +8,6 @@ import { expect, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import { say, settled, taskIdsOf } from "../src/helpers/tasks";
-import { SCRIPTED } from "../src/stack/scenarios";
 
 const NOTE = (n: number) => `S${n} captured: no question found`;
 // In the native chat a capture with no question is an event line of the
@@ -33,118 +32,12 @@ const answers = async (id: string) =>
   (await db.actionCategories(id)).filter((category) => category !== null);
 
 // The web page: a share, then a capture that sends now (the menu choice).
-async function captureViaMenu(page: Page): Promise<void> {
+async function _captureViaMenu(page: Page): Promise<void> {
   await page.getByRole("button", { name: /^Capture & analyze/ }).click();
   await page
     .getByRole("menuitem", { name: /^New task from a fresh capture/ })
     .click();
 }
-
-test("web no-question capture: a note in the transcript and nothing else; no task, no chip, no number, and the server holds a no-question result", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("no-question");
-  await live.goto();
-  const session = await live.startRehearsal();
-  await live.useManual();
-  await live.shareScreen();
-
-  await captureViaMenu(page);
-
-  // The server held the capture and its result, and its category says no
-  // question was found; the model was called once, with the image.
-  await expect
-    .poll(async () => await answers(session.id))
-    .toEqual(["no-question"]);
-  expect(
-    (await db.observations(session.id)).filter(
-      (o) => o.kind === "screen.snapshot" && o.screenshot_artifact_id,
-    ),
-  ).toHaveLength(1);
-  expect(await control.calls()).toHaveLength(1);
-  expect((await control.calls())[0]).toMatchObject({ images: 1 });
-
-  // The page shows no task: no article, no chip, the idle state; the note is in
-  // the transcript, and the draft sentence is never repeated.
-  await expect(page.getByRole("article")).toHaveCount(0);
-  await expect(page.getByRole("group", { name: "Detected tasks" })).toHaveCount(
-    0,
-  );
-  await expect(page.getByTestId("live-idle")).toBeVisible();
-  await page.getByRole("tab", { name: "Transcript" }).click();
-  const note = page.getByTestId("transcript-note");
-  await expect(note).toHaveCount(1);
-  await expect(note).toContainText(NOTE(1));
-  await expect(note).not.toContainText("T1");
-  await expect(page.locator("[data-task-row]")).toHaveCount(0);
-  await expect(page.getByText(SCRIPTED.noQuestion)).toHaveCount(0);
-});
-
-test("web no-question notes collapse: one or two stay as notes, the third turns them into one 'captures with no question' line", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("no-question");
-  await live.goto();
-  const session = await live.startRehearsal();
-  await live.useManual();
-  await live.shareScreen();
-  await page.getByRole("tab", { name: "Transcript" }).click();
-  const note = page.getByTestId("transcript-note");
-
-  await captureViaMenu(page);
-  await expect(note).toContainText(NOTE(1));
-  await captureViaMenu(page);
-  await expect(note).toContainText(`${NOTE(1)} · ${NOTE(2)}`);
-  await expect(note).toHaveCount(1);
-  await captureViaMenu(page);
-  await expect(note).toHaveText(/3 captures with no question/);
-  await expect(note).toHaveCount(1);
-  expect(await answers(session.id)).toEqual([
-    "no-question",
-    "no-question",
-    "no-question",
-  ]);
-  await expect(page.getByRole("article")).toHaveCount(0);
-});
-
-test("web no-question after real tasks: Back goes to the newest REAL task, never to a task the note would have been", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("plain-answer");
-  const started = await startSessionViaApi();
-  await live.goto();
-  await live.useManual();
-  const credential = started.response.credential.value;
-  await say(credential, "What is a closure in JavaScript?");
-  await settled(started.id, 1);
-  await say(credential, "What is the event loop?");
-  await settled(started.id, 2);
-  // Look at the earlier task, then capture a screen with no question.
-  await live.chip(1).click();
-  await expect(live.task(1)).toBeVisible();
-  await control.scenario("no-question");
-  await live.shareScreen();
-  await captureViaMenu(page);
-  await expect
-    .poll(async () => (await answers(started.id)).at(-1))
-    .toBe("no-question");
-
-  // Still two tasks, T1 still on show, and Back goes to T2 (not a T3).
-  await expect(
-    page.getByRole("group", { name: "Detected tasks" }).getByRole("button"),
-  ).toHaveCount(2);
-  await expect(live.task(1)).toBeVisible();
-  await page.getByRole("button", { name: "Back to T2" }).click();
-  await expect(live.task(2)).toBeVisible();
-  await expect(page.getByRole("article", { name: /^Task 3:/ })).toHaveCount(0);
-  expect(taskIdsOf(await db.actions(started.id)).length).toBe(3);
-});
 
 test("@native native no-question in Manual: the pane says what the last capture found, the chat gets a note, there is no task; a manual capture is always posted (Manual never holds)", async ({
   openPanel,

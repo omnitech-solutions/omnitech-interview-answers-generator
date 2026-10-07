@@ -2,13 +2,12 @@ import { AUTO_INTERVAL_DEFAULT_S, clampIntervalSeconds } from "./auto-interval";
 
 // Whether the owner wants Auto (hands-free), remembered per tenant in this
 // browser. Auto is ON by default where the host is hands-free (the native
-// shell, the Picture-in-Picture window, an installed app window) and once the
-// owner has turned it on anywhere; it is off only where the owner turned it
-// off, and in a plain tab that nobody opted in. localStorage is optional and
-// every access is guarded.
+// shell) and once the owner has turned it on anywhere; it is off only where
+// the owner turned it off, and in a plain tab that nobody opted in.
+// localStorage is optional and every access is guarded.
 const key = (tenant: string) => `interview-studio.live.auto.${tenant}`;
 
-// A host that hosts the card for hands-free use.
+// A host that is hands-free by itself: the native shell.
 export function handsFreeHost(): boolean {
   if (typeof window === "undefined") return false;
   try {
@@ -21,12 +20,8 @@ export function handsFreeHost(): boolean {
       window as { studioHost?: { presentation?: { appMode?: () => unknown } } }
     ).studioHost?.presentation;
     if (presentation?.appMode?.() === "minified") return true;
-    if (host === "pip" || host === "native") return true;
-    if ((window as { studioHost?: unknown }).studioHost) return true;
-    return (
-      host === "pwa" &&
-      window.matchMedia?.("(display-mode: standalone)").matches === true
-    );
+    if (host === "native") return true;
+    return Boolean((window as { studioHost?: unknown }).studioHost);
   } catch {
     return false;
   }

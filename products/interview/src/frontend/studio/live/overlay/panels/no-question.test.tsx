@@ -1,5 +1,4 @@
-// A capture with no interview question (D36) in the native window and on the
-// compact card, through the real page and store over a fake server: no task,
+// A capture with no interview question (D36) in the native window, through the real page and store over a fake server: no task,
 // no chip, no answer bubble, a muted note, and the honest line.
 
 import type { LiveAction } from "@omnitech/interview-contracts";
@@ -64,7 +63,6 @@ afterEach(() => {
 });
 
 const NATIVE = "/t/local/p/interview/live/overlay?panel=single&host=native";
-const CARD = "/t/local/p/interview/live/overlay";
 
 describe("native window", () => {
   it("shows the empty state, a note and the line when every capture had no question", async () => {
@@ -101,25 +99,5 @@ describe("native window", () => {
     ]);
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent("T2");
     expect(screen.getByTestId("pn-no-question")).toBeInTheDocument();
-  });
-});
-
-describe("compact card", () => {
-  it("shows no task and the line when every capture had no question", async () => {
-    await open(CARD, false);
-    await publish(junkAction("x"));
-    expect(screen.queryByTestId("task-tag")).toBeNull();
-    expect(screen.getByTestId("ov-no-question")).toHaveTextContent(
-      "No question found in the last capture.",
-    );
-    expect(document.body).not.toHaveTextContent(JUNK);
-  });
-
-  it("keeps the real task on show and hides no-question captures from the task buttons", async () => {
-    await open(CARD, true);
-    await publish(junkAction("x"));
-    expect(screen.getByTestId("task-tag")).toHaveTextContent("T1");
-    expect(screen.queryByRole("group", { name: "Detected tasks" })).toBeNull();
-    expect(screen.getByTestId("ov-no-question")).toBeInTheDocument();
   });
 });

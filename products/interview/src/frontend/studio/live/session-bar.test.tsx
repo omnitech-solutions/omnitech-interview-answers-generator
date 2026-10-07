@@ -8,7 +8,6 @@ import type {
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EndConfirm } from "./end-confirm";
-import { presentation } from "./focus-presentation";
 import { SessionBar } from "./session-bar";
 import { resetSessionStores } from "./session-registry";
 import {
@@ -123,13 +122,10 @@ describe("visibility", () => {
 });
 
 describe("header controls", () => {
-  it("has ONE Pop out control that opens the floating presentation, not separate Card view and Float buttons", async () => {
+  it("has no Pop out, Card view or Float control: the native app is the floating surface", async () => {
     await openBar("header");
-    expect(screen.queryByRole("button", { name: "Card view" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Float" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Pop out" }));
-    expect(presentation.get().mode).toBe("floating");
-    presentation.reset();
+    for (const name of ["Pop out", "Card view", "Float"])
+      expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
   it("shows the clock inside the status pill, from the server clock", async () => {

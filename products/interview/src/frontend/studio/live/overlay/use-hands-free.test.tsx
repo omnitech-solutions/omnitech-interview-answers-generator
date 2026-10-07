@@ -1,7 +1,8 @@
-// Hands-free Auto through the real card, store and client against a scripted
-// service, with a fake display stream, canvas pixels and SpeechRecognition
-// (ADR-0022): a heard question is sent as speech with no button; a changed
-// screen is analysed once, within the limits; nothing stays stuck.
+// The hands-free controller (use-hands-free.ts) through the real store and
+// client against a scripted service, with a fake display stream, canvas pixels
+// and SpeechRecognition (ADR-0022): a heard question is sent as speech with no
+// button; a changed screen is analysed once, within the limits; nothing stays
+// stuck. Driven through a bare probe, not a product surface.
 import {
   act,
   cleanup,
@@ -11,12 +12,12 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
 import {
   configureSessionStores,
   resetSessionStores,
 } from "../session-registry";
+import { HandsFreeProbe } from "../testing/hands-free-probe";
 import { answerAction } from "../testing/live-view-kit";
 import {
   jsonResponse,
@@ -41,9 +42,9 @@ import {
   installRecognition,
   installVideoSize,
   paintScreen,
+  SECRET_TITLE,
 } from "./capture-fixtures";
 import { resetCaptureTrigger } from "./capture-trigger";
-import { resetPosition } from "./card-position";
 import { AUTO_CAPTURE_LABEL } from "./use-hands-free";
 
 const SESSION = "1c2d3e4f-0000-4000-8000-000000000001";
@@ -61,7 +62,7 @@ const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const settle = async () => {
   for (let i = 0; i < 5; i += 1) await flush();
 };
-const card = () => screen.getByTestId("overlay-card");
+const card = () => screen.getByTestId("hf-probe");
 const line = () => screen.queryByTestId("auto-status");
 // A session with no screen source: only listening is in play.
 const micOnly = () => remote({ captureSources: ["microphone"] });
@@ -120,16 +121,11 @@ function serve(session: ReturnType<typeof sessionView>) {
 
 async function openCard(session = remote()) {
   serve(session);
-  render(<LiveCardHost />);
-  act(() => presentation.setMode("card"));
+  render(<HandsFreeProbe />);
   await settle();
 }
 async function shareSource() {
-  fireEvent.click(screen.getByRole("button", { name: /Capture & analyze/ }));
-  await flush();
-  fireEvent.click(
-    screen.getByRole("menuitem", { name: /Share a window, tab or screen/ }),
-  );
+  fireEvent.click(screen.getByTestId("share-start"));
   await settle();
 }
 const autoOn = () =>
@@ -145,7 +141,6 @@ beforeEach(() => {
   clearOwnerPaused(SESSION);
   resetSessionStores();
   presentation.reset();
-  resetPosition();
   captures = [];
   inputs = [];
   controls = [];
@@ -409,7 +404,6 @@ describe("screen changed → one analyze", () => {
     autoOn();
     await openCard(remote({ processingPolicy: "device-only" }));
     expect(line()).not.toHaveTextContent(/screen not analysed/);
-    expect(screen.getByTestId("device-only-card")).toBeInTheDocument();
     await advance(30_000);
     expect(captures).toHaveLength(0);
   });
@@ -456,5 +450,159 @@ describe("paused sessions", () => {
     await openCard(remote({ status: "paused" }));
     await advance(30_000);
     expect(controls).toEqual([]);
+  });
+});
+
+describe("capture & analyze from a shared source", () => {
+  const click = async (testId: string) => {
+    fireEvent.click(screen.getByTestId(testId));
+    await settle();
+  };
+  const fieldsOf = (post: Posted) =>
+    Object.fromEntries(post.entries.filter(([, v]) => typeof v === "string"));
+
+  it("posts one multipart capture with the right fields, the hints, and no title", async () => {
+    window.localStorage.setItem(
+      "interview-studio.live.capture-settings.local",
+      JSON.stringify({ skill: "dsa", language: "react" }),
+    );
+    window.localStorage.setItem(
+      "interview-studio.live.capture-mask.local",
+      JSON.stringify({ x: 0.5, y: 0, w: 0.5, h: 1 }),
+    );
+    await openCard();
+    await shareSource();
+    await click("analyze-attach-share");
+    expect(captures).toHaveLength(1);
+    const fields = fieldsOf(captures[0] as Posted);
+    expect(fields).toMatchObject({
+      operation: "analyze",
+      targetTaskId: "task-1",
+      targetRevision: "1",
+      skill: "dsa",
+      language: "react",
+      label: "Window · region",
+    });
+    expect(fields["requestId"]).toMatch(/^r-/);
+    const image = (captures[0] as Posted).entries.find(
+      ([k]) => k === "image",
+    )?.[1];
+    expect(image).toBeInstanceOf(Blob);
+    expect((image as File).type).toBe("image/jpeg");
+    // Nothing sent carries the title of the shared window.
+    expect(JSON.stringify(captures)).not.toContain(SECRET_TITLE);
+    expect(JSON.stringify(server.calls)).not.toContain(SECRET_TITLE);
+    expect(server.calls.filter((c) => c.endsWith("/input"))).toEqual([]);
+  });
+
+  it("sends 'auto' hints and no target when none are chosen", async () => {
+    await openCard();
+    await shareSource();
+    await click("analyze-new-share");
+    const entries = (captures[0] as Posted).entries;
+    // An unset hint is "auto" (it resets an earlier one); no task is attached.
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        ["skill", "auto"],
+        ["language", "auto"],
+      ]),
+    );
+    expect(entries.map(([k]) => k)).not.toContain("targetTaskId");
+  });
+
+  it("analyses the companion's stored capture as input, never as an upload", async () => {
+    await openCard();
+    await click("analyze-stored");
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]).toMatchObject({ operation: "analyze" });
+    expect(captures).toEqual([]);
+  });
+
+  it("sends nothing for a device-only session, and says so", async () => {
+    await openCard(remote({ processingPolicy: "device-only" }));
+    await click("capture-now");
+    expect(captures).toEqual([]);
+    expect(within(card()).getByRole("alert")).toBeVisible();
+  });
+
+  it("sends a typed follow-up and keeps it in the transcript", async () => {
+    await openCard();
+    fireEvent.change(screen.getByLabelText("Follow-up"), {
+      target: { value: "why?" },
+    });
+    await click("send");
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]).toMatchObject({ operation: "follow-up", text: "why?" });
+    expect(
+      within(screen.getByTestId("chat-log")).getByText("why?"),
+    ).toBeVisible();
+  });
+});
+
+describe("dictation without Auto", () => {
+  const instance = () => FakeRecognition.instances[0] as FakeRecognition;
+
+  it("toggles listening, appends final phrases to the follow-up and never sends them", async () => {
+    await openCard();
+    expect(card()).toHaveAttribute("data-live-mic", "off");
+    fireEvent.click(screen.getByTestId("toggle-mic"));
+    await flush();
+    expect(instance().start).toHaveBeenCalled();
+    expect(instance().continuous).toBe(true);
+    expect(instance().interimResults).toBe(true);
+    expect(card()).toHaveAttribute("data-live-mic", "listening");
+    act(() => instance().say({ text: "use a hash map", final: true }));
+    act(() => instance().say({ text: "then a heap", final: true }));
+    expect(screen.getByLabelText("Follow-up")).toHaveValue(
+      "use a hash map then a heap",
+    );
+    // Appended, never auto-sent.
+    expect(inputs).toEqual([]);
+    fireEvent.click(screen.getByTestId("toggle-mic"));
+    await flush();
+    expect(card()).toHaveAttribute("data-live-mic", "off");
+  });
+});
+
+describe("capture feels instant", () => {
+  it("is capturing while the frame is taken, then analyzing while it is sent", async () => {
+    await openCard();
+    await shareSource();
+    // Hold the frame encode so the capturing phase is observable.
+    let finish!: () => void;
+    Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", {
+      value: vi.fn(function (this: HTMLCanvasElement, callback: BlobCallback) {
+        finish = () =>
+          callback(new Blob([new Uint8Array(4096)], { type: "image/jpeg" }));
+      }),
+      configurable: true,
+    });
+    let release!: (response: Response) => void;
+    server.on(
+      "POST /:id/capture",
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    fireEvent.click(screen.getByTestId("analyze-new-share"));
+    await flush();
+    expect(card()).toHaveAttribute("data-phase", "capturing");
+    expect(screen.getByTestId("capture-now")).toBeDisabled();
+    finish();
+    await settle();
+    expect(card()).toHaveAttribute("data-phase", "analyzing");
+    release(
+      jsonResponse(
+        {
+          input: { requestId: "r", sequence: 1 },
+          snapshot: { sourceId: "b", eventId: "e" },
+        },
+        202,
+      ),
+    );
+    await settle();
+    expect(card()).toHaveAttribute("data-phase", "");
+    expect(screen.getByTestId("capture-now")).toBeEnabled();
   });
 });

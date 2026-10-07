@@ -43,18 +43,6 @@ export class LivePage {
 
   // ---- live ---------------------------------------------------------------
   readonly sessionBar = (): Locator => this.page.getByTestId("session-bar");
-  readonly handsFree = (): Locator =>
-    this.page.getByRole("region", { name: "Hands-free controls" });
-  readonly manualMode = (): Locator =>
-    this.page.getByRole("button", { name: "Manual", exact: true });
-  readonly autoMode = (): Locator =>
-    this.page.getByRole("button", { name: "Auto", exact: true });
-  readonly captureAnalyze = (): Locator =>
-    this.page.getByRole("button", { name: /^Capture & analyze/ });
-  readonly followUp = (): Locator =>
-    this.page.getByRole("textbox", { name: "Follow-up" });
-  readonly sendFollowUp = (): Locator =>
-    this.page.getByRole("button", { name: "Send follow-up" });
   readonly task = (n: number): Locator =>
     this.page.getByRole("article", { name: new RegExp(`^Task ${n}:`) });
 
@@ -73,33 +61,30 @@ export class LivePage {
   readonly staged = (n: number): Locator =>
     this.page.getByTestId(`staged-${n}`);
 
-  async useManual(): Promise<void> {
-    await this.manualMode().click();
-    await expect(this.manualMode()).toHaveAttribute("aria-pressed", "true");
+  readonly stagedItems = (): Locator =>
+    this.page.locator('[data-testid^="staged-"]');
+
+  // Stages one screenshot with the tray's own Add screenshot button (the page
+  // asks for a source in the same click; the harness accepts the browser's
+  // picker through launch flags). Nothing is sent until Apply.
+  async stageScreenshot(): Promise<void> {
+    // A branch, not an assertion: open the area only when it is closed.
+    if (!(await this.area().isVisible()))
+      await this.screenshotsToggle().click();
+    const before = await this.stagedItems().count();
+    await this.addScreenshot().click();
+    await expect(this.stagedItems()).toHaveCount(before + 1);
   }
 
-  readonly stopSharing = (): Locator =>
-    this.page.getByRole("button", { name: "Stop sharing" });
-
-  // Shares a window, tab or screen once (the harness accepts the browser's
-  // picker through launch flags) and waits until the share is live.
-  async shareScreen(): Promise<void> {
-    await this.captureAnalyze().click();
-    await this.page
-      .getByRole("menuitem", { name: /Share a window, tab or screen/ })
-      .click();
-    await expect(this.stopSharing()).toBeVisible();
-  }
-
-  // A fresh capture that starts a NEW task (T{n}); shares first when needed.
+  // A fresh screenshot that starts a NEW task (T{n}): staged, "New problem"
+  // chosen when the tray offers the choice, then Apply.
   async captureNewTask(): Promise<void> {
-    // A branch, not an assertion: share only when no share is running yet; the
-    // menu item clicked next waits for itself (web-first).
-    if (!(await this.stopSharing().isVisible())) await this.shareScreen();
-    await this.captureAnalyze().click();
-    await this.page
-      .getByRole("menuitem", { name: /^New task from a fresh capture/ })
-      .click();
+    await this.stageScreenshot();
+    const newProblem = this.page.getByRole("radio", { name: /^New problem$/ });
+    // A branch, not an assertion: the choice only exists once a task does.
+    if (await newProblem.isVisible()) await newProblem.check();
+    await expect(this.apply()).toBeEnabled();
+    await this.apply().click();
   }
 
   // ---- end ----------------------------------------------------------------

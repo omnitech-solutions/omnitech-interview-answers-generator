@@ -10,16 +10,13 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "../src/fixtures/test";
 import {
   controlSession,
-  ownerCapture,
   sessionApi,
   startSessionViaApi,
 } from "../src/helpers/api";
 import { Companion } from "../src/helpers/companion";
 import { footprint } from "../src/helpers/footprint";
-import { solidPng } from "../src/helpers/png";
 import { db } from "../src/helpers/sql";
 import { stackConfig } from "../src/stack/config";
-import { SCRIPTED } from "../src/stack/scenarios";
 
 const readLog = (path: string): string => {
   try {
@@ -29,7 +26,7 @@ const readLog = (path: string): string => {
   }
 };
 const readWorkerLog = (): string => readLog(stackConfig().workerLogPath);
-const readWebLog = (): string => readLog(stackConfig().webLogPath);
+const _readWebLog = (): string => readLog(stackConfig().webLogPath);
 
 // A session with something in it: a question heard (stored, answered by the
 // scripted model) and a screenshot held for the owner.
@@ -215,116 +212,6 @@ test("retention thirty-days and until-deleted: ending keeps every row and artifa
   });
   // The 30-day session was not touched by deleting the other one.
   expect(await footprint(thirty.id)).toEqual(thirtyBefore);
-});
-
-test("privacy: what was said, typed, answered and captured never reaches the worker log, the page console or the model's recorded metadata", async ({
-  live,
-  page,
-  control,
-}) => {
-  await control.scenario("plain-answer");
-  const canary = `canary${Date.now().toString(36)}zebra`;
-  const heard = `What does ${canary}spoken do in a closure?`;
-  const typed = `${canary}typed follow-up detail`;
-  const label = `${canary}window`;
-  const consoleLines: string[] = [];
-  page.on("console", (message) => consoleLines.push(message.text()));
-  page.on("pageerror", (error) => consoleLines.push(error.message));
-
-  const { id, response } = await startSessionViaApi({
-    captureSources: ["microphone", "application-audio", "screen"],
-  });
-  const companion = new Companion(response.credential.value);
-  await companion.heartbeat();
-  await companion.transcript(heard);
-  await companion.screenshot(label);
-  await page.goto(`${live.livePath()}/${id}`);
-  // The spoken question is on the page and answered by the scripted model.
-  await expect(live.task(1)).toContainText(SCRIPTED.plain);
-  // A typed follow-up and an owner capture add more content to the session.
-  await live.followUp().fill(typed);
-  await live.sendFollowUp().click();
-  await expect
-    .poll(async () => (await db.actions(id)).length)
-    .toBeGreaterThan(1);
-  const upload = await ownerCapture(id, solidPng(64, 64), {
-    label: `${canary}label`,
-  });
-  expect(upload.status).toBe(202);
-  await expect
-    .poll(async () => (await control.calls()).length)
-    .toBeGreaterThanOrEqual(3);
-  await expect
-    .poll(async () =>
-      (await db.actions(id)).every((a) => a.dispatch_status !== "running"),
-    )
-    .toBe(true);
-
-  // The worker logged this session (so an empty log cannot pass), and the log
-  // holds none of the content: not the words, the typed text, the label, nor
-  // the model's answer.
-  const log = readWorkerLog();
-  const mine = log.split("\n").filter((line) => line.includes(id));
-  expect(mine.length).toBeGreaterThan(3);
-  // The web log is read from a real file (Next prints its start-up lines), so
-  // an unwired log cannot pass as "clean".
-  const webLog = readWebLog();
-  expect(webLog.length).toBeGreaterThan(0);
-  for (const secret of [canary, SCRIPTED.plain, "Restate the question"]) {
-    expect(log, `worker log must not contain ${secret}`).not.toContain(secret);
-    expect(webLog, `web server log must not contain ${secret}`).not.toContain(
-      secret,
-    );
-  }
-  // Every trace line of the session is closed in shape: known keys, and no
-  // string value that could carry a sentence.
-  const allowed = new Set([
-    "event",
-    "sessionId",
-    "tenantId",
-    "taskId",
-    "revision",
-    "fence",
-    "profileId",
-    "localityDecision",
-    "durationMs",
-    "outcome",
-    "byteCounts",
-    "detail",
-  ]);
-  for (const line of mine) {
-    const entry = JSON.parse(line) as Record<string, unknown>;
-    expect(Object.keys(entry).filter((key) => !allowed.has(key))).toEqual([]);
-    const strings: string[] = [];
-    const walk = (value: unknown): void => {
-      if (typeof value === "string") strings.push(value);
-      else if (value && typeof value === "object")
-        for (const inner of Object.values(value)) walk(inner);
-    };
-    walk(entry);
-    expect(strings.filter((text) => text.length > 80)).toEqual([]);
-  }
-
-  // The page's console never carried the words either.
-  expect(consoleLines.join("\n")).not.toContain(canary);
-
-  // The harness's own record of the model calls is metadata only.
-  for (const call of await control.calls())
-    expect(Object.keys(call).sort()).toEqual(
-      [
-        "imageBytes",
-        "imageDigests",
-        "images",
-        "outcome",
-        "promptLength",
-        "revision",
-        "scenario",
-        "seq",
-        "stage",
-        "taskId",
-        "via",
-      ].sort(),
-    );
 });
 
 test("privacy: raw audio has no way in — the server refuses an audio message and stores nothing for it", async () => {

@@ -100,28 +100,27 @@ afterEach(() => {
 });
 
 describe("routing", () => {
-  it("shows the card without a panel, and for an unknown or removed one (pill, analysis, chat)", async () => {
-    window.history.replaceState(
-      {},
+  it("draws the compact window without a panel, and for an unknown or removed one (pill, analysis, chat)", async () => {
+    for (const search of [
+      "?panel=nope",
+      "?panel=pill",
+      "?panel=analysis",
+      "?panel=chat",
       "",
-      "/t/local/p/interview/live/overlay?panel=nope",
-    );
-    render(<OverlayPage />);
-    await flush();
-    await flush();
-    expect(screen.getByTestId("overlay-card")).toBeVisible();
-    expect(screen.queryByTestId("pn-root")).toBeNull();
-    cleanup();
-    for (const removed of ["pill", "analysis", "chat"]) {
+    ]) {
       window.history.replaceState(
         {},
         "",
-        `/t/local/p/interview/live/overlay?panel=${removed}`,
+        `/t/local/p/interview/live/overlay${search}`,
       );
       render(<OverlayPage />);
       await flush();
-      expect(screen.getByTestId("overlay-card")).toBeVisible();
-      expect(screen.queryByTestId("pn-root")).toBeNull();
+      await flush();
+      expect(screen.getByTestId("pn-root")).toHaveAttribute(
+        "data-panel",
+        "single",
+      );
+      expect(screen.queryByTestId("overlay-card")).toBeNull();
       cleanup();
     }
   });

@@ -32,7 +32,6 @@ export const HIT_SELECTORS = [
   ".pn-start-card", // the sign-in and start screens
   ".pn-start-toast", // their toast
   ".pn-menu", // every popover and menu
-  ".ov-rev-menu", // the revisions popover
   ".pn-toast", // a toast
   ".ss-viewer-scrim", // the screenshot viewer, when open: covers the window
   "[data-oui-surface]", // every portalled library surface (menus, popovers, tooltips, dialogs, toasts)

@@ -1,6 +1,6 @@
 // The Web App Manifest that lets a browser offer "Install app" for Interview
-// Studio's live overlay (ADR-0019). The installed window loads the same overlay
-// route every other host loads (ADR-0017); the manifest only names it. Chrome
+// Studio's live session page (ADR-0019). The installed window opens the Studio
+// live page; the manifest only names it. Chrome
 // needs no service worker to install (a manifest with icons, a start_url and a
 // standalone display is enough), so none is shipped: the page is online-only
 // and nothing is cached.
@@ -27,7 +27,7 @@ export type WebAppManifest = {
   icons: { src: string; sizes: string; type: string; purpose?: string }[];
 };
 
-// The overlay route is the start page; the scope is the product, so Studio
+// The Studio live page is the start page; the scope is the product, so Studio
 // links stay inside the installed window.
 export function liveWebAppManifest(tenantSlug: string): WebAppManifest {
   const scope = `/t/${encodeURIComponent(tenantSlug)}/p/${WEB_APP_PRODUCT_ID}/`;
@@ -35,9 +35,8 @@ export function liveWebAppManifest(tenantSlug: string): WebAppManifest {
     id: `${scope}live/overlay`,
     name: "Interview Studio · Live",
     short_name: "Studio Live",
-    description:
-      "The live Interview Studio card in its own window. It is visible in screen shares.",
-    start_url: `${scope}live/overlay?host=pwa`,
+    description: "The live Interview Studio session in its own window.",
+    start_url: `${scope}live`,
     scope,
     display: "standalone",
     background_color: "#0f2557",

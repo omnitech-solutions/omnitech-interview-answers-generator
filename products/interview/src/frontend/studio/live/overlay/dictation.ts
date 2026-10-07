@@ -43,9 +43,6 @@ export function recognitionCtor(): RecognitionCtor | null {
   return host.SpeechRecognition ?? host.webkitSpeechRecognition ?? null;
 }
 
-export const DICTATION_NOTE =
-  "Browser dictation. In a remote session your browser may use its own speech service; a device-only session requires on-device recognition.";
-
 export const DICTATION_MESSAGES = {
   unsupported:
     "This browser has no dictation. Use Chrome or Edge, or type the follow-up.",

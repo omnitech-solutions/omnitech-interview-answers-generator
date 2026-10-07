@@ -5,16 +5,12 @@
 import type {
   LiveAction,
   LiveObservation,
-  LiveSessionSummary,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import { z } from "zod";
 import type { IconName } from "../../icon";
-import { claimSummary } from "../claim-chips";
 import { ageLabel } from "../session-format";
-import { formatElapsed } from "../session-merge";
 import {
-  type AnswerResult,
   type CodeResult,
   parseResultMeta,
   parseSnapshotContent,
@@ -25,7 +21,6 @@ import {
   SOURCE_LABEL,
   type SourceStatus,
 } from "../session-sources";
-import type { LiveViewModel } from "../session-state";
 import type { TaskView } from "../session-tasks";
 import { type HealthTone, SOURCE_HEALTH } from "../source-health";
 
@@ -66,41 +61,6 @@ export function captureList(
 }
 
 // ---- Header ----------------------------------------------------------------
-
-export type StatusChip = {
-  tone: "green" | "amber" | "red" | "neutral";
-  text: string;
-};
-
-export function statusChip(model: LiveViewModel): StatusChip {
-  const tone: StatusChip["tone"] =
-    model.barState === "live"
-      ? "green"
-      : model.barState === "paused"
-        ? "amber"
-        : model.barState === "ended"
-          ? "neutral"
-          : "red";
-  return { tone, text: `${model.barLabel} · ${model.elapsedLabel}` };
-}
-
-// The session record has no name of its own, so the title says what kind it is
-// and when it started.
-export function sessionTitle(
-  session: Pick<LiveSessionView, "createdAt" | "rehearsalRunId">,
-): string {
-  const at = new Date(session.createdAt);
-  const time = Number.isNaN(at.getTime())
-    ? ""
-    : ` · ${at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-  return `${session.rehearsalRunId ? "Rehearsal" : "Session"}${time}`;
-}
-
-export const SOURCE_ICON: Record<string, IconName> = {
-  microphone: "mic",
-  "application-audio": "graphic_eq",
-  screen: "desktop_windows",
-};
 
 export type LocalityChips = {
   locality: { icon: IconName; text: string };
@@ -143,7 +103,7 @@ export function localityChips(
 
 // ---- Task ------------------------------------------------------------------
 
-const ownerInputBody = z.object({
+const _ownerInputBody = z.object({
   operation: z.enum(["analyze", "follow-up"]),
   target: z.object({ taskId: z.string(), revision: z.number() }).optional(),
   snapshots: z
@@ -151,106 +111,9 @@ const ownerInputBody = z.object({
     .default([]),
 });
 
-export type ProvenanceChip = { icon: IconName; label: string };
-
-// Where a task came from: spoken (a question the call raised), a screenshot
-// the owner analysed (S<n>), or a typed follow-up. An owner input names its
-// own task (`task-i.<request id>`) or the task it targets.
-export function provenance(
-  task: TaskView,
-  observations: readonly LiveObservation[],
-  captures: readonly Capture[],
-): ProvenanceChip[] {
-  const chips: ProvenanceChip[] = [];
-  const own = (o: LiveObservation) => task.taskId === `task-i.${o.eventId}`;
-  const inputs = observations
-    .filter((o) => o.kind === "owner.input")
-    .map((o) => ({ o, body: ownerInputBody.safeParse(o.content.body) }))
-    .filter(
-      (
-        entry,
-      ): entry is {
-        o: LiveObservation;
-        body: { success: true; data: z.infer<typeof ownerInputBody> };
-      } =>
-        entry.body.success &&
-        (own(entry.o) || entry.body.data.target?.taskId === task.taskId),
-    );
-  if (!task.taskId.startsWith("task-i."))
-    chips.push({ icon: "hearing", label: "spoken" });
-  const shots = new Set<string>();
-  let typed = false;
-  for (const { body } of inputs) {
-    if (body.data.operation === "follow-up") typed = true;
-    for (const snap of body.data.snapshots) {
-      const capture = captures.find(
-        (c) => c.sourceId === snap.sourceId && c.eventId === snap.eventId,
-      );
-      if (capture) shots.add(capture.id);
-    }
-  }
-  for (const id of shots)
-    chips.push({ icon: "screenshot_monitor", label: `${id} screenshot` });
-  if (typed) chips.push({ icon: "keyboard", label: "typed" });
-  return chips;
-}
-
-export type SlotView = {
-  name: "ANSWER SLOT" | "CODE SLOT";
-  tone: "idle" | "busy" | "ok" | "warn" | "bad";
-  text: string;
-};
-
-function seconds(run: ActivityRun): string | null {
+function _seconds(run: ActivityRun): string | null {
   const ms = Date.parse(run.updatedAt) - Date.parse(run.createdAt);
   return Number.isNaN(ms) || ms < 0 ? null : (ms / 1000).toFixed(1);
-}
-
-export function slotView(
-  name: SlotView["name"],
-  run: ActivityRun | null,
-  applicable: boolean,
-): SlotView {
-  if (!run)
-    return {
-      name,
-      tone: "idle",
-      text: applicable ? "Idle" : "Not needed for this task",
-    };
-  const took = seconds(run);
-  switch (run.state) {
-    case "published":
-      return {
-        name,
-        tone: "ok",
-        text: `Rev ${run.taskRevision} published${took ? ` · ${took} s` : ""}`,
-      };
-    case "running":
-      return { name, tone: "busy", text: `${run.label}…` };
-    case "cancelling":
-      return { name, tone: "warn", text: "Cancelling" };
-    case "held-conflict":
-      return { name, tone: "warn", text: "Held · your edits are kept" };
-    case "superseded":
-      return {
-        name,
-        tone: "idle",
-        text: `Rev ${run.taskRevision} replaced by a newer revision`,
-      };
-    case "failed":
-      return {
-        name,
-        tone: "bad",
-        text: run.reasonLabel ? `Failed · ${run.reasonLabel}` : "Failed",
-      };
-    default:
-      // discarded, cancelled or refused: settled without publishing.
-      return {
-        name,
-        tone: "warn",
-        text: `Suppressed · ${run.reasonLabel ?? run.label}`,
-      };
-  }
 }
 
 // One line of the approach, or one fenced block (shown as code, never with its
@@ -348,77 +211,6 @@ export function solution(task: TaskView): SolutionView | null {
       { ok: states.testsPassed, label: `Tests passed${counts}` },
       { ok: states.fullyVerified, label: "Fully verified" },
     ],
-  };
-}
-
-// For a non-coding task: the answer with its claim summary.
-export function answerSummary(answer: AnswerResult): string {
-  return claimSummary(answer.claimCounts);
-}
-
-// ---- Disclosures -----------------------------------------------------------
-
-export type DisclosureRow = { key: string; tag: string; text: string };
-
-export function activityRows(model: LiveViewModel): {
-  preview: string;
-  rows: DisclosureRow[];
-} {
-  const last = model.runs.slice(-6);
-  return {
-    preview: model.activity.text,
-    rows: last.map((run) => ({
-      key: run.id,
-      tag: run.label,
-      text: `${run.kindLabel}, task rev ${run.taskRevision}${run.reasonLabel ? `. ${run.reasonLabel}` : ""}`,
-    })),
-  };
-}
-
-// ---- Sessions (the switcher) -------------------------------------------------
-
-export type SessionRow = {
-  id: string;
-  title: string;
-  status: LiveSessionSummary["status"];
-  tone: "green" | "amber" | "neutral";
-  statusText: string;
-  // "12:03": a live session so far, or a finished one's whole length.
-  timeText: string;
-};
-
-export function sessionRow(
-  summary: LiveSessionSummary,
-  serverNowMs: number,
-): SessionRow {
-  const start = Date.parse(summary.createdAt);
-  const open = summary.status !== "ended" && summary.status !== "purging";
-  const end = summary.endedAt ? Date.parse(summary.endedAt) : serverNowMs;
-  const span = Number.isNaN(start) ? 0 : Math.max(0, end - start);
-  const tone =
-    summary.status === "active"
-      ? "green"
-      : summary.status === "paused" || summary.status === "created"
-        ? "amber"
-        : "neutral";
-  const statusText =
-    summary.status === "active"
-      ? "Live"
-      : summary.status === "paused"
-        ? "Paused"
-        : summary.status === "created"
-          ? "Waiting"
-          : "Ended";
-  return {
-    id: summary.id,
-    title: sessionTitle({
-      createdAt: summary.createdAt,
-      rehearsalRunId: summary.rehearsal ? "rehearsal" : null,
-    }),
-    status: summary.status,
-    tone,
-    statusText,
-    timeText: formatElapsed(span),
   };
 }
 
@@ -554,37 +346,3 @@ export type ChatEntry = {
   text: string;
   at: number;
 };
-export type ChatRow = { key: string; tag: string; text: string; at: number };
-
-const CHAT_ROWS = 6;
-
-// Spoken (from the companion), dictated and typed lines in the order they
-// happened, newest last.
-export function chatRows(
-  model: LiveViewModel,
-  entries: readonly ChatEntry[],
-): ChatRow[] {
-  const spoken = model.transcript.flatMap((row) =>
-    row.type === "utterance" && !row.superseded
-      ? [
-          {
-            key: `s-${row.sourceId}/${row.eventId}`,
-            tag: "Spoken",
-            text: row.text,
-            at: Date.parse(row.receivedAt),
-          },
-        ]
-      : [],
-  );
-  return [
-    ...spoken,
-    ...entries.map((entry) => ({
-      key: entry.key,
-      tag: entry.kind,
-      text: entry.text,
-      at: entry.at,
-    })),
-  ]
-    .sort((a, b) => a.at - b.at)
-    .slice(-CHAT_ROWS);
-}

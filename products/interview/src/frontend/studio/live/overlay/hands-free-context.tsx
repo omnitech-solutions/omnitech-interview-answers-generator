@@ -1,9 +1,8 @@
 // The one hands-free controller of a document, offered to everything in it: the
-// Studio shell mounts the provider once, so the live view's band and the card
-// opened inside the page are two views of the SAME microphone, share and Auto,
-// never two of them. A document without the provider (the overlay window, the
-// Picture-in-Picture frame, a test) gives each view its own controller, which
-// still takes part in the one-owner rule across documents.
+// Studio shell mounts the provider once, so the live view's screenshots area
+// and the missing-context actions share the SAME share and Auto, never two of
+// them. A view without the provider says capture is not available. The
+// controller still takes part in the one-owner rule across documents.
 import { createContext, type ReactNode } from "react";
 import { type HandsFree, useHandsFree } from "./use-hands-free";
 

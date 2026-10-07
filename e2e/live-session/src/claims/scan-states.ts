@@ -55,21 +55,14 @@ export async function scanWeb(
   await live.consent().check();
   await note("setup-ready", page);
   await live.startRehearsal();
-  await live.useManual();
   await note("live-empty", page);
   for (const tab of ["Transcript", "Activity", "Sources"]) {
     await page.getByRole("tab", { name: tab }).click();
     await note(`live-tab-${tab.toLowerCase()}`, page);
   }
-  await live.captureAnalyze().click();
-  await note("capture-menu-unshared", page);
-  await page
-    .getByRole("menuitem", { name: /Share a window, tab or screen/ })
-    .click();
-  await expect(live.stopSharing()).toBeVisible();
-  await live.captureAnalyze().click();
-  await note("capture-menu-shared", page);
-  await page.getByRole("menuitem", { name: /^New task from/ }).click();
+  await live.stageScreenshot();
+  await note("live-tray-staged-first", page);
+  await live.apply().click();
   await expect(live.task(1)).toBeVisible();
   await note("live-task", page);
 
@@ -83,9 +76,7 @@ export async function scanWeb(
   ];
   for (const [n, name] of tasks) {
     await control.scenario(name);
-    await live.captureAnalyze().click();
-    if (n === 2) await note("capture-menu-with-task", page);
-    await page.getByRole("menuitem", { name: /^New task from/ }).click();
+    await live.captureNewTask();
     await expect(live.task(n)).toBeVisible({ timeout: 30_000 });
     await note(`live-task-${name}`, page);
     if (name === "coding-answer") {
@@ -99,8 +90,8 @@ export async function scanWeb(
   await control.scenario("plain-answer");
   await live.chip(1).click();
   await note("live-earlier-task", page);
-  await live.followUp().fill("Please add an example.");
-  await live.sendFollowUp().click();
+  await live.stageScreenshot();
+  await live.apply().click();
   const revisions = page.getByRole("button", {
     name: /^Revisions: rev 2 of 2$/,
   });
@@ -120,19 +111,12 @@ export async function scanWeb(
   await page.getByRole("button", { name: "Close viewer" }).click();
   await live.discard().click();
   await control.scenario("no-question");
-  await live.captureAnalyze().click();
-  await page.getByRole("menuitem", { name: /^New task from/ }).click();
+  await live.captureNewTask();
   await page.getByRole("tab", { name: "Transcript" }).click();
   await expect(page.getByTestId("transcript-note")).toBeVisible({
     timeout: 30_000,
   });
   await note("live-no-question-note", page);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await note("live-settings-popover", page);
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /^Topic/ }).click();
-  await note("live-topic-menu", page);
-  await page.keyboard.press("Escape");
   const bar = live.sessionBar();
   await bar.getByRole("button", { name: "Pause" }).click();
   await expect(bar.getByRole("button", { name: "Resume" })).toBeVisible();

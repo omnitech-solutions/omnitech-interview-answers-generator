@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
 import { speechState } from "./companion-capability";
 import { EndConfirm } from "./end-confirm";
-import { presentation, usePresentation } from "./focus-presentation";
 import { studioHostInfo } from "./host-adapter";
 import {
   commandMessage,
@@ -54,7 +53,6 @@ function OpenSessionBar({
   const variant = props.variant;
   const { snapshot, actions, model } = useLiveSession();
   const target = useSessionTarget(session);
-  const { mode: presentationMode } = usePresentation();
   const [confirming, setConfirming] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -222,20 +220,6 @@ function OpenSessionBar({
       </ul>
 
       <div className="live-bar-actions" role="toolbar" aria-label="Session">
-        {variant === "header" && (
-          <Button
-            type="button"
-            variant="outline"
-            buttonSize="lg"
-            className="live-bar-button"
-            title="Pop out the capture controls into a floating window"
-            disabled={presentationMode === "floating"}
-            onClick={() => presentation.setMode("floating")}
-          >
-            <Icon name="picture_in_picture_alt" />
-            Pop out
-          </Button>
-        )}
         {variant === "bar" && (
           <Button
             type="button"
