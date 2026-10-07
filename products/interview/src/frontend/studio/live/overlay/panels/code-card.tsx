@@ -103,7 +103,7 @@ export function CodeCard({
       }
       data-testid="pn-code"
     >
-      <div className="pn-code-body">
+      <div className="pn-code-body" data-text-surface="">
         <TestsHandle open={drawer.open} onToggle={drawer.toggle} />
         <TestsDrawer open={drawer.open} view={view} onReveal={reveal} />
         <div className="pn-codemain">
@@ -211,7 +211,12 @@ export function CodeEmpty({ text, busy }: { text: string; busy: boolean }) {
 
 export function TextCard({ text }: { text: string }) {
   return (
-    <section className="pn-example" aria-label="Example" data-testid="pn-text">
+    <section
+      className="pn-example"
+      data-text-surface=""
+      aria-label="Example"
+      data-testid="pn-text"
+    >
       <div className="pn-code-heading">TEXT</div>
       <pre className="pn-example-pre">{text}</pre>
     </section>

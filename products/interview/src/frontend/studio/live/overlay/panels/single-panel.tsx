@@ -228,7 +228,7 @@ export function SinglePanel({
         </div>
       )}
       {ended && <EndedCard s={s} />}
-      <div className="pn-single-foot">
+      <div className="pn-single-foot" data-drag-handle="">
         <Footer
           wording="session"
           variant={

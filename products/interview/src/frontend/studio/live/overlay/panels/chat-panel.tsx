@@ -308,7 +308,7 @@ export function ChatPanel({ s }: { s: PanelSession }) {
           }}
         >
           {s.note && (
-            <p className="pn-note" role="alert">
+            <p className="pn-note" data-text-surface="" role="alert">
               <span>{s.note}</span>
             </p>
           )}

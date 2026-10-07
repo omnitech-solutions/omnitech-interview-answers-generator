@@ -3,6 +3,7 @@
 // own sections. Both say what is true of the work now: the steps of a job in
 // flight, a task the owner stopped, or what the code is waiting for. Neither
 // fetches or decides anything; they read the one panel session.
+
 import { Button, Empty, Panel, Steps, Tag } from "@oc-tech/omni-ui-components";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
@@ -36,6 +37,7 @@ import { CodeCard, CodeEmpty } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
 import type { PanelSession } from "./panel-views";
+import { TextSurface } from "./text-surface";
 import { answerSteps, captureControl } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 import { TOAST_TEXT } from "./use-panel-session";
@@ -139,280 +141,297 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   ) : null;
   const stop = captureControl(true);
   return (
-    <Panel
-      title="Answer"
-      data-testid="pn-analysis"
-      className="pn-answer-panel"
-      bodyClassName="pn-answer-body"
-      {...(answered ? { subtitle: `${card.label} · ${card.name}` } : {})}
-      meta={meta}
-      actions={
-        s.phase ? (
-          <Button
-            buttonSize="sm"
-            variant="outline"
-            icon={<Icon name="stop_circle" />}
-            shortcut={[...nativeChord("analyze")]}
-            aria-label={`${stop.label} ${nativeChord("analyze")}`}
-            title={stop.title}
-            onClick={() => void s.stop()}
-          >
-            {stop.label}
-          </Button>
-        ) : undefined
-      }
-      dock={
-        pending ? (
-          <AnswerDock
-            view={shots}
-            captureUnavailable={s.captureUnavailable}
-            onAdd={(intent) => void s.stage(intent)}
+    <TextSurface>
+      <Panel
+        title="Answer"
+        data-testid="pn-analysis"
+        className="pn-answer-panel"
+        bodyClassName="pn-answer-body"
+        {...(answered ? { subtitle: `${card.label} · ${card.name}` } : {})}
+        meta={meta}
+        actions={
+          s.phase ? (
+            <Button
+              buttonSize="sm"
+              variant="outline"
+              icon={<Icon name="stop_circle" />}
+              shortcut={[...nativeChord("analyze")]}
+              aria-label={`${stop.label} ${nativeChord("analyze")}`}
+              title={stop.title}
+              onClick={() => void s.stop()}
+            >
+              {stop.label}
+            </Button>
+          ) : undefined
+        }
+        dock={
+          pending ? (
+            <AnswerDock
+              view={shots}
+              captureUnavailable={s.captureUnavailable}
+              onAdd={(intent) => void s.stage(intent)}
+            />
+          ) : undefined
+        }
+        dockClassName="pn-answer-dock"
+      >
+        {s.captureProblem && (
+          <CaptureProblemBanner
+            problem={s.captureProblem}
+            onDismiss={s.dismissCaptureProblem}
+            {...(s.captureProblemAction
+              ? { onAction: s.captureProblemAction }
+              : {})}
           />
-        ) : undefined
-      }
-      dockClassName="pn-answer-dock"
-    >
-      {s.captureProblem && (
-        <CaptureProblemBanner
-          problem={s.captureProblem}
-          onDismiss={s.dismissCaptureProblem}
-          {...(s.captureProblemAction
-            ? { onAction: s.captureProblemAction }
-            : {})}
-        />
-      )}
-      {showSteps ? (
-        <Steps
-          variant="checklist"
-          role="status"
-          aria-label="Analysis steps"
-          data-testid="pn-steps"
-          className="pn-answer-steps"
-          items={steps.map((step) => ({
-            key: step.id,
-            state:
-              step.state === "active"
-                ? "current"
-                : step.state === "waiting"
-                  ? "pending"
-                  : "done",
-            label: (
-              <>
-                {step.label}
-                {step.state === "active" && waited >= 1 && (
-                  <span className="pn-step-time">{` ${waited}s`}</span>
-                )}
-              </>
-            ),
-          }))}
-        />
-      ) : !card || !view ? (
-        <Empty
-          variant="tile"
-          data-testid="pn-analysis-empty"
-          icon={<Icon name="screenshot_monitor" />}
-          title="Nothing analysed yet"
-          description={
-            s.auto.on
-              ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
-              : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."
-          }
-        >
-          <Button
-            buttonSize="control"
-            tone="accent"
+        )}
+        {showSteps ? (
+          <Steps
+            variant="checklist"
+            role="status"
+            aria-label="Analysis steps"
+            data-testid="pn-steps"
+            className="pn-answer-steps"
+            items={steps.map((step) => ({
+              key: step.id,
+              state:
+                step.state === "active"
+                  ? "current"
+                  : step.state === "waiting"
+                    ? "pending"
+                    : "done",
+              label: (
+                <>
+                  {step.label}
+                  {step.state === "active" && waited >= 1 && (
+                    <span className="pn-step-time">{` ${waited}s`}</span>
+                  )}
+                </>
+              ),
+            }))}
+          />
+        ) : !card || !view ? (
+          <Empty
+            variant="tile"
+            data-testid="pn-analysis-empty"
             icon={<Icon name="screenshot_monitor" />}
-            shortcut={[...nativeChord("analyze")]}
-            disabled={!s.open}
-            aria-label={`${s.auto.on ? "Analyze screen" : "Capture screenshot"} ${nativeChord("analyze")}`}
-            onClick={() => s.press("capture")}
+            title="Nothing analysed yet"
+            description={
+              s.auto.on
+                ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
+                : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."
+            }
           >
-            {s.auto.on ? "Analyze screen" : "Capture screenshot"}
-          </Button>
-          {s.noQuestionLine && (
-            <p className="pn-muted" role="status" data-testid="pn-no-question">
-              {s.noQuestionLine}
-            </p>
-          )}
-          {!s.open && (
-            <p className="pn-muted" role="status" data-testid="pn-capture-off">
-              {captureProblem("session-ended").title}.{" "}
-              {captureProblem("session-ended").fix}
-            </p>
-          )}
-          {s.tray.items.length > 0 && area}
-        </Empty>
-      ) : (
-        <div className="pn-answer-content" data-testid="pn-answer">
-          {s.noQuestionLine && (
-            <p className="pn-muted" role="status" data-testid="pn-no-question">
-              {s.noQuestionLine}
-            </p>
-          )}
-          <div className="pn-task-line" data-testid="pn-task-line">
-            <span className="pn-task-id">
-              {card.label} ·{" "}
-              {s.selected && card.revisionCount > 1
-                ? revisionLine(s.selected, card.revision).label
-                : `rev ${card.revision}`}
-            </span>
-            {s.selected && (
-              <RevisionsControl
-                task={s.selected}
-                selected={card.revision}
+            <Button
+              buttonSize="control"
+              tone="accent"
+              icon={<Icon name="screenshot_monitor" />}
+              shortcut={[...nativeChord("analyze")]}
+              disabled={!s.open}
+              aria-label={`${s.auto.on ? "Analyze screen" : "Capture screenshot"} ${nativeChord("analyze")}`}
+              onClick={() => s.press("capture")}
+            >
+              {s.auto.on ? "Analyze screen" : "Capture screenshot"}
+            </Button>
+            {s.noQuestionLine && (
+              <p
+                className="pn-muted"
+                role="status"
+                data-testid="pn-no-question"
+              >
+                {s.noQuestionLine}
+              </p>
+            )}
+            {!s.open && (
+              <p
+                className="pn-muted"
+                role="status"
+                data-testid="pn-capture-off"
+              >
+                {captureProblem("session-ended").title}.{" "}
+                {captureProblem("session-ended").fix}
+              </p>
+            )}
+            {s.tray.items.length > 0 && area}
+          </Empty>
+        ) : (
+          <div className="pn-answer-content" data-testid="pn-answer">
+            {s.noQuestionLine && (
+              <p
+                className="pn-muted"
+                role="status"
+                data-testid="pn-no-question"
+              >
+                {s.noQuestionLine}
+              </p>
+            )}
+            <div className="pn-task-line" data-testid="pn-task-line">
+              <span className="pn-task-id">
+                {card.label} ·{" "}
+                {s.selected && card.revisionCount > 1
+                  ? revisionLine(s.selected, card.revision).label
+                  : `rev ${card.revision}`}
+              </span>
+              {s.selected && (
+                <RevisionsControl
+                  task={s.selected}
+                  selected={card.revision}
+                  variant="native"
+                  onPick={s.pickRevision}
+                />
+              )}
+              {card.revision !== card.currentRevision && (
+                <span className="pn-earlier" data-testid="pn-earlier-revision">
+                  viewing an earlier revision · current is rev{" "}
+                  {card.currentRevision}
+                </span>
+              )}
+              {card.snapshotLabel && <span>from {card.snapshotLabel}</span>}
+              {card.earlier && (
+                <>
+                  <span className="pn-earlier" data-testid="pn-earlier">
+                    earlier task
+                  </span>
+                  <Button
+                    buttonSize="sm"
+                    variant="outline"
+                    onClick={() => s.select(null)}
+                  >
+                    Back to {newest}
+                  </Button>
+                </>
+              )}
+              <ScreenshotsToggle
+                view={shots}
                 variant="native"
-                onPick={s.pickRevision}
+                controls={areaId}
+              />
+            </div>
+            {area}
+            <div className="pn-problem-head">
+              <h2 className="pn-problem" data-testid="pn-problem">
+                {card.name}
+              </h2>
+              <Tag data-testid="pn-type">{card.kind.label}</Tag>
+            </div>
+            {card.answerStale && (
+              <p className="pn-muted" data-testid="pn-stale">
+                This answer is for an earlier revision of the task.
+              </p>
+            )}
+            {stopped && (
+              <p className="pn-stopped" data-testid="pn-stopped">
+                You stopped this analysis. Nothing was published for it. Press{" "}
+                {nativeChord("analyze")} to start a fresh task.
+              </p>
+            )}
+            {!stopped && card.answerText === null && (
+              <p className="pn-muted" data-testid="pn-no-answer">
+                {STAGE_PRESENTATION[card.stages[0].state].word}
+                {card.stages[0].detail ? ` · ${card.stages[0].detail}` : ""}
+              </p>
+            )}
+            {s.missing && (
+              <MissingContextStrip
+                items={s.missing}
+                variant="native"
+                unavailable={missingUnavailable(s)}
+                onAction={(id) => {
+                  if (id === "screenshot") s.press("attach");
+                  else if (id === "context")
+                    window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
+                  else s.dismissMissing();
+                }}
               />
             )}
-            {card.revision !== card.currentRevision && (
-              <span className="pn-earlier" data-testid="pn-earlier-revision">
-                viewing an earlier revision · current is rev{" "}
-                {card.currentRevision}
-              </span>
+            {card.constraints.some((each) => each.status === "current") && (
+              <div className="pn-constraints">
+                <strong>Constraints:</strong>
+                <div className="pn-chips" aria-label="Constraints">
+                  {card.constraints
+                    .filter((each) => each.status === "current")
+                    .map((each) => (
+                      <span key={each.text} className="pn-chip">
+                        {each.text}
+                      </span>
+                    ))}
+                </div>
+              </div>
             )}
-            {card.snapshotLabel && <span>from {card.snapshotLabel}</span>}
-            {card.earlier && (
-              <>
-                <span className="pn-earlier" data-testid="pn-earlier">
-                  earlier task
-                </span>
+            {(view.input.length > 0 || view.output.length > 0) && (
+              <div>
+                <strong>Input/Output:</strong>
+                {view.input.length > 0 && (
+                  <p>
+                    <b>Input:</b> <InlineBold text={view.input.join(" ")} />
+                  </p>
+                )}
+                {view.output.length > 0 && (
+                  <p>
+                    <b>Output:</b> <InlineBold text={view.output.join(" ")} />
+                  </p>
+                )}
+              </div>
+            )}
+            {view.steps.map((step) => (
+              <div key={step.heading}>
+                <strong>{step.heading}</strong>
+                {step.lines.map((line) => (
+                  <p key={line}>
+                    <InlineBold text={line} />
+                  </p>
+                ))}
+              </div>
+            ))}
+            {view.complexity.length > 0 && (
+              <div>
+                <strong>Complexity</strong>
+                {view.complexity.map((line) => (
+                  <p key={line}>
+                    <InlineBold text={line} />
+                  </p>
+                ))}
+              </div>
+            )}
+            {card.answerText !== null && (
+              <div className="pn-actions">
                 <Button
                   buttonSize="sm"
                   variant="outline"
-                  onClick={() => s.select(null)}
+                  icon={
+                    <Icon
+                      name={
+                        copying.copied === "answer" ? "check" : "content_copy"
+                      }
+                    />
+                  }
+                  onClick={() =>
+                    void copying.copy(
+                      "answer",
+                      plainDraft(card.answerText ?? ""),
+                    )
+                  }
                 >
-                  Back to {newest}
+                  {copying.copied === "answer" ? "Copied" : "Copy answer"}
                 </Button>
-              </>
-            )}
-            <ScreenshotsToggle
-              view={shots}
-              variant="native"
-              controls={areaId}
-            />
-          </div>
-          {area}
-          <div className="pn-problem-head">
-            <h2 className="pn-problem" data-testid="pn-problem">
-              {card.name}
-            </h2>
-            <Tag data-testid="pn-type">{card.kind.label}</Tag>
-          </div>
-          {card.answerStale && (
-            <p className="pn-muted" data-testid="pn-stale">
-              This answer is for an earlier revision of the task.
-            </p>
-          )}
-          {stopped && (
-            <p className="pn-stopped" data-testid="pn-stopped">
-              You stopped this analysis. Nothing was published for it. Press{" "}
-              {nativeChord("analyze")} to start a fresh task.
-            </p>
-          )}
-          {!stopped && card.answerText === null && (
-            <p className="pn-muted" data-testid="pn-no-answer">
-              {STAGE_PRESENTATION[card.stages[0].state].word}
-              {card.stages[0].detail ? ` · ${card.stages[0].detail}` : ""}
-            </p>
-          )}
-          {s.missing && (
-            <MissingContextStrip
-              items={s.missing}
-              variant="native"
-              unavailable={missingUnavailable(s)}
-              onAction={(id) => {
-                if (id === "screenshot") s.press("attach");
-                else if (id === "context")
-                  window.dispatchEvent(new Event(FOCUS_INPUT_EVENT));
-                else s.dismissMissing();
-              }}
-            />
-          )}
-          {card.constraints.some((each) => each.status === "current") && (
-            <div className="pn-constraints">
-              <strong>Constraints:</strong>
-              <div className="pn-chips" aria-label="Constraints">
-                {card.constraints
-                  .filter((each) => each.status === "current")
-                  .map((each) => (
-                    <span key={each.text} className="pn-chip">
-                      {each.text}
-                    </span>
-                  ))}
               </div>
-            </div>
-          )}
-          {(view.input.length > 0 || view.output.length > 0) && (
-            <div>
-              <strong>Input/Output:</strong>
-              {view.input.length > 0 && (
-                <p>
-                  <b>Input:</b> <InlineBold text={view.input.join(" ")} />
-                </p>
-              )}
-              {view.output.length > 0 && (
-                <p>
-                  <b>Output:</b> <InlineBold text={view.output.join(" ")} />
-                </p>
-              )}
-            </div>
-          )}
-          {view.steps.map((step) => (
-            <div key={step.heading}>
-              <strong>{step.heading}</strong>
-              {step.lines.map((line) => (
-                <p key={line}>
-                  <InlineBold text={line} />
-                </p>
-              ))}
-            </div>
-          ))}
-          {view.complexity.length > 0 && (
-            <div>
-              <strong>Complexity</strong>
-              {view.complexity.map((line) => (
-                <p key={line}>
-                  <InlineBold text={line} />
-                </p>
-              ))}
-            </div>
-          )}
-          {card.answerText !== null && (
-            <div className="pn-actions">
-              <Button
-                buttonSize="sm"
-                variant="outline"
-                icon={
-                  <Icon
-                    name={
-                      copying.copied === "answer" ? "check" : "content_copy"
-                    }
-                  />
-                }
-                onClick={() =>
-                  void copying.copy("answer", plainDraft(card.answerText ?? ""))
-                }
-              >
-                {copying.copied === "answer" ? "Copied" : "Copy answer"}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      {note && (
-        <p className="pn-note" role="alert">
-          <span>{note}</span>
-          <button
-            type="button"
-            className="pn-note-close"
-            aria-label="Dismiss message"
-            onClick={() => setDismissed(note)}
-          >
-            <Icon name="close" />
-          </button>
-        </p>
-      )}
-    </Panel>
+            )}
+          </div>
+        )}
+        {note && (
+          <p className="pn-note" data-text-surface="" role="alert">
+            <span>{note}</span>
+            <button
+              type="button"
+              className="pn-note-close"
+              aria-label="Dismiss message"
+              onClick={() => setDismissed(note)}
+            >
+              <Icon name="close" />
+            </button>
+          </p>
+        )}
+      </Panel>
+    </TextSurface>
   );
 }
 
