@@ -52,6 +52,11 @@ const click = async (name: string | RegExp) => {
   fireEvent.click(screen.getByRole("button", { name }));
   await flush();
 };
+// The library menu opens on the press, as Radix does (a bare click does not).
+const press = async (trigger: HTMLElement) => {
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  await flush();
+};
 const card = () => screen.getByTestId("overlay-card");
 
 // jsdom has no PointerEvent: a MouseEvent that carries a pointer id.
@@ -360,7 +365,7 @@ describe("session switcher", () => {
   it("lists live and recent sessions with status and time", async () => {
     twoSessions();
     await openCard();
-    await click(/Live · 1:00|Session/);
+    await press(screen.getByRole("button", { name: /Live · 1:00|Session/ }));
     const menu = within(screen.getByRole("menu", { name: "Sessions" }));
     const items = menu.getAllByRole("menuitemradio");
     expect(items).toHaveLength(2);
@@ -375,7 +380,7 @@ describe("session switcher", () => {
     await openCard();
     const store = getSessionStore("local");
     expect(store.getSnapshot().actions.length).toBeGreaterThan(0);
-    await click(/Live · 1:00|Session/);
+    await press(screen.getByRole("button", { name: /Live · 1:00|Session/ }));
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Ended/ }));
     await flush();
     await flush();
@@ -470,26 +475,31 @@ describe("session switcher", () => {
       name: /Session/,
       expanded: false,
     });
-    fireEvent.click(trigger);
+    // Opened from the keyboard, as a keyboard user would: focus lands on the
+    // first session.
+    fireEvent.keyDown(trigger, { key: "Enter" });
     await flush();
     const [first, second] = screen.getAllByRole("menuitemradio");
     expect(document.activeElement).toBe(first);
     fireEvent.keyDown(first as HTMLElement, { key: "ArrowDown" });
+    // The library moves focus on the next turn (roving focus).
+    await flush();
     expect(document.activeElement).toBe(second);
     fireEvent.keyDown(second as HTMLElement, { key: "Escape" });
     expect(screen.queryByRole("menu", { name: "Sessions" })).toBeNull();
+    await flush();
     expect(document.activeElement).toBe(trigger);
   });
 
   it("offers New session only when nothing is live, and routes to the start page", async () => {
     twoSessions();
     await openCard();
-    fireEvent.click(
+    await press(
       screen.getByRole("button", { name: /Session/, expanded: false }),
     );
     expect(
       screen.getByRole("menuitem", { name: /New session/ }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("opens the start page for New session once the followed session has ended", async () => {
@@ -505,12 +515,11 @@ describe("session switcher", () => {
     await openCard();
     await act(() => getSessionStore("local").actions.switchSession(OTHER_ID));
     await flush();
-    fireEvent.click(
+    await press(
       screen.getByRole("button", { name: /Session/, expanded: false }),
     );
-    await flush();
     const item = screen.getByRole("menuitem", { name: /New session/ });
-    expect(item).toBeEnabled();
+    expect(item).not.toHaveAttribute("aria-disabled", "true");
     // Nothing is live any more, so dismissing the finished one finds nothing.
     server.on("GET /current", () =>
       jsonResponse({ error: { code: "not_found" } }, 404),

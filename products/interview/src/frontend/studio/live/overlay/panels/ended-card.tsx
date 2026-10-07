@@ -2,6 +2,7 @@
 // it held, as counts only (taken from the session in memory, never sent or
 // logged). The last answer stays readable above it; the footer offers the
 // summary and a new session.
+import { Panel } from "@oc-tech/omni-ui-components";
 import type { LiveStats } from "../../session-state";
 import type { PanelSession } from "./panel-views";
 
@@ -18,25 +19,24 @@ const END_STATS: readonly {
 
 export function EndedCard({ s }: { s: PanelSession }) {
   const { stats, elapsedLabel } = s.model;
+  // The wrapper is the card's hit region (the native shell clicks only on drawn
+  // surfaces) and keeps it one row high under the panes.
   return (
-    <section
-      className="pn-ended"
-      aria-label="Session ended"
-      data-testid="pn-ended"
-    >
-      <h2 className="pn-ended-title">Session ended · {elapsedLabel}</h2>
-      <p className="pn-ended-note">
-        Capture stopped and running work was cancelled. Nothing was submitted or
-        typed for you.
-      </p>
-      <ul className="pn-ended-stats">
-        {END_STATS.map((stat) => (
-          <li key={stat.key}>
-            <b>{stats[stat.key]}</b>{" "}
-            {stats[stat.key] === 1 ? stat.one : stat.other}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="pn-ended" data-testid="pn-ended">
+      <Panel title={`Session ended · ${elapsedLabel}`} bodyPadding="md">
+        <p className="pn-ended-note">
+          Capture stopped and running work was cancelled. Nothing was submitted
+          or typed for you.
+        </p>
+        <ul className="pn-ended-stats">
+          {END_STATS.map((stat) => (
+            <li key={stat.key}>
+              <b>{stats[stat.key]}</b>{" "}
+              {stats[stat.key] === 1 ? stat.one : stat.other}
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </div>
   );
 }

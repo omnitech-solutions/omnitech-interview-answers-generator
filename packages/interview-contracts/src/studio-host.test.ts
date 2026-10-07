@@ -4,6 +4,7 @@ import {
   displayLabel,
   HIT_REGION_LIMITS,
   isAccountProvider,
+  isStudioHostBuild,
   isStudioHostDisplay,
   isStudioHostDisplayId,
   negotiatePresentation,
@@ -413,5 +414,27 @@ describe("account capability", () => {
     expect(isAccountProvider("linkedin")).toBe(true);
     expect(isAccountProvider("github")).toBe(false);
     expect(isAccountProvider(undefined)).toBe(false);
+  });
+});
+
+describe("the shell's build info", () => {
+  it("accepts a bounded sha and branch with a packaged flag", () => {
+    expect(
+      isStudioHostBuild({ sha: "a1b2c3d", branch: "main", isPackaged: false }),
+    ).toBe(true);
+    expect(
+      isStudioHostBuild({ sha: "a1b2c3d", branch: null, isPackaged: true }),
+    ).toBe(true);
+  });
+  it("refuses anything else", () => {
+    for (const bad of [
+      null,
+      "x",
+      { sha: "", branch: null, isPackaged: true },
+      { sha: "a", branch: 3, isPackaged: true },
+      { sha: "a", branch: null },
+      { sha: "a".repeat(81), branch: null, isPackaged: true },
+    ])
+      expect(isStudioHostBuild(bad)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import {
@@ -381,7 +381,11 @@ export function SetupView({
         <div role="alert" className="setup-error" data-testid="setup-failure">
           <span>{startErrorMessage(failure)}</span>
           {failure === "open_session_exists" && (
-            <Button size="lg" onClick={() => void actions.refresh()}>
+            <Button
+              variant="outline"
+              buttonSize="lg"
+              onClick={() => void actions.refresh()}
+            >
               Open it
             </Button>
           )}

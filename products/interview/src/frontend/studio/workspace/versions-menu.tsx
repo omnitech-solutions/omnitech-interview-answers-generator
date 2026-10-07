@@ -1,7 +1,7 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { SavedAnswer } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime, formatTimestamp } from "../../format-timestamp";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 
 // Saved versions are immutable snapshots of the answer. Saving one is explicit;
@@ -43,6 +43,7 @@ export function VersionsMenu({
   return (
     <div className="ws-versions" ref={menu}>
       <Button
+        variant="outline"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => {

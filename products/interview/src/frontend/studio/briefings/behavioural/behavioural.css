@@ -559,18 +559,15 @@
   flex-direction: column;
   gap: 12px;
 }
-.bp-answer-text,
-.bp-section-text {
+.bp-answer-text {
   font-size: 14.5px;
   line-height: 1.65;
   text-wrap: pretty;
 }
-.bp-answer-text > :first-child,
-.bp-section-text > :first-child {
+.bp-answer-text > :first-child {
   margin-top: 0;
 }
-.bp-answer-text > :last-child,
-.bp-section-text > :last-child {
+.bp-answer-text > :last-child {
   margin-bottom: 0;
 }
 .bp-points {

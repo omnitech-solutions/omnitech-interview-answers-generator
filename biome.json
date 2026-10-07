@@ -134,6 +134,18 @@
                       "**/apps/web/**"
                     ],
                     "message": "A product never imports apps/web (AGENTS.md rule 3, INV-0007): the shell composes products, never the reverse."
+                  },
+                  {
+                    "group": [
+                      "**/ui/button",
+                      "**/ui/join",
+                      "**/ui/ui.css",
+                      "**/ui/tokens.css",
+                      "**/panels/screen-picker",
+                      "**/panels/screen-picker.css",
+                      "**/panels/follow-latest"
+                    ],
+                    "message": "Retired UI module (scripts/ui-migration-audit.ts, retiredUi.modules): use @oc-tech/omni-ui-components."
                   }
                 ]
               }

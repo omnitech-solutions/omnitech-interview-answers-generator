@@ -3,7 +3,7 @@
 // for a behavioural question, and what was found or is missing for logistics.
 // The draft and every claim are session content: inert text only.
 
-import { Button } from "../../ui";
+import { Button } from "@oc-tech/omni-ui-components";
 import { Icon } from "../icon";
 import { ClaimList } from "./claim-chips";
 import type {
@@ -137,7 +137,11 @@ export function AnswerBody({
             Checked against matrix revision {answer.pinned.revision}
           </span>
         )}
-        <Button size="lg" onClick={() => onCopy(plainDraft(text))}>
+        <Button
+          variant="outline"
+          buttonSize="lg"
+          onClick={() => onCopy(plainDraft(text))}
+        >
           <Icon name="content_copy" />
           Copy answer
         </Button>

@@ -1,6 +1,6 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { ProductMember } from "@omnitech/platform-contracts";
 import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { getSessionStore, tenantFromLocation } from "../live/session-registry";
 import { goTo } from "./navigate";
 import { signedOutPath, signOutOfBrowser } from "./sign-out";
@@ -103,6 +103,7 @@ export function SignOutDialog({
         ) : null}
         <div className="studio-modal-actions">
           <Button
+            variant="outline"
             ref={cancelRef}
             disabled={state === "working"}
             onClick={onCancel}

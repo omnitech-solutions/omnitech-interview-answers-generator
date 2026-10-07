@@ -1,10 +1,14 @@
+import { LIVE_OWNER_SKILLS } from "@omnitech/interview-contracts";
 import { describe, expect, it } from "vitest";
 import { ICON_PATHS } from "../../../icons.generated";
 import { nativeChord } from "../../shared/shortcuts";
 import { AUTO_MAX_PER_SESSION } from "../auto-gate";
+import { COMMANDS } from "./commands";
 import {
   ALL_PANES_SHOWN,
+  ANSWER_STYLE_GROUPS,
   answerSteps,
+  answerStyleRows,
   autoLimits,
   BARE_WIDTH,
   CAPTURE_MODES,
@@ -18,7 +22,9 @@ import {
   PANES,
   phaseLabel,
   SEE_THROUGH_CONTROL,
+  SHORTCUT_GROUPS,
   seeThroughTitle,
+  shortcutGroups,
   WINDOW_CONTROLS,
   WINDOW_MODES,
   windowWidthFor,
@@ -292,5 +298,85 @@ describe("window sizes", () => {
     expect(by["normal"]?.size.kind).toBe("fit-panes");
     expect(by["mini"]?.view).toBe("mini");
     expect(by["normal"]?.needs).toBeNull();
+  });
+});
+
+describe("answer style groups", () => {
+  it("puts every skill in exactly one group, in the contract's order", () => {
+    const grouped = ANSWER_STYLE_GROUPS.flatMap((group) => [...group.styles]);
+    expect([...grouped].sort()).toEqual([...LIVE_OWNER_SKILLS].sort());
+    expect(new Set(grouped).size).toBe(grouped.length);
+    for (const group of ANSWER_STYLE_GROUPS) {
+      const order = group.styles.map((id) => LIVE_OWNER_SKILLS.indexOf(id));
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+    }
+    expect(ANSWER_STYLE_GROUPS.map((group) => group.label)).toEqual([
+      "Technical",
+      "Conversation",
+    ]);
+  });
+
+  it("checks the style in use", () => {
+    const rows = answerStyleRows("behavioral");
+    const checked = rows.flatMap((group) =>
+      group.styles.filter((style) => style.checked).map((style) => style.id),
+    );
+    expect(checked).toEqual(["behavioral"]);
+    expect(rows[1]?.styles[0]).toEqual({
+      id: "behavioral",
+      label: "Behavioral Interview",
+      checked: true,
+    });
+    expect(
+      answerStyleRows(undefined)
+        .flatMap((group) => group.styles)
+        .some((style) => style.checked),
+    ).toBe(false);
+  });
+});
+
+describe("shortcut groups", () => {
+  it("has the five groups, each command exactly once", () => {
+    const groups = shortcutGroups();
+    expect(groups.map((group) => group.label)).toEqual([
+      "Capture",
+      "Listening",
+      "View",
+      "Answer style",
+      "App",
+    ]);
+    const commands = SHORTCUT_GROUPS.flatMap((group) =>
+      group.items.filter((item) => item.kind === "command").map((i) => i.id),
+    );
+    expect([...commands].sort()).toEqual([...COMMANDS].sort());
+    for (const group of groups) expect(group.rows.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the bindings the app has today", () => {
+    const chords = Object.fromEntries(
+      shortcutGroups().flatMap((group) =>
+        group.rows
+          .filter((row) => row.platform === "web")
+          .map((row) => [row.id, row.chord]),
+      ),
+    );
+    expect(chords).toEqual({
+      "capture.analyze": "Alt+Shift+A",
+      "solution.generate": "Alt+Shift+S",
+      "transcribe.toggle": "Alt+R",
+      "auto.toggle": "Alt+Shift+H",
+      "see-through.toggle": "Alt+Shift+I",
+      "chat.focus": "Alt+Shift+F",
+      "skill.next": "Alt+]",
+      "skill.prev": "Alt+[",
+      "session.clear": "Alt+Shift+C",
+    });
+    const native = shortcutGroups()
+      .flatMap((group) => group.rows)
+      .filter((row) => row.platform === "native");
+    expect(native.map((row) => row.chord)).toEqual([
+      nativeChord("show-hide"),
+      nativeChord("settings"),
+    ]);
   });
 });

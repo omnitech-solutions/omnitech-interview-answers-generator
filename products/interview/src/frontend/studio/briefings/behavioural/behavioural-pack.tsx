@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import {
   type BriefingArtifact,
   type BriefingProfileSummary,
@@ -10,7 +11,6 @@ import type {
 import type { HostHooks } from "@omnitech-assistant/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { packAssistant } from "../../../assistant-config";
-import { Button } from "../../../ui";
 import { useStudio } from "../../context";
 import { Icon } from "../../icon";
 import { studioFetch, studioFetchUntil } from "../../studio-fetch";
@@ -506,7 +506,7 @@ export function BehaviouralPack({
                 : "every role considered"}
             </div>
           </div>
-          <Button onClick={() => setEditingSetup(true)}>
+          <Button variant="outline" onClick={() => setEditingSetup(true)}>
             <Icon name="tune" size={16} />
             Edit setup
           </Button>
@@ -580,7 +580,7 @@ export function BehaviouralPack({
               ))}
             </div>
             <Button
-              variant="primary"
+              variant="default"
               disabled={isSaved || drafting}
               onClick={() => void save()}
             >

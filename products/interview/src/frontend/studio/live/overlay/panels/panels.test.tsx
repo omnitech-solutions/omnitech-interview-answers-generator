@@ -37,7 +37,8 @@ import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { OWNER_LOCK, useOwnsSession } from "./panel-owner";
 import { AnswerPanel, ChatPanel, type PanelSession } from "./panel-views";
-import { RECORDING_LINE, TOAST_MS } from "./use-panel-session";
+import { tipOf } from "./toolbar-test-kit";
+import { TOAST_MS } from "./use-panel-session";
 
 const live = (extra = {}) =>
   sessionView({ processingPolicy: "permitted-remote", ...extra });
@@ -177,29 +178,37 @@ function nativeHost(extra: Record<string, unknown> = {}, studioHost = {}) {
 }
 
 describe("toolbar", () => {
-  it("shows the named capture button with its hotkey in the title, the mic likewise, the answer style and a dot", async () => {
+  it("shows the named capture button with its hotkey in the tooltip, the mic likewise, the answer style, and no status dot", async () => {
     await show("single");
     const capture = screen.getByRole("button", { name: "Analyze screen" });
-    expect(capture).toHaveAttribute("title", expect.stringContaining("⌘⇧S"));
+    expect(tipOf(capture)).toContain("⌘⇧S");
+    expect(tipOf(capture)).toMatch(/^(Auto|Manual): /);
     expect(
-      within(screen.getByTestId("pn-pill")).getByRole("button", {
-        name: "Start microphone",
-      }),
-    ).toHaveAttribute("title", expect.stringContaining("⌥R"));
+      tipOf(
+        within(screen.getByTestId("pn-pill")).getByRole("button", {
+          name: "Start microphone",
+        }),
+      ),
+    ).toContain("⌥R");
     expect(screen.getByTestId("pn-skill")).toHaveTextContent(
       "Data Structures & Algorithms",
     );
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
+    // T1: no coloured dot and no status line beside the capture control.
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
+    expect(screen.queryByTestId("pn-status")).toBeNull();
     const bar = screen.getByTestId("pn-pill");
     for (const gone of [/Remote/, /Visible window/, /companion/i])
       expect(bar).not.toHaveTextContent(gone);
   });
-  it("never goes red for the old whole-window interaction state: nothing is inert any more", async () => {
+  it("never goes inert for the old whole-window interaction state: the controls stay live", async () => {
     const host = nativeHost();
     await show("single", "&host=native");
     await host.set(false);
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
-    expect(screen.getByTestId("pn-status")).toHaveTextContent("Live");
+    expect(
+      screen.getByRole("button", { name: "Analyze screen" }),
+    ).toBeEnabled();
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
+    expect(screen.queryByTestId("pn-status")).toBeNull();
   });
 });
 
@@ -333,7 +342,7 @@ describe("analysis", () => {
       within(steps)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(["done", "active", "waiting"]);
+    ).toEqual(["done", "current", "pending"]);
     expect(steps).toHaveTextContent("Reading the problem");
     expect(screen.queryByTestId("pn-answer")).toBeNull();
   });
@@ -359,14 +368,14 @@ describe("analysis", () => {
       within(screen.getByTestId("pn-steps"))
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(["done", "done", "active"]);
+    ).toEqual(["done", "done", "current"]);
   });
 });
 
 describe("chat", () => {
-  it("has the header, the input, the red mic and send, and lists a typed message as a card", async () => {
+  it("has the header, the input, the mic and send, and lists a typed message as a bubble", async () => {
     await show("single");
-    expect(screen.getByText("Live Transcription & Chat")).toBeVisible();
+    expect(screen.getByText("Transcript & chat")).toBeVisible();
     expect(
       screen.getByPlaceholderText("Add context to T1, or ask a follow-up"),
     ).toBeVisible();
@@ -377,8 +386,10 @@ describe("chat", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await flush();
     expect(submitFollowUp).toHaveBeenCalledTimes(1);
-    const card = screen.getByText("and the cost?").closest(".pn-row");
-    expect(card).toHaveAttribute("data-kind", "typed");
+    const card = screen
+      .getByText("and the cost?")
+      .closest('[data-slot="transcript-message"]');
+    expect(card).not.toBeNull();
     expect(screen.getByLabelText("Message")).toHaveValue("");
   });
   it("puts a copy button on each bubble: it copies that bubble's words, says Copied once the clipboard accepted, and never presses the bubble", async () => {
@@ -391,7 +402,9 @@ describe("chat", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     await flush();
-    const typed = screen.getByText("and the cost?").closest(".pn-row");
+    const typed = screen
+      .getByText("and the cost?")
+      .closest('[data-slot="transcript-message"]');
     const button = within(typed as HTMLElement).getByRole("button", {
       name: "Copy message",
     });
@@ -400,9 +413,9 @@ describe("chat", () => {
     });
     expect(write).toHaveBeenCalledWith("and the cost?");
     expect(button).toHaveAttribute("aria-label", "Copied");
-    // Every answer bubble has its own, and a system line has none.
+    // Every answer bubble has its own.
     const assistant = document.querySelector(
-      '.pn-row[data-kind="assistant"]',
+      '[data-slot="transcript-speech"][data-kind="assistant"]',
     ) as HTMLElement;
     expect(
       within(assistant).getByRole("button", { name: "Copy message" }),
@@ -412,32 +425,34 @@ describe("chat", () => {
   it("shows the assistant reply as a purple card with the answer's lines", async () => {
     serve(live(), codingActions());
     await show("single");
-    const card = document.querySelector('.pn-row[data-kind="assistant"]');
+    const card = document.querySelector(
+      '[data-slot="transcript-speech"][data-kind="assistant"]',
+    );
     expect(card).not.toBeNull();
     expect(card?.textContent).not.toBe("…");
   });
-  it("says Session memory has been cleared as a system line", async () => {
+  it("writes no system line into the transcript when the memory is cleared", async () => {
     await show("single");
     await act(async () => {
       fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyC" });
       await vi.advanceTimersByTimeAsync(0);
     });
-    const line = screen.getByText("Session memory has been cleared");
-    expect(line.closest(".pn-row")).toHaveAttribute("data-kind", "system");
+    expect(screen.queryByText("Session memory has been cleared")).toBeNull();
   });
-  it("shows a red dot, the recording line, the interim words and a loading reply", () => {
+  it("shows the words being heard, with no record dot, no recording line and no loading reply", () => {
     const session = {
       model: {
         transcript: [],
         tasks: [],
+        noQuestion: [],
         activity: { key: "idle", text: "" },
       },
-      snapshot: { pending: [] },
+      snapshot: { pending: [], observations: [] },
       target: null,
-      markers: [],
       entries: [],
-      system: [{ key: "r", text: RECORDING_LINE, at: 5 }],
       clearedAt: 0,
+      revisionPicks: {},
+      select: () => undefined,
       open: true,
       phase: "analyzing",
       note: null,
@@ -448,12 +463,14 @@ describe("chat", () => {
       live: { mic: "listening", interim: "OK can you explain the" },
     } as unknown as PanelSession;
     render(<ChatPanel s={session} />);
-    expect(screen.getByTestId("pn-rec")).toHaveAttribute("data-tone", "red");
-    expect(screen.getByText(RECORDING_LINE)).toBeVisible();
-    expect(screen.getByTestId("pn-interim")).toHaveTextContent(
-      "OK can you explain the",
-    );
-    expect(screen.getByTestId("pn-loading")).toHaveTextContent("…");
+    expect(screen.queryByTestId("pn-rec")).toBeNull();
+    expect(screen.queryByRole("status", { name: "Recording" })).toBeNull();
+    expect(screen.queryByText(/Recording in Progress/)).toBeNull();
+    expect(screen.getByText("OK can you explain the")).toBeVisible();
+    expect(screen.queryByTestId("pn-loading")).toBeNull();
+    expect(
+      document.querySelector('[data-slot="panel-header"]'),
+    ).toHaveTextContent(/^Transcript & chat$/);
   });
 });
 
@@ -655,7 +672,9 @@ describe("a native window that loses its session", () => {
     );
     // Never without its toolbar: the real one, locked, with the reason said and a
     // way to recover on the screen.
-    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    ).toBeVisible();
     expect(
       screen.getByText(/That session is no longer available/),
     ).toBeVisible();

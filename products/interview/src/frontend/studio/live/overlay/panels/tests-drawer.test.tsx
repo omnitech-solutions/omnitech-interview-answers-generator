@@ -14,7 +14,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CardCode } from "../../shared/task-card-model";
-import { CodeCard } from "./code-card";
+import { CodeCard, TextCard } from "./code-card";
 import { TESTS_DRAWER_STORAGE_KEY } from "./tests-drawer-pref";
 
 const constraints = [
@@ -396,6 +396,69 @@ describe("the code card", () => {
     expect(screen.getByTestId("pn-code-reasons")).toHaveTextContent(
       "Not fully verified: A test failed.",
     );
+  });
+});
+
+describe("the code card header and badges", () => {
+  it("is the Code region and names the language in capitals", () => {
+    card();
+    expect(screen.getByRole("region", { name: "Code" })).toBeVisible();
+    expect(screen.getByTestId("pn-language")).toHaveTextContent("TYPESCRIPT");
+  });
+
+  it("says Copied on the copy button once the card is told it was copied", () => {
+    render(
+      <CodeCard
+        code={code()}
+        constraints={constraints}
+        badges={[]}
+        copy={{ label: "Copy code", copied: true, onCopy: vi.fn() }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Copy code" })).toBeNull();
+  });
+
+  it("lists the established badges and marks each ok or not", () => {
+    render(
+      <CodeCard
+        code={code()}
+        constraints={constraints}
+        badges={[
+          { id: "generated", label: "Tests generated", ok: true },
+          { id: "verified", label: "Not verified", ok: false },
+        ]}
+        copy={{ label: "Copy code", copied: false, onCopy: vi.fn() }}
+      />,
+    );
+    const list = screen.getByRole("list", {
+      name: "What is established about this code",
+    });
+    const items = within(list).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Tests generated",
+      "Not verified",
+    ]);
+    expect(items.map((item) => item.getAttribute("data-ok"))).toEqual([
+      "true",
+      "false",
+    ]);
+  });
+
+  it("draws no badge list without badges", () => {
+    card();
+    expect(
+      screen.queryByRole("list", {
+        name: "What is established about this code",
+      }),
+    ).toBeNull();
+  });
+
+  it("shows an example as plain selectable text", () => {
+    render(<TextCard text={"in: [1, 2]\nout: 3"} />);
+    const example = screen.getByTestId("pn-text");
+    expect(example).toHaveAccessibleName("Example");
+    expect(example).toHaveTextContent("in: [1, 2] out: 3");
   });
 });
 

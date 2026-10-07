@@ -1,5 +1,5 @@
-// The native screen picker (T19, T23, T24): the toolbar icon button and its
-// menu, through the recording host shim. Proven by the bridge calls the shell
+// The native screen picker (T19, T23, T24): the capture split button's caret and
+// the Display section of its menu, through the recording host shim. Proven by the bridge calls the shell
 // would receive (listDisplays with or without thumbnails, setCaptureDisplay),
 // by what the page draws only while the menu is open, by the display a staged
 // and a stored screenshot carry (the server's screenshots route), and by the one
@@ -8,6 +8,11 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/panel-test";
 import { db } from "../src/helpers/sql";
 import { settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
+import {
+  captureMenu,
+  displayRows,
+  expectTooltip,
+} from "../src/helpers/toolbar";
 
 const BUILT_IN = "Built-in Retina Display";
 const DELL = "DELL U2723QE";
@@ -16,9 +21,10 @@ const PIN_DROPPED =
 
 const button = (page: Page) =>
   page.getByRole("button", { name: /^Screen to capture: / });
-const menu = (page: Page) =>
-  page.getByRole("menu", { name: "Screen to capture" });
-const rows = (page: Page) => page.getByTestId("pn-display-row");
+const menu = captureMenu;
+const rows = displayRows;
+const row = (page: Page, name: string) =>
+  menu(page).getByRole("menuitemradio", { name: new RegExp(`^${name}`) });
 
 test("@native native screen picker menu: the thumbnails are asked for and drawn only while the menu is open", async ({
   openPanel,
@@ -29,7 +35,7 @@ test("@native native screen picker menu: the thumbnails are asked for and drawn 
   );
 
   // Closed: the shell was only asked for the saved pin (no thumbnails), and the
-  // page draws no row and no image.
+  // page draws no row.
   await expect
     .poll(async () => (await host.calls("listDisplays")).length)
     .toBeGreaterThan(0);
@@ -40,20 +46,19 @@ test("@native native screen picker menu: the thumbnails are asked for and drawn 
 
   await button(page).click();
 
-  // Open: "Follow my browser" first, then one row per display with its live
-  // thumbnail, read from a call that asks for thumbnails.
+  // Open: "Follow my browser" first, then one row per display (its name and
+  // "n of N"), asked of the shell with a call that asks for thumbnails. The
+  // design draws no thumbnail in a row any more: names and positions only.
   await expect(menu(page)).toBeVisible();
   await expect(rows(page)).toHaveCount(2);
-  await expect(rows(page).nth(0)).toHaveAccessibleName(`${BUILT_IN}, 1 of 2`);
-  await expect(rows(page).nth(1)).toHaveAccessibleName(`${DELL}, 2 of 2`);
+  await expect(rows(page).nth(0)).toContainText(BUILT_IN);
+  await expect(rows(page).nth(0)).toContainText("1 of 2");
+  await expect(rows(page).nth(1)).toContainText(DELL);
+  await expect(rows(page).nth(1)).toContainText("2 of 2");
   await expect(
     menu(page).getByRole("menuitemradio", { name: /^Follow my browser/ }),
   ).toHaveAttribute("aria-checked", "true");
-  const picture = rows(page).nth(1).getByRole("img", { name: DELL });
-  await expect(picture).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
-  await expect
-    .poll(() => picture.evaluate((el: HTMLImageElement) => el.naturalWidth))
-    .toBeGreaterThan(0);
+  await expect(rows(page).getByRole("img")).toHaveCount(0);
   const withThumbnails = async () =>
     (await host.calls("listDisplays")).filter(
       (call) => call.params["thumbnails"] !== false,
@@ -65,7 +70,7 @@ test("@native native screen picker menu: the thumbnails are asked for and drawn 
     .poll(withThumbnails, { timeout: 15_000 })
     .toBeGreaterThan(whileOpen);
 
-  // Closed again: the rows and images are gone, and the shell is no longer
+  // Closed again: the rows are gone, and the shell is no longer
   // asked for thumbnails (the refresh period is 2 s; wait two of them in the
   // page itself).
   await page.keyboard.press("Escape");
@@ -76,7 +81,7 @@ test("@native native screen picker menu: the thumbnails are asked for and drawn 
   expect(await withThumbnails()).toBe(closedCount);
 });
 
-test("@native native screen picker pin: choosing a display pins capture to it (button, dot and tooltip follow), the capture carries that display, and Follow my browser unpins", async ({
+test("@native native screen picker pin: choosing a display pins capture to it (button and tooltip follow), the capture carries that display, and Follow my browser unpins", async ({
   openPanel,
   control,
 }) => {
@@ -85,12 +90,11 @@ test("@native native screen picker pin: choosing a display pins capture to it (b
   await host.clear();
 
   await button(page).click();
-  await menu(page)
-    .getByRole("menuitemradio", { name: `${DELL}, 2 of 2` })
-    .click();
+  await row(page, DELL).click();
 
-  // The shell is told which display, the menu closes and the button, its
-  // tooltip and the pin dot all say pinned.
+  // The shell is told which display, the menu closes and the button and its
+  // tooltip say pinned (the design has no separate pin dot: the checked row
+  // below is the pin's other mark).
   await expect
     .poll(async () => (await host.calls("setCaptureDisplay")).at(-1)?.params)
     .toEqual({ displayId: 2 });
@@ -98,16 +102,14 @@ test("@native native screen picker pin: choosing a display pins capture to it (b
   await expect(button(page)).toHaveAccessibleName(
     "Screen to capture: Pinned: Display 2 of 2",
   );
-  await expect(button(page)).toHaveAttribute(
-    "title",
+  await expectTooltip(
+    page,
+    button(page),
     "Screen to capture: Pinned: Display 2 of 2",
   );
-  await expect(page.getByTestId("pn-pin-dot")).toBeVisible();
   expect((await host.state()).pinnedDisplay).toBe(2);
   await button(page).click();
-  await expect(
-    menu(page).getByRole("menuitemradio", { name: `${DELL}, 2 of 2` }),
-  ).toHaveAttribute("aria-checked", "true");
+  await expect(row(page, DELL)).toHaveAttribute("aria-checked", "true");
   await expect(
     menu(page).getByRole("menuitemradio", { name: /^Follow my browser/ }),
   ).toHaveAttribute("aria-checked", "false");
@@ -131,7 +133,8 @@ test("@native native screen picker pin: choosing a display pins capture to it (b
     page.getByRole("list", { name: "Screenshots of this task" }),
   ).toContainText("Display 2 of 2");
 
-  // Follow my browser: unpinned, the dot goes and the tooltip says following.
+  // Follow my browser: unpinned, the pin's mark goes and the tooltip says
+  // following.
   await button(page).click();
   await menu(page)
     .getByRole("menuitemradio", { name: /^Follow my browser/ })
@@ -142,7 +145,17 @@ test("@native native screen picker pin: choosing a display pins capture to it (b
   await expect(button(page)).toHaveAccessibleName(
     "Screen to capture: Following your browser",
   );
-  await expect(page.getByTestId("pn-pin-dot")).toHaveCount(0);
+  await expectTooltip(
+    page,
+    button(page),
+    "Screen to capture: Following your browser",
+  );
+  await button(page).click();
+  await expect(
+    menu(page).getByRole("menuitemradio", { name: /^Follow my browser/ }),
+  ).toHaveAttribute("aria-checked", "true");
+  await expect(row(page, DELL)).toHaveAttribute("aria-checked", "false");
+  await page.keyboard.press("Escape");
   expect((await host.state()).pinnedDisplay).toBeNull();
   expect((await db.observations(id)).length).toBeGreaterThan(0);
 });
@@ -155,10 +168,10 @@ test("@native native screen picker pin dropped: when the pinned display goes awa
     shim: { nativeToasts: false },
   });
   await button(page).click();
-  await menu(page)
-    .getByRole("menuitemradio", { name: `${DELL}, 2 of 2` })
-    .click();
-  await expect(page.getByTestId("pn-pin-dot")).toBeVisible();
+  await row(page, DELL).click();
+  await expect(button(page)).toHaveAccessibleName(
+    "Screen to capture: Pinned: Display 2 of 2",
+  );
   const toast = page.getByTestId("pn-toasts").getByText(PIN_DROPPED);
   await expect(toast).toHaveCount(0);
 
@@ -167,7 +180,6 @@ test("@native native screen picker pin dropped: when the pinned display goes awa
   await button(page).click();
 
   await expect(toast).toHaveCount(1);
-  await expect(page.getByTestId("pn-pin-dot")).toHaveCount(0);
   await expect(button(page)).toHaveAccessibleName(
     "Screen to capture: Following your browser",
   );
@@ -187,9 +199,10 @@ test("@native native capture target: the capture button's tooltip names the targ
   openPanel,
 }) => {
   const { page, host, analyze } = await openPanel({ auto: "off" });
+  // The main half's tooltip: the mode, what pressing does, the target, the key.
   const FOLLOWING =
-    "Capture the screen and analyse it as a new problem: following your browser, ⌘⇧S";
-  await expect(analyze).toHaveAttribute("title", FOLLOWING);
+    "Manual: Capture the screen and analyse it as a new problem: following your browser, ⌘⇧S";
+  await expectTooltip(page, analyze, FOLLOWING);
   // No separate monitor icon: the chevron is the only screen control.
   await expect(
     page.getByRole("button", { name: /^Screen to capture:/ }),
@@ -209,9 +222,10 @@ test("@native native capture target: the capture button's tooltip names the targ
   // Pin the second display: the tooltip says so, on the capture button.
   await rows(page).nth(1).click();
   await expect(menu(page)).toHaveCount(0);
-  await expect(analyze).toHaveAttribute(
-    "title",
-    "Capture the screen and analyse it as a new problem: Display 2 of 2 (pinned), ⌘⇧S",
+  await expectTooltip(
+    page,
+    analyze,
+    "Manual: Capture the screen and analyse it as a new problem: Display 2 of 2 (pinned), ⌘⇧S",
   );
   // A plain click captures (and opens no menu).
   await analyze.click();

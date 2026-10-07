@@ -1,0 +1,62 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreWorkspaces": ["e2e/*"],
+  "ignore": ["**/dist/**", "**/.next/**", "bionic/**", "vendor/**"],
+  "ignoreBinaries": ["uv", "tsup", "swiftlint", "xcode-select", "swift"],
+  "ignoreDependencies": ["lefthook", "@vitest/coverage-v8"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.{ts,mjs}"],
+      "project": ["scripts/**/*.{ts,mjs}"]
+    },
+    "apps/web": {
+      "entry": [
+        "app/**/{page,layout,route,loading,error,not-found,default}.{ts,tsx}",
+        "app/**/*.test.{ts,tsx}",
+        "src/**/*.test.{ts,tsx}",
+        "proxy.ts",
+        "instrumentation*.ts",
+        "next.config.ts",
+        "scripts/*.mjs"
+      ],
+      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.ts"]
+    },
+    "products/interview": {
+      "entry": [
+        "src/frontend/index.ts",
+        "src/backend/index.ts",
+        "src/backend/assistant-entry.ts",
+        "src/backend/session-worker-entry.ts",
+        "src/backend/session-testing-entry.ts",
+        "src/manifest.ts",
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.stories.{ts,tsx}",
+        "scripts/*.mjs"
+      ],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "products/presentation": {
+      "entry": [
+        "src/frontend/index.ts",
+        "src/backend/index.ts",
+        "src/manifest.ts",
+        "src/**/*.test.{ts,tsx}",
+        "integration/*.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "integration/*.ts"]
+    },
+    "apps/*": {
+      "entry": ["src/index.ts", "src/main.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/*": {
+      "entry": [
+        "src/index.ts",
+        "src/host-main.ts",
+        "src/**/*.test.ts",
+        "tsup.config.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

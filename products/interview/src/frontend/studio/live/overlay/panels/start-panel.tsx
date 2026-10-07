@@ -11,20 +11,24 @@
 // [SAFETY] A button that cannot work is not drawn (no provider Studio offers, no
 // bridge); starting is never silent: a session starts only from the Start button,
 // after the Mac's permissions and, for an interview, "everyone has agreed".
+
+import {
+  ActionMenu,
+  type ActionMenuItem,
+  Button,
+  Checkbox,
+  Empty,
+  Panel,
+  Segmented,
+  Tag,
+} from "@oc-tech/omni-ui-components";
 import type {
   AccountProvider,
   LiveProcessingPolicy,
   PresentationHost,
 } from "@omnitech/interview-contracts";
 import type { ProductMember } from "@omnitech/platform-contracts";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../../icon";
 import { loadHandsFreeChoice } from "../../hands-free-choice";
 import { openExternalThroughHost } from "../../host-adapter";
@@ -41,7 +45,7 @@ import { useSetupChoices } from "../../use-setup-choices";
 import { Footer, failureNote } from "../overlay-footer";
 import type { PanelGlass } from "./panel-glass";
 import type { PanelSession } from "./panel-views";
-import { Popover } from "./popover";
+import { usePortalRoot } from "./portal-root";
 import { openShellConsent, shellConsented } from "./shell-bridge";
 import type { Panes } from "./single-panel";
 import { StartIcon } from "./start-icons";
@@ -165,33 +169,34 @@ export function StartPanel(props: StartPanelProps) {
                   canSignOut={Boolean(host)}
                 />
               ) : (
-                <span className="pn-chip-out" data-testid="pn-chip-out">
+                <Tag data-testid="pn-chip-out">
                   <StartIcon name="person_off" />
                   Not signed in
-                </span>
+                </Tag>
               )}
             </>
           }
         />
       </ToolbarLock.Provider>
-      <section
+      {/* `pn-start-card` is the hit region the native shell reads, not a style. */}
+      <Panel
         className="pn-start-card"
         data-testid="pn-start"
         data-stage={stage}
-        aria-label={STAGE_TITLE[stage]}
+        title={STAGE_TITLE[stage]}
+        bodyClassName="pn-start-scroll"
       >
-        <header className="pn-start-title">{STAGE_TITLE[stage]}</header>
         {props.notice === "unavailable" && stage === "idle" && (
           <p className="pn-start-banner" data-tone="warn" role="status">
             <Icon name="warning" />
             <span>{GONE_TEXT}</span>
-            <button
-              type="button"
-              className="pn-bar-button"
+            <Button
+              buttonSize="sm"
+              variant="outline"
               onClick={() => void s.actions.refresh()}
             >
               Try again
-            </button>
+            </Button>
           </p>
         )}
         {stage === "out" && (
@@ -220,8 +225,8 @@ export function StartPanel(props: StartPanelProps) {
             onStarted={props.onStarted}
           />
         )}
-      </section>
-      <div className="pn-single-foot">
+      </Panel>
+      <div className="pn-single-foot" data-drag-handle="">
         <Footer
           wording="session"
           variant={{
@@ -273,110 +278,81 @@ function AccountChip({
   onSignOut(): void;
   canSignOut: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const portal = usePortalRoot();
   if (!member)
     return (
-      <span className="pn-chip-out" data-testid="pn-chip">
+      <Tag data-testid="pn-chip">
         <Icon name="check_circle" />
         Signed in
-      </span>
+      </Tag>
     );
   const chip = chipOf(member);
   const lines = accountLines(member);
   // A development Studio signs every request in as the local owner: there is
   // no session to end, so no sign-out is drawn.
   const signOutShown = member.canSignOut && canSignOut;
+  const items: ActionMenuItem[] = [
+    {
+      id: "web",
+      label: "Open Studio on the web",
+      icon: <Icon name="open_in_new" />,
+      onSelect: () => openExternalThroughHost(webStudioAddress()),
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: <Icon name="settings" />,
+      onSelect: () => void presentation.openSettings(),
+    },
+    ...(member.kind === "local" && signOutShown
+      ? [
+          {
+            id: "sign-in",
+            label: "Sign in with Google or LinkedIn",
+            icon: <Icon name="link" />,
+            onSelect: onSignOut,
+          },
+        ]
+      : []),
+    ...(signOutShown
+      ? [
+          {
+            id: "sign-out",
+            label: signOutLabel(member),
+            icon: <StartIcon name="logout" />,
+            tone: "danger" as const,
+            onSelect: onSignOut,
+          },
+        ]
+      : []),
+  ];
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      className="pn-chip"
+    <ActionMenu
       label="Account"
-      triggerLabel={`Account: ${chip.short}`}
-      title="Account"
-      testId="pn-chip"
-      kind="menu"
-      panelClassName="pn-menu pn-account-menu"
+      title={lines.name}
+      sections={[{ id: "account", label: lines.via, items }]}
+      align="end"
+      width={250}
+      container={portal.container}
       trigger={
-        <>
-          <span className="pn-chip-initial" data-kind={member.kind}>
-            {chip.initial}
-          </span>
+        <Button
+          ref={portal.ref}
+          variant="ghost"
+          buttonSize="control"
+          aria-label={`Account: ${chip.short}`}
+          title="Account"
+          data-testid="pn-chip"
+          icon={
+            <span className="pn-chip-initial" data-kind={member.kind}>
+              {chip.initial}
+            </span>
+          }
+          iconAfter={<Icon name="expand_more" />}
+        >
           {chip.short}
-          <Icon name="expand_more" />
-        </>
+        </Button>
       }
-    >
-      {(close) => (
-        <>
-          <div className="pn-account-head" role="presentation">
-            <span className="pn-account-name">{lines.name}</span>
-            <span className="pn-account-via">{lines.via}</span>
-          </div>
-          <AccountItem
-            icon={<Icon name="open_in_new" />}
-            label="Open Studio on the web"
-            onPick={() => {
-              openExternalThroughHost(webStudioAddress());
-              close();
-            }}
-          />
-          <AccountItem
-            icon={<Icon name="settings" />}
-            label="Settings"
-            onPick={() => {
-              void presentation.openSettings();
-              close();
-            }}
-          />
-          {member.kind === "local" && signOutShown && (
-            <AccountItem
-              icon={<Icon name="link" />}
-              label="Sign in with Google or LinkedIn"
-              onPick={() => {
-                onSignOut();
-                close();
-              }}
-            />
-          )}
-          {signOutShown && (
-            <AccountItem
-              icon={<StartIcon name="logout" />}
-              label={signOutLabel(member)}
-              danger
-              onPick={() => {
-                onSignOut();
-                close();
-              }}
-            />
-          )}
-        </>
-      )}
-    </Popover>
-  );
-}
-
-function AccountItem({
-  icon,
-  label,
-  onPick,
-  danger = false,
-}: {
-  icon: ReactNode;
-  label: string;
-  onPick(): void;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      className={`pn-menu-item${danger ? " pn-menu-danger" : ""}`}
-      onClick={onPick}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
+    />
   );
 }
 
@@ -445,37 +421,49 @@ function SignedOut({
       {host && providers.status === "error" && (
         <div className="pn-start-note">
           <p>Studio didn’t answer. Check that it is running, then try again.</p>
-          <button type="button" className="pn-start-quiet" onClick={retry}>
+          <Button variant="ghost" buttonSize="sm" onClick={retry}>
             Try again
-          </button>
+          </Button>
         </div>
       )}
       {host && ready && (
         <div className="pn-start-stack">
-          <button
-            type="button"
-            className="pn-start-provider"
+          <Button
+            variant="outline"
+            buttonSize="control"
+            className="pn-start-wide"
             data-provider="google"
             disabled={!ready.google}
+            icon={
+              <span
+                className="pn-start-mark pn-start-mark-g"
+                aria-hidden="true"
+              >
+                G
+              </span>
+            }
             onClick={() => void begin("google")}
           >
-            <span className="pn-start-mark pn-start-mark-g" aria-hidden="true">
-              G
-            </span>
             Continue with Google
-          </button>
-          <button
-            type="button"
-            className="pn-start-provider"
+          </Button>
+          <Button
+            variant="outline"
+            buttonSize="control"
+            className="pn-start-wide"
             data-provider="linkedin"
             disabled={!ready.linkedin}
+            icon={
+              <span
+                className="pn-start-mark pn-start-mark-in"
+                aria-hidden="true"
+              >
+                in
+              </span>
+            }
             onClick={() => void begin("linkedin")}
           >
-            <span className="pn-start-mark pn-start-mark-in" aria-hidden="true">
-              in
-            </span>
             Continue with LinkedIn
-          </button>
+          </Button>
         </div>
       )}
       {host && ready?.local && (
@@ -486,15 +474,16 @@ function SignedOut({
         </div>
       )}
       {host && ready?.local && (
-        <button
-          type="button"
-          className="pn-start-local"
+        <Button
+          variant="outline"
+          buttonSize="control"
+          className="pn-start-wide"
           data-testid="pn-start-local"
+          icon={<StartIcon name="laptop_mac" />}
           onClick={onLocal}
         >
-          <StartIcon name="laptop_mac" />
           Continue on this Mac, no account
-        </button>
+        </Button>
       )}
       {host && ready && anyReal && <p className="pn-start-note">{OUT_NOTE}</p>}
       {host && ready && missing.length > 0 && (
@@ -522,29 +511,30 @@ function Waiting({
   say(text: string): void;
 }) {
   return (
-    <div className="pn-start-body pn-start-waiting">
-      <span className="pn-start-spinner-box" aria-hidden="true">
-        <span className="pn-start-spinner" />
-      </span>
-      <div>
-        <h2 className="pn-start-h">Finish signing in in your browser</h2>
-        <p className="pn-start-sub">
-          We opened {PROVIDER_NAME[provider]} in your default browser. This
-          window updates by itself when you’re done.
-        </p>
-      </div>
+    <Empty
+      variant="tile"
+      className="pn-start-body pn-start-waiting"
+      icon={<span className="pn-start-spinner" />}
+      title={
+        <h2 className="pn-start-h pn-start-tile-h">
+          Finish signing in in your browser
+        </h2>
+      }
+      description={`We opened ${PROVIDER_NAME[provider]} in your default browser. This window updates by itself when you’re done.`}
+    >
       <div className="pn-start-row">
-        <button
-          type="button"
-          className="pn-start-chip"
+        <Button
+          variant="outline"
+          buttonSize="sm"
+          icon={<Icon name="open_in_new" />}
           onClick={() => void host?.reopenSignIn()}
         >
-          <Icon name="open_in_new" />
           Open browser again
-        </button>
-        <button
-          type="button"
-          className="pn-start-chip"
+        </Button>
+        <Button
+          variant="outline"
+          buttonSize="sm"
+          icon={<Icon name="link" />}
           onClick={() =>
             void host
               ?.copySignInLink()
@@ -553,18 +543,17 @@ function Waiting({
               )
           }
         >
-          <Icon name="link" />
           Copy link
-        </button>
+        </Button>
       </div>
-      <button
-        type="button"
-        className="pn-start-quiet"
+      <Button
+        variant="ghost"
+        buttonSize="sm"
         onClick={() => void host?.cancelSignIn()}
       >
         Cancel
-      </button>
-    </div>
+      </Button>
+    </Empty>
   );
 }
 
@@ -603,17 +592,16 @@ function LocalConfirm({
         ))}
       </ul>
       <div className="pn-start-row pn-start-actions">
-        <button type="button" className="pn-start-secondary" onClick={onBack}>
+        <Button variant="outline" buttonSize="control" onClick={onBack}>
           Back
-        </button>
-        <button
-          type="button"
-          className="pn-start-primary"
+        </Button>
+        <Button
+          buttonSize="control"
           disabled={working}
           onClick={() => void proceed()}
         >
           Continue on this Mac
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -734,34 +722,18 @@ function Idle({
         </p>
       )}
       <section className="pn-start-group" aria-label="Start a session for">
-        <h3 className="pn-start-label">START A SESSION FOR</h3>
-        <div
-          role="radiogroup"
-          aria-label="Start a session for"
-          className="pn-start-targets"
-        >
-          {targets.map((option) => {
-            const on = option.id === target.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                className="pn-start-target"
-                data-on={on ? "true" : undefined}
-                onClick={() => setPicked(option.id)}
-              >
-                <Icon name={option.icon} />
-                <span className="pn-start-target-text">
-                  <span className="pn-start-target-title">{option.title}</span>
-                  <span className="pn-start-target-sub">{option.sub}</span>
-                </span>
-                <Icon name="check" style={{ opacity: on ? 1 : 0 }} />
-              </button>
-            );
-          })}
-        </div>
+        <Segmented
+          label="Start a session for"
+          appearance="control"
+          value={target.id}
+          onChange={setPicked}
+          options={targets.map((option) => ({
+            value: option.id,
+            label: option.title,
+            icon: <Icon name={option.icon} />,
+          }))}
+        />
+        <p className="pn-start-target-sub">{target.sub}</p>
       </section>
       {rows.length > 0 && (
         <section className="pn-start-group" aria-label="This Mac">
@@ -772,35 +744,23 @@ function Idle({
         </section>
       )}
       {target.needsAgreement && (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={agreed}
-          className="pn-start-agree"
-          data-on={agreed ? "true" : undefined}
-          onClick={() => setAgreed(!agreed)}
-        >
-          <StartIcon name={agreed ? "check_box" : "check_box_outline_blank"} />
-          <span>{AGREEMENT_TEXT}</span>
-        </button>
+        <Checkbox
+          label={AGREEMENT_TEXT}
+          checked={agreed}
+          onChange={setAgreed}
+        />
       )}
-      <button
-        type="button"
+      <Button
+        tone="danger"
+        buttonSize="control-labelled"
         className="pn-start-go"
-        data-blocked={block !== null ? "true" : undefined}
+        loading={starting}
         aria-disabled={block !== null || starting}
+        icon={<StartIcon name="radio_button_checked" />}
         onClick={() => void start()}
       >
-        {starting ? (
-          <span
-            className="pn-start-spinner pn-start-spinner-light"
-            aria-hidden="true"
-          />
-        ) : (
-          <StartIcon name="radio_button_checked" />
-        )}
         {starting ? "Starting…" : "Start session"}
-      </button>
+      </Button>
       <div className="pn-start-foot">
         <span
           className="pn-start-hint"
@@ -810,21 +770,21 @@ function Idle({
           {hint}
         </span>
         {!consented && (
-          <button
-            type="button"
-            className="pn-start-quiet"
+          <Button
+            variant="ghost"
+            buttonSize="sm"
             onClick={() => void openShellConsent()}
           >
             Review consent
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          className="pn-start-link"
+        <Button
+          variant="link"
+          buttonSize="sm"
           onClick={() => openExternalThroughHost(webStudioAddress())}
         >
           Set up in Studio on the web
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -847,9 +807,9 @@ function PermissionLine({ row }: { row: PermissionRow }) {
         <span className="pn-start-perm-state">macOS asks when you start</span>
       )}
       {row.settings && (
-        <button
-          type="button"
-          className="pn-start-chip pn-start-allow"
+        <Button
+          variant="outline"
+          buttonSize="sm"
           onClick={() =>
             openExternalThroughHost(
               row.settings === "microphone"
@@ -859,7 +819,7 @@ function PermissionLine({ row }: { row: PermissionRow }) {
           }
         >
           Allow…
-        </button>
+        </Button>
       )}
     </div>
   );

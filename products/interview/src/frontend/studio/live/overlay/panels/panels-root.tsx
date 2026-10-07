@@ -184,6 +184,7 @@ export function PanelsRoot({
       >
         <div
           className={panel === "single" ? "pn-pill" : "pn-card"}
+          {...(panel === "single" ? { "data-drag-handle": "" } : {})}
           aria-busy={snapshot.hydration !== "ready"}
         >
           <span className="pn-muted">

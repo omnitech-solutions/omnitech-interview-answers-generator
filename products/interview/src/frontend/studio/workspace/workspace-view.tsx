@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import {
   type AnswerGuide,
   type GeneratedAnswer,
@@ -20,7 +21,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { ExampleTemplate } from "../../example-templates";
-import { Button } from "../../ui";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
 import { Resizer, useStoredSize } from "../resizer";
@@ -419,6 +419,7 @@ export function WorkspaceView({
 
   const newQuestion = onNewQuestion && (
     <Button
+      variant="outline"
       className="ws-new-question"
       title="New question (N)"
       onClick={onNewQuestion}
@@ -488,7 +489,9 @@ export function WorkspaceView({
             {status || SAVE_LABEL[canonical.saveState]}
           </span>
           {canonical.saveState === "conflict" && (
-            <Button onClick={() => void canonical.reload()}>Reload</Button>
+            <Button variant="outline" onClick={() => void canonical.reload()}>
+              Reload
+            </Button>
           )}
           <VersionsMenu
             disabled={!answer}
@@ -497,7 +500,8 @@ export function WorkspaceView({
             onRestore={(version) => update({ answer: answerOf(version) })}
           />
           <Button
-            variant="go"
+            variant="default"
+            tone="success"
             className="ws-run"
             title="Run tests (⌘↵)"
             disabled={!answer?.code.trim() || run.kind === "running"}

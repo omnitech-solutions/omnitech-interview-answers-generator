@@ -1,9 +1,10 @@
 // Session history: a compact list of past sessions (summaries only: no
 // transcript, draft or answer content ever comes from the list route), newest
 // first, paged by the server's cursor. Opening one addresses it as live/<id>.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionSummary } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { formatDayTime, RETENTION_LABEL } from "./ended-summary";
@@ -65,7 +66,8 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
   return (
     <section className="ended-history" aria-label="Session history">
       <Button
-        size="lg"
+        variant="outline"
+        buttonSize="lg"
         aria-expanded={open}
         aria-controls="ended-history-list"
         onClick={() => {
@@ -99,7 +101,8 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
                     {RETENTION_LABEL[session.retention]}
                   </span>
                   <Button
-                    size="lg"
+                    variant="outline"
+                    buttonSize="lg"
                     aria-label={`Open ${targetOf(session)} session from ${formatDayTime(session.createdAt)}`}
                     onClick={() => studio.go("live", [session.id])}
                   >
@@ -112,14 +115,19 @@ export function SessionHistory({ studio }: { studio: StudioActions }) {
           {failed && (
             <p className="ended-error" role="alert">
               Studio couldn’t load your sessions.{" "}
-              <Button size="lg" onClick={() => void load(next ?? undefined)}>
+              <Button
+                variant="outline"
+                buttonSize="lg"
+                onClick={() => void load(next ?? undefined)}
+              >
                 Try again
               </Button>
             </p>
           )}
           {next && !failed && (
             <Button
-              size="lg"
+              variant="outline"
+              buttonSize="lg"
               disabled={loading}
               onClick={() => void load(next)}
             >

@@ -1,10 +1,10 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   BriefingQuestion,
   CandidateMatrix,
 } from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { MarkdownContent } from "../../../markdown-content";
-import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { PracticeTimer } from "../../practice-timer";
 import { CATEGORY_LABELS, spokenSeconds } from "./config";
@@ -110,6 +110,7 @@ export function AnswersTab({
           </div>
         </div>
         <Button
+          variant="outline"
           disabled={!answers.length || accepted === answers.length}
           onClick={onAcceptAll}
         >
@@ -253,9 +254,11 @@ function AnswerCard({
                 onChange={(event) => setEditing(event.target.value)}
               />
               <div className="bp-row end">
-                <Button onClick={() => setEditing(null)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setEditing(null)}>
+                  Cancel
+                </Button>
                 <Button
-                  variant="primary"
+                  variant="default"
                   disabled={!editing.trim()}
                   onClick={() => {
                     onEdit(editing.trim());
@@ -319,17 +322,19 @@ function AnswerCard({
           )}
           <div className="bp-row wrap">
             <Button
+              variant="outline"
               pressed={practising}
               onClick={() => setPractising(!practising)}
             >
               <Icon name="mic" size={16} />
               {practising ? "Stop practising" : "Practise"}
             </Button>
-            <Button disabled={busy} onClick={onRedraft}>
+            <Button variant="outline" disabled={busy} onClick={onRedraft}>
               <Icon name="refresh" size={16} />
               New draft
             </Button>
             <Button
+              variant="outline"
               disabled={busy || editing !== null}
               onClick={() => setEditing(answer.answerMarkdown)}
             >

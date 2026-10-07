@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@oc-tech/omni-ui-components";
 import type { ProductLink, ProductMember } from "@omnitech/platform-contracts";
 import type { Origin } from "@omnitech-assistant/contracts";
 import {
@@ -17,7 +18,6 @@ import {
 } from "react";
 import { assistantFeatures, questionAssistant } from "../assistant-config";
 import { createOnDeviceProfile } from "../on-device";
-import { Button } from "../ui";
 import { WelcomeBanner } from "./account/welcome-banner";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { available, type StudioActions } from "./config/commands";
@@ -487,6 +487,7 @@ function StudioFrame({
           </span>
           {focus !== "strict" && (
             <Button
+              variant="outline"
               className={`studio-assistant-toggle${host.open ? " open" : ""}`}
               pressed={host.open}
               title={`Assistant (${host.shortcut})`}

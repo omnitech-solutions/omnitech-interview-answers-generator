@@ -203,7 +203,7 @@ describe("live stylesheets", () => {
 
   it("gives every button a 40 px touch target, by height or by an enlarged hit area", () => {
     const buttons = buttonClassLists();
-    expect(buttons.length).toBeGreaterThan(10); // the rest are shared <Button>s, below
+    expect(buttons.length).toBeGreaterThan(5); // the rest are library <Button>s, below
     expect(buttons.filter((button) => button.classes.length === 0)).toEqual([]);
     const minHeight = (rule: Rule) =>
       Math.max(0, ...px(rule.decls["min-height"] ?? ""));
@@ -224,8 +224,8 @@ describe("live stylesheets", () => {
       );
       return tall || hit;
     };
-    // A button is covered when any of its classes is (".studio-button" via the
-    // shared rule in live.css; a shared <Button> is checked separately below).
+    // A button is covered when any of its classes is (a library
+    // <Button> is checked separately below).
     const uncovered = buttons.filter((button) => !button.classes.some(covered));
     expect(
       uncovered.map((button) => `${button.file}: ${button.classes.join(" ")}`),
@@ -253,8 +253,8 @@ describe("live stylesheets", () => {
     expect(undercut.map(where)).toEqual([]);
   });
 
-  it("draws every shared <Button> in the live views at size lg, the 40 px target", () => {
-    // The shared Button's lg size is the --ui-height-lg token (40 px); md and sm
+  it("draws every shared <Button> in the live views at buttonSize lg, the 40 px target", () => {
+    // The library Button's lg buttonSize is the 40 px target; default and sm
     // are shorter, so a live view's Button must say "lg".
     const small: string[] = [];
     let seen = 0;
@@ -273,7 +273,7 @@ describe("live stylesheets", () => {
         }
         const tag = text.slice(match.index, end);
         seen += 1;
-        if (!/\bsize="lg"/.test(tag))
+        if (!/\bbuttonSize="lg"/.test(tag))
           small.push(`${file}: ${tag.slice(0, 60)}`);
       }
     }

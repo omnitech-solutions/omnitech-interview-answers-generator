@@ -3,11 +3,13 @@
 // toolbar, the task on show (name, stage, one-line headline, what may be
 // missing), Stop analysis and Pause or Resume, and a Back to normal button.
 // Every value comes from the one panel session; the panes are not drawn.
+
+import { Button, Panel } from "@oc-tech/omni-ui-components";
 import type { PresentationHost } from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import type { CommandResult } from "../../session-snapshot";
-import { failureNote } from "../overlay-footer";
+import { failureNote, SessionClock } from "../overlay-footer";
 import { canPassThrough } from "./hit-regions";
 import { headlineOf, miniStage, missingHint } from "./mini-model";
 import type { PanelGlass } from "./panel-glass";
@@ -58,6 +60,7 @@ export function MiniPlayer({
     <>
       <div
         className="pn-pill pn-mini-pill"
+        data-drag-handle=""
         role="toolbar"
         aria-label="Session controls"
         data-testid="pn-pill"
@@ -77,86 +80,95 @@ export function MiniPlayer({
           passThrough={canPassThrough(presentation)}
         />
         <span className="pn-fill" />
-        <button
-          type="button"
-          className="pn-mini-button pn-mini-back"
+        <Button
+          variant="outline"
+          tone="neutral"
+          soft
+          buttonSize="control"
           data-testid="pn-mini-back"
           title="Back to the normal window"
+          icon={<Icon name="close_fullscreen" />}
           onClick={() => windowMode.set("normal")}
         >
-          <Icon name="close_fullscreen" />
           Back to normal
-        </button>
+        </Button>
       </div>
-      <div className="pn-mini-card" data-testid="pn-mini-card">
-        <div className="pn-mini-head">
-          <strong className="pn-mini-name" data-testid="pn-mini-name">
+      <Panel
+        className="pn-mini-card"
+        data-testid="pn-mini-card"
+        title={
+          <span data-testid="pn-mini-name">
             {s.card ? `${s.card.label} · ${s.card.name}` : "No task yet"}
-          </strong>
-          {stage && (
-            <span className="pn-mini-stage" data-testid="pn-mini-stage">
-              {stage}
-            </span>
-          )}
-        </div>
+          </span>
+        }
+        meta={
+          stage ? <span data-testid="pn-mini-stage">{stage}</span> : undefined
+        }
+        actions={
+          <>
+            {s.phase && (
+              <Button
+                variant="outline"
+                tone="neutral"
+                soft
+                buttonSize="sm"
+                data-testid="pn-mini-stop"
+                icon={<Icon name="stop_circle" />}
+                onClick={() => void s.stop()}
+              >
+                Stop analysis
+              </Button>
+            )}
+            {s.open && pause && (
+              <Button
+                {...(pause.id === "resume"
+                  ? { tone: "success" as const, fillIcon: true }
+                  : {
+                      variant: "outline" as const,
+                      tone: "neutral" as const,
+                      soft: true,
+                      fillIcon: true,
+                    })}
+                buttonSize="sm"
+                data-testid={`pn-mini-${pause.id}`}
+                title={pause.title}
+                disabled={pause.disabled}
+                icon={
+                  <Icon
+                    name={pause.id === "resume" ? "play_arrow" : "pause"}
+                    filled
+                  />
+                }
+                onClick={() =>
+                  run(
+                    pause.id === "resume"
+                      ? s.actions.resume()
+                      : s.actions.pause(),
+                  )
+                }
+              >
+                {pause.label}
+              </Button>
+            )}
+          </>
+        }
+        bodyPadding="sm"
+      >
         {headline && (
           <p className="pn-mini-headline" data-testid="pn-mini-headline">
             {headline}
           </p>
         )}
-        <div className="pn-mini-actions">
-          {missing > 0 && (
-            <span className="pn-mini-missing" data-testid="pn-mini-missing">
-              <Icon name="info" />
-              {missingHint(missing)}
-            </span>
-          )}
-          <span className="pn-fill" />
-          {s.phase && (
-            <button
-              type="button"
-              className="pn-mini-button"
-              data-testid="pn-mini-stop"
-              onClick={() => void s.stop()}
-            >
-              <Icon name="stop_circle" />
-              Stop analysis
-            </button>
-          )}
-          {s.open && pause && (
-            <button
-              type="button"
-              className="pn-mini-button"
-              data-action={pause.id === "resume" ? "resume" : undefined}
-              data-testid={`pn-mini-${pause.id}`}
-              title={pause.title}
-              disabled={pause.disabled}
-              onClick={() =>
-                run(
-                  pause.id === "resume"
-                    ? s.actions.resume()
-                    : s.actions.pause(),
-                )
-              }
-            >
-              {pause.icon && <Icon name={pause.icon} />}
-              {pause.label}
-            </button>
-          )}
-        </div>
-      </div>
+        {missing > 0 && (
+          <span className="pn-mini-missing" data-testid="pn-mini-missing">
+            <Icon name="info" />
+            {missingHint(missing)}
+          </span>
+        )}
+      </Panel>
       <div className="pn-mini-foot">
         <span className="pn-fill" />
-        <span
-          className="ov-clock"
-          role="timer"
-          aria-label={`Session time ${s.model.elapsedLabel}${s.paused ? ", paused" : ""}`}
-          data-paused={s.paused ? "true" : undefined}
-          data-testid="ov-clock"
-        >
-          <span className="ov-clock-dot" aria-hidden="true" />
-          {s.model.elapsedLabel}
-        </span>
+        <SessionClock elapsed={s.model.elapsedLabel} paused={s.paused} />
       </div>
     </>
   );

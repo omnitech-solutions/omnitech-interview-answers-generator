@@ -205,6 +205,57 @@ describe.each(SURFACES)("$name", (surface) => {
   });
 });
 
+describe("native 'To apply' dock", () => {
+  const open = async () => {
+    installCaptureHost();
+    SURFACES[0].open();
+    await flush();
+    await flush();
+  };
+  // The Answer panel's own dock: the chat panel's composer lives in a dock slot too.
+  const dock = () =>
+    document
+      .querySelector('[data-testid="pn-analysis"]')
+      ?.querySelector('[data-slot="panel-dock"]') as HTMLElement | null;
+
+  it("is inside the Answer panel and present only while a screenshot is staged", async () => {
+    await open();
+    expect(dock()).toBeNull();
+    await click(screen.getByTestId("add-screenshot"));
+    const found = dock();
+    expect(found).not.toBeNull();
+    expect(screen.getByRole("region", { name: "Answer" }).contains(found)).toBe(
+      true,
+    );
+    expect(found).toHaveTextContent("To apply · 1");
+    expect(within(found as HTMLElement).getByTestId("staged-1")).toBeVisible();
+    for (const control of [
+      "add-screenshot",
+      "discard-screenshots",
+      "apply-screenshots",
+    ])
+      expect(within(found as HTMLElement).getByTestId(control)).toBeVisible();
+    expect(
+      within(found as HTMLElement).getByTestId("discard-screenshots"),
+    ).toHaveTextContent("Clear");
+  });
+
+  it("Clear removes the staged screenshot and the dock with it, sending nothing", async () => {
+    await open();
+    await click(screen.getByTestId("add-screenshot"));
+    await click(screen.getByTestId("discard-screenshots"));
+    expect(dock()).toBeNull();
+    expect(journey.captures).toHaveLength(0);
+  });
+
+  it("removes one staged screenshot from its thumbnail", async () => {
+    await open();
+    await click(screen.getByTestId("add-screenshot"));
+    await click(screen.getByRole("button", { name: "Remove New 1" }));
+    expect(dock()).toBeNull();
+  });
+});
+
 describe("device-only", () => {
   it.each(SURFACES)(
     "$name disables Add with the reason before anything is added",

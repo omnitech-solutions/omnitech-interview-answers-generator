@@ -1,35 +1,15 @@
-/* The native window before a session runs (start-panel.tsx): the card between the
-   locked toolbar and the footer. It reads the same --pn-* tokens as the live
-   window, so glass, clear glass and the radius follow without a second palette. */
+/* The native window before a session runs (start-panel.tsx). The card is a library
+   Panel and every control is a library component; what stays here is the layout of
+   the card's content and the few shapes the library has no part for (provider marks,
+   the waiting spinner, the banners). Colours come from the library's --oui-* tokens. */
 
 /* ---- The locked toolbar ---- */
-/* Disabled session controls read as muted, not as broken. */
+/* Disabled session controls read as muted, not as broken. (Toolbar rule, removed
+   with the toolbar's own swap.) */
 .pn-pill[data-locked] button:disabled {
   background: rgba(255, 255, 255, 0.05);
   color: rgba(255, 255, 255, 0.32);
   cursor: not-allowed;
-}
-.pn-chip-out {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--pn-control);
-  padding: 0 10px;
-  border-radius: 9px;
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.6);
-}
-.pn-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--pn-control);
-  padding: 0 8px 0 5px;
-  border: 0;
-  border-radius: 9px;
-  background: var(--pn-glass-fill);
-  font-size: 12px;
-  cursor: pointer;
 }
 .pn-chip-initial {
   display: inline-flex;
@@ -38,7 +18,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--pn-accent);
+  background: var(--oui-tone-accent-solid-bg);
   color: #fff;
   font-size: 10.5px;
   font-weight: 600;
@@ -46,53 +26,10 @@
 .pn-chip-initial[data-kind="local"] {
   background: #555;
 }
-.pn-account-menu {
-  right: 0;
-  min-width: 250px;
-}
-.pn-account-head {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 8px 9px 6px;
-  border-bottom: 0.5px solid var(--pn-hair);
-  margin-bottom: 3px;
-}
-.pn-account-name {
-  font-size: 13px;
-  font-weight: 500;
-}
-.pn-account-via {
-  font-size: 11.5px;
-  color: var(--ov-faint);
-}
-.pn-menu-danger {
-  color: var(--pn-bad);
-}
 
-/* ---- The card ---- */
-.pn-start-card {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+/* ---- The card's content ---- */
+.pn-start-scroll {
   align-items: center;
-  overflow-y: auto;
-  border-radius: 14px;
-  background: var(--ov-bg);
-  box-shadow: var(--pn-shadow), var(--pn-ring);
-  backdrop-filter: var(--pn-blur-card);
-}
-.pn-start-title {
-  align-self: stretch;
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: 36px;
-  padding: 0 12px;
-  border-bottom: 0.5px solid var(--pn-hair);
-  font-size: 12.5px;
-  font-weight: 600;
 }
 .pn-start-body {
   display: flex;
@@ -101,12 +38,10 @@
   width: 100%;
   max-width: 400px;
   margin: auto 0;
-  padding: 22px 20px 18px;
   flex: none;
 }
 .pn-start-idle {
   gap: 12px;
-  padding: 16px 16px 14px;
 }
 .pn-start-h {
   margin: 0;
@@ -114,20 +49,20 @@
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-.pn-start-waiting .pn-start-h,
+.pn-start-tile-h,
 .pn-start-local-confirm .pn-start-h {
   font-size: 16px;
 }
 .pn-start-sub {
   margin: 3px 0 0;
   font-size: 12.5px;
-  color: var(--ov-muted);
+  color: var(--oui-panel-meta-fg);
   text-wrap: pretty;
 }
 .pn-start-note {
   margin: 0;
   font-size: 11.5px;
-  color: var(--ov-faint);
+  color: var(--oui-panel-meta-fg);
   text-align: center;
   text-wrap: pretty;
 }
@@ -140,50 +75,64 @@
   gap: 8px;
   margin: 0;
   padding: 8px 10px;
+  border: 1px solid;
   border-radius: 9px;
   font-size: 12.5px;
 }
 .pn-start-banner[data-tone="warn"] {
-  background: rgba(245, 197, 107, 0.12);
-  color: #f5d48f;
-  align-items: flex-start;
+  background: var(--oui-tone-warning-bg);
+  border-color: var(--oui-tone-warning-border);
+  color: var(--oui-tone-warning-fg);
 }
 .pn-start-banner[data-tone="good"] {
-  background: rgba(109, 220, 147, 0.1);
-  color: #8fe3ad;
+  background: var(--oui-tone-success-bg);
+  border-color: var(--oui-tone-success-border);
+  color: var(--oui-tone-success-fg);
+}
+.pn-start-banner span {
+  flex: 1;
 }
 .pn-start-stack {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.pn-start-provider,
-.pn-start-local,
-.pn-start-primary,
-.pn-start-secondary {
+.pn-start-wide {
+  width: 100%;
+}
+.pn-start-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.pn-start-actions {
+  justify-content: stretch;
+}
+.pn-start-actions > * {
+  flex: 1;
+}
+.pn-start-or {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 9px;
-  height: 38px;
-  border: 0;
-  border-radius: 9px;
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--oui-panel-meta-fg);
 }
-.pn-start-provider[data-provider="google"] {
+.pn-start-or span {
+  flex: 1;
+  height: 1px;
+  background: var(--oui-panel-divider);
+}
+
+/* The two sign-in providers keep their own brand colours. */
+.pn-start-wide[data-provider="google"] {
   background: #fff;
   color: #1f1f1f;
-  text-shadow: none;
 }
-.pn-start-provider[data-provider="linkedin"] {
+.pn-start-wide[data-provider="linkedin"] {
   background: #0a66c2;
   color: #fff;
-}
-.pn-start-provider:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 .pn-start-mark {
   display: inline-flex;
@@ -204,88 +153,21 @@
   background: #fff;
   color: #0a66c2;
 }
-.pn-start-or {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11.5px;
-  color: var(--ov-faint);
-}
-.pn-start-or span {
-  flex: 1;
-  height: 0.5px;
-  background: var(--ov-line);
-}
-.pn-start-local {
-  background: var(--pn-glass-fill);
-  box-shadow: var(--pn-control-line);
-  gap: 8px;
-}
-.pn-start-local .studio-icon {
-  font-size: 17px;
-}
-.pn-start-primary {
-  flex: 2;
-  background: var(--pn-accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  height: 36px;
-}
-.pn-start-primary:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-.pn-start-secondary {
-  flex: 1;
-  background: var(--pn-glass-fill);
-  font-size: 13px;
-  height: 36px;
-}
-.pn-start-actions {
-  display: flex;
-  gap: 8px;
-}
-.pn-start-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
-.pn-start-actions {
-  justify-content: stretch;
-}
 
 /* ---- Waiting ---- */
 .pn-start-waiting {
   align-items: center;
   text-align: center;
   gap: 12px;
-  padding-top: 24px;
-}
-.pn-start-spinner-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.07);
 }
 .pn-start-spinner {
   display: inline-block;
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--pn-link);
+  border: 2px solid var(--oui-panel-divider);
+  border-top-color: var(--oui-tone-accent-fg);
   border-radius: 50%;
   animation: pn-start-spin 0.8s linear infinite;
-}
-.pn-start-spinner-light {
-  width: 14px;
-  height: 14px;
-  border-color: rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
 }
 @keyframes pn-start-spin {
   to {
@@ -296,27 +178,6 @@
   .pn-start-spinner {
     animation-duration: 3s;
   }
-}
-.pn-start-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 11px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--pn-chip-strong);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-.pn-start-quiet {
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  font-size: 12.5px;
-  color: var(--ov-muted);
-  cursor: pointer;
 }
 
 /* ---- Local ---- */
@@ -332,10 +193,9 @@
   display: flex;
   gap: 9px;
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
 }
 .pn-start-facts li[data-tone="warn"] {
-  color: var(--pn-warn);
+  color: var(--oui-tone-warning-fg);
 }
 .pn-start-facts .studio-icon {
   margin-top: 1px;
@@ -352,45 +212,12 @@
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--ov-faint);
-}
-.pn-start-targets {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.pn-start-target {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  text-align: left;
-  cursor: pointer;
-}
-.pn-start-target[data-on] {
-  background: rgba(122, 162, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(143, 176, 255, 0.5);
-}
-.pn-start-target-text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  line-height: 1.3;
-}
-.pn-start-target-title {
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--oui-panel-meta-fg);
 }
 .pn-start-target-sub {
+  margin: 0;
   font-size: 11.5px;
-  color: var(--ov-faint);
-}
-.pn-start-target .studio-icon:last-child {
-  color: var(--pn-link);
+  color: var(--oui-panel-meta-fg);
 }
 .pn-start-perm {
   display: flex;
@@ -400,72 +227,24 @@
 }
 .pn-start-perm .studio-icon {
   font-size: 16px;
-  color: var(--pn-ok);
+  color: var(--oui-tone-success-fg);
 }
 .pn-start-perm[data-state="denied"] .studio-icon {
-  color: var(--pn-warn);
+  color: var(--oui-tone-warning-fg);
 }
 .pn-start-perm[data-state="undetermined"] .studio-icon {
-  color: var(--ov-faint);
+  color: var(--oui-panel-meta-fg);
 }
 .pn-start-perm-label {
   flex: 1;
 }
 .pn-start-perm-state {
   font-size: 11.5px;
-  color: var(--ov-faint);
+  color: var(--oui-panel-meta-fg);
 }
-.pn-start-allow {
-  height: 24px;
-  padding: 0 9px;
-  border-radius: 6px;
-  font-size: 11.5px;
-}
-.pn-start-agree {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 9px 10px;
-  border: 0;
-  border-radius: 9px;
-  background: rgba(245, 197, 107, 0.1);
-  color: #fff;
-  font-size: 12.5px;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-}
-.pn-start-agree .studio-icon {
-  flex: none;
-  font-size: 17px;
-  color: var(--pn-warn);
-}
-.pn-start-agree[data-on] {
-  background: rgba(255, 255, 255, 0.05);
-}
-.pn-start-agree[data-on] .studio-icon {
-  color: var(--pn-link);
-}
-.pn-start-go {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 38px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--pn-danger);
-  color: #fff;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.pn-start-go .studio-icon {
-  font-size: 17px;
-}
-.pn-start-go[data-blocked] {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.4);
+/* Start stays clickable while blocked: pressing it says why (a toast). */
+button.pn-start-go[aria-disabled="true"] {
+  pointer-events: auto;
 }
 .pn-start-foot {
   display: flex;
@@ -474,20 +253,10 @@
   justify-content: space-between;
   gap: 8px;
   font-size: 11.5px;
-  color: var(--ov-faint);
+  color: var(--oui-panel-meta-fg);
 }
 .pn-start-hint[data-failed] {
-  color: var(--pn-bad);
-}
-.pn-start-link {
-  border: 0;
-  background: transparent;
-  color: var(--pn-link);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.pn-start-link:hover {
-  text-decoration: underline;
+  color: var(--oui-tone-danger-fg);
 }
 .pn-start-toast {
   position: fixed;

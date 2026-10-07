@@ -256,8 +256,9 @@ test("@native native Revisions: the control lists revisions newest first, choosi
     "viewing an earlier revision · current is rev 2",
   );
   // The answer pane and the chat's one row both show rev 1 now.
-  await expect(page.getByTestId("pn-answer-pane")).toContainText(REV1);
-  await expect(page.getByTestId("pn-answer-pane")).not.toContainText(REV2);
+  const answerPane = page.getByRole("region", { name: "Answer", exact: true });
+  await expect(answerPane).toContainText(REV1);
+  await expect(answerPane).not.toContainText(REV2);
   await expect(chatRow).toContainText(REV1);
   await expect(chatRow).not.toContainText(REV2);
   await expect(page.getByRole("button", { name: /^Studio · T1/ })).toHaveCount(

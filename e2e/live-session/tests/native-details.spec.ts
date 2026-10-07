@@ -15,10 +15,14 @@ import {
 } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import { settled } from "../src/helpers/tasks";
+import { openSizeMenu, sizeRow } from "../src/helpers/toolbar";
 
 const styleButton = (page: Page) =>
   page.getByRole("button", { name: /^Answer style:/ });
 const message = (page: Page) => page.getByRole("textbox", { name: "Message" });
+// The Answer panel (a library Panel: a region named by its title).
+const answerPane = (page: Page) =>
+  page.getByRole("region", { name: "Answer", exact: true });
 
 test("@native native pane toggles Chat, Answer and Code: each hides and shows its pane and the shell is asked for the window the visible panes need", async ({
   openPanel,
@@ -33,7 +37,7 @@ test("@native native pane toggles Chat, Answer and Code: each hides and shows it
   for (const name of ["Chat", "Answer", "Code"] as const)
     await expect(toggle(name)).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("pn-chat")).toBeVisible();
-  await expect(page.getByTestId("pn-answer-pane")).toBeVisible();
+  await expect(answerPane(page)).toBeVisible();
   await expect.poll(widthNow).toBeGreaterThan(900);
   const wide = await widthNow();
 
@@ -45,13 +49,13 @@ test("@native native pane toggles Chat, Answer and Code: each hides and shows it
 
   await toggle("Answer").click();
   await expect(toggle("Answer")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("pn-answer-pane")).toHaveCount(0);
+  await expect(answerPane(page)).toHaveCount(0);
   await expect.poll(widthNow).toBeLessThan(narrower);
 
   await toggle("Chat").click();
   await toggle("Answer").click();
   await expect(page.getByTestId("pn-chat")).toBeVisible();
-  await expect(page.getByTestId("pn-answer-pane")).toBeVisible();
+  await expect(answerPane(page)).toBeVisible();
   await expect.poll(widthNow).toBe(wide);
   await toggle("Code").click();
   await expect(toggle("Code")).toHaveAttribute("aria-pressed", "false");
@@ -106,7 +110,10 @@ test("@native native answer pane empty state: Capture screenshot in Manual stage
   await control.scenario("plain-answer");
   const manual = await openPanel({ auto: "off" });
   await manual.host.clear();
-  await manual.page.locator("button.pn-primary").click();
+  await manual.page
+    .getByTestId("pn-analysis-empty")
+    .getByRole("button", { name: /^Capture screenshot/ })
+    .click();
   await expect
     .poll(async () => (await manual.host.calls("captureScreen")).length)
     .toBe(1);
@@ -118,8 +125,10 @@ test("@native native answer pane empty state: Capture screenshot in Manual stage
   await controlSession(manual.id, "end");
 
   const auto = await openPanel({ auto: "on" });
-  const press = auto.page.locator("button.pn-primary");
-  await expect(press).toContainText("Analyze screen");
+  const press = auto.page
+    .getByTestId("pn-analysis-empty")
+    .getByRole("button", { name: /^Analyze screen/ });
+  await expect(press).toBeVisible();
   await auto.host.clear();
   await press.click();
   await expect
@@ -150,10 +159,8 @@ test("@native native Mini player Stop analysis: cancels the running work but lea
   expect(heard.status).toBe(200);
   await expect.poll(() => control.waiting()).toBe(1);
 
-  const dot = page.getByTestId("pn-dot-size");
-  await dot.focus();
-  await page.keyboard.press("ArrowDown");
-  await page.getByTestId("pn-size-mini").click();
+  await openSizeMenu(page);
+  await sizeRow(page, /^Mini player/).click();
   await expect(page.getByTestId("pn-mini-card")).toBeVisible();
   const stop = page.getByTestId("pn-mini-card").getByRole("button", {
     name: "Stop analysis",

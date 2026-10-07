@@ -1,6 +1,6 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import { briefingCategoryOf } from "@omnitech/interview-contracts";
 import { useState } from "react";
-import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { CATEGORY_LABELS } from "./config";
 
@@ -37,7 +37,9 @@ export function QuestionsCard({
         <span className="bp-meta">
           Suggested for a {stageLabel.toLowerCase()}
         </span>
-        <Button onClick={onReset}>Reset</Button>
+        <Button variant="outline" onClick={onReset}>
+          Reset
+        </Button>
       </div>
       {questions.map((question, index) => (
         // Index key: questions are plain strings with no id; each row is fully controlled by its value, so removing one keeps no stale per-row state.
@@ -90,8 +92,8 @@ export function QuestionsCard({
       <div className="bp-card-foot">
         <span className="bp-meta bp-grow">{note}</span>
         <Button
-          variant="primary"
-          size="lg"
+          variant="default"
+          buttonSize="lg"
           disabled={!canDraft}
           onClick={onDraft}
         >

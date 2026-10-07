@@ -14,20 +14,10 @@ import { expect, test } from "../src/fixtures/panel-test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
 import { say, settled, taskIdsOf } from "../src/helpers/tasks";
+import { chooseCaptureMode, expectCaptureMode } from "../src/helpers/toolbar";
 
 const POLL = { timeout: 45_000 };
 const bar = (page: Page) => page.getByTestId("session-bar");
-const modeMenu = (page: Page) =>
-  page.getByRole("button", { name: /^Capture mode:/ });
-
-async function chooseMode(page: Page, mode: "Auto" | "Manual") {
-  await modeMenu(page).click();
-  await page
-    .getByRole("menuitemradio", { name: new RegExp(`^${mode} `) })
-    .click();
-  await expect(modeMenu(page)).toHaveText(mode);
-}
-
 test("web page and native panel on one session: Pause on the web page shows Paused in the panel, and Resume in the panel puts the web page back to running", async ({
   page,
   live,
@@ -202,11 +192,11 @@ test("@native native two documents of one profile: Auto or Manual is one state, 
   await expect(
     second.getByRole("toolbar", { name: "Session controls" }),
   ).toBeVisible();
-  await expect(modeMenu(first.page)).toHaveText("Auto");
-  await expect(modeMenu(second)).toHaveText("Auto");
+  await expectCaptureMode(first.page, "Auto");
+  await expectCaptureMode(second, "Auto");
 
-  await chooseMode(first.page, "Manual");
-  await expect(modeMenu(second)).toHaveText("Manual");
+  await chooseCaptureMode(first.page, "Manual");
+  await expectCaptureMode(second, "Manual");
   expect(
     await first.page.evaluate(
       (key) => localStorage.getItem(key),
@@ -214,8 +204,8 @@ test("@native native two documents of one profile: Auto or Manual is one state, 
     ),
   ).toBe("off");
 
-  await chooseMode(second, "Auto");
-  await expect(modeMenu(first.page)).toHaveText("Auto");
+  await chooseCaptureMode(second, "Auto");
+  await expectCaptureMode(first.page, "Auto");
 });
 
 test("@native native two documents of one profile: the See-through look is shared, and a reload keeps it", async ({

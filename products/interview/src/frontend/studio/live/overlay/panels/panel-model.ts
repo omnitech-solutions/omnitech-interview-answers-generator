@@ -1,26 +1,15 @@
 // What the analysis and chat panels say, derived from the session's own
 // published results and transcript. Pure; text from the session is inert.
-import type {
-  LiveAction,
-  LiveCaptureSource,
-  LiveObservation,
-} from "@omnitech/interview-contracts";
-import type { IconName } from "../../../icon";
+import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import { OWNER_STOPPED } from "../../session-runs";
 import type { LiveViewModel } from "../../session-state";
 import type { TaskView } from "../../session-tasks";
-import { type NoQuestionNote, noQuestionLines } from "../../shared/no-question";
 import {
   revisionText,
   selectedRevisionOf,
   taskAtRevision,
 } from "../../shared/revisions";
-import {
-  snapshotLabelOf,
-  snapshotOrdinals,
-  type TaskCard,
-  taskCardModel,
-} from "../../shared/task-card-model";
+import type { TaskCard } from "../../shared/task-card-model";
 import { taskName } from "../../shared/task-name";
 import { taskLabel, taskOrdinal } from "../../shared/task-target";
 import { type ApproachItem, approach, type ChatEntry } from "../overlay-model";
@@ -125,6 +114,9 @@ export const stoppedByYou = (task: TaskView): boolean =>
 
 // What the code pane says while there is no code: one sentence per state of the
 // task's code stage, never a promise the session has not made.
+// The board's waiting sentence (shown with the hourglass-style icon).
+export const WAITS_FOR_APPROACH = "Starts automatically after the approach.";
+
 type CodePlaceholder = { text: string; busy: boolean };
 
 export function codePlaceholder(input: {
@@ -139,13 +131,13 @@ export function codePlaceholder(input: {
   if (!card)
     return {
       text: input.approachPending
-        ? "Waits for the approach. Starts automatically."
-        : "Code appears here after the approach is drafted.",
+        ? WAITS_FOR_APPROACH
+        : "Code appears once the approach is drafted.",
       busy: false,
     };
   if (input.approachPending)
     return {
-      text: "Waits for the approach. Starts automatically.",
+      text: WAITS_FOR_APPROACH,
       busy: false,
     };
   const code = card.stages[1];
@@ -170,9 +162,7 @@ export function codePlaceholder(input: {
     case "waiting":
       return {
         text:
-          card.stages[0].state === "done"
-            ? "No code yet."
-            : "Waits for the approach. Starts automatically.",
+          card.stages[0].state === "done" ? "No code yet." : WAITS_FOR_APPROACH,
         busy: false,
       };
     default:
@@ -207,9 +197,10 @@ export function taskChips(
 
 // ---- Chat -------------------------------------------------------------------
 
-// "heard" and "typed" are what was said; "assistant" is the reply to it;
-// "marker" is a capture or stop between them.
-type PanelRowKind = "heard" | "typed" | "assistant" | "system" | "marker";
+// "heard" and "typed" are what was said; "assistant" is the reply to it. Capture
+// events are chips, built in answer-meta.ts; nothing else is written into the
+// transcript.
+type PanelRowKind = "heard" | "typed" | "assistant";
 type SpeakerId = "interviewer" | "you" | "typed" | "heard";
 export type PanelRow = {
   key: string;
@@ -219,9 +210,6 @@ export type PanelRow = {
   speaker?: SpeakerId;
   text: string;
   at: number;
-  icon?: IconName;
-  // Only on a no-question marker: its screenshot label (null when unknown).
-  noteLabel?: string | null;
   // The assistant's formatted answer: its lines and fenced code blocks.
   items?: readonly ApproachItem[];
   // The task an assistant answer belongs to: choosing the row shows that task.
@@ -258,96 +246,6 @@ export const speakerOf = (
     ? SPEAKER[source]
     : HEARD;
 
-// What the session's own observations and runs say happened, between the lines
-// of the conversation: a task starting (with its screenshot, when the stream
-// names one) and a task the owner stopped.
-type TaskMarker = {
-  key: string;
-  at: number;
-  icon: IconName;
-  text: string;
-  // A capture with no question (D36): its screenshot label, if known. Runs of
-  // these share one row (see joinNotes).
-  note?: { label: string | null };
-};
-
-export function taskMarkers(input: {
-  tasks: readonly TaskView[];
-  actions: readonly LiveAction[];
-  observations: readonly LiveObservation[];
-  deviceOnly: boolean;
-  noQuestion?: readonly NoQuestionNote[];
-}): TaskMarker[] {
-  const ordinals = snapshotOrdinals(input.observations);
-  const notes: TaskMarker[] = (input.noQuestion ?? []).map((note) => {
-    const label = note.snapshot
-      ? snapshotLabelOf(note.snapshot, ordinals)
-      : null;
-    return {
-      key: `m-nq-${note.taskId}`,
-      at: Date.parse(note.at) || 0,
-      icon: "visibility_off" as const,
-      text: noQuestionLines([label])[0] as string,
-      note: { label },
-    };
-  });
-  const tasks = input.tasks.flatMap((task) => {
-    const card = taskCardModel({ ...input, selectedTaskId: task.taskId });
-    if (!card) return [];
-    const started: TaskMarker = {
-      key: `m-start-${task.taskId}`,
-      at: Date.parse(task.firstSeenAt) || 0,
-      icon: card.snapshotLabel ? "screenshot_monitor" : "play_circle",
-      text: card.snapshotLabel
-        ? `${card.snapshotLabel} captured · ${card.label} started`
-        : `${card.label} started`,
-    };
-    const stoppedAt = Math.max(
-      ...task.current.runs
-        .filter((run) => run.reason === OWNER_STOPPED)
-        .map((run) => Date.parse(run.updatedAt) || 0),
-      0,
-    );
-    return stoppedAt === 0
-      ? [started]
-      : [
-          started,
-          {
-            key: `m-stop-${task.taskId}`,
-            at: stoppedAt,
-            icon: "stop_circle" as const,
-            text: `${card.label} stopped by you · nothing published${
-              task.answer ? " for code" : ""
-            }`,
-          },
-        ];
-  });
-  return [...tasks, ...notes];
-}
-
-// Consecutive no-question markers (nothing else between them) become one row,
-// collapsed by the shared rule.
-function joinNotes(rows: PanelRow[]): PanelRow[] {
-  const out: PanelRow[] = [];
-  let run: { row: PanelRow; labels: (string | null)[] } | null = null;
-  for (const row of rows) {
-    if (row.kind === "marker" && row.noteLabel !== undefined) {
-      if (run) {
-        run.labels.push(row.noteLabel);
-        run.row.text = noQuestionLines(run.labels).join(" · ");
-        run.row.at = row.at;
-      } else {
-        run = { row: { ...row }, labels: [row.noteLabel] };
-        out.push(run.row);
-      }
-      continue;
-    }
-    run = null;
-    out.push(row);
-  }
-  return out;
-}
-
 // A stage's label has no ellipsis; the row adds it and a timer.
 export type TaskStage = { label: string; since: number };
 
@@ -376,8 +274,6 @@ const PANEL_ROWS = 60;
 
 // Heard speech (the server's transcript), what was typed or dictated here, and
 // the assistant's published answers, oldest first.
-export type SystemLine = { key: string; text: string; at: number };
-
 // [DOMAIN] One bubble per run of one speaker's phrases. The speech recogniser hands
 // over phrases, and a sentence often spans several ("Just to kick things off" ...
 // "I would like to understand why you're interested?"). Words appear in the
@@ -450,10 +346,8 @@ export function groupHeard(pieces: readonly HeardPiece[]): HeardGroup[] {
 export function panelRows(
   model: LiveViewModel,
   entries: readonly ChatEntry[],
-  system: readonly SystemLine[] = [],
   // Rows at or before this time were cleared (session.clear).
   since = 0,
-  markers: readonly TaskMarker[] = [],
   // Per task, the older revision on show (view-only; see focus-presentation).
   revisionPicks: Readonly<Record<string, number>> = {},
 ): PanelRow[] {
@@ -509,27 +403,10 @@ export function panelRows(
       },
     ];
   });
-  const lines: PanelRow[] = system.map((line) => ({
-    key: line.key,
-    kind: "system" as const,
-    label: "System",
-    text: line.text,
-    at: line.at,
-  }));
-  const between: PanelRow[] = markers.map((marker) => ({
-    key: marker.key,
-    kind: "marker" as const,
-    label: "",
-    text: marker.text,
-    icon: marker.icon,
-    at: marker.at,
-    ...(marker.note ? { noteLabel: marker.note.label } : {}),
-  }));
-  return joinNotes(
-    [...heard, ...mine, ...assistant, ...lines, ...between]
-      .filter((row) => row.kind === "system" || row.at > since)
-      .sort((a, b) => a.at - b.at),
-  ).slice(-PANEL_ROWS);
+  return [...heard, ...mine, ...assistant]
+    .filter((row) => row.at > since)
+    .sort((a, b) => a.at - b.at)
+    .slice(-PANEL_ROWS);
 }
 
 // The follow-up box says which task its text is about: the one on show.

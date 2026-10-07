@@ -2,6 +2,9 @@
 // store and a scripted Studio: the sign-in screen with the locked toolbar and
 // footer, the waiting and local steps, the idle start screen and its gates, the
 // account menu, and the hand-off to the live window that is not changed.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AccountPermissions,
   AccountSignInState,
@@ -34,6 +37,7 @@ import {
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { tipOf } from "./toolbar-test-kit";
 import { navigation } from "./use-account";
 
 let server: TestServer;
@@ -194,6 +198,10 @@ function configure() {
   vi.stubGlobal("fetch", globalFetch);
 }
 
+// The library menu opens on the press, as Radix does (a bare click does not).
+const openMenu = (trigger: HTMLElement) =>
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+
 async function show(
   query = "?host=native&panel=single&handsfree=1",
   path = "/t/local/p/interview/live/overlay",
@@ -260,7 +268,9 @@ describe("signed out", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "out");
     expect(
-      within(card).getByText("Sign in", { selector: "header" }),
+      within(card).getByText("Sign in", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(
       within(card).getByRole("heading", { name: "Sign in to start a session" }),
@@ -271,28 +281,33 @@ describe("signed out", () => {
     const controls = within(bar)
       .getAllByRole("button")
       .filter((button) => !button.classList.contains("pn-window-dot"));
+    // A locked control is aria-disabled (it stays hoverable) and names the
+    // reason in its tooltip, or its title where it is natively disabled.
     const locked = controls.filter(
-      (button) => (button as HTMLButtonElement).disabled,
+      (button) =>
+        (button as HTMLButtonElement).disabled ||
+        button.getAttribute("aria-disabled") === "true",
     );
     expect(locked.length).toBeGreaterThanOrEqual(7);
     for (const button of locked)
-      expect(button.outerHTML.slice(0, 200), button.outerHTML).toContain(
-        'title="Sign in first"',
-      );
+      expect(
+        button.getAttribute("title") ?? tipOf(button),
+        button.outerHTML,
+      ).toBe("Sign in first");
     expect(
       within(bar).getByRole("button", { name: "Analyze screen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(within(bar).getByTestId("pn-chip-out")).toHaveTextContent(
       "Not signed in",
     );
     // The footer keeps the build id, with the status at its end (and no visible-window note).
     expect(screen.queryByText(/Visible window/)).toBeNull();
-    expect(screen.getByTestId("ov-build")).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Copy build/ })).toBeVisible();
     expect(screen.getByTestId("ov-status")).toHaveTextContent("Not signed in");
-    // Nothing has "ended": the capture control's status says there is no session.
-    expect(screen.getByTestId("pn-status")).toHaveTextContent(
-      "No live session",
-    );
+    // Nothing has "ended", and no coloured dot or status line says so any more:
+    // the locked controls name what is missing.
+    expect(screen.queryByTestId("pn-status")).toBeNull();
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
     expect(screen.queryByRole("button", { name: /Pause|End/ })).toBeNull();
   });
 
@@ -574,15 +589,17 @@ describe("idle: signed in, no live session", () => {
     const card = screen.getByTestId("pn-start");
     expect(card).toHaveAttribute("data-stage", "idle");
     expect(
-      within(card).getByText("No live session", { selector: "header" }),
+      within(card).getByText("No live session", {
+        selector: '[data-slot="panel-title"]',
+      }),
     ).toBeVisible();
     expect(server.calls.some((call) => call.startsWith("POST"))).toBe(false);
     // The toolbar is the same one, disabled, saying a session must start first.
     const analyze = within(screen.getByTestId("pn-pill")).getByRole("button", {
       name: "Analyze screen",
     });
-    expect(analyze).toBeDisabled();
-    expect(analyze).toHaveAttribute("title", "Start a session first");
+    expect(analyze).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(analyze)).toBe("Start a session first");
     expect(screen.getByTestId("ov-status")).toHaveTextContent(
       "Signed in · no live session",
     );
@@ -601,7 +618,7 @@ describe("idle: signed in, no live session", () => {
     expect(chip).toHaveTextContent("Alex");
     expect(chip).toHaveTextContent("A");
     expect(chip).toBeEnabled();
-    fireEvent.click(chip);
+    openMenu(chip);
     const menu = screen.getByRole("menu", { name: "Account" });
     expect(menu).toHaveTextContent("Alex Morgan");
     expect(menu).toHaveTextContent("alex@example.test");
@@ -612,14 +629,40 @@ describe("idle: signed in, no live session", () => {
     ).toEqual(["Open Studio on the web", "Settings", "Sign out"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Settings" }));
     expect(host.settings).toHaveBeenCalled();
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Open Studio on the web" }),
     );
     expect(host.opened.at(-1)).toMatch(/\/t\/local\/p\/interview\/live$/);
-    fireEvent.click(chip);
+    openMenu(chip);
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(host.calls).toContain("signOut");
+  });
+
+  it("the account menu is drawn inside the window's panel root as a hit-tested surface, and Escape gives focus back to the chip", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    const chip = screen.getByTestId("pn-chip");
+    openMenu(chip);
+    const menu = screen.getByRole("menu", { name: "Account" });
+    expect(menu.closest(".pn-root")).toBe(screen.getByTestId("pn-start-root"));
+    expect(menu).toHaveAttribute("data-oui-surface");
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Account" })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(chip).toHaveFocus();
+  });
+
+  it("Start stays clickable while blocked (pressing it says why), and the card keeps its hit region", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    expect(screen.getByTestId("pn-start")).toHaveClass("pn-start-card");
+    const css = readFileSync(join(__dirname, "start-panel.css"), "utf8");
+    expect(css).toMatch(
+      /button\.pn-start-go\[aria-disabled="true"\]\s*\{\s*pointer-events: auto;/,
+    );
   });
 
   it("a local profile: 'This Mac' chip, Rehearsal only, honest footer, sign out of the local profile", async () => {
@@ -638,7 +681,7 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByTestId("ov-status").textContent).not.toMatch(
       /nothing leaves/i,
     );
-    fireEvent.click(chip);
+    openMenu(chip);
     expect(
       within(screen.getByRole("menu", { name: "Account" }))
         .getAllByRole("menuitem")
@@ -659,7 +702,7 @@ describe("idle: signed in, no live session", () => {
     bridge();
     idleStudio();
     await show(undefined, undefined, { ...LOCAL, canSignOut: false });
-    fireEvent.click(screen.getByTestId("pn-chip"));
+    openMenu(screen.getByTestId("pn-chip"));
     const names = within(screen.getByRole("menu", { name: "Account" }))
       .getAllByRole("menuitem")
       .map((item) => item.textContent);
@@ -915,6 +958,6 @@ describe("idle: signed in, no live session", () => {
       name: "Analyze screen",
     });
     expect(analyze).toBeEnabled();
-    expect(analyze.getAttribute("title")).not.toMatch(/first/);
+    expect(tipOf(analyze)).not.toMatch(/first/);
   });
 });

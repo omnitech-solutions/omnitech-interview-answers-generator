@@ -120,26 +120,12 @@
   min-width: 40px;
   justify-content: center;
 }
-/* Icon-only toolbar buttons: square, with the label as tooltip and aria-label. */
-.live-bar-icon {
-  width: 40px;
-  padding: 0;
-}
 .live-bar-button:disabled {
   opacity: 0.6;
   cursor: progress;
 }
 .live-bar-button .studio-icon {
   font-size: 17px;
-}
-.live-bar-button.danger {
-  border: 0;
-  background: var(--red);
-  color: var(--on-accent);
-}
-.live-bar-button.danger:hover {
-  background: var(--red);
-  filter: brightness(1.06);
 }
 
 /* Visually hidden, still read aloud. */
@@ -235,7 +221,7 @@
     flex-wrap: wrap;
     margin-left: 0;
   }
-  .live-bar-actions .live-bar-button:not(.live-bar-icon) {
+  .live-bar-actions .live-bar-button {
     flex: 1 1 auto;
   }
 }

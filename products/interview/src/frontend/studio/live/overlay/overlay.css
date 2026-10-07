@@ -344,13 +344,6 @@
   flex-direction: column;
   gap: 1px;
 }
-.ov-session-menu {
-  left: 0;
-  right: auto;
-  top: 32px;
-  max-height: 320px;
-  overflow-y: auto;
-}
 .ov-analyze-menu {
   top: 44px;
 }
@@ -394,11 +387,6 @@
   margin: 4px 9px;
   font-size: 11.5px;
   color: var(--ov-muted);
-}
-.ov-menu-new {
-  border-top: 0.5px solid var(--ov-line);
-  border-radius: 0 0 6px 6px;
-  margin-top: 4px;
 }
 
 /* Capture strip */
@@ -940,66 +928,6 @@
   color: var(--ov-faint);
   cursor: default;
 }
-.ov-footer {
-  flex: none;
-  padding: 8px 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ov-footer-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* The footer's left: empty space that keeps the clock and the buttons at the right,
-   or a notice (a paused session) that fills it. */
-.ov-footer-lead {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-}
-.ov-footer-notice {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.ov-footer-notice > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--ov-text);
-}
-.ov-visible {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ov-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ov-confirm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--ov-chip);
-  font-size: 12px;
-}
-.ov-confirm > span {
-  flex: 1 1 100%;
-}
 .ov-note {
   flex: none;
   margin: 6px 12px 0;
@@ -1230,18 +1158,33 @@
 .ov-source[data-health="not-selected"] {
   color: var(--ov-faint);
 }
-.ov-popover {
-  top: 28px;
-  right: 0;
-  left: auto;
+/* The source and settings popovers are library Popover surfaces, portalled into the
+   card's root; their anchors are empty spans inside the card. */
+.ov-popover-anchor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ov-settings-anchor {
+  position: absolute;
+  top: 34px;
+  left: 12px;
+  right: 12px;
+  height: 0;
+  pointer-events: none;
+}
+.ov-popover[data-oui-surface] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   width: min(300px, 80vw);
   padding: 10px;
-  gap: 8px;
-  z-index: 30;
+  border-radius: 10px;
+  border: 1px solid var(--oui-tone-neutral-border);
+  background: var(--oui-surface-field);
+  color: var(--oui-foreground);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
   outline: none;
-}
-.ov-sources-end .ov-popover {
-  right: -4px;
 }
 .ov-popover-head {
   display: flex;
@@ -1256,11 +1199,10 @@
   font-size: 12px;
   line-height: 1.4;
 }
-.ov-settings {
-  top: 34px;
-  left: 12px;
-  right: 12px;
-  width: auto;
+.ov-popover.ov-settings[data-oui-surface] {
+  width: var(--radix-popover-trigger-width);
+  max-height: calc(100% - 44px);
+  overflow-y: auto;
 }
 .ov-field {
   display: flex;
@@ -1461,9 +1403,6 @@
 .ov-menu {
   max-height: min(360px, calc(100vh - 24px));
   overflow-y: auto;
-}
-.ov-settings {
-  max-height: calc(100% - 44px);
 }
 
 /* Region editor: icon presets and the plain-words description */

@@ -9,6 +9,7 @@ import {
   engineLine,
   engineMic,
   engineNeeds,
+  engineStripNeeds,
   micAction,
   pressMic,
   useEngine,
@@ -329,6 +330,30 @@ describe("one predicate for the microphone control", () => {
       engine.emit(state({ hint: "Grant Microphone in System Settings" })),
     );
     expect(engineNeeds(view.result.current)).toBe(
+      "Grant Microphone in System Settings",
+    );
+  });
+
+  it("the strip says nothing of a lost microphone (the toolbar's badge and menu do), but still of a hint or a denied one", async () => {
+    const engine = fake();
+    const view = renderHook(() => useEngine(input()));
+    await settle();
+    act(() => engine.emit(mic("lost")));
+    expect(engineNeeds(view.result.current)).toBe(
+      "Microphone lost. Trying again.",
+    );
+    expect(engineStripNeeds(view.result.current)).toBeNull();
+    act(() => engine.emit(mic("permission-denied")));
+    expect(engineStripNeeds(view.result.current)).toBe(
+      "Microphone is not allowed.",
+    );
+    act(() =>
+      engine.emit({
+        ...mic("lost"),
+        hint: "Grant Microphone in System Settings",
+      }),
+    );
+    expect(engineStripNeeds(view.result.current)).toBe(
       "Grant Microphone in System Settings",
     );
   });

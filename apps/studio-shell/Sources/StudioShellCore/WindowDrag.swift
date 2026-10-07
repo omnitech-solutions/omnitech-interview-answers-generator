@@ -21,7 +21,11 @@ public enum WindowDrag {
         "[role=tab]", "[role=switch]", "[role=checkbox]", "[role=radio]",
         "[contenteditable]", "pre", "code", ".cm-editor", "[data-no-drag]",
     ].joined(separator: ",")
-    static let chrome = ".pn-pill,.pn-single-foot"
+    // What always drags, and the text to read and copy, are the page's to say: it
+    // publishes them on <html> as `data-drag-chrome` and `data-text-surfaces` (built
+    // from its own `data-` hooks in hit-regions.ts, the same module as
+    // `data-hit-surfaces`). These are what an older page that publishes neither gets.
+    public static let chromeFallback = ".pn-pill,.pn-toolbar,.pn-single-foot"
 
     // What the pointer is over, as the cursor it should show. A web view in a panel of
     // an inactive app does not apply CSS cursors, so the shell sets them itself.
@@ -36,10 +40,10 @@ public enum WindowDrag {
         "[role=menuitemradio]", "[role=slider]", "[role=tab]", "[role=switch]", "[role=checkbox]",
         "[role=radio]",
     ].joined(separator: ",")
-    // Text to read and copy: the fields, the code, the transcript, the answers. The
-    // same list is in panels.css (user-select and the text cursor); keep them together.
-    static let typing =
-        "input:not([type=button]):not([type=submit]),textarea,[contenteditable],pre,code,.cm-editor,.pn-log,.pn-interim,.pn-analysis-text,.pn-codecard,.pn-strip-main,.pn-strip-sub,.pn-note"
+    // Text to read and copy when the page does not publish `data-text-surfaces`: the
+    // fields and code, and the strip text and notes an older page marks by class.
+    public static let typingFallback =
+        "input:not([type=button]):not([type=submit]),textarea,[contenteditable],pre,code,.cm-editor,.pn-strip-main,.pn-strip-sub,.pn-note"
 
     // The page's answer at (x, y) in page points: a `Kind`, as its raw value.
     public static func probeScript(x: Double, y: Double) -> String {
@@ -51,10 +55,14 @@ public enum WindowDrag {
           var drawn = document.documentElement.getAttribute('data-hit-surfaces');
           if (drawn && !el.closest(drawn)) return 'arrow';
           if (el.closest('[disabled],[aria-disabled=true],[data-no-drag]')) return 'arrow';
+          // What the page publishes wins; an older page gets the built-in lists.
+          var root = document.documentElement;
+          var text = root.getAttribute('data-text-surfaces') || '\(typingFallback)';
+          var chrome = root.getAttribute('data-drag-chrome') || '\(chromeFallback)';
           if (el.closest('\(pressable)')) return 'pointer';
-          if (el.closest('\(typing)')) return 'text';
+          if (el.closest(text)) return 'text';
           if (el.closest('\(controls)')) return 'arrow';
-          if (el.closest('\(chrome)')) return 'grab';
+          if (el.closest(chrome)) return 'grab';
           return document.querySelector('[data-glass="clear"]') ? 'arrow' : 'grab';
         })()
         """

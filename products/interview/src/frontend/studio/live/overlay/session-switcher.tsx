@@ -3,13 +3,19 @@
 // second store, no second poll, and nothing is sent to the session left
 // behind, so a live session keeps running. "New session" goes to the start
 // page, which only exists while the store holds no open session.
+
+import {
+  ActionMenu,
+  type ActionMenuSection,
+  Button,
+} from "@oc-tech/omni-ui-components";
 import type { LiveSessionSummary } from "@omnitech/interview-contracts";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import { presentation } from "../focus-presentation";
 import type { SessionActions } from "../session-snapshot";
-import { useMenuPlacement } from "./menu-placement";
 import { type SessionRow, sessionRow } from "./overlay-model";
+import { usePortalRoot } from "./panels/portal-root";
 
 export type SwitcherProps = {
   actions: SessionActions;
@@ -33,13 +39,9 @@ export function SessionSwitcher({
   onNewSession,
 }: SwitcherProps) {
   const [sessions, setSessions] = useState<readonly LiveSessionSummary[]>([]);
-  const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const menuId = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  useMenuPlacement(menu, open);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const portal = usePortalRoot();
 
   const load = useCallback(async () => {
     const result = await actions.listSessions();
@@ -59,49 +61,11 @@ export function SessionSwitcher({
 
   async function go(id: string | undefined) {
     if (!id) return;
-    setOpen(false);
     setNote(null);
     const result = await actions.switchSession(id);
     if (result.ok) presentation.pin(null);
     else setNote("Couldn’t open that session.");
     trigger.current?.focus();
-  }
-
-  // Escape or a click outside closes the menu.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: Event) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const doc = root.current?.ownerDocument ?? document;
-    doc.addEventListener("pointerdown", onDown);
-    return () => doc.removeEventListener("pointerdown", onDown);
-  }, [open]);
-  useEffect(() => {
-    if (open)
-      root.current
-        ?.querySelector<HTMLElement>('[role="menuitemradio"]')
-        ?.focus();
-  }, [open]);
-
-  function onMenuKey(event: React.KeyboardEvent<HTMLElement>) {
-    if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-      event.stopPropagation();
-      setOpen(false);
-      trigger.current?.focus();
-      return;
-    }
-    const items = [
-      ...(root.current?.querySelectorAll<HTMLElement>(
-        '[role="menuitemradio"], [role="menuitem"]',
-      ) ?? []),
-    ];
-    const at = items.indexOf(event.target as HTMLElement);
-    const move =
-      event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
-    if (move === 0) return;
-    event.preventDefault();
-    items[(at + move + items.length) % items.length]?.focus();
   }
 
   // Rows are newest first: "previous" is the older neighbour.
@@ -113,106 +77,93 @@ export function SessionSwitcher({
     hasOpenSession ||
     sessions.some((s) => s.status !== "ended" && s.status !== "purging");
 
+  const sections: ActionMenuSection[] = [
+    {
+      id: "sessions",
+      selection: "single",
+      items:
+        rows.length === 0
+          ? [{ id: "none", label: "No sessions yet", disabled: true }]
+          : rows.map((row) => ({
+              id: row.id,
+              label: row.title,
+              description: `${row.statusText} · ${row.timeText}`,
+              checked: row.id === currentId,
+              disabled: switching,
+              onSelect: () => void go(row.id),
+            })),
+    },
+    {
+      id: "new",
+      items: [
+        {
+          id: "new-session",
+          label: "New session",
+          icon: <Icon name="add" />,
+          description: "Opens the start page in Studio",
+          disabled: blocked,
+          ...(blocked
+            ? {
+                disabledReason:
+                  "Only one session can be live at a time. End it first.",
+              }
+            : {}),
+          onSelect: onNewSession,
+        },
+      ],
+    },
+  ];
+
   return (
-    <div className="ov-switcher" ref={root} data-testid="session-switcher">
-      <button
-        type="button"
-        className="ov-icon-button"
+    <div className="ov-switcher" data-testid="session-switcher">
+      <Button
+        variant="ghost"
+        buttonSize="sm"
         aria-label="Previous session"
         title="Previous (older) session"
         disabled={!older || switching}
+        icon={<Icon name="keyboard_arrow_left" />}
         onClick={() => void go(older?.id)}
-      >
-        <Icon name="keyboard_arrow_left" />
-      </button>
-      <button
-        ref={trigger}
-        type="button"
-        className="ov-switcher-current"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => {
-          setOpen(!open);
-          if (!open) void load();
+      />
+      <ActionMenu
+        label="Sessions"
+        sections={sections}
+        width={280}
+        maxHeight={320}
+        container={portal.container}
+        returnFocus="always"
+        onOpenChange={(open) => {
+          if (open) void load();
         }}
-      >
-        <span className={`ov-dot ${tone}`} aria-hidden="true" />
-        <span className="ov-switcher-title">
-          {current?.title ?? "Sessions"}
-        </span>
-        <span className="ov-switcher-status">
-          {current ? `${current.statusText} · ${current.timeText}` : ""}
-        </span>
-        <Icon name="unfold_more" />
-      </button>
-      <button
-        type="button"
-        className="ov-icon-button"
+        trigger={
+          <button
+            ref={(element) => {
+              trigger.current = element;
+              portal.ref(element);
+            }}
+            type="button"
+            className="ov-switcher-current"
+          >
+            <span className={`ov-dot ${tone}`} aria-hidden="true" />
+            <span className="ov-switcher-title">
+              {current?.title ?? "Sessions"}
+            </span>
+            <span className="ov-switcher-status">
+              {current ? `${current.statusText} · ${current.timeText}` : ""}
+            </span>
+            <Icon name="unfold_more" />
+          </button>
+        }
+      />
+      <Button
+        variant="ghost"
+        buttonSize="sm"
         aria-label="Next session"
         title="Next (newer) session"
         disabled={!newer || switching}
+        icon={<Icon name="keyboard_arrow_right" />}
         onClick={() => void go(newer?.id)}
-      >
-        <Icon name="keyboard_arrow_right" />
-      </button>
-      {open && (
-        <div
-          id={menuId}
-          ref={menu}
-          role="menu"
-          aria-label="Sessions"
-          className="ov-menu ov-session-menu"
-          onKeyDown={onMenuKey}
-        >
-          {rows.length === 0 && <p className="ov-menu-note">No sessions yet</p>}
-          {rows.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={row.id === currentId}
-              disabled={switching}
-              className="ov-menu-item"
-              onClick={() => void go(row.id)}
-            >
-              <span className={`ov-dot ${row.tone}`} aria-hidden="true" />
-              <span className="ov-menu-text">
-                <span className="ov-menu-label">{row.title}</span>
-                <span className="ov-menu-sub">
-                  {row.statusText} · {row.timeText}
-                </span>
-              </span>
-              {row.id === currentId && <Icon name="check" />}
-            </button>
-          ))}
-          <button
-            type="button"
-            role="menuitem"
-            className="ov-menu-item ov-menu-new"
-            disabled={blocked}
-            title={
-              blocked
-                ? "Only one session can be live at a time. End it first."
-                : undefined
-            }
-            onClick={() => {
-              setOpen(false);
-              onNewSession();
-            }}
-          >
-            <Icon name="add" />
-            <span className="ov-menu-text">
-              <span className="ov-menu-label">New session</span>
-              <span className="ov-menu-sub">
-                {blocked
-                  ? "Available once the live session has ended"
-                  : "Opens the start page in Studio"}
-              </span>
-            </span>
-          </button>
-        </div>
-      )}
+      />
       {note && (
         <p className="ov-note" role="alert">
           {note}

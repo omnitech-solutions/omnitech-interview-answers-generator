@@ -33,6 +33,7 @@ describe("surface table", () => {
     for (const surface of [
       ".pn-strip",
       ".pn-card",
+      '[data-slot="panel"]',
       ".pn-single-foot",
       ".pn-menu",
       ".pn-toast",

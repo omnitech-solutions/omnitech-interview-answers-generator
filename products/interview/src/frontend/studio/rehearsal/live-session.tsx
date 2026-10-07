@@ -1,9 +1,9 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import {
   REVEAL_COST,
   type RehearsalReveal,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import {
   CHECKS,
@@ -109,17 +109,23 @@ export function LiveSession({
         </span>
         <span className="rehearsal-muted">session {clock(at.sessionLeft)}</span>
         {at.phase === "concept" && format.codingMinutes > 0 && (
-          <Button onClick={() => update({ elapsed: at.conceptSeconds })}>
+          <Button
+            variant="outline"
+            onClick={() => update({ elapsed: at.conceptSeconds })}
+          >
             Start coding
           </Button>
         )}
         {!settings.strict && (
-          <Button onClick={() => update({ paused: !session.paused })}>
+          <Button
+            variant="outline"
+            onClick={() => update({ paused: !session.paused })}
+          >
             <Icon name={session.paused ? "play_arrow" : "pause"} />
             {session.paused ? "Resume" : "Pause"}
           </Button>
         )}
-        <Button variant="primary" onClick={onEnd}>
+        <Button variant="default" onClick={onEnd}>
           End session
         </Button>
       </div>
@@ -316,7 +322,9 @@ function FollowUps({ questions }: { questions: readonly string[] }) {
         <p key={question}>“{question}”</p>
       ))}
       {asked < questions.length && (
-        <Button onClick={() => setAsked(asked + 1)}>Ask a follow-up</Button>
+        <Button variant="outline" onClick={() => setAsked(asked + 1)}>
+          Ask a follow-up
+        </Button>
       )}
     </div>
   );

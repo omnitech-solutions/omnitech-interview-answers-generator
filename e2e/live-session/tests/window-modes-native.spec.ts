@@ -8,6 +8,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/panel-test";
 import { db } from "../src/helpers/sql";
+import { openSizeMenu, sizeMenu, sizeRow } from "../src/helpers/toolbar";
 
 const seeThrough = (page: Page) =>
   page.getByRole("button", { name: "See-through", exact: true });
@@ -90,16 +91,12 @@ test("@native native Mini player: the green dot's menu asks the shell for the sm
   expect(Number(normal?.["width"])).toBeGreaterThan(900);
 
   // The green dot's menu (ArrowDown opens it, as hovering does).
-  const dot = page.getByTestId("pn-dot-size");
-  await dot.focus();
-  await page.keyboard.press("ArrowDown");
-  const sizes = page.getByRole("menu", { name: "Window size" });
-  await expect(sizes).toBeVisible();
-  await expect(sizes.getByTestId("pn-size-normal")).toHaveAttribute(
+  await openSizeMenu(page);
+  await expect(sizeRow(page, /^Normal/)).toHaveAttribute(
     "aria-checked",
     "true",
   );
-  await sizes.getByTestId("pn-size-mini").click();
+  await sizeRow(page, /^Mini player/).click();
 
   // The shell is asked for the fixed small card; the page shows the card, not
   // the panes.
@@ -109,7 +106,9 @@ test("@native native Mini player: the green dot's menu asks the shell for the sm
   await expect(page.getByTestId("pn-mini-card")).toBeVisible();
   await expect(page.getByTestId("pn-mini-name")).toContainText("T1");
   await expect(page.getByTestId("pn-chat")).toHaveCount(0);
-  await expect(page.getByTestId("pn-answer-pane")).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Answer", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByTestId("pn-mini-pause")).toBeVisible();
 
   // Pause and Resume are the session's, from the small card too.
@@ -143,9 +142,8 @@ test("@native native Mini player: the green dot's menu asks the shell for the sm
 
   // Escape does NOT leave the Mini player (D27 names only full screen): the
   // card stays, and the shell is not asked for another size.
-  await dot.focus();
-  await page.keyboard.press("ArrowDown");
-  await page.getByTestId("pn-size-mini").click();
+  await openSizeMenu(page);
+  await sizeRow(page, /^Mini player/).click();
   await expect(page.getByTestId("pn-mini-card")).toBeVisible();
   await expect
     .poll(() => lastSize(host))
@@ -254,16 +252,16 @@ for (const [name, size] of [
 
     const open = [
       [
-        () => page.getByRole("button", { name: /^Capture mode:/ }),
-        '[role="menu"][aria-label="Capture mode"]',
-      ],
-      [
         () => page.getByRole("button", { name: /^Answer style:/ }),
         '[role="menu"][aria-label="Answer style"]',
       ],
       [
         () => page.getByRole("button", { name: /^Screen to capture:/ }),
         '[role="menu"][aria-label="Screen to capture"]',
+      ],
+      [
+        () => page.getByRole("button", { name: "Microphone options" }),
+        '[role="menu"][aria-label="Microphone options"]',
       ],
       [
         () => page.getByRole("button", { name: "Keyboard shortcuts" }),
@@ -278,9 +276,8 @@ for (const [name, size] of [
       await expect(page.locator(selector)).toHaveCount(0);
     }
     // The green dot's size menu and the quit confirmation hang from the dots.
-    await page.getByTestId("pn-dot-size").focus();
-    await page.keyboard.press("ArrowDown");
-    await expect(page.getByRole("menu", { name: "Window size" })).toBeVisible();
+    await openSizeMenu(page);
+    await expect(sizeMenu(page)).toBeVisible();
     expect(await covered('[role="menu"][aria-label="Window size"]')).toEqual(
       [],
     );

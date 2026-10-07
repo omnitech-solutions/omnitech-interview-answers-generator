@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import {
   createRehearsalClient,
   InterviewApiError,
@@ -9,7 +10,6 @@ import {
   rehearsalScore,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
 import {
@@ -235,10 +235,12 @@ export function Scorecard({
         </div>
       )}
       <div className="rehearsal-actions">
-        <Button variant="primary" onClick={onAgain}>
+        <Button variant="default" onClick={onAgain}>
           Rehearse again
         </Button>
-        <Button onClick={() => actions.go("home")}>Back to prep plan</Button>
+        <Button variant="outline" onClick={() => actions.go("home")}>
+          Back to prep plan
+        </Button>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   canOpenExternalThroughHost,
   openExternalThroughHost,
 } from "./host-adapter";
+import { noteCaptureProblemReason } from "./screen-problems";
 import {
   type CaptureProblem,
   type CaptureProblemReason,
@@ -33,6 +34,9 @@ export function useCaptureProblem() {
     [state],
   );
   const show = useCallback((next: CaptureProblemState | null) => {
+    // The screen-setup problems stay on the toolbar until resolved (see
+    // screen-problems.ts), however this banner is dismissed.
+    if (next) noteCaptureProblemReason(next.reason);
     setState((now) =>
       now === next ||
       (now &&

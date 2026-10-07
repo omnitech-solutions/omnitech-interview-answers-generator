@@ -61,14 +61,13 @@ import {
   FOCUS_INPUT_EVENT,
 } from "./commands";
 import { openPanelBus, type PanelMessage, type PanelState } from "./panel-bus";
-import { type SystemLine, taskMarkers } from "./panel-model";
 import { type NativeWindowPage, useOwnsSession } from "./panel-owner";
 import { autoLimits, HIDDEN_TOAST } from "./toolbar-config";
 import {
   engineHost,
   engineLine,
   engineMic,
-  engineNeeds,
+  engineStripNeeds,
   MIC_HELD_TEXT,
   pressMic,
   useEngine,
@@ -99,9 +98,6 @@ export const TOAST_TEXT = {
     detail: "",
   }),
 };
-export const RECORDING_LINE =
-  "Recording in Progress. press Alt+R to stop recording.";
-const CLEARED_LINE = "Session memory has been cleared";
 
 const OFF: PanelState = {
   auto: false,
@@ -145,7 +141,6 @@ export function usePanelSession(
   const grabbingRef = useRef(false);
   grabbingRef.current = grabbing;
   // System lines of the chat, and the time before which rows were cleared.
-  const [system, setSystem] = useState<SystemLine[]>([]);
   const [clearedAt, setClearedAt] = useState(0);
   const toastSeq = useRef(0);
   // Every toast's timer, so none fires after the window is gone.
@@ -167,12 +162,6 @@ export function usePanelSession(
     }, TOAST_MS);
     toastTimers.current.add(timer);
   }, []);
-  const addSystem = useCallback((text: string) => {
-    const at = Date.now();
-    setSystem((now) =>
-      [...now, { key: `sys-${at}-${now.length}`, text, at }].slice(-MAX_LINES),
-    );
-  }, []);
   const addLine = useCallback(
     (kind: ChatEntry["kind"], text: string, at = Date.now()) =>
       setEntries((now) =>
@@ -189,7 +178,6 @@ export function usePanelSession(
     if (lastSession.current === sessionId) return;
     lastSession.current = sessionId;
     setEntries([]);
-    setSystem([]);
     setClearedAt(0);
     setDraft("");
     setNote(null);
@@ -603,11 +591,9 @@ export function usePanelSession(
 
   function clearMemory(announce: boolean) {
     setEntries([]);
-    setSystem([]);
     setClearedAt(Date.now());
     setDraft("");
     setNote(null);
-    addSystem(CLEARED_LINE);
     if (announce) bus.post({ type: "clear", sessionId: sessionNow.current });
   }
 
@@ -715,21 +701,16 @@ export function usePanelSession(
     lastSkill.current = skill;
     toast(TOAST_TEXT.skillChanged(skill));
   }, [skill, toast]);
-  // Recording starts or stops (here or in the owner's document): the toast and,
-  // when it starts, the chat's system line.
+  // Recording starts or stops (here or in the owner's document): the toast. The
+  // transcript says nothing about it; the footer's record icon is the one
+  // "live" indicator.
   const recording = live.mic === "listening";
   const lastRecording = useRef(recording);
   useEffect(() => {
     if (lastRecording.current === recording) return;
     lastRecording.current = recording;
     toast(TOAST_TEXT.recording());
-    if (recording) addSystem(RECORDING_LINE);
-  }, [recording, toast, addSystem]);
-  // A session that is already recording when this panel opens says so once.
-  const recordingOnOpen = useRef(recording);
-  useEffect(() => {
-    if (recordingOnOpen.current) addSystem(RECORDING_LINE);
-  }, [addSystem]);
+  }, [recording, toast]);
 
   // ---- Typing -----------------------------------------------------------------
   const send = useCallback(
@@ -805,23 +786,6 @@ export function usePanelSession(
   // what a follow-up, a solve or an added screenshot goes to.
   const shown =
     selected && card ? taskAtRevision(selected, card.revision) : undefined;
-  const markers = useMemo(
-    () =>
-      taskMarkers({
-        tasks,
-        actions: snapshot.actions,
-        observations: snapshot.observations,
-        deviceOnly,
-        noQuestion: model.noQuestion,
-      }),
-    [
-      tasks,
-      snapshot.actions,
-      snapshot.observations,
-      deviceOnly,
-      model.noQuestion,
-    ],
-  );
   const setSkill = useCallback(
     (next: LiveOwnerSkill) =>
       prefs.setSettings({ ...settingsRef.current, skill: next }),
@@ -871,7 +835,6 @@ export function usePanelSession(
     share,
     live,
     entries,
-    system,
     clearedAt,
     skill,
     draft,
@@ -893,7 +856,6 @@ export function usePanelSession(
         focus.pickRevision(selected.taskId, pickOf(selected, revision));
     },
     card,
-    markers,
     // The task a follow-up or an added screen is about, with its label ("T2").
     target: resolved,
     select: setPinned,
@@ -924,8 +886,9 @@ export function usePanelSession(
     run: runOnce,
     engine,
     engineLine: engineLine(engine),
-    // What the owner must act on (refusal, hint, lost or denied mic), or null.
-    engineNeeds: owns ? engineNeeds(engine) : null,
+    // What the owner must act on (refusal, hint, denied mic), or null: a lost
+    // microphone is the toolbar's to say.
+    engineNeeds: owns ? engineStripNeeds(engine) : null,
     // The microphone control is held with the session: one predicate, the
     // engine's own (a non-owner window reads the same from the session state).
     micHeld: owns
