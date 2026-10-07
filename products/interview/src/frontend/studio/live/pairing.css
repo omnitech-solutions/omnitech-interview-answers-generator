@@ -9,18 +9,6 @@
   background: var(--surface);
   min-width: 0;
 }
-.pairing-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.pairing-head h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
 .pairing-credential {
   display: flex;
   flex-direction: column;
