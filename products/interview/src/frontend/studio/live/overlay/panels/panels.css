@@ -601,12 +601,13 @@
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 6px 10px;
   min-height: 0;
 }
 .pn-task-bar-end {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -628,6 +629,7 @@
 .pn-regenerate {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-top: 12px;
 }
 .pn-task-bar-rev {

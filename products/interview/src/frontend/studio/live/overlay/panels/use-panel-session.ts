@@ -8,6 +8,7 @@
 // goes through the same owner capture route, with the owner's region, as the
 // card's; a device-only session never sends one.
 import type {
+  LiveOwnerLanguage,
   LiveOwnerSkill,
   PresentationHost,
 } from "@omnitech/interview-contracts";
@@ -799,6 +800,15 @@ export function usePanelSession(
       prefs.setSettings({ ...settingsRef.current, skill: next }),
     [prefs.setSettings],
   );
+  // The code language hint, the same way: it rides the next owner input (a
+  // regenerate, a capture, a follow-up).
+  const setLanguage = useCallback(
+    (next: LiveOwnerLanguage | "auto") => {
+      const { language: _previous, ...rest } = settingsRef.current;
+      prefs.setSettings(next === "auto" ? rest : { ...rest, language: next });
+    },
+    [prefs.setSettings],
+  );
   // Auto's own numbers, for the strip and the capture menu: the interval in
   // force and the per-session limit, from the one Auto config.
   const autoNow = {
@@ -868,6 +878,9 @@ export function usePanelSession(
     target: resolved,
     select: setPinned,
     setSkill,
+    setLanguage,
+    // The owner's hints in force (skill, code language) for the next problem.
+    hints,
     stop: stopAnalysis,
     auto: autoNow,
     // Set while the newest capture found no question (D36); never a task.

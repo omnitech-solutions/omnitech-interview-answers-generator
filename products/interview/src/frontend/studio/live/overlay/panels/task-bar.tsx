@@ -4,6 +4,11 @@
 // it never changes revisions) and the task's revisions (a menu when it has more
 // than one, plain text when it has one). Library components only.
 import { ActionMenu, Button, Popconfirm } from "@oc-tech/omni-ui-components";
+import {
+  LIVE_OWNER_LANGUAGE_LABELS,
+  LIVE_OWNER_LANGUAGES,
+  type LiveOwnerLanguage,
+} from "@omnitech/interview-contracts";
 import { useCallback, useState } from "react";
 import { Icon } from "../../../icon";
 import { revisionLine, revisionList } from "../../shared/revisions";
@@ -11,9 +16,13 @@ import { nativeChord } from "../../shared/shortcuts";
 import { taskChips } from "./panel-model";
 import type { PanelSession } from "./panel-views";
 
+const isOwnerLanguage = (value: string): value is LiveOwnerLanguage =>
+  (LIVE_OWNER_LANGUAGES as readonly string[]).includes(value);
+
 export function TaskBar({ s }: { s: PanelSession }) {
   const [open, setOpen] = useState(false);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   // The menu portals into the panel root, like the toolbar's menus.
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const bar = useCallback((node: HTMLDivElement | null) => {
@@ -42,6 +51,15 @@ export function TaskBar({ s }: { s: PanelSession }) {
   if (!current && !drafting) return null;
   const currentText = drafting ? "Select problem…" : current?.text;
   const running = card.stages.some((stage) => stage.state === "running");
+  // The language on show: the task's code when it has some, else the hint.
+  const shownLanguage: LiveOwnerLanguage | "auto" =
+    !drafting && card.code && isOwnerLanguage(card.code.language)
+      ? card.code.language
+      : s.hints.language;
+  const languageLabel =
+    shownLanguage === "auto"
+      ? "Language: auto"
+      : LIVE_OWNER_LANGUAGE_LABELS[shownLanguage];
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">
       <Popconfirm
@@ -63,6 +81,45 @@ export function TaskBar({ s }: { s: PanelSession }) {
           Capture new problem
         </Button>
       </Popconfirm>
+      {/* The code language: the problem on show's own, else the hint in force.
+          Choosing sets the hint for the problems to come. */}
+      <ActionMenu
+        label="Code language"
+        title="Code language for new problems"
+        width={240}
+        container={root}
+        open={languageOpen}
+        onOpenChange={setLanguageOpen}
+        sections={[
+          {
+            id: "language",
+            selection: "single",
+            value: shownLanguage,
+            items: [
+              { id: "auto", label: "Detected from the screen" },
+              ...LIVE_OWNER_LANGUAGES.map((id) => ({
+                id,
+                label: LIVE_OWNER_LANGUAGE_LABELS[id],
+              })),
+            ],
+          },
+        ]}
+        onValueChange={(_group, id) =>
+          s.setLanguage(id as LiveOwnerLanguage | "auto")
+        }
+        trigger={
+          <Button
+            buttonSize="sm"
+            variant="outline"
+            icon={<Icon name="code" />}
+            iconAfter={<Icon name="expand_more" />}
+            aria-label={`Code language: ${languageLabel}`}
+            data-testid="pn-language"
+          >
+            {languageLabel}
+          </Button>
+        }
+      />
       <div className="pn-task-bar-end">
         <ActionMenu
           label="Problem"
