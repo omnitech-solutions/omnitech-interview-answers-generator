@@ -599,6 +599,9 @@ function renderPrompt(
 
 type Output = z.infer<typeof outputSchema>;
 
+// What a STAR element reads when the approved experience cannot carry it.
+const STAR_FROM_MEMORY = "Not in your approved experience, say it from memory.";
+
 // [DOMAIN] The experience matrix never blocks an answer (owner's rule, 2026-10-07).
 // Grounding is enforced by SUBTRACTION: a STAR element whose text carries a
 // figure the cited claims do not support, or that cites no matrix-backed
@@ -1086,10 +1089,28 @@ export function createAssistStage(
             );
       };
       if (output.category !== "logistics" && verifyDraft(output.draft).length) {
+        // Finest cut first: a point that fails keeps the sentences of it that
+        // pass; a labelled STAR element with nothing left keeps its label and
+        // says so ("say it from memory"), so the story stays whole on screen;
+        // an unlabelled point with nothing left is dropped.
         const points = output.draft.split(/\n(?=- )/);
-        const kept = points.filter((point) => verifyDraft(point).length === 0);
-        if (kept.length > 0 && kept.length < points.length)
-          output = { ...output, draft: kept.join("\n") };
+        const kept = points.flatMap((point) => {
+          if (verifyDraft(point).length === 0) return [point];
+          const label = /^- (\*\*[A-Za-z ]+:\*\*)\s*/.exec(point);
+          const body = label
+            ? point.slice(label[0].length)
+            : point.replace(/^- /, "");
+          const sentences = body
+            .split(/(?<=[.!?])\s+/)
+            .filter((sentence) => sentence.trim() !== "");
+          const surviving = sentences.filter(
+            (sentence) => verifyDraft(`- ${sentence}`).length === 0,
+          );
+          if (surviving.length > 0)
+            return [`- ${label ? `${label[1]} ` : ""}${surviving.join(" ")}`];
+          return label ? [`- ${label[1]} ${STAR_FROM_MEMORY}`] : [];
+        });
+        if (kept.length > 0) output = { ...output, draft: kept.join("\n") };
       }
       const verified = verifyClaims(
         output.claims,
