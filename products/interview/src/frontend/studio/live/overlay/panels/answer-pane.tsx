@@ -102,7 +102,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   const copying = useCopy(s);
   // A new problem captured and not yet applied: the pane shows the empty state
   // with the staged screenshots (the same screen as a session's first problem),
-  // never the previous task's answer.
+  // never the previous task's answer or stored screenshots.
   const drafting = s.open && s.tray.intent === "new" && s.tray.items.length > 0;
   const showSteps = !drafting && stepsShown(s);
   const stopped =
@@ -112,8 +112,8 @@ export function AnswerPane({ s }: { s: PanelSession }) {
     tray: s.tray,
     tenant: s.tenant,
     sessionId: s.session?.id ?? null,
-    taskId: s.selected?.taskId ?? null,
-    taskLabel: card?.label ?? null,
+    taskId: drafting ? null : (s.selected?.taskId ?? null),
+    taskLabel: drafting ? null : (card?.label ?? null),
     version: actionsVersion(s.snapshot.actions),
     policy: s.session?.processingPolicy ?? null,
   });
@@ -158,7 +158,11 @@ export function AnswerPane({ s }: { s: PanelSession }) {
         data-testid="pn-analysis"
         className="pn-answer-panel"
         bodyClassName="pn-answer-body"
-        {...(answered ? { subtitle: `${card.label} · ${card.name}` } : {})}
+        {...(drafting
+          ? { subtitle: "New problem" }
+          : answered
+            ? { subtitle: `${card.label} · ${card.name}` }
+            : {})}
         meta={meta}
         actions={
           s.phase ? (
