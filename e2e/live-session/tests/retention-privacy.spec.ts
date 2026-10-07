@@ -111,6 +111,7 @@ test("retention delete-at-end: ending the session purges everything it stored, d
   live,
   page,
 }) => {
+  test.slow(); // ends a session and checks every purged row and artifact (16 s)
   const { id } = await sessionWithContent("delete-at-end");
   const before = await footprint(id);
   expect(before.observations).toBe(2);
@@ -147,6 +148,7 @@ test("retention thirty-days and until-deleted: ending keeps every row and artifa
   live,
   page,
 }) => {
+  test.slow(); // ends, then deletes, checking every row (30 s)
   // 30 days: ended, kept, with the date it will go on the page.
   const thirty = await sessionWithContent("thirty-days");
   const thirtyBefore = await footprint(thirty.id);

@@ -272,6 +272,7 @@ test("web ended Delete session data: asks first, then removes the session's cont
   control,
   page,
 }) => {
+  test.slow(); // waits for the purge to land (33 s)
   await control.scenario("plain-answer");
   const { id, response } = await startSessionViaApi({ liveAssistance: true });
   await hearQuestion(response.credential.value, 0);

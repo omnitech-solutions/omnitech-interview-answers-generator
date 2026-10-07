@@ -128,6 +128,7 @@ test("@native native Auto after a no-question capture: it holds through a small 
   openPanel,
   control,
 }) => {
+  test.slow(); // waits out two Auto intervals (18 s under 4-shard load)
   await control.scenario("no-question");
   const { page, id, host } = await openPanel({ auto: "on" });
   await expect(page.getByText("Auto · watching the screen")).toBeVisible();

@@ -193,6 +193,7 @@ test("web banner stream unreachable: appears when Studio cannot be reached, offe
   live,
   page,
 }) => {
+  test.slow(); // waits for the stream to drop and return (17 s)
   await startMacSession();
   await open(live);
   await expect(banner(page, "stream-unreachable")).toHaveCount(0);
