@@ -48,9 +48,14 @@ test("@native native T31 Auto with the engine present: over 30 seconds the page 
 
   // The shell now refuses to start (a transient store failure): the old page
   // started dictation + the meter here, which raised the WebKit prompt.
+  // Design change: Auto/Manual no longer touch the microphone (it listens in
+  // both), so the restart is the microphone press itself: stop, then start.
   await host.setEngineRefusal("store-failed");
   await chooseCaptureMode(page, "Manual");
   await chooseCaptureMode(page, "Auto");
+  await micButton(page).click();
+  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
+  await micButton(page).click();
   // The shell refused: the engine is not listening, so the label says so.
   await expect(micButton(page)).toHaveAccessibleName("Start microphone");
   await expect
@@ -62,8 +67,7 @@ test("@native native T31 Auto with the engine present: over 30 seconds the page 
 
   // The shell recovers and the engine restarts: still nothing from the page.
   await host.setEngineRefusal(null);
-  await chooseCaptureMode(page, "Manual");
-  await chooseCaptureMode(page, "Auto");
+  await micButton(page).click();
   await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
   await page.clock.runFor(30_000);
   expect(await spies.asked()).toEqual(nothingAsked);
@@ -93,7 +97,11 @@ test("@native native T31 Auto from the start with an engine that refuses: the pa
   expect((await spies.speech.stats()).started).toBe(0);
 });
 
-test("@native native T31 Manual microphone press with an engine present: falls back to browser dictation, never asks for the microphone's level meter, and a second press stops it", async ({
+// Design change (native-ui-swap-plan 4.3): the microphone keeps listening in
+// Manual, so with an engine present the press drives the ENGINE (stop, start)
+// in Manual too; browser dictation is only the no-engine fallback. The T31
+// point stays: no recogniser, no getUserMedia meter.
+test("@native native T31 Manual microphone press with an engine present: stops and restarts the engine, never builds a recogniser or asks for the microphone's level meter", async ({
   openPanel,
 }) => {
   const { page, host } = await openPanel({
@@ -102,24 +110,25 @@ test("@native native T31 Manual microphone press with an engine present: falls b
   });
   const spies = spiesFor(page);
   await expectCaptureMode(page, "Manual");
+  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
   await host.clear();
   expect(await spies.asked()).toEqual(nothingAsked);
 
   await micButton(page).click();
 
-  // Browser dictation took the press: one recogniser listening; the engine was
-  // not started and the page opened no getUserMedia meter (the shell would
-  // prompt for it).
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(1);
-  expect((await spies.asked()).speechConstructed).toBe(1);
-  expect((await spies.asked()).getUserMedia).toBe(0);
-  expect(await host.calls("engine.start")).toEqual([]);
-  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
+  await expect
+    .poll(async () => (await host.calls("engine.stop")).length)
+    .toBe(1);
+  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
+  expect(await spies.asked()).toEqual(nothingAsked);
 
   await micButton(page).click();
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(0);
-  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
-  expect((await spies.asked()).getUserMedia).toBe(0);
+  await expect
+    .poll(async () => (await host.calls("engine.start")).length)
+    .toBe(1);
+  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
+  expect(await spies.asked()).toEqual(nothingAsked);
+  expect((await spies.speech.stats()).started).toBe(0);
 });
 
 test("@native native T31 Start session on the setup page in a shell with an engine: the click asks for no microphone and the engine takes over", async ({

@@ -248,19 +248,21 @@ test("@native shortcuts ⌘↑ and ⌘↓ answer style: step through the styles"
   await context.close();
 });
 
-test("@native shortcut ⌘⇧\\ Clear session memory: the chat is cleared and says so", async ({
+test("@native shortcut ⌘⇧\\ Clear session memory: the chat is cleared", async ({
   browser,
   stack,
 }) => {
   const { context, page, host } = await openPanel(browser, stack);
   const log = page.getByRole("log", { name: "Transcript and chat" });
-  // The conversation has a line to clear: the recording notice.
-  await expect(log).toContainText("Recording in Progress.");
+  // The conversation has a line to clear: the captured task's row. (Design
+  // change, requirement M1: the transcript holds no system lines, so the old
+  // "Recording in Progress." / "Session memory has been cleared" lines are gone
+  // and the clear is observable only as the rows disappearing.)
+  await expect(log).toContainText("Restate the question aloud");
 
   await host.fireIntent("session.clear");
 
-  await expect(log).toContainText("Session memory has been cleared");
-  await expect(log).not.toContainText("Recording in Progress.");
+  await expect(log).not.toContainText("Restate the question aloud");
   await context.close();
 });
 
@@ -298,27 +300,36 @@ test("@native shortcut ⌘⇧I See-through: the intent flips See-through, the cl
   await context.close();
 });
 
-test("@native shortcut ⌥R Listening on or off: in Manual the intent starts and stops the microphone and the button label follows", async ({
+// Design change (native-ui-swap-plan 4.3): the microphone keeps listening in
+// Manual, so the shell's engine (not browser dictation) owns it in both modes.
+test("@native shortcut ⌥R Listening on or off: in Manual the intent stops and restarts the shell's engine and the button label follows", async ({
   browser,
   stack,
 }) => {
-  // Manual: Auto (and with it the shell's engine) is off, so the microphone is
-  // the button's to start.
   const { context, page, host, spies } = await openPanel(browser, stack, {
     auto: "off",
   });
   await expectCaptureMode(page, "Manual");
-  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(0);
+  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
+  await expect
+    .poll(async () => (await host.calls("engine.start")).length)
+    .toBe(1);
+  await host.clear();
 
   await host.fireIntent("transcribe.toggle");
-  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(1);
+  await expect
+    .poll(async () => (await host.calls("engine.stop")).length)
+    .toBe(1);
+  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
 
   await nextPress(page);
   await host.fireIntent("transcribe.toggle");
-  await expect(micButton(page)).toHaveAccessibleName("Start microphone");
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(0);
+  await expect
+    .poll(async () => (await host.calls("engine.start")).length)
+    .toBe(1);
+  await expect(micButton(page)).toHaveAccessibleName("Stop microphone");
+  // Never a browser recogniser beside the engine.
+  expect((await spies.speech.stats()).listening).toBe(0);
   await context.close();
 });
 
@@ -400,9 +411,10 @@ test("@native web chords on the panel: Alt+Shift+F focuses the chat, Alt+Shift+H
   );
 
   await page.keyboard.press("Alt+Shift+C");
+  // M1: no "Session memory has been cleared" line any more; the rows go.
   await expect(
     page.getByRole("log", { name: "Transcript and chat" }),
-  ).toContainText("Session memory has been cleared");
+  ).not.toContainText("Restate the question aloud");
   await context.close();
 });
 
