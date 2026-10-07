@@ -95,6 +95,16 @@ afterEach(() => {
 });
 
 describe("the Revisions control", () => {
+  it("offers Capture new problem above the task line once an answer is on show", () => {
+    const button = screen.getByTestId("pn-capture-new");
+    expect(button).toHaveAccessibleName(/^Capture new problem/);
+    expect(button).not.toBeDisabled();
+    const line = screen.getByTestId("pn-task-line");
+    expect(
+      button.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("names the revision on show and lists every revision, the current one marked", () => {
     expect(screen.getByTestId("pn-task-line")).toHaveTextContent(
       "T1 · rev 2 of 2",

@@ -257,6 +257,24 @@ export function AnswerPane({ s }: { s: PanelSession }) {
           </Empty>
         ) : (
           <div className="pn-answer-content" data-testid="pn-answer">
+            <div className="pn-answer-capture">
+              <Button
+                buttonSize="sm"
+                variant="outline"
+                icon={<Icon name="screenshot_monitor" />}
+                shortcut={[...nativeChord("analyze")]}
+                disabled={
+                  !s.open ||
+                  (card?.stages.some((stage) => stage.state === "running") ??
+                    false)
+                }
+                aria-label={`Capture new problem ${nativeChord("analyze")}`}
+                data-testid="pn-capture-new"
+                onClick={() => s.press("capture")}
+              >
+                Capture new problem
+              </Button>
+            </div>
             {s.noQuestionLine && (
               <p
                 className="pn-muted"

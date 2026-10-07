@@ -593,6 +593,12 @@
 .pn-single-confirm {
   flex: none;
 }
+/* The answer's first row: capture the next problem without leaving the pane. */
+.pn-answer-capture {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
 
 /* The footer is the library's session bar: it draws its own surface, and that
    surface never changes with the session's state. */
