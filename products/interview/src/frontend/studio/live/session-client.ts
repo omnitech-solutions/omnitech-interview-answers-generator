@@ -137,6 +137,9 @@ export type SessionClient = {
     sessionId: string,
     requestId: string,
     target: { taskId: string; revision: number },
+    // The owner's hints in force (the code language above all): the new
+    // revision is generated with them, like any other owner input.
+    hints?: { skill?: LiveOwnerSkillHint; language?: LiveOwnerLanguageHint },
   ): Promise<void>;
   // The screenshots a task's revisions rest on, oldest first: ids, S-ordinals,
   // times, the engine that read each one's text, never image bytes or text.
@@ -371,13 +374,15 @@ export function createSessionClient(
         liveOwnerCaptureResponseSchema,
       );
     },
-    async regenerate(sessionId, requestId, target) {
+    async regenerate(sessionId, requestId, target, hints) {
       await read(
         await post(at(sessionId, "/input"), {
           requestId,
           operation: "regenerate",
           target,
           snapshots: [],
+          ...(hints?.skill ? { skill: hints.skill } : {}),
+          ...(hints?.language ? { language: hints.language } : {}),
         } satisfies LiveOwnerInputRequest),
         liveOwnerInputResponseSchema,
       );

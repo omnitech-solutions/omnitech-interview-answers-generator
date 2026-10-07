@@ -303,12 +303,14 @@ describe("screenshots on the answer page", () => {
       jsonResponse(listing),
       jsonResponse({ taskId: "task-a", screenshots: [{ bad: true }] }),
     );
-    await client.regenerate(SESSION_ID, "r-1", T);
+    await client.regenerate(SESSION_ID, "r-1", T, { language: "php" });
+    // The owner's code language rides the regenerate: the new revision is PHP.
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       requestId: "r-1",
       operation: "regenerate",
       target: T,
       snapshots: [],
+      language: "php",
     });
     expect(await client.listTaskScreenshots(SESSION_ID, "task a")).toEqual(
       listing,

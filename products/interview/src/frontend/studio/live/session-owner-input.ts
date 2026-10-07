@@ -142,7 +142,10 @@ export function ownerInputDeps(
       // request (a new revision of the target, or a new task without one).
       if (input.images.length === 0) {
         if (!target) throw new SessionApiError("invalid_input", 0);
-        await client.regenerate(sessionId, input.requestId, target);
+        await client.regenerate(sessionId, input.requestId, target, {
+          ...(input.skill ? { skill: input.skill } : {}),
+          ...(input.language ? { language: input.language } : {}),
+        });
         return;
       }
       await client.sendCapture(sessionId, {
