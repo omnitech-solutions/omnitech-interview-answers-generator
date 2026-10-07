@@ -181,8 +181,18 @@ async function readBounded(
   });
 }
 
+// A C0 control character in a link target is never legitimate.
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((char) => char.charCodeAt(0) <= 0x1f);
+}
+
 function safeHyperlink(target: string): boolean {
-  if (target.length > 2_048 || /[\s\u0000-\u001f<>]/.test(target)) return false;
+  if (
+    target.length > 2_048 ||
+    /[\s<>]/.test(target) ||
+    hasControlCharacter(target)
+  )
+    return false;
   if (/^mailto:/i.test(target)) {
     return (
       /^mailto:[^@/?#\s]+@[^@/?#\s]+(?:\?[^\s]*)?$/i.test(target) &&

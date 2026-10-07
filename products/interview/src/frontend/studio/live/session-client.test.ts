@@ -251,14 +251,14 @@ describe("screenshots on the answer page", () => {
       display: [display, null],
     });
     expect(
-      JSON.parse(String((calls[0]?.init?.body as FormData).get("display"))),
+      JSON.parse(String((calls[0]!.init!.body as FormData).get("display"))),
     ).toEqual([display, null]);
     await client.sendCapture(SESSION_ID, {
       requestId: "r-2",
       images: [new Blob(["one"]), new Blob(["two"])],
       display: [null, null],
     });
-    expect((calls[1]?.init?.body as FormData).has("display")).toBe(false);
+    expect((calls[1]!.init!.body as FormData).has("display")).toBe(false);
   });
 
   it("sends no ocr field when no image was read, and no target for a new task", async () => {

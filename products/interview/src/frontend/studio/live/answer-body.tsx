@@ -2,6 +2,8 @@
 // bold key terms, never markup) with a Copy button, the claims behind it (each with its provenance chip), STAR sections
 // for a behavioural question, and what was found or is missing for logistics.
 // The draft and every claim are session content: inert text only.
+
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { ClaimList } from "./claim-chips";
 import type {
@@ -12,7 +14,6 @@ import type {
 import type { TaskView } from "./session-tasks";
 import { DraftPoints, plainDraft } from "./shared/draft-text";
 import type { TaskCard } from "./shared/task-card-model";
-import { Button } from "../../ui";
 
 const STAR_LABEL: Record<StarElement, string> = {
   situation: "Situation",

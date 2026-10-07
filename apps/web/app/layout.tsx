@@ -9,7 +9,7 @@ import "@omnitech/product-interview/studio.css";
 import "@omnitech/product-presentation/presentation.css";
 
 import type { Metadata } from "next";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: {

@@ -15,7 +15,7 @@ import { snapshotProvenanceId } from "./owner-input";
 import { ActiveSessionRepository } from "./repository";
 import {
   createSessionScreenshotLoader,
-  ScreenshotLoadError,
+  type ScreenshotLoadError,
 } from "./screenshot-loader";
 
 let fx: Fixture;

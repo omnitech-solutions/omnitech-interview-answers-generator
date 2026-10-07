@@ -8,6 +8,7 @@
 // (rule:inert-draft-rendering). Nothing here sends or submits anything.
 import { type Language, languageSchema } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { PreviewedCode } from "../workspace/assistant-change";
 import type { SessionDraftState } from "../workspace/workspace-view";
@@ -20,7 +21,6 @@ import {
   stateLines,
 } from "./session-draft-facts";
 import type { CodeResult } from "./session-results";
-import { Button } from "../../ui";
 
 const EDITED_NOTE =
   "You’ve edited this draft. Any later AI result will be offered as a suggestion, not applied.";

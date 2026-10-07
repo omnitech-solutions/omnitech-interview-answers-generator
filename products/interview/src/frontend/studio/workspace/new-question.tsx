@@ -7,9 +7,9 @@ import {
   type ExampleTemplate,
   exampleTemplates,
 } from "../../example-templates";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { LANGUAGE_LABELS } from "./stages";
-import { Button } from "../../ui";
 
 const LANGUAGES: readonly { id: LanguageSelection; label: string }[] = [
   { id: "auto", label: "Auto-detect language" },

@@ -1,9 +1,9 @@
 import type { ProductMember } from "@omnitech/platform-contracts";
 import { useEffect, useId, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { getSessionStore, tenantFromLocation } from "../live/session-registry";
 import { goTo } from "./navigate";
 import { signedOutPath, signOutOfBrowser } from "./sign-out";
-import { Button } from "../../ui";
 
 // The sign-out confirmation. With a live session it warns, and confirming ends
 // the session first (so capture stops) and only then signs out; if the

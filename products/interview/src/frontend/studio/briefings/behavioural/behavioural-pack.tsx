@@ -10,6 +10,7 @@ import type {
 import type { HostHooks } from "@omnitech-assistant/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { packAssistant } from "../../../assistant-config";
+import { Button } from "../../../ui";
 import { useStudio } from "../../context";
 import { Icon } from "../../icon";
 import { studioFetch, studioFetchUntil } from "../../studio-fetch";
@@ -25,7 +26,6 @@ import {
   SetupCard,
   setupOf,
 } from "./setup-card";
-import { Button } from "../../../ui";
 
 // The same JSON whatever order its keys arrive in: the server returns packs
 // as Postgres stores them (jsonb reorders object keys), not as they were sent.

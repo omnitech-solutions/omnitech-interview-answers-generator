@@ -8,6 +8,7 @@
 // saved copy.
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { type KeyboardEvent, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { AnswerBody } from "./answer-body";
 import { LiveCodeCanvas } from "./overlay/code-canvas";
@@ -20,7 +21,6 @@ import {
   type TaskCard,
 } from "./shared/task-card-model";
 import { useSessionDraftLink } from "./workspace-handoff";
-import { Button } from "../../ui";
 
 type CodingTabId = "answer" | "code";
 const CODING_TABS: readonly { id: CodingTabId; label: string }[] = [

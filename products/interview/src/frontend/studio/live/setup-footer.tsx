@@ -1,8 +1,8 @@
 // The Setup view's sticky footer: "Ready" or the one thing in the way, and the
 // one Start button. A disabled Start points at the reason with aria-describedby.
 import type { Ref } from "react";
-import { Icon } from "../icon";
 import { Button } from "../../ui";
+import { Icon } from "../icon";
 
 export function SetupFooter({
   blocker,

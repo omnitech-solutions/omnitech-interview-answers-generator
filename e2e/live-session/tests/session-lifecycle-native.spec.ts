@@ -146,7 +146,7 @@ test("@native native ended card Open summary: opens the web summary of that sess
     .poll(async () => (await host.calls("openExternal")).length)
     .toBe(1);
   const [call] = await host.calls("openExternal");
-  const url = (call?.params as { url: string }).url;
+  const url = (call!.params as { url: string }).url;
   expect(url).toBe(
     `${stack.webUrl}/t/${stack.tenantSlug}/p/interview/live/${id}`,
   );

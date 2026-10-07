@@ -30,7 +30,7 @@ describe("useStudioTheme", () => {
     window.removeEventListener("platform-theme-change", asked);
     expect(asked).toHaveBeenCalledTimes(1);
     expect(
-      (asked.mock.calls[0]?.[0] as CustomEvent<{ theme: string }>).detail,
+      (asked.mock.calls[0]![0] as CustomEvent<{ theme: string }>).detail,
     ).toEqual({ theme: "light" });
     expect(result.current.theme).toBe("light");
     // The shell, not the hook, owns the DOM attribute and the saved choice.

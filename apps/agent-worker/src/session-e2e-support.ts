@@ -15,10 +15,11 @@ import type {
   AgentRunRequest,
   AgentRuntimeAdapter,
 } from "@omnitech/agent-runtime-contracts";
-import type {
-  AiExecution,
-  AiExecutionRequest,
-  ModelProviderAdapter,
+import {
+  type AiExecution,
+  type AiExecutionRequest,
+  type ModelProviderAdapter,
+  refusedStream,
 } from "@omnitech/ai-contracts";
 import { type AiProfile, createAiExecutionGateway } from "@omnitech/ai-runtime";
 import { withDeclaredLocality } from "@omnitech/ai-runtime/config";
@@ -243,8 +244,8 @@ export function fakeModel(
         result,
       };
     },
-    async *stream() {
-      throw new Error("The fake model only executes.");
+    stream() {
+      return refusedStream("The fake model only executes.");
     },
   };
   return { adapter, requests };

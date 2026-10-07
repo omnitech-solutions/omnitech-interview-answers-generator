@@ -38,7 +38,7 @@ import { captureFailureOf } from "./capture-failure";
 import { loadMask, loadSettings } from "./capture-prefs";
 import type { Frame } from "./capture-source";
 import { FULL } from "./mask-geometry";
-import { type AnalyzeChoice, type AnalyzeVia } from "./overlay-capture";
+import type { AnalyzeChoice, AnalyzeVia } from "./overlay-capture";
 import { failureNote } from "./overlay-footer";
 import { type ChatEntry, captureList } from "./overlay-model";
 import {

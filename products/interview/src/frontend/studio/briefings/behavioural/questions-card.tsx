@@ -1,8 +1,8 @@
 import { briefingCategoryOf } from "@omnitech/interview-contracts";
 import { useState } from "react";
+import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { CATEGORY_LABELS } from "./config";
-import { Button } from "../../../ui";
 
 const MAX_QUESTIONS = 20;
 

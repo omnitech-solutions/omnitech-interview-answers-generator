@@ -20,6 +20,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { ExampleTemplate } from "../../example-templates";
+import { Button } from "../../ui";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
 import { Resizer, useStoredSize } from "../resizer";
@@ -37,7 +38,6 @@ import {
   useCanonicalDraft,
 } from "./use-canonical-draft";
 import { VersionsMenu } from "./versions-menu";
-import { Button } from "../../ui";
 
 // The assistant connection and the question it is bound to.
 export interface WorkspaceAssistant {

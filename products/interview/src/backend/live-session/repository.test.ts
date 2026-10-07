@@ -21,7 +21,7 @@ import {
   credentialExpiry,
   presentedCredentialHash,
 } from "./session-credential";
-import { type SessionJobs } from "./session-jobs";
+import type { SessionJobs } from "./session-jobs";
 
 let fx: Fixture;
 let repo: ActiveSessionRepository;

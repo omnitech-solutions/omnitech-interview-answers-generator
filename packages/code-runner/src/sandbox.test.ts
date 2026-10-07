@@ -342,7 +342,7 @@ describe("runAll with tests", () => {
     );
     const source = (argv: string[]) =>
       (
-        parse(argv).flags.find(([name]) => name === "--volume")?.[1] as string
+        parse(argv).flags.find(([name]) => name === "--volume")![1] as string
       ).split(":/")[0] as string;
     expect(source(first)).not.toBe(source(second));
     const { existsSync } = await import("node:fs");

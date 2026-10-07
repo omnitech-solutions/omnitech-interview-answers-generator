@@ -3,6 +3,7 @@ import type {
   RehearsalReveal,
 } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { useStudio } from "../context";
 import { Icon } from "../icon";
@@ -20,7 +21,6 @@ import {
   loadConcept,
 } from "./material";
 import { Scorecard } from "./scorecard";
-import { Button } from "../../ui";
 
 export type RehearsalSettings = {
   format: RehearsalFormat;

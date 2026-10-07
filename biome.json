@@ -32,11 +32,17 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "none",
+      "preset": "recommended",
       "correctness": {
         "noUnusedImports": "error",
         "noUndeclaredDependencies": "error",
-        "noPrivateImports": "error"
+        "noPrivateImports": "error",
+        "useYield": "error",
+        "noUnsafeOptionalChaining": "error",
+        "noEmptyPattern": "warn",
+        "noEmptyCharacterClassInRegex": "warn",
+        "noUnusedVariables": "warn",
+        "noUnusedFunctionParameters": "warn"
       },
       "style": {
         "noRestrictedImports": {
@@ -49,7 +55,50 @@
               }
             ]
           }
-        }
+        },
+        "noNonNullAssertion": "off",
+        "useImportType": "warn",
+        "useTemplate": "warn",
+        "useConst": "warn"
+      },
+      "a11y": {
+        "useSemanticElements": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useFocusableInteractive": "warn",
+        "noStaticElementInteractions": "warn",
+        "useKeyWithClickEvents": "warn",
+        "noNoninteractiveTabindex": "warn",
+        "useAriaPropsForRole": "warn",
+        "noAriaHiddenOnFocusable": "warn",
+        "noRedundantRoles": "warn",
+        "noNoninteractiveElementToInteractiveRole": "warn",
+        "useMediaCaption": "warn"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noShadowRestrictedNames": "warn",
+        "noImplicitAnyLet": "warn",
+        "noExportsInTest": "warn",
+        "noExplicitAny": "warn",
+        "noUndeclaredEnvVars": "warn",
+        "noConfusingVoidType": "warn",
+        "noTemplateCurlyInString": "warn",
+        "noUselessEscapeInString": "warn",
+        "noControlCharactersInRegex": "error",
+        "noArrayIndexKey": "warn"
+      },
+      "complexity": {
+        "useOptionalChain": "warn",
+        "noCommaOperator": "warn",
+        "useRegexLiterals": "warn",
+        "noBannedTypes": "warn",
+        "noUselessEscapeInRegex": "warn",
+        "noUselessFragments": "warn",
+        "useLiteralKeys": "off"
+      },
+      "performance": {
+        "noAccumulatingSpread": "error"
       }
     }
   },
@@ -111,6 +160,34 @@
         "rules": {
           "correctness": {
             "noUndeclaredDependencies": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.test.ts", "**/*.test.tsx", "e2e/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "warn",
+            "noArrayIndexKey": "warn"
+          },
+          "correctness": {
+            "useYield": "warn",
+            "noEmptyPattern": "warn"
+          },
+          "a11y": {
+            "useSemanticElements": "warn",
+            "useAriaPropsSupportedByRole": "warn",
+            "useFocusableInteractive": "warn",
+            "noStaticElementInteractions": "warn",
+            "useKeyWithClickEvents": "warn",
+            "noNoninteractiveTabindex": "warn",
+            "useAriaPropsForRole": "warn",
+            "noAriaHiddenOnFocusable": "warn",
+            "noRedundantRoles": "warn",
+            "noNoninteractiveElementToInteractiveRole": "warn",
+            "useMediaCaption": "warn"
           }
         }
       }

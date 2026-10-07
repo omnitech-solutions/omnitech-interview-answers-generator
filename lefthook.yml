@@ -1,14 +1,21 @@
+min_version: 2.1.10
+assert_lefthook_installed: true
+glob_matcher: doublestar
+
+# Staged-file jobs only. Biome runs on the staged TypeScript, JSON and JavaScript;
+# `biome check` fails on lint errors and on formatting, warnings do not fail it
+# while the backlog in bionic/inbox/biome-backlog.md is being paid down.
+# Swift runs swift-format (layout) and SwiftLint (correctness) on staged .swift files.
 pre-commit:
   parallel: true
-  commands:
-    lint:
-      run: pnpm lint
-    format:
-      run: pnpm format
-    swift-format:
+  jobs:
+    - name: biome
+      glob: "**/*.{ts,tsx,js,jsx,json,jsonc}"
+      run: pnpm exec biome check --no-errors-on-unmatched {staged_files}
+    - name: swift-format
       glob: "**/*.swift"
       run: node scripts/swift-format.mjs {staged_files}
-    swiftlint:
+    - name: swiftlint
       glob: "**/*.swift"
       run: node scripts/swiftlint.mjs {staged_files}
 

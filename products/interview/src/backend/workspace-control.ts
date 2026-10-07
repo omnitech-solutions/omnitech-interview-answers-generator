@@ -1,8 +1,8 @@
-import {
-  type PlaygroundExplanation,
-  type PlaygroundPatch,
-  type PlaygroundSnapshot,
-  type PlaygroundValue,
+import type {
+  PlaygroundExplanation,
+  PlaygroundPatch,
+  PlaygroundSnapshot,
+  PlaygroundValue,
 } from "@omnitech/interview-playground-control";
 
 const emptyPlayground: PlaygroundValue = {

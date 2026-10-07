@@ -510,7 +510,7 @@ describe("a held session result", () => {
     expect(patches).toHaveLength(1);
     expect(patches[0]?.origin.artifactRevision).toBe(3);
     expect(
-      (patches[0]?.patch as { answer: { code: string } }).answer.code,
+      (patches[0]!.patch as { answer: { code: string } }).answer.code,
     ).toBe(HELD_CODE);
     expect(editor()).toHaveValue(HELD_CODE);
     expect(screen.getByText(/Suggestion applied/)).toBeVisible();

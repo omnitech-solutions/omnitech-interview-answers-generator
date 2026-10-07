@@ -1,8 +1,8 @@
 import type { InterviewPlan, PlanItem } from "@omnitech/interview-contracts";
 import { type FormEvent, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import type { PlanState } from "./use-plan";
-import { Button } from "../../ui";
 
 const when = new Intl.DateTimeFormat(undefined, {
   weekday: "short",

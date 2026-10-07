@@ -1,4 +1,5 @@
 import { formatRelativeTime, formatTimestamp } from "../../format-timestamp";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { runStatus } from "../run-status";
@@ -7,7 +8,6 @@ import { LANGUAGE_LABELS } from "../workspace/stages";
 import { daysUntil, InterviewCard } from "./interview-card";
 import { PlanCard } from "./plan-card";
 import { usePlan } from "./use-plan";
-import { Button } from "../../ui";
 
 const CONTINUE_LIMIT = 8;
 

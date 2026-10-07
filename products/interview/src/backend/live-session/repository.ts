@@ -17,7 +17,7 @@ import {
 } from "@omnitech/interview-contracts";
 import { PostgresAgentJobRepository } from "@omnitech/platform-storage";
 import { and, eq, sql } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
 import { INTERVIEW_PRODUCT_ID } from "../../assistant-profile";
 import { activeSessions } from "../db/live-session";
 import { readCaptureRequest, submitCaptureRequest } from "./capture-request";

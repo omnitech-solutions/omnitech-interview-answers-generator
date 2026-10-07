@@ -144,7 +144,7 @@ describe("Apply", () => {
     expect(applyContext).toHaveBeenCalledTimes(1);
     expect(applyContext.mock.calls[0]?.[0]).toEqual(TARGET);
     expect(
-      (applyContext.mock.calls[0]?.[1] as { images: Blob[] }).images,
+      (applyContext.mock.calls[0]![1] as { images: Blob[] }).images,
     ).toEqual([]);
   });
 
@@ -192,7 +192,7 @@ describe("Apply", () => {
     });
     await settled(() => result.current.apply());
     expect(
-      (applyContext.mock.calls[2]?.[1] as { requestId: string }).requestId,
+      (applyContext.mock.calls[2]![1] as { requestId: string }).requestId,
     ).not.toBe(ids[0]);
   });
 
@@ -257,9 +257,9 @@ describe("text before the model", () => {
       await vi.advanceTimersByTimeAsync(OCR_WAIT_MS);
     });
     expect(applyContext).toHaveBeenCalledTimes(1);
-    expect((applyContext.mock.calls[0]?.[1] as { ocr: unknown[] }).ocr).toEqual(
-      [null],
-    );
+    expect((applyContext.mock.calls[0]![1] as { ocr: unknown[] }).ocr).toEqual([
+      null,
+    ]);
   });
 
   it("re-reads a cropped image: the new blob is recognised and the old read is dropped", async () => {

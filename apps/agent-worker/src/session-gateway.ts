@@ -12,7 +12,7 @@ import type {
   AgentProfile,
   AgentRuntimeAdapter,
 } from "@omnitech/agent-runtime-contracts";
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import { type AiExecutionGateway, refusedStream } from "@omnitech/ai-contracts";
 import { createOpenAiModelAdapter } from "@omnitech/ai-provider-openai";
 import {
   type AgentExecutionPort,
@@ -67,12 +67,12 @@ const noAgents: AgentExecutionPort = {
   async execute() {
     throw new Error("The session gateway runs no agent profiles.");
   },
-  async *stream() {
-    throw new Error("The session gateway runs no agent profiles.");
+  stream() {
+    return refusedStream("The session gateway runs no agent profiles.");
   },
   async cancel() {},
-  async *resume() {
-    throw new Error("The session gateway runs no agent profiles.");
+  resume() {
+    return refusedStream("The session gateway runs no agent profiles.");
   },
 };
 

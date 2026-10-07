@@ -27,11 +27,11 @@ import {
 } from "@omnitech/interview-contracts";
 import type { CodingBrief } from "./assist-stage";
 import { type CodeStates, codeStates, type RunFacts } from "./code-states";
-import {
-  type CodingSolution,
-  type CodingStage,
-  type FailedAttempt,
-  type PriorSolution,
+import type {
+  CodingSolution,
+  CodingStage,
+  FailedAttempt,
+  PriorSolution,
 } from "./coding-stage";
 import type { Task } from "./core/index";
 import {

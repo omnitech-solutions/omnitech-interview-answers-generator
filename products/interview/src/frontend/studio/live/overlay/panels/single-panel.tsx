@@ -25,8 +25,8 @@ import {
   CodePanel,
   type PanelSession,
 } from "./panel-views";
-import { PAUSED_NOTICE } from "./strip-model";
 import { StatusStrip, useStrip } from "./status-strip";
+import { PAUSED_NOTICE } from "./strip-model";
 import { openSessionSummary } from "./summary-link";
 import { Toolbar } from "./toolbar";
 import {
