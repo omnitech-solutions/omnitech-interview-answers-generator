@@ -78,6 +78,12 @@ export type EngineView = {
   // Auto is on for an open session: the engine is the listener the press drives.
   wanted: boolean;
   toggleMic(): void;
+  // "Retry now" in the microphone menu: the shell's own retry when it has one,
+  // else a restart of the engine (the same as the press on a lost microphone).
+  retryMic(): void;
+  // Listen to this device (an id from state.microphoneDevices); null follows
+  // the system default. A no-op on a shell without device choice.
+  selectMic(deviceId: string | null): void;
 };
 
 export function useEngine(input: {
@@ -210,6 +216,51 @@ export function useEngine(input: {
     });
   }, [enqueue]);
 
+  // One shell call for the microphone menu (retry now, choose a device), through
+  // the same chain and pending guard as the press.
+  const askShell = useCallback(
+    (
+      call: (engine: EngineHost) => (() => Promise<EngineReply>) | undefined,
+    ) => {
+      const now = latest.current;
+      const engine = now.host;
+      if (!engine || !now.input.sessionId || !now.input.wanted) return false;
+      if (micPendingRef.current || startingRef.current) return false;
+      const asked = call(engine);
+      if (!asked) return false;
+      micPendingRef.current = true;
+      setMicPending(true);
+      const mine = generation.current;
+      void enqueue(() => settle(asked)).then((reply) => {
+        micPendingRef.current = false;
+        setMicPending(false);
+        if (generation.current === mine && reply.ok) setState(reply.engine);
+      });
+      return true;
+    },
+    [enqueue],
+  );
+  const retryMic = useCallback(() => {
+    const now = latest.current;
+    if (now.input.paused || now.state?.paused === true) return;
+    const shellRetry = askShell((engine) =>
+      engine.retryMicrophone ? () => engine.retryMicrophone!() : undefined,
+    );
+    if (shellRetry) return;
+    // No shell retry: restart (or start) the engine, never stop a live one.
+    if (now.state?.sources.microphone !== "listening") toggleMic();
+  }, [askShell, toggleMic]);
+  const selectMic = useCallback(
+    (deviceId: string | null) => {
+      askShell((engine) =>
+        engine.selectMicrophone
+          ? () => engine.selectMicrophone!(deviceId)
+          : undefined,
+      );
+    },
+    [askShell],
+  );
+
   const action = micAction({
     wanted: input.wanted && input.sessionId !== null,
     paused: input.paused,
@@ -230,6 +281,8 @@ export function useEngine(input: {
     micHeld: host !== null && action === "held",
     wanted: input.wanted && input.sessionId !== null,
     toggleMic,
+    retryMic,
+    selectMic,
     listening:
       host !== null &&
       input.wanted &&

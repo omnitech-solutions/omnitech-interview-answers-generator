@@ -12,6 +12,7 @@ import type {
   StudioHostDisplaySelectResult,
 } from "@omnitech/interview-contracts";
 import { useSyncExternalStore } from "react";
+import { noteScreenProblem } from "./screen-problems";
 
 export type CaptureSource = {
   // The display of the last capture or watch change; null when the shell has
@@ -99,7 +100,22 @@ export function reduceSource(
 let current = INITIAL_SOURCE;
 const listeners = new Set<() => void>();
 
+// What an echo from the shell means for the problems kept on show: a dropped
+// pin or a refused selection raises the display problem; a chosen display
+// ends it; a frame from a capture ends every problem a failed capture raised.
+function noteProblemsFrom(event: SourceEvent): void {
+  const dropped =
+    (event.kind === "capture" || event.kind === "pin") &&
+    event.pinFallback === "display-unavailable";
+  if (dropped || (event.kind === "select" && !event.result.ok))
+    noteScreenProblem({ kind: "problem", problem: "display-disconnected" });
+  else if (event.kind === "select")
+    noteScreenProblem({ kind: "display-chosen" });
+  else if (event.kind === "capture") noteScreenProblem({ kind: "capture-ok" });
+}
+
 export function noteSource(event: SourceEvent): void {
+  noteProblemsFrom(event);
   const next = reduceSource(current, event);
   if (next === current) return;
   current = next;

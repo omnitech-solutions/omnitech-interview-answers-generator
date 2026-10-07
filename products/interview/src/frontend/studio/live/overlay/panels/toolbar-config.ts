@@ -1,9 +1,14 @@
 // What the one window's controls are, as data. The toolbar, the pane toggles,
 // the window's width and the footer buttons are all drawn from these tables, so
 // adding a pane or a mode is one entry here and nothing else changes.
+import {
+  LIVE_OWNER_SKILL_LABELS,
+  type LiveOwnerSkill,
+} from "@omnitech/interview-contracts";
 import type { IconName } from "../../../icon";
-import { nativeChord } from "../../shared/shortcuts";
+import { nativeChord, SHORTCUTS } from "../../shared/shortcuts";
 import { AUTO_MAX_PER_SESSION } from "../auto-gate";
+import type { Command } from "./commands";
 
 // ---- Capture modes ------------------------------------------------------------
 
@@ -447,5 +452,142 @@ export function answerSteps(
   return ANSWER_STEPS.map((step, index) => ({
     ...step,
     state: index < at ? "done" : index === at ? "active" : "waiting",
+  }));
+}
+
+// ---- Answer styles, grouped -----------------------------------------------------
+
+// The nine answer styles (the contract's skills) in the two groups the menu
+// shows. Every skill is in exactly one group, in the contract's own order inside
+// it (the Alt+] / Alt+[ ring is unchanged).
+export const ANSWER_STYLE_GROUPS = [
+  {
+    id: "technical",
+    label: "Technical",
+    styles: ["programming", "dsa", "system-design", "data-science", "devops"],
+  },
+  {
+    id: "conversation",
+    label: "Conversation",
+    styles: ["behavioral", "sales-business", "presentation", "negotiation"],
+  },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  styles: readonly LiveOwnerSkill[];
+}[];
+export type AnswerStyleGroupId = (typeof ANSWER_STYLE_GROUPS)[number]["id"];
+
+// The rows of the answer-style menu: each group's label and its styles, with the
+// one in use checked. `current` is the skill on show (undefined: the default).
+export function answerStyleRows(current: LiveOwnerSkill | undefined): {
+  id: AnswerStyleGroupId;
+  label: string;
+  styles: { id: LiveOwnerSkill; label: string; checked: boolean }[];
+}[] {
+  return ANSWER_STYLE_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    styles: group.styles.map((id) => ({
+      id,
+      label: LIVE_OWNER_SKILL_LABELS[id],
+      checked: id === current,
+    })),
+  }));
+}
+
+// ---- Shortcut groups ------------------------------------------------------------
+
+// The keys popover's groups. Each entry names a command the page already binds
+// (COMMAND_KEYS) or a chord only the Mac shell registers (shortcuts.ts); the
+// chord text is read from those tables, never retyped here, so the bindings stay
+// as they are and the parity tests against Hotkeys.swift keep covering them.
+export const SHORTCUT_GROUPS = [
+  {
+    id: "capture",
+    label: "Capture",
+    items: [
+      { kind: "command", id: "capture.analyze" },
+      { kind: "command", id: "solution.generate" },
+    ],
+  },
+  {
+    id: "listening",
+    label: "Listening",
+    items: [
+      { kind: "command", id: "transcribe.toggle" },
+      { kind: "command", id: "auto.toggle" },
+    ],
+  },
+  {
+    id: "view",
+    label: "View",
+    items: [
+      { kind: "command", id: "see-through.toggle" },
+      { kind: "command", id: "chat.focus" },
+    ],
+  },
+  {
+    id: "answer-style",
+    label: "Answer style",
+    items: [
+      { kind: "command", id: "skill.next" },
+      { kind: "command", id: "skill.prev" },
+    ],
+  },
+  {
+    id: "app",
+    label: "App",
+    items: [
+      { kind: "command", id: "session.clear" },
+      { kind: "native", id: "show-hide" },
+      { kind: "native", id: "settings" },
+    ],
+  },
+] as const satisfies readonly {
+  id: string;
+  label: string;
+  items: readonly (
+    | { kind: "command"; id: Command }
+    | { kind: "native"; id: "show-hide" | "settings" }
+  )[];
+}[];
+export type ShortcutGroupId = (typeof SHORTCUT_GROUPS)[number]["id"];
+
+export type ShortcutRow = {
+  id: string;
+  label: string;
+  // The chord as the app binds it today (the page's Alt keys; the Mac shell's
+  // own chord for the two native-only rows).
+  chord: string;
+  platform: "native" | "web";
+};
+
+// Each group's rows, resolved from the shortcut tables.
+export function shortcutGroups(): {
+  id: ShortcutGroupId;
+  label: string;
+  rows: ShortcutRow[];
+}[] {
+  return SHORTCUT_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    rows: group.items.flatMap((item) => {
+      const found = SHORTCUTS.find(
+        (each) =>
+          each.id === item.id &&
+          each.platform === (item.kind === "command" ? "web" : "native"),
+      );
+      return found
+        ? [
+            {
+              id: found.id,
+              label: found.label,
+              chord: found.chord,
+              platform: found.platform,
+            },
+          ]
+        : [];
+    }),
   }));
 }
