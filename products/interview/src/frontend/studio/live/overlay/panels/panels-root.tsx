@@ -1,14 +1,14 @@
 // The overlay route with `?panel=single|settings`, the two pages the native
 // shell loads: the one compact window (toolbar, chat, answer and code) and the
-// small Settings window beside it. The card is the default of the route and is
-// untouched.
+// small Settings window beside it. A load that names no panel is the compact
+// window (overlay-page.tsx).
 //
 // [SAFETY] Signed out or unavailable: a message, no panel; the store stops.
 import type { ProductMember } from "@omnitech/platform-contracts";
 import { useEffect, useMemo, useRef } from "react";
 import { Icon } from "../../../icon";
-import { type OverlayAccess, overlayAccess } from "../../float-access";
 import { holdAwake } from "../../keep-awake";
+import { type OverlayAccess, overlayAccess } from "../../overlay-access";
 import { tenantFromLocation } from "../../session-registry";
 import { useLiveSession } from "../../use-live-session";
 import { installHostSurface, isNativeSurface } from "../host-surface";
@@ -97,7 +97,7 @@ export function PanelsRoot({
   // [SAFETY] A native window is never left on a dead end: a session that went away
   // (ended elsewhere, deleted, a stale id) halts the store, and nothing else would
   // restart it. Read the current session again: a running one is adopted, none shows
-  // the start screen. Bounded, so a server that keeps refusing shows the card.
+  // the start screen. Bounded, so a server that keeps refusing shows the unavailable message.
   const recoveries = useRef(0);
   useEffect(() => {
     if (access === "ok") recoveries.current = 0;

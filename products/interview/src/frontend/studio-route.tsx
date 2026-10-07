@@ -2,10 +2,7 @@
 
 import type { ProductPageProps } from "@omnitech/platform-contracts";
 import { lazy, Suspense, useEffect, useState } from "react";
-import {
-  isStandaloneDisplay,
-  overlayRedirect,
-} from "./studio/live/overlay/overlay-guard";
+import { overlayRedirect } from "./studio/live/overlay/overlay-guard";
 
 // The studio module (editor, highlighter, assistant) is imported only in the
 // browser, after mount, so the server never evaluates it.
@@ -15,7 +12,7 @@ const StudioPage = lazy(() =>
   })),
 );
 
-// The chromeless overlay (/live/overlay): only the live session card, a page of
+// The chromeless overlay (/live/overlay): the native shell's panels, a page of
 // its own with its own session store. It never loads the studio module.
 const OverlayPage = lazy(() =>
   import("./studio/live/overlay/overlay-page").then(({ OverlayPage }) => ({
@@ -30,7 +27,6 @@ const redirectTo = (): string | null =>
     ? overlayRedirect({
         search: window.location.search,
         pathname: window.location.pathname,
-        standalone: isStandaloneDisplay(),
       })
     : null;
 

@@ -1,5 +1,4 @@
-// A native shell window paints translucent surfaces; a tab and a PiP window are
-// untouched.
+// A native shell window paints translucent surfaces; a plain tab is untouched.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -50,12 +49,11 @@ describe("installHostSurface", () => {
 });
 
 describe("isNativeSurface", () => {
-  it("is native for host=native or a bridge, never for PiP or a plain tab", () => {
+  it("is native for host=native or a bridge, never for a plain tab", () => {
     expect(isNativeSurface(new URLSearchParams("host=native"))).toBe(true);
     expect(isNativeSurface(new URLSearchParams(""))).toBe(false);
     bridge();
     expect(isNativeSurface(new URLSearchParams(""))).toBe(true);
-    expect(isNativeSurface(new URLSearchParams("host=pip"))).toBe(false);
   });
 });
 
@@ -81,17 +79,11 @@ describe("the native-host stylesheet", () => {
           /#[0-9a-f]{3,8}\b|(?<![a-z])rgb\(|oklch\(|\bwhite\b|\bblack\b/i,
         );
   });
-  it("makes every card, pill, menu and the code canvas translucent with a blur", () => {
+  it("makes every panel card, pill, toast and the code canvas translucent with a blur", () => {
     const text = native
       .map((rule) => `${rule.selector}{${rule.body}}`)
       .join("\n");
-    for (const surface of [
-      ".ov-card",
-      ".pn-card",
-      ".pn-pill",
-      ".ov-menu",
-      ".lc-canvas",
-    ])
+    for (const surface of [".pn-card", ".pn-pill", ".pn-toast", ".lc-canvas"])
       expect(text).toContain(surface);
     expect(text).toMatch(/backdrop-filter: blur/);
     expect(text).toMatch(/--lc-surface: rgba\(/);

@@ -30,9 +30,6 @@ import {
 } from "./context";
 import { DockResizer, useDockWidth } from "./dock-resizer";
 import { Icon } from "./icon";
-import { LiveCardHost } from "./live/card-host";
-import { LiveFloatHost } from "./live/float-host";
-import { presentation } from "./live/focus-presentation";
 import { HandsFreeProvider } from "./live/overlay/hands-free-context";
 import { SessionBar } from "./live/session-bar";
 import { useSessionStoreWatch } from "./live/use-live-session";
@@ -469,15 +466,7 @@ function StudioFrame({
         {member ? <WelcomeBanner member={member} /> : null}
         {/* The Live view carries its own header for the session. */}
         {route.view !== "live" && (
-          <SessionBar
-            variant="bar"
-            onOpen={() => {
-              // Open reopens the card if it was closed, then shows the page.
-              if (presentation.get().mode === "full")
-                presentation.setMode("card");
-              actions.go("live");
-            }}
-          />
+          <SessionBar variant="bar" onOpen={() => actions.go("live")} />
         )}
         <header className="studio-header">
           <span className="studio-header-title">{view.label}</span>
@@ -498,17 +487,14 @@ function StudioFrame({
             </Button>
           )}
         </header>
-        {/* One hands-free controller for this document: the live view's band
-            and the card share its microphone, screen and Auto. */}
+        {/* One hands-free controller for this document: the live view's
+            screenshots area and the missing-context actions share its screen
+            and Auto. */}
         <HandsFreeProvider>
           <div className="studio-view">{renderView(actions)}</div>
-          {/* Not during a rehearsal's focus mode, which owns the whole screen. */}
-          {!focused && <LiveCardHost />}
         </HandsFreeProvider>
       </main>
       {host.open && <DockResizer stored={dock.stored} />}
-      {/* Beside the store watch, so the floating window persists across pages. */}
-      <LiveFloatHost />
       {paletteOpen && (
         <CommandPalette
           items={paletteItems}

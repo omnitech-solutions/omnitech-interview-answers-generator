@@ -1,6 +1,5 @@
-// Follow-up input and the footer: the library's session bar with the session
-// clock, Pause or Resume, and End (with its confirmation). Each calls a store
-// action.
+// The footer: the library's session bar with the session clock, Pause or
+// Resume, and End (with its confirmation). Each calls a store action.
 
 import {
   Button,
@@ -8,18 +7,11 @@ import {
   StatusClock,
   type StatusClockBuildTag,
 } from "@oc-tech/omni-ui-components";
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD } from "./build-id";
-import { FOCUS_INPUT_EVENT } from "./panels/commands";
 import { PAUSED_NOTICE } from "./panels/strip-model";
 import { footerButtons } from "./panels/toolbar-config";
 
@@ -53,68 +45,6 @@ export const failureNote = (
       : code === "status_refused"
         ? "The session is not taking captures now (status_refused). Resume it or start a new one."
         : `That didn’t work (${code}). The session is unchanged.`;
-
-export function FollowUp({
-  label,
-  value,
-  interim = "",
-  onChange,
-  disabled,
-  onSend,
-}: {
-  label: string;
-  value: string;
-  // Words dictation has heard but not yet settled: shown after the text, lighter,
-  // and solid once final.
-  interim?: string;
-  onChange(text: string): void;
-  disabled: boolean;
-  onSend(text: string): Promise<CommandResult>;
-}) {
-  const shown = interim
-    ? `${value}${value === "" || value.endsWith(" ") ? "" : " "}${interim}`
-    : value;
-  // "Add context" (the missing-context strip) takes the person here.
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const focus = () => input.current?.focus();
-    window.addEventListener(FOCUS_INPUT_EVENT, focus);
-    return () => window.removeEventListener(FOCUS_INPUT_EVENT, focus);
-  }, []);
-  // What the box holds now, so a send that finishes later clears only the
-  // text it sent, never words typed while it was in flight.
-  const latest = useRef(shown);
-  latest.current = shown;
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const sent = shown;
-    if (sent.trim() === "") return;
-    const result = await onSend(sent);
-    if (result.ok && latest.current.trim() === sent.trim()) onChange("");
-  }
-  return (
-    <form className="ov-followup" onSubmit={submit}>
-      <input
-        ref={input}
-        className={`ov-input${interim ? " interim" : ""}`}
-        aria-label="Follow-up"
-        placeholder={label}
-        value={shown}
-        data-interim={interim ? "true" : undefined}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <button
-        type="submit"
-        className="ov-send"
-        aria-label="Send follow-up"
-        disabled={disabled || shown.trim() === ""}
-      >
-        <Icon name="arrow_upward" />
-      </button>
-    </form>
-  );
-}
 
 // What the footer is for. A live session shows its running time (amber while
 // paused) with Pause or Resume and End; a finished session offers a new one (and

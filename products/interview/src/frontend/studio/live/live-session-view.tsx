@@ -17,7 +17,6 @@ import type { BannerAction, BannerHost } from "./banner-copy";
 import { presentation, usePresentation } from "./focus-presentation";
 import { studioHostInfo } from "./host-adapter";
 import { HandsFreeContext } from "./overlay/hands-free-context";
-import { HandsFreeBand } from "./overlay/hands-free-controls";
 import { PairingPanel } from "./pairing-panel";
 import { SessionBanners } from "./session-banner-list";
 import { SessionBar } from "./session-bar";
@@ -26,6 +25,7 @@ import type { SessionActions, SessionCommand } from "./session-snapshot";
 import type { LiveViewModel } from "./session-state";
 import { type SessionTabId, SessionTabs } from "./session-tabs";
 import { transcriptLabels } from "./session-transcript";
+import { CaptureProblemBanner } from "./shared/capture-problem-banner";
 import { copyText } from "./shared/copy-text";
 import { pickOf, taskAtRevision } from "./shared/revisions";
 import { taskCardModel } from "./shared/task-card-model";
@@ -62,9 +62,7 @@ export function LiveSessionPanel() {
   return (
     <div className="live-page" data-testid="live-panel">
       <SessionBar variant="header" />
-      {/* The same hands-free controls as the card: this page listens, watches
-          and captures itself, so nothing needs a second window. */}
-      {snapshot.session && <HandsFreeBand />}
+      {snapshot.session && <CaptureNotice />}
       {snapshot.session && (
         <LiveSessionBody
           session={snapshot.session}
@@ -83,6 +81,31 @@ export function LiveSessionPanel() {
         />
       )}
     </div>
+  );
+}
+
+// Why the last capture from this page did not work: the capture-problem banner
+// until dismissed or the next capture works, and the controller's own note.
+function CaptureNotice() {
+  const hf = useContext(HandsFreeContext);
+  if (!hf) return null;
+  return (
+    <>
+      {hf.captureProblem && (
+        <CaptureProblemBanner
+          problem={hf.captureProblem}
+          onDismiss={hf.dismissCaptureProblem}
+          {...(hf.captureProblemAction
+            ? { onAction: hf.captureProblemAction }
+            : {})}
+        />
+      )}
+      {hf.note && (
+        <p className="live-note" role="alert">
+          {hf.note}
+        </p>
+      )}
+    </>
   );
 }
 

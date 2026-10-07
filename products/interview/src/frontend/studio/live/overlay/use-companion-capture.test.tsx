@@ -1,6 +1,6 @@
-// Asking the native companion to capture: follow the focused window, or a region
-// of the main display. The request's fields, how it is followed, what is said
-// when it ends, and why the choices are disabled when they cannot be used.
+// Asking the native companion to capture (use-companion-capture.ts, through the
+// hands-free controller): the request's fields, how it is followed, and how it
+// ends. Driven through a bare probe, not a product surface.
 import {
   type LiveCompanionCapability,
   liveCaptureRequestSchema,
@@ -14,17 +14,16 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LiveCardHost } from "../card-host";
 import { presentation } from "../focus-presentation";
 import {
   configureSessionStores,
   getSessionStore,
   resetSessionStores,
 } from "../session-registry";
+import { HandsFreeProbe } from "../testing/hands-free-probe";
 import { answerAction } from "../testing/live-view-kit";
 import {
   capabilityReport,
-  disconnected,
   jsonResponse,
   minutesAfter,
   sessionView,
@@ -36,7 +35,6 @@ import {
   createTestServer,
   type TestServer,
 } from "../testing/session-test-server";
-import { resetPosition } from "./card-position";
 import {
   CAPTURED_SHOWN_MS,
   DEADLINE_GRACE_MS,
@@ -53,12 +51,8 @@ let reads: Record<string, number> = {};
 
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
-const click = async (name: string | RegExp) => {
-  fireEvent.click(screen.getByRole("button", { name }));
-  await flush();
-};
 const expiresAt = () => new Date(Date.now() + 20_000).toISOString();
-const card = () => screen.getByTestId("overlay-card");
+const card = () => screen.getByTestId("hf-probe");
 const progress = () => screen.queryByTestId("capture-progress");
 
 const remote = (over: Parameters<typeof sessionView>[0] = {}) =>
@@ -118,15 +112,20 @@ function serve(view = remote(), extra: Partial<typeof page> = {}) {
 
 async function open(view = remote(), extra: Partial<typeof page> = {}) {
   serve(view, extra);
-  const result = render(<LiveCardHost />);
-  act(() => presentation.setMode("card"));
+  const result = render(<HandsFreeProbe />);
   await flush();
   await flush();
   return result;
 }
+const CHOICES = new Map<string, string>([
+  ["^Follow focused window", "analyze-focused-new"],
+  ["Attach the focused window to T1 rev 1", "analyze-focused-attach"],
+  ["Analyze stored capture", "analyze-stored"],
+]);
 async function choose(item: RegExp) {
-  await click(/Capture & analyze/);
-  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+  const id = CHOICES.get(item.source);
+  if (!id) throw new Error(`no probe button for ${item.source}`);
+  fireEvent.click(screen.getByTestId(id));
   await flush();
   await flush();
 }
@@ -142,7 +141,6 @@ beforeEach(() => {
   window.sessionStorage.clear();
   resetSessionStores();
   presentation.reset();
-  resetPosition();
   requests = [];
   reads = {};
   report = capabilityReport({
@@ -179,9 +177,7 @@ describe("Follow focused window", () => {
     expect(request["requestId"]).toMatch(/^r-/);
     expect(request).not.toHaveProperty("region");
     expect(request).not.toHaveProperty("targetTaskId");
-    expect(progress()).toHaveTextContent(
-      "Asking the companion to capture your focused window…",
-    );
+    expect(progress()).toHaveAttribute("data-phase", "asking");
   });
 
   it("attaches to the task being looked at when asked", async () => {
@@ -206,7 +202,7 @@ describe("Follow focused window", () => {
     await advance(POLL_MS);
     await advance(POLL_MS);
     expect(polls()).toBe(3);
-    expect(progress()).toHaveTextContent("Captured, analyzing…");
+    expect(progress()).toHaveAttribute("data-phase", "captured");
     // Terminal: no more polling.
     await advance(5 * POLL_MS);
     expect(polls()).toBe(3);
@@ -217,7 +213,7 @@ describe("Follow focused window", () => {
     await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
-    expect(progress()).toHaveTextContent("Captured, analyzing…");
+    expect(progress()).toHaveAttribute("data-phase", "captured");
     page = {
       ...page,
       actions: [
@@ -240,9 +236,7 @@ describe("Follow focused window", () => {
     await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
-    expect(progress()).toHaveTextContent(
-      "The companion did not answer within 20 s. Is it running with the screen source selected?",
-    );
+    expect(progress()).toHaveAttribute("data-phase", "expired");
     await advance(5 * POLL_MS);
     expect(polls()).toBe(1);
   });
@@ -252,9 +246,8 @@ describe("Follow focused window", () => {
     await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
-    expect(progress()).toHaveTextContent(
-      "Device-only mode never sends a screenshot to an assistant.",
-    );
+    expect(progress()).toHaveAttribute("data-phase", "refused");
+    expect(progress()).toHaveAttribute("data-reason", "vision_device_only");
   });
 
   it("names the code for any other refusal", async () => {
@@ -262,40 +255,42 @@ describe("Follow focused window", () => {
     await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
-    expect(progress()).toHaveTextContent("refused (vision_unavailable)");
+    expect(progress()).toHaveAttribute("data-phase", "refused");
+    expect(progress()).toHaveAttribute("data-reason", "vision_unavailable");
   });
 
   it.each([
-    ["no-focused-window", /no focused window/],
-    ["permission-denied", /Screen Recording/],
-    ["source-gone", /is gone/],
-    ["source-changed", /source changed/],
-    ["capture-failed", /couldn’t take the capture/],
+    ["no-focused-window"],
+    ["permission-denied"],
+    ["source-gone"],
+    ["source-changed"],
+    ["capture-failed"],
   ])(
     "says a companion failure (%s) at once, never waiting for expiry",
-    async (reason, text) => {
+    async (reason) => {
       status = () => ({ status: "failed", reason });
       await open();
       await choose(/^Follow focused window/);
       await advance(POLL_MS);
       expect(progress()).toHaveAttribute("data-phase", "failed");
-      expect(progress()).toHaveTextContent(text);
+      expect(progress()).toHaveAttribute("data-reason", reason);
       await advance(5 * POLL_MS);
       expect(polls()).toBe(1);
     },
   );
 
   it.each([
-    ["companion_update_required", /too old to take capture requests/],
-    ["source_changed", /Choose the region again/],
-    ["capture_request_stale", /out of date/],
-    ["limit_reached", /capture limit/],
-  ])("explains the refusal %s in plain words", async (reason, text) => {
+    ["companion_update_required"],
+    ["source_changed"],
+    ["capture_request_stale"],
+    ["limit_reached"],
+  ])("explains the refusal %s in plain words", async (reason) => {
     status = () => ({ status: "refused", reason });
     await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
-    expect(progress()).toHaveTextContent(text);
+    expect(progress()).toHaveAttribute("data-phase", "refused");
+    expect(progress()).toHaveAttribute("data-reason", reason);
   });
 
   it("shows an immediate refusal from the request itself", async () => {
@@ -312,11 +307,12 @@ describe("Follow focused window", () => {
       ),
     );
     await choose(/^Follow focused window/);
-    expect(progress()).toHaveTextContent("Device-only mode never sends");
+    expect(progress()).toHaveAttribute("data-phase", "refused");
+    expect(progress()).toHaveAttribute("data-reason", "vision_device_only");
     expect(polls()).toBe(0);
   });
 
-  it("reports a failed request in the card, and shows no progress", async () => {
+  it("reports a failed request, and shows no progress", async () => {
     await open();
     server.on("POST /:id/capture-request", () =>
       jsonResponse({ error: { code: "status_refused" } }, 409),
@@ -330,7 +326,7 @@ describe("Follow focused window", () => {
 });
 
 describe("how following stops", () => {
-  it("stops when the card goes away", async () => {
+  it("stops when the controller goes away", async () => {
     const view = await open();
     await choose(/^Follow focused window/);
     await advance(POLL_MS);
@@ -366,12 +362,7 @@ describe("how following stops", () => {
     expect(reads[first]).toBe(1);
     // Asked again while the first is still pending (the bar's capture button
     // stays available while Capture & analyze waits).
-    await click("Capture screen");
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /^Follow focused window/ }),
-    );
-    await flush();
-    await flush();
+    await choose(/^Follow focused window/);
     const second = requests[1]?.["requestId"] as string;
     expect(second).not.toBe(first);
     await advance(3 * POLL_MS);
@@ -405,186 +396,12 @@ describe("how following stops", () => {
   });
 });
 
-describe("Companion · region", () => {
-  it("opens the editor for the region of the main display, with no preview", async () => {
-    await open();
-    await choose(/^Companion · region/);
-    const editor = screen.getByTestId("mask-editor");
-    expect(editor).toHaveAttribute("aria-label", "Region of your main display");
-    expect(
-      within(editor).getByText("Region of your main display"),
-    ).toBeVisible();
-    expect(
-      within(editor).getByText(
-        /only this part of your main display; nothing outside it is sent/,
-      ),
-    ).toBeVisible();
-    expect(within(editor).queryByTestId("local-preview")).toBeNull();
-    expect(requests).toEqual([]);
-  });
-
-  it("posts the region, normalised to the display, and stores it apart from the browser mask", async () => {
-    await open();
-    await choose(/^Companion · region/);
-    await click("Right side");
-    await click("Save & capture");
-    expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({
-      mode: "region",
-      region: { x: 0.5, y: 0, width: 0.5, height: 1 },
-      // Bound to the companion's declared screen selection, explicitly.
-      selection: "sel-1",
-    });
-    expect(liveCaptureRequestSchema.safeParse(requests[0]).success).toBe(true);
-    expect(
-      JSON.parse(
-        window.localStorage.getItem(
-          "interview-studio.live.capture-display-mask.local",
-        ) ?? "null",
-      ),
-    ).toEqual({ x: 0.5, y: 0, w: 0.5, h: 1 });
-    // The browser-share region is untouched.
-    expect(
-      window.localStorage.getItem("interview-studio.live.capture-mask.local"),
-    ).toBeNull();
-    expect(screen.queryByTestId("region-chip")).toBeNull();
-    expect(progress()).toHaveTextContent(
-      "Asking the companion to capture your region…",
-    );
-  });
-
-  it("reopens on the saved display region, not the browser one", async () => {
-    window.localStorage.setItem(
-      "interview-studio.live.capture-mask.local",
-      JSON.stringify({ x: 0, y: 0, w: 0.3, h: 0.3 }),
-    );
-    window.localStorage.setItem(
-      "interview-studio.live.capture-display-mask.local",
-      JSON.stringify({ x: 0.25, y: 0.25, w: 0.5, h: 0.5 }),
-    );
-    await open();
-    await choose(/^Companion · region/);
-    expect(screen.getByTestId("mask-rect").style.width).toBe("50%");
-  });
-
-  it("never asks for a region that spills past the display", async () => {
-    window.localStorage.setItem(
-      "interview-studio.live.capture-display-mask.local",
-      JSON.stringify({ x: 0.3333, y: 0.3333, w: 0.6667, h: 0.6667 }),
-    );
-    await open();
-    await choose(/^Companion · region/);
-    await click("Save & capture");
-    const region = (
-      requests[0] as {
-        region: { x: number; y: number; width: number; height: number };
-      }
-    ).region;
-    expect(region.x + region.width).toBeLessThanOrEqual(1);
-    expect(region.y + region.height).toBeLessThanOrEqual(1);
-    expect(liveCaptureRequestSchema.safeParse(requests[0]).success).toBe(true);
-  });
-
-  it("asks for no region until the companion has declared a screen selection", async () => {
-    report = capabilityReport({ captureRequests: true });
-    await open();
-    await choose(/^Companion · region/);
-    await click("Save & capture");
-    expect(requests).toEqual([]);
-    expect(within(card()).getByRole("alert")).toHaveTextContent(
-      /hasn’t said which screen/,
-    );
-  });
-
-  it("sends nothing when the editor is cancelled", async () => {
-    await open();
-    await choose(/^Companion · region/);
-    await click("Cancel");
-    expect(requests).toEqual([]);
-    expect(screen.queryByTestId("mask-sheet")).toBeNull();
-  });
-});
-
 describe("when the companion cannot be asked", () => {
-  async function reasonFor(
-    view: ReturnType<typeof sessionView>,
-    extra: Partial<typeof page> = {},
-  ) {
-    await open(view, extra);
-    await click(/Capture & analyze/);
-    const menu = within(screen.getByRole("menu", { name: "Capture source" }));
-    for (const name of [/^Follow focused window/, /^Companion · region/])
-      expect(menu.getByRole("menuitem", { name })).toBeDisabled();
-    return menu.getByTestId("focus-note").textContent;
-  }
-
-  it("is disabled, with the reason, when the screen source is not part of the session", async () => {
-    expect(await reasonFor(remote({ captureSources: ["microphone"] }))).toBe(
-      "This source wasn’t turned on when the session started.",
-    );
-  });
-
-  it("is disabled, with the update prompt, when the companion build cannot take capture requests", async () => {
-    report = capabilityReport({
-      captureRequests: false,
-      screenSelection: "sel-1",
-    });
-    expect(await reasonFor(remote())).toMatch(/Update the companion/);
-  });
-
-  it("is disabled, with the reason, when the companion has not made contact", async () => {
-    expect(await reasonFor(remote(), { observations: [] })).toBe(
-      "The capture companion hasn’t made contact yet.",
-    );
-  });
-
-  it("is disabled, with the reason, when the screen permission was revoked", async () => {
-    expect(
-      await reasonFor(remote(), {
-        observations: [
-          snapshot(1),
-          disconnected(2, "screen", "permission-revoked"),
-        ],
-        nextAfterSequence: 2,
-      }),
-    ).toBe("macOS no longer lets the capture companion use Screen Recording.");
-  });
-
-  it("is disabled, with the reason, when the screen device was lost", async () => {
-    expect(
-      await reasonFor(remote(), {
-        observations: [snapshot(1), disconnected(2, "screen", "device-lost")],
-        nextAfterSequence: 2,
-      }),
-    ).toBe("Device lost: no on-screen window matched the title you selected.");
-  });
-
-  it("is enabled when the screen source is receiving, even before any capture", async () => {
+  it("offers no stored capture before any capture exists", async () => {
     await open(remote({ lastHeartbeatAt: minutesAfter(0, 59) }), {
       observations: [],
     });
-    await click(/Capture & analyze/);
-    expect(
-      screen.getByRole("menuitem", { name: /^Follow focused window/ }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("menuitem", { name: /^Companion · region/ }),
-    ).toBeEnabled();
-    // Nothing to use as "latest capture" yet.
-    expect(
-      screen.getByRole("menuitem", { name: /Analyze stored capture/ }),
-    ).toBeDisabled();
-  });
-
-  it("names the stored capture it would analyze, by identity and age", async () => {
-    await open();
-    await click(/Capture & analyze/);
-    const item = screen.getByRole("menuitem", {
-      name: /Analyze stored capture/,
-    });
-    expect(item).toHaveTextContent("Not a new capture");
-    expect(item).toHaveTextContent("S1 · Chrome · LeetCode");
-    expect(item).toHaveTextContent("ago");
+    expect(screen.getByTestId("analyze-stored")).toBeDisabled();
   });
 
   it("analyzes exactly the stored capture it named", async () => {
@@ -596,8 +413,7 @@ describe("when the companion cannot be asked", () => {
       storage: { read: () => null, write: () => {}, remove: () => {} },
       analyzeLatestCapture,
     });
-    render(<LiveCardHost />);
-    act(() => presentation.setMode("card"));
+    render(<HandsFreeProbe />);
     await flush();
     await flush();
     await choose(/Analyze stored capture/);
@@ -621,8 +437,7 @@ describe("when the companion cannot be asked", () => {
         storage: { read: () => null, write: () => {}, remove: () => {} },
         analyzeLatestCapture,
       });
-      render(<LiveCardHost />);
-      act(() => presentation.setMode("card"));
+      render(<HandsFreeProbe />);
       await flush();
       await flush();
       await choose(/^Follow focused window/);
@@ -644,8 +459,7 @@ describe("when the companion cannot be asked", () => {
       storage: { read: () => null, write: () => {}, remove: () => {} },
       analyzeLatestCapture,
     });
-    render(<LiveCardHost />);
-    act(() => presentation.setMode("card"));
+    render(<HandsFreeProbe />);
     await flush();
     await flush();
     await choose(/^Follow focused window/);
@@ -655,8 +469,6 @@ describe("when the companion cannot be asked", () => {
   it("while a request is being followed, Capture & analyze waits", async () => {
     await open();
     await choose(/^Follow focused window/);
-    expect(
-      screen.getByRole("button", { name: /Analyzing…|Capture & analyze/ }),
-    ).toBeDisabled();
+    expect(screen.getByTestId("capture-now")).toBeDisabled();
   });
 });

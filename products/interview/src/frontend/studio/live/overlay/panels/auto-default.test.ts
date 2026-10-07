@@ -24,8 +24,8 @@ describe("Auto by default", () => {
     saveAutoPreferred("t", true);
     expect(loadAutoPreferred("t")).toBe(true);
   });
-  it("is on by default in the hands-free hosts: pip, native, handsfree=1, the shell's minified mode, the native bridge", () => {
-    for (const search of ["?host=pip", "?host=native", "?handsfree=1"]) {
+  it("is on by default in the hands-free hosts: native, handsfree=1, the shell's minified mode, the native bridge", () => {
+    for (const search of ["?host=native", "?handsfree=1"]) {
       at(search);
       expect(loadAutoPreferred("t")).toBe(true);
     }
@@ -36,6 +36,12 @@ describe("Auto by default", () => {
     expect(loadAutoPreferred("t")).toBe(true);
     (window as { studioHost?: unknown }).studioHost = {};
     expect(loadAutoPreferred("t")).toBe(true);
+  });
+  it("is off for the retired picture-in-picture and installed-app hosts", () => {
+    for (const search of ["?host=pip", "?host=pwa"]) {
+      at(search);
+      expect(loadAutoPreferred("t")).toBe(false);
+    }
   });
   it("is off in a hands-free host only when the owner turned it off", () => {
     at("?host=native&handsfree=1");

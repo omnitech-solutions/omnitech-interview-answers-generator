@@ -11,9 +11,7 @@ describe("the live web app manifest", () => {
   it("is installable: standalone, a start_url inside its scope, 192 and 512 icons", () => {
     const manifest = liveWebAppManifest("local");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe(
-      "/t/local/p/interview/live/overlay?host=pwa",
-    );
+    expect(manifest.start_url).toBe("/t/local/p/interview/live");
     expect(manifest.start_url.startsWith(manifest.scope)).toBe(true);
     expect(manifest.scope).toBe("/t/local/p/interview/");
     const sizes = manifest.icons.map((icon) => icon.sizes);

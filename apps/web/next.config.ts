@@ -26,9 +26,8 @@ const build = buildInfo();
 
 // [SAFETY] NX-SEC-01: a static baseline on every route. The microphone and
 // display capture are what the live session uses (dictation, screen share), so
-// they stay open to this origin only, which also covers the same-origin overlay
-// frame the picture-in-picture window embeds; camera and location are never
-// used. `frame-ancestors 'self'` is the only CSP directive on purpose: a full
+// they stay open to this origin only; camera and location are never used.
+// `frame-ancestors 'self'` is the only CSP directive on purpose: a full
 // policy needs a nonce, dynamic rendering and allowances for the OCR worker,
 // wasm and Mermaid, and is deferred.
 const noSniff = { key: "X-Content-Type-Options", value: "nosniff" };

@@ -1,8 +1,9 @@
 // The missing-context journey on the web live page, through the real page, the
-// hands-free band, the real store and the real routes' wire shapes (a fake
-// server: no model): the strip beside the task, "Add context" focusing the
-// follow-up box, "Add another screenshot" aimed at the task on show, one request
-// per press, dismissal across a reload, and capture failures that stay notes.
+// hands-free controller, the real store and the real routes' wire shapes (a
+// fake server: no model): the strip beside the task, "Add another screenshot"
+// aimed at the task on show, one request per press, dismissal across a reload,
+// and capture failures that stay notes. The web page has no follow-up box, so
+// "Add context" is disabled there (the native chat answers it).
 import {
   act,
   cleanup,
@@ -29,7 +30,6 @@ let journey: Journey;
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
 const strip = () => screen.queryByTestId("missing-context");
-const input = () => screen.getByLabelText("Follow-up");
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const press = async (name: string | RegExp) => {
   fireEvent.click(button(name));
@@ -92,11 +92,7 @@ describe("the strip beside the task", () => {
     expect(note).toHaveTextContent(
       "The rest of the problem (it looks cut off): the bottom of the page is hidden",
     );
-    for (const name of [
-      "Add another screenshot",
-      "Add context",
-      "Looks complete",
-    ])
+    for (const name of ["Add another screenshot", "Looks complete"])
       expect(button(name)).toBeEnabled();
   });
 
@@ -108,70 +104,12 @@ describe("the strip beside the task", () => {
 });
 
 describe("Add context", () => {
-  it("focuses the follow-up box; the typed text revises the task and the strip clears", async () => {
+  it("is disabled on the web page, with the reason: the follow-up lives in the app", async () => {
     await open();
-    await press("Add context");
-    expect(input()).toHaveFocus();
-    fireEvent.change(input(), { target: { value: " the examples " } });
-    await press("Send follow-up");
-    expect(journey.inputs).toHaveLength(1);
-    expect(journey.inputs[0]).toMatchObject({
-      operation: "follow-up",
-      text: "the examples",
-      target: { taskId: CUT_OFF_TASK, revision: 1 },
-    });
-    await advance(1_500);
-    expect(strip()).toBeNull();
-    expect(screen.getByTestId("task-panel")).toHaveTextContent(
-      "Revised with the added context.",
+    expect(button("Add context")).toBeDisabled();
+    expect(screen.getByTestId("missing-context-unavailable")).toHaveTextContent(
+      "Add context from the Interview Studio app.",
     );
-    expect(screen.getByTestId("task-panel")).toHaveTextContent("T1 · rev 2");
-  });
-
-  it("opens the collapsed controls first, then focuses the box", async () => {
-    await open();
-    await press("Collapse hands-free");
-    expect(screen.queryByLabelText("Follow-up")).toBeNull();
-    await press("Add context");
-    expect(input()).toHaveFocus();
-  });
-
-  it("aims the follow-up at the task chosen on the page, not the newest", async () => {
-    journey.publish(
-      journey.revision(
-        { taskId: "task-newer", revision: 1 },
-        { draft: "A newer task." },
-      ),
-    );
-    serve(journey);
-    await open();
-    expect(strip()).toBeNull();
-    await press(/^T1 · /);
-    expect(strip()).toBeVisible();
-    await press("Add context");
-    fireEvent.change(input(), { target: { value: "constraints" } });
-    await press("Send follow-up");
-    expect(journey.inputs[0]).toMatchObject({
-      target: { taskId: CUT_OFF_TASK, revision: 1 },
-    });
-  });
-
-  it("makes one request for a double submit", async () => {
-    await open();
-    fireEvent.change(input(), { target: { value: "the examples" } });
-    const form = input().closest("form") as HTMLFormElement;
-    fireEvent.submit(form);
-    fireEvent.submit(form);
-    await flush();
-    expect(journey.inputs).toHaveLength(1);
-  });
-
-  it("sends nothing for blank text", async () => {
-    await open();
-    fireEvent.change(input(), { target: { value: "   " } });
-    expect(button("Send follow-up")).toBeDisabled();
-    fireEvent.submit(input().closest("form") as HTMLFormElement);
-    await flush();
     expect(journey.inputs).toEqual([]);
   });
 });
@@ -321,7 +259,6 @@ describe("Add another screenshot", () => {
     ).toHaveTextContent(
       "Device-only mode never sends a screenshot to an assistant.",
     );
-    expect(button("Add context")).toBeEnabled();
   });
 
   it("is unavailable, with the reason, where the page has no capture controls", async () => {
@@ -344,9 +281,12 @@ describe("Looks complete", () => {
     serve(journey);
     await open();
     expect(strip()).toBeNull();
-    journey.nextMissing = [{ kind: "language" }];
-    fireEvent.change(input(), { target: { value: "python" } });
-    await press("Send follow-up");
+    journey.publish(
+      journey.revision(
+        { taskId: CUT_OFF_TASK, revision: 2 },
+        { missing: [{ kind: "language" }] },
+      ),
+    );
     await advance(1_500);
     expect(strip()).toHaveTextContent("Target language");
   });
