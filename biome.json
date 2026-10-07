@@ -9,6 +9,7 @@
       "!**/.playwright-report",
       "!**/.test-results",
       "!apps/web/public/ocr",
+      "!.swiftlint.baseline.json",
       "!e2e/live-session/.stack",
       "!e2e/live-session/.audit",
       "!**/.data",

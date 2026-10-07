@@ -36,10 +36,10 @@ final class ShellCapture {
         let outcome: CaptureOutcome
         let displayId: UInt32
         // The frame's on-device text, when recognition finished within its budget.
-        var ocr: OcrText? = nil
-        var display: DisplayInfo? = nil
+        var ocr: OcrText?
+        var display: DisplayInfo?
         var pinned = false
-        var pinFallback: PinFallback? = nil
+        var pinFallback: PinFallback?
     }
 
     // Shared with the recognizeText bridge op: one recognizer, one budget policy.

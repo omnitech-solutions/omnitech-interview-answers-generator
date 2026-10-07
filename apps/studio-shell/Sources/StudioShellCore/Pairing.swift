@@ -48,7 +48,7 @@ public struct StudioPairing {
         return StudioLocation(address: record.studioAddress, tenantSlug: record.tenantSlug)
     }
 
-    public func hasCredential() -> Bool { ((try? credentials.load()) ?? nil) != nil }
+    public func hasCredential() -> Bool { (try? credentials.load()) != nil }
 
     public func forget() {
         try? credentials.delete()

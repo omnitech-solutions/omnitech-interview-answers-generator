@@ -795,6 +795,7 @@ private enum Patterns {
 
     private static func compile(_ pattern: String) -> NSRegularExpression {
         // A literal pattern above; failing here is a programming error caught by the first test run.
+        // swiftlint:disable:next force_try
         try! NSRegularExpression(pattern: pattern)
     }
 }
