@@ -207,6 +207,29 @@ describe("Add context", () => {
     });
   });
 
+  it("a new task takes the screen even when an earlier one was chosen", async () => {
+    journey.publish(
+      journey.revision(
+        { taskId: "task-newer", revision: 1 },
+        { draft: "Newer" },
+      ),
+    );
+    serve(journey);
+    await open();
+    fireEvent.click(button(/^T1 · /));
+    expect(screen.getByTestId("pn-task-line")).toHaveTextContent(/^T1 /);
+    // A third task arrives (a new problem captured, or heard): it is on show
+    // and the earlier choice is forgotten.
+    journey.publish(
+      journey.revision(
+        { taskId: "task-newest", revision: 1 },
+        { draft: "Newest" },
+      ),
+    );
+    await advance(1_500);
+    expect(screen.getByTestId("pn-task-line")).toHaveTextContent(/^T3 /);
+  });
+
   it("keeps the unsent text when a pane is hidden and shown again", async () => {
     await open();
     fireEvent.change(box(), { target: { value: "half a thought" } });

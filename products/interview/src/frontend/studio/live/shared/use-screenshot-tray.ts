@@ -265,6 +265,16 @@ export function useScreenshotTray(input: {
     }
   }, [actions, deviceOnly, waitForText]);
 
+  // Another task on show: the card goes back to its default (closed unless
+  // something is staged for it).
+  const targetTaskId = target?.taskId ?? null;
+  const lastTarget = useRef(targetTaskId);
+  useEffect(() => {
+    if (lastTarget.current === targetTaskId) return;
+    lastTarget.current = targetTaskId;
+    dispatch({ type: "open", open: null });
+  }, [targetTaskId]);
+
   return {
     state,
     mode,

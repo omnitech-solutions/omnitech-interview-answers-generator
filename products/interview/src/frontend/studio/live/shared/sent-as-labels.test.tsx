@@ -270,6 +270,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
 
     it("Always: Will be sent as image", async () => {
       render(<Harness variant={variant} mode="manual" setting="always" />);
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Will be sent as image",
@@ -281,6 +282,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
 
     it("a session with no saved value reads as Always", async () => {
       render(<Harness variant={variant} mode="manual" />);
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Will be sent as image",
@@ -294,6 +296,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
       const { unmount } = render(
         <Harness variant={variant} mode="manual" setting="never" read="text" />,
       );
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Will be sent as text only",
@@ -305,6 +308,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
       render(
         <Harness variant={variant} mode="manual" setting="never" read="none" />,
       );
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Will not be sent",
@@ -320,6 +324,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
           read="pending"
         />,
       );
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Decided when sent",
@@ -334,6 +339,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
           setting="text-only-when-text"
         />,
       );
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await stage();
       expect(screen.getByTestId("will-be-1")).toHaveTextContent(
         "Decided when sent",

@@ -93,7 +93,7 @@ export type TrayEvent =
   | { type: "move"; id: string; by: -1 | 1 }
   | { type: "crop"; id: string; blob: Blob }
   | { type: "intent"; intent: TrayIntent }
-  | { type: "open"; open: boolean }
+  | { type: "open"; open: boolean | null }
   | { type: "discard" }
   // The session changed: an empty tray, even mid-Apply.
   | { type: "reset" }
@@ -177,8 +177,10 @@ export function trayReducer(state: TrayState, event: TrayEvent): TrayState {
 
 // Whether the tray is showing: an explicit choice, else open in Manual and
 // closed in Auto until something is staged.
-export const trayOpen = (state: TrayState, mode: "auto" | "manual"): boolean =>
-  state.open ?? (mode === "manual" || state.items.length > 0);
+// Closed until the person opens it or something is staged (staging opens it);
+// a switch to another task closes it again (the hook resets `open`).
+export const trayOpen = (state: TrayState, _mode: "auto" | "manual"): boolean =>
+  state.open ?? state.items.length > 0;
 
 // Apply is the one way to generate. With a task it can also force a plain
 // regeneration (nothing staged); without one it needs at least one image.

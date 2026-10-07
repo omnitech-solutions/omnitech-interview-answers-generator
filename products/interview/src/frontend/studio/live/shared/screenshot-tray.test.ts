@@ -188,9 +188,12 @@ describe("apply", () => {
 });
 
 describe("rules", () => {
-  it("opens by default in Manual, closed in Auto until something is staged, and an explicit choice wins", () => {
-    expect(trayOpen(EMPTY_TRAY, "manual")).toBe(true);
+  it("is closed by default in both modes until something is staged, and an explicit choice wins", () => {
+    expect(trayOpen(EMPTY_TRAY, "manual")).toBe(false);
     expect(trayOpen(EMPTY_TRAY, "auto")).toBe(false);
+    expect(trayOpen({ ...EMPTY_TRAY, items: [shot("a")] }, "manual")).toBe(
+      true,
+    );
     const staged = run([
       { type: "stage", shot: shot("a") },
       { type: "open", open: false },

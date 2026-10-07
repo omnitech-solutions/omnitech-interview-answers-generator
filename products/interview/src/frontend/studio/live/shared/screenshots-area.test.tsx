@@ -141,7 +141,7 @@ const flush = () =>
     await Promise.resolve();
   });
 const mount = async (
-  props: Partial<Props> & { variant: ScreenshotsVariant },
+  props: Partial<Props> & { variant: ScreenshotsVariant; keepClosed?: boolean },
 ) => {
   const { recognizer, reads } = fakeRecognizer();
   const result = render(
@@ -151,6 +151,10 @@ const mount = async (
       {...props}
     />,
   );
+  await flush();
+  // The card is closed by default; the tests that look inside open it first.
+  if (!props.keepClosed && !screen.queryByTestId("screenshot-tray"))
+    fireEvent.click(screen.getByTestId("screenshots-toggle"));
   await flush();
   return { ...result, reads };
 };
@@ -268,8 +272,11 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
   });
 
   describe("the tray (Manual)", () => {
-    it("is expanded by default, says what Apply does with nothing staged and offers a plain regenerate for the task", async () => {
-      await mount({ variant, mode: "manual" });
+    it("is closed by default, opens on the toggle, says what Apply does with nothing staged and offers a plain regenerate for the task", async () => {
+      await mount({ variant, mode: "manual", keepClosed: true });
+      expect(screen.queryByTestId("screenshot-tray")).toBeNull();
+      fireEvent.click(screen.getByTestId("screenshots-toggle"));
+      await flush();
       expect(screen.getByTestId("screenshots-area")).toHaveAttribute(
         "data-mode",
         "manual",

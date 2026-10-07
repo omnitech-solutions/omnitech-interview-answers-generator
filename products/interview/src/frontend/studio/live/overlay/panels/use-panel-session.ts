@@ -742,10 +742,18 @@ export function usePanelSession(
   const tasks = model.tasks;
   // The task on show: the newest, unless the person chose another from the
   // transcript or the chips. The pin is the shared presentation's (the web page
-  // reads the same one): a new task does not move it, and Back to now clears it.
+  // reads the same one); Back to now clears it, and so does a NEW task: a fresh
+  // problem takes the screen and the transcript follows it (the owner's rule).
   // Choosing only changes what is shown; the other task keeps running.
   const { pinnedTaskId: pinned, revisionPicks } = usePresentation();
   const setPinned = focus.pin;
+  const newestTaskId = tasks[tasks.length - 1]?.taskId;
+  const newestSeen = useRef(newestTaskId);
+  useEffect(() => {
+    if (newestTaskId === newestSeen.current) return;
+    newestSeen.current = newestTaskId;
+    if (pinned && pinned !== newestTaskId) setPinned(null);
+  }, [newestTaskId, pinned, setPinned]);
   const resolved = resolveTarget(tasks, pinned);
   const selected = resolved?.task;
   selectedRef.current = selected;
