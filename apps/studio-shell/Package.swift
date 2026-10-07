@@ -19,7 +19,7 @@ let package = Package(
         .executable(name: "studio-shell-tests", targets: ["StudioShellTests"]),
     ],
     dependencies: [
-        .package(path: "../capture-companion/macos"),
+        .package(path: "../capture-companion/macos")
     ],
     targets: [
         .target(

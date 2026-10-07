@@ -9,7 +9,8 @@ public struct CompanionPaths {
     public let directory: URL
 
     public init(directory: URL? = nil) {
-        self.directory = directory
+        self.directory =
+            directory
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("OmnitechCaptureCompanion", isDirectory: true)
     }

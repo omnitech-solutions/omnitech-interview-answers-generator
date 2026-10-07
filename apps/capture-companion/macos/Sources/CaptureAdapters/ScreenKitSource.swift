@@ -123,7 +123,9 @@ public final class ScreenKitSource: NSObject, SCStreamOutput, SCStreamDelegate, 
 
     // MARK: SCStreamOutput
 
-    public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+    public func stream(
+        _ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType
+    ) {
         guard sampleBuffer.isValid else { return }
         switch type {
         case .audio:

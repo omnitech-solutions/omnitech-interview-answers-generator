@@ -72,7 +72,8 @@ public enum ToastLayout {
 // pages must start nothing. The flag the pages read is `studio.shell.consented`
 // in localStorage, set for the Studio origin before any page script runs.
 public enum Consent {
-    public static let prompt = "Everyone in this conversation agrees to it being recorded and to using AI assistance. Continue?"
+    public static let prompt =
+        "Everyone in this conversation agrees to it being recorded and to using AI assistance. Continue?"
     public static let storageKey = "studio.shell.consented"
     static let prefKey = "consent.v1"
 
@@ -110,7 +111,8 @@ public struct ShellPrefs {
 
     // The compact window and Settings each remember where they were put.
     public func savedFrame(_ kind: WindowKind, displays: [CGRect]) -> CGRect? {
-        PanelFrameCodec.restoreFrame(store.string(forKey: Self.frameKey(kind)), minSize: kind.minSize, displays: displays)
+        PanelFrameCodec.restoreFrame(
+            store.string(forKey: Self.frameKey(kind)), minSize: kind.minSize, displays: displays)
     }
 
     public func saveFrame(_ kind: WindowKind, _ frame: CGRect) {
@@ -132,7 +134,8 @@ public struct ShellPrefs {
         let saved = PanelFrameCodec.restoreFrame(
             store.string(forKey: "main.frame"), minSize: Self.mainWindowMinSize, displays: displays)
         let size = CGSize(width: min(1280, main.width * 0.85), height: min(860, main.height * 0.85))
-        let centered = CGRect(x: main.midX - size.width / 2, y: main.midY - size.height / 2, width: size.width, height: size.height)
+        let centered = CGRect(
+            x: main.midX - size.width / 2, y: main.midY - size.height / 2, width: size.width, height: size.height)
         return saved ?? PanelLayout.fit(centered, in: main, min: Self.mainWindowMinSize)
     }
 

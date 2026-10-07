@@ -22,7 +22,9 @@ public struct HotkeyBinding: Equatable, Sendable {
     // True: registered only while interaction mode is ON.
     public let requiresInteractive: Bool
 
-    public init(action: Action, keyCode: UInt32, carbonModifiers: UInt32, label: String, requiresInteractive: Bool = false) {
+    public init(
+        action: Action, keyCode: UInt32, carbonModifiers: UInt32, label: String, requiresInteractive: Bool = false
+    ) {
         self.action = action
         self.keyCode = keyCode
         self.carbonModifiers = carbonModifiers
@@ -44,8 +46,10 @@ public struct HotkeyBinding: Equatable, Sendable {
         HotkeyBinding(action: .toggleVisibility, keyCode: 0x09, carbonModifiers: command | shift, label: "⌘⇧V"),
         HotkeyBinding(action: .showChat, keyCode: 0x08, carbonModifiers: command | shift, label: "⌘⇧C"),
         HotkeyBinding(action: .clearSession, keyCode: 0x2A, carbonModifiers: command | shift, label: "⌘⇧\\"),
-        HotkeyBinding(action: .skillPrevious, keyCode: 0x7E, carbonModifiers: command, label: "⌘↑", requiresInteractive: true),
-        HotkeyBinding(action: .skillNext, keyCode: 0x7D, carbonModifiers: command, label: "⌘↓", requiresInteractive: true),
+        HotkeyBinding(
+            action: .skillPrevious, keyCode: 0x7E, carbonModifiers: command, label: "⌘↑", requiresInteractive: true),
+        HotkeyBinding(
+            action: .skillNext, keyCode: 0x7D, carbonModifiers: command, label: "⌘↓", requiresInteractive: true),
         HotkeyBinding(action: .openSettings, keyCode: 0x2B, carbonModifiers: command, label: "⌘,"),
         // Secondary aliases.
         HotkeyBinding(action: .captureAnalyze, keyCode: 0x00, carbonModifiers: optionShift, label: "⌥⇧A"),

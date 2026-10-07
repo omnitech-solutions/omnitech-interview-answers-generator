@@ -212,7 +212,8 @@ func runCommand(arguments: [String], paths: CompanionPaths) async -> Int32 {
                 locale: options.locale,
                 onFinal: { text, start, end in
                     Task { @MainActor in
-                        _ = box.session?.submitTranscript(source: transcriptSource, text: text, startMs: start, endMs: end)
+                        _ = box.session?.submitTranscript(
+                            source: transcriptSource, text: text, startMs: start, endMs: end)
                     }
                 },
                 onFailure: { Task { @MainActor in box.lost(source, .error) } })

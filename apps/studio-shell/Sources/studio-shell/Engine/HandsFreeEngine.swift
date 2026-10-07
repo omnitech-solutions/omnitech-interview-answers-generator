@@ -413,7 +413,8 @@ public final class HandsFreeEngine: EngineHost {
         case .held: paused = true
         default: break
         }
-        return EngineSnapshot(stage: stage, sources: sources, paused: paused, lastHeardAgeSeconds: age, speechFailure: failure)
+        return EngineSnapshot(
+            stage: stage, sources: sources, paused: paused, lastHeardAgeSeconds: age, speechFailure: failure)
     }
 
     private func health(_ source: CaptureSource, run: EngineRun) -> SourceHealth {

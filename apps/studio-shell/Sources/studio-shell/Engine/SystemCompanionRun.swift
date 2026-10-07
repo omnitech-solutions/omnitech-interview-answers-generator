@@ -29,11 +29,13 @@ final class EngineSources: SourceControl, @unchecked Sendable {
 
     init(selection: Set<CaptureSource>, events: CaptureEvents) {
         self.events = events
-        microphone = selection.contains(.microphone)
+        microphone =
+            selection.contains(.microphone)
             ? MicrophoneCapture(
                 onFrame: { events.onAudio(.microphone, $0) }, onLost: { events.onLost(.microphone, $0) })
             : nil
-        applicationAudio = selection.contains(.applicationAudio)
+        applicationAudio =
+            selection.contains(.applicationAudio)
             ? ScreenKitSource(
                 kind: .applicationAudio, onAudio: { events.onAudio(.applicationAudio, $0) },
                 onScreenshot: { _, _ in }, onLost: { events.onLost(.applicationAudio, $0) })
@@ -104,7 +106,8 @@ public final class FocusTracker {
 
     public func sample() -> FocusSample {
         let frontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        return FocusSample(frontmostPid: FocusSampling.sample(frontmost: frontmost, ownPid: ownPid, lastOther: lastOther))
+        return FocusSample(
+            frontmostPid: FocusSampling.sample(frontmost: frontmost, ownPid: ownPid, lastOther: lastOther))
     }
 }
 
@@ -170,7 +173,9 @@ public final class SystemCompanionRun: EngineRun {
 
     fileprivate func audio(_ source: CaptureSource, _ frame: AudioFrame) {
         guard session.machine.isCapturing, let ring = rings[source] else { return }
-        if let overflow = ring.push(frame) { session.reportAudioOverflow(source: source, droppedMs: overflow.droppedMs) }
+        if let overflow = ring.push(frame) {
+            session.reportAudioOverflow(source: source, droppedMs: overflow.droppedMs)
+        }
     }
 
     fileprivate func lost(_ source: CaptureSource, _ reason: DisconnectReason) {
@@ -205,7 +210,11 @@ public final class SystemCompanionRun: EngineRun {
                     Task { @MainActor in self?.heard(transcriptSource, text, start, end) }
                 },
                 onFailure: { [weak self] in Task { @MainActor in self?.lost(source, .error) } })
-            if let transcriber { transcribers[source] = transcriber } else { session.sourceLost(source, reason: .error) }
+            if let transcriber {
+                transcribers[source] = transcriber
+            } else {
+                session.sourceLost(source, reason: .error)
+            }
         }
     }
 
@@ -220,7 +229,9 @@ public final class SystemCompanionRun: EngineRun {
         // Start and stop recognition with capture; stopped recognisers discard unfinished text.
         if session.machine.isCapturing != transcribing {
             transcribing = session.machine.isCapturing
-            for transcriber in transcribers.values { if transcribing { transcriber.start() } else { transcriber.stop() } }
+            for transcriber in transcribers.values {
+                if transcribing { transcriber.start() } else { transcriber.stop() }
+            }
         }
         for (source, ring) in rings { transcribers[source]?.feed(ring.drain()) }
         serveCaptureRequest()

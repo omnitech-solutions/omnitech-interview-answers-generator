@@ -5,10 +5,11 @@ private struct Frame: PerceptualFrame {
     let lumaGrid: [UInt8]
     // A gradient whose direction flips per variant, so hashes differ a lot.
     static func gradient(descending: Bool) -> Frame {
-        Frame(lumaGrid: (0..<72).map { index in
-            let column = UInt8(index % 9)
-            return descending ? 255 - column * 20 : column * 20
-        })
+        Frame(
+            lumaGrid: (0..<72).map { index in
+                let column = UInt8(index % 9)
+                return descending ? 255 - column * 20 : column * 20
+            })
     }
 }
 
@@ -68,8 +69,11 @@ func policyTests(_ t: Harness) async {
         let url = repositoryRoot().appendingPathComponent(
             "apps/capture-companion/macos/Sources/CaptureCore/AudioRingBuffer.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        let code = source.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
-        for forbidden in ["import ", "FileManager", "FileHandle", "write(to", "URL(", "NSKeyedArchiver", "UserDefaults"] {
+        let code = source.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        for forbidden in [
+            "import ", "FileManager", "FileHandle", "write(to", "URL(", "NSKeyedArchiver", "UserDefaults",
+        ] {
             t.expect(!code.contains(forbidden), "AudioRingBuffer.swift contains \(forbidden)")
         }
     }
@@ -86,7 +90,8 @@ func policyTests(_ t: Harness) async {
         t.expectEqual(policy.evaluate(a, at: start.addingTimeInterval(80)), .skipSessionCap)
         t.expectEqual(policy.evaluate(Frame(lumaGrid: [1, 2, 3]), at: start), .skipUnreadableFrame)
         let big = ChangePolicy(sessionCap: 10_000)
-        t.expectEqual(big.sessionCap, ActiveSessionLimits.maxScreenshotsPerSession, "cap never exceeds the contract limit")
+        t.expectEqual(
+            big.sessionCap, ActiveSessionLimits.maxScreenshotsPerSession, "cap never exceeds the contract limit")
     }
 
     await t.test("capability check fails visibly in order and builds a valid report") {
@@ -95,15 +100,36 @@ func policyTests(_ t: Harness) async {
                 locale: "en_GB", speech: StubSpeech(result: result), permissions: StubPermissions(),
                 sourceId: "companion-r1", sentAt: "2026-10-03T10:00:00.000Z")
         }
-        let ok = SpeechProbeResult(localeSupported: true, onDeviceSupported: true, recognizerAvailable: true, authorization: .authorized)
+        let ok = SpeechProbeResult(
+            localeSupported: true, onDeviceSupported: true, recognizerAvailable: true, authorization: .authorized)
         let ready = await outcome(ok)
         t.expect(ready.failure == nil && ready.mayStartAudioSources)
         let cases: [(SpeechProbeResult, SpeechFailure)] = [
-            (SpeechProbeResult(localeSupported: false, onDeviceSupported: true, recognizerAvailable: true, authorization: .authorized), .localeUnsupported),
-            (SpeechProbeResult(localeSupported: true, onDeviceSupported: false, recognizerAvailable: true, authorization: .authorized), .onDeviceUnsupported),
-            (SpeechProbeResult(localeSupported: true, onDeviceSupported: true, recognizerAvailable: false, authorization: .authorized), .recognizerUnavailable),
-            (SpeechProbeResult(localeSupported: true, onDeviceSupported: true, recognizerAvailable: true, authorization: .denied), .notAuthorized),
-            (SpeechProbeResult(localeSupported: true, onDeviceSupported: true, recognizerAvailable: true, authorization: .notDetermined), .notAuthorized),
+            (
+                SpeechProbeResult(
+                    localeSupported: false, onDeviceSupported: true, recognizerAvailable: true,
+                    authorization: .authorized), .localeUnsupported
+            ),
+            (
+                SpeechProbeResult(
+                    localeSupported: true, onDeviceSupported: false, recognizerAvailable: true,
+                    authorization: .authorized), .onDeviceUnsupported
+            ),
+            (
+                SpeechProbeResult(
+                    localeSupported: true, onDeviceSupported: true, recognizerAvailable: false,
+                    authorization: .authorized), .recognizerUnavailable
+            ),
+            (
+                SpeechProbeResult(
+                    localeSupported: true, onDeviceSupported: true, recognizerAvailable: true, authorization: .denied),
+                .notAuthorized
+            ),
+            (
+                SpeechProbeResult(
+                    localeSupported: true, onDeviceSupported: true, recognizerAvailable: true,
+                    authorization: .notDetermined), .notAuthorized
+            ),
         ]
         for (result, expected) in cases {
             let failed = await outcome(result)

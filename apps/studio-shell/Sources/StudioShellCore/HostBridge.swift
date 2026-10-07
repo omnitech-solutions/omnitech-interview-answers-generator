@@ -174,7 +174,8 @@ public enum HostCallDecoder {
             guard let pinned = strictBool(params["pinned"]) else { return .failure(.invalidParameters) }
             return .success(.pinOnTop(pinned))
         case "openExternal":
-            guard let text = params["url"] as? String, let url = externalURL(text) ?? screenRecordingSettingsURL(text) else {
+            guard let text = params["url"] as? String, let url = externalURL(text) ?? screenRecordingSettingsURL(text)
+            else {
                 return .failure(.invalidParameters)
             }
             return .success(.openExternal(url))
@@ -220,7 +221,8 @@ public enum HostCallDecoder {
         case "closeSettings": command = .closeSettings
         case "setVisible": command = bool("visible").map(PresentationCommand.setVisible)
         case "setInteractionMode": command = bool("on").map(PresentationCommand.setInteractionMode)
-        case "setAppMode": command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
+        case "setAppMode":
+            command = (params["mode"] as? String).flatMap(AppMode.init(rawValue:)).map(PresentationCommand.setAppMode)
         case "setFullScreen": command = bool("on").map(PresentationCommand.setFullScreen)
         case "quit": command = .quitApp
         default: command = bool("enabled").map(PresentationCommand.setHotkeysEnabled)
@@ -249,7 +251,10 @@ public enum HostCallDecoder {
         }
         guard mode == .region else {
             return rawRegion == nil || rawRegion is NSNull
-                ? .success(.captureScreen(CaptureRequest(requestId: requestId, mode: mode, expiresAt: Self.pageRequestExpiry), displayId: nil, intent: intent))
+                ? .success(
+                    .captureScreen(
+                        CaptureRequest(requestId: requestId, mode: mode, expiresAt: Self.pageRequestExpiry),
+                        displayId: nil, intent: intent))
                 : .failure(.invalidParameters)
         }
         guard let fields = rawRegion as? [String: Any],
@@ -258,10 +263,12 @@ public enum HostCallDecoder {
             [x, y, width, height].allSatisfy({ $0.isFinite }),
             x >= 0, y >= 0, width > 0, height > 0, x + width <= 1, y + height <= 1
         else { return .failure(.invalidParameters) }
-        return .success(.captureScreen(CaptureRequest(
-            requestId: requestId, mode: .region,
-            region: CaptureRegion(x: x, y: y, width: width, height: height),
-            expiresAt: Self.pageRequestExpiry), displayId: displayId, intent: intent))
+        return .success(
+            .captureScreen(
+                CaptureRequest(
+                    requestId: requestId, mode: .region,
+                    region: CaptureRegion(x: x, y: y, width: width, height: height),
+                    expiresAt: Self.pageRequestExpiry), displayId: displayId, intent: intent))
     }
 
     // A page-initiated capture is not a companion request: the bridge bounds it by its own
@@ -284,7 +291,8 @@ public enum HostCallDecoder {
     // [SAFETY] The one system address the page may open besides http(s): the macOS
     // Screen Recording privacy pane, matched exactly. It is allowed only through
     // openExternal, never for a page navigation, and no other settings pane is.
-    public static let screenRecordingSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    public static let screenRecordingSettings =
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 
     // The Microphone pane, on the same terms (the permission rows' "Allow…").
     public static let microphoneSettings = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
@@ -418,195 +426,195 @@ public enum HostBridgeScript {
         let engineDefinition = engineEmit ?? ""
         let names = capabilities.map { "\"\($0.rawValue)\"" }.joined(separator: ",")
         return """
-        (function () {
-          if (window.studioHost) return;
-          var handler = window.webkit && window.webkit.messageHandlers
-            && window.webkit.messageHandlers.\(HostBridge.handlerName);
-          if (!handler) return;
-          var listeners = [];
-          var modeListeners = [];
-          var engineListeners = [];
-          var watchListeners = [];
-          var watchStatusListeners = [];
-          var accountListeners = [];
-          // Synchronous state() reads the last sign-in state the shell pushed.
-          var signInState = { phase: "idle" };
-          // Synchronous status() reads the last state the shell pushed.
-          var watching = { watching: false };
-          function remover(list, listener) {
-            if (typeof listener !== "function") return function () {};
-            list.push(listener);
-            return function () {
-              var at = list.indexOf(listener);
-              if (at >= 0) list.splice(at, 1);
-            };
-          }
-          var screenWatch = Object.freeze({
-            start: function (request) {
-              var r = request || {};
-              var params = { mode: String(r.mode) };
-              if (r.region !== undefined) params.region = r.region;
-              if (r.displayId !== undefined) params.displayId = r.displayId;
-              if (r.intervalMs !== undefined) params.intervalMs = Number(r.intervalMs);
-              return call("screenWatchStart", params).then(
-                function (reply) { return reply; },
-                function () { return { ok: false, reason: "invalid" }; });
-            },
-            stop: function () { return call("screenWatchStop").then(function () {}); },
-            status: function () { return { watching: watching.watching, reason: watching.reason }; },
-            onChange: function (listener) { return remover(watchListeners, listener); },
-            // Beyond the contract: why a watch ended (permission loss, a moved display).
-            onStatus: function (listener) { return remover(watchStatusListeners, listener); }
-          });
-          // Synchronous reads come from the last state the shell pushed.
-          var shown = { mode: "expanded", interactive: true, handsFree: false };
-          function op(name, params) {
-            var message = { op: name };
-            Object.keys(params || {}).forEach(function (key) { message[key] = params[key]; });
-            return call("presentation", message).then(function (took) { return took === true; });
-          }
-          var presentation = Object.freeze({
-            capabilities: Object.freeze([\(PresentationCapability.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]),
-            nativeToasts: true,
-            quit: function () { return op("quit"); },
-            openSettings: function () { return op("openSettings"); },
-            closeSettings: function () { return op("closeSettings"); },
-            setVisible: function (visible) { return op("setVisible", { visible: !!visible }); },
-            interactionMode: function () { return shown.interactive; },
-            setInteractionMode: function (on) { return op("setInteractionMode", { on: !!on }); },
-            onInteractionMode: function (listener) {
-              if (typeof listener !== "function") return function () {};
-              modeListeners.push(listener);
-              return function () { modeListeners = modeListeners.filter(function (each) { return each !== listener; }); };
-            },
-            // The app's expanded/minified form, and the global keys.
-            appMode: function () { return shown.mode; },
-            setAppMode: function (mode) { return op("setAppMode", { mode: String(mode) }); },
-            setHotkeysEnabled: function (enabled) { return op("setHotkeysEnabled", { enabled: !!enabled }); },
-            setWindowSize: function (size) {
-              var params = { width: Number(size && size.width) };
-              if (size && size.height !== undefined) params.height = Number(size.height);
-              return op("setWindowSize", params);
-            },
-            setFullScreen: function (on) { return op("setFullScreen", { on: !!on }); },
-            // The rectangles of every painted surface; null makes the whole window interactive.
-            setHitRegions: function (regions) { return op("setHitRegions", { regions: regions === null || regions === undefined ? null : regions }); }
-          });
-          // Sign-in runs in the person's default browser; the page only asks and
-          // hears the state. Nothing secret crosses this object: no address, no code.
-          function flag(reply) { return reply === true; }
-          function refused() { return false; }
-          var account = Object.freeze({
-            signIn: function (provider) { return call("signIn", { provider: String(provider) }).then(flag, refused); },
-            cancelSignIn: function () { return call("cancelSignIn").then(function () {}, function () {}); },
-            reopenSignIn: function () { return call("reopenSignIn").then(flag, refused); },
-            copySignInLink: function () { return call("copySignInLink").then(flag, refused); },
-            signOut: function () { return call("signOut").then(flag, refused); },
-            state: function () {
-              return signInState.provider
-                ? { phase: signInState.phase, provider: signInState.provider }
-                : { phase: signInState.phase };
-            },
-            onState: function (listener) { return remover(accountListeners, listener); },
-            permissions: function () {
-              return call("permissions").then(
-                function (reply) { return reply; },
-                function () { return { microphone: "undetermined", screen: "undetermined" }; });
-            }
-          });
-          function call(method, params) {
-            return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });
-          }
-          var host = {
-            version: \(HostBridge.version),
-            hostKind: "\(HostBridge.hostKind)",
-            capabilities: Object.freeze([\(names)]),
-            captureScreen: function (request) { return call("captureScreen", request); },
-            // Owner-visible previews of each display; a refusal is a typed result.
-            // `{ thumbnails: false }` lists the displays and the pin without previews.
-            listDisplays: function (request) {
-              var params = request && request.thumbnails === false ? { thumbnails: false } : {};
-              return call("listDisplays", params).then(
-                function (reply) { return reply; },
-                function () { return { ok: false, reason: "capture-failed" }; });
-            },
-            // null (or nothing) follows the last-focused browser again.
-            setCaptureDisplay: function (displayId) {
-              var wanted = displayId === null || displayId === undefined ? null : Number(displayId);
-              return call("setCaptureDisplay", { displayId: wanted }).then(
-                function (reply) { return reply; },
-                function () { return { ok: false, reason: "display-unavailable" }; });
-            },
-            pinOnTop: function (pinned) { return call("pinOnTop", { pinned: !!pinned }); },
-            openExternal: function (url) { return call("openExternal", { url: String(url) }); },
-            \(engineMember)presentation: presentation,
-            screenWatch: screenWatch,
-            account: account,
-            // Only the image's type and text cross; a refusal for size is typed here, the rest by the shell.
-            recognizeText: function (image) {
-              var base64 = image && typeof image.base64 === "string" ? image.base64 : "";
-              if (base64.length > \(TextRecognizer.maxBase64Characters)) {
-                return Promise.resolve({ ok: false, reason: "too-large" });
+            (function () {
+              if (window.studioHost) return;
+              var handler = window.webkit && window.webkit.messageHandlers
+                && window.webkit.messageHandlers.\(HostBridge.handlerName);
+              if (!handler) return;
+              var listeners = [];
+              var modeListeners = [];
+              var engineListeners = [];
+              var watchListeners = [];
+              var watchStatusListeners = [];
+              var accountListeners = [];
+              // Synchronous state() reads the last sign-in state the shell pushed.
+              var signInState = { phase: "idle" };
+              // Synchronous status() reads the last state the shell pushed.
+              var watching = { watching: false };
+              function remover(list, listener) {
+                if (typeof listener !== "function") return function () {};
+                list.push(listener);
+                return function () {
+                  var at = list.indexOf(listener);
+                  if (at >= 0) list.splice(at, 1);
+                };
               }
-              return call("recognizeText", { mediaType: String(image && image.mediaType), base64: base64 }).then(
-                function (reply) { return reply; },
-                function () { return { ok: false, reason: "unreadable" }; });
-            },
-            onHotkey: function (listener) {
-              if (typeof listener !== "function") return function () {};
-              listeners.push(listener);
-              return function () { listeners = listeners.filter(function (each) { return each !== listener; }); };
-            }
-          };
-          Object.defineProperty(window, "studioHost", { value: Object.freeze(host), configurable: false });
-          Object.defineProperty(window, "__studioHostEmit", {
-            value: function (name) {
-              listeners.slice().forEach(function (listener) { try { listener(String(name)); } catch (e) {} });
-            },
-            configurable: false
-          });
-          \(engineDefinition)
-          Object.defineProperty(window, "__studioHostScreenWatchChange", {
-            value: function (event) {
-              var e = { at: Number(event.at), bits: Number(event.bits) };
-              if (event.display) e.display = event.display;
-              watchListeners.slice().forEach(function (listener) { try { listener(e); } catch (x) {} });
-            },
-            configurable: false
-          });
-          Object.defineProperty(window, "__studioHostAccountState", {
-            value: function (state) {
-              var phase = String(state && state.phase);
-              if (phase !== "idle" && phase !== "waiting" && phase !== "timed-out") return;
-              signInState = { phase: phase };
-              if (phase === "waiting" && typeof state.provider === "string") signInState.provider = state.provider;
-              var copy = { phase: signInState.phase };
-              if (signInState.provider) copy.provider = signInState.provider;
-              accountListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
-            },
-            configurable: false
-          });
-          Object.defineProperty(window, "__studioHostScreenWatchStatus", {
-            value: function (state) {
-              watching = { watching: !!state.watching };
-              if (typeof state.reason === "string") watching.reason = state.reason;
-              var copy = { watching: watching.watching, reason: watching.reason };
-              watchStatusListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
-            },
-            configurable: false
-          });
-          Object.defineProperty(window, "__studioHostPresentation", {
-            value: function (state) {
-              var before = shown.interactive;
-              shown = { mode: String(state.mode), interactive: !!state.interactive, handsFree: !!state.handsFree };
-              if (before !== shown.interactive) {
-                modeListeners.slice().forEach(function (listener) { try { listener(shown.interactive); } catch (e) {} });
+              var screenWatch = Object.freeze({
+                start: function (request) {
+                  var r = request || {};
+                  var params = { mode: String(r.mode) };
+                  if (r.region !== undefined) params.region = r.region;
+                  if (r.displayId !== undefined) params.displayId = r.displayId;
+                  if (r.intervalMs !== undefined) params.intervalMs = Number(r.intervalMs);
+                  return call("screenWatchStart", params).then(
+                    function (reply) { return reply; },
+                    function () { return { ok: false, reason: "invalid" }; });
+                },
+                stop: function () { return call("screenWatchStop").then(function () {}); },
+                status: function () { return { watching: watching.watching, reason: watching.reason }; },
+                onChange: function (listener) { return remover(watchListeners, listener); },
+                // Beyond the contract: why a watch ended (permission loss, a moved display).
+                onStatus: function (listener) { return remover(watchStatusListeners, listener); }
+              });
+              // Synchronous reads come from the last state the shell pushed.
+              var shown = { mode: "expanded", interactive: true, handsFree: false };
+              function op(name, params) {
+                var message = { op: name };
+                Object.keys(params || {}).forEach(function (key) { message[key] = params[key]; });
+                return call("presentation", message).then(function (took) { return took === true; });
               }
-            },
-            configurable: false
-          });
-        })();
-        """
+              var presentation = Object.freeze({
+                capabilities: Object.freeze([\(PresentationCapability.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]),
+                nativeToasts: true,
+                quit: function () { return op("quit"); },
+                openSettings: function () { return op("openSettings"); },
+                closeSettings: function () { return op("closeSettings"); },
+                setVisible: function (visible) { return op("setVisible", { visible: !!visible }); },
+                interactionMode: function () { return shown.interactive; },
+                setInteractionMode: function (on) { return op("setInteractionMode", { on: !!on }); },
+                onInteractionMode: function (listener) {
+                  if (typeof listener !== "function") return function () {};
+                  modeListeners.push(listener);
+                  return function () { modeListeners = modeListeners.filter(function (each) { return each !== listener; }); };
+                },
+                // The app's expanded/minified form, and the global keys.
+                appMode: function () { return shown.mode; },
+                setAppMode: function (mode) { return op("setAppMode", { mode: String(mode) }); },
+                setHotkeysEnabled: function (enabled) { return op("setHotkeysEnabled", { enabled: !!enabled }); },
+                setWindowSize: function (size) {
+                  var params = { width: Number(size && size.width) };
+                  if (size && size.height !== undefined) params.height = Number(size.height);
+                  return op("setWindowSize", params);
+                },
+                setFullScreen: function (on) { return op("setFullScreen", { on: !!on }); },
+                // The rectangles of every painted surface; null makes the whole window interactive.
+                setHitRegions: function (regions) { return op("setHitRegions", { regions: regions === null || regions === undefined ? null : regions }); }
+              });
+              // Sign-in runs in the person's default browser; the page only asks and
+              // hears the state. Nothing secret crosses this object: no address, no code.
+              function flag(reply) { return reply === true; }
+              function refused() { return false; }
+              var account = Object.freeze({
+                signIn: function (provider) { return call("signIn", { provider: String(provider) }).then(flag, refused); },
+                cancelSignIn: function () { return call("cancelSignIn").then(function () {}, function () {}); },
+                reopenSignIn: function () { return call("reopenSignIn").then(flag, refused); },
+                copySignInLink: function () { return call("copySignInLink").then(flag, refused); },
+                signOut: function () { return call("signOut").then(flag, refused); },
+                state: function () {
+                  return signInState.provider
+                    ? { phase: signInState.phase, provider: signInState.provider }
+                    : { phase: signInState.phase };
+                },
+                onState: function (listener) { return remover(accountListeners, listener); },
+                permissions: function () {
+                  return call("permissions").then(
+                    function (reply) { return reply; },
+                    function () { return { microphone: "undetermined", screen: "undetermined" }; });
+                }
+              });
+              function call(method, params) {
+                return handler.postMessage({ v: \(HostBridge.version), method: method, params: params || {} });
+              }
+              var host = {
+                version: \(HostBridge.version),
+                hostKind: "\(HostBridge.hostKind)",
+                capabilities: Object.freeze([\(names)]),
+                captureScreen: function (request) { return call("captureScreen", request); },
+                // Owner-visible previews of each display; a refusal is a typed result.
+                // `{ thumbnails: false }` lists the displays and the pin without previews.
+                listDisplays: function (request) {
+                  var params = request && request.thumbnails === false ? { thumbnails: false } : {};
+                  return call("listDisplays", params).then(
+                    function (reply) { return reply; },
+                    function () { return { ok: false, reason: "capture-failed" }; });
+                },
+                // null (or nothing) follows the last-focused browser again.
+                setCaptureDisplay: function (displayId) {
+                  var wanted = displayId === null || displayId === undefined ? null : Number(displayId);
+                  return call("setCaptureDisplay", { displayId: wanted }).then(
+                    function (reply) { return reply; },
+                    function () { return { ok: false, reason: "display-unavailable" }; });
+                },
+                pinOnTop: function (pinned) { return call("pinOnTop", { pinned: !!pinned }); },
+                openExternal: function (url) { return call("openExternal", { url: String(url) }); },
+                \(engineMember)presentation: presentation,
+                screenWatch: screenWatch,
+                account: account,
+                // Only the image's type and text cross; a refusal for size is typed here, the rest by the shell.
+                recognizeText: function (image) {
+                  var base64 = image && typeof image.base64 === "string" ? image.base64 : "";
+                  if (base64.length > \(TextRecognizer.maxBase64Characters)) {
+                    return Promise.resolve({ ok: false, reason: "too-large" });
+                  }
+                  return call("recognizeText", { mediaType: String(image && image.mediaType), base64: base64 }).then(
+                    function (reply) { return reply; },
+                    function () { return { ok: false, reason: "unreadable" }; });
+                },
+                onHotkey: function (listener) {
+                  if (typeof listener !== "function") return function () {};
+                  listeners.push(listener);
+                  return function () { listeners = listeners.filter(function (each) { return each !== listener; }); };
+                }
+              };
+              Object.defineProperty(window, "studioHost", { value: Object.freeze(host), configurable: false });
+              Object.defineProperty(window, "__studioHostEmit", {
+                value: function (name) {
+                  listeners.slice().forEach(function (listener) { try { listener(String(name)); } catch (e) {} });
+                },
+                configurable: false
+              });
+              \(engineDefinition)
+              Object.defineProperty(window, "__studioHostScreenWatchChange", {
+                value: function (event) {
+                  var e = { at: Number(event.at), bits: Number(event.bits) };
+                  if (event.display) e.display = event.display;
+                  watchListeners.slice().forEach(function (listener) { try { listener(e); } catch (x) {} });
+                },
+                configurable: false
+              });
+              Object.defineProperty(window, "__studioHostAccountState", {
+                value: function (state) {
+                  var phase = String(state && state.phase);
+                  if (phase !== "idle" && phase !== "waiting" && phase !== "timed-out") return;
+                  signInState = { phase: phase };
+                  if (phase === "waiting" && typeof state.provider === "string") signInState.provider = state.provider;
+                  var copy = { phase: signInState.phase };
+                  if (signInState.provider) copy.provider = signInState.provider;
+                  accountListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
+                },
+                configurable: false
+              });
+              Object.defineProperty(window, "__studioHostScreenWatchStatus", {
+                value: function (state) {
+                  watching = { watching: !!state.watching };
+                  if (typeof state.reason === "string") watching.reason = state.reason;
+                  var copy = { watching: watching.watching, reason: watching.reason };
+                  watchStatusListeners.slice().forEach(function (listener) { try { listener(copy); } catch (x) {} });
+                },
+                configurable: false
+              });
+              Object.defineProperty(window, "__studioHostPresentation", {
+                value: function (state) {
+                  var before = shown.interactive;
+                  shown = { mode: String(state.mode), interactive: !!state.interactive, handsFree: !!state.handsFree };
+                  if (before !== shown.interactive) {
+                    modeListeners.slice().forEach(function (listener) { try { listener(shown.interactive); } catch (e) {} });
+                  }
+                },
+                configurable: false
+              });
+            })();
+            """
     }
 
     // The call the shell evaluates in the page for a hotkey.
@@ -618,20 +626,23 @@ public enum HostBridgeScript {
     public static func emitScreenWatchChange(at: Int, bits: Int, display: DisplayInfo? = nil) -> String {
         var event: [String: Any] = ["at": at, "bits": bits]
         if let display { event["display"] = display.wire }
-        let json = (try? JSONSerialization.data(withJSONObject: event, options: [.sortedKeys]))
+        let json =
+            (try? JSONSerialization.data(withJSONObject: event, options: [.sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return "window.__studioHostScreenWatchChange && window.__studioHostScreenWatchChange(\(json));"
     }
 
     public static func emitScreenWatchStatus(_ status: ScreenWatchStatus) -> String {
-        let json = (try? JSONSerialization.data(withJSONObject: status.wire, options: [.sortedKeys]))
+        let json =
+            (try? JSONSerialization.data(withJSONObject: status.wire, options: [.sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return "window.__studioHostScreenWatchStatus && window.__studioHostScreenWatchStatus(\(json));"
     }
 
     // The sign-in state, as the page's `account.onState` hears it.
     public static func emitAccountState(_ state: AccountState) -> String {
-        let json = (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
+        let json =
+            (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return "window.__studioHostAccountState && window.__studioHostAccountState(\(json));"
     }
@@ -639,7 +650,8 @@ public enum HostBridgeScript {
     // Pushes the presentation state to a page: it reads it synchronously and
     // hears an interaction-mode change as `onInteractionMode`.
     public static func emitPresentation(_ state: PresentationState) -> String {
-        let json = (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
+        let json =
+            (try? JSONSerialization.data(withJSONObject: state.wire, options: [.sortedKeys]))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
         return "window.__studioHostPresentation && window.__studioHostPresentation(\(json));"
     }

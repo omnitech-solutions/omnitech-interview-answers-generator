@@ -45,18 +45,21 @@ public final class SystemCaptureSources: SourceControl, Sendable {
     private let screenGeneration = Generation()
 
     public init(selection: Set<CaptureSource>, windowTitleContains: String?, events: CaptureEvents) {
-        microphone = selection.contains(.microphone)
+        microphone =
+            selection.contains(.microphone)
             ? MicrophoneCapture(
                 onFrame: { events.onAudio(.microphone, $0) },
                 onLost: { events.onLost(.microphone, $0) })
             : nil
-        applicationAudio = selection.contains(.applicationAudio)
+        applicationAudio =
+            selection.contains(.applicationAudio)
             ? ScreenKitSource(
                 kind: .applicationAudio, onAudio: { events.onAudio(.applicationAudio, $0) },
                 onScreenshot: { _, _ in }, onLost: { events.onLost(.applicationAudio, $0) })
             : nil
         screenSelected = selection.contains(.screen)
-        screen = selection.contains(.screen)
+        screen =
+            selection.contains(.screen)
             ? ScreenKitSource(
                 kind: .screen(windowTitleContains: windowTitleContains), onAudio: { _ in },
                 onScreenshot: events.onScreenshot, onLost: { events.onLost(.screen, $0) })

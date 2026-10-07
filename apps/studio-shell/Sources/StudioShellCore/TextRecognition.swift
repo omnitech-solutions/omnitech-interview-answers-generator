@@ -241,15 +241,19 @@ public struct TextRecognizer: Sendable {
         let step: Step? = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 race.start(continuation)
-                race.adopt(Task {
-                    do { race.finish(.observed(.success(try await observer.observe(data)))) } catch let error as TextRecognitionError {
-                        race.finish(.observed(.failure(error)))
-                    } catch { race.finish(nil) }
-                })
-                race.adopt(Task {
-                    do { try await Task.sleep(for: budget) } catch { return }
-                    race.finish(.timedOut)
-                })
+                race.adopt(
+                    Task {
+                        do { race.finish(.observed(.success(try await observer.observe(data)))) } catch let error
+                            as TextRecognitionError
+                        {
+                            race.finish(.observed(.failure(error)))
+                        } catch { race.finish(nil) }
+                    })
+                race.adopt(
+                    Task {
+                        do { try await Task.sleep(for: budget) } catch { return }
+                        race.finish(.timedOut)
+                    })
             }
         } onCancel: {
             race.finish(nil)

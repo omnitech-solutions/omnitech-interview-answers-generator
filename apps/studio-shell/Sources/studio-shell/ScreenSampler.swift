@@ -24,7 +24,8 @@ final class ShellScreenSampler: ScreenWatchSampler {
         // [SAFETY] Auto looks only while a browser is in front: the policy answers nil otherwise.
         let focus = capture.sample(intent: .auto)
         guard focus.focusedPid != nil else { return .noWindow }
-        guard let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
+        guard
+            let content = try? await ShareableContent.current(excludingDesktopWindows: false, onScreenWindowsOnly: true)
         else { return .noWindow }
         let filter: SCContentFilter
         let configuration = SCStreamConfiguration()
@@ -62,9 +63,10 @@ final class ShellScreenSampler: ScreenWatchSampler {
         autoreleasepool {
             var pixels = [UInt8](repeating: 0, count: 72)
             let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
-                guard let context = CGContext(
-                    data: buffer.baseAddress, width: 9, height: 8, bitsPerComponent: 8, bytesPerRow: 9,
-                    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+                guard
+                    let context = CGContext(
+                        data: buffer.baseAddress, width: 9, height: 8, bitsPerComponent: 8, bytesPerRow: 9,
+                        space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
                 else { return false }
                 context.interpolationQuality = .high
                 context.draw(image, in: CGRect(x: 0, y: 0, width: 9, height: 8))

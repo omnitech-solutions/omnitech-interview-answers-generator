@@ -6,7 +6,8 @@ import CaptureCore
 // window title, an address or a credential, and a source scan test fails if a
 // print call anywhere else does not go through `Status`.
 enum Status {
-    static let usage = "usage: capture-companion pair | run [--microphone] [--app-audio] [--screen] [--locale <id>] [--window-title <text>] | stop | status | windows"
+    static let usage =
+        "usage: capture-companion pair | run [--microphone] [--app-audio] [--screen] [--locale <id>] [--window-title <text>] | stop | status | windows"
     static let promptAddress = "Studio address (https://...): "
     static let promptSlug = "Workspace slug: "
     static let promptCredential = "Session credential (input hidden): "
@@ -22,8 +23,10 @@ enum Status {
     static let running = "running"
     static let markerPresent = "stopped-locally marker: present"
     static let markerAbsent = "stopped-locally marker: absent"
-    static let stopHint = "listening controls: type s then Enter, press Ctrl-C, or run `capture-companion stop` to stop locally"
-    static let speechUnavailable = "speech-unavailable: on-device recognition is not ready, so no audio source was started"
+    static let stopHint =
+        "listening controls: type s then Enter, press Ctrl-C, or run `capture-companion stop` to stop locally"
+    static let speechUnavailable =
+        "speech-unavailable: on-device recognition is not ready, so no audio source was started"
 
     static func screenAccess(granted: Bool) -> String {
         granted

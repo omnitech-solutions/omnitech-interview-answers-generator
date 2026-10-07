@@ -35,7 +35,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         self.model = model
         self.actions = actions
         super.init()
-        item.button?.image = NSImage(systemSymbolName: "rectangle.on.rectangle", accessibilityDescription: "Interview Studio")
+        item.button?.image = NSImage(
+            systemSymbolName: "rectangle.on.rectangle", accessibilityDescription: "Interview Studio")
         item.button?.toolTip = "Interview Studio · \(VisibilityTruth.line)"
         menu.delegate = self
         item.menu = menu
@@ -68,11 +69,15 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
         let paired = model.location != nil
         if StatusMenuRules.showsSignIn(model.connection) { add("Sign in to Studio…", #selector(signIn), enabled: true) }
-        add(actions.presentation().appMode == .expanded ? "Minify to Compact Window" : "Expand to Studio", #selector(toggleMode), enabled: paired)
+        add(
+            actions.presentation().appMode == .expanded ? "Minify to Compact Window" : "Expand to Studio",
+            #selector(toggleMode), enabled: paired)
         add("Open Studio", #selector(openStudio), enabled: paired)
         add("Open Studio in Browser", #selector(openInBrowser), enabled: paired)
         // Ends this Mac's Studio session only; offered while Studio says someone is signed in.
-        add("Sign out", #selector(signOut), enabled: StatusMenuRules.signOutEnabled(paired: paired, signedIn: model.signedIn))
+        add(
+            "Sign out", #selector(signOut),
+            enabled: StatusMenuRules.signOutEnabled(paired: paired, signedIn: model.signedIn))
 
         let switcher = NSMenuItem(title: "Switch Session", action: nil, keyEquivalent: "")
         let sub = NSMenu()
@@ -113,7 +118,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Window
-        add(keyed(pstate.hidden ? "Show Window" : "Hide Window", keys[.toggleVisibility]), #selector(toggleVisibility), enabled: paired)
+        add(
+            keyed(pstate.hidden ? "Show Window" : "Hide Window", keys[.toggleVisibility]), #selector(toggleVisibility),
+            enabled: paired)
         add(keyed("See-through", keys[.toggleInteraction]), #selector(toggleInteraction), enabled: paired)
         add("Settings", #selector(openSettings), enabled: paired)
         let shortcuts = add("Global Shortcuts", #selector(toggleHotkeys), enabled: true)

@@ -43,9 +43,10 @@ private func run(_ text: String, _ rect: CGRect, _ confidence: Double = 1) -> Te
 
 // Renders black text on white into PNG bytes at a fixed font and size.
 private func renderedPNG(_ lines: [String], width: Int = 900, height: Int = 260, fontSize: CGFloat = 64) -> Data? {
-    guard let context = CGContext(
-        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+    guard
+        let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
     else { return nil }
     context.setFillColor(CGColor(gray: 1, alpha: 1))
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -53,7 +54,8 @@ private func renderedPNG(_ lines: [String], width: Int = 900, height: Int = 260,
     var y = CGFloat(height) - fontSize - 24
     for line in lines {
         let attributed = NSAttributedString(
-            string: line, attributes: [
+            string: line,
+            attributes: [
                 NSAttributedString.Key(kCTFontAttributeName as String): font,
                 NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String): true,
             ])
@@ -64,7 +66,9 @@ private func renderedPNG(_ lines: [String], width: Int = 900, height: Int = 260,
     }
     guard let image = context.makeImage() else { return nil }
     let data = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { return nil }
+    guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+        return nil
+    }
     CGImageDestinationAddImage(destination, image, nil)
     return CGImageDestinationFinalize(destination) ? data as Data : nil
 }
@@ -72,10 +76,11 @@ private func renderedPNG(_ lines: [String], width: Int = 900, height: Int = 260,
 private func page() -> JSContext {
     let context = JSContext()!
     context.evaluateScript("var window = this; var __posted = [];")
-    context.evaluateScript("""
-    window.webkit = { messageHandlers: { studioHost: {
-      postMessage: function (m) { __posted.push(JSON.stringify(m)); return Promise.resolve({ ok: true }); } } } };
-    """)
+    context.evaluateScript(
+        """
+        window.webkit = { messageHandlers: { studioHost: {
+          postMessage: function (m) { __posted.push(JSON.stringify(m)); return Promise.resolve({ ok: true }); } } } };
+        """)
     context.evaluateScript(HostBridgeScript.source(capabilities: HostCapability.allCases))
     return context
 }
@@ -87,20 +92,28 @@ func textRecognitionTests(_ t: Harness) async {
     }
 
     await t.test("recognizeText decodes exactly a known media type and a bounded base64 string") {
-        t.expectEqual(recognizeText(["mediaType": "image/jpeg", "base64": "AAAA"]),
+        t.expectEqual(
+            recognizeText(["mediaType": "image/jpeg", "base64": "AAAA"]),
             .success(.recognizeText(mediaType: "image/jpeg", base64: "AAAA")))
-        t.expectEqual(recognizeText(["mediaType": "image/png", "base64": "AAAA"]),
+        t.expectEqual(
+            recognizeText(["mediaType": "image/png", "base64": "AAAA"]),
             .success(.recognizeText(mediaType: "image/png", base64: "AAAA")))
         let invalid: [[String: Any]] = [
             [:], ["mediaType": "image/jpeg"], ["base64": "AAAA"],
             ["mediaType": "image/gif", "base64": "AAAA"], ["mediaType": 1, "base64": "AAAA"],
             ["mediaType": "image/jpeg", "base64": 12], ["mediaType": "image/jpeg", "base64": ""],
             ["mediaType": "image/jpeg", "base64": "AAAA", "displayId": 1],
-            ["mediaType": "image/jpeg", "base64": String(repeating: "A", count: TextRecognizer.maxBase64Characters + 1)],
+            [
+                "mediaType": "image/jpeg",
+                "base64": String(repeating: "A", count: TextRecognizer.maxBase64Characters + 1),
+            ],
         ]
-        for params in invalid { t.expectEqual(recognizeText(params), .failure(.invalidParameters), "\(params.keys.sorted())") }
+        for params in invalid {
+            t.expectEqual(recognizeText(params), .failure(.invalidParameters), "\(params.keys.sorted())")
+        }
         let atLimit = String(repeating: "A", count: TextRecognizer.maxBase64Characters)
-        t.expectEqual(recognizeText(["mediaType": "image/webp", "base64": atLimit]),
+        t.expectEqual(
+            recognizeText(["mediaType": "image/webp", "base64": atLimit]),
             .success(.recognizeText(mediaType: "image/webp", base64: atLimit)))
     }
 
@@ -111,18 +124,23 @@ func textRecognitionTests(_ t: Harness) async {
         t.expectEqual(HostCapability.textRecognition.rawValue, "text-recognition")
     }
 
-    await t.test("the injected script exposes recognizeText, posts only the image type and text, and types a size refusal") {
+    await t.test(
+        "the injected script exposes recognizeText, posts only the image type and text, and types a size refusal"
+    ) {
         let context = page()
         t.expectEqual(context.evaluateScript("typeof window.studioHost.recognizeText")?.toString(), "function")
         // A whole capture result goes in; only mediaType and base64 are posted.
-        context.evaluateScript("window.studioHost.recognizeText({ ok: true, mediaType: 'image/jpeg', base64: 'AAAA', displayId: 3 });")
-        t.expectEqual(context.evaluateScript("__posted[0]")?.toString(),
+        context.evaluateScript(
+            "window.studioHost.recognizeText({ ok: true, mediaType: 'image/jpeg', base64: 'AAAA', displayId: 3 });")
+        t.expectEqual(
+            context.evaluateScript("__posted[0]")?.toString(),
             #"{"v":1,"method":"recognizeText","params":{"mediaType":"image/jpeg","base64":"AAAA"}}"#)
-        context.evaluateScript("""
-        var reply;
-        window.studioHost.recognizeText({ mediaType: 'image/jpeg', base64: 'A'.repeat(\(TextRecognizer.maxBase64Characters + 1)) })
-          .then(function (r) { reply = r; });
-        """)
+        context.evaluateScript(
+            """
+            var reply;
+            window.studioHost.recognizeText({ mediaType: 'image/jpeg', base64: 'A'.repeat(\(TextRecognizer.maxBase64Characters + 1)) })
+              .then(function (r) { reply = r; });
+            """)
         t.expectEqual(context.evaluateScript("__posted.length")?.toInt32(), 1, "an oversized image is never posted")
     }
 
@@ -163,15 +181,20 @@ func textRecognitionTests(_ t: Harness) async {
         t.expectEqual(single.text.count, 10)
         t.expect(single.truncated)
         t.expectEqual(ReadingOrder.maxCharacters, 20_000)
-        let big = ReadingOrder.compose((0..<3000).map { run("row number \($0)", box(0.1, 1 - Double($0) * 0.0003, 0.2, 0.0002)) })
+        let big = ReadingOrder.compose(
+            (0..<3000).map { run("row number \($0)", box(0.1, 1 - Double($0) * 0.0003, 0.2, 0.0002)) })
         t.expect(big.text.count <= 20_000 && big.truncated)
         t.expect(!big.text.hasSuffix("\n") && big.text.split(separator: "\n").last?.hasPrefix("row number") == true)
     }
 
     await t.test("the recognizer composes a fake observer's runs") {
-        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else { return t.expect(false, "render") }
-        let recognizer = TextRecognizer(observer: FakeObserver(observations: [run("b", box(0.5, 0.5)), run("a", box(0.1, 0.5))]))
-        for outcome in [await recognizer.recognize(png), await recognizer.recognize(base64: png.base64EncodedString())] {
+        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else {
+            return t.expect(false, "render")
+        }
+        let recognizer = TextRecognizer(
+            observer: FakeObserver(observations: [run("b", box(0.5, 0.5)), run("a", box(0.1, 0.5))]))
+        for outcome in [await recognizer.recognize(png), await recognizer.recognize(base64: png.base64EncodedString())]
+        {
             guard case .recognized(let text) = outcome else { return t.expect(false, "recognized") }
             t.expectEqual(text.text, "a b")
             t.expectEqual(text.confidence, 1)
@@ -186,26 +209,36 @@ func textRecognitionTests(_ t: Harness) async {
         else { return t.expect(false, "render") }
         let recognizer = TextRecognizer(observer: FakeObserver())
         t.expectEqual(await recognizer.recognize(wide), .failed(.tooLarge))
-        t.expectEqual(await recognizer.recognize(Data(repeating: 0, count: TextRecognizer.maxImageBytes + 1)), .failed(.tooLarge))
-        t.expectEqual(await recognizer.recognize(base64: String(repeating: "A", count: TextRecognizer.maxBase64Characters + 4)), .failed(.tooLarge))
+        t.expectEqual(
+            await recognizer.recognize(Data(repeating: 0, count: TextRecognizer.maxImageBytes + 1)), .failed(.tooLarge))
+        t.expectEqual(
+            await recognizer.recognize(base64: String(repeating: "A", count: TextRecognizer.maxBase64Characters + 4)),
+            .failed(.tooLarge))
         t.expectEqual(await recognizer.recognize(Data("not an image".utf8)), .failed(.unreadable))
         t.expectEqual(await recognizer.recognize(base64: "***not base64***"), .failed(.unreadable))
-        t.expectEqual(await TextRecognizer(observer: FakeObserver(isAvailable: false)).recognize(small), .failed(.unavailable))
-        t.expectEqual(await TextRecognizer(observer: FakeObserver(failure: .unreadable)).recognize(small), .failed(.unreadable))
-        t.expectEqual(await TextRecognizer(observer: FakeObserver(failure: .unavailable)).recognize(small), .failed(.unavailable))
+        t.expectEqual(
+            await TextRecognizer(observer: FakeObserver(isAvailable: false)).recognize(small), .failed(.unavailable))
+        t.expectEqual(
+            await TextRecognizer(observer: FakeObserver(failure: .unreadable)).recognize(small), .failed(.unreadable))
+        t.expectEqual(
+            await TextRecognizer(observer: FakeObserver(failure: .unavailable)).recognize(small), .failed(.unavailable))
     }
 
     await t.test("a slow observer times out, is cancelled, and the capture result simply omits ocr") {
-        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else { return t.expect(false, "render") }
+        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else {
+            return t.expect(false, "render")
+        }
         let started = ContinuousClock.now
-        let outcome = await TextRecognizer(observer: FakeObserver(hangs: true)).recognize(png, within: .milliseconds(80))
+        let outcome = await TextRecognizer(observer: FakeObserver(hangs: true)).recognize(
+            png, within: .milliseconds(80))
         t.expectEqual(outcome, .failed(.timeout))
         t.expect(ContinuousClock.now - started < .seconds(5), "returns at the budget, not at the observer's pace")
 
         let frame = CaptureOutcome.image(jpeg: Data([1, 2, 3]), windowLabel: "window")
         var ocr: OcrText?
         if case .recognized(let text) = outcome { ocr = text }
-        t.expect(HostReply.capture(frame, screenAccessGranted: true, ocr: ocr)["ocr"] == nil, "no ocr block after a timeout")
+        t.expect(
+            HostReply.capture(frame, screenAccessGranted: true, ocr: ocr)["ocr"] == nil, "no ocr block after a timeout")
         let withText = HostReply.capture(
             frame, screenAccessGranted: true, ocr: OcrText(text: "hi", confidence: 0.5, truncated: false))
         t.expectEqual(withText["ok"] as? Bool, true)
@@ -218,21 +251,33 @@ func textRecognitionTests(_ t: Harness) async {
     }
 
     await t.test("the budget is a hard bound: an observer that ignores cancellation cannot hold the caller") {
-        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else { return t.expect(false, "render") }
+        guard let png = renderedPNG(["x"], width: 64, height: 64, fontSize: 20) else {
+            return t.expect(false, "render")
+        }
         let started = ContinuousClock.now
-        let outcome = await TextRecognizer(observer: StubbornObserver(delay: .seconds(3))).recognize(png, within: .milliseconds(100))
+        let outcome = await TextRecognizer(observer: StubbornObserver(delay: .seconds(3))).recognize(
+            png, within: .milliseconds(100))
         t.expectEqual(outcome, .failed(.timeout), "the deadline wins; the late result is dropped")
         t.expect(ContinuousClock.now - started < .seconds(1), "returned at the budget, not when the observer finished")
         // A fast observer still wins the race.
-        let fast = await TextRecognizer(observer: StubbornObserver(delay: .milliseconds(10))).recognize(png, within: .seconds(2))
-        if case .recognized(let text) = fast { t.expectEqual(text.text, "late") } else { t.expect(false, "fast result lost: \(fast)") }
+        let fast = await TextRecognizer(observer: StubbornObserver(delay: .milliseconds(10))).recognize(
+            png, within: .seconds(2))
+        if case .recognized(let text) = fast {
+            t.expectEqual(text.text, "late")
+        } else {
+            t.expect(false, "fast result lost: \(fast)")
+        }
     }
 
-    await t.test("reply shapes: recognized carries ok, engine, text, confidence, truncated; a failure carries its reason") {
+    await t.test(
+        "reply shapes: recognized carries ok, engine, text, confidence, truncated; a failure carries its reason"
+    ) {
         let ok = HostReply.recognition(.recognized(OcrText(text: "a", confidence: 1, truncated: true)))
-        t.expectEqual(Set(ok.keys), ["ok", "engine", "text", "confidence", "truncated"], "no metrics when not measured")
+        t.expectEqual(
+            Set(ok.keys), ["ok", "engine", "text", "confidence", "truncated"], "no metrics when not measured")
         let measured = OcrMetrics(coverage: 0.5, meanConfidence: 0.9, largestGap: 0.1, boxes: 3)
-        let withMetrics = HostReply.recognition(.recognized(OcrText(text: "a", confidence: 1, truncated: false, metrics: measured)))
+        let withMetrics = HostReply.recognition(
+            .recognized(OcrText(text: "a", confidence: 1, truncated: false, metrics: measured)))
         t.expectEqual(Set(withMetrics.keys), ["ok", "engine", "text", "confidence", "truncated", "metrics"])
         let wire = withMetrics["metrics"] as? [String: Any]
         t.expectEqual(Set(wire?.keys.map { $0 } ?? []), ["coverage", "meanConfidence", "largestGap", "boxes"])
@@ -247,7 +292,8 @@ func textRecognitionTests(_ t: Harness) async {
     }
 
     await t.test("an untrusted origin is not answered, even with a valid recognizeText message") {
-        let message = ["v": 1, "method": "recognizeText", "params": ["mediaType": "image/png", "base64": "AAAA"]] as [String: Any]
+        let message =
+            ["v": 1, "method": "recognizeText", "params": ["mediaType": "image/png", "base64": "AAAA"]] as [String: Any]
         t.expect(HostCallDecoder.decode(message) != .failure(.invalidParameters), "the message itself is valid")
         let studio = StudioLocation(address: "http://127.0.0.1:3100", tenantSlug: "local")!
         func from(_ host: String, main: Bool = true) -> SenderFacts {
@@ -260,7 +306,9 @@ func textRecognitionTests(_ t: Harness) async {
 
     await t.test("real Vision reads rendered text (skipped when Vision is unavailable)") {
         guard VisionTextObserver.available else { return print("skip: Vision text recognition is unavailable here") }
-        guard let png = renderedPNG(["Quarterly Revenue 2048", "Invoice Total Paid"]) else { return t.expect(false, "render") }
+        guard let png = renderedPNG(["Quarterly Revenue 2048", "Invoice Total Paid"]) else {
+            return t.expect(false, "render")
+        }
         let outcome = await TextRecognizer(observer: VisionTextObserver()).recognize(png)
         guard case .recognized(let text) = outcome else { return t.expect(false, "expected text, got \(outcome)") }
         let lower = text.text.lowercased()

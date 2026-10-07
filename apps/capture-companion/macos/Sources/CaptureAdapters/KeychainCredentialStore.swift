@@ -29,7 +29,8 @@ public final class KeychainCredentialStore: CredentialStore {
         var info: CFDictionary?
         guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
             SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
-            SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+            SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info)
+                == errSecSuccess,
             let dictionary = info as? [String: Any]
         else { return KeychainCredentialStore(service: service, account: base) }
         let account = CredentialAccount.name(

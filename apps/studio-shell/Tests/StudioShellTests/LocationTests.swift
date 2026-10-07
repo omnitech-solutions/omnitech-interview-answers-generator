@@ -11,7 +11,8 @@ func locationTests(_ t: Harness) async {
     }
 
     await t.test("an address is an origin only; a trailing slash is fine") {
-        t.expectEqual(StudioLocation(address: "https://studio.example.com/", tenantSlug: "acme")?.origin.absoluteString,
+        t.expectEqual(
+            StudioLocation(address: "https://studio.example.com/", tenantSlug: "acme")?.origin.absoluteString,
             "https://studio.example.com")
         for bad in [
             "http://studio.example.com",  // plain http off loopback
@@ -27,12 +28,15 @@ func locationTests(_ t: Harness) async {
 
     await t.test("the overlay route is /t/:tenant/p/interview/live/overlay?host=native") {
         let location = StudioLocation(address: "", tenantSlug: "local")!
-        t.expectEqual(location.overlayURL().absoluteString,
+        t.expectEqual(
+            location.overlayURL().absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
-        t.expectEqual(location.overlayURL(sessionId: session).absoluteString,
+        t.expectEqual(
+            location.overlayURL(sessionId: session).absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native&session=\(session)")
         // Not a session id: dropped, never put in the URL.
-        t.expectEqual(location.overlayURL(sessionId: "x&host=evil").absoluteString,
+        t.expectEqual(
+            location.overlayURL(sessionId: "x&host=evil").absoluteString,
             "http://127.0.0.1:3000/t/local/p/interview/live/overlay?host=native")
     }
 

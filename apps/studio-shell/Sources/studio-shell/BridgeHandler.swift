@@ -119,7 +119,10 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
             let senderView = message.webView
             Task { @MainActor in
                 // [GUARD] One recognition at a time: N parallel `.accurate` runs would hold N images.
-                guard let outcome = await self.recognitionGate.run({ await self.capture.recognizer.recognize(base64: base64) })
+                guard
+                    let outcome = await self.recognitionGate.run({
+                        await self.capture.recognizer.recognize(base64: base64)
+                    })
                 else { return replyHandler(HostReply.failure("busy"), nil) }
                 guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
                     return replyHandler(nil, "stale")
@@ -137,14 +140,17 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
             // known exception: they show every display, other apps included, plan 7.0s T34),
             // but Screen Recording does, and they are rationed: single-flight with a minimum
             // interval, the previous result answering a repeat. Held by the page in memory only.
-            guard CGPreflightScreenCaptureAccess() else { return replyHandler(HostReply.failure("permission-denied"), nil) }
+            guard CGPreflightScreenCaptureAccess() else {
+                return replyHandler(HostReply.failure("permission-denied"), nil)
+            }
             let ticket = model.epoch.ticket()
             let senderView = message.webView
             switch previewThrottle.begin() {
             case .busy: return replyHandler(HostReply.failure("busy"), nil)
             case .reuse(let previews):
                 let pinNow = capture.pin.snapshot(available: Displays.infos().map(\.id))
-                return replyHandler(HostReply.displayList(previews, pinnedDisplayId: pinNow.id, pinFallback: pinNow.fallback), nil)
+                return replyHandler(
+                    HostReply.displayList(previews, pinnedDisplayId: pinNow.id, pinFallback: pinNow.fallback), nil)
             case .run: break
             }
             Task { @MainActor in
@@ -175,7 +181,9 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         case .success(.copySignInLink): replyHandler(account.copySignInLink(), nil)
         case .success(.signOut): replyHandler(account.signOut(), nil)
         case .success(.permissions):
-            replyHandler(HostReply.permissions(microphone: ShellPermissions.microphone(), screen: ShellPermissions.screen()), nil)
+            replyHandler(
+                HostReply.permissions(microphone: ShellPermissions.microphone(), screen: ShellPermissions.screen()), nil
+            )
         case .success(.captureScreen(let request, let displayId, let intent)):
             // Sampled now, before any await and before the panel can take focus.
             let sample = capture.sample(intent: intent)
@@ -217,7 +225,9 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
                 if case .image(let jpeg, _) = result.outcome,
                     case .recognized(let text) = await self.capture.recognizer.recognize(
                         jpeg, within: ShellCapture.captureOcrBudget)
-                { ocr = text }
+                {
+                    ocr = text
+                }
                 guard self.model.epoch.isCurrent(ticket), self.model.isAtStudio(senderView) else {
                     return replyHandler(nil, "stale")
                 }

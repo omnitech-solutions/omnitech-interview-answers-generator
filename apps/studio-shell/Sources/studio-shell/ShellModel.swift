@@ -65,7 +65,6 @@ final class ShellModel {
         set { UserDefaults.standard.set(newValue, forKey: "pinned") }
     }
 
-
     func load() {
         location = pairing.current()
         connection = ConnectionRules.state(paired: location != nil, probe: nil)
@@ -206,6 +205,10 @@ final class ShellModel {
 struct UserDefaultsStore: SettingsStore {
     func string(forKey key: String) -> String? { UserDefaults.standard.string(forKey: "shell." + key) }
     func set(_ value: String?, forKey key: String) {
-        if let value { UserDefaults.standard.set(value, forKey: "shell." + key) } else { UserDefaults.standard.removeObject(forKey: "shell." + key) }
+        if let value {
+            UserDefaults.standard.set(value, forKey: "shell." + key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: "shell." + key)
+        }
     }
 }

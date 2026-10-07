@@ -100,9 +100,10 @@ func wireTests(_ t: Harness) async {
     }
 
     await t.test("identity field names use the contracts normalisation") {
-        for name in ["tenant", "tenantId", "tenant_id", "Tenant-Id", "userId", "actor", "sessionId",
-            "owner", "ACCOUNT", "member_id", "organization", "orgId", "credential", "token", "authorization"]
-        {
+        for name in [
+            "tenant", "tenantId", "tenant_id", "Tenant-Id", "userId", "actor", "sessionId",
+            "owner", "ACCOUNT", "member_id", "organization", "orgId", "credential", "token", "authorization",
+        ] {
             t.expect(WireValidator.isIdentityFieldName(name), name)
         }
         for name in ["authorizationStatus", "sourceId", "speaker", "text", "tokens"] {
@@ -111,9 +112,12 @@ func wireTests(_ t: Harness) async {
     }
 
     await t.test("an unknown field, bad version and oversize body are refused by code") {
-        var data = Data(#"{"version":1,"kind":"heartbeat","sourceId":"a","sentAt":"2026-10-03T10:00:00Z","capturing":true,"x":1}"#.utf8)
+        var data = Data(
+            #"{"version":1,"kind":"heartbeat","sourceId":"a","sentAt":"2026-10-03T10:00:00Z","capturing":true,"x":1}"#
+                .utf8)
         t.expectEqual(WireValidator.validateIngest(data: data).issueCodes, ["unknown_field"])
-        data = Data(#"{"version":2,"kind":"heartbeat","sourceId":"a","sentAt":"2026-10-03T10:00:00Z","capturing":true}"#.utf8)
+        data = Data(
+            #"{"version":2,"kind":"heartbeat","sourceId":"a","sentAt":"2026-10-03T10:00:00Z","capturing":true}"#.utf8)
         t.expectEqual(WireValidator.validateIngest(data: data).issueCodes, ["unsupported_version"])
         data = Data(repeating: 0x20, count: ActiveSessionLimits.maxEnvelopeBytes + 1)
         t.expectEqual(WireValidator.validateIngest(data: data).issueCodes, ["too_large"])

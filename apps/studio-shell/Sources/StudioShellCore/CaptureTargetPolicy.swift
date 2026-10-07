@@ -28,7 +28,9 @@ public enum CaptureTargetPolicy {
         // The application in front at receipt (the shell stands aside for the last other).
         if let sampled = FocusSampling.sample(frontmost: frontmost, ownPid: ownPid, lastOther: lastOther),
             isBrowser(sampled)
-        { return sampled }
+        {
+            return sampled
+        }
         // Only the person's own request may reach back to the last focused browser.
         guard intent == .explicit, let lastBrowser, lastBrowser != ownPid, isBrowser(lastBrowser) else { return nil }
         return lastBrowser

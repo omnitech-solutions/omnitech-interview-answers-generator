@@ -131,14 +131,15 @@ final class StudioPanel: NSPanel {
         guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
             let key = event.charactersIgnoringModifiers
         else { return super.performKeyEquivalent(with: event) }
-        let action: Selector? = switch key {
-        case "c": #selector(NSText.copy(_:))
-        case "v": #selector(NSText.paste(_:))
-        case "x": #selector(NSText.cut(_:))
-        case "a": #selector(NSText.selectAll(_:))
-        case "z": Selector(("undo:"))
-        default: nil
-        }
+        let action: Selector? =
+            switch key {
+            case "c": #selector(NSText.copy(_:))
+            case "v": #selector(NSText.paste(_:))
+            case "x": #selector(NSText.cut(_:))
+            case "a": #selector(NSText.selectAll(_:))
+            case "z": Selector(("undo:"))
+            default: nil
+            }
         if let action, NSApp.sendAction(action, to: nil, from: self) { return true }
         return super.performKeyEquivalent(with: event)
     }

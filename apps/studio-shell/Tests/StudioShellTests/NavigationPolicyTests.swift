@@ -11,12 +11,14 @@ func navigationPolicyTests(_ t: Harness) async {
 
     await t.test("Studio's own origin is allowed; a main-frame page starts a new generation") {
         t.expectEqual(decide("https://studio.example.test/t/acme/p/interview/live"), .allow(startsNewPage: true))
-        t.expectEqual(decide("https://studio.example.test/t/acme/p/interview/live", main: false), .allow(startsNewPage: false))
+        t.expectEqual(
+            decide("https://studio.example.test/t/acme/p/interview/live", main: false), .allow(startsNewPage: false))
     }
 
     await t.test("only the exact scheme, host and port are Studio") {
         for other in [
-            "http://studio.example.test/", "https://studio.example.test:8443/", "https://studio.example.test.evil.test/",
+            "http://studio.example.test/", "https://studio.example.test:8443/",
+            "https://studio.example.test.evil.test/",
             "https://evil.test/", "https://sub.studio.example.test/",
         ] {
             t.expectEqual(decide(other), .openExternally, "\(other) must leave the web view")
@@ -45,7 +47,8 @@ func navigationPolicyTests(_ t: Harness) async {
         // location either (the saved one may be what is wrong), main frame or not.
         t.expectEqual(decide("omnitech-studio://change-connection"), .requestChangeConnection)
         t.expectEqual(decide("omnitech-studio://change-connection", main: false), .requestChangeConnection)
-        t.expectEqual(decide("omnitech-studio://change-connection", at: nil), .requestChangeConnection, "needs no location")
+        t.expectEqual(
+            decide("omnitech-studio://change-connection", at: nil), .requestChangeConnection, "needs no location")
         t.expectEqual(decide("omnitech-studio://change-connection/extra"), .openExternally)
         t.expectEqual(decide("omnitech-studio://change-connection?x=1"), .openExternally)
         t.expectEqual(decide("omnitech-studio://signin-start/extra"), .openExternally)
@@ -69,7 +72,9 @@ func navigationPolicyTests(_ t: Harness) async {
     }
 
     await t.test("media capture is granted only to Studio's origin in the main frame") {
-        func allowed(_ scheme: String, _ host: String, _ port: Int, main: Bool = true, at: StudioLocation?? = .none) -> Bool {
+        func allowed(_ scheme: String, _ host: String, _ port: Int, main: Bool = true, at: StudioLocation?? = .none)
+            -> Bool
+        {
             NavigationPolicy.mediaCaptureAllowed(
                 originScheme: scheme, host: host, port: port, isMainFrame: main, location: at ?? location)
         }
@@ -95,12 +100,16 @@ func navigationPolicyTests(_ t: Harness) async {
     // cancel put "Can't reach Studio" over the shell's own sign-in panel.
     await t.test("the shell's own cancelled navigations are not failures, real failures are") {
         t.expect(NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: -999), "URL loading cancelled")
-        t.expect(NavigationFailure.isDeliberateCancel(domain: "WebKitErrorDomain", code: 102), "frame load interrupted by a policy change")
-        t.expect(!NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: -1004), "cannot connect to host")
+        t.expect(
+            NavigationFailure.isDeliberateCancel(domain: "WebKitErrorDomain", code: 102),
+            "frame load interrupted by a policy change")
+        t.expect(
+            !NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: -1004), "cannot connect to host")
         t.expect(!NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: -1001), "timed out")
-        t.expect(!NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: 102), "the code alone is not enough")
+        t.expect(
+            !NavigationFailure.isDeliberateCancel(domain: "NSURLErrorDomain", code: 102), "the code alone is not enough"
+        )
         t.expect(!NavigationFailure.isDeliberateCancel(domain: "WebKitErrorDomain", code: 101), "cannot show URL")
         t.expect(!NavigationFailure.isDeliberateCancel(domain: "WebKitErrorDomain", code: -999), "the domain matters")
     }
 }
-

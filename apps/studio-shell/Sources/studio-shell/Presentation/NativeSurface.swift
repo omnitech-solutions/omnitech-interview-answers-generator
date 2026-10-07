@@ -43,14 +43,18 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
         // re-assert level and ordering whenever the active Space or app changes.
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reassert() }
-            })
+            observers.append(
+                center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.reassert() }
+                })
         }
         // [SAFETY] Quitting leaves no window ignoring the mouse.
-        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.compact?.setHitRegions(nil) }
-        })
+        observers.append(
+            NotificationCenter.default.addObserver(
+                forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.compact?.setHitRegions(nil) }
+            })
     }
 
     // MARK: render
@@ -109,7 +113,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     private var mainArea: CGRect { NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900) }
 
     var compactView: WKWebView? { compact?.webView }
-    func setCompactSize(width: Double, height: Double?) { compact?.setSize(width: CGFloat(width), height: height.map { CGFloat($0) }) }
+    func setCompactSize(width: Double, height: Double?) {
+        compact?.setSize(width: CGFloat(width), height: height.map { CGFloat($0) })
+    }
     func setCompactFullScreen(_ on: Bool) { compact?.setFullScreen(on) }
     // See-through: only the one window is masked; Settings and the main window take every click.
     func setHitRegions(_ regions: [HitRect]?) { compact?.setHitRegions(regions) }
@@ -185,7 +191,9 @@ final class NativeSurface: NSObject, PresentationSurface, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) { saveMain(notification) }
     func windowDidEndLiveResize(_ notification: Notification) { saveMain(notification) }
     private func saveMain(_ notification: Notification) {
-        if let window = notification.object as? NSWindow, window === main { model.prefs.saveMainWindowFrame(window.frame) }
+        if let window = notification.object as? NSWindow, window === main {
+            model.prefs.saveMainWindowFrame(window.frame)
+        }
     }
 }
 
@@ -303,7 +311,8 @@ final class PanelWindow: NSObject, NSWindowDelegate {
         }
         let snapshot = PanelChromeSnapshot(
             windowIsOpaque: panel.isOpaque, windowBackgroundAlpha: Double(panel.backgroundColor.alphaComponent),
-            windowHasShadow: panel.hasShadow, webViewDrawsBackground: (webView.value(forKey: "drawsBackground") as? Bool) ?? true,
+            windowHasShadow: panel.hasShadow,
+            webViewDrawsBackground: (webView.value(forKey: "drawsBackground") as? Bool) ?? true,
             webViewUnderPageAlpha: Double(webView.underPageBackgroundColor?.alphaComponent ?? 0),
             otherBackgroundAlphas: others)
         let problems = PanelChrome.violations(snapshot)
@@ -320,7 +329,8 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     func setFullScreen(_ on: Bool) {
         guard let area = (panel.screen ?? NSScreen.main)?.visibleFrame else { return }
         if on {
-            panel.setFrame(fullScreen.enter(from: panel.frame, visible: area, min: panel.minSize), display: true, animate: true)
+            panel.setFrame(
+                fullScreen.enter(from: panel.frame, visible: area, min: panel.minSize), display: true, animate: true)
         } else if let back = fullScreen.leave(in: area) {
             panel.setFrame(back, display: true, animate: true)
         }
@@ -381,10 +391,11 @@ final class PanelWindow: NSObject, NSWindowDelegate {
     // [SAFETY] Over any app, Space and full-screen window (PanelWindowTraits).
     func show(pinned: Bool) {
         let traits = PanelWindowTraits.of(pinned: pinned)
-        panel.level = switch traits.level {
-        case .normal: .normal
-        case .floating: .floating
-        }
+        panel.level =
+            switch traits.level {
+            case .normal: .normal
+            case .floating: .floating
+            }
         panel.hidesOnDeactivate = traits.hidesOnDeactivate
         panel.orderFrontRegardless()
         hitTracker?.resume()
@@ -410,7 +421,10 @@ final class ToolbarDragView: NSView {
     override func mouseDown(with event: NSEvent) { down = event; dragged = false }
     override func mouseDragged(with event: NSEvent) {
         guard let start = down, !dragged else { return }
-        if hypot(event.locationInWindow.x - start.locationInWindow.x, event.locationInWindow.y - start.locationInWindow.y) > 3 {
+        if hypot(
+            event.locationInWindow.x - start.locationInWindow.x, event.locationInWindow.y - start.locationInWindow.y)
+            > 3
+        {
             dragged = true
             window?.performDrag(with: start)
         }
@@ -448,7 +462,8 @@ final class ToastPresenter {
     private var hideWork: DispatchWorkItem?
 
     init() {
-        panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel = NSPanel(
+            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -484,9 +499,13 @@ final class ToastPresenter {
         panel.orderFrontRegardless()
         hideWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            NSAnimationContext.runAnimationGroup({ $0.duration = 0.5; self?.panel.animator().alphaValue = 0 }, completionHandler: {
-                self?.panel.orderOut(nil)
-            })
+            NSAnimationContext.runAnimationGroup(
+                {
+                    $0.duration = 0.5; self?.panel.animator().alphaValue = 0
+                },
+                completionHandler: {
+                    self?.panel.orderOut(nil)
+                })
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + ToastLayout.seconds, execute: work)

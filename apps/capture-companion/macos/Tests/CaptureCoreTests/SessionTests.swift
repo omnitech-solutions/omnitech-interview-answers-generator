@@ -5,8 +5,10 @@ import CaptureCore
 func sessionTests(_ t: Harness) async {
     await t.test("endpoint puts the credential only in the Authorization header") {
         let endpoint = Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "acme")!
-        t.expectEqual(endpoint.ingestURL.absoluteString, "https://studio.example.test/api/interview/t/acme/sessions/ingest")
-        let beat = IngestMessage.heartbeat(Heartbeat(sourceId: "c", sentAt: "2026-10-03T10:00:00.000Z", capturing: true))
+        t.expectEqual(
+            endpoint.ingestURL.absoluteString, "https://studio.example.test/api/interview/t/acme/sessions/ingest")
+        let beat = IngestMessage.heartbeat(
+            Heartbeat(sourceId: "c", sentAt: "2026-10-03T10:00:00.000Z", capturing: true))
         let request = endpoint.request(for: beat, credential: testCredential)!
         t.expectEqual(request.headers["Authorization"], "Bearer \(testCredential)")
         t.expectEqual(request.headers["Content-Type"], "application/json")
@@ -17,7 +19,8 @@ func sessionTests(_ t: Harness) async {
     }
 
     await t.test("endpoint refuses addresses that could carry secrets or downgrade transport") {
-        t.expect(Endpoint(studioAddress: "http://studio.example.test", tenantSlug: "acme") == nil, "plain http off loopback")
+        t.expect(
+            Endpoint(studioAddress: "http://studio.example.test", tenantSlug: "acme") == nil, "plain http off loopback")
         t.expect(Endpoint(studioAddress: "http://localhost:3000", tenantSlug: "acme") != nil, "loopback dev Studio")
         t.expect(Endpoint(studioAddress: "https://user:pw@studio.example.test", tenantSlug: "acme") == nil)
         t.expect(Endpoint(studioAddress: "https://studio.example.test/x?token=1", tenantSlug: "acme") == nil)
@@ -26,17 +29,23 @@ func sessionTests(_ t: Harness) async {
         t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "") == nil)
         // The web accepts only lower-case letters, digits and hyphens (a hyphen never first).
         for slug in ["Acme", "a.b", "a_b", "-acme", String(repeating: "a", count: 64)] {
-            t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: slug) == nil, "slug \(slug) refused")
+            t.expect(
+                Endpoint(studioAddress: "https://studio.example.test", tenantSlug: slug) == nil, "slug \(slug) refused")
         }
-        t.expect(Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "a-1") != nil, "lower-case slug with hyphen")
+        t.expect(
+            Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "a-1") != nil,
+            "lower-case slug with hyphen")
     }
 
     await t.test("a screenshot is multipart with envelope and payload parts") {
         let endpoint = Endpoint(studioAddress: "https://studio.example.test", tenantSlug: "acme")!
         let shot = Observation(
-            envelope: Envelope(sourceId: "screen-r1", eventId: "e1", occurredAt: "2026-10-03T10:00:00.000Z", sequence: 0),
-            body: .screenSnapshot(ScreenContent(payloadRef: "shot-1", mediaType: .jpeg, byteLength: 4, windowLabel: "Editor")))
-        let request = endpoint.request(for: .observation(shot), payload: Data([0xff, 0xd8, 0xff, 0xd9]), credential: testCredential, boundary: "B")!
+            envelope: Envelope(
+                sourceId: "screen-r1", eventId: "e1", occurredAt: "2026-10-03T10:00:00.000Z", sequence: 0),
+            body: .screenSnapshot(
+                ScreenContent(payloadRef: "shot-1", mediaType: .jpeg, byteLength: 4, windowLabel: "Editor")))
+        let request = endpoint.request(
+            for: .observation(shot), payload: Data([0xff, 0xd8, 0xff, 0xd9]), credential: testCredential, boundary: "B")!
         let text = String(decoding: request.body, as: UTF8.self)
         t.expect(request.headers["Content-Type"] == "multipart/form-data; boundary=B")
         t.expect(text.contains("name=\"envelope\"") && text.contains("name=\"payload\""))
@@ -58,10 +67,13 @@ func sessionTests(_ t: Harness) async {
         await h.session.tick()
         let requests = await h.transport.requests
         let transcripts = requests.filter { stringField(envelopeJSON(of: $0), "kind") == "transcript.final" }
-        let firstBodies = transcripts.filter { stringField(envelopeJSON(of: $0), "eventId") == "r1-microphone-0" }.map(\.body)
+        let firstBodies = transcripts.filter { stringField(envelopeJSON(of: $0), "eventId") == "r1-microphone-0" }.map(
+            \.body)
         t.expectEqual(firstBodies.count, 2, "the first observation was sent twice")
         t.expect(firstBodies.count == 2 && firstBodies[0] == firstBodies[1], "identical bytes on resend")
-        t.expect(transcripts.contains { stringField(envelopeJSON(of: $0), "eventId") == "r1-microphone-1" }, "sequence 1 follows")
+        t.expect(
+            transcripts.contains { stringField(envelopeJSON(of: $0), "eventId") == "r1-microphone-1" },
+            "sequence 1 follows")
         t.expect(h.session.outbox.isEmpty, "acknowledged observations leave the outbox")
     }
 
@@ -69,7 +81,10 @@ func sessionTests(_ t: Harness) async {
         let factory = ObservationFactory(runId: "r1", clock: FakeClock())
         let outbox = Outbox(capacity: 10, factory: factory)
         func transcript() -> Observation {
-            factory.make(.microphone, .transcriptFinal(TranscriptContent(speaker: "microphone", source: .microphone, text: "x", startMs: 0, endMs: 1)))
+            factory.make(
+                .microphone,
+                .transcriptFinal(
+                    TranscriptContent(speaker: "microphone", source: .microphone, text: "x", startMs: 0, endMs: 1)))
         }
         let control = ControlStatus(state: .active, credentialExpiresAt: "2026-10-03T12:00:00.000Z")
         let one = transcript()
@@ -93,11 +108,15 @@ func sessionTests(_ t: Harness) async {
         let mismatched = transcript()
         outbox.enqueue(mismatched)
         let other = AcceptedAck(sourceId: "other", eventId: "other", control: control)
-        t.expectEqual(outbox.handle(.accepted(other), for: mismatched), .retryLater(afterSeconds: nil), "an ack for another event is not trusted")
+        t.expectEqual(
+            outbox.handle(.accepted(other), for: mismatched), .retryLater(afterSeconds: nil),
+            "an ack for another event is not trusted")
     }
 
     await t.test("rate_limited honours Retry-After before the next attempt") {
-        let h = makeSession(responder: { _ in refusedResult("rate_limited", state: "active", status: 429, retryAfter: 60) })
+        let h = makeSession(responder: { _ in
+            refusedResult("rate_limited", state: "active", status: 429, retryAfter: 60)
+        })
         h.session.start(capability: readyCapability)
         _ = h.session.submitTranscript(source: .microphone, text: "Hello there.", startMs: 0, endMs: 500)
         await h.session.tick()
@@ -120,7 +139,12 @@ func sessionTests(_ t: Harness) async {
         let outbox = Outbox(capacity: 2, factory: factory)
         var results: [EnqueueResult] = []
         for index in 0..<5 {
-            let observation = factory.make(.microphone, .transcriptFinal(TranscriptContent(speaker: "microphone", source: .microphone, text: "t\(index)", startMs: index * 1000, endMs: index * 1000 + 800)))
+            let observation = factory.make(
+                .microphone,
+                .transcriptFinal(
+                    TranscriptContent(
+                        speaker: "microphone", source: .microphone, text: "t\(index)", startMs: index * 1000,
+                        endMs: index * 1000 + 800)))
             results.append(outbox.enqueue(observation))
         }
         t.expectEqual(results, [.queued, .queued, .overflowed, .overflowed, .overflowed])
@@ -128,14 +152,23 @@ func sessionTests(_ t: Harness) async {
         // Room returns: deliver the head, and the gap becomes an observation.
         let head = outbox.next(now: Date())!
         let control = ControlStatus(state: .active, credentialExpiresAt: "2026-10-03T12:00:00.000Z")
-        outbox.handle(.accepted(AcceptedAck(sourceId: head.observation.envelope.sourceId, eventId: head.observation.envelope.eventId, control: control)), for: head.observation)
+        outbox.handle(
+            .accepted(
+                AcceptedAck(
+                    sourceId: head.observation.envelope.sourceId, eventId: head.observation.envelope.eventId,
+                    control: control)), for: head.observation)
         _ = outbox.next(now: Date())
-        let gaps = outbox.queuedObservations.filter { if case .captureGap(_, 2400, .bufferOverflow) = $0.body { return true } else { return false } }
+        let gaps = outbox.queuedObservations.filter {
+            if case .captureGap(_, 2400, .bufferOverflow) = $0.body { return true } else { return false }
+        }
         t.expectEqual(gaps.count, 1, "one capture.gap of the lost 2400 ms")
-        t.expect(WireValidator.validateIngest(gaps.first.map { $0.json } ?? .null).value != nil, "the gap is a valid wire message")
+        t.expect(
+            WireValidator.validateIngest(gaps.first.map { $0.json } ?? .null).value != nil,
+            "the gap is a valid wire message")
         // Payload bytes are bounded too.
         let small = Outbox(capacity: 10, maxPayloadBytes: 4, factory: factory)
-        let shot = factory.make(.screen, .screenSnapshot(ScreenContent(payloadRef: "s", mediaType: .png, byteLength: 8, windowLabel: "")))
+        let shot = factory.make(
+            .screen, .screenSnapshot(ScreenContent(payloadRef: "s", mediaType: .png, byteLength: 8, windowLabel: "")))
         t.expectEqual(small.enqueue(shot, payload: Data(count: 8)), .overflowed)
     }
 
@@ -159,8 +192,11 @@ func sessionTests(_ t: Harness) async {
         t.expectEqual(h.session.machine.state, .sourceLost)
     }
 
-    await t.test("while only Studio has paused it the companion still reports capturing: true, so an owner resume sticks") {
-        let h = makeSession(selection: [.microphone], responder: { request in acceptedResult(for: request, state: "paused") })
+    await t.test(
+        "while only Studio has paused it the companion still reports capturing: true, so an owner resume sticks"
+    ) {
+        let h = makeSession(
+            selection: [.microphone], responder: { request in acceptedResult(for: request, state: "paused") })
         h.session.start(capability: readyCapability)
         await h.session.tick()
         t.expectEqual(h.session.machine.state, .paused)
@@ -169,8 +205,11 @@ func sessionTests(_ t: Harness) async {
         let requests = await h.transport.requests
         let heartbeat = requests.last { stringField(envelopeJSON(of: $0), "kind") == "heartbeat" }
         // Studio pauses an active session on capturing:false; saying it here would undo the next resume.
-        if case .object(let fields)? = envelopeJSON(of: heartbeat!) { t.expectEqual(fields["capturing"], .bool(true)) }
-        else { t.expect(false, "heartbeat was not an object") }
+        if case .object(let fields)? = envelopeJSON(of: heartbeat!) {
+            t.expectEqual(fields["capturing"], .bool(true))
+        } else {
+            t.expect(false, "heartbeat was not an object")
+        }
     }
 
     await t.test("content queued before a Studio pause is discarded, never sent after resume") {
@@ -188,12 +227,14 @@ func sessionTests(_ t: Harness) async {
 
     await t.test("a source Studio refuses is dropped for the run and never restarted") {
         let issues = #"[{"path":["content","source"],"code":"invalid_value"}]"#
-        let h = makeSession(selection: [.microphone, .applicationAudio], responder: { request in
-            if stringField(envelopeJSON(of: request), "sourceId") == "application-audio-r1" {
-                return refusedResult("invalid_observation", state: "active", issuesJSON: issues, status: 422)
-            }
-            return acceptedResult(for: request)
-        })
+        let h = makeSession(
+            selection: [.microphone, .applicationAudio],
+            responder: { request in
+                if stringField(envelopeJSON(of: request), "sourceId") == "application-audio-r1" {
+                    return refusedResult("invalid_observation", state: "active", issuesJSON: issues, status: 422)
+                }
+                return acceptedResult(for: request)
+            })
         h.session.start(capability: readyCapability)
         _ = h.session.submitTranscript(source: .applicationAudio, text: "System audio words.", startMs: 0, endMs: 900)
         await h.session.tick()
@@ -212,9 +253,13 @@ func sessionTests(_ t: Harness) async {
     }
 
     await t.test("an invalid message that does not name a source does not drop the source") {
-        let h = makeSession(selection: [.microphone], responder: { _ in
-            refusedResult("invalid_observation", state: "active", issuesJSON: #"[{"path":["content","text"],"code":"too_large"}]"#, status: 422)
-        })
+        let h = makeSession(
+            selection: [.microphone],
+            responder: { _ in
+                refusedResult(
+                    "invalid_observation", state: "active",
+                    issuesJSON: #"[{"path":["content","text"],"code":"too_large"}]"#, status: 422)
+            })
         h.session.start(capability: readyCapability)
         _ = h.session.submitTranscript(source: .microphone, text: "Words.", startMs: 0, endMs: 100)
         await h.session.tick()
@@ -224,7 +269,9 @@ func sessionTests(_ t: Harness) async {
 
     await t.test("session ended or purging stops everything and clears the outbox") {
         for code in ["session_ended", "session_purging"] {
-            let h = makeSession(responder: { _ in refusedResult(code, state: code == "session_ended" ? "ended" : "purging") })
+            let h = makeSession(responder: { _ in
+                refusedResult(code, state: code == "session_ended" ? "ended" : "purging")
+            })
             h.session.start(capability: readyCapability)
             _ = h.session.submitTranscript(source: .microphone, text: "Words.", startMs: 0, endMs: 100)
             await h.session.tick()
@@ -294,7 +341,7 @@ func sessionTests(_ t: Harness) async {
         h.session.start(capability: readyCapability)
         h.buffers[0].push(AudioFrame(samples: [0.4, 0.5], sampleRate: 10))
         _ = h.session.submitTranscript(source: .microphone, text: "Late words.", startMs: 0, endMs: 100)
-        h.session.localStop()   // no await: it is synchronous
+        h.session.localStop()  // no await: it is synchronous
         let calls = await h.transport.requestCount()
         t.expectEqual(calls, 0, "no network call during the stop")
         t.expectEqual(h.session.machine.state, .stoppedLocally)
@@ -302,7 +349,9 @@ func sessionTests(_ t: Harness) async {
         t.expectEqual(Set(h.sources.stopped), [.microphone, .screen])
         t.expect(h.marker.persistedAt != nil && h.session.stopController.markerPersisted)
         let kinds = h.session.outbox.queuedObservations.map { $0.json }.compactMap { stringField($0, "kind") }
-        t.expectEqual(kinds, ["source.disconnected", "source.disconnected"], "only stop notices remain queued; content is dropped")
+        t.expectEqual(
+            kinds, ["source.disconnected", "source.disconnected"], "only stop notices remain queued; content is dropped"
+        )
         // Studio is unavailable: the best-effort notices fail once and are given up.
         await h.session.tick()
         t.expect(h.session.outbox.isEmpty)
