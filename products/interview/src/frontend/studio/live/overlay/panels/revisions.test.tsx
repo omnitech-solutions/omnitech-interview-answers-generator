@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe("the Revisions control", () => {
-  it("offers Capture new problem above the task line once an answer is on show", () => {
+  it("offers Capture new problem above the task line, and asks before capturing", async () => {
     const button = screen.getByTestId("pn-capture-new");
     expect(button).toHaveAccessibleName(/^Capture new problem/);
     expect(button).not.toBeDisabled();
@@ -103,6 +103,13 @@ describe("the Revisions control", () => {
     expect(
       button.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    fireEvent.click(button);
+    await flush();
+    expect(screen.getByText("Capture a new problem?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await flush();
+    expect(screen.queryByText("Capture a new problem?")).toBeNull();
   });
 
   it("names the revision on show and lists every revision, the current one marked", () => {

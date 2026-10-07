@@ -4,7 +4,14 @@
 // flight, a task the owner stopped, or what the code is waiting for. Neither
 // fetches or decides anything; they read the one panel session.
 
-import { Button, Empty, Panel, Steps, Tag } from "@oc-tech/omni-ui-components";
+import {
+  Button,
+  Empty,
+  Panel,
+  Popconfirm,
+  Steps,
+  Tag,
+} from "@oc-tech/omni-ui-components";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import {
@@ -258,22 +265,31 @@ export function AnswerPane({ s }: { s: PanelSession }) {
         ) : (
           <div className="pn-answer-content" data-testid="pn-answer">
             <div className="pn-answer-capture">
-              <Button
-                buttonSize="sm"
-                variant="outline"
-                icon={<Icon name="screenshot_monitor" />}
-                shortcut={[...nativeChord("analyze")]}
-                disabled={
-                  !s.open ||
-                  (card?.stages.some((stage) => stage.state === "running") ??
-                    false)
-                }
-                aria-label={`Capture new problem ${nativeChord("analyze")}`}
-                data-testid="pn-capture-new"
-                onClick={() => s.press("capture")}
+              {/* A press asks first: the next capture starts a NEW task, and a
+                  slip here would leave the problem on show behind. */}
+              <Popconfirm
+                title="Capture a new problem?"
+                description="The screen is captured as a new task. The task on show keeps its answer and code."
+                confirmText="Capture"
+                cancelText="Not now"
+                onConfirm={() => s.press("capture")}
               >
-                Capture new problem
-              </Button>
+                <Button
+                  buttonSize="sm"
+                  variant="outline"
+                  icon={<Icon name="screenshot_monitor" />}
+                  shortcut={[...nativeChord("analyze")]}
+                  disabled={
+                    !s.open ||
+                    (card?.stages.some((stage) => stage.state === "running") ??
+                      false)
+                  }
+                  aria-label={`Capture new problem ${nativeChord("analyze")}`}
+                  data-testid="pn-capture-new"
+                >
+                  Capture new problem
+                </Button>
+              </Popconfirm>
             </div>
             {s.noQuestionLine && (
               <p
