@@ -6,14 +6,14 @@
 import { ActionMenu, Button, Popconfirm } from "@oc-tech/omni-ui-components";
 import { useCallback, useState } from "react";
 import { Icon } from "../../../icon";
-import { revisionLine } from "../../shared/revisions";
-import { RevisionsControl } from "../../shared/revisions-control";
+import { revisionLine, revisionList } from "../../shared/revisions";
 import { nativeChord } from "../../shared/shortcuts";
 import { taskChips } from "./panel-model";
 import type { PanelSession } from "./panel-views";
 
 export function TaskBar({ s }: { s: PanelSession }) {
   const [open, setOpen] = useState(false);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
   // The menu portals into the panel root, like the toolbar's menus.
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const bar = useCallback((node: HTMLDivElement | null) => {
@@ -21,10 +21,23 @@ export function TaskBar({ s }: { s: PanelSession }) {
   }, []);
   const tasks = s.model.tasks;
   const card = s.card;
-  if (!s.open || tasks.length === 0 || !card) return null;
-  const chips = taskChips(tasks, s.selected?.taskId);
+  if (!s.open || !card) return null;
+  // Only real problems are offered: a task with a question (a title, an
+  // answer or code, or work still running). A stopped analysis that published
+  // nothing is not a problem the person would go back to.
+  const problems = tasks.filter(
+    (task) =>
+      (task.title?.trim() ?? "") !== "" ||
+      task.current.answer !== null ||
+      task.current.code !== null ||
+      task.current.runs.some((run) => run.state === "running"),
+  );
+  const chips = taskChips(tasks, s.selected?.taskId).filter((chip) =>
+    problems.some((task) => task.taskId === chip.taskId),
+  );
   const current =
     chips.find((chip) => chip.selected) ?? chips[chips.length - 1];
+  if (!current) return null;
   const running = card.stages.some((stage) => stage.state === "running");
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">
@@ -86,12 +99,38 @@ export function TaskBar({ s }: { s: PanelSession }) {
           }
         />
         {s.selected && card.revisionCount > 1 ? (
-          <RevisionsControl
-            task={s.selected}
-            selected={card.revision}
-            variant="native"
-            onPick={s.pickRevision}
-            testId="pn-bar-revisions"
+          <ActionMenu
+            label="Revisions"
+            title="Every revision of this task"
+            width={300}
+            container={root}
+            open={revisionsOpen}
+            onOpenChange={setRevisionsOpen}
+            sections={[
+              {
+                id: "revisions",
+                selection: "single",
+                value: String(card.revision),
+                items: revisionList(s.selected, card.revision).map((entry) => ({
+                  id: String(entry.revision),
+                  label: `rev ${entry.revision}${entry.isCurrent ? " · Current" : ""}${entry.outdated ? " · Outdated" : ""}`,
+                  ...(entry.cause ? { description: entry.cause } : {}),
+                })),
+              },
+            ]}
+            onValueChange={(_group, id) => s.pickRevision(Number(id))}
+            trigger={
+              <Button
+                buttonSize="sm"
+                variant="outline"
+                icon={<Icon name="history" />}
+                iconAfter={<Icon name="expand_more" />}
+                aria-label={`Revisions: ${revisionLine(s.selected, card.revision).label}`}
+                data-testid="pn-bar-revisions-button"
+              >
+                {revisionLine(s.selected, card.revision).label}
+              </Button>
+            }
           />
         ) : (
           <span className="pn-task-bar-rev" data-testid="pn-bar-rev">
