@@ -202,7 +202,7 @@ export const PANES = [
     icon: "forum",
     label: "Chat",
     title: `Conversation · ${nativeChord("focus-chat")}`,
-    width: 320,
+    width: 330,
   },
   {
     id: "analysis",
