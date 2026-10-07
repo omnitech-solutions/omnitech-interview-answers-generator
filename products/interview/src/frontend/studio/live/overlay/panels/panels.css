@@ -4,7 +4,6 @@
    shell draws the window frame). They reuse the overlay's --ov-* tokens by
    redeclaring them on .pn-root, so a panel document needs nothing else. */
 @import "./start-panel.css";
-@import "./screen-picker.css";
 .pn-root {
   /* One stacking scale for the window. The toolbar sits above the strip and the
      panes so a popover hanging from it (a child of the toolbar's own stacking
@@ -161,9 +160,6 @@
 .pn-muted {
   color: var(--ov-muted);
 }
-.pn-centered {
-  margin: auto;
-}
 .pn-unavailable {
   margin: auto;
   flex: 0;
@@ -245,20 +241,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-.pn-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ov-faint);
-  display: inline-block;
-  flex: none;
-}
-.pn-dot[data-tone="green"] {
-  background: var(--ov-green);
-}
-.pn-dot[data-tone="red"] {
-  background: var(--ov-red);
 }
 
 /* ---- Heads, fields, chips ---- */
@@ -466,28 +448,6 @@
   font-size: 14px;
   font-weight: 700;
 }
-.pn-analyzing {
-  margin: auto;
-  font-size: 14px;
-  color: var(--ov-text);
-}
-.pn-ellipsis i {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: pn-pulse 1s infinite ease-in-out;
-}
-.pn-ellipsis i + i {
-  animation-delay: 0.25s;
-}
-@keyframes pn-pulse {
-  50% {
-    opacity: 0.25;
-  }
-}
 .pn-note {
   display: flex;
   align-items: center;
@@ -597,9 +557,6 @@
 }
 .pn-single-confirm {
   flex: none;
-}
-.pn-end {
-  color: var(--ov-red);
 }
 
 /* The footer is the library's session bar: it draws its own surface, and that
@@ -842,11 +799,6 @@
   opacity: 0.7;
   line-height: 1.3;
 }
-/* The screen picker: a pin dot on the round button, the display rows with their
-   live thumbnails, and the label of where the last capture came from. */
-/* The screen-target chevron is the capture button's other half: joined to it,
-   one pill. */
-
 /* ---- Small buttons used in the panes ---- */
 .pn-mini-button {
   display: inline-flex;
@@ -1033,8 +985,7 @@
   font-size: 12px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pn-spinner,
-  .pn-ellipsis i {
+  .pn-spinner {
     animation: none;
   }
 }
@@ -1091,8 +1042,7 @@
     .pn-ended-stats li,
     .pn-test-row,
     .pn-tests-counts,
-    .pn-tests-honesty,
-    .pn-tests-note
+    .pn-tests-honesty
   ) {
   background-image: linear-gradient(var(--pn-bed), var(--pn-bed));
   box-shadow: inset 0 0 0 1px var(--pn-hair);
@@ -1216,11 +1166,6 @@
 }
 .pn-tests-honesty {
   margin: 0;
-  font-size: 11px;
-  color: var(--pn-warn);
-}
-.pn-tests-note {
-  margin: 0 0 4px;
   font-size: 11px;
   color: var(--pn-warn);
 }
