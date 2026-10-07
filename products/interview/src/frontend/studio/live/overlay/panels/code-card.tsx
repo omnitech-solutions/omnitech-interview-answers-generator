@@ -9,6 +9,8 @@
 import { Button, Empty, Panel, Tag } from "@oc-tech/omni-ui-components";
 import { useState } from "react";
 import { Icon } from "../../../icon";
+import type { TaskView } from "../../session-tasks";
+import { RevisionsControl } from "../../shared/revisions-control";
 import type {
   CardBadge,
   CardCode,
@@ -42,6 +44,7 @@ export function CodeCard({
   badges,
   copy,
   example = null,
+  revisions = null,
 }: {
   code: CardCode;
   constraints: TaskCard["constraints"];
@@ -49,6 +52,14 @@ export function CodeCard({
   copy: { label: string; copied: boolean; onCopy(text: string): void };
   // The task's example input and output, shown above the code.
   example?: string | null;
+  // Every revision of the task, when it has more than one: the Code panel
+  // shows the same revision the Answer pane does and can change it too.
+  revisions?: {
+    task: TaskView;
+    selected: number;
+    current: number;
+    onPick(revision: number): void;
+  } | null;
 }) {
   const drawer = useTestsDrawerOpen();
   const [tab, setTab] = useState<ShownFile>("solution");
@@ -92,14 +103,32 @@ export function CodeCard({
         </Tag>
       }
       actions={
-        <Button
-          variant="outline"
-          buttonSize="sm"
-          icon={<Icon name={copy.copied ? "check" : "content_copy"} />}
-          onClick={() => copy.onCopy(text)}
-        >
-          {copy.copied ? "Copied" : copy.label}
-        </Button>
+        <>
+          {revisions && (
+            <>
+              <RevisionsControl
+                task={revisions.task}
+                selected={revisions.selected}
+                variant="native"
+                onPick={revisions.onPick}
+                testId="code-revisions"
+              />
+              {revisions.selected !== revisions.current && (
+                <span className="pn-earlier" data-testid="pn-code-earlier">
+                  earlier revision · current is rev {revisions.current}
+                </span>
+              )}
+            </>
+          )}
+          <Button
+            variant="outline"
+            buttonSize="sm"
+            icon={<Icon name={copy.copied ? "check" : "content_copy"} />}
+            onClick={() => copy.onCopy(text)}
+          >
+            {copy.copied ? "Copied" : copy.label}
+          </Button>
+        </>
       }
       data-testid="pn-code"
     >

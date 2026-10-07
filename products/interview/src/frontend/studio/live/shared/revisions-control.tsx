@@ -55,20 +55,28 @@ export function RevisionsControl({
   selected,
   variant,
   onPick,
+  testId,
 }: {
   // The task itself (all its revisions), not a view of one revision.
   task: TaskView;
   selected: number;
   variant: RevisionsVariant;
   onPick(revision: number): void;
+  // Test ids, so a second control (the Code panel's) is told apart from the
+  // Answer pane's: `${testId}-button`, `${testId}-item-N`; the default keeps
+  // the ids the Answer pane's tests use.
+  testId?: string;
 }) {
   const [open, setOpen] = useState(false);
   // One revision: nothing to choose between.
   if (task.revisions.length < 2) return null;
   const look = VARIANT[variant];
   const line = revisionLine(task, selected);
+  const ids = testId
+    ? { root: testId, button: `${testId}-button`, item: `${testId}-item` }
+    : { root: "revisions", button: "revisions-button", item: "revision" };
   return (
-    <span className={look.root} data-testid="revisions">
+    <span className={look.root} data-testid={ids.root}>
       <Popover
         open={open}
         onOpenChange={setOpen}
@@ -78,7 +86,7 @@ export function RevisionsControl({
         title="Every revision of this task"
         kind="menu"
         panelClassName={look.panel}
-        testId="revisions-button"
+        testId={ids.button}
         trigger={
           <>
             <Icon name="history" />
@@ -95,7 +103,7 @@ export function RevisionsControl({
               role="menuitemradio"
               aria-checked={entry.isSelected}
               className={look.item}
-              data-testid={`revision-${entry.revision}`}
+              data-testid={`${ids.item}-${entry.revision}`}
               data-current={entry.isCurrent || undefined}
               data-outdated={entry.outdated || undefined}
               onClick={() => {

@@ -562,7 +562,29 @@
 .pn-analysis {
   flex: 1;
   min-height: 0;
+  /* Without this the wrapper's minimum width is the longest code line and the
+     Code pane pushes past the window (QA issue 013). */
+  min-width: 0;
   display: flex;
+}
+/* A pane never grows to its content: a long code line, a wide header tag or a
+   note scrolls or truncates inside the panel instead of pushing it past the
+   row's edge (QA issue 013). */
+.pn-single-pane > [data-slot="panel"],
+.pn-analysis > [data-slot="panel"] {
+  min-width: 0;
+  max-width: 100%;
+}
+.pn-code-body .cm-scroller {
+  overflow-x: auto;
+}
+/* The Code header's controls (revisions, language, Copy) shrink and wrap
+   before the panel clips them. */
+.pn-single-pane [data-slot="panel-actions"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .pn-single-body:has(> :not([data-which="chat"])) > [data-which="chat"] {
   flex: 0 0 330px;

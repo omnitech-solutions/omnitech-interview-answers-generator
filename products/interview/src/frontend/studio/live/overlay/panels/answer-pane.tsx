@@ -452,6 +452,16 @@ export function CodePane({ s }: { s: PanelSession }) {
         constraints={card.constraints}
         badges={card.badges}
         example={example}
+        revisions={
+          s.selected && card.revisionCount > 1
+            ? {
+                task: s.selected,
+                selected: card.revision,
+                current: card.currentRevision,
+                onPick: s.pickRevision,
+              }
+            : null
+        }
         copy={{
           label: "Copy code",
           copied: copying.copied === "code",

@@ -16,7 +16,12 @@ Each issue has repro steps, a screenshot, status and the fix. Screenshots live i
 - [ ] 009 Window height not restored after Pause/Resume (640 before pause, 545 after; low)
 - [x] Pause / Resume (works: timer excludes paused time, panes hide and return)
 - [x] 010 Session pauses itself a few seconds after start/resume (FIXED, see below)
-- [ ] 011 Second screenshot apply ("Add to T1") fails: "That didn't go through. Nothing changed; try again." (first capture + apply worked)
+- [x] 011 Second screenshot apply (cause: my verify run broke the dev server; second apply works, T1 rev 2 produced)
+- [ ] 014 "write the soln as C++" follow-up changed the explanation (rev 3) but solve-code still generated TypeScript
+- [ ] 015 Code panel while a new revision is running: must show which revision is on screen, let the owner pick any revision, and cancel the running solution
+- [ ] 013 Code panel: code lines are cropped at the panel's right edge (no horizontal scroll or wrap); the header tag (TYPE…) is cut too
+- [ ] 012 Code panel has no revision switch (Answer pane has RevisionsControl; Code only follows it)
+- [ ] 011-old Second screenshot apply ("Add to T1") fails: "That didn't go through. Nothing changed; try again." (first capture + apply worked)
 - [ ] Drag from an empty part of the toolbar and of the footer; buttons still press
 - [ ] I-beam cursor over transcript, answer, code, notes; selecting does not move the window
 - [ ] Every toolbar menu opens, is clickable, closes with Esc (capture, mic, answer style, shortcuts, green dot)
@@ -131,3 +136,31 @@ Not fixed yet. A real-browser test exists (`e2e/live-session/tests/window-fit.sp
 **Steps to repro.** Start a session; Capture screenshot; Apply (New problem). Capture screenshot again; keep "Add to T1"; Apply.
 **Screenshot.** Owner's, 2026-10-07 12:14 (dock "To apply · 1", message under the radio buttons).
 **Status.** Open; server-side cause being read from the dev log.
+
+## 012 Code panel cannot show earlier versions
+
+**Issue.** After a second screenshot is added to T1 (rev 2), the Code panel shows only the current revision's code; there is no way to view rev 1's solution from the Code panel. The Answer pane has `RevisionsControl` (`shared/revisions-control.tsx`) and shows "This answer is for an earlier revision"; `CodeCard` (`overlay/panels/code-card.tsx`) has no such control. Data exists: `TaskRevisionView.code` per revision (`session-tasks.ts`).
+**Fix.** Put the same `RevisionsControl` in the Code panel header, bound to the task's selected revision (shared with the Answer pane).
+**Status.** Open.
+
+## 013 Code panel crops long lines and its header tag
+
+**Issue.** In the Code panel, `usage.ts` (and `solution.ts`) lines run past the panel's right edge and are cut off: `isMatch("ab`, `longer text than pattern:",` with nothing after; there is no horizontal scrollbar and no wrapping. The header's language tag is cut to `TYPE` at the same edge. The Approach note line is cut the same way.
+**Steps to repro.** Start a session, capture a coding problem, wait for the code; open `usage.ts` or any file with lines longer than the panel (window 1262 wide, three panes).
+**Expected.** Long lines scroll horizontally inside the code area (or soft-wrap), the header tag is fully visible (ellipsis at worst), the note wraps.
+**Screenshot.** Owner's, 2026-10-07 12:3x (T1 rev 2, usage.ts).
+**Suspect.** `read-only-code.tsx` / `.pn-codemain` lacks `overflow-x: auto` and `min-width: 0` on the flex child; the Panel header actions have no `min-width: 0` / truncation.
+**Status.** Open.
+
+## 014 A follow-up asking for another language does not change the generated code
+
+**Issue.** Chat follow-up "write the soln as C++" on T1 produced rev 3: the draft explanation is in C++ terms, but `solve-code` ran with `language: typescript` again (DB: `interview.session_actions`, task rev 3). The Code panel therefore shows TypeScript for a revision whose answer says C++.
+**Cause.** By design: the code language is a closed hint (`LIVE_OWNER_LANGUAGES = ["typescript", "react"]`, `packages/interview-contracts/src/live-session.ts`), set from the Settings window's Coding Language and carried on owner inputs (`hintsFor`, `session-run.ts`); chat text never changes it, and the coding stage tells the model the language must be the brief's. C++ is not a supported code language.
+**Decision needed (owner).** Add C++ (and which others) as code languages with a run policy, and let a follow-up that names a language set the hint; or show the code language in the toolbar so the limit is visible.
+**Status.** Open, needs decision.
+
+## 015 Running revision: visibility and cancel from the Code panel
+
+**Issue.** While rev 3 was being solved, the Code panel kept showing the previous revision's code with no sign that a newer solution was in progress, and there was no way to cancel the running solution from the Code panel; the owner also wants to move between revisions at any time.
+**Expected.** The Code panel names the revision on screen (the new revision control, 012, done), shows a "rev N: writing code… · Stop" line while a newer revision runs, and Stop cancels that run; picking any revision works at any time.
+**Status.** Open (012's control is in; the running-state line and Stop are not).

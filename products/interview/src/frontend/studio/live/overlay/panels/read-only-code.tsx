@@ -47,6 +47,9 @@ export function ReadOnlyCode({
       ...languageExtensions(asLanguage(language)),
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       EditorView.contentAttributes.of({ "aria-label": label }),
+      // The panel is a fixed column: a long line wraps instead of running past
+      // its edge (QA issue 013).
+      EditorView.lineWrapping,
       markLine(line),
     ],
     [language, label, line],
