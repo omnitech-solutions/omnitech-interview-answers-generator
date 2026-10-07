@@ -690,10 +690,21 @@ export function createSessionAgentPort(
       throw new SessionAgentError("provider");
     },
     async *stream(request, profile) {
+      const agent = options.profiles.get(profile.id);
       for await (const event of attempt(request, profile, crypto.randomUUID()))
-        yield event.type === "failed"
-          ? { type: "failed", error: event.error.failure }
-          : event;
+        if (event.type === "failed")
+          yield { type: "failed", error: event.error.failure };
+        else if (event.type === "completed")
+          // The same display metadata execute() attaches.
+          yield {
+            ...event,
+            ...(agent === undefined
+              ? {}
+              : {
+                  generatedBy: { runtime: agent.runtime, model: agent.model },
+                }),
+          };
+        else yield event;
     },
     async cancel(context: AiAccessContext, executionId: string) {
       // [SAFETY] An execution id never reaches across tenants.

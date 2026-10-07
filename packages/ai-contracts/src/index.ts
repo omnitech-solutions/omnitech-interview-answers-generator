@@ -149,7 +149,8 @@ export type AiEvent<T = unknown> =
   | { type: "tool-finished"; tool: string; success: boolean }
   | { type: "usage"; usage: AiUsage }
   | { type: "awaiting-input"; request: unknown }
-  | { type: "completed"; result: T }
+  // generatedBy: display metadata of the executor, when the family knows it.
+  | { type: "completed"; result: T; generatedBy?: AiGeneratedBy }
   | { type: "failed"; error: AiFailure };
 
 // Why a failure happened, as a closed, bounded vocabulary of fixed codes (never
