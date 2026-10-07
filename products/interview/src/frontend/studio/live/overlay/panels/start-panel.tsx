@@ -120,12 +120,28 @@ export type StartPanelProps = {
 // Said above the start screen when the session the window was showing went away.
 const GONE_TEXT =
   "That session is no longer available. Start a new one, or open a running one.";
+// After Try again found nothing to reconnect to: the one thing left to do.
+const GONE_FOR_GOOD_TEXT =
+  "Nothing to reconnect to: that session has ended. Start a new session below.";
 
 export function StartPanel(props: StartPanelProps) {
   const { s, controls, signedIn, member } = props;
   const host = useMemo(() => accountHost(), []);
   const signIn = useSignInState(host);
   const [confirmingLocal, setConfirmingLocal] = useState(false);
+  // Try again on the gone-session banner: a visible check, then the truth.
+  const [reconnect, setReconnect] = useState<"idle" | "checking" | "nothing">(
+    "idle",
+  );
+  const tryAgain = async () => {
+    setReconnect("checking");
+    await s.actions.refresh();
+    // Still on the start screen after the refresh: there is nothing to open.
+    setReconnect("nothing");
+    document
+      .querySelector<HTMLElement>('[data-testid="pn-start-session"]')
+      ?.focus();
+  };
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
@@ -187,16 +203,27 @@ export function StartPanel(props: StartPanelProps) {
         bodyClassName="pn-start-scroll"
       >
         {props.notice === "unavailable" && stage === "idle" && (
-          <p className="pn-start-banner" data-tone="warn" role="status">
+          <p
+            className="pn-start-banner"
+            data-tone="warn"
+            role="status"
+            data-testid="pn-gone-banner"
+            data-reconnect={reconnect}
+          >
             <Icon name="warning" />
-            <span>{GONE_TEXT}</span>
-            <Button
-              buttonSize="sm"
-              variant="outline"
-              onClick={() => void s.actions.refresh()}
-            >
-              Try again
-            </Button>
+            <span>
+              {reconnect === "nothing" ? GONE_FOR_GOOD_TEXT : GONE_TEXT}
+            </span>
+            {reconnect !== "nothing" && (
+              <Button
+                buttonSize="sm"
+                variant="outline"
+                disabled={reconnect === "checking"}
+                onClick={() => void tryAgain()}
+              >
+                {reconnect === "checking" ? "Checking…" : "Try again"}
+              </Button>
+            )}
           </p>
         )}
         {stage === "out" && (
@@ -757,6 +784,7 @@ function Idle({
         loading={starting}
         aria-disabled={block !== null || starting}
         icon={<StartIcon name="radio_button_checked" />}
+        data-testid="pn-start-session"
         onClick={() => void start()}
       >
         {starting ? "Starting…" : "Start session"}
