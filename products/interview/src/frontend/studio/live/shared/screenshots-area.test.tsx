@@ -186,6 +186,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
         variant,
         mode: "auto",
         storedItems: [stored(1), stored(2)],
+        keepClosed: true,
       });
       const toggle = screen.getByRole("button", { name: "Screenshots (2)" });
       expect(toggle).toHaveTextContent("2");
@@ -222,6 +223,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
           }),
           stored(4),
         ],
+        keepClosed: true,
       });
       expect(screen.queryByTestId("screenshot-strip")).toBeNull();
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
@@ -239,6 +241,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
         variant,
         mode: "auto",
         storedItems: [1, 2, 3, 4, 5, 6].map((n) => stored(n)),
+        keepClosed: true,
       });
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
       const strip = screen.getByTestId("screenshot-strip");
@@ -256,7 +259,12 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
     });
 
     it("has no arrows for a short strip", async () => {
-      await mount({ variant, mode: "auto", storedItems: [stored(1)] });
+      await mount({
+        variant,
+        mode: "auto",
+        storedItems: [stored(1)],
+        keepClosed: true,
+      });
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
       expect(
         screen.queryByRole("button", { name: /Scroll screenshots/ }),
@@ -264,7 +272,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
     });
 
     it("opens the tray on its own once something is staged", async () => {
-      await mount({ variant, mode: "auto" });
+      await mount({ variant, mode: "auto", keepClosed: true });
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
       await add();
       expect(screen.getByTestId("staged-1")).toBeVisible();
@@ -406,6 +414,28 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
       expect(applyContext.mock.calls[0]?.[0]).not.toBeNull();
       // Applied: the tray is empty again.
       expect(screen.queryByTestId("staged-1")).toBeNull();
+    });
+
+    // The owner's rule: a new task comes only from Capture new problem, the
+    // toolbar's capture or an automatic capture. Add screenshot with a task on
+    // show ALWAYS adds to it, whatever intent an earlier staging left behind.
+    it("Add screenshot adds to the task on show even after a new-problem staging", async () => {
+      const applyContext = applyOk();
+      await mount({
+        variant,
+        mode: "manual",
+        applyContext,
+        frames: [
+          { blob: BLOB("one"), label: "x" },
+          { blob: BLOB("two"), label: "y" },
+        ],
+      });
+      await add();
+      await add();
+      fireEvent.click(screen.getByTestId("apply-screenshots"));
+      await flush();
+      expect(applyContext).toHaveBeenCalledTimes(1);
+      expect(applyContext.mock.calls[0]?.[0]).not.toBeNull();
     });
 
     it("Discard drops the staged images and sends nothing", async () => {
@@ -624,6 +654,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
         storedItems: [
           stored(7, { display: { name: "D", index: 1, count: 2 } }),
         ],
+        keepClosed: true,
       });
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
       const thumb = screen.getByRole("button", { name: "Open S7" });
@@ -745,6 +776,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
         variant,
         mode: "auto",
         storedItems: [stored(9, { artifactId: null, imageUrl: null })],
+        keepClosed: true,
       });
       fireEvent.click(screen.getByTestId("screenshots-toggle"));
       fireEvent.click(screen.getByRole("button", { name: "Open S9" }));

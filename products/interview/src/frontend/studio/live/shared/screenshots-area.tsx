@@ -361,7 +361,11 @@ export function ScreenshotsArea({
               disabled={addReason !== null}
               aria-describedby={addReason ? notice : undefined}
               data-testid="add-screenshot"
-              onClick={() => onAdd(tray.hasTarget ? tray.intent : "new")}
+              // [GUARD] A screenshot added while a task is on show always adds to
+              // it (a revision). A new task comes only from Capture new problem,
+              // the toolbar's capture or an automatic capture: never from here,
+              // whatever intent an earlier staging left behind.
+              onClick={() => onAdd(tray.hasTarget ? "add" : "new")}
             >
               <Icon name="add" /> Add screenshot
             </button>
