@@ -212,8 +212,11 @@ describe("native 'To apply' dock", () => {
     await flush();
     await flush();
   };
+  // The Answer panel's own dock: the chat panel's composer lives in a dock slot too.
   const dock = () =>
-    document.querySelector('[data-slot="panel-dock"]') as HTMLElement | null;
+    document
+      .querySelector('[data-testid="pn-analysis"]')
+      ?.querySelector('[data-slot="panel-dock"]') as HTMLElement | null;
 
   it("is inside the Answer panel and present only while a screenshot is staged", async () => {
     await open();

@@ -124,8 +124,7 @@
     input:not([type="button"]),
     [contenteditable],
     .cm-editor,
-    .pn-log,
-    .pn-interim,
+    [data-slot="transcript"],
     .pn-answer-panel,
     .pn-code-body,
     .pn-example,
@@ -272,8 +271,7 @@
   justify-content: space-between;
   gap: 8px;
 }
-.pn-select,
-.pn-input {
+.pn-select {
   background: var(--ov-chip);
   border: 0;
   border-radius: 6px;
@@ -513,101 +511,6 @@
   padding: 0;
 }
 
-/* ---- Chat ---- */
-.pn-chat {
-  padding: 8px 10px;
-}
-.pn-log {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0 8px;
-}
-.pn-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(100, 120, 150, 0.45);
-}
-.pn-row[data-kind="heard"],
-.pn-row[data-kind="typed"] {
-  background: rgba(60, 150, 95, 0.5);
-}
-.pn-row[data-kind="assistant"] {
-  background: rgba(125, 85, 180, 0.5);
-}
-.pn-time {
-  font-size: 10px;
-  color: var(--ov-muted);
-}
-.pn-edited {
-  font-size: 10px;
-  font-style: italic;
-  color: var(--ov-muted);
-}
-.pn-text {
-  overflow-wrap: anywhere;
-}
-.pn-answer p {
-  margin: 2px 0;
-}
-.pn-answer-head {
-  font-weight: 700;
-  margin-top: 6px;
-}
-.pn-answer-line::before {
-  content: "• ";
-}
-.pn-answer pre {
-  margin: 4px 0;
-  padding: 6px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.35);
-  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  white-space: pre-wrap;
-}
-.pn-interim {
-  margin: 0 0 6px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--ov-text);
-}
-.pn-compose {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.pn-input {
-  flex: 1;
-}
-.pn-round {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 0;
-  border-radius: 6px;
-  color: #fff;
-  cursor: pointer;
-}
-.pn-mic {
-  background: rgba(255, 69, 58, 0.9);
-}
-.pn-send {
-  background: rgba(90, 130, 230, 0.9);
-}
-.pn-round:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 /* ---- Toasts: bottom-left, large white text on a dark left-to-right fade ---- */
 .pn-toasts {
   position: fixed;
@@ -660,15 +563,18 @@
   display: flex;
   gap: 8px;
 }
+/* The visible panels share the row: the transcript is 330 px wide (never under
+   300) and the others split the rest equally; alone, the transcript takes the
+   row. Nothing is sized against the window, so nothing is cropped. */
 .pn-single-pane {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   display: flex;
 }
-/* The chat keeps a steady width beside the analysis, which takes the rest. */
-.pn-single-body:has([data-which="analysis"]) > [data-which="chat"] {
-  flex: 0 0 320px;
+.pn-single-body:has(> :not([data-which="chat"])) > [data-which="chat"] {
+  flex: 0 0 330px;
+  min-width: 300px;
 }
 .pn-single-confirm {
   flex: none;
@@ -708,15 +614,6 @@
 .pn-single-pane[data-which="code"] {
   container-type: inline-size;
 }
-.pn-single-body > [data-which="chat"] {
-  flex: 0 0 320px;
-}
-.pn-single-body > [data-which="analysis"] {
-  flex: 1 1 480px;
-}
-.pn-single-body > [data-which="code"] {
-  flex: 0 1 420px;
-}
 
 .pn-model {
   font-size: 11px;
@@ -735,56 +632,14 @@
   margin: 0;
 }
 
-/* The speech line keeps its space, so the chat does not jump as words arrive. */
-.pn-interim {
-  min-height: 1.9em;
-}
-.pn-interim[data-empty="true"] {
-  visibility: hidden;
-}
-
-/* "Latest": shown when the transcript is scrolled away from its newest line. */
-.pn-jump {
-  position: sticky;
-  bottom: 6px;
-  align-self: flex-end;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px 3px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 999px;
-  background: rgba(46, 52, 70, 0.95);
-  color: #fff;
-  font: inherit;
-  font-size: 12px;
+/* An answer in the transcript can be chosen (the transcript's bubbles carry
+   role="button" for it); the chosen one is outlined. */
+[data-slot="transcript"] > [role="button"] {
   cursor: pointer;
 }
-.pn-jump:hover {
-  background: rgba(70, 80, 110, 0.98);
-}
-
-/* An answer in the transcript can be chosen; the chosen one is outlined. */
-.pn-row[role="button"] {
-  cursor: pointer;
-}
-.pn-row[role="button"]:hover {
-  filter: brightness(1.12);
-}
-.pn-row[data-selected="true"] {
-  outline: 2px solid rgba(255, 255, 255, 0.6);
+[data-slot="transcript"] > [role="button"][aria-pressed="true"] {
+  outline: 2px solid var(--oui-tone-accent-border, currentColor);
   outline-offset: -2px;
-}
-
-/* A task's current stage, in its own row: replaced by the answer when it lands. */
-.pn-stage {
-  display: block;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.9;
-}
-.pn-row .pn-stage:not(:first-child) {
-  margin-top: 6px;
-  font-size: 12px;
 }
 
 /* "The AI may be missing": what the model could not see, and how to supply it. */
@@ -1341,93 +1196,7 @@
   color: var(--pn-warn);
 }
 
-/* ---- The conversation: who said it, markers, the pending reply ---- */
-.pn-who {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.pn-copy {
-  margin-left: auto;
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  opacity: 0.7;
-  cursor: pointer;
-}
-.pn-copy:hover,
-.pn-copy:focus-visible {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.16);
-}
-.pn-copy .material-symbols-rounded,
-.pn-copy svg {
-  font-size: 14px;
-}
-.pn-who-label {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.pn-row[data-speaker="interviewer"] {
-  align-self: flex-start;
-  background: var(--pn-chip);
-}
-.pn-row[data-speaker="interviewer"] .pn-who-label {
-  color: var(--pn-link);
-}
-.pn-row[data-speaker="you"],
-.pn-row[data-speaker="typed"] {
-  align-self: flex-end;
-  background: rgba(109, 220, 147, 0.12);
-}
-.pn-row[data-speaker="you"] .pn-who-label {
-  color: var(--pn-ok);
-}
-.pn-row[data-speaker="typed"] {
-  background: rgba(122, 162, 255, 0.18);
-}
-.pn-row[data-kind="heard"],
-.pn-row[data-kind="typed"] {
-  max-width: 92%;
-}
-.pn-row[data-kind="assistant"] {
-  background: rgba(122, 162, 255, 0.12);
-}
-.pn-row[data-kind="assistant"] .pn-who-label {
-  color: var(--pn-link);
-}
-.pn-marker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 2px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-}
-.pn-marker::before,
-.pn-marker::after {
-  content: "";
-  flex: 1;
-  height: 0.5px;
-  background: rgba(255, 255, 255, 0.1);
-}
-.pn-pending {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ov-muted);
-}
-
-/* ---- The ended card ---- */
+/* ---- The ended card and the footer's clock ---- */
 .pn-ended {
   flex: none;
   display: flex;
@@ -1496,12 +1265,10 @@
    handle are surfaces, not text islands: they keep only --pn-min-tint. */
 .pn-root[data-glass="clear"]
   :is(
-    .pn-row,
     .pn-task-chip,
     .pn-head,
     .pn-task-line,
     .pn-problem-head,
-    .pn-answer,
     .pn-constraints,
     .pn-answer-steps,
     .pn-muted,
@@ -1581,11 +1348,6 @@
   gap: 4px;
   font-size: 11.5px;
   color: var(--ov-amber, #f5c04a);
-}
-/* Full screen: the extra width goes to every pane, and the footer and the dots
-   stay where they are. */
-.pn-root[data-window-mode="full"] .pn-single-body > [data-which="code"] {
-  flex: 1 1 420px;
 }
 
 /* ---- The code pane's Tests drawer (left edge), file tabs and problems ---- */

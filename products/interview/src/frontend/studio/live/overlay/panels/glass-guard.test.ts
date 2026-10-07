@@ -43,32 +43,6 @@ const ALLOWED: readonly Allowed[] = [
   ],
   [
     "panels.css",
-    ".pn-row",
-    "background",
-    "Chat bubbles are text islands (clear glass adds the reading bed).",
-  ],
-  [
-    "panels.css",
-    '.pn-row[data-kind="heard"], .pn-row[data-kind="typed"]',
-    "background",
-    "Chat bubble colour, a text island.",
-  ],
-  [
-    "panels.css",
-    '.pn-row[data-kind="assistant"]',
-    "background",
-    "Chat bubble colour, a text island.",
-  ],
-  [
-    "panels.css",
-    ".pn-answer pre",
-    "background",
-    "A code snippet inside the answer is a text island.",
-  ],
-  ["panels.css", ".pn-mic", "background", "Small round control."],
-  ["panels.css", ".pn-send", "background", "Small round control."],
-  [
-    "panels.css",
     ".pn-toast",
     "background",
     "A toast is its own dark fade for legibility, not a pane.",
@@ -79,8 +53,6 @@ const ALLOWED: readonly Allowed[] = [
     "background",
     "The same toast fade in the native window.",
   ],
-  ["panels.css", ".pn-jump", "background", "Small floating control."],
-  ["panels.css", ".pn-jump:hover", "background", "Small floating control."],
   [
     "panels.css",
     '.pn-split[data-stop="true"] .pn-split-main',

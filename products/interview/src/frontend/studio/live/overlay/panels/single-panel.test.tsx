@@ -1262,7 +1262,7 @@ describe("task chips and the earlier task", () => {
     serve(live(), twoTasks());
     await show();
     const rows = document.querySelectorAll<HTMLElement>(
-      '.pn-row[data-kind="assistant"]',
+      '[data-slot="transcript-speech"][data-kind="assistant"]',
     );
     expect(rows).toHaveLength(2);
     fireEvent.click(rows[0] as HTMLElement);
@@ -1362,14 +1362,16 @@ describe("conversation", () => {
     );
     await show();
     const label = (text: string) =>
-      screen.getByText(text).closest(".pn-row")?.querySelector(".pn-who-label")
-        ?.textContent;
-    expect(label("Walk me through it.")).toBe("Interviewer · app audio");
-    expect(label("Sure.")).toBe("You · mic");
-    expect(label("Something else.")).toBe("Heard");
+      screen
+        .getByText(text)
+        .closest('[data-slot="transcript-speech"]')
+        ?.querySelector('[data-slot="transcript-label"]')?.textContent;
+    expect(label("Walk me through it.")).toMatch(/^Interviewer · app audio · /);
+    expect(label("Sure.")).toMatch(/^You · mic · /);
+    expect(label("Something else.")).toMatch(/^Heard · /);
   });
 
-  it("marks where a task started, with its screenshot, and where it was stopped", async () => {
+  it("puts one chip per capture among the lines, and no task start or stop line", async () => {
     serve(live(), [
       named("Rate limiter"),
       action({
@@ -1382,12 +1384,14 @@ describe("conversation", () => {
       }),
     ]);
     await show();
-    const markers = screen
-      .getAllByTestId("pn-marker")
-      .map((marker) => marker.textContent);
-    expect(markers).toContain("S1 captured · T1 started");
-    expect(markers).toContain("T2 started");
-    expect(markers).toContain("T2 stopped by you · nothing published");
+    const log = within(screen.getByRole("log"));
+    const chips = [
+      ...document.querySelectorAll('[data-slot="transcript-event"]'),
+    ].map((chip) => chip.textContent);
+    expect(chips.length).toBeGreaterThan(0);
+    expect(chips.join(" ")).toMatch(/S1 captured/);
+    expect(log.queryByText(/started/)).toBeNull();
+    expect(log.queryByText(/stopped by you/)).toBeNull();
   });
 
   it("shows a pending reply while a follow-up is in flight", async () => {
@@ -1429,7 +1433,9 @@ describe("typing follow-ups", () => {
     for (const release of releases) release();
     await flush();
     await flush();
-    const typed = [...document.querySelectorAll('.pn-row[data-kind="typed"]')];
+    const typed = [
+      ...document.querySelectorAll('[data-slot="transcript-message"]'),
+    ];
     expect(typed.map((row) => row.textContent).join("|")).toMatch(
       /first question.*second question/,
     );
