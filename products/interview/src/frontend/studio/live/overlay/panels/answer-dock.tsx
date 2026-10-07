@@ -49,7 +49,7 @@ function Thumb({
       className="pn-dock-thumb"
       draggable={!busy}
       data-testid={`staged-${index + 1}`}
-      title={`${shot.label} · Not sent yet`}
+      title={`${shot.label}${shot.displayLabel ? ` · ${shot.displayLabel}` : ""} · Not sent yet`}
       onDragStart={() => {
         dragged.current = shot.key;
       }}
@@ -87,6 +87,7 @@ function Thumb({
         <Icon name="close" />
       </button>
       <span className="pn-sr">Not sent yet</span>
+      {shot.displayLabel && <span className="pn-sr">{shot.displayLabel}</span>}
       {shot.willBe && (
         <span className="pn-sr" data-testid={`will-be-${index + 1}`}>
           {shot.willBe}
