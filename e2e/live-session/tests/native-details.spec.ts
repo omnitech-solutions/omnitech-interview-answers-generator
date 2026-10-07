@@ -106,7 +106,9 @@ test("@native native answer pane empty state: Capture screenshot in Manual stage
   await control.scenario("plain-answer");
   const manual = await openPanel({ auto: "off" });
   await manual.host.clear();
-  await manual.page.locator("button.pn-primary").click();
+  await manual.page
+    .getByRole("button", { name: /^Capture screenshot/ })
+    .click();
   await expect
     .poll(async () => (await manual.host.calls("captureScreen")).length)
     .toBe(1);
@@ -118,7 +120,7 @@ test("@native native answer pane empty state: Capture screenshot in Manual stage
   await controlSession(manual.id, "end");
 
   const auto = await openPanel({ auto: "on" });
-  const press = auto.page.locator("button.pn-primary");
+  const press = auto.page.getByRole("button", { name: /^Analyze screen/ });
   await expect(press).toContainText("Analyze screen");
   await auto.host.clear();
   await press.click();
