@@ -58,9 +58,19 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
           throw new Error("must not be consumed past a refused tool");
         }
         if (scenario === "structured") {
-          // The SDK's synthetic tool_use that carries a json_schema answer.
+          // The SDK's synthetic tool_use that carries a json_schema answer; its
+          // input streams as input_json_delta fragments.
           yield { type: "system", session_id: "s1" };
           yield toolStart("StructuredOutput");
+          for (const partial_json of ['{"a"', ":1}"])
+            yield {
+              type: "stream_event",
+              session_id: "s1",
+              event: {
+                type: "content_block_delta",
+                delta: { type: "input_json_delta", partial_json },
+              },
+            };
           yield {
             type: "assistant",
             session_id: "s1",
@@ -77,7 +87,9 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
             result: "",
             structured_output: { a: 1 },
             usage: { input_tokens: 3, output_tokens: 2 },
-            total_cost_usd: 0,
+            total_cost_usd: 0.01,
+            num_turns: 1,
+            duration_api_ms: 1234,
           };
           return;
         }
@@ -320,6 +332,45 @@ describe("Claude runtime session path", () => {
       type: "completed",
       result: { output: { a: 1 } },
     });
+  });
+
+  it("streams the structured answer's JSON as text while it is written", async () => {
+    scenario = "structured";
+    const events = await run({
+      toolless: true,
+      outputSchema: { type: "object" },
+    });
+    scenario = "text";
+    expect(events.filter((event) => event.type === "text-delta")).toEqual([
+      { type: "text-delta", text: '{"a"' },
+      { type: "text-delta", text: ":1}" },
+    ]);
+  });
+
+  it("reports turns and API time with the usage", async () => {
+    scenario = "structured";
+    const events = await run({
+      toolless: true,
+      outputSchema: { type: "object" },
+    });
+    scenario = "text";
+    expect(events.find((event) => event.type === "usage")).toEqual({
+      type: "usage",
+      usage: {
+        inputTokens: 3,
+        outputTokens: 2,
+        totalTokens: 5,
+        costUsd: 0.01,
+        turns: 1,
+        apiMs: 1234,
+      },
+    });
+  });
+
+  it("passes the profile's effort to the SDK, never the SDK's default", async () => {
+    scenario = "text";
+    await run({ profile: { ...profile, effort: "low" } });
+    expect(seen.options).toMatchObject({ effort: "low", model: "sonnet" });
   });
 
   it("never pools a tool-less run: a persistent profile still gets a fresh query per request and cannot be resumed", async () => {

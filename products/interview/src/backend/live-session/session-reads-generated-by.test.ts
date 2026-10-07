@@ -66,6 +66,30 @@ describe("stored action sourceSnapshots", () => {
   });
 });
 
+// The draft so far (recordProgress) rides an in-flight action only; a settled
+// row's column, an empty draft or a malformed value is not surfaced.
+describe("stored action progress", () => {
+  const inFlight = (progress: unknown) => ({
+    ...row(null),
+    dispatch_status: "in_flight",
+    progress,
+  });
+
+  it("lifts the draft so far from an in-flight action", () => {
+    expect(
+      toStoredAction(inFlight({ draft: "- First point\n- Sec" })).progress,
+    ).toEqual({ draft: "- First point\n- Sec" });
+  });
+
+  it("is absent once the action settled, and for an empty or malformed value", () => {
+    expect(
+      toStoredAction({ ...row({ draft: "x" }), progress: { draft: "- x" } }),
+    ).not.toHaveProperty("progress");
+    for (const progress of [null, undefined, {}, { draft: "" }, { draft: 1 }])
+      expect(toStoredAction(inFlight(progress))).not.toHaveProperty("progress");
+  });
+});
+
 describe("stored action noQuestion (D36)", () => {
   it("is derived from the stored category, never stored, and absent otherwise", () => {
     expect(
