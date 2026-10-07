@@ -84,7 +84,7 @@ const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 const INVISIBLE =
   /[\p{Default_Ignorable_Code_Point}\u115f\u1160\u3164\uffa0]/gu;
 const digitValue = (char: string): string => {
-  let code = char.codePointAt(0) ?? 0;
+  const code = char.codePointAt(0) ?? 0;
   let run = 0;
   while (run < 50 && /^\p{Nd}$/u.test(String.fromCodePoint(code - run - 1)))
     run += 1;

@@ -974,7 +974,9 @@ export function createAssistStage(
         // Every field beyond the category is dropped (a correct no-question
         // that also carried claims or an outline is still correct), including
         // missingContext: there is no task to supply context to.
-        if (!ctx.screenBased) violations.push("category:unexpected");
+        // A spoken turn the model heard no question in is accepted as that
+        // (the owner sees "no question found" and can regenerate): rejecting
+        // the reply left nothing on screen and a misleading failure note.
         // [SAFETY] The model's draft is discarded: it was never grounded, and
         // injected screen text could make it state an invented figure. The
         // stored and shown draft is this constant.

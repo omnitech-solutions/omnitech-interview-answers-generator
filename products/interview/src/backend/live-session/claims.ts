@@ -86,7 +86,7 @@ const FIGURE_PATTERNS = [
     `(?<=\\p{L})(?:\\d{5,}(?:[.,]\\d+)*\\+?)|(?<=(?<!\\p{L})(?:${MONEY_WORD}))\\d{3,4}(?:[.,]\\d+)*\\+?`,
     "giu",
   ),
-  new RegExp(`(?<=\\p{L}{3})\\d+(?:%|[kKmMbB](?!\\p{L}))\\+?`, "gu"),
+  /(?<=\p{L}{3})\d+(?:%|[kKmMbB](?!\p{L}))\+?/gu,
 ];
 
 // Canonical comparison key: lower case, no thousands commas, multiplier forms

@@ -1059,12 +1059,20 @@ describe("coding brief", () => {
     );
   });
 
-  it("accepts only typescript or react", () => {
+  it("accepts the supported code languages and refuses any other", () => {
     expect(
       check(
         output({
           category: "coding",
           codingBrief: { ...brief, language: "ruby" },
+        }),
+      ).ok,
+    ).toBe(true);
+    expect(
+      check(
+        output({
+          category: "coding",
+          codingBrief: { ...brief, language: "cobol" },
         }),
       ).ok,
     ).toBe(false);
@@ -1132,16 +1140,17 @@ describe("no-question category", () => {
     expect(result.ok && result.draft.draft).toBe(NO_QUESTION_DRAFT);
   });
 
-  it("rejects no-question on a call that carried no screen", () => {
+  // The owner's rule: nothing the guard does blocks an answer. A spoken turn
+  // the model heard no question in is accepted as no-question, shown as such,
+  // and the owner can regenerate.
+  it("accepts no-question on a call that carried no screen", () => {
     const result = stage.validate(noQuestion(), {
       snapshot: SNAPSHOT,
       captured: [],
       screenBased: false,
     });
-    expect(result).toMatchObject({
-      ok: false,
-      violations: expect.arrayContaining(["category:unexpected"]),
-    });
+    expect(result.ok && result.draft.category).toBe("no-question");
+    expect(result.ok && result.draft.draft).toBe(NO_QUESTION_DRAFT);
   });
 
   it("drops missingContext: there is no task to supply context to", () => {

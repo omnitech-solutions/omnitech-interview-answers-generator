@@ -121,7 +121,7 @@ const SUPPRESSION: Record<string, { state: RunState; label: string }> = {
   invalid_output: {
     state: "failed",
     label:
-      "It could not be checked against your approved experience, so nothing was published.",
+      "The model's reply did not fit the answer format, so nothing was published. Regenerate to try again.",
   },
   prompt_too_large: {
     state: "failed",
