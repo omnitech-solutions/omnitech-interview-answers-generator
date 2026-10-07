@@ -104,11 +104,16 @@
   padding: 0;
 }
 
+.pn-contents {
+  display: contents;
+}
+
 /* The native window is moved by anything it draws that is not a control (the
    shell does the drag, WindowDrag): the open hand says so, and nothing under a
    drag starts selecting text. Controls keep their own cursors (below); text
    fields, code, the transcript and the answers keep the text cursor and
-   selection (the list is also in WindowDrag.swift). See-through
+   selection (the list is TEXT_SURFACE_SELECTORS in hit-regions.ts, which the
+   page publishes to the shell as data-text-surfaces; a test keeps them equal). See-through
    keeps its cards for reading; only the toolbar and footer move the window. */
 :root[data-panel-host="native"] .pn-root {
   cursor: grab;
@@ -124,13 +129,8 @@
     input:not([type="button"]),
     [contenteditable],
     .cm-editor,
-    [data-slot="transcript"],
-    .pn-answer-panel,
-    .pn-code-body,
-    .pn-example,
-    .pn-strip-main,
-    .pn-strip-sub,
-    .pn-note
+    [data-text-surface],
+    [data-slot="transcript"]
   ) {
   cursor: text;
   user-select: text;

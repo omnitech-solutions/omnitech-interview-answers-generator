@@ -54,7 +54,7 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
     >
       {state && (
         <>
-          <span className="pn-strip-main" role="status">
+          <span className="pn-strip-main" data-text-surface="" role="status">
             {state.busy ? (
               <span className="pn-spinner" aria-hidden="true" />
             ) : (
@@ -62,12 +62,17 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
             )}
             {state.label}
           </span>
-          {state.sub && <span className="pn-strip-sub">{state.sub}</span>}
+          {state.sub && (
+            <span className="pn-strip-sub" data-text-surface="">
+              {state.sub}
+            </span>
+          )}
         </>
       )}
       {engine && (
         <span
           className="pn-strip-sub pn-strip-engine"
+          data-text-surface=""
           role="status"
           data-testid="pn-engine-line"
         >

@@ -38,6 +38,26 @@ export const HIT_SELECTORS = [
   "[data-oui-surface]", // every portalled library surface (menus, popovers, tooltips, dialogs, toasts)
 ] as const;
 
+// What always drags the window (around its controls): the toolbar, the footer,
+// the Mini player's bar. Hooks the page owns (`data-drag-handle`), never library
+// class names; published to the shell as `data-drag-chrome`.
+export const DRAG_CHROME_SELECTORS = ["[data-drag-handle]"] as const;
+
+// What the person reads and copies, so it keeps the text cursor and selection and
+// never drags the window: fields, code, then the page's own hooks
+// (`data-text-surface`) and the library transcript. Published as
+// `data-text-surfaces`, and the same list drives the text cursor in panels.css.
+export const TEXT_SURFACE_SELECTORS = [
+  "pre",
+  "code",
+  "textarea",
+  'input:not([type="button"])',
+  "[contenteditable]",
+  ".cm-editor",
+  "[data-text-surface]", // answer, code, example, strip text, notes
+  '[data-slot="transcript"]', // the library Transcript
+] as const;
+
 // Reports follow changes after this pause, and repeat on this beat; the shell
 // treats a report older than HitRegions.staleAfter (15 s) as none, so the beat is
 // well inside it.
@@ -146,6 +166,19 @@ export const canPassThrough = (host: PresentationHost): boolean =>
 // Reports the surfaces to the shell while `active` (See-through on, in the one
 // window), and `null` the moment it is not, the page is hidden or unmounted.
 export function useHitRegions(host: PresentationHost, active: boolean): void {
+  // The shell's drag and cursor probe reads these two lists (and falls back to
+  // its own when a page does not publish them). Set whenever the host can talk to
+  // the shell, See-through or not, and in the settings window too.
+  useEffect(() => {
+    if (!canPassThrough(host)) return;
+    const root = document.documentElement;
+    root.setAttribute("data-drag-chrome", DRAG_CHROME_SELECTORS.join(","));
+    root.setAttribute("data-text-surfaces", TEXT_SURFACE_SELECTORS.join(","));
+    return () => {
+      root.removeAttribute("data-drag-chrome");
+      root.removeAttribute("data-text-surfaces");
+    };
+  }, [host]);
   useEffect(() => {
     if (!active || !canPassThrough(host)) return;
     // The shell's drag probe reads which surfaces are drawn from here: one list.

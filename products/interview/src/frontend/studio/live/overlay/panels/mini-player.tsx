@@ -60,6 +60,7 @@ export function MiniPlayer({
     <>
       <div
         className="pn-pill pn-mini-pill"
+        data-drag-handle=""
         role="toolbar"
         aria-label="Session controls"
         data-testid="pn-pill"

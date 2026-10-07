@@ -226,7 +226,7 @@ export function StartPanel(props: StartPanelProps) {
           />
         )}
       </Panel>
-      <div className="pn-single-foot">
+      <div className="pn-single-foot" data-drag-handle="">
         <Footer
           wording="session"
           variant={{
