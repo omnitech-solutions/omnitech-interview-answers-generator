@@ -276,7 +276,8 @@ scripts rather than a bare derive-arch (see section 14 of `.env.example` for why
 ## Verify and test
 
 ```bash
-pnpm verify              # lint, format, typecheck, coverage, build, native checks
+pnpm verify              # verify:core, then the browser suite (pnpm test:browser: needs Docker; ~6 min, 4 shards)
+pnpm verify:core         # lint, format, typecheck, coverage, build, native checks (no browsers)
 pnpm test:no-docker      # the suites that need no Docker
 pnpm test:integration    # real-provider checks; set ACTIVE_SESSION_AGENT_INTEGRATION
 pnpm test:browser:install && pnpm test:browser   # Playwright, never part of verify
@@ -297,8 +298,8 @@ browsers. Options, the claims inventory and the shard design are in
 `.github/workflows/ci.yml` runs on pull requests, pushes to `master` and manual
 dispatch, with read-only permissions, no secrets, and superseded runs cancelled:
 
-- `verify` (Linux): `pnpm install --frozen-lockfile`, `pnpm runner:build`, `pnpm verify`.
-  The native step of `verify` skips itself on Linux and says so.
+- `verify` (Linux): `pnpm install --frozen-lockfile`, `pnpm runner:build`, `pnpm verify:core`
+  (the browser suite is the `e2e` job below). The native step skips itself on Linux and says so.
 - `native` (macOS): `node scripts/verify-native.mjs`, the Swift build and test harnesses.
 - `e2e` (Linux): the workspace build, Playwright browsers, then `pnpm test:browser`
   (4 shards in the one job); the Playwright report is uploaded when it fails.

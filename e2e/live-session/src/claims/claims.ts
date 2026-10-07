@@ -227,9 +227,11 @@ const screenshotRows = (surface: Surface): Row[] => [
     "Each stored screenshot says whether its image or only its text was sent (Image sent, Sent as text only, Not sent) and nothing when the server recorded nothing",
     "dom",
     "the label equals the server's sentByRevision for the screenshot (newest revision), and the viewer header lists every revision's outcome",
-    surface === "web"
-      ? "web Screenshots to the model, "
-      : "native Screenshots to the model, Always",
+    // PENDING on the web: the web page no longer captures (ADR-0033), so no web test stages a
+    // screenshot and reads its label; the native panel proves it.
+    ...(surface === "web"
+      ? ([] as [])
+      : (["native Screenshots to the model, Always"] as [string])),
   ],
   [
     `${surface}.screenshots.setting-tooltip`,
@@ -239,9 +241,10 @@ const screenshotRows = (surface: Surface): Row[] => [
     "The screenshots button's tooltip names the active setting (Screenshots to the model: Always, Text only when text, Never)",
     "dom",
     "the title attribute follows the saved setting after a change in Settings",
-    surface === "web"
-      ? "web Screenshots to the model, "
-      : "native Settings window (Privacy)",
+    // PENDING on the web, for the same reason as sent-as above.
+    ...(surface === "web"
+      ? ([] as [])
+      : (["native Settings window (Privacy)"] as [string])),
   ],
 ];
 

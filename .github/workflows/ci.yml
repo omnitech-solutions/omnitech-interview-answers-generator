@@ -49,7 +49,8 @@ jobs:
       # The Docker-backed test projects run the code in these images
       # (`--pull=never`), so they must exist before the tests start.
       - run: pnpm runner:build
-      - run: pnpm verify
+      # The browser suite runs in the `e2e` job below (with the browsers installed).
+      - run: pnpm verify:core
 
   # The Swift half of `pnpm verify`. It runs only on macOS because the Swift
   # packages (apps/studio-shell, apps/capture-companion/macos) use Apple
