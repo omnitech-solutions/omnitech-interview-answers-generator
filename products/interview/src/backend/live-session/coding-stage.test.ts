@@ -9,6 +9,7 @@ import {
   type CodingInput,
   createCodingStage,
   MAX_REPORT_TESTS,
+  POLICY_BY_LANGUAGE,
 } from "./coding-stage";
 
 const stage = createCodingStage();
@@ -275,5 +276,35 @@ describe("coding stage validation", () => {
 
   it("rejects non-JSON text", () => {
     expect(stage.validate("not json", BRIEF).ok).toBe(false);
+  });
+});
+
+// The owner's code language is a setting: the prompt for a language names its
+// own test framework and never another's, and the TypeScript prompt kept the
+// wording that works.
+describe("the coding policy per language", () => {
+  it("writes Pest for PHP and RSpec for Ruby, never Vitest", () => {
+    expect(POLICY_BY_LANGUAGE.php).toContain("written for Pest");
+    expect(POLICY_BY_LANGUAGE.php).toContain("single <?php tag");
+    expect(POLICY_BY_LANGUAGE.php).not.toMatch(/vitest/i);
+    expect(POLICY_BY_LANGUAGE.ruby).toContain("written for RSpec");
+    expect(POLICY_BY_LANGUAGE.ruby).toContain("RSpec.describe");
+    expect(POLICY_BY_LANGUAGE.ruby).not.toMatch(/vitest/i);
+  });
+
+  it("keeps the TypeScript and React prompts on Vitest, unchanged", () => {
+    for (const language of ["typescript", "react"] as const) {
+      expect(POLICY_BY_LANGUAGE[language]).toContain("written for Vitest");
+      expect(POLICY_BY_LANGUAGE[language]).toContain(
+        'Vitest runs without globals: import describe, it, expect and afterEach from "vitest".',
+      );
+      expect(POLICY_BY_LANGUAGE[language]).not.toMatch(/Pest|RSpec/);
+    }
+    expect(POLICY_BY_LANGUAGE.typescript).toContain(
+      "You write one small TypeScript solution",
+    );
+    expect(POLICY_BY_LANGUAGE.react).toContain(
+      "You write one small TypeScript or React solution",
+    );
   });
 });
