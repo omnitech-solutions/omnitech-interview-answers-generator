@@ -110,7 +110,7 @@ const OFF: PanelState = {
 
 export function usePanelSession(
   panel: NativeWindowPage,
-  presentation: PresentationHost,
+  _presentation: PresentationHost,
   // True while the analysis is on screen: Auto then watches the screen on an
   // interval and analyzes it when it changes. Off, captures wait for the hotkey.
   options: { watchScreen?: boolean; toggleSeeThrough?: () => void } = {},
@@ -635,7 +635,7 @@ export function usePanelSession(
           return;
         case "solution.generate": {
           const task = selectedRef.current;
-          if (!task || task.kind !== "programming-challenge") {
+          if (task?.kind !== "programming-challenge") {
             setNote("There is no coding problem to solve yet.");
             return;
           }

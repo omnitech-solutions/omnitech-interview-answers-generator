@@ -100,7 +100,6 @@ export function TestsDrawer({
     <aside
       id={TESTS_DRAWER_ID}
       className="pn-tests-drawer"
-      role="complementary"
       aria-label="Generated tests"
       data-open={open}
       data-testid="pn-tests-drawer"

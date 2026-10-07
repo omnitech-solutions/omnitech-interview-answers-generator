@@ -4,7 +4,19 @@
 // flight, a task the owner stopped, or what the code is waiting for. Neither
 // fetches or decides anything; they read the one panel session.
 
-import { Button, Empty, Panel, Steps, Tag } from "@oc-tech/omni-ui-components";
+import {
+  ActionMenu,
+  Button,
+  Empty,
+  Panel,
+  Steps,
+  Tag,
+} from "@oc-tech/omni-ui-components";
+import {
+  LIVE_OWNER_LANGUAGE_LABELS,
+  LIVE_OWNER_LANGUAGES,
+  type LiveOwnerLanguage,
+} from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import {
@@ -437,6 +449,44 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             {(s.missing?.length ?? 0) === 0 && missingStrip}
             {area}
             <div className="pn-regenerate">
+              <ActionMenu
+                label="Regenerate in another language"
+                title="Regenerate in"
+                width={240}
+                sections={[
+                  {
+                    id: "language",
+                    selection: "single",
+                    value: s.hints.language,
+                    items: [
+                      { id: "auto", label: "Detected from the screen" },
+                      ...LIVE_OWNER_LANGUAGES.map((id) => ({
+                        id,
+                        label: LIVE_OWNER_LANGUAGE_LABELS[id],
+                      })),
+                    ],
+                  },
+                ]}
+                onValueChange={(_group, id) => {
+                  s.setLanguage(id as LiveOwnerLanguage | "auto");
+                  void s.tray.apply();
+                }}
+                trigger={
+                  <Button
+                    buttonSize="sm"
+                    variant="outline"
+                    icon={<Icon name="code" />}
+                    iconAfter={<Icon name="expand_more" />}
+                    disabled={s.tray.applying || !s.open}
+                    aria-label="Regenerate in another language"
+                    data-testid="pn-regenerate-language"
+                  >
+                    {s.hints.language === "auto"
+                      ? "Language: auto"
+                      : LIVE_OWNER_LANGUAGE_LABELS[s.hints.language]}
+                  </Button>
+                }
+              />
               <Button
                 buttonSize="sm"
                 variant="outline"

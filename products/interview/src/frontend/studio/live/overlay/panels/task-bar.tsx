@@ -22,7 +22,6 @@ const isOwnerLanguage = (value: string): value is LiveOwnerLanguage =>
 export function TaskBar({ s }: { s: PanelSession }) {
   const [open, setOpen] = useState(false);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
-  const [languageOpen, setLanguageOpen] = useState(false);
   // The menu portals into the panel root, like the toolbar's menus.
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const bar = useCallback((node: HTMLDivElement | null) => {
@@ -92,45 +91,11 @@ export function TaskBar({ s }: { s: PanelSession }) {
           Capture new problem
         </Button>
       </Popconfirm>
-      {/* The code language: the problem on show's own, else the hint in force.
-          Choosing sets the hint for the problems to come. */}
-      <ActionMenu
-        label="Code language"
-        title="Code language for new problems"
-        width={240}
-        container={root}
-        open={languageOpen}
-        onOpenChange={setLanguageOpen}
-        sections={[
-          {
-            id: "language",
-            selection: "single",
-            value: shownLanguage,
-            items: [
-              { id: "auto", label: "Detected from the screen" },
-              ...LIVE_OWNER_LANGUAGES.map((id) => ({
-                id,
-                label: LIVE_OWNER_LANGUAGE_LABELS[id],
-              })),
-            ],
-          },
-        ]}
-        onValueChange={(_group, id) =>
-          s.setLanguage(id as LiveOwnerLanguage | "auto")
-        }
-        trigger={
-          <Button
-            buttonSize="sm"
-            variant="outline"
-            icon={<Icon name="code" />}
-            iconAfter={<Icon name="expand_more" />}
-            aria-label={`Code language: ${languageLabel}`}
-            data-testid="pn-language"
-          >
-            {languageLabel}
-          </Button>
-        }
-      />
+      {/* The code language in force: the problem on show's own (a switch sets
+          it), changed from the menu beside Regenerate. */}
+      <span className="pn-task-bar-rev" data-testid="pn-language">
+        {languageLabel}
+      </span>
       <div className="pn-task-bar-end">
         <ActionMenu
           label="Problem"
