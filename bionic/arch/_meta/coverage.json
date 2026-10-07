@@ -599,6 +599,7 @@
         "products/interview/src/backend/live-session/session-context.test.ts",
         "products/interview/src/backend/live-session/session-context.ts",
         "products/interview/src/backend/live-session/session-credential.ts",
+        "products/interview/src/backend/live-session/session-dispatch.test.ts",
         "products/interview/src/backend/live-session/session-dispatch.ts",
         "products/interview/src/backend/live-session/session-drafts.test.ts",
         "products/interview/src/backend/live-session/session-drafts.ts",
@@ -1194,7 +1195,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1176,
+      "n_sources": 1177,
       "verdict": "populated"
     },
     {
@@ -1784,6 +1785,7 @@
         "products/interview/src/backend/live-session/session-context.test.ts",
         "products/interview/src/backend/live-session/session-context.ts",
         "products/interview/src/backend/live-session/session-credential.ts",
+        "products/interview/src/backend/live-session/session-dispatch.test.ts",
         "products/interview/src/backend/live-session/session-dispatch.ts",
         "products/interview/src/backend/live-session/session-drafts.test.ts",
         "products/interview/src/backend/live-session/session-drafts.ts",
@@ -2379,8 +2381,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3085,
-      "n_sources": 1177,
+      "n_entities": 3091,
+      "n_sources": 1178,
       "verdict": "populated"
     },
     {

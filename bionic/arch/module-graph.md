@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1176 modules, 3085 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1177 modules, 3091 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -1222,6 +1222,12 @@ graph LR
   products_interview_src_backend_live_session_session_context_ts["products/interview/src/backend/live-session/session-context.ts"] --> products_interview_src_backend_live_session_mapping_ts["products/interview/src/backend/live-session/mapping.ts"]
   products_interview_src_backend_live_session_session_context_ts["products/interview/src/backend/live-session/session-context.ts"] --> products_interview_src_backend_live_session_scope_ts["products/interview/src/backend/live-session/scope.ts"]
   products_interview_src_backend_live_session_session_context_ts["products/interview/src/backend/live-session/session-context.ts"] --> products_interview_src_backend_live_session_session_record_ts["products/interview/src/backend/live-session/session-record.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_assist_stage_ts["products/interview/src/backend/live-session/assist-stage.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_core_index_ts["products/interview/src/backend/live-session/core/index.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_interview_policy_ts["products/interview/src/backend/live-session/interview-policy.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_memory_session_world_ts["products/interview/src/backend/live-session/memory-session-world.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_session_dispatch_ts["products/interview/src/backend/live-session/session-dispatch.ts"]
+  products_interview_src_backend_live_session_session_dispatch_test_ts["products/interview/src/backend/live-session/session-dispatch.test.ts"] --> products_interview_src_backend_live_session_session_run_ts["products/interview/src/backend/live-session/session-run.ts"]
   products_interview_src_backend_live_session_session_dispatch_ts["products/interview/src/backend/live-session/session-dispatch.ts"] --> products_interview_src_backend_live_session_assist_stage_ts["products/interview/src/backend/live-session/assist-stage.ts"]
   products_interview_src_backend_live_session_session_dispatch_ts["products/interview/src/backend/live-session/session-dispatch.ts"] --> products_interview_src_backend_live_session_core_index_ts["products/interview/src/backend/live-session/core/index.ts"]
   products_interview_src_backend_live_session_session_dispatch_ts["products/interview/src/backend/live-session/session-dispatch.ts"] --> products_interview_src_backend_live_session_escalation_ts["products/interview/src/backend/live-session/escalation.ts"]

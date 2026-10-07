@@ -3432,6 +3432,13 @@
       "source_path": "products/interview/src/backend/live-session/session-credential.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/backend/live-session/session-dispatch.test.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "5d63b445de08c74d0ea722afcb78910ec724eece52d72c72e5c6d7bca9e1099c",
+      "source_path": "products/interview/src/backend/live-session/session-dispatch.test.ts"
+    },
+    {
       "doc_path": "fallback/products/interview/src/backend/live-session/session-dispatch.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -6004,7 +6011,7 @@
       "doc_path": "fallback/products/interview/src/frontend/studio/live/session-tasks.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "bacbe00ce46fd4a572cd22fdb6180b9ca40d4cf1bada3d3a322cafaee949f80b",
+      "sha256": "bf9041a43f67a72a29ca2930b6cb6e3e1a8d5405c3d517eddad01cf8e27e20e3",
       "source_path": "products/interview/src/frontend/studio/live/session-tasks.test.ts"
     },
     {

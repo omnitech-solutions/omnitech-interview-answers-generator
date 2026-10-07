@@ -2,6 +2,14 @@
 
 _Append-only. Newest first._
 
+## [2026-10-07] journal | decision: Owner's live-QA decisions of 2026-10-04..07 recorded as objectives OBJ-11..13; drift repaired
+
+Entry in `bionic/journal/2026-10.md` at 2026-10-07T17:55-06:00. Refs: [[objectives]] [[adrs/ADR-0033-remove-document-picture-in-picture-and-the-in-tab]] [[adrs/ADR-0034-record-native-app-and-companion-events-through-one]]
+
+## [2026-10-07] lint | check-drift (5 drift / 0 broken / 0 crash; 8 N/A plugin-authoring rows)
+
+Drifted: code docs (extract-code-docs), arch spine (derive-arch via pnpm docs:arch), ADR summaries (summarize-adrs), doctrine (compile-doctrine), lineage (generate-lineage); clean: ADR index, index rollup, reviews index, journal index; validation checks clean (observations, promptbook index, governs citations). All five regenerated in order (ADR-derived, code, arch) and re-checked clean the same day.
+
 ## [2026-10-07] adr | ADR-0034: Record native-app and companion events through one redacting event log
 
 Proposed (amends ADR-0007). File `bionic/adrs/ADR-0034-record-native-app-and-companion-events-through-one.md`. Tags: observability, native, logging, active-session.

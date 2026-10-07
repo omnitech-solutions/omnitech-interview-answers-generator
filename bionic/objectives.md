@@ -3,7 +3,7 @@ type: objectives
 format_version: "1"
 maturity: exploring
 owner: "desoleary"
-reviewed_at: 2026-10-02
+reviewed_at: 2026-10-07
 review_every_days: 90
 ---
 
@@ -61,7 +61,7 @@ Help a software engineer prepare for and perform in technical interviews: work q
 
 - **kind:** ux
 - **statement:** During a live interview a candidate can start a hands-free session on their own machine that notices the question on screen or in speech and shows a short, grounded answer they can say aloud, with generated tests run for a coding question, without touching the keyboard.
-- **measure:** A live session goes from capture to task to answer in the native panel and in the web page against a scripted model; the median question-to-draft time in the hardening latency test stays under 4 seconds; drafts with an ungrounded figure or a preference-only claim are withheld, not shown (grounding guard tests).
+- **measure:** A live session goes from capture or speech to task to answer in the native panel against a scripted model; the median question-to-draft time in the hardening latency test stays under 4 seconds; a spoken question is recognised wherever the ask falls in an unpunctuated transcript (policy tests on real calls); grounding is enforced by subtraction and never withholds an answer: a rejected claim or sentence is dropped, no part of an answer is ever a placeholder, and a STAR question always tells the closest approved story (assist-stage tests).
 - **status:** active
 
 ### OBJ-8 — The candidate controls what leaves the device
@@ -75,7 +75,7 @@ Help a software engineer prepare for and perform in technical interviews: work q
 
 - **kind:** ux
 - **statement:** A candidate always sees the assistant's state and what each answer rests on: it never hides itself while capturing or listening, says whether code is only generated-tested or fully verified, keeps earlier revisions visible and marked outdated, and turns a capture with no question into a note instead of an answer.
-- **measure:** Hiding the window pauses capture first; the verification badge mirrors the server's `fullyVerified`; a task shows its revision list with the current one marked; a no-question capture creates no task (native, web and card tests, and the Playwright claims for them).
+- **measure:** Hiding the window pauses capture first; the verification badge mirrors the server's `fullyVerified`; a task shows its revision list with the current one marked and the Code panel follows the revision on show; a no-question capture or spoken turn creates no task and no failure; the Studio answer sits in the transcript with the question that opened it; the footer shows a sound wave while the microphone hears something (native and card tests, and the Playwright claims for them).
 - **status:** active
 
 ### OBJ-10 — Every interaction proven
@@ -85,12 +85,38 @@ Help a software engineer prepare for and perform in technical interviews: work q
 - **measure:** The claims inventory in the browser suite lists every control, the coverage test fails on any control not in it, and strict mode (`E2E_STRICT=1`) passes with no claim left pending; what a browser cannot prove is listed for manual testing.
 - **status:** active
 
+### OBJ-11 — The native shell is the live surface
+
+- **kind:** ux
+- **statement:** The live session lives in the native shell's panels, built only from the shared component library: a task bar with Capture new problem, the Problem menu and revisions; a new problem comes only from a capture, every other input revises the task on show; the code language is chosen per problem and a Regenerate honours it; a session never expires on its own; Try again tells the truth about a gone session.
+- **measure:** The web page no longer captures and Picture-in-Picture is gone (ADR-0033); every panel control is a library component (migration audit); Regenerate in PHP yields PHP code with its tests run (client and coding-stage tests); the session cap is the ten-year default; the native QA log's blocking issues are closed.
+- **status:** active
+
+### OBJ-12 — Fast, cancellable, streamed answers
+
+- **kind:** ux
+- **statement:** The candidate reads the answer as it is written and can stop it at any moment: the draft streams into the panel, is published within seconds of the model's last word, and the Claude agent runner is the one executor (no provider switching).
+- **measure:** The worker records the draft so far on the action as it streams and the panel shows it within its one-second poll; a structured run completes at the model's structured-output call (one model iteration, measured 16–20 s per draft on a healthy API); Stop settles an in-flight draft as `owner_stopped` and no late write lands; `ai.execute` logs turns and API time so a slow run is attributable.
+- **status:** active
+
+### OBJ-13 — Nothing goes dark silently
+
+- **kind:** delivery
+- **statement:** Every step from microphone to published answer leaves a redacted, code-only trace that says where a question was lost: the shell and companion's one event log (user, page, heartbeat, server, system), the companion's speech and transcript events with sizes, the worker's gateway lines, and the database as the record of truth.
+- **measure:** A stalled transcription is diagnosable from `events.jsonl` alone (audio fed per source, requests opened and ended, segments produced and queued); the event log never carries text, prompts or credentials (redaction tests); an answer that was not shown has a reason in the action row.
+- **status:** active
+
 ## Shifts
 
 _Newest first. Append a row whenever the mission or a goal changes; never rewrite history above._
 
 | date | shifted | from | to | why |
 |------|---------|------|----|-----|
+| 2026-10-07 | OBJ-13 | Unspecified | Nothing goes dark silently | Owner's rule after a day of silent stalls: one redacting event log for app, companion and server (ADR-0034), speech and transcript events, gateway timings; the database is checked before any claim (owner decision). |
+| 2026-10-07 | OBJ-12 | Unspecified | Fast, cancellable, streamed answers | Owner's decisions: streaming is required, a draft must be cancellable at any time, the Claude agent runner stays the executor, a minute-long draft is unacceptable (owner decision). |
+| 2026-10-07 | OBJ-9 | Revisions visible; no-question captures are notes | Adds: answer sits with its question, Code panel follows the revision, no-question speech is never a failure, sound-wave recording indicator | Owner's directions during live QA (owner decision). |
+| 2026-10-07 | OBJ-7 | Drafts with an ungrounded figure or preference-only claim are withheld | Grounding never withholds: subtraction only, no placeholders, a STAR question always tells the closest story, asks recognised mid-utterance | Owner's rule: "the experience matrix should not ever block an answer EVER"; "I NEVER want to see 'Not in your approved experience'"; a real call's "tell me about a project" was ignored (owner decision). |
+| 2026-10-06 | OBJ-11 | Unspecified | The native shell is the live surface | Owner's decisions over the native rework: Picture-in-Picture and the in-tab card deleted (ADR-0033), library components only, task bar with Problem and revisions menus, new problem only from a capture, language per problem, sessions never expire (owner decision). |
 | 2026-10-05 | OBJ-10 | Unspecified | Every interaction proven | Owner asked for Playwright coverage so each interaction does what the screen says (proposed by Claude on the owner's instruction; pending owner review). |
 | 2026-10-05 | OBJ-9 | Unspecified | Honest and visible assistance | Owner's directions: window modes that pause capture before hiding, revisions list, no-question captures are notes, verified-vs-generated labels (proposed on instruction; pending owner review). |
 | 2026-10-05 | OBJ-8 | Unspecified | The candidate controls what leaves the device | Owner's concern about screenshots going to the model by default; accepted setting (always / text only when the screen is just text / never), display picker and sent-as labels (proposed on instruction; pending owner review). |

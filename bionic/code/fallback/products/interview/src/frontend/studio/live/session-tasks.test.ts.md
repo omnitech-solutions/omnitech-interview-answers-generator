@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/frontend/studio/live/session-tasks.test.ts` (header-comment fallback)_
 
-Another kind of run, under the newer holder.
+A draft still being written shows as the answer so far; the run stays
+running beside it and the claims come with the publish.
