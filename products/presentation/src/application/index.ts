@@ -6,7 +6,7 @@ import type {
 } from "../domain/index";
 import { PresentationNotFoundError } from "../domain/index";
 import { exportPresentation } from "../export/index";
-import { PresentationRepository } from "../repositories/index";
+import type { PresentationRepository } from "../repositories/index";
 
 export class PresentationService {
   constructor(private readonly repository: PresentationRepository) {}

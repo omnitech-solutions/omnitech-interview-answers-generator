@@ -42,6 +42,7 @@ import { ToolbarLock, useToolbarLock } from "./toolbar-lock";
 // What the capture controls say while the session is paused: nothing is captured.
 const PAUSED_REASON = "Paused. Resume the session to capture.";
 const PAUSED_PANES_REASON = "Paused. Resume the session to see this.";
+
 import { MIC_HELD_TEXT } from "./use-engine";
 import { WindowDots } from "./window-dots";
 import type { PanelWindowMode } from "./window-mode";

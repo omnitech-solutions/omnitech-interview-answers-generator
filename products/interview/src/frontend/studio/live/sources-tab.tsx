@@ -5,6 +5,7 @@
 // (ADR-0012/owner-chooses-retention). Neither can be undone, so each confirms.
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
+import { Button } from "../../ui";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
 import { type SpeechState, speechState } from "./companion-capability";
@@ -26,7 +27,6 @@ import {
   CAPABILITY_LOADING,
   type CompanionCapabilityState,
 } from "./use-companion-capability";
-import { Button } from "../../ui";
 
 const SOURCE_ICON: Record<string, IconName> = {
   microphone: "mic",

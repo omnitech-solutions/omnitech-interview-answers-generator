@@ -10,11 +10,11 @@ vi.mock("./studio/live/overlay/panels/use-account", () => ({
   navigation: { assign: vi.fn() },
 }));
 
+import { NativeSignInRoute } from "./native-sign-in-route";
 import {
   accountHost,
   navigation,
 } from "./studio/live/overlay/panels/use-account";
-import { NativeSignInRoute } from "./native-sign-in-route";
 
 afterEach(() => {
   cleanup();

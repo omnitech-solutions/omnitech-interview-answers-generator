@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import type { CommandResult } from "./session-snapshot";
 import { CREDENTIAL_LIFETIME_TEXT } from "./session-sources";
 import { copyText } from "./shared/copy-text";
 import { useLiveSession } from "./use-live-session";
-import { Button } from "../../ui";
 
 // Pairing the capture companion with the open session: the credential controls
 // that sit INSIDE the one companion block of the Sources tab (sources-tab.tsx

@@ -12,8 +12,8 @@ import { join } from "node:path";
 import {
   AGENT_IMAGE_MAX_BYTES,
   type AgentEvent,
-  AgentProfile,
-  AgentRunRequest,
+  type AgentProfile,
+  type AgentRunRequest,
 } from "@omnitech/agent-runtime-contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCodexRuntimeAdapter } from "./index";

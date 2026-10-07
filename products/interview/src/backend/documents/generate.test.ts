@@ -443,7 +443,7 @@ describe("parallel section generation", () => {
     expect(done).toHaveLength(4);
     // Each call is asked only for its own section, and told what else exists.
     const first = JSON.parse(
-      (execute.mock.calls[0]?.[0].task as unknown as { prompt: string }).prompt,
+      (execute.mock.calls[0]![0].task as unknown as { prompt: string }).prompt,
     );
     expect(first.fields.length).toBeGreaterThanOrEqual(30);
     expect(first.fields.length).toBeLessThanOrEqual(45);

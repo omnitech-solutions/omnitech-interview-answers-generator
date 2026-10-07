@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 // NextAuth is the identity boundary: signing in hands off to a provider.

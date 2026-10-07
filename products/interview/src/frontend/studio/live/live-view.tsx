@@ -1,10 +1,10 @@
 import { useEffect } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { EndedView, SessionNotFound } from "./ended-view";
 import { LiveSessionPanel } from "./live-session-view";
 import { SetupView } from "./setup-view";
 import { useLiveSession } from "./use-live-session";
-import { Button } from "../../ui";
 
 export type LiveSessionViewProps = {
   // The path after `live`: a finished session's id addresses its summary.

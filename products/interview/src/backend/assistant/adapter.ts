@@ -47,7 +47,7 @@ import {
   type InterviewEvidence,
   InterviewWorkspaceRepository,
   interviewDraftPatchSchema,
-  interviewDraftSchema,
+  type interviewDraftSchema,
   WorkspaceError,
 } from "./workspace";
 export const interviewProposalPatchSchema = interviewDraftPatchSchema

@@ -3,6 +3,7 @@ import {
   type RehearsalReveal,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import {
   CHECKS,
@@ -18,7 +19,6 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
-import { Button } from "../../ui";
 
 // A running session: the phase clock, the question, hints and the checklist.
 export function LiveSession({

@@ -10,7 +10,7 @@
 // It imports no Next.js and no frontend code, and never builds a gateway: the
 // host builds one from the same profile and model configuration source as the
 // web host and passes it in (rule:model-calls-gateway-routed).
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import { type AiExecutionGateway, refusedStream } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
 import type { Clock } from "./core/index";
 import type { AgentEscalationPort } from "./escalation";
@@ -162,15 +162,15 @@ const refusingGateway: AiExecutionGateway = {
   async execute() {
     throw new Error("No model is configured.");
   },
-  async *streamStructured() {
-    throw new Error("No model is configured.");
+  streamStructured() {
+    return refusedStream("No model is configured.");
   },
-  async *stream() {
-    throw new Error("No model is configured.");
+  stream() {
+    return refusedStream("No model is configured.");
   },
   async cancel() {},
-  async *resume() {
-    throw new Error("No model is configured.");
+  resume() {
+    return refusedStream("No model is configured.");
   },
   async listAvailableTargets() {
     return [];

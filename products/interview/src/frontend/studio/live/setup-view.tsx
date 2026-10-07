@@ -1,5 +1,6 @@
 import type { LiveCaptureSource } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import {
@@ -54,7 +55,6 @@ import {
 import { useCompanionCapability } from "./use-companion-capability";
 import { useLiveSession } from "./use-live-session";
 import { useSetupChoices } from "./use-setup-choices";
-import { Button } from "../../ui";
 
 export type SetupViewProps = {
   // Studio navigation, for the matrix link.

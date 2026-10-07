@@ -192,7 +192,7 @@ describe("presentation editor: generate a slide with AI", () => {
     ).toBeGreaterThan(0);
     expect(
       (
-        api.to("POST", `${doc}/slides/generate`)[0]?.body as {
+        api.to("POST", `${doc}/slides/generate`)[0]!.body as {
           profileId: string;
         }
       ).profileId,
@@ -254,7 +254,7 @@ describe("presentation editor: design agent", () => {
       prompt: expect.stringContaining("Tighten the wording"),
     });
     expect(
-      (api.to("POST", jobs)[0]?.body as { prompt: string }).prompt,
+      (api.to("POST", jobs)[0]!.body as { prompt: string }).prompt,
     ).toContain("<H1>Intro</H1>");
     expect(screen.getByLabelText("Agent instruction")).toHaveValue("");
 

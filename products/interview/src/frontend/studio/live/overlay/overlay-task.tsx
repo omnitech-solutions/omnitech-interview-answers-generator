@@ -9,12 +9,12 @@ import { InlineBold } from "../shared/draft-text";
 import { TASK_KIND } from "../shared/task-kind";
 import type { SessionDraftLink } from "../workspace-handoff";
 import { LiveCodeCanvas } from "./code-canvas";
-import {
-  type Approach,
-  type DisclosureRow,
-  type ProvenanceChip,
-  type SlotView,
-  type SolutionView,
+import type {
+  Approach,
+  DisclosureRow,
+  ProvenanceChip,
+  SlotView,
+  SolutionView,
 } from "./overlay-model";
 
 function Spinner() {

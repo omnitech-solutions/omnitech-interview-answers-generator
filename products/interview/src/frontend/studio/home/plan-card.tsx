@@ -4,11 +4,11 @@ import type {
   PlanItemKind,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
 import type { PlanState } from "./use-plan";
-import { Button } from "../../ui";
 
 const KIND_ICON: Record<PlanItemKind, IconName> = {
   question: "terminal",

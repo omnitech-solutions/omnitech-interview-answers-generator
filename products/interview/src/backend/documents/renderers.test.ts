@@ -293,6 +293,27 @@ describe("template intake and renderers", () => {
     ).rejects.toThrow("unsupported field token");
   });
 
+  it("strips XML-illegal control characters from values and keeps tab, LF and CR", async () => {
+    const bytes = await docx({});
+    const output = await renderDocxTemplate(bytes, {
+      full_name: "A\u0000B\u0008C\u000bD\u000cE\u000eF\u001fG\ufffeH\uffffI\tJ",
+    });
+    const zip = await JSZip.loadAsync(output);
+    expect(await zip.file("word/document.xml")?.async("string")).toContain(
+      "Dear ABCDEFGHI\tJ</w:t>",
+    );
+  });
+
+  it("rejects a hyperlink target that carries a control character", async () => {
+    const withControl = await docx({
+      "word/_rels/document.xml.rels":
+        '<Relationships><Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" TargetMode="External" Target="https://example.test/a\u0001b" /></Relationships>',
+    });
+    await expect(
+      inspectTemplate({ format: "docx", bytes: withControl }),
+    ).rejects.toThrow("unsafe external relationship");
+  });
+
   it("keeps inert hyperlinks and rejects external resources and executable parts", async () => {
     const linked = await docx({
       "word/_rels/document.xml.rels":

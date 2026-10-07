@@ -1,10 +1,16 @@
+min_version: 2.1.10
+assert_lefthook_installed: true
+glob_matcher: doublestar
+
+# Staged-file jobs run Biome on the staged TypeScript, JSON and JavaScript only.
+# `biome check` fails on lint errors and on formatting; warnings do not fail it
+# while the backlog in bionic/inbox/biome-backlog.md is being paid down.
 pre-commit:
   parallel: true
-  commands:
-    lint:
-      run: pnpm lint
-    format:
-      run: pnpm format
+  jobs:
+    - name: biome
+      glob: "**/*.{ts,tsx,js,jsx,json,jsonc}"
+      run: pnpm exec biome check --no-errors-on-unmatched {staged_files}
 
 pre-push:
   commands:

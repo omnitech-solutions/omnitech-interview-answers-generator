@@ -4,10 +4,10 @@ import type {
 } from "@omnitech/interview-contracts";
 import { useEffect, useState } from "react";
 import { MarkdownContent } from "../../../markdown-content";
+import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { PracticeTimer } from "../../practice-timer";
 import { CATEGORY_LABELS, spokenSeconds } from "./config";
-import { Button } from "../../../ui";
 
 // A question still being answered, shown in place until its answer lands.
 export type PendingAnswer = {

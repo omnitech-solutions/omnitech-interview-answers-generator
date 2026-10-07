@@ -38,7 +38,7 @@ import {
   seedFromActions,
   slotFor,
 } from "./session-run";
-import { type SessionTraceEvent } from "./trace";
+import type { SessionTraceEvent } from "./trace";
 
 export interface SessionProcessor {
   // One pass. Resolves true when it did work (the loop should not sleep),

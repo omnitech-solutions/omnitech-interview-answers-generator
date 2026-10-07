@@ -10,6 +10,7 @@
 //     rule:tombstone-keeps-hint-count).
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { SessionHistory } from "./ended-history";
@@ -28,7 +29,6 @@ import { createSessionClient } from "./session-client";
 import { tenantFromLocation } from "./session-registry";
 import type { LiveStats } from "./session-state";
 import { useLiveSession } from "./use-live-session";
-import { Button } from "../../ui";
 
 export type EndedViewProps = {
   // Studio navigation, for opening the session draft and the Live view.

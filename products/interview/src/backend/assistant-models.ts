@@ -1,4 +1,4 @@
-import type { AiExecutionGateway } from "@omnitech/ai-contracts";
+import { type AiExecutionGateway, refusedStream } from "@omnitech/ai-contracts";
 import { createGatewayModelPort } from "@omnitech/ai-runtime";
 import type {
   ModelCatalog,
@@ -85,11 +85,7 @@ export function createAssistantModels(
             ? relaySource.port.stream(scope, input, signal)
             : // [GUARD] A turn may not pick the on-device model the host
               // never offered.
-              (async function* () {
-                throw new Error(
-                  "The on-device model is not enabled on this host.",
-                );
-              })(),
+              refusedStream("The on-device model is not enabled on this host."),
     },
   };
 }

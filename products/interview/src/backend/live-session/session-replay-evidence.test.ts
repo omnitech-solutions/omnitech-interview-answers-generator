@@ -532,7 +532,7 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
     await replay(w, set.phases);
     const [stored] = await w.actions();
     expect(stored).toMatchObject({ dispatchStatus: "succeeded" });
-    expect((stored?.result as AnyRow).meta.claimCounts["matrix-backed"]).toBe(
+    expect((stored!.result as AnyRow).meta.claimCounts["matrix-backed"]).toBe(
       1,
     );
     await report("hazard-7b-unsupported-metric", w, set);
@@ -1058,8 +1058,8 @@ describe("(i) live coding with a mid-exercise constraint change", () => {
     };
     const { runner, used } = recordedRunner();
     const w = await world("evidence-i1", { gateway, codeRunner: runner });
-    const [stating, burst, instances, bucket] = ALL_REPLAY_SETS["live-coding"]
-      ?.phases as readonly ReplayPhase[];
+    const [stating, burst, instances, bucket] = ALL_REPLAY_SETS["live-coding"]!
+      .phases as readonly ReplayPhase[];
     const before = await protectedTableDigests(fx);
 
     // Revision 1: stated, answered and solved.

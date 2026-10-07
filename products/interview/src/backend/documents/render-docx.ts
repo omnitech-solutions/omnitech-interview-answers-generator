@@ -17,9 +17,25 @@ const TAG_CHARS = /[\uE000-\uE002]/g;
 
 const TEXT_RUN = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
 
+// [SAFETY] Characters XML 1.0 forbids: C0 controls except tab, LF and CR, plus
+// the two noncharacters. Checked by code unit, so no control character is spelled
+// inside a regular expression.
+function isXmlIllegalCharacter(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return (
+    code <= 0x08 ||
+    code === 0x0b ||
+    code === 0x0c ||
+    (code >= 0x0e && code <= 0x1f) ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
+}
+
 function escapeXml(value: string): string {
-  return value
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, "")
+  return [...value]
+    .filter((char) => !isXmlIllegalCharacter(char))
+    .join("")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

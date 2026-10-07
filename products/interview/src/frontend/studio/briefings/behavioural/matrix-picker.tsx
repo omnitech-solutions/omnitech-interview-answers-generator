@@ -8,10 +8,10 @@ import {
 } from "@omnitech/interview-contracts";
 import { useRef, useState } from "react";
 import { formatRelativeTime } from "../../../format-timestamp";
+import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { Dialog } from "../../shared/dialog";
 import { DEFAULT_PROFILE_ID } from "./config";
-import { Button } from "../../../ui";
 
 export type ProfileRef = { id: string; revision: number };
 

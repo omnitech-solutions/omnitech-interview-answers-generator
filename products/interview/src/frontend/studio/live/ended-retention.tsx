@@ -7,6 +7,7 @@ import type {
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
 import {
   PROMOTED_NOTE,
@@ -17,7 +18,6 @@ import {
 } from "./ended-summary";
 import type { SessionErrorCode } from "./session-client";
 import type { CommandResult } from "./session-snapshot";
-import { Button } from "../../ui";
 
 const SHORTEN_ERROR: Partial<Record<SessionErrorCode, string>> = {
   retention_lengthening_refused: "Retention can only be shortened.",

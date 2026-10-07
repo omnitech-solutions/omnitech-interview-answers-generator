@@ -1,9 +1,10 @@
 import { agentPayloadSecret } from "@omnitech/agent-job-service";
-import type {
-  AiEvent,
-  AiExecution,
-  AiExecutionRequest,
-  AiResumeRequest,
+import {
+  type AiEvent,
+  type AiExecution,
+  type AiExecutionRequest,
+  type AiResumeRequest,
+  refusedStream,
 } from "@omnitech/ai-contracts";
 import { createAnthropicModelAdapter } from "@omnitech/ai-provider-anthropic";
 import {
@@ -116,8 +117,8 @@ function createAgentPort(): AgentExecutionPort {
         executionId,
       );
     },
-    async *resume(_request: AiResumeRequest): AsyncIterable<AiEvent> {
-      throw new Error("Resume requires an existing agent session job.");
+    resume(_request: AiResumeRequest): AsyncIterable<AiEvent> {
+      return refusedStream("Resume requires an existing agent session job.");
     },
     // Assistant turns on Claude Code or Codex, as jobs the worker runs.
     streamStructured(request, profile) {

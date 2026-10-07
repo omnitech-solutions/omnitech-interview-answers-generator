@@ -1,6 +1,7 @@
-import type {
-  AiAccessContext,
-  ModelProviderAdapter,
+import {
+  type AiAccessContext,
+  type ModelProviderAdapter,
+  refusedStream,
 } from "@omnitech/ai-contracts";
 import {
   createLmStudioModels,
@@ -103,8 +104,8 @@ export function createOpenAiCatalogAdapter(
     async execute() {
       throw new Error("Catalog targets serve structured chat only.");
     },
-    async *stream() {
-      throw new Error("Catalog targets serve structured chat only.");
+    stream() {
+      return refusedStream("Catalog targets serve structured chat only.");
     },
   };
 }

@@ -564,7 +564,7 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
       fireEvent.click(screen.getByTestId("apply-screenshots"));
       await flush();
       expect(
-        (applyContext.mock.calls[0]?.[1] as { images: Blob[] }).images,
+        (applyContext.mock.calls[0]![1] as { images: Blob[] }).images,
       ).toEqual([cropped]);
     });
 

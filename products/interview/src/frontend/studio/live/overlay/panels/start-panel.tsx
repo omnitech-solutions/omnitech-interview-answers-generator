@@ -28,7 +28,7 @@ import {
 import { Icon } from "../../../icon";
 import { loadHandsFreeChoice } from "../../hands-free-choice";
 import { openExternalThroughHost } from "../../host-adapter";
-import { type SessionErrorCode } from "../../session-client";
+import type { SessionErrorCode } from "../../session-client";
 import { tenantFromLocation } from "../../session-registry";
 import {
   buildStartRequest,

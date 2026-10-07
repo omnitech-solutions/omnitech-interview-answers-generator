@@ -133,10 +133,7 @@ export function ocrBlockFor(
     if (!ENGINES.includes(result.engine) || typeof result.text !== "string")
       return null;
     const capped = capOcrText(
-      result.text
-        .replace(/\r\n?/g, "\n")
-        .replace(/\u0000/g, "")
-        .trim(),
+      result.text.replace(/\r\n?/g, "\n").replaceAll("\u0000", "").trim(),
       LIVE_OCR_LIMITS.maxTextPerImage,
     );
     const text = capped.text;

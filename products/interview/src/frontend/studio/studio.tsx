@@ -17,6 +17,7 @@ import {
 } from "react";
 import { assistantFeatures, questionAssistant } from "../assistant-config";
 import { createOnDeviceProfile } from "../on-device";
+import { Button } from "../ui";
 import { WelcomeBanner } from "./account/welcome-banner";
 import { CommandPalette, type PaletteItem } from "./command-palette";
 import { available, type StudioActions } from "./config/commands";
@@ -46,7 +47,6 @@ import {
   useStudioRoute,
 } from "./use-studio-route";
 import { useStudioTheme } from "./use-studio-theme";
-import { Button } from "../ui";
 import { ViewBoundary } from "./view-boundary";
 import type { WorkspaceAssistant } from "./workspace/workspace-view";
 

@@ -17,8 +17,12 @@ import type {
   LiveOwnerLanguage,
   LiveOwnerSkill,
 } from "@omnitech/interview-contracts";
-import type { AssistDraft, AssistPrompt, AssistStage } from "./assist-stage";
-import { type AssistValidation } from "./assist-stage";
+import type {
+  AssistDraft,
+  AssistPrompt,
+  AssistStage,
+  AssistValidation,
+} from "./assist-stage";
 import { summarizeClaims } from "./claims";
 import type { Task } from "./core/index";
 import type { SessionStorePort } from "./processor-ports";

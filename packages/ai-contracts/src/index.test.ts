@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { AiPolicyRefusedError, parseStructuredOutput } from "./index";
+import {
+  AiPolicyRefusedError,
+  parseStructuredOutput,
+  refusedStream,
+} from "./index";
 
 describe("structured output contract", () => {
   const schema = {
@@ -39,5 +43,22 @@ describe("policy refusal", () => {
       policy: "device-only",
       retryable: false,
     });
+  });
+});
+
+describe("refusedStream", () => {
+  it("rejects on first read and not before, like a throw-only generator", async () => {
+    const stream = refusedStream("No model is configured.");
+    // Creating the stream and asking for its iterator never throws...
+    const iterator = stream[Symbol.asyncIterator]();
+    // ...the refusal arrives on the first read.
+    await expect(iterator.next()).rejects.toThrow("No model is configured.");
+    await expect(
+      (async () => {
+        for await (const _part of refusedStream("closed")) {
+          // never reached
+        }
+      })(),
+    ).rejects.toThrow("closed");
   });
 });

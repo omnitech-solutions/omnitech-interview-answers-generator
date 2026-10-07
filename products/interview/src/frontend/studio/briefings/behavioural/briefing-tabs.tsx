@@ -4,9 +4,9 @@ import type {
   CandidateMatrix,
 } from "@omnitech/interview-contracts";
 import { useState } from "react";
+import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { copyText } from "../../live/shared/copy-text";
-import { Button } from "../../../ui";
 
 type Tab = "overview" | "stories" | "ask" | "watch";
 

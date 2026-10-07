@@ -25,7 +25,7 @@ import type {
 } from "./processor-ports";
 import { capturedText } from "./replay-evidence-fixture";
 import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix";
-import { ActiveSessionRepository } from "./repository";
+import type { ActiveSessionRepository } from "./repository";
 import {
   createDatabaseClaimPort,
   createDatabaseStorePort,

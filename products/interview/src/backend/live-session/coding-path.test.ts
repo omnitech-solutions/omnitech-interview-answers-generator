@@ -230,7 +230,7 @@ describe("a coding task owes a second solve-code action", () => {
     const solved = (await solveActions(w)).find(
       (action) => action.dispatchStatus === "succeeded",
     );
-    const states = (solved?.result as AnyRow).states;
+    const states = (solved!.result as AnyRow).states;
     expect(states).toMatchObject({
       generated: true,
       testsPassed: true,

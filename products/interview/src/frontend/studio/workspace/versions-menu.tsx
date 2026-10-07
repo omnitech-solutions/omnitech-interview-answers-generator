@@ -1,8 +1,8 @@
 import type { SavedAnswer } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime, formatTimestamp } from "../../format-timestamp";
-import { Icon } from "../icon";
 import { Button } from "../../ui";
+import { Icon } from "../icon";
 
 // Saved versions are immutable snapshots of the answer. Saving one is explicit;
 // restoring one replaces the draft (which is itself saved as you type).

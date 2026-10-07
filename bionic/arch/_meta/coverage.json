@@ -152,9 +152,6 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
-        "coverage/block-navigation.js",
-        "coverage/prettify.js",
-        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -244,6 +241,7 @@
         "packages/agent-runtime-claude/scripts/benchmark-transport.ts",
         "packages/agent-runtime-claude/src/index.test.ts",
         "packages/agent-runtime-claude/src/index.ts",
+        "packages/agent-runtime-claude/src/lifecycle.test.ts",
         "packages/agent-runtime-claude/src/pool.test.ts",
         "packages/agent-runtime-claude/src/terminal.test.ts",
         "packages/agent-runtime-codex/scripts/check-tool-isolation.ts",
@@ -1112,6 +1110,7 @@
         "products/interview/src/frontend/ui/button.tsx",
         "products/interview/src/frontend/ui/index.ts",
         "products/interview/src/frontend/ui/join.ts",
+        "products/interview/src/frontend/ui/studio-button-retired.test.ts",
         "products/interview/src/manifest.test.ts",
         "products/interview/src/manifest.tsx",
         "products/interview/vitest.config.ts",
@@ -1188,7 +1187,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1170,
+      "n_sources": 1169,
       "verdict": "populated"
     },
     {
@@ -1331,9 +1330,6 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
-        "coverage/block-navigation.js",
-        "coverage/prettify.js",
-        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -1423,6 +1419,7 @@
         "packages/agent-runtime-claude/scripts/benchmark-transport.ts",
         "packages/agent-runtime-claude/src/index.test.ts",
         "packages/agent-runtime-claude/src/index.ts",
+        "packages/agent-runtime-claude/src/lifecycle.test.ts",
         "packages/agent-runtime-claude/src/pool.test.ts",
         "packages/agent-runtime-claude/src/terminal.test.ts",
         "packages/agent-runtime-codex/scripts/check-tool-isolation.ts",
@@ -2291,6 +2288,7 @@
         "products/interview/src/frontend/ui/button.tsx",
         "products/interview/src/frontend/ui/index.ts",
         "products/interview/src/frontend/ui/join.ts",
+        "products/interview/src/frontend/ui/studio-button-retired.test.ts",
         "products/interview/src/manifest.test.ts",
         "products/interview/src/manifest.tsx",
         "products/interview/vitest.config.ts",
@@ -2367,8 +2365,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3191,
-      "n_sources": 1171,
+      "n_entities": 3224,
+      "n_sources": 1170,
       "verdict": "populated"
     },
     {

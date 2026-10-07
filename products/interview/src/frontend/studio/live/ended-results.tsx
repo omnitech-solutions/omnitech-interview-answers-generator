@@ -4,16 +4,12 @@
 
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import { Icon } from "../icon";
-import {
-  type AnswerRow,
-  type CodingRow,
-  type WithheldNotice,
-} from "./ended-summary";
+import type { AnswerRow, CodingRow, WithheldNotice } from "./ended-summary";
 import { copyText } from "./shared/copy-text";
 import { DraftPoints, plainDraft } from "./shared/draft-text";
 import { useSessionDraftLink } from "./workspace-handoff";
-import { Button } from "../../ui";
 
 // "Copied" only after the write succeeded; a blocked clipboard says so.
 function CopyButton({ text, label }: { text: string; label: string }) {

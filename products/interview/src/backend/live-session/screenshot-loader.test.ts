@@ -7,7 +7,7 @@ import {
   loadVerifiedScreenshot,
   readImageSize,
   SCREENSHOT_LOAD_LIMITS,
-  ScreenshotLoadError,
+  type ScreenshotLoadError,
   type SnapshotRead,
   type StoredSnapshot,
 } from "./screenshot-loader";

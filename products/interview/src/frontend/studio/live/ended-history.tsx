@@ -3,12 +3,12 @@
 // first, paged by the server's cursor. Opening one addresses it as live/<id>.
 import type { LiveSessionSummary } from "@omnitech/interview-contracts";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { formatDayTime, RETENTION_LABEL } from "./ended-summary";
 import { createSessionClient } from "./session-client";
 import { tenantFromLocation } from "./session-registry";
-import { Button } from "../../ui";
 
 const PAGE = 10;
 

@@ -287,6 +287,19 @@ export interface AiExecutionGateway {
   ): Promise<AiTargetSummary[]>;
 }
 
+/**
+ * A stream that refuses on first read: for a port that never serves streams.
+ * It rejects lazily, as a throw-only async generator would, so a caller that
+ * never iterates never sees the refusal.
+ */
+export function refusedStream(message: string): AsyncIterable<never> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () => Promise.reject(new Error(message)),
+    }),
+  };
+}
+
 /** Validate the portable JSON-schema subset used at the provider boundary. */
 export function validateStructuredOutput(
   value: unknown,

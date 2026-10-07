@@ -68,10 +68,20 @@ export type CaptureProblem = {
 export const DEVICE_ONLY_ANALYZE =
   "Device-only mode never sends a screenshot to an assistant.";
 
+// C0 and C1 control characters, checked by code unit.
+function isControlCharacter(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f);
+}
+
 // A name from the shell is believed only when it is plain text of bounded length.
 export function cleanFrontApp(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const text = value.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, "").trim();
+  const text = [...value]
+    .filter((char) => !isControlCharacter(char))
+    .join("")
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+    .trim();
   return text === "" ? null : text.slice(0, STUDIO_HOST_FRONT_APP_MAX);
 }
 

@@ -453,7 +453,7 @@ describe("Studio shell", () => {
     window.removeEventListener("platform-theme-change", asked);
     // The platform shell applies and saves it; the studio only asks.
     expect(
-      (asked.mock.calls[0]?.[0] as CustomEvent<{ theme: string }>).detail,
+      (asked.mock.calls[0]![0] as CustomEvent<{ theme: string }>).detail,
     ).toEqual({ theme: "dark" });
     expect(host.config.theme).toBe("dark");
     act(() => host.config.host!.onThemeChange!("light"));

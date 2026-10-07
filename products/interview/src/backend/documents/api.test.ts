@@ -634,7 +634,7 @@ describe("Documents private API", () => {
     expect(regenerated.status, await regenerated.clone().text()).toBe(201);
     // The model is told what the field holds now, so it keeps its kind and length.
     const sent = JSON.parse(
-      (execute.mock.calls.at(-1)?.[0] as { task: { prompt: string } }).task
+      (execute.mock.calls.at(-1)![0] as { task: { prompt: string } }).task
         .prompt,
     ) as { fields: Array<{ key: string; currentValue?: string }> };
     expect(sent.fields).toEqual([

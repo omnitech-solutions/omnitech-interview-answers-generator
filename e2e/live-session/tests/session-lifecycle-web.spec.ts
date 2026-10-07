@@ -13,7 +13,7 @@ import {
   startSessionViaApi,
 } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
-import { LivePage } from "../src/pages/live-page";
+import type { LivePage } from "../src/pages/live-page";
 import type { Control } from "../src/stack/control";
 
 const QUESTION = "What is a closure in JavaScript?";

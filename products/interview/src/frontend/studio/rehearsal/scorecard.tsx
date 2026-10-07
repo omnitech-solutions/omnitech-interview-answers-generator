@@ -9,6 +9,7 @@ import {
   rehearsalScore,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
 import {
@@ -24,7 +25,6 @@ import type {
   SessionMaterial,
   SessionState,
 } from "./rehearsal-view";
-import { Button } from "../../ui";
 
 // What to tell the owner about the live session's hints. Only what the server
 // confirmed is stated as a count; nothing is claimed before the save returns.
