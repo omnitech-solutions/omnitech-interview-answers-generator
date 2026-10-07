@@ -175,3 +175,9 @@ Not fixed yet. A real-browser test exists (`e2e/live-session/tests/window-fit.sp
 **Cause.** The answer-style hint was Presentation Skills (a conversation skill). It rides every capture (`hintsFor`, session-run.ts), so the model answered the programming screen as an experience story with a STAR block; `crossFieldViolations` (assist-stage.ts ~640) requires every figure in a STAR entry to be grounded in the experience matrix and flags the whole output invalid, which suppresses the draft.
 **Fix.** (1) A capture whose own category is a programming challenge ignores a conversation skill hint (the model's category wins; the hint only picks the voice). (2) `ungrounded_figure` drops the offending STAR entry (or the STAR block) and publishes the rest, instead of rejecting the output. (3) The stop message names the real cause.
 **Status.** Open, next.
+
+## 018 Regenerate "did nothing" (FIXED: stale host worker)
+
+**Observed.** Regenerate in PHP produced no revision; the server had the requests (`owner.input`, `operation: regenerate`, `language: php`).
+**Cause.** The host agent worker is a bundle started at 00:12; it validated inputs with the morning's contracts (no `php`), logged `observation.unreadable … invalid` and dropped them. Every "still TypeScript" result of the day came from that process, not from the fixes.
+**Fix.** Restarted the host services (the start script rebuilds the bundle); rev 2 of the task drafted with brief language `php` at 21:57:38. `pnpm app:dev` now restarts the host worker on start. Rule for me: after a backend change, restart the worker before judging a result, and read `.dev-local/host-worker.log`.

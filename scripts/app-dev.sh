@@ -16,6 +16,11 @@ cd "$(dirname "$0")/.."
 
 docker compose --profile app stop web
 mkdir -p .dev-local/data
+# The host worker runs a BUNDLE of the backend: restart it so it carries the
+# code you are about to edit (a worker from this morning rejects today's
+# contracts as invalid input and nothing says why).
+scripts/docker-host-services.sh stop >/dev/null 2>&1 || true
+scripts/docker-host-services.sh start
 
 # The web app loads every workspace package (and the interview product) from its
 # dist: build the graph once, then keep it current while you edit.
