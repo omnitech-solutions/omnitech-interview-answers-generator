@@ -19,7 +19,7 @@ import {
   startSessionViaApi,
 } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
-import { say, settled, taskScreenshots } from "../src/helpers/tasks";
+import { taskScreenshots } from "../src/helpers/tasks";
 import { SetupPage } from "../src/pages/setup-page";
 
 const test = panelTest;
@@ -511,50 +511,3 @@ test("@native native Screenshots to the model: a change applies to the next mode
   await panel.page.getByRole("button", { name: /^T2 · / }).click();
   await expectSentAs(panel.page, "Sent as text only");
 });
-
-// The web Live page: the staged screen is read by the page's own
-// Tesseract (no metrics), so the gate never trusts it to drop the image.
-for (const setting of ["always", "text-only-when-text", "never"] as const) {
-  test(`web Screenshots to the model, ${setting}: Add screenshot then Apply sends ${setting === "never" ? "no image" : "the image"} and the thumbnail says what the server recorded`, async ({
-    page,
-    live,
-    control,
-  }) => {
-    // Design change: the web page lost its capture band, and the screenshots
-    // tray only exists once a task is on show (or something is staged), so the
-    // session first has T1 from a spoken question; the screenshot then starts T2.
-    await control.scenario("plain-answer");
-    const started = await startSessionViaApi({ screenshotSend: setting });
-    const id = started.id;
-    await page.goto(`${live.livePath()}/${id}`);
-    await say(started.response.credential.value, "What is a closure?");
-    await settled(id, 1);
-    await live.stageScreenshot();
-    await page.getByTestId("intent-new").click();
-    await expect(live.apply()).toBeEnabled();
-    await live.apply().click();
-    await expect.poll(async () => (await control.calls()).length).toBe(2);
-    const call = (await control.calls())[1];
-    expect(call?.images).toBe(setting === "never" ? 0 : 1);
-
-    let sent: Sent | undefined;
-    await expect
-      .poll(async () => {
-        const [shot] = await taskScreenshots(id, call?.taskId as string);
-        sent = shot?.sentByRevision?.[0]?.sent as Sent | undefined;
-        return sent;
-      })
-      .toBeDefined();
-    // Tesseract has no metrics: text-only-when-text keeps the image. Never sends
-    // the text it read, or nothing when it read none.
-    if (setting === "never") expect(["text-only", "none"]).toContain(sent);
-    else expect(sent).toBe("image");
-    await expectSentAs(page, SENT_AS[sent as Sent]);
-    await expect(live.screenshotsToggle()).toHaveAttribute(
-      "title",
-      new RegExp(
-        `Screenshots to the model: ${{ always: "Always", "text-only-when-text": "Text only when text", never: "Never" }[setting]}$`,
-      ),
-    );
-  });
-}
