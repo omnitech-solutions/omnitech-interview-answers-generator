@@ -1,22 +1,31 @@
-// The window's own controls, drawn from WINDOW_CONTROLS: red quits (after a
+// The window's own controls, drawn from WINDOW_CONTROLS (the dots are library
+// IconButtons in the macOS colours, the size menu is the library ActionMenu and
+// the quit confirmation the library Popover): red quits (after a
 // confirmation), yellow hides the window (pausing a live session first so
 // nothing keeps capturing out of sight), green toggles full screen and, when
 // the pointer rests on it, opens the window-size menu (WINDOW_MODES).
 //
 // [SAFETY] Hiding never leaves capture or listening running: a session that is
 // live is paused before the window goes, and says so.
+
+import {
+  ActionMenu,
+  Button,
+  IconButton,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@oc-tech/omni-ui-components";
 import type { PresentationHost } from "@omnitech/interview-contracts";
 import {
   type KeyboardEvent,
+  type ReactElement,
   type ReactNode,
   useEffect,
-  useId,
   useRef,
   useState,
 } from "react";
-import { Icon } from "../../../icon";
 import { failureNote } from "../overlay-footer";
-import { useDismiss } from "../use-dismiss";
 import type { PanelSession } from "./panel-views";
 import { hasCapability } from "./presentation-host";
 import {
@@ -32,16 +41,20 @@ import { modeAvailable, type PanelWindowMode } from "./window-mode";
 
 type Popup = "quit" | "size" | null;
 const ITEM = '[role^="menuitem"]:not([aria-disabled="true"])';
+const SIZE_MENU = "Window size";
 
 export function WindowDots({
   s,
   presentation,
   windowMode,
+  container = null,
   onPopup,
 }: {
   s: PanelSession;
   presentation: PresentationHost;
   windowMode: PanelWindowMode;
+  // Where the popups are drawn: the window's own root (the body without one).
+  container?: HTMLElement | null;
   // A popup is open: the window keeps room below the bar for it.
   onPopup(open: boolean): void;
 }) {
@@ -59,7 +72,6 @@ export function WindowDots({
   useEffect(() => stopTimers, []);
   // What the dot that opened a popup gets back when it closes.
   const dots = useRef<Record<string, HTMLButtonElement | null>>({});
-  const focusOnOpen = useRef(false);
 
   async function hide() {
     // A live session pauses first; if that fails the window stays, with the reason.
@@ -122,23 +134,23 @@ export function WindowDots({
   // Keyboard and touch cannot hover: ArrowDown and the context menu open it.
   const openSize = () => {
     stopTimers();
-    focusOnOpen.current = true;
     setPopup("size");
   };
 
   const render = (control: (typeof WINDOW_CONTROLS)[number]): ReactNode => {
     const reason = unavailable[control.action];
     const dot = (
-      <button
+      <IconButton
         key={control.id}
         ref={(node) => {
           dots.current[control.id] = node;
         }}
-        type="button"
+        variant="ghost"
+        iconSize="sm"
         className="pn-window-dot"
         data-colour={control.colour}
         data-testid={`pn-dot-${control.id}`}
-        aria-label={control.label}
+        label={control.label}
         title={reason ?? control.title}
         disabled={reason !== null}
         aria-haspopup={
@@ -153,6 +165,7 @@ export function WindowDots({
             ? undefined
             : popup === (control.action === "quit" ? "quit" : "size")
         }
+        icon={<span aria-hidden="true">{control.glyph}</span>}
         onClick={() => run[control.action]()}
         onKeyDown={
           control.action === "size"
@@ -172,9 +185,7 @@ export function WindowDots({
               }
             : undefined
         }
-      >
-        <span aria-hidden="true">{control.glyph}</span>
-      </button>
+      />
     );
     if (control.action === "hide") return dot;
     if (control.action === "quit")
@@ -183,6 +194,7 @@ export function WindowDots({
           key={control.id}
           open={popup === "quit"}
           dot={dot}
+          container={container}
           onClose={() => closeTo(control.id)}
           onDismiss={() => setPopup(null)}
           onKeyDown={onKeyDown(control.id, "quit")}
@@ -197,9 +209,9 @@ export function WindowDots({
         key={control.id}
         open={popup === "size"}
         dot={dot}
+        container={container}
         windowMode={windowMode}
         presentation={presentation}
-        focusFirst={focusOnOpen}
         onEnter={enter}
         onLeave={leave}
         onDismiss={() => setPopup(null)}
@@ -220,10 +232,12 @@ export function WindowDots({
   );
 }
 
-// "Quit Interview Studio?" under the red dot. Focus starts on Cancel.
+// "Quit Interview Studio?" under the red dot. Focus starts on Cancel (the first
+// button of the popover).
 function QuitPopover({
   open,
   dot,
+  container,
   onClose,
   onDismiss,
   onKeyDown,
@@ -231,61 +245,56 @@ function QuitPopover({
 }: {
   open: boolean;
   dot: ReactNode;
+  container: HTMLElement | null;
   onClose(): void;
   onDismiss(): void;
   onKeyDown(event: KeyboardEvent): void;
   onQuit(): void;
 }) {
-  const root = useRef<HTMLSpanElement>(null);
-  const cancel = useRef<HTMLButtonElement>(null);
-  const id = useId();
-  useDismiss(root, open, onDismiss);
-  useEffect(() => {
-    if (open) cancel.current?.focus();
-  }, [open]);
   return (
-    <span className="pn-popover" ref={root} onKeyDown={onKeyDown}>
-      {dot}
-      {open && (
-        <div
-          id={id}
-          className="pn-menu pn-menu-narrow pn-quit"
+    <span className="pn-popover" onKeyDown={onKeyDown}>
+      {/* The dot's own click opens and closes it; the popover only reports a
+          dismissal (Escape, a press outside). */}
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onDismiss();
+        }}
+      >
+        <PopoverTrigger asChild>{dot}</PopoverTrigger>
+        <PopoverContent
           role="alertdialog"
           aria-label={QUIT_CONFIRMATION.question}
           data-testid="pn-quit-confirm"
+          container={container}
+          align="start"
+          className="pn-quit"
         >
           <strong>{QUIT_CONFIRMATION.question}</strong>
-          <span className="pn-menu-sub">{QUIT_CONFIRMATION.detail}</span>
+          <span className="pn-quit-detail">{QUIT_CONFIRMATION.detail}</span>
           <span className="pn-quit-buttons">
-            <button
-              ref={cancel}
-              type="button"
-              className="pn-mini-button"
-              onClick={onClose}
-            >
+            <Button buttonSize="control" variant="outline" onClick={onClose}>
               {QUIT_CONFIRMATION.cancel}
-            </button>
-            <button
-              type="button"
-              className="pn-mini-button pn-quit-confirm"
-              onClick={onQuit}
-            >
+            </Button>
+            <Button buttonSize="control" tone="danger" onClick={onQuit}>
               {QUIT_CONFIRMATION.confirm}
-            </button>
+            </Button>
           </span>
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
     </span>
   );
 }
 
-// The window-size menu under the green dot.
+// The window-size menu under the green dot: opened by the pointer resting on the
+// dot (the timers are the dots'), by ArrowDown or by the context menu; the
+// library menu does the arrow keys, Escape and the focus.
 function SizeMenu({
   open,
   dot,
+  container,
   windowMode,
   presentation,
-  focusFirst,
   onEnter,
   onLeave,
   onDismiss,
@@ -294,99 +303,63 @@ function SizeMenu({
 }: {
   open: boolean;
   dot: ReactNode;
+  container: HTMLElement | null;
   windowMode: PanelWindowMode;
   presentation: PresentationHost;
-  focusFirst: { current: boolean };
   onEnter(): void;
   onLeave(): void;
   onDismiss(): void;
   onKeyDown(event: KeyboardEvent): void;
   onChoose(id: (typeof WINDOW_MODES)[number]["id"]): void;
 }) {
-  const root = useRef<HTMLSpanElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  useDismiss(root, open, onDismiss);
   const items = () => [
-    ...(menu.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
+    ...document.querySelectorAll<HTMLElement>(
+      `[data-slot="action-menu"][aria-label="${SIZE_MENU}"] ${ITEM}`,
+    ),
   ];
-  useEffect(() => {
-    if (!open || !focusFirst.current) return;
-    focusFirst.current = false;
-    (
-      menu.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
-      items()[0]
-    )?.focus();
-  }, [open, focusFirst]);
-  // Arrow keys move through the items; from the dot, ArrowDown enters the menu.
-  const onMenuKey = (event: KeyboardEvent) => {
-    onKeyDown(event);
-    if (event.defaultPrevented) return;
-    if (event.key === "Tab") return onDismiss();
-    const step =
-      event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
-    const all = items();
-    if (step === 0 || all.length === 0) return;
-    event.preventDefault();
-    const at = all.indexOf(document.activeElement as HTMLElement);
-    all[(at + step + all.length) % all.length]?.focus();
-  };
   return (
     <span
       className="pn-popover"
-      ref={root}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onKeyDown={(event) => {
         // ArrowDown on the dot of an open menu moves into it.
-        if (
-          open &&
-          event.key === "ArrowDown" &&
-          !menu.current?.contains(event.target as Node)
-        ) {
-          event.preventDefault();
-          items()[0]?.focus();
-          return;
+        if (open && event.key === "ArrowDown" && items().length > 0) {
+          if (!items().includes(event.target as HTMLElement)) {
+            event.preventDefault();
+            items()[0]?.focus();
+            return;
+          }
         }
-        if (menu.current?.contains(event.target as Node)) onMenuKey(event);
-        else onKeyDown(event);
+        onKeyDown(event);
       }}
     >
-      {dot}
-      {open && (
-        <div
-          ref={menu}
-          className="pn-menu pn-menu-narrow"
-          role="menu"
-          aria-label="Window size"
-          tabIndex={-1}
-        >
-          {WINDOW_MODES.map((mode) => {
-            const available = modeAvailable(presentation, mode.id);
-            const checked = mode.id === windowMode.mode;
-            return (
-              <button
-                key={mode.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={checked}
-                aria-disabled={!available}
-                className="pn-menu-item"
-                data-testid={`pn-size-${mode.id}`}
-                onClick={() => {
-                  if (!available) return;
-                  onChoose(mode.id);
-                }}
-              >
-                <Icon name="check" style={{ opacity: checked ? 1 : 0 }} />
-                <span>
-                  <span className="pn-menu-label">{mode.label}</span>
-                  <span className="pn-menu-sub">{mode.hint}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <ActionMenu
+        label={SIZE_MENU}
+        width={260}
+        container={container}
+        open={open}
+        // The dot opens it (hover, ArrowDown, the context menu); the menu only
+        // reports being dismissed.
+        onOpenChange={(next) => {
+          if (!next) onDismiss();
+        }}
+        sections={[
+          {
+            id: "sizes",
+            selection: "single",
+            items: WINDOW_MODES.map((mode) => ({
+              id: mode.id,
+              label: mode.label,
+              description: mode.hint,
+              checked: mode.id === windowMode.mode,
+              disabled: !modeAvailable(presentation, mode.id),
+            })),
+          },
+        ]}
+        onSelect={(id) => onChoose(id as (typeof WINDOW_MODES)[number]["id"])}
+        trigger={dot as ReactElement}
+      />
     </span>
   );
 }

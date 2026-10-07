@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
+import { resetScreenProblems } from "../../screen-problems";
 import {
   configureSessionStores,
   resetSessionStores,
@@ -38,6 +39,7 @@ import {
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { GREEN_MENU_GRACE_MS, GREEN_MENU_HOVER_MS } from "./toolbar-config";
+import { keyOpen, pointerOpen, tipOf } from "./toolbar-test-kit";
 import { TOAST_TEXT } from "./use-panel-session";
 
 const live = (extra = {}) =>
@@ -45,6 +47,7 @@ const live = (extra = {}) =>
 let server: TestServer;
 const submitFollowUp = vi.fn(async (..._args: unknown[]) => undefined);
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
+const toolbar = () => screen.getByRole("toolbar", { name: "Session controls" });
 
 // The session the server answers with; a test moves it on (ended, paused).
 // `served` is the action list a later poll answers with (a new task arriving).
@@ -139,6 +142,7 @@ beforeEach(() => {
   resetSessionStores();
   presentation.reset();
   resetCommandClaims();
+  resetScreenProblems();
   submitFollowUp.mockClear();
   serve();
 });
@@ -152,6 +156,16 @@ afterEach(() => {
 });
 
 describe("capture button and mode menu", () => {
+  const caret = () =>
+    screen.getByRole("button", {
+      name: /^(Screen to capture|Capture options)/,
+    });
+  const rows = () => [
+    ...screen
+      .getByRole("menu", { name: /^(Screen to capture|Capture options)/ })
+      .querySelectorAll<HTMLElement>('[role^="menuitem"]'),
+  ];
+
   it("is labelled, shows its hotkey, and turns into Stop while work runs", async () => {
     serve(live(), [
       action({
@@ -162,45 +176,81 @@ describe("capture button and mode menu", () => {
     ]);
     await show();
     const stop = screen.getByRole("button", { name: "Stop" });
-    expect(stop).toHaveAttribute("title", expect.stringContaining("⌘⇧S"));
+    expect(tipOf(stop)).toContain("⌘⇧S");
+    // The ring replaces the icon while the run is analysing.
+    expect(stop).toHaveAttribute("aria-busy", "true");
   });
 
-  it("opens a real menu whose items carry subtitles from the Auto config", async () => {
+  it("is ONE split control: the mode lives in the caret menu, with no mode pill", async () => {
+    await show();
+    expect(screen.queryByRole("button", { name: /^Capture mode/ })).toBeNull();
+    const split = screen.getByTestId("pn-capture");
+    expect(
+      within(split).getByRole("button", { name: "Analyze screen" }),
+    ).toBeVisible();
+    expect(
+      within(split).getByRole("button", {
+        name: /^(Screen to capture|Capture options)/,
+      }),
+    ).toBeVisible();
+    expect(split).not.toHaveTextContent("Manual");
+    expect(split).not.toHaveTextContent("Auto");
+  });
+
+  it("opens a real menu: When to analyse (Manual, then Auto, with the Auto config), then the screen action", async () => {
     window.localStorage.setItem(
       "interview-studio.live.auto-interval.local",
       "12",
     );
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
-    const menu = screen.getByRole("menu", { name: "Capture mode" });
+    pointerOpen(caret());
+    const menu = screen.getByRole("menu", { name: /Capture options/ });
     expect(within(menu).queryByRole("combobox")).toBeNull();
-    const items = [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
+    const items = rows();
     expect(items.map((item) => item.textContent)).toEqual([
-      "AutoRe-analyse when the screen changes · checks every 12 s, at most 120 per session",
       "ManualAnalyse only when you press ⌘⇧S",
+      "AutoRe-analyse when the screen changes · checks every 12 s, at most 120 per session⌥⇧U",
       "Add screen to this problemNeeds a task first",
     ]);
-    expect(items[0]).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(menu).getByRole("group", { name: "When to analyse" }),
+    ).toBeVisible();
+    expect(items[1]).toHaveAttribute("aria-checked", "true");
     expect(items[2]).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("is tinted blue for Auto, neutral for Manual, and its tooltip names the mode", async () => {
+    await show();
+    const split = screen.getByTestId("pn-capture");
+    const main = within(split).getByRole("button", { name: "Analyze screen" });
+    expect(split).toHaveAttribute("data-tone", "accent");
+    expect(tipOf(main)).toMatch(/^Auto/);
+    await act(async () => {
+      fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyH" });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(split).toHaveAttribute("data-tone", "neutral");
+    expect(tipOf(main)).toMatch(/^Manual/);
   });
 
   it("names the task the screen would be added to", async () => {
     serve(live(), [named("Rate limiter")]);
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
+    pointerOpen(caret());
     expect(
       screen.getByRole("menuitem", { name: /Add screen to T1/ }),
     ).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("chooses Manual, remembers it in the one Auto preference, closes and returns focus to the trigger", async () => {
+  it("chooses Manual, remembers it in the one Auto preference and closes", async () => {
     await show();
-    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
-    fireEvent.click(trigger);
+    pointerOpen(caret());
     fireEvent.click(screen.getByRole("menuitemradio", { name: /^Manual/ }));
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(trigger).toHaveTextContent("Manual");
-    expect(trigger).toHaveFocus();
+    expect(screen.getByTestId("pn-capture")).toHaveAttribute(
+      "data-tone",
+      "neutral",
+    );
     expect(
       window.localStorage.getItem("interview-studio.live.auto.local"),
     ).toBe("off");
@@ -210,7 +260,7 @@ describe("capture button and mode menu", () => {
     ).toBeNull();
   });
 
-  it("names the toolbar triggers with their value and keeps the status out of the capture button", async () => {
+  it("keeps the status out of the capture button and the toolbar triggers carry their value", async () => {
     await show();
     expect(
       screen.getByRole("button", {
@@ -218,25 +268,26 @@ describe("capture button and mode menu", () => {
       }),
     ).toBeVisible();
     const capture = screen.getByRole("button", { name: "Analyze screen" });
-    // The state the dot colours is announced beside the button, not inside it.
     expect(capture.querySelector('[role="status"]')).toBeNull();
-    expect(screen.getByTestId("pn-status")).toHaveTextContent(/Live|Recording/);
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("pn-status")).toBeNull();
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
   });
 
-  it("agrees with the Auto hotkey: one state feeds the menu check and the label", async () => {
+  it("agrees with the Auto hotkey: one state feeds the menu check and the tint", async () => {
     await show();
-    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
-    expect(trigger).toHaveAccessibleName("Capture mode: Auto");
+    pointerOpen(caret());
+    expect(
+      screen.getByRole("menuitemradio", { name: /^Auto/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     await act(async () => {
       fireEvent.keyDown(window, { altKey: true, shiftKey: true, code: "KeyH" });
       await vi.advanceTimersByTimeAsync(50);
     });
-    expect(trigger).toHaveAccessibleName("Capture mode: Manual");
     expect(
       window.localStorage.getItem("interview-studio.live.auto.local"),
     ).toBe("off");
-    fireEvent.click(trigger);
+    pointerOpen(caret());
     expect(
       screen.getByRole("menuitemradio", { name: /^Manual/ }),
     ).toHaveAttribute("aria-checked", "true");
@@ -251,37 +302,45 @@ describe("capture button and mode menu", () => {
     await act(async () => {
       window.dispatchEvent(new Event("storage"));
     });
-    expect(
-      screen.getByRole("button", { name: /^Capture mode/ }),
-    ).toHaveAccessibleName("Capture mode: Manual");
+    expect(screen.getByTestId("pn-capture")).toHaveAttribute(
+      "data-tone",
+      "neutral",
+    );
   });
 
-  it("closes on Escape with focus back on the trigger, and on a press outside", async () => {
+  it("closes on Escape with focus back on the caret, and on a press outside", async () => {
     await show();
-    const trigger = screen.getByRole("button", { name: /^Capture mode/ });
-    fireEvent.click(trigger);
-    expect(screen.getByRole("menuitemradio", { name: /^Auto/ })).toHaveFocus();
+    keyOpen(caret());
+    await flush();
+    expect(
+      screen.getByRole("menuitemradio", { name: /^Manual/ }),
+    ).toHaveFocus();
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(trigger).toHaveFocus();
-    fireEvent.click(trigger);
+    await flush();
+    expect(caret()).toHaveFocus();
+    pointerOpen(caret());
+    // The menu starts listening for a press outside a tick after it opens.
+    await flush();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("moves between items with the arrow keys", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
-    expect(
-      screen.getByRole("menuitemradio", { name: /^Manual/ }),
-    ).toHaveFocus();
+    keyOpen(caret());
+    await flush();
+    fireEvent.keyDown(document.activeElement as HTMLElement, {
+      key: "ArrowDown",
+    });
+    await flush();
+    expect(screen.getByRole("menuitemradio", { name: /^Auto/ })).toHaveFocus();
   });
 
   it("keeps one menu open at a time", async () => {
     await show();
-    fireEvent.click(screen.getByRole("button", { name: /^Capture mode/ }));
-    fireEvent.click(screen.getByRole("button", { name: /^Answer style/ }));
+    pointerOpen(caret());
+    pointerOpen(screen.getByRole("button", { name: /^Answer style/ }));
     expect(screen.getAllByRole("menu")).toHaveLength(1);
     expect(screen.getByRole("menu")).toHaveAccessibleName("Answer style");
   });
@@ -505,12 +564,16 @@ describe("window controls", () => {
       await show();
       dot("size").focus();
       fireEvent.keyDown(dot("size"), { key: "ArrowDown" });
+      await hover(0);
       expect(items()[0]).toHaveFocus();
       fireEvent.keyDown(items()[0] as HTMLElement, { key: "ArrowDown" });
+      await hover(0);
       expect(items()[1]).toHaveFocus();
       fireEvent.keyDown(items()[1] as HTMLElement, { key: "ArrowUp" });
+      await hover(0);
       expect(items()[0]).toHaveFocus();
       fireEvent.keyDown(items()[0] as HTMLElement, { key: "Escape" });
+      await hover(0);
       expect(screen.queryByRole("menu", { name: "Window size" })).toBeNull();
       expect(dot("size")).toHaveFocus();
       fireEvent.contextMenu(dot("size"));
@@ -655,16 +718,18 @@ describe("the capture split control and the microphone with a native engine", ()
     };
   }
 
-  it("a held (paused) session disables the microphone control and its press never stops the engine", async () => {
+  it("a held (paused) session locks the microphone control with the reason and its press never stops the engine", async () => {
     const calls: string[] = [];
     nativeHost();
     withEngine(calls);
     serve(live({ status: "paused" }));
     window.localStorage.setItem("omnitech:auto:t", "1");
     await show();
-    const button = document.querySelector(".pn-mic-button") as HTMLElement;
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute("data-held", "true");
+    const button = within(toolbar()).getByRole("button", {
+      name: /microphone/,
+    });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(button)).toBe("Resume to capture");
     fireEvent.click(button);
     await flush();
     expect(calls).not.toContain("stop");
@@ -691,21 +756,18 @@ describe("a paused session", () => {
     await show();
     expect(sizes.at(-1) as number).toBeGreaterThan(held);
   });
-  it("shows no body panels: the toolbar, the paused strip and the footer stay, and the pane buttons are disabled with the reason", async () => {
+  it("shows no body panels: the toolbar, the paused strip and the footer stay, and the pane toggles are locked with the reason", async () => {
     serve(live({ status: "paused" }));
     await show();
     expect(document.querySelector(".pn-single-body")).toBeNull();
-    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(toolbar()).toBeVisible();
     expect(screen.getByTestId("ov-footer-notice")).toHaveTextContent("Paused");
     expect(screen.queryByTestId("pn-strip")).toBeNull();
     expect(document.querySelector(".pn-single-foot")).not.toBeNull();
     for (const label of ["Chat", "Answer", "Code"]) {
       const button = screen.getByRole("button", { name: label });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute(
-        "title",
-        "Paused. Resume the session to see this.",
-      );
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(tipOf(button)).toBe("Paused. Resume the session to see this.");
     }
     cleanup();
     serve(live());
@@ -713,37 +775,50 @@ describe("a paused session", () => {
     expect(document.querySelector(".pn-single-body")).not.toBeNull();
   });
 
-  it("disables the capture button and its screen menu (never the mode menu), saying why, and enables them again once it runs", async () => {
+  it("locks the capture button and the microphone (saying why), keeps the caret menu and its modes usable, and unlocks them once it runs", async () => {
     serve(live({ status: "paused" }));
     await show();
-    const split = document.querySelector(".pn-split") as HTMLElement;
-    const buttons = within(split).getAllByRole("button");
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-    // The capture button and the screen menu wait; the mode menu never does.
-    const mode = within(split).getByRole("button", { name: /Capture mode/ });
+    const split = screen.getByTestId("pn-capture");
+    expect(split).toHaveAttribute("data-tone", "dim");
+    const main = within(split).getByRole("button", { name: "Analyze screen" });
+    expect(main).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(main)).toBe("Resume to capture");
+    const mode = within(split).getByRole("button", {
+      name: /^(Screen to capture|Capture options)/,
+    });
+    // The menu never waits: the mode can be changed while paused.
     expect(mode).toBeEnabled();
-    for (const button of buttons.filter((each) => each !== mode))
-      expect(button).toBeDisabled();
-    fireEvent.click(mode);
+    expect(mode).not.toHaveAttribute("aria-disabled");
+    pointerOpen(mode);
     expect(
-      within(document.body).getAllByRole("menuitemradio").length,
-    ).toBeGreaterThanOrEqual(2);
+      screen.getByRole("menuitemradio", { name: /^Manual/ }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByRole("menuitemradio", { name: /^Auto/ }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+    // Adding a screen needs the session to run: it says so.
+    expect(
+      screen.getByRole("menuitem", { name: /Add screen/ }),
+    ).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(document.body, { key: "Escape" });
-    expect(
-      within(split).getByRole("button", { name: /Analyze screen/ }),
-    ).toHaveAttribute("title", "Paused. Resume the session to capture.");
+    const mic = within(toolbar()).getByRole("button", {
+      name: /microphone/,
+    });
+    expect(mic).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(mic)).toBe("Resume to capture");
     cleanup();
     serve(live());
     await show();
-    const running = within(document.querySelector(".pn-split") as HTMLElement);
     expect(
-      running.getByRole("button", { name: /Analyze screen/ }),
+      within(screen.getByTestId("pn-capture")).getByRole("button", {
+        name: "Analyze screen",
+      }),
     ).toBeEnabled();
   });
 });
 
 describe("popovers", () => {
-  it("every toolbar popover is drawn inside the toolbar, in its stacking layer", async () => {
+  it("every toolbar popover is drawn inside the window's own root, on a library surface", async () => {
     nativeHost({
       capabilities: ["always-on-top"],
       setWindowSize: async () => true,
@@ -751,21 +826,30 @@ describe("popovers", () => {
       quit: async () => true,
     });
     await show();
-    const pill = screen.getByTestId("pn-pill");
+    const root = screen.getByTestId("pn-root");
     const opens: [string, () => void][] = [
       [
         "menu",
         () =>
-          fireEvent.click(
-            screen.getByRole("button", { name: /^Capture mode/ }),
+          pointerOpen(
+            screen.getByRole("button", {
+              name: /^(Screen to capture|Capture options)/,
+            }),
           ),
       ],
       [
         "menu",
         () =>
-          fireEvent.click(
-            screen.getByRole("button", { name: /^Answer style/ }),
+          pointerOpen(
+            within(toolbar()).getByRole("button", {
+              name: "Microphone options",
+            }),
           ),
+      ],
+      [
+        "menu",
+        () =>
+          pointerOpen(screen.getByRole("button", { name: /^Answer style/ })),
       ],
       [
         "dialog",
@@ -785,9 +869,12 @@ describe("popovers", () => {
     ];
     for (const [role, open] of opens) {
       open();
+      await flush();
       const panel = screen.getByRole(role);
-      expect(panel.closest(".pn-pill")).toBe(pill);
-      expect(panel).toHaveClass("pn-menu");
+      expect(panel.closest('[data-testid="pn-root"]')).toBe(root);
+      expect(panel).toHaveAttribute("data-oui-surface");
+      fireEvent.keyDown(panel, { key: "Escape" });
+      await flush();
     }
   });
 });
@@ -802,7 +889,9 @@ describe("the Mini player", () => {
     });
     await show();
     fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: /^Mini player/ }),
+    );
   };
 
   it("shows the task's name, stage, a one-line headline and the clock, with the honest visible note", async () => {
@@ -840,7 +929,9 @@ describe("the Mini player", () => {
     });
     await show();
     fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: /^Mini player/ }),
+    );
     expect(screen.getByTestId("pn-mini-stage")).toHaveTextContent(
       "Drafting an answer",
     );
@@ -868,7 +959,9 @@ describe("the Mini player", () => {
     });
     await show();
     fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: /^Mini player/ }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
     await flush();
     await flush();
@@ -881,28 +974,57 @@ describe("the Mini player", () => {
 });
 
 describe("microphone", () => {
-  it("shows its hotkey, and bars only while listening", async () => {
+  it("shows its hotkey in the tooltip, and has no level bars", async () => {
     await show();
     const mic = within(screen.getByTestId("pn-pill")).getByRole("button", {
       name: "Start microphone",
     });
-    expect(mic).toHaveAttribute("title", expect.stringContaining("⌥R"));
+    expect(tipOf(mic)).toContain("⌥R");
     expect(screen.queryByTestId("pn-level")).toBeNull();
+  });
+
+  it("is red and slashed while not listening (muted), and neutral while listening", async () => {
+    await show();
+    const split = screen.getByTestId("pn-mic");
+    expect(split).toHaveAttribute("data-tone", "danger");
+    expect(
+      within(split).getByRole("button", { name: "Start microphone" }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 });
 
 describe("answer style", () => {
-  it("lists every skill from the contract table and writes the choice", async () => {
+  it("shows the full name, lists every skill once in the Technical and Conversation groups, and writes the choice", async () => {
     await show();
     const button = screen.getByRole("button", { name: /^Answer style/ });
     expect(button).toHaveTextContent("Data Structures & Algorithms");
-    fireEvent.click(button);
+    pointerOpen(button);
     const menu = screen.getByRole("menu", { name: "Answer style" });
     expect(
       within(menu)
-        .getAllByRole("menuitemradio")
-        .map((item) => item.textContent),
-    ).toEqual(SKILLS.map((skill) => skill.label));
+        .getAllByRole("group")
+        .map((group) => group.getAttribute("aria-label")),
+    ).toEqual(["Technical", "Conversation"]);
+    const labels = within(menu)
+      .getAllByRole("menuitemradio")
+      .map((item) => item.textContent);
+    expect(labels).toHaveLength(SKILLS.length);
+    expect([...labels].sort()).toEqual(
+      SKILLS.map((skill) => skill.label).sort(),
+    );
+    expect(
+      within(
+        within(menu).getByRole("group", { name: "Technical" }),
+      ).getAllByRole("menuitemradio"),
+    ).toHaveLength(5);
+    expect(
+      within(menu).getByRole("menuitemradio", {
+        name: "Data Structures & Algorithms",
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    // The hint row shows the app's real keys, not the designer's.
+    expect(menu).toHaveTextContent("Previous / next");
+    expect(menu).toHaveTextContent("⌥[ ⌥]");
     fireEvent.click(
       within(menu).getByRole("menuitemradio", { name: "System Design" }),
     );
@@ -984,17 +1106,13 @@ describe("See-through: one control, clear glass and pass-through by region", () 
     hitHost();
     await show();
     const button = screen.getByRole("button", { name: "See-through" });
-    expect(button).toHaveAttribute("title", expect.stringMatching(/is off/));
-    expect(button).toHaveAttribute("title", expect.stringContaining("⌘⇧I"));
+    expect(tipOf(button)).toMatch(/is off/);
+    expect(tipOf(button)).toContain("⌘⇧I");
     fireEvent.click(button);
-    expect(button).toHaveAttribute(
-      "title",
-      expect.stringMatching(/clicks on empty glass reach the page underneath/),
+    expect(tipOf(button)).toMatch(
+      /clicks on empty glass reach the page underneath/,
     );
-    expect(button).toHaveAttribute(
-      "title",
-      expect.stringMatching(/Toolbar, panes and menus still take clicks/),
-    );
+    expect(tipOf(button)).toMatch(/Toolbar, panes and menus still take clicks/);
   });
 
   it("reports its surfaces to the shell from the start (what is not drawn passes clicks through, glass clear or not), and null when the window goes", async () => {
@@ -1063,7 +1181,7 @@ describe("See-through: one control, clear glass and pass-through by region", () 
     nativeHost({ capabilities: [] });
     await show();
     const button = screen.getByRole("button", { name: "See-through" });
-    expect(button).toHaveAttribute("title", expect.not.stringContaining("⌘"));
+    expect(tipOf(button)).not.toContain("⌘");
     fireEvent.click(button);
     expect(screen.getByTestId("pn-root")).toHaveAttribute(
       "data-glass",
@@ -1073,33 +1191,58 @@ describe("See-through: one control, clear glass and pass-through by region", () 
 });
 
 describe("shortcut list", () => {
-  it("lists the native shortcuts, closes on Escape and gives focus back", async () => {
+  it("lists the shortcuts in the five groups with macOS glyphs, closes on Escape and gives focus back", async () => {
     await show();
     const button = screen.getByRole("button", { name: "Keyboard shortcuts" });
     fireEvent.click(button);
     const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
-    expect(dialog).toHaveFocus();
-    expect(dialog).toHaveTextContent("Analyze / stop");
-    expect(dialog).toHaveTextContent("⌘⇧S");
-    expect(dialog).toHaveTextContent("Focus chat");
+    await flush();
+    expect(
+      within(dialog)
+        .getAllByRole("group")
+        .map((group) => group.getAttribute("aria-label")),
+    ).toEqual(["Capture", "Listening", "View", "Answer style", "App"]);
+    // The glyphs are the real keys: the page's Alt chords for the commands and
+    // the Mac shell's own chords for Show or hide and Settings.
+    expect(dialog).toHaveTextContent("Capture & analyze");
+    expect(dialog).toHaveTextContent("⌥⇧A");
+    expect(dialog).toHaveTextContent("⌥R");
+    expect(dialog).toHaveTextContent("Focus the chat");
+    expect(dialog).toHaveTextContent("⌘⇧V");
     expect(dialog).toHaveTextContent("⌘,");
+    expect(dialog).not.toHaveTextContent("Alt+");
     fireEvent.keyDown(dialog, { key: "Escape" });
+    await flush();
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(button).toHaveFocus();
   });
-});
 
-describe("shortcut list", () => {
-  const row = (label: string) =>
-    screen.getByText(label).closest("li") as HTMLElement;
+  it("puts Clear session memory last, in the destructive colour", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    const rows = [
+      ...dialog.querySelectorAll<HTMLElement>('[data-slot="action-menu-item"]'),
+    ];
+    const last = rows.at(-1) as HTMLElement;
+    expect(last).toHaveTextContent("Clear session memory");
+    expect(last).toHaveAttribute("data-tone", "danger");
+    expect(rows.filter((row) => row.dataset["tone"] === "danger")).toHaveLength(
+      1,
+    );
+  });
 
-  it("lists See-through on ⌘⇧I and never greys any key out", async () => {
+  it("lists See-through on its key and never greys any key out", async () => {
     nativeHost();
     await show();
     fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
-    expect(row("See-through on or off")).toHaveTextContent("⌘⇧I");
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    const row = (label: string) =>
+      within(dialog)
+        .getByText(label)
+        .closest('[data-slot="action-menu-item"]') as HTMLElement;
+    expect(row("See-through on or off")).toHaveTextContent("⌥⇧I");
     expect(screen.queryByText("Click-through")).toBeNull();
-    for (const label of ["Previous answer style", "Next answer style"]) {
+    for (const label of ["Previous skill", "Next skill"]) {
       expect(row(label)).not.toHaveAttribute("aria-disabled");
       expect(row(label)).not.toHaveTextContent("Only while interactive");
     }
@@ -1596,14 +1739,18 @@ describe("code pane", () => {
       serve(live(), [named("Rate limiter"), solved()]);
       const setWindowSize = sizeHost();
       await show();
-      const toolbar = screen.getByRole("toolbar").outerHTML;
+      const toolbar = screen.getByRole("toolbar", {
+        name: "Session controls",
+      }).outerHTML;
       setWindowSize.mockClear();
       fireEvent.click(screen.getByRole("button", { name: "Tests" }));
       expect(screen.getByTestId("pn-tests-drawer")).toBeVisible();
       fireEvent.click(screen.getByRole("button", { name: "Tests" }));
       await flush();
       expect(setWindowSize).not.toHaveBeenCalled();
-      expect(screen.getByRole("toolbar").outerHTML).toBe(toolbar);
+      expect(
+        screen.getByRole("toolbar", { name: "Session controls" }).outerHTML,
+      ).toBe(toolbar);
     });
 
     it("is drawn in full screen and not in the Mini player", async () => {
@@ -1615,7 +1762,9 @@ describe("code pane", () => {
       fireEvent.keyDown(screen.getByTestId("pn-dot-size"), {
         key: "ArrowDown",
       });
-      fireEvent.click(screen.getByTestId("pn-size-mini"));
+      fireEvent.click(
+        screen.getByRole("menuitemradio", { name: /^Mini player/ }),
+      );
       expect(screen.getByTestId("pn-mini-card")).toBeVisible();
       expect(screen.queryByRole("button", { name: "Tests" })).toBeNull();
       expect(screen.queryByTestId("pn-tests-drawer")).toBeNull();
@@ -1785,8 +1934,7 @@ describe("See-through background", () => {
     await show();
     expect(root()).not.toHaveAttribute("data-glass");
     expect(glassButton()).toHaveAttribute("aria-pressed", "false");
-    expect(glassButton()).toHaveAttribute(
-      "title",
+    expect(tipOf(glassButton())).toContain(
       "See-through is off. Press to make the background clear. Text stays readable",
     );
     fireEvent.click(glassButton());
@@ -1870,7 +2018,9 @@ describe("toolbar contract: order, locks and the microphone press", () => {
 
   it("draws the session controls in one row, in this order", async () => {
     await show();
-    const bar = within(screen.getByRole("toolbar"));
+    const bar = within(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    );
     const order = [
       "Analyze screen",
       "Start microphone",
@@ -1892,7 +2042,9 @@ describe("toolbar contract: order, locks and the microphone press", () => {
   it("an ended session locks capture and the microphone but not see-through, answer style or the shortcuts", async () => {
     serve(live({ status: "ended", endedAt: minutesAfter(5) }));
     await show();
-    const bar = within(screen.getByRole("toolbar"));
+    const bar = within(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    );
     expect(bar.getByRole("button", { name: "Analyze screen" })).toBeDisabled();
     expect(
       bar.getByRole("button", { name: "Start microphone" }),
@@ -1922,7 +2074,9 @@ describe("toolbar contract: order, locks and the microphone press", () => {
     };
     await show();
     await flush();
-    const bar = within(screen.getByRole("toolbar"));
+    const bar = within(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    );
     const mic = bar.getByRole("button", { name: "Stop microphone" });
     expect(mic).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(mic);

@@ -37,6 +37,7 @@ import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { OWNER_LOCK, useOwnsSession } from "./panel-owner";
 import { AnswerPanel, ChatPanel, type PanelSession } from "./panel-views";
+import { tipOf } from "./toolbar-test-kit";
 import { RECORDING_LINE, TOAST_MS } from "./use-panel-session";
 
 const live = (extra = {}) =>
@@ -177,29 +178,37 @@ function nativeHost(extra: Record<string, unknown> = {}, studioHost = {}) {
 }
 
 describe("toolbar", () => {
-  it("shows the named capture button with its hotkey in the title, the mic likewise, the answer style and a dot", async () => {
+  it("shows the named capture button with its hotkey in the tooltip, the mic likewise, the answer style, and no status dot", async () => {
     await show("single");
     const capture = screen.getByRole("button", { name: "Analyze screen" });
-    expect(capture).toHaveAttribute("title", expect.stringContaining("⌘⇧S"));
+    expect(tipOf(capture)).toContain("⌘⇧S");
+    expect(tipOf(capture)).toMatch(/^(Auto|Manual): /);
     expect(
-      within(screen.getByTestId("pn-pill")).getByRole("button", {
-        name: "Start microphone",
-      }),
-    ).toHaveAttribute("title", expect.stringContaining("⌥R"));
+      tipOf(
+        within(screen.getByTestId("pn-pill")).getByRole("button", {
+          name: "Start microphone",
+        }),
+      ),
+    ).toContain("⌥R");
     expect(screen.getByTestId("pn-skill")).toHaveTextContent(
       "Data Structures & Algorithms",
     );
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
+    // T1: no coloured dot and no status line beside the capture control.
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
+    expect(screen.queryByTestId("pn-status")).toBeNull();
     const bar = screen.getByTestId("pn-pill");
     for (const gone of [/Remote/, /Visible window/, /companion/i])
       expect(bar).not.toHaveTextContent(gone);
   });
-  it("never goes red for the old whole-window interaction state: nothing is inert any more", async () => {
+  it("never goes inert for the old whole-window interaction state: the controls stay live", async () => {
     const host = nativeHost();
     await show("single", "&host=native");
     await host.set(false);
-    expect(screen.getByTestId("pn-dot")).toHaveAttribute("data-tone", "green");
-    expect(screen.getByTestId("pn-status")).toHaveTextContent("Live");
+    expect(
+      screen.getByRole("button", { name: "Analyze screen" }),
+    ).toBeEnabled();
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
+    expect(screen.queryByTestId("pn-status")).toBeNull();
   });
 });
 
@@ -655,7 +664,9 @@ describe("a native window that loses its session", () => {
     );
     // Never without its toolbar: the real one, locked, with the reason said and a
     // way to recover on the screen.
-    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    ).toBeVisible();
     expect(
       screen.getByText(/That session is no longer available/),
     ).toBeVisible();

@@ -34,6 +34,7 @@ import {
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
+import { tipOf } from "./toolbar-test-kit";
 import { navigation } from "./use-account";
 
 let server: TestServer;
@@ -271,17 +272,22 @@ describe("signed out", () => {
     const controls = within(bar)
       .getAllByRole("button")
       .filter((button) => !button.classList.contains("pn-window-dot"));
+    // A locked control is aria-disabled (it stays hoverable) and names the
+    // reason in its tooltip, or its title where it is natively disabled.
     const locked = controls.filter(
-      (button) => (button as HTMLButtonElement).disabled,
+      (button) =>
+        (button as HTMLButtonElement).disabled ||
+        button.getAttribute("aria-disabled") === "true",
     );
     expect(locked.length).toBeGreaterThanOrEqual(7);
     for (const button of locked)
-      expect(button.outerHTML.slice(0, 200), button.outerHTML).toContain(
-        'title="Sign in first"',
-      );
+      expect(
+        button.getAttribute("title") ?? tipOf(button),
+        button.outerHTML,
+      ).toBe("Sign in first");
     expect(
       within(bar).getByRole("button", { name: "Analyze screen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(within(bar).getByTestId("pn-chip-out")).toHaveTextContent(
       "Not signed in",
     );
@@ -289,10 +295,10 @@ describe("signed out", () => {
     expect(screen.queryByText(/Visible window/)).toBeNull();
     expect(screen.getByTestId("ov-build")).toBeVisible();
     expect(screen.getByTestId("ov-status")).toHaveTextContent("Not signed in");
-    // Nothing has "ended": the capture control's status says there is no session.
-    expect(screen.getByTestId("pn-status")).toHaveTextContent(
-      "No live session",
-    );
+    // Nothing has "ended", and no coloured dot or status line says so any more:
+    // the locked controls name what is missing.
+    expect(screen.queryByTestId("pn-status")).toBeNull();
+    expect(screen.queryByTestId("pn-dot")).toBeNull();
     expect(screen.queryByRole("button", { name: /Pause|End/ })).toBeNull();
   });
 
@@ -581,8 +587,8 @@ describe("idle: signed in, no live session", () => {
     const analyze = within(screen.getByTestId("pn-pill")).getByRole("button", {
       name: "Analyze screen",
     });
-    expect(analyze).toBeDisabled();
-    expect(analyze).toHaveAttribute("title", "Start a session first");
+    expect(analyze).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(analyze)).toBe("Start a session first");
     expect(screen.getByTestId("ov-status")).toHaveTextContent(
       "Signed in · no live session",
     );
@@ -915,6 +921,6 @@ describe("idle: signed in, no live session", () => {
       name: "Analyze screen",
     });
     expect(analyze).toBeEnabled();
-    expect(analyze.getAttribute("title")).not.toMatch(/first/);
+    expect(tipOf(analyze)).not.toMatch(/first/);
   });
 });
