@@ -1041,7 +1041,7 @@ export function createAssistStage(
         const failing = new Set<number>();
         if (!checked.ok)
           for (const violation of checked.violations) {
-            const match = /^claims\.(\d+):/.exec(violation);
+            const match = /^claims\.(\d+)(?:[.:])/.exec(violation);
             if (match) failing.add(Number(match[1]));
           }
         if (failing.size > 0) {
@@ -1102,6 +1102,19 @@ export function createAssistStage(
         ),
       );
       if (!verified.ok) violations.unshift(...verified.violations);
+      // [DOMAIN] What still fails after subtraction is published WITHOUT its
+      // claims rather than withheld (owner's rule: grounding never blocks an
+      // answer): the spoken draft stays, its evidence chips do not. Only a
+      // logistics draft (rebuilt from preferences) and an empty draft fall
+      // through to the withhold.
+      if (
+        violations.length > 0 &&
+        output.category !== "logistics" &&
+        output.draft.trim() !== ""
+      ) {
+        output = { ...output, claims: [], star: null, logistics: null };
+        violations.length = 0;
+      }
       if (violations.length > 0)
         return { ok: false, violations: violations.slice(0, 30) };
       if (output.category === "logistics") {
