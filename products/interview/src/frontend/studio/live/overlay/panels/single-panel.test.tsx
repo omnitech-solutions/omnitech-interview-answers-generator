@@ -1643,7 +1643,7 @@ describe("code pane", () => {
     ]);
     await show();
     expect(screen.getByTestId("pn-code-placeholder")).toHaveTextContent(
-      "Waits for the approach. Starts automatically.",
+      "Starts automatically after the approach.",
     );
   });
 

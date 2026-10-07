@@ -29,7 +29,7 @@ import {
   useScreenshotsView,
 } from "../../shared/use-screenshots-view";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
-import { CodeCard, TextCard } from "./code-card";
+import { CodeCard, CodeEmpty } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
 import type { PanelSession } from "./panel-views";
@@ -365,19 +365,17 @@ export function CodePane({ s }: { s: PanelSession }) {
   const example = task ? answerView(task).example : null;
   if (card?.code && !pending)
     return (
-      <div className="pn-codecol" data-testid="pn-code-pane">
-        {example && <TextCard text={example} />}
-        <CodeCard
-          code={card.code}
-          constraints={card.constraints}
-          badges={card.badges}
-          copy={{
-            label: "Copy code",
-            copied: copying.copied === "code",
-            onCopy: (text) => void copying.copy("code", text),
-          }}
-        />
-      </div>
+      <CodeCard
+        code={card.code}
+        constraints={card.constraints}
+        badges={card.badges}
+        example={example}
+        copy={{
+          label: "Copy code",
+          copied: copying.copied === "code",
+          onCopy: (text) => void copying.copy("code", text),
+        }}
+      />
     );
   const placeholder = codePlaceholder({
     card,
@@ -385,19 +383,5 @@ export function CodePane({ s }: { s: PanelSession }) {
     stoppedByYou: task ? stoppedByYou(task) : false,
     seconds,
   });
-  return (
-    <div className="pn-card" data-testid="pn-code-pane">
-      <p
-        className="pn-placeholder pn-centered"
-        data-testid="pn-code-placeholder"
-      >
-        {placeholder.busy ? (
-          <span className="pn-spinner" aria-hidden="true" />
-        ) : (
-          <Icon name="code" />
-        )}
-        {placeholder.text}
-      </p>
-    </div>
-  );
+  return <CodeEmpty text={placeholder.text} busy={placeholder.busy} />;
 }
