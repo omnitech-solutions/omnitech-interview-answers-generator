@@ -19,7 +19,8 @@ import { hasCapability } from "./presentation-host";
 // Every painted or interactive surface. Measured wherever it is in the document
 // (the image viewer is portalled to the body). Add a surface here and nothing else.
 export const HIT_SELECTORS = [
-  ".pn-pill", // the toolbar (and the empty-session pill)
+  ".pn-pill", // the empty-session pill and the Mini player's bar
+  ".pn-toolbar", // the toolbar (the library Toolbar)
   ".pn-strip", // the status strip
   ".pn-card", // a pane's card: chat, answer, code, settings, unavailable
   '[data-slot="panel"]', // a library Panel: the Code panel (and the other native panels)

@@ -25,6 +25,9 @@ describe("the stacking scale", () => {
 
   it("is used by the toolbar, the strip and every popover panel (the one .pn-menu)", () => {
     expect(block(".pn-pill")).toMatch(/z-index:\s*var\(--pn-z-toolbar\)/);
+    expect(block(".pn-root .pn-toolbar")).toMatch(
+      /z-index:\s*var\(--pn-z-toolbar\)/,
+    );
     expect(block(".pn-strip")).toMatch(/z-index:\s*var\(--pn-z-strip\)/);
     expect(block(".pn-menu")).toMatch(/z-index:\s*var\(--pn-z-popover\)/);
   });

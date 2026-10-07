@@ -74,7 +74,7 @@ export function Toolbar({
       ref={bar}
       label="Session controls"
       variant="floating"
-      className="pn-pill"
+      className="pn-toolbar"
       data-testid="pn-pill"
       leading={
         <WindowDots

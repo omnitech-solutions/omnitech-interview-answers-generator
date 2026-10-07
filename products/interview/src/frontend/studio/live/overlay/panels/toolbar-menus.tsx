@@ -92,7 +92,6 @@ export function PaneToggles({ s, panes }: { s: PanelSession; panes: Panes }) {
       appearance="control"
       minActive={1}
       minActiveReason={LAST_PANE_REASON}
-      aria-label="Visible panels"
       data-testid="pn-panes"
       value={shown}
       options={PANES.map((pane) => ({

@@ -160,7 +160,7 @@ export function SinglePanel({
         row instanceof HTMLElement && !row.classList.contains("pn-toasts"),
     );
     const fit = () => {
-      const pill = root?.querySelector<HTMLElement>(".pn-pill");
+      const pill = root?.querySelector<HTMLElement>(".pn-toolbar");
       const toolbar =
         (pill?.offsetWidth ?? BARE_WIDTH - WINDOW_PAD) + WINDOW_PAD;
       // With the body held the window is sized for nothing but the toolbar, so the

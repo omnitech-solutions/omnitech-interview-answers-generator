@@ -11,7 +11,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
-import { resetScreenProblems } from "../../screen-problems";
+import { noteScreenProblem, resetScreenProblems } from "../../screen-problems";
 import {
   configureSessionStores,
   resetSessionStores,
@@ -2086,5 +2086,315 @@ describe("toolbar contract: order, locks and the microphone press", () => {
     expect(
       bar.getByRole("button", { name: "Start microphone" }),
     ).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+describe("toolbar menus are sized to the window", () => {
+  it("the capture, answer-style and microphone menus cap their height to the room left and scroll inside", async () => {
+    await show();
+    for (const trigger of [
+      () =>
+        screen.getByRole("button", {
+          name: /^(Screen to capture|Capture options)/,
+        }),
+      () => screen.getByRole("button", { name: /^Answer style/ }),
+      () =>
+        within(toolbar()).getByRole("button", { name: "Microphone options" }),
+    ]) {
+      pointerOpen(trigger());
+      await flush();
+      const menu = screen.getByRole("menu");
+      expect(menu.style.maxHeight).toContain("available-height");
+      expect(
+        menu.querySelector('[data-slot="action-menu-scroll"]'),
+      ).not.toBeNull();
+      fireEvent.keyDown(menu, { key: "Escape" });
+      await flush();
+    }
+  });
+});
+
+describe("microphone states (Zoom semantics) and its caret menu", () => {
+  const base = {
+    v: 1,
+    pairing: "paired",
+    listening: true,
+    paused: false,
+    lastHeardAgeSeconds: null,
+    hint: null,
+  };
+  const listening = {
+    ...base,
+    sources: { microphone: "listening", "system-audio": "off", screen: "off" },
+  };
+  const lost = (extra: Record<string, unknown> = {}) => ({
+    ...base,
+    sources: { microphone: "lost", "system-audio": "off", screen: "off" },
+    ...extra,
+  });
+  // A shell that reports `state` and records what the menu asks of it.
+  function shell(state: unknown, over: Record<string, unknown> = {}) {
+    const calls: string[] = [];
+    nativeHost();
+    const reply = (note: string) => async () => (
+      calls.push(note), { ok: true, engine: state }
+    );
+    (
+      window as unknown as { studioHost: { engine: unknown } }
+    ).studioHost.engine = {
+      start: reply("start"),
+      stop: reply("stop"),
+      pause: reply("pause"),
+      resume: reply("resume"),
+      status: reply("status"),
+      onEvent: () => () => undefined,
+      ...over,
+    };
+    return calls;
+  }
+  const split = () => screen.getByTestId("pn-mic");
+  const caret = () =>
+    within(split()).getByRole("button", { name: "Microphone options" });
+
+  it("listening is neutral and pressed; muted is red and slashed", async () => {
+    shell(listening);
+    await show();
+    await flush();
+    expect(split()).toHaveAttribute("data-tone", "neutral");
+    expect(
+      within(split()).getByRole("button", { name: "Stop microphone" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      split().querySelector('[data-slot="split-button-status"]'),
+    ).toBeNull();
+    cleanup();
+    shell({ ...listening, listening: false });
+    await show();
+    await flush();
+    expect(split()).toHaveAttribute("data-tone", "danger");
+  });
+
+  it("lost is an amber outline with a ! badge, and the caret says Trying again with the attempt and offers Retry now", async () => {
+    const calls = shell(
+      lost({
+        microphoneRetryAttempt: 2,
+        microphoneDevices: [
+          { id: "built-in", name: "MacBook Pro Microphone" },
+          { id: "usb", name: "USB Mic" },
+        ],
+        microphoneDeviceId: "built-in",
+      }),
+      {
+        retryMicrophone: async () => (
+          calls.push("retry"), { ok: true, engine: lost() }
+        ),
+      },
+    );
+    await show();
+    await flush();
+    expect(split()).toHaveAttribute("data-tone", "warning");
+    const badge = split().querySelector('[data-slot="split-button-status"]');
+    expect(badge).toHaveTextContent("!");
+    expect(
+      tipOf(within(split()).getByRole("button", { name: /microphone$/ })),
+    ).toContain("Trying again · attempt 2");
+    pointerOpen(caret());
+    const menu = screen.getByRole("menu", { name: "Microphone options" });
+    expect(menu).toHaveTextContent("Microphone lost");
+    expect(menu).toHaveTextContent("Trying again · attempt 2");
+    // The notice leads the menu; the devices follow it.
+    expect(
+      within(menu).getByRole("menuitemradio", {
+        name: /MacBook Pro Microphone/,
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    // There is no "Microphone lost. Trying again." banner anywhere.
+    expect(screen.queryByText("Microphone lost. Trying again.")).toBeNull();
+    fireEvent.click(within(menu).getByText("Retry now"));
+    await flush();
+    expect(calls).toContain("retry");
+  });
+
+  it("choosing a device asks the shell for it", async () => {
+    const calls = shell(
+      { ...listening, microphoneDevices: [{ id: "usb", name: "USB Mic" }] },
+      {
+        selectMicrophone: async (id: string) => (
+          calls.push(`select:${id}`), { ok: true, engine: listening }
+        ),
+      },
+    );
+    await show();
+    await flush();
+    pointerOpen(caret());
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "USB Mic" }));
+    await flush();
+    expect(calls).toContain("select:usb");
+  });
+
+  it("degrades without a device list or attempt: a plain Retry now that restarts, and no device rows", async () => {
+    const calls = shell(lost());
+    await show();
+    await flush();
+    pointerOpen(caret());
+    const menu = screen.getByRole("menu", { name: "Microphone options" });
+    expect(menu).toHaveTextContent("Microphone lost");
+    expect(menu).not.toHaveTextContent("attempt");
+    expect(within(menu).queryByRole("menuitemradio")).toBeNull();
+    const before = calls.length;
+    fireEvent.click(within(menu).getByText("Retry now"));
+    await flush();
+    await flush();
+    // No retry on this shell: the engine restarts (stop, then start).
+    expect(calls.slice(before)).toEqual(expect.arrayContaining(["start"]));
+  });
+
+  it("keeps Alt+R as the one toggle: the main press and the menu row do the same thing", async () => {
+    const calls = shell(listening);
+    await show();
+    await flush();
+    pointerOpen(caret());
+    fireEvent.click(screen.getByRole("menuitem", { name: /Stop listening/ }));
+    await flush();
+    await flush();
+    expect(calls).toContain("stop");
+  });
+});
+
+describe("screen problems on the capture control", () => {
+  const split = () => screen.getByTestId("pn-capture");
+  const caret = () =>
+    within(split()).getByRole("button", {
+      name: /^(Screen to capture|Capture options)/,
+    });
+
+  it("a missing permission turns the control amber with a ! badge and leads the menu with the reason and its fix", async () => {
+    await show();
+    act(() =>
+      noteScreenProblem({ kind: "problem", problem: "permission-missing" }),
+    );
+    expect(split()).toHaveAttribute("data-tone", "warning");
+    expect(
+      split().querySelector('[data-slot="split-button-status"]'),
+    ).toHaveTextContent("!");
+    expect(
+      tipOf(within(split()).getByRole("button", { name: "Analyze screen" })),
+    ).toBe("Screen Recording is off for Interview Studio");
+    pointerOpen(caret());
+    const menu = screen.getByRole("menu");
+    expect(menu).toHaveTextContent(
+      "Screen Recording is off for Interview Studio",
+    );
+    // The notice comes before the first section.
+    expect(
+      menu
+        .querySelector('[data-slot="action-menu-notice"]')
+        ?.compareDocumentPosition(
+          menu.querySelector('[data-slot="action-menu-section"]') as Element,
+        ),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("a gone display offers Pick display, which opens the display menu on a host that can choose", async () => {
+    (window as { studioHost?: unknown }).studioHost = {
+      version: 1,
+      hostKind: "native-macos",
+      capabilities: ["display-selection"],
+      listDisplays: async () => ({ ok: true, displays: [] }),
+      setCaptureDisplay: async () => ({ ok: true, pinned: false }),
+      presentation: {
+        capabilities: [],
+        openSettings: async () => true,
+        closeSettings: async () => true,
+        setVisible: async () => true,
+        setInteractionMode: async () => true,
+        interactionMode: () => true,
+        onInteractionMode: () => () => undefined,
+      },
+    };
+    await show();
+    act(() =>
+      noteScreenProblem({ kind: "problem", problem: "display-disconnected" }),
+    );
+    pointerOpen(caret());
+    await flush();
+    const menu = screen.getByRole("menu");
+    expect(menu).toHaveTextContent("The chosen display was disconnected");
+    fireEvent.click(within(menu).getByText("Pick display"));
+    await flush();
+    // The fix re-opens the menu with the Display section on show.
+    expect(screen.getByRole("group", { name: "Display" })).toBeVisible();
+  });
+
+  it("the problem stays until a capture comes back", async () => {
+    await show();
+    act(() =>
+      noteScreenProblem({ kind: "problem", problem: "capture-failed" }),
+    );
+    expect(split()).toHaveAttribute("data-tone", "warning");
+    act(() => noteScreenProblem({ kind: "capture-ok" }));
+    expect(split()).not.toHaveAttribute("data-tone", "warning");
+  });
+
+  it("is dim while paused, whatever the problem", async () => {
+    serve(live({ status: "paused" }));
+    await show();
+    act(() =>
+      noteScreenProblem({ kind: "problem", problem: "capture-failed" }),
+    );
+    expect(split()).toHaveAttribute("data-tone", "dim");
+  });
+});
+
+describe("panel toggles are one segmented group", () => {
+  it("is a single bordered group of Chat, Answer and Code whose last visible panel cannot be turned off", async () => {
+    await show();
+    const group = screen.getByTestId("pn-panes");
+    expect(screen.getByRole("group", { name: "Panels" }).contains(group)).toBe(
+      true,
+    );
+    expect(group).toHaveAttribute("data-appearance", "control");
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["Chat", "Answer", "Code"]);
+    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+    fireEvent.click(screen.getByRole("button", { name: "Code" }));
+    const last = screen.getByRole("button", { name: "Answer" });
+    expect(last).toHaveAttribute("aria-pressed", "true");
+    expect(last).toHaveAttribute("aria-disabled", "true");
+    expect(tipOf(last)).toBe("At least one panel stays visible");
+    fireEvent.click(last);
+    expect(last).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("pn-analysis")).toBeVisible();
+    // Another panel can come back, and then the first can go.
+    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+    expect(screen.getByRole("button", { name: "Chat" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});
+
+describe("the answer style trigger", () => {
+  it("shows the full name capped at 260 px with the whole name on hover, and a fixed check column", async () => {
+    await show();
+    const button = screen.getByRole("button", { name: /^Answer style/ });
+    expect(button.querySelector('[data-slot="button-label"]')).toHaveStyle({
+      maxWidth: "var(--oui-control-label-max)",
+    });
+    pointerOpen(button);
+    const rows = [
+      ...screen
+        .getByRole("menu", { name: "Answer style" })
+        .querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+    ];
+    // Every row keeps the check column, so the names line up.
+    expect(
+      rows.every((row) =>
+        row.querySelector('[data-slot="action-menu-column"]'),
+      ),
+    ).toBe(true);
   });
 });

@@ -68,7 +68,7 @@ import {
   engineHost,
   engineLine,
   engineMic,
-  engineNeeds,
+  engineStripNeeds,
   MIC_HELD_TEXT,
   pressMic,
   useEngine,
@@ -924,8 +924,9 @@ export function usePanelSession(
     run: runOnce,
     engine,
     engineLine: engineLine(engine),
-    // What the owner must act on (refusal, hint, lost or denied mic), or null.
-    engineNeeds: owns ? engineNeeds(engine) : null,
+    // What the owner must act on (refusal, hint, denied mic), or null: a lost
+    // microphone is the toolbar's to say.
+    engineNeeds: owns ? engineStripNeeds(engine) : null,
     // The microphone control is held with the session: one predicate, the
     // engine's own (a non-owner window reads the same from the session state).
     micHeld: owns

@@ -71,9 +71,11 @@ export function CaptureControl({
   const source = useCaptureSource();
   const displays = displaySelectionAvailable();
   const chord = nativeChord("analyze");
-  const { problems, fix, canOpenSettings } = useScreenProblemFix(() =>
-    onOpenChange(true),
-  );
+  // "Pick display": the menu already lists the displays, but choosing the fix
+  // closes it with the row, so it opens again a tick later.
+  const { problems, fix, canOpenSettings } = useScreenProblemFix(() => {
+    window.setTimeout(() => onOpenChange(true), 0);
+  });
   const { list, refresh } = useDisplayList(open && displays);
 
   // A fresh page learns the shell's saved pin once, on mount, without any

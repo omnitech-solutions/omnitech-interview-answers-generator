@@ -100,19 +100,6 @@ const ALLOWED: readonly Allowed[] = [
   ["panels.css", ".pn-jump", "background", "Small floating control."],
   ["panels.css", ".pn-jump:hover", "background", "Small floating control."],
   [
-    "panels.css",
-    '.pn-split[data-stop="true"] .pn-split-main',
-    "background",
-    "Stop state of the capture control.",
-  ],
-  [
-    "panels.css",
-    ".pn-display-thumb",
-    "background",
-    "Letterbox behind a display thumbnail image.",
-  ],
-  ["panels.css", ".pn-quit-confirm", "background", "Small solid control."],
-  [
     "start-panel.css",
     '.pn-chip-initial[data-kind="local"]',
     "background",

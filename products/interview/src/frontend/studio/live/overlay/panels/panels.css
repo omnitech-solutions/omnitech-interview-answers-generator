@@ -141,7 +141,7 @@
 }
 :root[data-panel-host="native"]
   .pn-root[data-glass="clear"]
-  :is(.pn-pill, .pn-single-foot) {
+  :is(.pn-pill, .pn-toolbar, .pn-single-foot) {
   cursor: grab;
 }
 
@@ -190,6 +190,26 @@
   font-size: 12px;
   user-select: none;
 }
+/* The library Toolbar (toolbar.tsx): it paints its own surface; the window only
+   places it above the strip and the panes, as wide as its controls, and lets the
+   See-through level lower its background (never its controls). */
+.pn-root .pn-toolbar {
+  position: relative;
+  z-index: var(--pn-z-toolbar);
+  width: max-content;
+  max-width: none;
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+  user-select: none;
+  background: color-mix(
+    in srgb,
+    var(--oui-badge-ring) calc(var(--oui-panel-see-through, 1) * 100%),
+    transparent
+  );
+  -webkit-backdrop-filter: var(--pn-blur-card, none);
+  backdrop-filter: var(--pn-blur-card, none);
+}
 .pn-bar-button {
   display: inline-flex;
   align-items: center;
@@ -208,8 +228,7 @@
   opacity: 0.45;
   cursor: default;
 }
-.pn-bar-button kbd,
-.pn-split-main kbd {
+.pn-bar-button kbd {
   font: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
@@ -636,11 +655,6 @@
   flex: 0 1 420px;
 }
 
-.pn-model {
-  font-size: 11px;
-  color: var(--ov-muted);
-  white-space: nowrap;
-}
 
 /* Resume and Start are green; End is red. The paused strip's Resume session is the
    same button as the footer's. */
@@ -764,9 +778,7 @@
 }
 
 /* ---- The toolbar's controls: round translucent glass, no solid fills ---- */
-.pn-pill .pn-bar-button,
-.pn-split-main,
-.pn-split-menu {
+.pn-pill .pn-bar-button {
   height: var(--pn-control);
   padding: 0 11px;
   border: 0;
@@ -779,15 +791,10 @@
   backdrop-filter: var(--pn-blur-control);
   transition: background 0.12s;
 }
-.pn-pill .pn-bar-button:hover:not(:disabled),
-.pn-split-main:hover:not(:disabled),
-.pn-split-menu:hover:not(:disabled) {
+.pn-pill .pn-bar-button:hover:not(:disabled) {
   background: var(--pn-glass-fill-hover);
 }
-.pn-pill .pn-bar-button:focus-visible,
-.pn-split-main:focus-visible,
-.pn-split-menu:focus-visible,
-.pn-window-dot:focus-visible {
+.pn-pill .pn-bar-button:focus-visible {
   outline: 2px solid var(--pn-link);
   outline-offset: 1px;
 }
@@ -795,88 +802,32 @@
 .pn-pill .pn-bar-button[aria-expanded="true"] {
   background: rgba(255, 255, 255, 0.24);
 }
-/* Icon-only controls are circles; their name is the aria-label and title. */
-.pn-pill .pn-icon-button,
-.pn-split-main {
-  width: var(--pn-control);
-  padding: 0;
-  justify-content: center;
-  color: var(--ov-text);
-}
-.pn-pill .pn-icon-button[aria-pressed="true"] {
-  color: var(--pn-link);
-  background: rgba(143, 176, 255, 0.28);
-}
-.pn-pill .pn-mic-button:not([data-mic="listening"]) {
-  /* The muted microphone's outline is white like the other controls, not grey. */
-  color: #fff;
-}
-.pn-pill .pn-mic-button:disabled {
-  opacity: 0.7;
-}
-.pn-pill .pn-mic-button[data-mic="listening"] {
-  background: rgba(229, 72, 77, 0.3);
-  width: auto;
-  min-width: var(--pn-control);
-  padding: 0 8px;
-  gap: 5px;
-}
-.pn-pill .pn-skill {
-  font-weight: 600;
-  gap: 3px;
-}
-.pn-skill-name {
-  max-width: 11em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .pn-divider {
   width: 0.5px;
   height: 20px;
   margin: 0 2px;
   background: rgba(255, 255, 255, 0.16);
 }
-.pn-model {
-  padding: 0 4px;
-}
 
-/* The capture control: a round capture button beside a round mode chip. */
+/* The Mini player's capture group. */
 .pn-split {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: #fff;
 }
-.pn-split-main,
-.pn-split-menu {
-  display: inline-flex;
-  align-items: center;
-  color: inherit;
-  cursor: pointer;
-  text-shadow: inherit;
-}
-.pn-split-menu {
-  gap: 2px;
-  padding: 0 6px 0 11px;
-}
-.pn-split-main:disabled,
-.pn-split-menu:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.pn-split[data-stop="true"] .pn-split-main {
-  background: rgba(229, 72, 77, 0.55);
-}
 
-/* The window controls: macOS-sized dots in the macOS colours, kept coloured
-   when the window is not key (our own, not the system's greyed ones). */
+/* The window controls: macOS-sized dots in the macOS colours (the library's
+   danger, warning and success tones), kept coloured when the window is not key
+   (our own, not the system's greyed ones). The dots are library IconButtons;
+   the doubled class lifts these rules over the library's own. */
 .pn-dots {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 0 4px 0 6px;
 }
-.pn-window-dot {
+.pn-dots .pn-window-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -893,14 +844,18 @@
   font-weight: 700;
   cursor: pointer;
 }
+.pn-dots .pn-window-dot:hover:not(:disabled) {
+  background: var(--dot);
+  filter: brightness(1.08);
+}
 .pn-window-dot[data-colour="red"] {
-  --dot: #ff5f57;
+  --dot: var(--oui-tone-danger-solid-bg);
 }
 .pn-window-dot[data-colour="yellow"] {
-  --dot: #febc2e;
+  --dot: var(--oui-tone-warning-solid-bg);
 }
 .pn-window-dot[data-colour="green"] {
-  --dot: #28c840;
+  --dot: var(--oui-tone-success-solid-bg);
 }
 /* The glyph shows on hover or focus, as on macOS, over the whole group. */
 .pn-window-dot span {
@@ -910,14 +865,12 @@
 .pn-window-dot:focus-visible span {
   opacity: 1;
 }
-.pn-window-dot:disabled {
+.pn-dots .pn-window-dot:disabled {
   opacity: 0.45;
   cursor: default;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pn-pill .pn-bar-button,
-  .pn-split-main,
-  .pn-split-menu {
+  .pn-pill .pn-bar-button {
     transition: none;
   }
 }
@@ -925,48 +878,9 @@
   position: relative;
   display: inline-flex;
 }
-.pn-icon-dot {
-  position: relative;
-  display: inline-flex;
-}
-.pn-icon-dot .pn-dot {
-  position: absolute;
-  right: -5px;
-  top: -4px;
-  box-shadow: 0 0 0 2px rgba(30, 30, 34, 0.95);
-}
 
 /* The microphone's bars: shown only while listening; they move only while
    words are actually being recognised. */
-.pn-level {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 14px;
-}
-.pn-level i {
-  width: 2px;
-  height: 14px;
-  border-radius: 1px;
-  background: currentColor;
-  transform: scaleY(0.35);
-}
-.pn-level[data-active="true"] i {
-  animation: pn-level 0.9s infinite;
-}
-.pn-level[data-active="true"] i:nth-child(2) {
-  animation-duration: 0.7s;
-  animation-delay: 0.2s;
-}
-.pn-level[data-active="true"] i:nth-child(3) {
-  animation-duration: 1.1s;
-  animation-delay: 0.1s;
-}
-@keyframes pn-level {
-  50% {
-    transform: scaleY(1);
-  }
-}
 
 /* ---- Menus and the shortcut list ---- */
 .pn-menu {
@@ -992,11 +906,6 @@
 }
 .pn-menu:focus {
   outline: none;
-}
-.pn-menu-head {
-  padding: 4px 9px;
-  font-size: 11px;
-  color: var(--ov-muted);
 }
 .pn-menu-item {
   display: flex;
@@ -1034,105 +943,8 @@
 }
 /* The screen picker: a pin dot on the round button, the display rows with their
    live thumbnails, and the label of where the last capture came from. */
-.pn-pin-dot {
-  position: absolute;
-  right: 3px;
-  top: 3px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pn-link);
-  box-shadow: 0 0 0 1.5px rgba(30, 30, 34, 0.95);
-}
 /* The screen-target chevron is the capture button's other half: joined to it,
    one pill. */
-.pn-split-main.pn-joined {
-  border-radius: calc(var(--pn-control) / 2) 0 0 calc(var(--pn-control) / 2);
-}
-.pn-popover:has(> .pn-screen-button) {
-  margin-left: -3px;
-}
-.pn-pill .pn-screen-button,
-.pn-screen-button {
-  position: relative;
-  width: 20px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 0 calc(var(--pn-control) / 2) calc(var(--pn-control) / 2) 0;
-}
-.pn-display-menu {
-  width: 320px;
-  /* Tied to the window height: rows beyond it scroll instead of being cut off
-     at the window edge (each display row is ~154 px). */
-  max-height: calc(100vh - 84px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.pn-display-body {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 3px 8px;
-  align-items: baseline;
-  flex: 1;
-  min-width: 0;
-}
-.pn-display-thumb {
-  grid-column: 1 / -1;
-  width: 100%;
-  max-height: 120px;
-  object-fit: contain;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.45);
-  box-shadow: var(--pn-control-line);
-}
-.pn-display-notice {
-  padding: 7px 9px;
-  font-size: 12px;
-  color: var(--ov-muted);
-}
-.pn-display-notice small {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-}
-.pn-keys {
-  left: auto;
-  right: 0;
-  width: 300px;
-  padding: 10px 12px;
-}
-.pn-keys-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.pn-keys-list li {
-  display: flex;
-  gap: 10px;
-  font-size: 12px;
-}
-.pn-keys-list li span {
-  flex: 1;
-  color: rgba(255, 255, 255, 0.75);
-}
-.pn-keys-list li[data-disabled="true"] {
-  opacity: 0.55;
-}
-.pn-keys-list small {
-  flex-basis: 100%;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
-}
-.pn-keys-list li[data-disabled="true"] {
-  flex-wrap: wrap;
-}
-.pn-keys-list kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #fff;
-}
 
 /* ---- Small buttons used in the panes ---- */
 .pn-mini-button {
@@ -1542,7 +1354,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pn-spinner,
-  .pn-level[data-active="true"] i,
   .pn-ellipsis i,
   .ov-clock-dot {
     animation: none;
@@ -1631,15 +1442,15 @@
   gap: 6px;
   padding: 10px 12px;
 }
+.pn-quit-detail {
+  font-size: 12px;
+  color: var(--oui-foreground-muted);
+}
 .pn-quit-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 4px;
-}
-.pn-quit-confirm {
-  background: rgba(214, 62, 52, 0.9);
-  color: #fff;
 }
 .pn-mini-pill {
   align-self: stretch;
