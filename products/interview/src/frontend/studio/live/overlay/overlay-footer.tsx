@@ -15,7 +15,7 @@ import { BUILD } from "./build-id";
 import { PAUSED_NOTICE } from "./panels/strip-model";
 import { footerButtons } from "./panels/toolbar-config";
 
-export const UNAVAILABLE_NOTE =
+const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
 
 // What each fixed refusal reason from the server means, in plain words.

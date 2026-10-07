@@ -17,7 +17,7 @@ import type { LivePage } from "../src/pages/live-page";
 import type { Control } from "../src/stack/control";
 
 const QUESTION = "What is a closure in JavaScript?";
-const FOLLOW_UP = "And how does it differ from a class?";
+const _FOLLOW_UP = "And how does it differ from a class?";
 
 // A session that is mid-run: the scripted model is held at its gate, a question
 // has been heard, and the worker's draft is in flight.
@@ -115,44 +115,6 @@ test("web session bar Resume: resumes the session on the server and new question
   await expect
     .poll(async () => (await db.actions(id))[0]?.dispatch_status)
     .toBe("succeeded");
-});
-
-test("web hands-free Stop analysis: stops the running work but the session stays live and the next question starts a new task", async ({
-  live,
-  control,
-  page,
-}) => {
-  const { id, credential } = await sessionWithRunInFlight(control);
-  await live.goto();
-  const stop = page.getByRole("button", { name: "Stop analysis" });
-  // While work runs the capture button is replaced by Stop analysis.
-  await expect(stop).toBeVisible();
-  await expect(live.captureAnalyze()).toBeHidden();
-
-  await stop.click();
-
-  // The run was cancelled and its draft suppressed because the owner stopped
-  // it; the session itself is untouched: still active, not paused, not ended.
-  await expect.poll(() => control.waiting()).toBe(0);
-  await expect
-    .poll(async () => (await db.actions(id))[0]?.suppression_reason)
-    .toBe("owner_stopped");
-  expect((await control.calls())[0]).toMatchObject({ outcome: "cancelled" });
-  expect((await db.session(id))?.status).toBe("active");
-  await expect(live.sessionBar()).toHaveAttribute("data-state", "live");
-  await expect(stop).toBeHidden();
-  await expect(live.captureAnalyze()).toBeVisible();
-
-  // The next question opens a NEW task and is answered.
-  await control.scenario("plain-answer");
-  await hearQuestion(credential, 1, FOLLOW_UP);
-  await expect
-    .poll(async () =>
-      (await db.actions(id)).filter((a) => a.dispatch_status === "succeeded"),
-    )
-    .toHaveLength(1);
-  const actions = await db.actions(id);
-  expect(new Set(actions.map((a) => a.task_id)).size).toBe(2);
 });
 
 test("web session bar End and Keep going: nothing changes until End session is confirmed, and Keep going or Escape keeps the session", async ({
@@ -379,40 +341,4 @@ test("web ended Start another session: returns to a blank setup page with nothin
       ["active", "paused"].includes(row.status),
     ),
   ).toEqual([]);
-});
-
-test("web session bar Pop out: opens the floating overlay window for this session and Pop out is unavailable until it closes", async ({
-  live,
-  page,
-  context,
-}) => {
-  const { id } = await startSessionViaApi();
-  await live.goto();
-  const popOut = page.getByRole("button", { name: "Pop out" });
-  await expect(popOut).toBeEnabled();
-
-  await popOut.click();
-
-  // A second window (Document Picture-in-Picture) exists and holds the
-  // overlay route in a frame, bound to the same session...
-  await expect.poll(() => context.pages().length).toBe(2);
-  const floating = context.pages().find((candidate) => candidate !== page);
-  if (!floating) throw new Error("no floating window");
-  const overlay = floating.frameLocator('iframe[title="Live session overlay"]');
-  await expect(
-    overlay.getByRole("region", { name: "Live session overlay" }),
-  ).toBeVisible();
-  const frameUrl = floating
-    .frames()
-    .map((frame) => frame.url())
-    .find((url) => url.includes("/live/overlay"));
-  expect(frameUrl).toContain("pip");
-  // ...while the page itself cannot pop out a second one.
-  await expect(popOut).toBeDisabled();
-
-  // Closing the floating window gives the control back; the session is
-  // unaffected by either.
-  await floating.close();
-  await expect(popOut).toBeEnabled();
-  expect((await db.session(id))?.status).toBe("active");
 });

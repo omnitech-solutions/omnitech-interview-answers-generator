@@ -141,22 +141,3 @@ export function fitSize(
     height: Math.max(1, Math.round(height * scale)),
   };
 }
-
-// A region as the capture request wants it: normalised to the main display and
-// guaranteed to fit inside it (x + width and y + height never exceed 1).
-export function toDisplayRegion(rect: Rect): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
-  const floor = (value: number) => Math.floor(value * 10_000) / 10_000;
-  const x = floor(clamp(rect.x, 0, 1 - MIN_SIZE));
-  const y = floor(clamp(rect.y, 0, 1 - MIN_SIZE));
-  return {
-    x,
-    y,
-    width: Math.max(MIN_SIZE, floor(Math.min(rect.w, 1 - x))),
-    height: Math.max(MIN_SIZE, floor(Math.min(rect.h, 1 - y))),
-  };
-}

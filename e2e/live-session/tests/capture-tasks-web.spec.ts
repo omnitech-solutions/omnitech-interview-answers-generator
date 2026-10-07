@@ -9,7 +9,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../src/fixtures/test";
 import { startSessionViaApi } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
-import { say, settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
+import { say, settled } from "../src/helpers/tasks";
 import { SCRIPTED } from "../src/stack/scenarios";
 
 const QUESTION = "What is a closure in JavaScript?";
@@ -21,53 +21,12 @@ const stage = (page: Page, id: "answer" | "code" | "verified"): Locator =>
   page.locator(`.live-stage[data-stage="${id}"]`);
 
 // A live page on a session started over the API (its credential in hand so a
-// spoken question can be sent), with Manual chosen.
-async function openLive(live: {
-  goto(): Promise<unknown>;
-  useManual(): Promise<void>;
-}) {
+// spoken question can be sent).
+async function openLive(live: { goto(): Promise<unknown> }) {
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   return { id: started.id, credential: started.response.credential.value };
 }
-
-test("web Capture & analyze menu Attach: a fresh capture revises the selected task (same task id, revision 2) instead of starting a new one", async ({
-  live,
-  control,
-}) => {
-  await control.scenario("plain-answer");
-  await live.goto();
-  const session = await live.startRehearsal();
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toContainText(SCRIPTED.plain);
-  const first = await settled(session.id, 1);
-  const taskId = taskIdsOf(first)[0] as string;
-
-  await live.captureAnalyze().click();
-  await live.page
-    .getByRole("menuitem", { name: /^Attach a fresh capture to T1 rev 1/ })
-    .click();
-
-  // The same task gained revision 2 with the new capture, and the page says so.
-  await expect
-    .poll(async () =>
-      (await db.actions(session.id)).some(
-        (a) => a.task_id === taskId && a.task_revision === 2,
-      ),
-    )
-    .toBe(true);
-  expect(taskIdsOf(await db.actions(session.id))).toEqual([taskId]);
-  await expect(live.task(1)).toContainText("rev 2 of 2");
-  const calls = await control.calls();
-  expect(calls).toHaveLength(2);
-  // Revision 2 rests on the task's first screenshot AND the one just added.
-  expect(calls[1]).toMatchObject({ stage: "assist", revision: 2, images: 2 });
-  expect(calls[1]?.taskId).toBe(taskId);
-  // The server lists both screenshots under the one task.
-  expect(await taskScreenshots(session.id, taskId)).toHaveLength(2);
-});
 
 test("web spoken question: a phrase the companion hears starts a task, answers it, and the transcript keeps what was heard", async ({
   live,
@@ -101,84 +60,6 @@ test("web spoken question: a phrase the companion hears starts a task, answers i
   await expect(page.getByTestId("transcript-row").first()).toContainText(
     QUESTION,
   );
-});
-
-test("web task chips and Back: the chips list every task newest first, an earlier one shows its own answer, and Back to T2 returns to the newest", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("plain-answer");
-  const { id, credential } = await openLive(live);
-  await say(credential, QUESTION);
-  await expect(live.task(1)).toBeVisible();
-  await settled(id, 1);
-  await say(credential, SECOND);
-  await expect(live.task(2)).toBeVisible();
-  await settled(id, 2);
-
-  const group = page.getByRole("group", { name: "Detected tasks" });
-  const chips = group.getByRole("button");
-  await expect(chips).toHaveCount(2);
-  // Newest first; the newest is the one on show.
-  await expect(chips.nth(0)).toHaveText(/^T2 · /);
-  await expect(chips.nth(1)).toHaveText(/^T1 · /);
-  await expect(chips.nth(0)).toHaveAttribute("aria-pressed", "true");
-
-  await live.chip(1).click();
-  await expect(live.task(1)).toBeVisible();
-  await expect(live.task(2)).toBeHidden();
-  await expect(live.chip(1)).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByText("Viewing an earlier task.")).toBeVisible();
-  // The follow-up box names the task a message would go to.
-  await expect(live.followUp()).toHaveAttribute(
-    "placeholder",
-    "Add context to T1, or ask a follow-up",
-  );
-
-  await page.getByRole("button", { name: "Back to T2" }).click();
-  await expect(live.task(2)).toBeVisible();
-  await expect(live.task(1)).toBeHidden();
-  await expect(page.getByText("Viewing an earlier task.")).toBeHidden();
-  await expect(live.followUp()).toHaveAttribute(
-    "placeholder",
-    "Add context to T2, or ask a follow-up",
-  );
-});
-
-test("web follow-up: a message sent while an earlier task is on show revises THAT task, not the newest", async ({
-  live,
-  control,
-}) => {
-  await control.scenario("plain-answer");
-  const { id, credential } = await openLive(live);
-  await say(credential, QUESTION);
-  await settled(id, 1);
-  await say(credential, SECOND);
-  const both = await settled(id, 2);
-  const [first, second] = taskIdsOf(both) as [string, string];
-
-  await live.chip(1).click();
-  await live.followUp().fill("Please add an example.");
-  await live.sendFollowUp().click();
-
-  await expect
-    .poll(async () =>
-      (await db.actions(id)).some(
-        (a) => a.task_id === first && a.task_revision === 2,
-      ),
-    )
-    .toBe(true);
-  expect(
-    (await db.actions(id)).some(
-      (a) => a.task_id === second && a.task_revision === 2,
-    ),
-  ).toBe(false);
-  expect((await db.observations(id)).map((o) => o.kind)).toContain(
-    "owner.input",
-  );
-  await expect(live.followUp()).toHaveValue("");
-  await expect(live.task(1)).toContainText("rev 2 of 2");
 });
 
 test("web Copy answer: the clipboard holds the suggested answer, and the page says it was copied", async ({
@@ -424,34 +305,4 @@ test("web model timeout: the attempt is retried and, when it keeps timing out, e
   const actions = await db.actions(id);
   expect(actions.every((a) => a.shown === false)).toBe(true);
   await expect(page.getByText(SCRIPTED.plain)).toHaveCount(0);
-});
-
-test("web transcript screenshot Download: the link is the screenshot route and it serves exactly the image that was sent", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("plain-answer");
-  await live.goto();
-  const session = await live.startRehearsal();
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toContainText(SCRIPTED.plain);
-  await page.getByRole("tab", { name: "Transcript" }).click();
-
-  const link = page.getByRole("link", { name: "Download" });
-  await expect(link).toHaveCount(1);
-  const href = (await link.getAttribute("href")) ?? "";
-  expect(href).toMatch(
-    new RegExp(`/sessions/${session.id}/screenshots/[^/]+$`),
-  );
-  await expect(link).toHaveAttribute("download", "");
-  const response = await page.request.get(href);
-  expect(response.status()).toBe(200);
-  expect(response.headers()["content-type"]).toMatch(/^image\//);
-  // The route's own sandbox policy survives the app-wide frame-ancestors one.
-  expect(response.headers()["content-security-policy"]).toBe("sandbox");
-  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
-  const [call] = await control.calls();
-  expect((await response.body()).length).toBe(call?.imageBytes);
 });

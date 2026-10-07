@@ -16,7 +16,7 @@ import { db } from "../src/helpers/sql";
 import { SCRIPTED } from "../src/stack/scenarios";
 
 const QUESTION = "What is a closure in JavaScript?";
-const REFUSED_SCREENSHOT =
+const _REFUSED_SCREENSHOT =
   "Device-only mode never sends a screenshot to an assistant.";
 const ALL = ["microphone", "application-audio", "screen"] as const;
 
@@ -113,52 +113,6 @@ test("device-only: a heard coding question gets its answer but the solution step
   );
   await expect(live.task(1)).toContainText(
     "Coding needs a remote model, and this session runs AI models on this Mac only.",
-  );
-});
-
-test("device-only: a screenshot is stored for the owner but refused for analysis (vision_device_only) and no model is called", async ({
-  live,
-  page,
-  control,
-}) => {
-  const { id } = await startSessionViaApi({
-    processingPolicy: "device-only",
-    captureSources: [...ALL],
-  });
-  await page.goto(`${live.livePath()}/${id}`);
-
-  // The page's own control is disabled, with the reason as its tooltip.
-  const analyze = live.captureAnalyze();
-  await expect(analyze).toBeDisabled();
-  await expect(analyze).toHaveAttribute("title", REFUSED_SCREENSHOT);
-
-  // The server enforces it regardless of the page: the upload is accepted as
-  // the owner's own screenshot, its analysis is refused with the closed reason.
-  const upload = await ownerCapture(id, solidPng(64, 64));
-  expect(upload.status).toBe(202);
-  await expect
-    .poll(async () => {
-      const shot = (await db.observations(id)).find(
-        (row) => row.kind === "screen.snapshot",
-      );
-      return shot?.screenshot_artifact_id ? "stored" : "missing";
-    })
-    .toBe("stored");
-  await expect
-    .poll(async () =>
-      (await db.actions(id)).map((a) => [
-        a.action_kind,
-        a.dispatch_status,
-        a.suppression_reason,
-      ]),
-    )
-    .toEqual([["draft-answer", "suppressed", "vision_device_only"]]);
-  expect(await control.calls()).toEqual([]);
-
-  // The refusal is shown, in the page's words, where the work is listed.
-  await page.getByRole("tab", { name: "Activity" }).click();
-  await expect(page.getByRole("tabpanel", { name: "Activity" })).toContainText(
-    REFUSED_SCREENSHOT,
   );
 });
 

@@ -163,21 +163,3 @@ test("@native native T31 Start session on the setup page in a shell with an engi
   expect(await spies.asked()).toEqual(nothingAsked);
   await context.close();
 });
-
-test("web T31 a browser with no engine: Auto starts dictation and its level meter, as before (the engine rule is only for the shell)", async ({
-  page,
-  live,
-}) => {
-  const spies = await installBrowserSpies(page).then((forPage) =>
-    forPage(page),
-  );
-  await live.goto();
-  await live.startRehearsal();
-  await expect(page.getByTestId("light-mic")).toContainText("Mic listening");
-  await expect.poll(async () => (await spies.speech.stats()).listening).toBe(1);
-  // The meter asked the browser for the microphone, and the recogniser was built.
-  await expect
-    .poll(async () => (await spies.asked()).getUserMedia)
-    .toBeGreaterThan(0);
-  expect((await spies.asked()).speechConstructed).toBeGreaterThan(0);
-});

@@ -1,7 +1,7 @@
 // The Revisions control: a button naming the revision on show ("rev 2 of 3")
 // and a popover list of every revision, newest first, the current one marked.
-// One component and one list for the native window, the web page and the card;
-// each surface passes a variant (its class names) and what choosing does.
+// One component and one list for the native window and the web page; each
+// surface passes a variant (its class names) and what choosing does.
 // Choosing is view-only: it changes which revision is shown, never the task.
 import { useState } from "react";
 import { Icon } from "../../icon";
@@ -26,14 +26,6 @@ const VARIANT = {
     item: "live-rev-item",
     label: "live-rev-label",
     sub: "live-rev-sub",
-  },
-  card: {
-    root: "ov-rev",
-    button: "ov-link",
-    panel: "ov-rev-menu",
-    item: "ov-rev-item",
-    label: "ov-rev-label",
-    sub: "ov-rev-sub",
   },
 } as const;
 export type RevisionsVariant = keyof typeof VARIANT;

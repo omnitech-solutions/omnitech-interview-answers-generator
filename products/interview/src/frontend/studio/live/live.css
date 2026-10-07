@@ -136,30 +136,6 @@
   }
 }
 
-/* The band's Manual | Auto switch. */
-.ov-segmented {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  border-radius: 9px;
-  background: var(--subtle);
-}
-.ov-segment {
-  min-height: 28px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.ov-segment[aria-pressed="true"] {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--pop);
-}
-
 .live-no-question {
   color: var(--muted);
   opacity: 0.8;

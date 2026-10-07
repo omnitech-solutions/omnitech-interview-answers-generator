@@ -135,29 +135,6 @@ test("web Sources tab: each radio posts once, the server holds it, and a reload 
   expect(await db.screenshotSend(id)).toBe("never");
 });
 
-test("web band Settings popover: the choice posts once, the server holds it, and the Sources tab shows the same value", async ({
-  page,
-  live,
-}) => {
-  const { id } = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${id}`);
-  const posts = countPosts(page);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const popover = page.getByRole("dialog", { name: "Capture settings" });
-  await expect(popover).toBeVisible();
-
-  const before = posts.count();
-  await popover
-    .getByRole("radio", { name: OPTION["text-only-when-text"] })
-    .check();
-  await expect.poll(() => db.screenshotSend(id)).toBe("text-only-when-text");
-  expect(posts.count()).toBe(before + 1);
-
-  await page.keyboard.press("Escape");
-  await page.getByRole("tab", { name: "Sources" }).click();
-  await expect(radio(page, "text-only-when-text")).toBeChecked();
-});
-
 test("web device-only and ended: the Sources control is locked with its reason, and the server refuses a change", async ({
   page,
   live,
@@ -535,39 +512,17 @@ test("@native native Screenshots to the model: a change applies to the next mode
   await expectSentAs(panel.page, "Sent as text only");
 });
 
-test("@native native Screenshots viewer: Open S1 shows the same label and the toggle's tooltip ends with the active setting", async ({
-  openPanel,
-  control,
-}) => {
-  const panel = await openPanel({ auto: "on", start: SESSION.never });
-  await captureOnce(panel, control, vision(PROSE));
-  const toggle = panel.page.getByRole("button", {
-    name: /^Screenshots \(\d+\)$/,
-  });
-  await expect(toggle).toHaveAttribute(
-    "title",
-    /Screenshots to the model: Never$/,
-  );
-  await expectSentAs(panel.page, "Sent as text only");
-  await panel.page.getByRole("button", { name: /^Open S\d+$/ }).click();
-  const viewer = panel.page.getByTestId("image-viewer");
-  await expect(viewer.getByTestId("viewer-sent-as")).toHaveText(
-    "Sent as text only",
-  );
-});
-
-// The web Live page in Manual: the shared screen is read by the page's own
+// The web Live page: the staged screen is read by the page's own
 // Tesseract (no metrics), so the gate never trusts it to drop the image.
 for (const setting of ["always", "text-only-when-text", "never"] as const) {
-  test(`web Screenshots to the model, ${setting}: Capture & analyze then Apply sends ${setting === "never" ? "no image" : "the image"} and the thumbnail says what the server recorded`, async ({
+  test(`web Screenshots to the model, ${setting}: Add screenshot then Apply sends ${setting === "never" ? "no image" : "the image"} and the thumbnail says what the server recorded`, async ({
     page,
     live,
     control,
   }) => {
     const { id } = await startSessionViaApi({ screenshotSend: setting });
     await page.goto(`${live.livePath()}/${id}`);
-    await live.useManual();
-    await live.captureNewTask();
+    await live.stageScreenshot();
     await expect(live.apply()).toBeEnabled();
     await live.apply().click();
     await expect.poll(async () => (await control.calls()).length).toBe(1);

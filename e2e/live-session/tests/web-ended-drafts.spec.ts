@@ -23,7 +23,6 @@ test("web ended Copy Answer draft: the clipboard holds the published answer draf
   await control.scenario("plain-answer");
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   await say(
     started.response.credential.value,
     "What is a closure in JavaScript?",
@@ -49,7 +48,6 @@ test("web ended Open Workspace draft: the code draft opens at its Workspace rout
   await control.scenario("coding-answer");
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   await say(
     started.response.credential.value,
     "How would you implement a sliding window rate limiter?",

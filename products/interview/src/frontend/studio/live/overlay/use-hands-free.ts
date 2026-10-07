@@ -1,15 +1,13 @@
-// The hands-free controller: everything the overlay card and the Studio live
-// view's hands-free band share, written once. It owns the screen share, the
+// The hands-free controller: what the Studio web page's screenshots area and
+// missing-context actions use, written once. It owns the screen share, the
 // owner's capture prefs, hands-free Auto (listening and watching), the capture
 // and follow-up actions and the lines they leave. It renders nothing.
 //
 // [SAFETY] Exactly ONE document owns the microphone, the screen and Auto, across
-// the Studio view, the card, the Picture-in-Picture window and the panels: a Web
-// Lock (panels/panel-owner.ts) that every one of them asks for. A document that
-// does not own mirrors the owner's state over the panel bus and asks it to act
+// the Studio view and the native panels: a Web Lock (panels/panel-owner.ts)
+// that every one of them asks for. A document that does not own mirrors the owner's state over the panel bus and asks it to act
 // there; it never listens or watches itself. A document runs ONE controller:
-// the Studio shell provides it (hands-free-context.tsx) and the card inside the
-// page reuses it.
+// the Studio shell provides it (hands-free-context.tsx).
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureRequestSupport } from "../companion-capability";
@@ -604,14 +602,6 @@ export function useHandsFree(kind: OwnerKind) {
     if (ownsRef.current) captureRef.current();
   });
 
-  // The cards showing this controller: while one is up it hosts the dialogs and
-  // the capture menu, so the band does not show a second copy.
-  const [cards, setCards] = useState(0);
-  const attachCard = useCallback(() => {
-    setCards((count) => count + 1);
-    return () => setCards((count) => count - 1);
-  }, []);
-
   return {
     snapshot,
     actions,
@@ -674,8 +664,6 @@ export function useHandsFree(kind: OwnerKind) {
     stopAnalysis,
     startSharing,
     send,
-    cardAttached: cards > 0,
-    attachCard,
     hints,
   };
 }

@@ -57,10 +57,6 @@ async function manualSurface(
   if (kind === "web") {
     page = fixtures.live.page;
     await fixtures.live.goto();
-    await fixtures.live.useManual();
-    // Share once so every Add screenshot press is a plain capture.
-    if (options.start?.processingPolicy !== "device-only")
-      await fixtures.live.shareScreen();
   } else {
     ({ page } = await fixtures.openPanel({
       auto: "off",
@@ -165,16 +161,16 @@ for (const kind of ["web", "native"] as const) {
     // Auto: closed by default (the minimised strip), opened by the icon.
     await page.getByTestId("discard-screenshots").click();
     await expect(staged(page)).toHaveCount(0);
-    if (kind === "web") await live.autoMode().click();
-    else {
+    // The web page has no Auto switch (the native app owns capture modes).
+    if (kind === "native") {
       await page.getByRole("button", { name: /^Capture mode:/ }).click();
       await page.getByRole("menuitemradio", { name: /^Auto / }).click();
+      await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
+      await expect(area(page)).toBeHidden();
+      await toggle(page).click();
+      await expect(area(page)).toBeVisible();
+      await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
     }
-    await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(area(page)).toBeHidden();
-    await toggle(page).click();
-    await expect(area(page)).toBeVisible();
-    await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
     // The model was never involved in any of this.
     expect((await control.calls()).length).toBe(1);
   });

@@ -41,161 +41,11 @@ const revisionsOf = (
 
 // ---- web ------------------------------------------------------------------
 
-test("web missing context: a capture the model could not fully read shows what is missing and the three ways to answer it", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("missing-context");
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toBeVisible();
-
-  await expectStrip(page);
-  for (const name of [
-    "Add another screenshot",
-    "Add context",
-    "Looks complete",
-  ])
-    await expect(action(page, name)).toBeEnabled();
-  // The note is the model's, per task: a plain answer shows no strip.
-  await control.scenario("plain-answer");
-  await live.followUp().fill("Here is the missing detail.");
-  await live.sendFollowUp().click();
-  await expect(live.task(1)).toContainText("rev 2 of 2");
-  await expect(strip(page)).toHaveCount(0);
-});
-
-test("web missing context Add context: focuses the follow-up box for the task on show", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("missing-context");
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toBeVisible();
-  await expectStrip(page);
-  await expect(live.followUp()).not.toBeFocused();
-
-  await action(page, "Add context").click();
-
-  await expect(live.followUp()).toBeFocused();
-  // Nothing was sent by pressing it.
-  await settled(started.id, 1);
-  expect((await db.actions(started.id)).length).toBeGreaterThan(0);
-  expect(
-    new Set((await db.actions(started.id)).map((a) => a.task_revision)),
-  ).toEqual(new Set([1]));
-});
-
-test("web missing context Add another screenshot: stages a capture for the task on show, and Apply makes revision 2 of that same task with both images", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("missing-context");
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toBeVisible();
-  await expectStrip(page);
-  const first = await settled(started.id, 1);
-  const taskId = taskIdsOf(first)[0] as string;
-  const callsBefore = (await control.calls()).length;
-  await control.scenario("plain-answer");
-
-  await action(page, "Add another screenshot").click();
-
-  // T17b: it is staged on the device, marked not sent, nothing reaches the model.
-  await expect(live.staged(1)).toContainText("Not sent yet");
-  expect((await control.calls()).length).toBe(callsBefore);
-  expect(revisionsOf(await db.actions(started.id), taskId)).toEqual([1]);
-
-  await live.apply().click();
-  await expect
-    .poll(async () => revisionsOf(await db.actions(started.id), taskId))
-    .toContain(2);
-  expect(taskIdsOf(await db.actions(started.id))).toEqual([taskId]);
-  await expect
-    .poll(async () => (await control.calls()).length)
-    .toBeGreaterThan(callsBefore);
-  const calls = await control.calls();
-  expect(calls[callsBefore]).toMatchObject({ revision: 2, images: 2 });
-  // The new revision answered, so the strip is gone.
-  await expect(live.task(1)).toContainText("rev 2 of 2");
-  await expect(strip(page)).toHaveCount(0);
-});
-
-test("web missing context Looks complete: hides the strip for that revision, keeps it hidden after a reload, and a later revision that is missing again shows it again", async ({
-  live,
-  control,
-  page,
-}) => {
-  await control.scenario("missing-context");
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  await live.captureNewTask();
-  await expect(live.task(1)).toBeVisible();
-  await expectStrip(page);
-
-  await action(page, "Looks complete").click();
-  await expect(strip(page)).toHaveCount(0);
-
-  await page.reload();
-  await expect(live.task(1)).toBeVisible();
-  await expect(strip(page)).toHaveCount(0);
-
-  // A follow-up whose answer is missing context again is a new revision: the
-  // dismissal was for the old one, so the strip returns.
-  await live.followUp().fill("One more detail.");
-  await live.sendFollowUp().click();
-  await expect(live.task(1)).toContainText("rev 2 of 2");
-  await expectStrip(page);
-});
-
-test("web missing context with an earlier task on show: the strip is that task's and a follow-up revises it, not the newest", async ({
-  live,
-  control,
-  page,
-}) => {
-  const started = await startSessionViaApi();
-  await page.goto(`${live.livePath()}/${started.id}`);
-  await live.useManual();
-  const credential = started.response.credential.value;
-  await control.scenario("missing-context", { once: true });
-  await say(credential, QUESTION);
-  await expect(live.task(1)).toBeVisible();
-  await settled(started.id, 1);
-  await control.scenario("plain-answer");
-  await say(credential, SECOND);
-  await expect(live.task(2)).toBeVisible();
-  const both = await settled(started.id, 2);
-  const [earlier, newest] = taskIdsOf(both) as [string, string];
-  await expect(strip(page)).toHaveCount(0);
-
-  await live.chip(1).click();
-  await expectStrip(page);
-  await live.followUp().fill("The constraint is N up to 1000.");
-  await live.sendFollowUp().click();
-
-  await expect
-    .poll(async () => revisionsOf(await db.actions(started.id), earlier))
-    .toContain(2);
-  expect(revisionsOf(await db.actions(started.id), newest)).toEqual([1]);
-});
-
 for (const [scenario, flag] of [
   ["withheld-preference", "pay, notice or availability"],
   ["withheld-figure", "a number in the draft isn't in your experience"],
 ] as const) {
-  test(`web withheld draft (${scenario}): says it was withheld in fixed words, shows no strip, and a follow-up recovers a shown answer`, async ({
+  test(`web withheld draft (${scenario}): says it was withheld in fixed words, shows no strip`, async ({
     live,
     control,
     page,
@@ -203,7 +53,6 @@ for (const [scenario, flag] of [
     await control.scenario(scenario);
     const started = await startSessionViaApi();
     await page.goto(`${live.livePath()}/${started.id}`);
-    await live.useManual();
     await say(started.response.credential.value, QUESTION);
     const notice = page.getByTestId("run-notice").first();
     await expect(notice).toContainText("Draft withheld.");
@@ -211,19 +60,6 @@ for (const [scenario, flag] of [
     await expect(strip(page)).toHaveCount(0);
     const [withheld] = await settled(started.id, 1);
     expect(withheld).toMatchObject({ shown: false });
-
-    // Recovery: the person adds context; the next revision is shown.
-    await control.scenario("plain-answer");
-    await live.followUp().fill("Please add a short example.");
-    await live.sendFollowUp().click();
-    await expect(live.task(1)).toContainText(SCRIPTED.plain);
-    await expect
-      .poll(async () =>
-        (await db.actions(started.id)).some(
-          (a) => a.task_revision === 2 && a.shown,
-        ),
-      )
-      .toBe(true);
   });
 }
 

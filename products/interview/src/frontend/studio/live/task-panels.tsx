@@ -93,7 +93,7 @@ const IDLE: Partial<Record<ActivityKey, Idle>> = {
 };
 
 // What the session is waiting for, in words (the idle title and detail).
-export function idleCopy(key: ActivityKey): Idle | null {
+function idleCopy(key: ActivityKey): Idle | null {
   return IDLE[key] ?? IDLE["idle"] ?? null;
 }
 

@@ -37,6 +37,31 @@ export const retiredUi = {
     `${PANELS}/screen-picker`,
     `${PANELS}/screen-picker.css`,
     `${PANELS}/follow-latest`,
+    // The web overlay card and the Document Picture-in-Picture float (ADR-0033):
+    // the native app is the only live-session surface.
+    ...[
+      "overlay-card",
+      "chat-log",
+      "command-bar",
+      "hands-free-controls",
+      "companion-setup",
+      "device-only-notice",
+      "auto-status",
+      "mask-editor",
+      "session-switcher",
+      "settings-popover",
+      "source-popover",
+      "listening-hint",
+      "overlay-shortcuts",
+      "card-position",
+      "local-preview",
+      "menu-placement",
+      "overlay-capture",
+      "overlay-task",
+    ].map((name) => `${OVERLAY}/${name}`),
+    ...["card-host", "float-host", "pip-document", "float-access"].map(
+      (name) => `${FRONTEND}/studio/live/${name}`,
+    ),
   ],
   // Class families that no string, template or clsx/cn argument may contain and
   // no stylesheet may select. Filled from the track reports.
@@ -49,6 +74,47 @@ export const retiredUi = {
     "ov-footer",
     "ov-confirm",
     "ov-clock",
+    // The overlay card's styles (ov-status, the footer's idle text, stays).
+    "ov-card",
+    "ov-head*",
+    "ov-menu*",
+    "ov-band*",
+    "ov-capture*",
+    "ov-sheet*",
+    "ov-switcher*",
+    "ov-slot*",
+    "ov-disclosure*",
+    "ov-rev*",
+    "ov-link",
+    "ov-root",
+    "ov-followup",
+    "ov-input",
+    "ov-send",
+    "ov-chat*",
+    "ov-solution*",
+    "ov-stage*",
+    "ov-task*",
+    "ov-auto*",
+    "ov-popover*",
+    "ov-pill*",
+    "ov-block*",
+    "ov-approach*",
+    "ov-companion*",
+    "ov-source*",
+    "ov-columns",
+    "ov-spinner",
+    "ov-dot",
+    "ov-modal*",
+    "ov-thumb*",
+    "ov-region*",
+    "ov-preset*",
+    "ov-mic",
+    "ov-meter",
+    "ov-kbd",
+    "ov-idle*",
+    "ov-ended*",
+    "ov-listening",
+    "ov-flash",
   ] as ClassFamily[],
   // CSS custom properties that no stylesheet may define or read: the old
   // button roles of ui/tokens.css (the library paints with --oui-*).
@@ -117,31 +183,6 @@ export interface Scan {
   strings: StringSite[];
   files: string[];
 }
-
-/**
- * The web overlay surface the owner decided to delete (the Document
- * Picture-in-Picture float and the in-tab overlay card). It is excluded from
- * the raw-primitive counts and from the orphaned-CSS pass, not ported.
- */
-export const SCHEDULED_FOR_DELETION = "scheduled for deletion (owner decision)";
-export const scheduledForDeletion: readonly string[] = [
-  "overlay-card",
-  "chat-log",
-  "command-bar",
-  "overlay-capture",
-  "overlay-task",
-  "hands-free-controls",
-  "companion-setup",
-  "device-only-notice",
-  "auto-status",
-  "mask-editor",
-  "session-switcher",
-  "settings-popover",
-  "source-popover",
-  "overlay-page",
-  "listening-hint",
-  "local-preview",
-].map((name) => `${OVERLAY}/${name}.tsx`);
 
 const isTest = (path: string) => /\.test\.tsx?$/.test(path);
 
@@ -386,8 +427,7 @@ export function scanFrontend(): Scan {
 
 export const isSwappedSurface = (path: string) =>
   !isTest(path) &&
-  !scheduledForDeletion.includes(path) &&
-  !/-kit\.|-fixtures?\./.test(path) &&
+  !/-kit\.|-probe\.|-fixtures?\./.test(path) &&
   swappedSurfaces.some((prefix) => path.startsWith(prefix));
 
 const STUDIO_WEB =
@@ -431,16 +471,10 @@ export const rawAllowList: readonly AllowEntry[] = [
     reason: `The strip's stop action (pn-mini-button) and a chip button. ${NATIVE_PANEL_OPEN}`,
   },
   {
-    file: `${OVERLAY}/overlay-footer.tsx`,
-    max: { button: 1, input: 1 },
-    reason:
-      "Footer and failureNote are imported by the native panels (start-panel, single-panel, mini-player, use-panel-session, window-dots); the follow-up input and send button here are the legacy card's. Re-check after the card is deleted.",
-  },
-  {
     file: `${OVERLAY}/code-canvas.tsx`,
     max: { button: 9 },
     reason:
-      "Live code canvas used by Studio's coding-panel (web live page) and by the overlay card; not reachable from the native window.",
+      "Live code canvas used by Studio's coding-panel (web live page); not reachable from the native window.",
   },
   {
     file: `${FRONTEND}/studio/live/`,
@@ -573,10 +607,7 @@ export function judgeRaw(
 // ---------------------------------------------------------------------------
 // CSS: selectors and variables
 
-// overlay.css belongs wholly to the overlay card/PiP surface scheduled for
-// deletion, so it is outside this pass.
-export const cssFiles = (): string[] =>
-  walk(FRONTEND, /\.css$/).filter((path) => path !== `${OVERLAY}/overlay.css`);
+export const cssFiles = (): string[] => walk(FRONTEND, /\.css$/);
 
 export interface Selector {
   file: string;

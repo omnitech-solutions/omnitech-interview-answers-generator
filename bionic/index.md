@@ -1,6 +1,6 @@
 # docs/omnitech-interview-answers-generator
 
-_Last updated: 2026-10-05_
+_Last updated: 2026-10-06_
 
 **Start here:** [[research/concepts/architecture-overview]] — how the system fits together and where package boundaries lie.
 
@@ -33,10 +33,11 @@ See [[research/index]].
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ui-components]] — one config-driven component set: variants, sizes, states, design tokens, rules — sources: 0 — `last_reviewed: 2026-10-06`
 
-## ADRs (33)
+## ADRs (34)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0033-remove-document-picture-in-picture-and-the-in-tab]] | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 |
 | [[adrs/ADR-0032-keep-the-toolbar-capture-a-one-shot-analysis-and-s]] | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 |
 | [[adrs/ADR-0031-send-baseline-security-headers-now-and-defer-a-con]] | Send baseline security headers now and defer a Content-Security-Policy | Proposed | 2026-10-05 |
 | [[adrs/ADR-0030-keep-prompt-and-parse-json-in-the-provider-neutral]] | Keep prompt-and-parse JSON in the provider-neutral direct Anthropic adapter | Proposed | 2026-10-05 |

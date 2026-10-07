@@ -95,19 +95,16 @@ describe("the native-host stylesheet", () => {
     expect(text).toMatch(/\[data-panel-host="native"\] body/);
     expect(text).toMatch(/\.pn-root[\s\S]*background: transparent/);
   });
-  it("keeps the tint light enough to see through, with text kept legible by shadow and lifted muted text", () => {
-    const tint = [
-      ...css.matchAll(
-        /:root\[data-panel-host="native"\] \.ov-root \{\s*--ov-a: ([0-9.]+);/g,
-      ),
-    ].map((m) => Number(m[1]));
-    expect(tint.length).toBeGreaterThan(0);
-    // The user asked for genuinely see-through windows: a light tint, with legibility from the text shadow.
-    for (const value of tint) expect(value).toBeLessThan(0.5);
-    expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.5/);
+  it("keeps text legible by shadow and lifts muted text on the translucent panels", () => {
+    expect(css).toMatch(/text-shadow: 0 1px 2px rgba\(0, 0, 0, 0\.55/);
     expect(css).toMatch(/--ov-muted: rgba\(255, 255, 255, 0\.84\)/);
   });
-  it("leaves the plain tab appearance on the unconditional rules", () => {
-    expect(css).toMatch(/\.ov-root \{[^}]*background: #14141a/);
+  it("leaves the plain tab appearance alone: every translucent rule is native-only", () => {
+    const overlay = readFileSync(here("overlay.css"), "utf8");
+    const selectors = [...overlay.matchAll(/([^{}]+)\{/g)].map((m) =>
+      (m[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "").trim(),
+    );
+    for (const selector of selectors)
+      expect(selector, selector).toContain('[data-panel-host="native"]');
   });
 });

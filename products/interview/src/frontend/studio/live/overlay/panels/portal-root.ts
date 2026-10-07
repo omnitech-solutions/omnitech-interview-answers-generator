@@ -4,9 +4,7 @@
 // carry `data-oui-surface`, which the hit regions already list.
 import { useCallback, useState } from "react";
 
-// The native panels, or the web card's own root (which may live in the
-// Picture-in-Picture window, whose document is not the global one).
-const PANEL_ROOT = ".pn-root, .ov-root";
+const PANEL_ROOT = ".pn-root";
 
 // Pass `ref` to the trigger element; `container` is the closest panel root, or
 // undefined (the library then uses document.body) outside the native panels.

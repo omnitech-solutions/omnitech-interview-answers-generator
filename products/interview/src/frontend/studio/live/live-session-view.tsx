@@ -149,8 +149,8 @@ export function LiveSessionBody({
   // The credential panel is revealed by an explicit action, never by default.
   const [pairingOpen, setPairingOpen] = useState(initialPairing);
   // null follows the newest task; an id pins an earlier one. The pin is the
-  // presentation's, shared with the card and the follow-up box, so a follow-up
-  // or an added screenshot goes to the task on show.
+  // presentation's, shared with the native panels, so an added screenshot goes
+  // to the task on show.
   const { pinnedTaskId: pinned, revisionPicks } = usePresentation();
   const setPinned = presentation.pin;
   const [toast, setToast] = useState("");

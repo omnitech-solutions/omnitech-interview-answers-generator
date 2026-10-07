@@ -116,12 +116,6 @@ const ALLOWED: readonly Allowed[] = [
   ["screenshots.css", ".ss-crop-handle", "background", "A white drag handle."],
   [
     "overlay.css",
-    ".ov-root",
-    "background",
-    "The portal root's plain-tab backdrop; a native shell makes it transparent.",
-  ],
-  [
-    "overlay.css",
     ':root[data-panel-host="native"] .lc-canvas',
     "backdrop-filter",
     "The Live Canvas window, not a panel root.",

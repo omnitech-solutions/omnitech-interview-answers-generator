@@ -1051,12 +1051,6 @@
   background-image: linear-gradient(var(--pn-min-tint), var(--pn-min-tint));
   box-shadow: inset 0 0 0 1px var(--pn-hair);
 }
-/* The revisions popover is drawn by overlay.css with the card fill; in clear
-   glass it takes the menu fill (the legibility floor for popovers). */
-.pn-root[data-glass="clear"] .ov-rev-menu {
-  background: var(--pn-glass-menu);
-}
-
 /* ---- Window dots' popups, the Mini player and Full screen ---- */
 .pn-quit {
   display: flex;

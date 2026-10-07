@@ -2,6 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 | — (amends ADR-0017) | — | active-session, overlay, pip, native, live-ui |
 | ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 | — (amends ADR-0018) | — | active-session, capture, toolbar, live-ui |
 | ADR-0031 | Send baseline security headers now and defer a Content-Security-Policy | Proposed | 2026-10-05 | — | — | security, nextjs, headers, csp |
 | ADR-0030 | Keep prompt-and-parse JSON in the provider-neutral direct Anthropic adapter | Proposed | 2026-10-05 | — | — | ai, anthropic, adapters, structured-output |

@@ -179,7 +179,7 @@ export type CaptureRequestSupport = {
   line: string;
 };
 
-export const CAPTURE_UPDATE_LINE =
+const CAPTURE_UPDATE_LINE =
   "This companion build can’t take capture requests. Update the companion to capture from here.";
 
 export function captureRequestSupport(

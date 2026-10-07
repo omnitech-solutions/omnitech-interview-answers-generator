@@ -37,7 +37,6 @@ test("web code canvas: the file tabs show the scripted solution, usage and tests
   await control.scenario("coding-answer");
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   await say(started.response.credential.value, CODING_QUESTION);
   await expect(live.task(1)).toBeVisible();
   await expect
@@ -134,7 +133,6 @@ test("web code canvas Run: the code as edited goes to the real runner and its re
   await control.scenario("coding-answer");
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   await say(started.response.credential.value, CODING_QUESTION);
   await expect(live.task(1)).toBeVisible();
   await expect
@@ -162,7 +160,6 @@ test("web code canvas Open in Workspace: the Code view's button opens this task'
   await control.scenario("coding-answer");
   const started = await startSessionViaApi();
   await live.goto();
-  await live.useManual();
   await say(started.response.credential.value, CODING_QUESTION);
   await expect(live.task(1)).toBeVisible();
   await expect
