@@ -117,6 +117,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
       items={s.missing ?? []}
       variant="native"
       unavailable={missingUnavailable(s)}
+      onContext={(text) => s.send(text)}
       onAction={(id) => {
         if (id === "screenshot") s.press("attach");
         else if (id === "context")

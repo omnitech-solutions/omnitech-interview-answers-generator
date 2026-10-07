@@ -6,8 +6,9 @@
 // Supplying context REVISES the same task: the screenshot or typed text goes to
 // the task on show at its current revision. "Looks complete" only hides the
 // strip for that revision (see use-missing-context.ts).
-import { Button } from "@oc-tech/omni-ui-components";
+import { Button, Input } from "@oc-tech/omni-ui-components";
 import type { LiveMissingContext } from "@omnitech/interview-contracts";
+import { useState } from "react";
 
 type Kind = LiveMissingContext[number]["kind"];
 
@@ -49,16 +50,35 @@ export function MissingContextStrip({
   items,
   variant,
   onAction,
+  onContext,
   unavailable = {},
 }: {
   items: LiveMissingContext;
   variant: keyof typeof VARIANT;
   onAction(id: MissingContextActionId): void;
+  // Given, "Add context" opens a field right here and sends the text to the
+  // task on show (a revision of it), instead of moving to the composer.
+  onContext?: (text: string) => Promise<unknown> | void;
   // An action that cannot run now, with the reason in words. It stays visible
   // and disabled so the person is told why, never a button that does nothing.
   unavailable?: Partial<Record<MissingContextActionId, string>>;
 }) {
   const look = VARIANT[variant];
+  const [writing, setWriting] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const submit = async () => {
+    const trimmed = text.trim();
+    if (!onContext || trimmed === "" || sending) return;
+    setSending(true);
+    try {
+      await onContext(trimmed);
+      setText("");
+      setWriting(false);
+    } finally {
+      setSending(false);
+    }
+  };
   const reasons = MISSING_CONTEXT_ACTIONS.flatMap((action) => {
     const reason = unavailable[action.id];
     return reason ? [{ id: action.id, reason }] : [];
@@ -92,12 +112,42 @@ export function MissingContextStrip({
             className={look.button}
             data-action={action.id}
             disabled={unavailable[action.id] !== undefined}
-            onClick={() => onAction(action.id)}
+            onClick={() =>
+              action.id === "context" && onContext
+                ? setWriting(true)
+                : onAction(action.id)
+            }
           >
             {action.label}
           </Button>
         ))}
       </div>
+      {writing && onContext && (
+        <form
+          className={look.actions}
+          data-testid="missing-context-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          <Input
+            aria-label="Context for this problem"
+            placeholder="What the AI should know about this problem"
+            value={text}
+            onChange={setText}
+            disabled={sending}
+            autoFocus
+          />
+          <Button
+            buttonSize="sm"
+            type="submit"
+            disabled={sending || text.trim() === ""}
+          >
+            Send
+          </Button>
+        </form>
+      )}
       {reasons.map(({ id, reason }) => (
         <p
           key={id}
