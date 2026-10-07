@@ -320,6 +320,20 @@ export function engineNeeds(view: EngineView): string | null {
   return null;
 }
 
+// What the status strip says of the engine: engineNeeds without the lost
+// microphone, which the toolbar's microphone says itself (an amber "!" badge and
+// "Trying again" in its menu), so there is no second banner for it.
+export function engineStripNeeds(view: EngineView): string | null {
+  const needs = engineNeeds(view);
+  const state = view.state;
+  const onlyLost =
+    view.refused === null &&
+    state !== null &&
+    !state.hint &&
+    state.sources.microphone === "lost";
+  return onlyLost ? null : needs;
+}
+
 // The microphone press: the engine when it is the listener's owner (present,
 // Auto on: including a refused engine, whose press starts it again), else the
 // browser's dictation (Manual, unchanged). Never both.

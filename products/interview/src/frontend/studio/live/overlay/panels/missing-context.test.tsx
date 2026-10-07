@@ -130,7 +130,9 @@ describe("the Mini player", () => {
     };
     await open();
     fireEvent.keyDown(screen.getByTestId("pn-dot-size"), { key: "ArrowDown" });
-    fireEvent.click(screen.getByTestId("pn-size-mini"));
+    fireEvent.click(
+      screen.getByRole("menuitemradio", { name: /^Mini player/ }),
+    );
     expect(screen.getByTestId("pn-mini-missing")).toHaveTextContent(
       "2 things may be missing",
     );

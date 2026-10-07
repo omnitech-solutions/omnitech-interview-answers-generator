@@ -7,10 +7,12 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
 import { noteSource, resetCaptureSource } from "../../host-display";
+import { resetScreenProblems } from "../../screen-problems";
 import {
   configureSessionStores,
   resetSessionStores,
@@ -29,6 +31,7 @@ import {
 import { OverlayPage } from "../overlay-page";
 import { resetCommandClaims } from "./commands";
 import { PIN_DROPPED_NOTE } from "./display-picker-model";
+import { keyOpen, pointerOpen, tipOf } from "./toolbar-test-kit";
 
 const live = (extra = {}) =>
   sessionView({ processingPolicy: "permitted-remote", ...extra });
@@ -131,11 +134,24 @@ const previewCalls = (fn: { mock: { calls: unknown[][] } }) =>
   }).length;
 
 const capture = () => screen.getByRole("button", { name: "Analyze screen" });
+// The caret of the capture control: the screen menu's trigger.
 const button = () => screen.getByRole("button", { name: /^Screen to capture/ });
 const open = async () => {
-  fireEvent.click(button());
+  pointerOpen(button());
   await flush();
 };
+// The Display rows of the capture menu (the mode rows are the first two).
+const displayRows = () =>
+  screen
+    .getAllByRole("menuitemradio")
+    .filter(
+      (row) =>
+        !/^(Manual|Auto)/.test(row.textContent ?? "") &&
+        row.getAttribute("aria-disabled") !== "true",
+    );
+const MENU = { name: /^Screen to capture/ };
+const CAPTURE_TIP =
+  /^(Auto|Manual): Capture the screen and analyse it as a new problem: /;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -144,6 +160,7 @@ beforeEach(() => {
   resetSessionStores();
   presentation.reset();
   resetCommandClaims();
+  resetScreenProblems();
   resetCaptureSource();
   serve();
 });
@@ -156,22 +173,26 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("the screen button", () => {
-  it("is absent without display-selection", async () => {
+describe("the screen caret", () => {
+  it("is absent without display-selection: the caret is only Capture options", async () => {
     host({ selection: false });
     await show();
-    expect(screen.queryByTestId("pn-screen")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Screen to capture/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Capture options" }),
+    ).toBeVisible();
   });
 
-  it("is a named round button whose tooltip is the current choice", async () => {
+  it("is named by the current choice and its tooltip says it", async () => {
     host();
     await show();
-    expect(button()).toHaveAttribute(
-      "title",
+    expect(button()).toHaveAccessibleName(
       "Screen to capture: Following your browser",
     );
+    expect(tipOf(button())).toBe("Screen to capture: Following your browser");
     expect(button()).toHaveAttribute("aria-haspopup", "menu");
-    expect(screen.queryByTestId("pn-pin-dot")).toBeNull();
   });
 
   it("takes no thumbnails while the menu is closed: one pin read on mount, nothing after", async () => {
@@ -199,15 +220,10 @@ describe("the screen button", () => {
       }),
     });
     await show();
-    expect(button()).toHaveAttribute(
-      "title",
+    expect(button()).toHaveAccessibleName(
       "Screen to capture: Pinned: Display 2 of 2",
     );
-    expect(screen.getByTestId("pn-pin-dot")).toBeInTheDocument();
-    expect(capture()).toHaveAttribute(
-      "title",
-      expect.stringContaining("Display 2 of 2 (pinned)"),
-    );
+    expect(tipOf(capture())).toContain("Display 2 of 2 (pinned)");
   });
 
   it("says once that a saved pin's display is gone", async () => {
@@ -227,26 +243,30 @@ describe("the screen button", () => {
     });
     await show();
     expect(screen.getAllByText(PIN_DROPPED_NOTE)).toHaveLength(1);
-    expect(screen.queryByTestId("pn-pin-dot")).toBeNull();
+    expect(button()).toHaveAccessibleName(
+      "Screen to capture: Following your browser",
+    );
   });
 });
 
 describe("the menu", () => {
-  it("lists Follow my browser, then each display with its thumbnail as an image named by the display", async () => {
+  it("lists When to analyse, then Follow my browser and each display by name and position (no thumbnails)", async () => {
     host();
     await show();
     await open();
-    const items = screen.getAllByRole("menuitemradio");
+    const menu = screen.getByRole("menu", MENU);
     expect(
-      items.map((item) => item.getAttribute("aria-label") ?? item.textContent),
-    ).toEqual([
+      within(menu).getByRole("group", { name: "When to analyse" }),
+    ).toBeVisible();
+    const rows = displayRows();
+    expect(rows.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Follow my browser"),
-      "Built-in Retina, 1 of 2",
-      "DELL U2720Q, 2 of 2",
+      "Built-in Retina1 of 2",
+      "DELL U2720Q2 of 2",
     ]);
-    expect(items[0]).toHaveAttribute("aria-checked", "true");
-    const image = screen.getByRole("img", { name: "DELL U2720Q" });
-    expect(image).toHaveAttribute("src", `data:image/jpeg;base64,${JPEG}`);
+    expect(rows[0]).toHaveAttribute("aria-checked", "true");
+    expect(within(menu).getByRole("group", { name: "Display" })).toBeVisible();
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("is drawn inside the panel root as a hit-tested surface", async () => {
@@ -267,12 +287,12 @@ describe("the menu", () => {
     expect(previewCalls(bridge.listDisplays)).toBe(1);
     await act(() => vi.advanceTimersByTimeAsync(200));
     expect(previewCalls(bridge.listDisplays)).toBe(2);
-    fireEvent.keyDown(screen.getByRole("menu", { name: "Screen to capture" }), {
+    fireEvent.keyDown(screen.getByRole("menu", MENU), {
       key: "Escape",
     });
     await act(() => vi.advanceTimersByTimeAsync(10_000));
     expect(previewCalls(bridge.listDisplays)).toBe(2);
-    expect(screen.queryByRole("img", { name: "DELL U2720Q" })).toBeNull();
+    expect(screen.queryByText(/DELL U2720Q/)).toBeNull();
   });
 
   it("ignores a response that arrives after the menu closed", async () => {
@@ -290,7 +310,7 @@ describe("the menu", () => {
     await act(async () => finish({ ok: true, displays: [preview(d1)] }));
     await act(() => vi.advanceTimersByTimeAsync(5000));
     expect(previewCalls(bridge.listDisplays)).toBe(1);
-    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByText(/Built-in Retina/)).toBeNull();
   });
 
   it.each([
@@ -306,7 +326,7 @@ describe("the menu", () => {
     await open();
     expect(screen.getByText(text, { exact: false })).toBeVisible();
     if (help) expect(screen.getByText(help)).toBeVisible();
-    expect(screen.getAllByRole("menuitemradio")).toHaveLength(1);
+    expect(displayRows()).toHaveLength(1);
   });
 
   it("says when there are no displays", async () => {
@@ -328,125 +348,104 @@ describe("the menu", () => {
     await show();
     await open();
     expect(screen.getByText("Could not read the displays")).toBeVisible();
-    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByText(/Built-in Retina/)).toBeNull();
   });
 
-  it("moves with the arrow keys and closes on Escape, returning focus to the button", async () => {
+  it("moves with the arrow keys and closes on Escape, returning focus to the caret", async () => {
     host();
     await show();
-    await open();
-    const items = screen.getAllByRole("menuitemradio");
-    expect(items[0]).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
-    expect(items[1]).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    keyOpen(button());
+    await flush();
+    const modes = screen.getAllByRole("menuitemradio");
+    expect(modes[0]).toHaveFocus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, {
+      key: "ArrowDown",
+    });
+    await flush();
+    expect(modes[1]).toHaveFocus();
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
+    await flush();
     expect(screen.queryByRole("menu")).toBeNull();
     expect(button()).toHaveFocus();
   });
 });
 
 describe("one split control: capture, with the screen target attached", () => {
-  it("is one capture button and its chevron, and no separate screen icon", async () => {
+  it("is one capture button and its caret, and no separate screen icon", async () => {
     host();
     await show();
     expect(
       screen.getAllByRole("button", { name: "Analyze screen" }),
     ).toHaveLength(1);
-    // The chevron is inside the same group as the capture button.
-    expect(button().closest(".pn-split")).toBe(capture().closest(".pn-split"));
-    expect(button().querySelector(".studio-icon")).not.toBeNull();
+    // The caret is inside the same split control as the capture button.
+    expect(button().closest('[data-slot="split-button"]')).toBe(
+      capture().closest('[data-slot="split-button"]'),
+    );
+    expect(button().querySelector("svg")).not.toBeNull();
     expect(
       screen.queryByRole("button", { name: "Built-in Retina Display" }),
     ).toBeNull();
   });
 
-  it("says in the capture tooltip what it does, the target and the key", async () => {
+  it("says in the capture tooltip the mode, what it does, the target and the key", async () => {
     host();
     await show();
-    expect(capture()).toHaveAttribute(
-      "title",
-      "Capture the screen and analyse it as a new problem: following your browser, ⌘⇧S",
-    );
+    expect(tipOf(capture())).toMatch(CAPTURE_TIP);
+    expect(tipOf(capture())).toMatch(/following your browser, ⌘⇧S$/);
   });
 
-  it("the capture button names the menu it opens (aria-haspopup, aria-expanded) and Escape from it returns focus to the capture button, from the chevron to the chevron", async () => {
-    host();
-    await show();
-    expect(capture()).toHaveAttribute("aria-haspopup", "menu");
-    expect(capture()).toHaveAttribute("aria-expanded", "false");
-    fireEvent.keyDown(capture(), { key: "ArrowDown" });
-    await flush();
-    expect(capture()).toHaveAttribute("aria-expanded", "true");
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
-    await flush();
-    expect(capture()).toHaveFocus();
-    expect(capture()).toHaveAttribute("aria-expanded", "false");
-    await open();
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
-    await flush();
-    expect(button()).toHaveFocus();
-  });
-
-  it("opens the menu from the chevron, a right-click or ArrowDown on the capture button; a plain click only captures", async () => {
+  it("opens the menu from the caret, a right-click or ArrowDown on the capture button; a plain click only captures; Escape returns focus to the caret", async () => {
     host();
     await show();
     fireEvent.click(capture());
-    expect(
-      screen.queryByRole("menu", { name: "Screen to capture" }),
-    ).toBeNull();
+    expect(screen.queryByRole("menu", MENU)).toBeNull();
     fireEvent.contextMenu(capture());
     await flush();
-    expect(
-      screen.getByRole("menu", { name: "Screen to capture" }),
-    ).toBeVisible();
-    fireEvent.keyDown(screen.getByRole("menu", { name: "Screen to capture" }), {
+    expect(button()).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu", MENU)).toBeVisible();
+    fireEvent.keyDown(screen.getByRole("menu", MENU), {
       key: "Escape",
     });
+    await flush();
     expect(screen.queryByRole("menu")).toBeNull();
+    expect(button()).toHaveAttribute("aria-expanded", "false");
     fireEvent.keyDown(capture(), { key: "ArrowDown" });
     await flush();
-    expect(
-      screen.getByRole("menu", { name: "Screen to capture" }),
-    ).toBeVisible();
+    expect(screen.getByRole("menu", MENU)).toBeVisible();
   });
 
-  it("has no chevron and a plain tooltip where the host cannot choose a screen", async () => {
+  it("has no screen caret, no Display section and a plain tooltip where the host cannot choose a screen", async () => {
     host({ selection: false });
     await show();
-    expect(screen.queryByTestId("pn-screen")).toBeNull();
-    expect(capture()).toHaveAttribute(
-      "title",
-      expect.not.stringContaining("following your browser"),
-    );
+    expect(tipOf(capture())).not.toContain("following your browser");
     fireEvent.contextMenu(capture());
     expect(screen.queryByRole("menu")).toBeNull();
+    pointerOpen(screen.getByRole("button", { name: "Capture options" }));
+    expect(screen.queryByRole("group", { name: "Display" })).toBeNull();
+    expect(
+      screen.getByRole("group", { name: "When to analyse" }),
+    ).toBeVisible();
   });
 });
 
 describe("pinning", () => {
-  it("pins the chosen display, shows the pin dot and the tooltip, and closes", async () => {
+  it("pins the chosen display, names it on the caret and the tooltip, and closes", async () => {
     const bridge = host();
     await show();
     await open();
-    fireEvent.click(
-      screen.getByRole("menuitemradio", { name: "DELL U2720Q, 2 of 2" }),
-    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /DELL U2720Q/ }));
     await flush();
     expect(bridge.setCaptureDisplay).toHaveBeenCalledWith(2);
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(screen.getByTestId("pn-pin-dot")).toBeInTheDocument();
-    expect(button()).toHaveAttribute(
-      "title",
+    expect(button()).toHaveAccessibleName(
       "Screen to capture: Pinned: Display 2 of 2",
     );
+    expect(tipOf(button())).toBe("Screen to capture: Pinned: Display 2 of 2");
     expect(screen.queryByTestId("pn-source")).toBeNull();
-    expect(capture()).toHaveAttribute(
-      "title",
-      "Capture the screen and analyse it as a new problem: Display 2 of 2 (pinned), ⌘⇧S",
-    );
+    expect(tipOf(capture())).toMatch(/Display 2 of 2 \(pinned\), ⌘⇧S$/);
     await open();
     expect(
-      screen.getByRole("menuitemradio", { name: "DELL U2720Q, 2 of 2" }),
+      screen.getByRole("menuitemradio", { name: /DELL U2720Q/ }),
     ).toHaveAttribute("aria-checked", "true");
   });
 
@@ -455,7 +454,7 @@ describe("pinning", () => {
     await show();
     await open();
     fireEvent.click(
-      screen.getByRole("menuitemradio", { name: "Built-in Retina, 1 of 2" }),
+      screen.getByRole("menuitemradio", { name: /Built-in Retina/ }),
     );
     await flush();
     await open();
@@ -464,9 +463,7 @@ describe("pinning", () => {
     );
     await flush();
     expect(bridge.setCaptureDisplay).toHaveBeenLastCalledWith(null);
-    expect(screen.queryByTestId("pn-pin-dot")).toBeNull();
-    expect(button()).toHaveAttribute(
-      "title",
+    expect(button()).toHaveAccessibleName(
       "Screen to capture: Following your browser",
     );
   });
@@ -477,14 +474,15 @@ describe("pinning", () => {
     });
     await show();
     await open();
-    fireEvent.click(
-      screen.getByRole("menuitemradio", { name: "DELL U2720Q, 2 of 2" }),
-    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /DELL U2720Q/ }));
+    await flush();
     await flush();
     expect(screen.getByText(PIN_DROPPED_NOTE)).toBeVisible();
     expect(previewCalls(bridge.listDisplays)).toBe(2);
     expect(screen.getByRole("menu")).toBeVisible();
-    expect(screen.queryByTestId("pn-pin-dot")).toBeNull();
+    expect(button()).toHaveAccessibleName(
+      "Screen to capture: Following your browser",
+    );
   });
 });
 
@@ -493,11 +491,11 @@ describe("pin fallback from a capture or a watch change", () => {
     host();
     await show();
     await open();
-    fireEvent.click(
-      screen.getByRole("menuitemradio", { name: "DELL U2720Q, 2 of 2" }),
-    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: /DELL U2720Q/ }));
     await flush();
-    expect(screen.getByTestId("pn-pin-dot")).toBeInTheDocument();
+    expect(button()).toHaveAccessibleName(
+      "Screen to capture: Pinned: Display 2 of 2",
+    );
     act(() =>
       noteSource({
         kind: "capture",
@@ -508,7 +506,9 @@ describe("pin fallback from a capture or a watch change", () => {
     );
     await flush();
     expect(screen.getAllByText(PIN_DROPPED_NOTE)).toHaveLength(1);
-    expect(screen.queryByTestId("pn-pin-dot")).toBeNull();
+    expect(button()).toHaveAccessibleName(
+      "Screen to capture: Following your browser",
+    );
     // A later capture without a fallback says nothing more.
     act(() => noteSource({ kind: "capture", display: d1, pinned: false }));
     await flush();
@@ -520,10 +520,7 @@ describe("pin fallback from a capture or a watch change", () => {
     await show();
     act(() => noteSource({ kind: "capture", display: d1 }));
     expect(screen.queryByTestId("pn-source")).toBeNull();
-    expect(capture()).toHaveAttribute(
-      "title",
-      expect.stringContaining("following your browser"),
-    );
+    expect(tipOf(capture())).toContain("following your browser");
     act(() => noteSource({ kind: "watch", display: d2 }));
     expect(screen.queryByTestId("pn-source")).toBeNull();
   });
