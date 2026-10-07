@@ -603,10 +603,14 @@ describe("STAR outline (leadership-behavioural)", () => {
     expect(violationsOf(leadership({ star: null }))).toContain("star:required");
   });
 
-  it("refuses a STAR outside the categories that use one", () => {
-    expect(
-      violationsOf(leadership({ category: "technical-concept" })),
-    ).toContain("star:unexpected");
+  it("drops a STAR outside the categories that use one, and publishes the answer", () => {
+    const result = check(
+      leadership({ category: "technical-concept" }),
+      SNAPSHOT,
+      [],
+    );
+    if (!result.ok) throw new Error(result.violations.join(","));
+    expect(result.draft.star).toBeNull();
   });
 
   it("marks an element the experience cannot support as missing, with no invented story", () => {
@@ -628,36 +632,49 @@ describe("STAR outline (leadership-behavioural)", () => {
     ).toContain("star.result:missing_element_has_content");
   });
 
-  it("rejects an element with no matrix-backed claim behind it", () => {
+  // The experience matrix never blocks an answer: an element it cannot stand
+  // behind is marked missing and the rest is published.
+  it("strips an element with no matrix-backed claim behind it, and publishes the rest", () => {
     const interpretation = {
       kind: "suggested-interpretation",
       text: "I would frame the result as a team win.",
       refs: [],
     };
-    const violations = violationsOf(
+    const result = check(
       leadership({
         claims: [migrationClaim, interpretation],
         star: star({ result: element("A team win.", 1) }),
       }),
+      SNAPSHOT,
+      [],
     );
-    expect(violations).toContain("star.result:no_matrix_backed_claim");
+    if (!result.ok) throw new Error(result.violations.join(","));
+    expect(result.draft.star?.missing).toContain("result");
+    expect(result.draft.star?.result).toEqual({ text: "", claimIndexes: [] });
     // An element that cites nothing and is not marked missing is the same.
-    expect(
-      violationsOf(leadership({ star: star({ task: element("Do it.") }) })),
-    ).toContain("star.task:no_matrix_backed_claim");
+    const bare = check(
+      leadership({ star: star({ task: element("Do it.") }) }),
+      SNAPSHOT,
+      [],
+    );
+    if (!bare.ok) throw new Error(bare.violations.join(","));
+    expect(bare.draft.star?.missing).toContain("task");
   });
 
-  it("rejects out-of-range claim indexes and a figure the cited claims do not carry", () => {
+  it("still rejects out-of-range claim indexes, and strips a figure the cited claims do not carry", () => {
     expect(
       violationsOf(leadership({ star: star({ action: element("Led.", 9) }) })),
     ).toContain("star.action.claimIndexes:out_of_range");
-    expect(
-      violationsOf(
-        leadership({
-          star: star({ result: element("Latency fell by 73% overall.", 1) }),
-        }),
-      ),
-    ).toContain("star.result.text:ungrounded_figure");
+    const result = check(
+      leadership({
+        star: star({ result: element("Latency fell by 73% overall.", 1) }),
+      }),
+      SNAPSHOT,
+      [],
+    );
+    if (!result.ok) throw new Error(result.violations.join(","));
+    expect(result.draft.star?.missing).toContain("result");
+    expect(result.draft.star?.result.text).toBe("");
   });
 
   it("lists the STAR elements in one fixed order", () => {

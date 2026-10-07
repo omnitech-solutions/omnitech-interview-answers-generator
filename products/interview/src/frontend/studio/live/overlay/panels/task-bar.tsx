@@ -37,7 +37,10 @@ export function TaskBar({ s }: { s: PanelSession }) {
   );
   const current =
     chips.find((chip) => chip.selected) ?? chips[chips.length - 1];
-  if (!current) return null;
+  // A new problem captured and not yet applied is what the panes show.
+  const drafting = s.tray.intent === "new" && s.tray.items.length > 0;
+  if (!current && !drafting) return null;
+  const currentText = drafting ? "New problem · not sent yet" : current?.text;
   const running = card.stages.some((stage) => stage.state === "running");
   return (
     <div ref={bar} className="pn-task-bar pn-card" data-testid="pn-task-bar">
@@ -72,7 +75,7 @@ export function TaskBar({ s }: { s: PanelSession }) {
             {
               id: "problems",
               selection: "single",
-              value: current?.taskId ?? "",
+              value: drafting ? "" : (current?.taskId ?? ""),
               items: [...chips].reverse().map((chip) => ({
                 id: chip.taskId,
                 label: chip.text,
@@ -90,15 +93,15 @@ export function TaskBar({ s }: { s: PanelSession }) {
               variant="outline"
               iconAfter={<Icon name="expand_more" />}
               labelMaxWidth="300px"
-              aria-label={`Problem: ${current?.text ?? ""}`}
+              aria-label={`Problem: ${currentText ?? ""}`}
               data-testid="pn-problem-button"
               className="pn-problem-trigger"
             >
-              {current?.text}
+              {currentText}
             </Button>
           }
         />
-        {s.selected && card.revisionCount > 1 ? (
+        {drafting ? null : s.selected && card.revisionCount > 1 ? (
           <ActionMenu
             label="Revisions"
             title="Every revision of this task"

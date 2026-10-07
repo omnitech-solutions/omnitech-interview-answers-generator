@@ -168,3 +168,10 @@ Not fixed yet. A real-browser test exists (`e2e/live-session/tests/window-fit.sp
 ## 016 Screenshots card and dock: no target choice, no redundant heading, Add context beside Add screenshot (DONE)
 
 **Owner (2026-10-07).** "New problem" is gone from the T1 screenshots card and from the dock: a staged screenshot always adds to the task on show; a new problem is captured from the Answer pane's "Capture new problem" (asks first). The "Add screenshots" heading is gone (the card title and the button already say it). "Add context" sits next to "Add screenshot" and focuses the composer. Tests: `screenshots-area.test`, `missing-context.test`, e2e `screenshots-tray.spec` (24/24 chromium) and `capture-tasks-native.spec`.
+
+## 017 A coding capture is killed by the experience-claims guard when a conversation skill is selected
+
+**Observed (T5, sudoku solver, 2026-10-07 14:27).** "Stopped · It could not be checked against your approved experience … (ungrounded_figure)". DB: `interview.session_actions` draft-answer `suppressed`, `suppression_reason = invalid_output.n1.ungrounded_figure`.
+**Cause.** The answer-style hint was Presentation Skills (a conversation skill). It rides every capture (`hintsFor`, session-run.ts), so the model answered the programming screen as an experience story with a STAR block; `crossFieldViolations` (assist-stage.ts ~640) requires every figure in a STAR entry to be grounded in the experience matrix and flags the whole output invalid, which suppresses the draft.
+**Fix.** (1) A capture whose own category is a programming challenge ignores a conversation skill hint (the model's category wins; the hint only picks the voice). (2) `ungrounded_figure` drops the offending STAR entry (or the STAR block) and publishes the rest, instead of rejecting the output. (3) The stop message names the real cause.
+**Status.** Open, next.

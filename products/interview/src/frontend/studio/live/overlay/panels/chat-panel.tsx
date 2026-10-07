@@ -33,6 +33,7 @@ import { captureEventChips } from "./answer-meta";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import {
   clock,
+  draftProblemRow,
   followUpPlaceholder,
   type PanelRow,
   panelRows,
@@ -104,6 +105,9 @@ function shownEntries(
   language: string | undefined,
 ): Shown[] {
   const rows = panelRows(s.model, s.entries, s.clearedAt, s.revisionPicks);
+  // A new problem captured and not yet applied closes the conversation.
+  if (s.open && s.tray.intent === "new" && s.tray.items.length > 0)
+    rows.push(draftProblemRow(s.tray.items.length, now));
   const chips = captureEventChips({
     observations: s.snapshot.observations,
     noQuestion: s.model.noQuestion,
@@ -114,6 +118,8 @@ function shownEntries(
       speaker: row.label,
       time: clock(row.shownAt ?? row.at),
     };
+    if (row.kind === "problem")
+      return { ...base, kind: "speech", tone: "accent", text: row.text };
     if (row.kind === "assistant")
       return {
         ...base,

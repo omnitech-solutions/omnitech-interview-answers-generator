@@ -200,7 +200,7 @@ export function taskChips(
 // "heard" and "typed" are what was said; "assistant" is the reply to it. Capture
 // events are chips, built in answer-meta.ts; nothing else is written into the
 // transcript.
-type PanelRowKind = "heard" | "typed" | "assistant";
+type PanelRowKind = "heard" | "typed" | "assistant" | "problem";
 type SpeakerId = "interviewer" | "you" | "typed" | "heard";
 export type PanelRow = {
   key: string;
@@ -341,6 +341,18 @@ export function groupHeard(pieces: readonly HeardPiece[]): HeardGroup[] {
     } else groups.push({ ...piece, lastAt: piece.at, edited: false });
   }
   return groups;
+}
+
+// A new problem the person has captured but not yet applied: one row at the
+// end of the conversation, so the transcript shows where the work now is.
+export function draftProblemRow(staged: number, at: number): PanelRow {
+  return {
+    key: "draft-problem",
+    kind: "problem",
+    label: "Studio · New problem",
+    text: `${staged} screenshot${staged === 1 ? "" : "s"} staged · press Apply to analyse`,
+    at,
+  };
 }
 
 export function panelRows(

@@ -594,6 +594,40 @@ function renderPrompt(
 
 type Output = z.infer<typeof outputSchema>;
 
+// [DOMAIN] The experience matrix never blocks an answer (owner's rule, 2026-10-07).
+// Grounding is enforced by SUBTRACTION: a STAR element whose text carries a
+// figure the cited claims do not support, or that cites no matrix-backed
+// claim, is marked missing (its text and claims cleared), and a STAR block on
+// a category that takes none is dropped. What remains is validated and
+// published; nothing here can return a violation.
+function withoutUngroundedStar(output: Output): Output {
+  const { category, claims } = output;
+  if (category === "no-question" || output.star === null) return output;
+  const starAllowed =
+    category === "leadership-behavioural" || category === "experience-story";
+  if (!starAllowed) return { ...output, star: null };
+  const inRange = (index: number) => index >= 0 && index < claims.length;
+  const star = { ...output.star, missing: [...output.star.missing] };
+  for (const element of STAR_ELEMENTS) {
+    const entry = star[element];
+    if (star.missing.includes(element)) continue;
+    // An out-of-range index is a malformed output, left for validation.
+    if (entry.claimIndexes.some((index) => !inRange(index))) continue;
+    const cited = entry.claimIndexes
+      .filter(inRange)
+      .map((index) => claims[index] as Claim);
+    const grounded = cited.some((claim) => claim.kind === "matrix-backed");
+    const allowed = supportedFigureKeys(cited.map((claim) => claim.text));
+    const ungrounded = [...figuresOf(entry.text)].some(
+      (figure) => !allowed.has(figure),
+    );
+    if (grounded && !ungrounded) continue;
+    star[element] = { text: "", claimIndexes: [] };
+    star.missing.push(element);
+  }
+  return { ...output, star };
+}
+
 // [STRATEGY] The cross-field rules the closed schema cannot state: which
 // structure each category requires, that every index points at a claim, and
 // that nothing a STAR or logistics outline says outruns its claims.
@@ -911,10 +945,10 @@ export function createAssistStage(
         return { ok: false, violations: zodViolations(parsed.error) };
       // [STRATEGY] A mislabelled ref whose quote names exactly one approved
       // entry is re-bound to it before anything is checked (claims.ts).
-      const output = {
+      const output = withoutUngroundedStar({
         ...parsed.data,
         claims: rebindClaims(parsed.data.claims, ctx.snapshot),
-      };
+      });
       const violations = crossFieldViolations(output);
       if (output.category === "no-question") {
         // [SAFETY] No grounding, claim or logistics checks: nothing to ground.

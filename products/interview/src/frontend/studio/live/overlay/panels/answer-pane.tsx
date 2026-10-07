@@ -36,7 +36,12 @@ import { AnswerDock } from "./answer-dock";
 import { complexityChips, lastCaptureMeta } from "./answer-header";
 import { CodeCard, CodeEmpty } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
-import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
+import {
+  answerView,
+  codePlaceholder,
+  stoppedByYou,
+  WAITS_FOR_APPROACH,
+} from "./panel-model";
 import type { PanelSession } from "./panel-views";
 import { TextSurface } from "./text-surface";
 import { answerSteps, captureControl } from "./toolbar-config";
@@ -95,7 +100,11 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   const active = steps.find((step) => step.state === "active");
   const waited = useElapsed(s.phase !== null, active?.id);
   const copying = useCopy(s);
-  const showSteps = stepsShown(s);
+  // A new problem captured and not yet applied: the pane shows the empty state
+  // with the staged screenshots (the same screen as a session's first problem),
+  // never the previous task's answer.
+  const drafting = s.open && s.tray.intent === "new" && s.tray.items.length > 0;
+  const showSteps = !drafting && stepsShown(s);
   const stopped =
     !s.phase && card && task && card.answerText === null && stoppedByYou(task);
   const newest = taskLabel(s.model.tasks.length);
@@ -211,29 +220,33 @@ export function AnswerPane({ s }: { s: PanelSession }) {
               ),
             }))}
           />
-        ) : !card || !view ? (
+        ) : drafting || !card || !view ? (
           <Empty
             variant="tile"
             data-testid="pn-analysis-empty"
             icon={<Icon name="screenshot_monitor" />}
-            title="Nothing analysed yet"
+            title={drafting ? "New problem" : "Nothing analysed yet"}
             description={
-              s.auto.on
-                ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
-                : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."
+              drafting
+                ? "The staged screenshots become the task when you press Apply. Add another if the problem spans screens."
+                : s.auto.on
+                  ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
+                  : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."
             }
           >
-            <Button
-              buttonSize="control"
-              tone="accent"
-              icon={<Icon name="screenshot_monitor" />}
-              shortcut={[...nativeChord("analyze")]}
-              disabled={!s.open}
-              aria-label={`${s.auto.on ? "Analyze screen" : "Capture screenshot"} ${nativeChord("analyze")}`}
-              onClick={() => s.press("capture")}
-            >
-              {s.auto.on ? "Analyze screen" : "Capture screenshot"}
-            </Button>
+            {!drafting && (
+              <Button
+                buttonSize="control"
+                tone="accent"
+                icon={<Icon name="screenshot_monitor" />}
+                shortcut={[...nativeChord("analyze")]}
+                disabled={!s.open}
+                aria-label={`${s.auto.on ? "Analyze screen" : "Capture screenshot"} ${nativeChord("analyze")}`}
+                onClick={() => s.press("capture")}
+              >
+                {s.auto.on ? "Analyze screen" : "Capture screenshot"}
+              </Button>
+            )}
             {s.noQuestionLine && (
               <p
                 className="pn-muted"
@@ -431,12 +444,15 @@ export function AnswerPane({ s }: { s: PanelSession }) {
 
 export function CodePane({ s }: { s: PanelSession }) {
   const { card } = s;
+  const drafting = s.open && s.tray.intent === "new" && s.tray.items.length > 0;
   const task = s.shown;
   const pending = stepsShown(s);
   const writing = card?.stages[1].state === "running";
   const seconds = useElapsed(writing, card?.taskId);
   const copying = useCopy(s);
   const example = task ? answerView(task).example : null;
+  // A new problem not yet applied: nothing of the previous task is shown.
+  if (drafting) return <CodeEmpty text={WAITS_FOR_APPROACH} busy={false} />;
   if (card?.code && !pending)
     return (
       <CodeCard
