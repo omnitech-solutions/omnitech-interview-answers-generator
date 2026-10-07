@@ -539,6 +539,14 @@ describe("settings and hints", () => {
     });
   });
 
+  it("draws the settings popover as a hit-tested library surface", async () => {
+    await openCard();
+    await click("Settings");
+    expect(screen.getByTestId("settings-popover")).toHaveAttribute(
+      "data-oui-surface",
+    );
+  });
+
   it("lists the shortcuts", async () => {
     await openCard();
     await click("Settings");
@@ -841,6 +849,16 @@ describe("companion source lights are controls", () => {
     ).toBeGreaterThan(10);
     await click("Dictate in this browser");
     expect(FakeRecognition.instances[0]?.start).toHaveBeenCalled();
+  });
+
+  it("draws the source popover as a hit-tested library surface", async () => {
+    await openCard(connected());
+    fireEvent.click(
+      screen.getByRole("button", { name: /^App audio: .*Show details/ }),
+    );
+    expect(screen.getByTestId("source-popover")).toHaveAttribute(
+      "data-oui-surface",
+    );
   });
 
   it("closes on Escape", async () => {
