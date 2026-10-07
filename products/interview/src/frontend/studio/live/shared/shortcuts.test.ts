@@ -30,7 +30,7 @@ const HOTKEYS_SWIFT = join(
 
 type Binding = { action: string; label: string };
 
-// Every `HotkeyBinding(action: .x, ... label: "...")`, split at the comment that
+// Every `HotkeyBinding(action: .x, ... label: "...")` (any line layout: swift-format wraps long ones), split at the comment that
 // opens the secondary aliases: what is above it is what the keys popover lists.
 function registered(): { primary: Binding[]; all: Binding[] } {
   const source = readFileSync(HOTKEYS_SWIFT, "utf8");
@@ -38,7 +38,7 @@ function registered(): { primary: Binding[]; all: Binding[] } {
   const bindings = (text: string): Binding[] =>
     [
       ...text.matchAll(
-        /HotkeyBinding\(action: \.(\w+),[^\n]*?label: "((?:[^"\\]|\\.)*)"/g,
+        /HotkeyBinding\(\s*action: \.(\w+),[^"]*?label: "((?:[^"\\]|\\.)*)"/g,
       ),
     ].map(([, action = "", label = ""]) => ({
       action,
@@ -69,7 +69,7 @@ describe("shortcut parity with Hotkeys.swift", () => {
     const interactive = new Set(
       [
         ...source.matchAll(
-          /HotkeyBinding\([^\n]*?label: "((?:[^"\\]|\\.)*)"[^\n]*requiresInteractive: true/g,
+          /HotkeyBinding\([^"]*?label: "((?:[^"\\]|\\.)*)",\s*requiresInteractive: true/g,
         ),
       ].map(([, label = ""]) => label.replaceAll("\\\\", "\\")),
     );
