@@ -17,6 +17,7 @@
       "!**/dist",
       "!**/.turbo",
       "!**/.build",
+      "!**/.build-cov",
       "!coverage",
       "!packages/database/drizzle",
       "!bionic",
