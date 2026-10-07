@@ -3,6 +3,7 @@
 // own sections. Both say what is true of the work now: the steps of a job in
 // flight, a task the owner stopped, or what the code is waiting for. Neither
 // fetches or decides anything; they read the one panel session.
+import { Button, Empty, Panel, Steps, Tag } from "@oc-tech/omni-ui-components";
 import { useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import { captureProblem } from "../../shared/capture-problem";
@@ -29,11 +30,13 @@ import {
   useScreenshotsView,
 } from "../../shared/use-screenshots-view";
 import { DEVICE_ONLY_ANALYZE } from "../overlay-capture";
+import { AnswerDock } from "./answer-dock";
+import { complexityChips, lastCaptureMeta } from "./answer-header";
 import { CodeCard, TextCard } from "./code-card";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { answerView, codePlaceholder, stoppedByYou } from "./panel-model";
 import type { PanelSession } from "./panel-views";
-import { answerSteps } from "./toolbar-config";
+import { answerSteps, captureControl } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 import { TOAST_TEXT } from "./use-panel-session";
 
@@ -104,17 +107,71 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   });
   const areaId = useAreaId();
   useTraySurface(s.tray);
+  // Staged screenshots wait in the panel's dock; with none staged the area
+  // keeps the stored screenshots and the add control.
+  const pending = shots.staged.length > 0;
   const area = (
     <ScreenshotsArea
       view={shots}
       id={areaId}
       variant="native"
       captureUnavailable={s.captureUnavailable}
+      hideTray={pending}
       onAdd={(intent) => void s.stage(intent)}
     />
   );
+  const answered = !showSteps && card && view;
+  const noQuestion = lastCaptureMeta(s.snapshot.actions);
+  const chips = answered ? complexityChips(view.complexity) : [];
+  const meta = showSteps ? null : answered ? (
+    chips.length > 0 ? (
+      chips.map((chip) => (
+        <Tag key={chip} variant="filled" mono>
+          {chip}
+        </Tag>
+      ))
+    ) : null
+  ) : s.noQuestionLine && noQuestion ? (
+    <span title={noQuestion.full} data-testid="pn-answer-meta">
+      {noQuestion.lead}
+      <span className="pn-meta-tail"> · no question found</span>
+    </span>
+  ) : null;
+  const stop = captureControl(true);
   return (
-    <div className="pn-card pn-analysis-text" data-testid="pn-answer-pane">
+    <Panel
+      title="Answer"
+      data-testid="pn-analysis"
+      className="pn-answer-panel"
+      bodyClassName="pn-answer-body"
+      {...(answered ? { subtitle: `${card.label} · ${card.name}` } : {})}
+      meta={meta}
+      actions={
+        s.phase ? (
+          <Button
+            buttonSize="sm"
+            variant="outline"
+            icon={<Icon name="stop_circle" />}
+            shortcut={[...nativeChord("analyze")]}
+            aria-label={`${stop.label} ${nativeChord("analyze")}`}
+            title={stop.title}
+            onClick={() => void s.stop()}
+          >
+            {stop.label}
+          </Button>
+        ) : undefined
+      }
+      dock={
+        pending ? (
+          <AnswerDock
+            view={shots}
+            captureUnavailable={s.captureUnavailable}
+            onAdd={(intent) => void s.stage(intent)}
+          />
+        ) : undefined
+      }
+      dockClassName="pn-answer-dock"
+    >
       {s.captureProblem && (
         <CaptureProblemBanner
           problem={s.captureProblem}
@@ -124,62 +181,59 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             : {})}
         />
       )}
-      {s.noQuestionLine && !showSteps && (
-        <p className="pn-muted" role="status" data-testid="pn-no-question">
-          {s.noQuestionLine}
-        </p>
-      )}
       {showSteps ? (
-        <ol
-          className="pn-steps"
+        <Steps
+          variant="checklist"
           role="status"
           aria-label="Analysis steps"
           data-testid="pn-steps"
-        >
-          {steps.map((step) => (
-            <li key={step.id} data-state={step.state}>
-              <span className="pn-step-mark" aria-hidden="true">
-                {step.state === "active" ? (
-                  <span className="pn-spinner" />
-                ) : (
-                  <Icon
-                    name={
-                      step.state === "done"
-                        ? "check_circle"
-                        : "radio_button_unchecked"
-                    }
-                    filled={step.state === "done"}
-                  />
+          className="pn-answer-steps"
+          items={steps.map((step) => ({
+            key: step.id,
+            state:
+              step.state === "active"
+                ? "current"
+                : step.state === "waiting"
+                  ? "pending"
+                  : "done",
+            label: (
+              <>
+                {step.label}
+                {step.state === "active" && waited >= 1 && (
+                  <span className="pn-step-time">{` ${waited}s`}</span>
                 )}
-              </span>
-              <span className="pn-step-label">{step.label}</span>
-              <span className="pn-step-time">
-                {step.state === "active" && waited >= 1 ? `${waited}s` : ""}
-              </span>
-            </li>
-          ))}
-        </ol>
+              </>
+            ),
+          }))}
+        />
       ) : !card || !view ? (
-        <div className="pn-empty" data-testid="pn-analysis-empty">
-          <span className="pn-empty-icon" aria-hidden="true">
-            <Icon name="screenshot_monitor" />
-          </span>
-          <div className="pn-empty-title">Nothing analysed yet</div>
-          <div className="pn-empty-sub">
-            {s.auto.on
+        <Empty
+          variant="tile"
+          data-testid="pn-analysis-empty"
+          icon={<Icon name="screenshot_monitor" />}
+          title="Nothing analysed yet"
+          description={
+            s.auto.on
               ? "Auto is on. Studio analyses the screen when it changes, while a browser is in front."
-              : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."}
-          </div>
-          <button
-            type="button"
-            className="pn-primary"
+              : "Open the problem in your browser, then capture a screenshot. It stays on this device until you press Apply. Spoken questions are answered without pressing anything."
+          }
+        >
+          <Button
+            buttonSize="control"
+            tone="accent"
+            icon={<Icon name="screenshot_monitor" />}
+            shortcut={[...nativeChord("analyze")]}
             disabled={!s.open}
+            aria-label={`${s.auto.on ? "Analyze screen" : "Capture screenshot"} ${nativeChord("analyze")}`}
             onClick={() => s.press("capture")}
           >
-            <Icon name="screenshot_monitor" />
             {s.auto.on ? "Analyze screen" : "Capture screenshot"}
-            <kbd>{nativeChord("analyze")}</kbd>
-          </button>
+          </Button>
+          {s.noQuestionLine && (
+            <p className="pn-muted" role="status" data-testid="pn-no-question">
+              {s.noQuestionLine}
+            </p>
+          )}
           {!s.open && (
             <p className="pn-muted" role="status" data-testid="pn-capture-off">
               {captureProblem("session-ended").title}.{" "}
@@ -187,9 +241,14 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             </p>
           )}
           {s.tray.items.length > 0 && area}
-        </div>
+        </Empty>
       ) : (
-        <div className="pn-scroll" data-testid="pn-answer">
+        <div className="pn-answer-content" data-testid="pn-answer">
+          {s.noQuestionLine && (
+            <p className="pn-muted" role="status" data-testid="pn-no-question">
+              {s.noQuestionLine}
+            </p>
+          )}
           <div className="pn-task-line" data-testid="pn-task-line">
             <span className="pn-task-id">
               {card.label} ·{" "}
@@ -217,13 +276,13 @@ export function AnswerPane({ s }: { s: PanelSession }) {
                 <span className="pn-earlier" data-testid="pn-earlier">
                   earlier task
                 </span>
-                <button
-                  type="button"
-                  className="pn-mini-button"
+                <Button
+                  buttonSize="sm"
+                  variant="outline"
                   onClick={() => s.select(null)}
                 >
                   Back to {newest}
-                </button>
+                </Button>
               </>
             )}
             <ScreenshotsToggle
@@ -237,9 +296,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             <h2 className="pn-problem" data-testid="pn-problem">
               {card.name}
             </h2>
-            <span className="pn-type-pill" data-testid="pn-type">
-              {card.kind.label}
-            </span>
+            <Tag data-testid="pn-type">{card.kind.label}</Tag>
           </div>
           {card.answerStale && (
             <p className="pn-muted" data-testid="pn-stale">
@@ -322,18 +379,22 @@ export function AnswerPane({ s }: { s: PanelSession }) {
           )}
           {card.answerText !== null && (
             <div className="pn-actions">
-              <button
-                type="button"
-                className="pn-mini-button"
+              <Button
+                buttonSize="sm"
+                variant="outline"
+                icon={
+                  <Icon
+                    name={
+                      copying.copied === "answer" ? "check" : "content_copy"
+                    }
+                  />
+                }
                 onClick={() =>
                   void copying.copy("answer", plainDraft(card.answerText ?? ""))
                 }
               >
-                <Icon
-                  name={copying.copied === "answer" ? "check" : "content_copy"}
-                />
                 {copying.copied === "answer" ? "Copied" : "Copy answer"}
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -351,7 +412,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
           </button>
         </p>
       )}
-    </div>
+    </Panel>
   );
 }
 

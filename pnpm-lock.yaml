@@ -797,6 +797,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.6
         version: 6.43.6
+      '@oc-tech/omni-ui-components':
+        specifier: file:../../vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz
+        version: file:vendor/omni-ui-components/oc-tech-omni-ui-components-0.1.0.tgz(@floating-ui/dom@1.8.0)(@rjsf/core@6.11.0(@rjsf/utils@6.11.0(react@19.3.0))(react@19.3.0))(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/extensions@3.31.4(@tiptap/core@3.31.4(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4))(@tiptap/pm@3.31.4)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@omnitech-assistant/contracts':
         specifier: file:../../vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz
         version: file:vendor/omnitech-assistant/omnitech-assistant-contracts-0.1.0.tgz

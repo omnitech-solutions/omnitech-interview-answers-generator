@@ -1484,7 +1484,7 @@ describe("answer pane", () => {
     expect(steps.map((step) => step.getAttribute("data-state"))).toEqual([
       "done",
       "done",
-      "active",
+      "current",
     ]);
     expect(steps[0]).toHaveTextContent("Capturing the screen");
     expect(steps[1]).toHaveTextContent("Reading the problem");
@@ -1592,6 +1592,93 @@ describe("answer pane: error line and ended session", () => {
       within(empty).getByRole("button", { name: /^(Analyze screen|Capture)/ }),
     ).toBeDisabled();
     expect(screen.getByTestId("pn-capture-off")).toBeVisible();
+  });
+});
+
+describe("answer panel header (library Panel)", () => {
+  const inFlight = () =>
+    action({
+      actionKind: "draft-answer",
+      dispatchStatus: "in_flight",
+      result: null,
+    });
+  const answerHeader = () => {
+    const panel = screen.getByRole("region", { name: "Answer" });
+    return {
+      panel,
+      header: panel.querySelector('[data-slot="panel-header"]') as HTMLElement,
+    };
+  };
+
+  it("holds Stop in the Answer header while analysing, with the capture key, and Stop ends the run", async () => {
+    serve(live(), [inFlight()]);
+    await show();
+    const { header } = answerHeader();
+    fireEvent.click(within(header).getByRole("button", { name: /^Stop ⌘⇧S$/ }));
+    await flush();
+    expect(server.count("POST /:id/control")).toBe(1);
+  });
+
+  it("shows no Stop in the Answer header when nothing is running", async () => {
+    serve(live(), [named("Rate limiter")]);
+    await show();
+    expect(
+      within(answerHeader().header).queryByRole("button", { name: /Stop/ }),
+    ).toBeNull();
+  });
+
+  it("is the one progress surface: the steps in the body, no banner and no chat line", async () => {
+    serve(live(), [inFlight()]);
+    await show();
+    const { panel } = answerHeader();
+    expect(within(panel).getByTestId("pn-steps")).toBeVisible();
+    expect(screen.queryByText(/Capturing the screen…/)).toBeNull();
+  });
+
+  it("reads 'Last capture HH:MM · no question found' as the header meta, the first part alone as the title's lead", async () => {
+    serve(live(), [
+      {
+        ...action({ actionKind: "draft-answer", result: null }),
+        noQuestion: true,
+      },
+    ]);
+    await show();
+    const meta = within(answerHeader().header).getByTestId("pn-answer-meta");
+    expect(meta).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Last capture .+ · no question found$/),
+    );
+    expect(meta).toHaveTextContent(/^Last capture .+ · no question found$/);
+    // The empty-state line stays in the body.
+    expect(screen.getByTestId("pn-no-question")).toBeVisible();
+  });
+
+  it("puts the empty-state capture button inside the Answer body", async () => {
+    serve(live(), []);
+    await show();
+    const body = answerHeader().panel.querySelector(
+      '[data-slot="panel-body"]',
+    ) as HTMLElement;
+    expect(
+      within(body).getByRole("button", { name: /^Analyze screen/ }),
+    ).toBeVisible();
+  });
+
+  it("names the task in the header subtitle", async () => {
+    serve(live(), [named("Rate limiter")]);
+    await show();
+    const { header } = answerHeader();
+    expect(header).toHaveTextContent("T1 · Rate limiter");
+  });
+
+  it("does not change what it shows when the Code panel is hidden", async () => {
+    serve(live(), [named("Rate limiter"), solved()]);
+    await show();
+    const before = screen.getByTestId("pn-answer").innerHTML;
+    fireEvent.click(screen.getByRole("button", { name: /^Code/ }));
+    await flush();
+    expect(screen.queryByTestId("pn-code-pane")).toBeNull();
+    expect(screen.getByTestId("pn-answer").innerHTML).toBe(before);
   });
 });
 

@@ -46,11 +46,7 @@ export type PanelSession = ReturnType<typeof usePanelSession>;
 
 // The one window shows the answer and the code as separate panes.
 export function AnswerPanel({ s }: { s: PanelSession }) {
-  return (
-    <div className="pn-analysis" data-testid="pn-analysis">
-      <AnswerPane s={s} />
-    </div>
-  );
+  return <AnswerPane s={s} />;
 }
 
 export function CodePanel({ s }: { s: PanelSession }) {
