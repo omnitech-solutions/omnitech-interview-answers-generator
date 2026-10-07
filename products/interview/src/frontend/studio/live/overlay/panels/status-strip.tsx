@@ -4,15 +4,9 @@
 // the same task.
 import { Icon } from "../../../icon";
 import { taskLabel } from "../../shared/task-target";
-import { failureNote } from "../overlay-footer";
 import { taskChips } from "./panel-model";
 import type { PanelSession } from "./panel-views";
-import {
-  finishedWork,
-  type StripActionId,
-  type StripState,
-  stripState,
-} from "./strip-model";
+import { finishedWork, type StripState, stripState } from "./strip-model";
 import { phaseLabel } from "./toolbar-config";
 import { useElapsed } from "./use-elapsed";
 
@@ -51,13 +45,6 @@ export function useStrip(s: PanelSession): Strip | null {
 
 export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
   const { state, engine, chips } = strip;
-  const act: Record<StripActionId, () => void> = {
-    stop: () => void s.stop(),
-    resume: () =>
-      void s.actions.resume().then((result) => {
-        if (!result.ok) s.notify(failureNote(result.code, result.reason));
-      }),
-  };
   return (
     <div
       className="pn-strip"
@@ -108,15 +95,12 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
       {state?.action && (
         <button
           type="button"
-          className={
-            state.action.id === "resume" ? "ov-button go" : "pn-mini-button"
-          }
+          className="pn-mini-button"
           data-action={state.action.id}
           title={state.action.title}
-          onClick={act[state.action.id]}
+          onClick={() => void s.stop()}
         >
-          {state.action.id === "stop" && <Icon name="stop_circle" />}
-          {state.action.id === "resume" && <Icon name="play_arrow" filled />}
+          <Icon name="stop_circle" />
           {state.action.label}
         </button>
       )}

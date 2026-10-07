@@ -435,9 +435,9 @@ describe("the card", () => {
     await openLive();
     await openCard();
     fireEvent.click(inCard().getByRole("button", { name: "End" }));
-    expect(screen.getByRole("alertdialog")).toBeVisible();
+    expect(screen.getByRole("dialog")).toBeVisible();
     await click("Keep going");
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(server.calls.some((call) => call.endsWith("/control"))).toBe(false);
   });
 

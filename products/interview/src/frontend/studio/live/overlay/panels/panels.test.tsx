@@ -655,7 +655,9 @@ describe("a native window that loses its session", () => {
     );
     // Never without its toolbar: the real one, locked, with the reason said and a
     // way to recover on the screen.
-    expect(screen.getByRole("toolbar")).toBeVisible();
+    expect(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    ).toBeVisible();
     expect(
       screen.getByText(/That session is no longer available/),
     ).toBeVisible();

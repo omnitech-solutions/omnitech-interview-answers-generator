@@ -79,24 +79,6 @@ const ALLOWED: readonly Allowed[] = [
     "background",
     "The same toast fade in the native window.",
   ],
-  [
-    "panels.css",
-    ".pn-strip .ov-button.go",
-    "background",
-    "Small solid control (the same Resume session button as the footer's).",
-  ],
-  [
-    "panels.css",
-    ".pn-single-foot .ov-button.go",
-    "background",
-    "Small solid control.",
-  ],
-  [
-    "panels.css",
-    ".pn-single-foot .ov-button.danger",
-    "background",
-    "Small solid control.",
-  ],
   ["panels.css", ".pn-jump", "background", "Small floating control."],
   ["panels.css", ".pn-jump:hover", "background", "Small floating control."],
   [

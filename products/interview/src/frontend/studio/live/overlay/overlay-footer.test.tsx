@@ -10,7 +10,22 @@ import type { SessionActions } from "../session-snapshot";
 import { Footer, type FooterVariant } from "./overlay-footer";
 import { PAUSED_NOTICE } from "./panels/strip-model";
 
-afterEach(cleanup);
+// The build the footer's tag reads: set per test (a packaged app shows no tag).
+const build = vi.hoisted(() => ({
+  BUILD_ID: "abc1234+",
+  BUILD: {
+    id: "abc1234+",
+    sha: "abc1234def5678901234567890123456789abcd",
+    branch: "native-swap",
+    packaged: false,
+  },
+}));
+vi.mock("./build-id", () => build);
+
+afterEach(() => {
+  cleanup();
+  build.BUILD.packaged = false;
+});
 
 function actions(overrides: Partial<SessionActions> = {}) {
   const ok = vi.fn(async () => ({ ok: true as const }));
@@ -52,7 +67,6 @@ const live = (paused = false): FooterVariant => ({
   kind: "live",
   paused,
   clock: { label: "1:00", paused },
-  notice: paused ? PAUSED_NOTICE : null,
 });
 
 describe("footer", () => {
@@ -166,6 +180,83 @@ describe("footer", () => {
   it("shows only the status line, with no session buttons, before a session", () => {
     show({ kind: "idle", status: <span>Not signed in</span> });
     expect(screen.getByText("Not signed in")).toBeVisible();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: /Pause|Resume|End|Start/ }),
+    ).toBeNull();
+  });
+
+  it("has no Live text: a record mark and the time, nothing else", () => {
+    show(live());
+    const clock = screen.getByRole("group", { name: "Session time 1:00" });
+    expect(clock).toHaveAttribute("data-state", "live");
+    expect(clock).not.toHaveTextContent(/Live/);
+    expect(clock).toHaveTextContent(/^1:00/);
+    expect(
+      clock.querySelector('[data-slot="status-clock-icon"]'),
+    ).not.toBeNull();
+  });
+
+  it("says Paused with the pause icon and keeps the explanation as its tooltip", () => {
+    show(live(true));
+    const clock = screen.getByRole("group", {
+      name: "Session time 1:00, paused",
+    });
+    expect(clock).toHaveAttribute("data-state", "paused");
+    expect(clock).toHaveTextContent("Paused");
+    expect(clock).toHaveAttribute("title", PAUSED_NOTICE.sub);
+  });
+
+  it("swaps Pause for Resume in one slot and never changes the bar's surface", () => {
+    show(live());
+    const bar = screen.getByRole("toolbar", { name: "Session footer" });
+    const liveClass = bar.className;
+    expect(
+      document.querySelector('[data-slot="session-pause"]'),
+    ).not.toBeNull();
+    expect(document.querySelector('[data-slot="session-resume"]')).toBeNull();
+    cleanup();
+    show(live(true));
+    const paused = screen.getByRole("toolbar", { name: "Session footer" });
+    expect(paused.className).toBe(liveClass);
+    expect(
+      document.querySelector('[data-slot="session-resume"]'),
+    ).not.toBeNull();
+    expect(document.querySelector('[data-slot="session-pause"]')).toBeNull();
+  });
+
+  it("holds only the clock and the session buttons", () => {
+    show(live());
+    const bar = screen.getByRole("toolbar", { name: "Session footer" });
+    expect(
+      [...bar.querySelectorAll("button")].map((b) => b.textContent),
+    ).toEqual([
+      `${build.BUILD.id}·${build.BUILD.branch}`,
+      "Pause session",
+      "End session",
+    ]);
+  });
+
+  it("shows the development build tag with the full commit as its tooltip and copies it", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    show(live());
+    const tag = screen.getByRole("button", { name: /^Copy build/ });
+    expect(tag).toHaveTextContent("abc1234+");
+    expect(tag).toHaveTextContent("native-swap");
+    expect(tag).toHaveAttribute("title", build.BUILD.sha);
+    fireEvent.click(tag);
+    expect(writeText).toHaveBeenCalledWith(build.BUILD.sha);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copied" })).toBeVisible(),
+    );
+  });
+
+  it("shows no build tag in a packaged app", () => {
+    build.BUILD.packaged = true;
+    show(live());
+    expect(screen.queryByRole("button", { name: /^Copy build/ })).toBeNull();
+    cleanup();
+    show({ kind: "idle", status: <span>Not signed in</span> });
+    expect(screen.queryByRole("button", { name: /^Copy build/ })).toBeNull();
   });
 });

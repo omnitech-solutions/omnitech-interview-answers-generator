@@ -940,66 +940,6 @@
   color: var(--ov-faint);
   cursor: default;
 }
-.ov-footer {
-  flex: none;
-  padding: 8px 12px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ov-footer-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* The footer's left: empty space that keeps the clock and the buttons at the right,
-   or a notice (a paused session) that fills it. */
-.ov-footer-lead {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-}
-.ov-footer-notice {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.ov-footer-notice > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--ov-text);
-}
-.ov-visible {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ov-faint);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ov-confirm {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--ov-chip);
-  font-size: 12px;
-}
-.ov-confirm > span {
-  flex: 1 1 100%;
-}
 .ov-note {
   flex: none;
   margin: 6px 12px 0;

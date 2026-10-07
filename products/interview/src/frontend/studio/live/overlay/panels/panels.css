@@ -575,30 +575,10 @@
   color: var(--ov-red);
 }
 
+/* The footer is the library's session bar: it draws its own surface, and that
+   surface never changes with the session's state. */
 .pn-single-foot {
   flex: none;
-  border-radius: 10px;
-  background: var(--ov-bg);
-}
-.pn-single-foot .ov-footer {
-  padding: 6px 10px 8px;
-}
-/* A paused session: the footer carries "Paused" at its left in the warning colour
-   (the controls stay at the right, where they always are). */
-.pn-single-foot:has(.ov-footer[data-notice="warn"]) {
-  background: var(--pn-warn-bg);
-}
-.pn-single-foot .ov-footer-notice {
-  color: var(--ov-amber);
-}
-.pn-single-foot .ov-visible,
-.pn-single-foot .ov-build {
-  color: var(--ov-muted);
-  font-size: 11px;
-}
-.pn-strip .ov-button,
-.pn-single-foot .ov-button {
-  color: var(--ov-text);
 }
 /* One note, not two: while the chat pane is on screen it shows the note and the
    analysis pane beside it stays quiet. With the chat hidden the analysis pane
@@ -653,34 +633,6 @@
   font-size: 11px;
   color: var(--ov-muted);
   white-space: nowrap;
-}
-
-/* Resume and Start are green; End is red. The paused strip's Resume session is the
-   same button as the footer's. */
-.pn-strip .ov-button.go {
-  background: rgba(46, 160, 90, 0.9);
-  border-color: rgba(255, 255, 255, 0.45);
-  color: #fff;
-}
-.pn-single-foot .ov-button.go {
-  background: rgba(46, 160, 90, 0.9);
-  border-color: rgba(255, 255, 255, 0.45);
-  color: #fff;
-}
-.pn-single-foot .ov-button.danger {
-  background: rgba(214, 62, 52, 0.9);
-  border-color: rgba(255, 255, 255, 0.45);
-  color: #fff;
-}
-.pn-strip .ov-button,
-.pn-single-foot .ov-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  background: none;
-  border-radius: 6px;
-  padding: 3px 8px;
 }
 
 /* The task's name, with its type as a pill. */
@@ -1164,12 +1116,6 @@
 .pn-mini-button:hover {
   background: rgba(255, 255, 255, 0.18);
 }
-.pn-mini-button[data-action="resume"] {
-  background: var(--pn-go);
-  color: #04220d;
-  font-weight: 600;
-  text-shadow: none;
-}
 .pn-primary {
   display: inline-flex;
   align-items: center;
@@ -1501,26 +1447,13 @@
   color: var(--ov-muted);
 }
 
-/* ---- The ended card and the footer's clock ---- */
+/* ---- The ended card ---- */
 .pn-ended {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: var(--pn-radius);
-  background: var(--pn-glass);
-  backdrop-filter: var(--pn-blur-bar);
-  -webkit-backdrop-filter: var(--pn-blur-bar);
-  box-shadow: var(--pn-ring);
-}
-.pn-ended-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
 }
 .pn-ended-note {
-  margin: 0;
+  margin: 0 0 8px;
   font-size: 12.5px;
   color: var(--ov-muted);
 }
@@ -1538,38 +1471,10 @@
   background: var(--pn-chip);
   font-size: 12px;
 }
-.ov-clock {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  color: #ff6b61;
-}
-.ov-clock[data-paused="true"] {
-  color: var(--pn-warn);
-}
-.ov-clock-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: pn-pulse-dot 1.4s infinite;
-}
-.ov-clock[data-paused="true"] .ov-clock-dot {
-  animation: none;
-}
-@keyframes pn-pulse-dot {
-  50% {
-    opacity: 0.35;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .pn-spinner,
   .pn-level[data-active="true"] i,
-  .pn-ellipsis i,
-  .ov-clock-dot {
+  .pn-ellipsis i {
     animation: none;
   }
 }
@@ -1601,8 +1506,7 @@
   --pn-text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.9);
   --pn-bed: var(--pn-text-bed);
 }
-.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"],
-.pn-root[data-glass="clear"] .pn-single-foot:has(.ov-footer[data-notice="warn"]) {
+.pn-root[data-glass="clear"] .pn-strip[data-tone="amber"] {
   background: var(--pn-warn-bg-clear);
 }
 /* Reading beds. Panes and bars stay near-clear (alpha <= .22, no blur); text
@@ -1645,9 +1549,6 @@
 .pn-root[data-glass="clear"] .ov-rev-menu {
   background: var(--pn-glass-menu);
 }
-.pn-root[data-glass="clear"] .pn-single-foot {
-  box-shadow: var(--pn-ring);
-}
 
 /* ---- Window dots' popups, the Mini player and Full screen ---- */
 .pn-quit {
@@ -1670,56 +1571,30 @@
   align-self: stretch;
   width: auto;
 }
-.pn-mini-back {
-  font-weight: 600;
+/* The Mini player's task card is a library Panel; only its row sizing is ours. */
+.pn-mini-card {
+  flex: none;
+  min-width: 0;
 }
-.pn-mini-card,
+.pn-mini-headline {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0.85;
+}
 .pn-mini-foot {
   flex: none;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
   border-radius: 11px;
   background: var(--pn-glass);
   backdrop-filter: var(--pn-blur-bar);
   -webkit-backdrop-filter: var(--pn-blur-bar);
   box-shadow: var(--pn-ring);
-}
-.pn-mini-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.pn-mini-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-.pn-mini-name,
-.pn-mini-headline {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pn-mini-headline {
-  margin: 0;
-  font-size: 12px;
-  opacity: 0.85;
-}
-.pn-mini-stage {
-  margin-left: auto;
-  font-size: 11.5px;
-  color: var(--ov-muted);
-  white-space: nowrap;
-}
-.pn-mini-actions,
-.pn-mini-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pn-mini-foot {
-  padding: 4px 12px;
 }
 .pn-mini-missing {
   display: inline-flex;

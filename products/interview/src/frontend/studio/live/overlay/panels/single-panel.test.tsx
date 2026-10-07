@@ -695,8 +695,12 @@ describe("a paused session", () => {
     serve(live({ status: "paused" }));
     await show();
     expect(document.querySelector(".pn-single-body")).toBeNull();
-    expect(screen.getByRole("toolbar")).toBeVisible();
-    expect(screen.getByTestId("ov-footer-notice")).toHaveTextContent("Paused");
+    expect(
+      screen.getByRole("toolbar", { name: "Session controls" }),
+    ).toBeVisible();
+    expect(screen.getByRole("group", { name: /paused$/ })).toHaveTextContent(
+      "Paused",
+    );
     expect(screen.queryByTestId("pn-strip")).toBeNull();
     expect(document.querySelector(".pn-single-foot")).not.toBeNull();
     for (const label of ["Chat", "Answer", "Code"]) {
@@ -820,7 +824,7 @@ describe("the Mini player", () => {
       "token bucket per client",
     );
     expect(screen.queryByText(/Visible window/)).toBeNull();
-    expect(screen.getByTestId("ov-clock")).toBeVisible();
+    expect(screen.getByRole("group", { name: /^Session time/ })).toBeVisible();
   });
 
   it("says Drafting an answer and stops the session's work for real", async () => {
@@ -873,10 +877,9 @@ describe("the Mini player", () => {
     await flush();
     await flush();
     expect(screen.getByRole("button", { name: "Resume" })).toBeVisible();
-    expect(screen.getByTestId("ov-clock")).toHaveAttribute(
-      "data-paused",
-      "true",
-    );
+    expect(
+      screen.getByRole("group", { name: /^Session time .*, paused$/ }),
+    ).toHaveAttribute("data-state", "paused");
   });
 });
 
@@ -1115,9 +1118,10 @@ describe("status strip", () => {
     // One Resume session, in the footer, beside the Paused notice (not a second
     // one in a strip).
     expect(screen.queryByTestId("pn-strip")).toBeNull();
-    const notice = screen.getByTestId("ov-footer-notice");
-    expect(notice).toHaveTextContent("Paused");
-    expect(notice).toHaveTextContent(
+    const clock = screen.getByRole("group", { name: /paused$/ });
+    expect(clock).toHaveTextContent("Paused");
+    expect(clock).toHaveAttribute(
+      "title",
       "Nothing is captured and no new work starts",
     );
     expect(
@@ -1596,14 +1600,18 @@ describe("code pane", () => {
       serve(live(), [named("Rate limiter"), solved()]);
       const setWindowSize = sizeHost();
       await show();
-      const toolbar = screen.getByRole("toolbar").outerHTML;
+      const toolbar = screen.getByRole("toolbar", {
+        name: "Session controls",
+      }).outerHTML;
       setWindowSize.mockClear();
       fireEvent.click(screen.getByRole("button", { name: "Tests" }));
       expect(screen.getByTestId("pn-tests-drawer")).toBeVisible();
       fireEvent.click(screen.getByRole("button", { name: "Tests" }));
       await flush();
       expect(setWindowSize).not.toHaveBeenCalled();
-      expect(screen.getByRole("toolbar").outerHTML).toBe(toolbar);
+      expect(
+        screen.getByRole("toolbar", { name: "Session controls" }).outerHTML,
+      ).toBe(toolbar);
     });
 
     it("is drawn in full screen and not in the Mini player", async () => {
@@ -1693,18 +1701,17 @@ describe("code pane", () => {
 describe("footer and the ended session", () => {
   it("shows a live dot with the session clock while open", async () => {
     await show();
-    expect(screen.getByTestId("ov-clock")).toHaveAccessibleName(
-      /^Session time \d+:\d\d$/,
-    );
+    expect(
+      screen.getByRole("group", { name: /^Session time \d+:\d\d$/ }),
+    ).toHaveAttribute("data-state", "live");
   });
 
   it("marks the clock paused", async () => {
     serve(live({ status: "paused" }));
     await show();
-    expect(screen.getByTestId("ov-clock")).toHaveAttribute(
-      "data-paused",
-      "true",
-    );
+    expect(
+      screen.getByRole("group", { name: /^Session time .*, paused$/ }),
+    ).toHaveAttribute("data-state", "paused");
   });
 
   it("shows the ended card with counts, keeps the last answer readable, and offers the summary and a new session", async () => {
@@ -1743,7 +1750,7 @@ describe("footer and the ended session", () => {
     expect(ended).toHaveTextContent("1 code draft");
     expect(screen.getByTestId("pn-problem")).toBeVisible();
     expect(screen.queryByTestId("pn-strip")).toBeNull();
-    expect(screen.queryByTestId("ov-clock")).toBeNull();
+    expect(screen.queryByRole("group", { name: /^Session time/ })).toBeNull();
     expect(
       screen.getByRole("button", { name: "Start a new session" }),
     ).toBeVisible();
