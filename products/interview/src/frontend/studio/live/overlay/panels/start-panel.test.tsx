@@ -2,6 +2,9 @@
 // store and a scripted Studio: the sign-in screen with the locked toolbar and
 // footer, the waiting and local steps, the idle start screen and its gates, the
 // account menu, and the hand-off to the live window that is not changed.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AccountPermissions,
   AccountSignInState,
@@ -628,6 +631,32 @@ describe("idle: signed in, no live session", () => {
     openMenu(chip);
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(host.calls).toContain("signOut");
+  });
+
+  it("the account menu is drawn inside the window's panel root as a hit-tested surface, and Escape gives focus back to the chip", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    const chip = screen.getByTestId("pn-chip");
+    openMenu(chip);
+    const menu = screen.getByRole("menu", { name: "Account" });
+    expect(menu.closest(".pn-root")).toBe(screen.getByTestId("pn-start-root"));
+    expect(menu).toHaveAttribute("data-oui-surface");
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "Account" })).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(10));
+    expect(chip).toHaveFocus();
+  });
+
+  it("Start stays clickable while blocked (pressing it says why), and the card keeps its hit region", async () => {
+    bridge();
+    idleStudio();
+    await show(undefined, undefined, ACCOUNT);
+    expect(screen.getByTestId("pn-start")).toHaveClass("pn-start-card");
+    const css = readFileSync(join(__dirname, "start-panel.css"), "utf8");
+    expect(css).toMatch(
+      /button\.pn-start-go\[aria-disabled="true"\]\s*\{\s*pointer-events: auto;/,
+    );
   });
 
   it("a local profile: 'This Mac' chip, Rehearsal only, honest footer, sign out of the local profile", async () => {

@@ -1,0 +1,61 @@
+/* The screen picker's menu (screen-picker.tsx): a library Popover surface whose
+   rows are the "Follow my browser" choice and one row per display with its live
+   thumbnail. The surface, text and hover come from the library's --oui-* tokens;
+   the width, scrolling, thumbnail and notice rules are in panels.css. */
+.pn-display-menu[data-oui-surface] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--oui-surface-field);
+  border: 1px solid var(--oui-tone-neutral-border);
+  color: var(--oui-foreground);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+}
+.pn-display-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pn-display-row:hover,
+.pn-display-row:focus-visible {
+  background: var(--oui-tone-neutral-bg);
+  outline: none;
+}
+.pn-display-row[aria-checked="true"] {
+  background: color-mix(
+    in srgb,
+    var(--oui-tone-accent-solid-bg) 10%,
+    transparent
+  );
+}
+.pn-display-row .studio-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--oui-tone-accent-fg);
+}
+.pn-display-text {
+  display: flex;
+  flex-direction: column;
+}
+.pn-display-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pn-display-sub {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--oui-foreground-muted);
+}

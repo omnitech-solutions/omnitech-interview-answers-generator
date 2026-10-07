@@ -6,7 +6,18 @@
 // [SAFETY] Thumbnails show what is on the owner's displays. They are fetched only
 // while the menu is open, held in this component's state, dropped when it closes
 // and never stored, logged or sent anywhere.
-import { useCallback, useEffect, useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@oc-tech/omni-ui-components";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Icon } from "../../../icon";
 import {
   listHostDisplays,
@@ -24,8 +35,11 @@ import {
   screenButtonName,
 } from "./display-picker-model";
 import type { PanelSession } from "./panel-views";
-import { Popover } from "./popover";
+import { usePortalRoot } from "./portal-root";
 import { SCREEN_CONTROL } from "./toolbar-config";
+import { useToolbarLock } from "./toolbar-lock";
+
+const ITEM = '[role^="menuitem"]:not([aria-disabled="true"])';
 
 // Lists the displays now and again every DISPLAY_REFRESH_MS, for as long as the
 // component that calls it is mounted (the menu's body, so: while it is open). A
@@ -77,13 +91,15 @@ function ScreenMenu({ close }: { close: () => void }) {
             type="button"
             role="menuitemradio"
             aria-checked={row.checked}
-            className="pn-menu-item"
+            className="pn-display-row"
             onClick={() => void choose(null)}
           >
             <Icon name="check" style={{ opacity: row.checked ? 1 : 0 }} />
             <span>
-              <span className="pn-menu-label">{row.label}</span>
-              <span className="pn-menu-sub">{row.sub}</span>
+              <span className="pn-display-text">
+                <span className="pn-display-label">{row.label}</span>
+                <span className="pn-display-sub">{row.sub}</span>
+              </span>
             </span>
           </button>
         ) : (
@@ -93,7 +109,7 @@ function ScreenMenu({ close }: { close: () => void }) {
             role="menuitemradio"
             aria-checked={row.checked}
             aria-label={`${row.name}, ${row.position}`}
-            className="pn-menu-item pn-display-item"
+            className="pn-display-row"
             data-testid="pn-display-row"
             onClick={() => void choose(row.id)}
           >
@@ -105,8 +121,8 @@ function ScreenMenu({ close }: { close: () => void }) {
                 alt={row.name}
                 draggable={false}
               />
-              <span className="pn-menu-label">{row.name}</span>
-              <span className="pn-menu-sub">{row.position}</span>
+              <span className="pn-display-label">{row.name}</span>
+              <span className="pn-display-sub">{row.position}</span>
             </span>
           </button>
         ),
@@ -148,32 +164,93 @@ export function ScreenPicker({
     noteSource({ kind: "told" });
   }, [pinDropped, toast]);
   const name = screenButtonName(source);
+  // Before a session runs the trigger is disabled and says what is missing.
+  const lock = useToolbarLock();
+  const portal = usePortalRoot();
+  const panel = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  // Closing by Escape, Tab or a choice returns focus to the button (or where
+  // `returnFocus` says); a press elsewhere leaves it where the person pointed.
+  const closeToButton = () => {
+    // The target is read before closing: closing may reset what it depends on.
+    const target = returnFocus?.() ?? trigger.current;
+    onOpenChange(false);
+    target?.focus();
+  };
+  const onPanelKey = (event: KeyboardEvent) => {
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeToButton();
+      return;
+    }
+    if (event.key === "Tab") {
+      closeToButton();
+      return;
+    }
+    const step =
+      event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+    const items = [
+      ...(panel.current?.querySelectorAll<HTMLElement>(ITEM) ?? []),
+    ];
+    if (step === 0 || items.length === 0) return;
+    event.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    items[(at + step + items.length) % items.length]?.focus();
+  };
   return (
-    <Popover
-      open={open}
-      onOpenChange={onOpenChange}
-      {...(returnFocus ? { returnFocus } : {})}
-      className="pn-split-menu pn-screen-button"
-      label={SCREEN_CONTROL.label}
-      triggerLabel={name}
-      title={name}
-      testId="pn-screen"
-      kind="menu"
-      panelClassName="pn-menu pn-display-menu"
-      trigger={
-        <>
-          <Icon name="expand_more" />
-          {source.pinned && (
-            <span
-              className="pn-pin-dot"
-              aria-hidden="true"
-              data-testid="pn-pin-dot"
-            />
-          )}
-        </>
-      }
-    >
-      {(close) => <ScreenMenu close={close} />}
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <span className="pn-popover">
+        <PopoverTrigger asChild>
+          <button
+            ref={(element) => {
+              trigger.current = element;
+              portal.ref(element);
+            }}
+            type="button"
+            className="pn-split-menu pn-screen-button"
+            aria-label={name}
+            title={lock ?? name}
+            disabled={lock !== null}
+            aria-haspopup="menu"
+            data-testid="pn-screen"
+          >
+            <Icon name="expand_more" />
+            {source.pinned && (
+              <span
+                className="pn-pin-dot"
+                aria-hidden="true"
+                data-testid="pn-pin-dot"
+              />
+            )}
+          </button>
+        </PopoverTrigger>
+      </span>
+      <PopoverContent
+        ref={panel}
+        container={portal.container}
+        role="menu"
+        aria-label={SCREEN_CONTROL.label}
+        className="pn-display-menu"
+        align="start"
+        tabIndex={-1}
+        onKeyDown={onPanelKey}
+        // Focus moves into the menu: the chosen row, else the first.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          const first =
+            panel.current?.querySelector<HTMLElement>(
+              '[aria-checked="true"]',
+            ) ?? panel.current?.querySelector<HTMLElement>(ITEM);
+          (first ?? panel.current)?.focus();
+        }}
+        // Focus is placed by closeToButton (or left alone after an outside press).
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => event.preventDefault()}
+      >
+        <ScreenMenu close={closeToButton} />
+      </PopoverContent>
     </Popover>
   );
 }
