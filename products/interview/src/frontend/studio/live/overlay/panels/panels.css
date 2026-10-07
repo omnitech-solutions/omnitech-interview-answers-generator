@@ -740,6 +740,16 @@
 /* The microphone's bars: shown only while listening; they move only while
    words are actually being recognised. */
 
+/* A library surface the page cannot hand a container (the footer's "End this
+   session?" confirmation: the library SessionBar draws it with no `container`)
+   is portalled to <body>, beside .pn-root. The root is fixed at the top of the
+   stack, so Radix's placement wrapper (inline z-index 50) would paint UNDER the
+   panes and the confirmation could not be pressed. Wrappers that sit directly
+   in <body> go one above the root; those inside the root keep its own scale. */
+body > [data-radix-popper-content-wrapper] {
+  z-index: 2147483001 !important;
+}
+
 /* ---- Menus and the shortcut list ---- */
 .pn-menu {
   position: absolute;

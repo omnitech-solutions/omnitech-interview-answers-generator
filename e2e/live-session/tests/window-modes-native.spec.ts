@@ -28,8 +28,11 @@ test("@native native See-through: ON makes the glass clear and reports the surfa
       | undefined;
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-glass="clear"]')).toHaveCount(0);
-  // Off: the window takes the mouse everywhere, so the shell was told nothing.
-  expect(await host.calls("setHitRegions")).toEqual([]);
+  // Design change (d895817): the window reports what it draws even with See-through
+  // off (undrawn glass passes clicks through either way), so a report exists already.
+  await expect
+    .poll(async () => (await regions())?.length ?? 0)
+    .toBeGreaterThan(0);
 
   await seeThrough(page).click();
 
@@ -68,9 +71,10 @@ test("@native native See-through: ON makes the glass clear and reports the surfa
   await seeThrough(page).click();
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-glass="clear"]')).toHaveCount(0);
-  // Off again: the page released the window (null), so it takes the mouse
-  // everywhere.
-  await expect.poll(regions).toBeNull();
+  // Off again: the report continues (a list of what is drawn), it is not released.
+  await expect
+    .poll(async () => (await regions())?.length ?? 0)
+    .toBeGreaterThan(0);
   await panel.reload();
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
 });

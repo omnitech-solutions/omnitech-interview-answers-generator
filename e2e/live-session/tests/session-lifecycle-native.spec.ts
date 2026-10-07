@@ -25,7 +25,7 @@ async function openPanel(
 const endDialog = (page: Page) =>
   page.getByRole("dialog").filter({ hasText: "End this session?" });
 
-test("@native native footer Pause and Resume: toggle the session on the server and the engine and strip follow", async ({
+test("@native native footer Pause and Resume: toggle the session on the server and the engine and footer follow", async ({
   native,
 }) => {
   const { id } = await startSessionViaApi();
@@ -33,7 +33,7 @@ test("@native native footer Pause and Resume: toggle the session on the server a
   const { page, host } = panel;
 
   // Pause: the row is paused, the capture engine is told to hold, the toggle
-  // becomes Resume and the strip says nothing is captured.
+  // becomes Resume and the footer says paused.
   await host.clear();
   await page.getByRole("button", { name: "Pause session" }).click();
   await expect.poll(async () => (await db.session(id))?.status).toBe("paused");
@@ -46,18 +46,18 @@ test("@native native footer Pause and Resume: toggle the session on the server a
   await expect(
     page.getByRole("button", { name: "Pause session" }),
   ).toBeHidden();
-  const strip = page.getByTestId("pn-strip");
-  await expect(strip).toHaveAttribute("data-state", "paused");
-  await expect(strip).toContainText(
-    "Nothing is captured and no new work starts",
-  );
+  // Design change: the paused strip row and banner are gone; paused is shown by
+  // the footer (the amber clock group named "..., paused", one Resume) and the locks.
+  const footer = page.getByRole("toolbar", { name: "Session footer" });
   await expect(
-    page.getByRole("group", { name: /^Session time .*, paused$/ }),
+    footer.getByRole("group", { name: /^Session time .*, paused$/ }),
   ).toBeVisible();
+  await expect(footer).toContainText("Paused");
+  await expect(page.getByTestId("pn-strip")).toHaveCount(0);
 
-  // The strip's own Resume resumes the same session (and re-arms the engine).
+  // The one Resume resumes the session (and re-arms the engine).
   await host.clear();
-  await strip.getByRole("button", { name: "Resume", exact: true }).click();
+  await footer.getByRole("button", { name: "Resume session" }).click();
   await expect.poll(async () => (await db.session(id))?.status).toBe("active");
   await expect
     .poll(async () => (await host.calls("engine.resume")).length)
@@ -65,10 +65,9 @@ test("@native native footer Pause and Resume: toggle the session on the server a
   await expect(
     page.getByRole("button", { name: "Pause session" }),
   ).toBeVisible();
-  await expect(page.getByTestId("pn-strip")).not.toHaveAttribute(
-    "data-state",
-    "paused",
-  );
+  await expect(
+    footer.getByRole("group", { name: /^Session time .*, paused$/ }),
+  ).toHaveCount(0);
 
   // The footer toggle resumes too.
   await page.getByRole("button", { name: "Pause session" }).click();

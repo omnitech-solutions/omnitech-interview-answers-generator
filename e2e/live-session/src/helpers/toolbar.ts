@@ -47,8 +47,13 @@ export async function expectCaptureMode(
   await openCaptureMenu(page);
   await expect(modeRow(page, mode)).toHaveAttribute("aria-checked", "true");
   await expect(modeRow(page, other)).toHaveAttribute("aria-checked", "false");
-  await page.keyboard.press("Escape");
-  await expect(captureMenu(page)).toBeHidden();
+  // The caret's own tooltip can be the first thing Escape dismisses (focus came
+  // back to the caret after an earlier choice), so press until the menu is gone.
+  await expect(async () => {
+    if (await captureMenu(page).isVisible())
+      await page.keyboard.press("Escape");
+    await expect(captureMenu(page)).toBeHidden({ timeout: 1_000 });
+  }).toPass();
 }
 
 // The display rows of the capture menu's Display section (the "Follow my
@@ -65,6 +70,12 @@ export async function expectTooltip(
   control: Locator,
   text: string | RegExp,
 ): Promise<void> {
+  // A menu returns focus to its caret, whose tooltip is still fading: let go of
+  // whatever has focus and wait for every tooltip to be gone first.
+  await page.evaluate(() =>
+    (document.activeElement as HTMLElement | null)?.blur(),
+  );
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await control.focus();
   await expect(page.getByRole("tooltip")).toHaveText(text);
   await control.blur();

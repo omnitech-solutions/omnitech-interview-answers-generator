@@ -290,11 +290,15 @@ test("@native shortcut ⌘⇧I See-through: the intent flips See-through, the cl
   await host.fireIntent("see-through.toggle");
   await expect(button).toHaveAttribute("aria-pressed", "false");
   await expect(root).not.toHaveAttribute("data-glass", /.*/);
+  // Design change (d895817): the window reports what it draws with See-through
+  // off too; the report stays a list of rectangles (null only when hidden).
   await expect
-    .poll(
-      async () => (await host.calls("setHitRegions")).at(-1)?.params["regions"],
+    .poll(async () =>
+      Array.isArray(
+        (await host.calls("setHitRegions")).at(-1)?.params["regions"],
+      ),
     )
-    .toBeNull();
+    .toBe(true);
   await context.close();
 });
 

@@ -32,6 +32,16 @@ describe("the stacking scale", () => {
     expect(block(".pn-menu")).toMatch(/z-index:\s*var\(--pn-z-popover\)/);
   });
 
+  it("paints a popover portalled to <body> (the End confirmation) above the fixed panel root", () => {
+    const root = Number(/\.pn-root \{[\s\S]*?z-index:\s*(\d+)/.exec(css)?.[1]);
+    const wrapper = Number(
+      /body > \[data-radix-popper-content-wrapper\] \{\s*z-index:\s*(\d+) !important/.exec(
+        css,
+      )?.[1],
+    );
+    expect(wrapper).toBeGreaterThan(root);
+  });
+
   it("is not changed by clear glass", () => {
     expect(block('.pn-root[data-glass="clear"]')).not.toMatch(/z-index/);
   });
