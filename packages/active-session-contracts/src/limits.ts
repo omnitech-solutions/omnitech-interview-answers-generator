@@ -20,7 +20,9 @@ export const ACTIVE_SESSION_LIMITS = Object.freeze({
   // Bursts of finalised segments after a pause, not a sustained stream.
   maxIngestPerMinute: 120,
   // A session of a few hours; capture ends visibly at the cap.
-  sessionDurationCapMs: 4 * 60 * 60 * 1000,
+  // No expiry by default (owner's rule, 2026-10-07): a session lives until it is
+  // ended. Ten years is the cap only because a timestamp needs a value.
+  sessionDurationCapMs: 10 * 365 * 24 * 60 * 60 * 1000,
   // Heartbeats and capability reports are rate-bounded by minimum spacing: the
   // companion heartbeats about every 5 s, so 1 s leaves headroom for a resume
   // heartbeat while stopping a loop from hammering the contact stamp. Closer
