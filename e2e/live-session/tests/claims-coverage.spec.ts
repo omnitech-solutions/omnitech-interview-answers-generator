@@ -74,14 +74,13 @@ test("claims inventory: pending claims are visible, and fail under E2E_STRICT=1"
 test("claims inventory: every web control on the sign-in, setup, live and ended pages is inventoried", async ({
   page,
   browser,
-  control,
   stack,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(60_000);
   const context = await browser.newContext();
   const signIn = await scanSignIn(context, stack);
   await context.close();
-  const web = await scanWeb(page, control);
+  const web = await scanWeb(page);
   expect(
     uninventoried({ surface: "web", found: [...signIn.found, ...web.found] }),
     "controls with no claim: add them to src/claims/claims.ts",
@@ -93,7 +92,7 @@ test("claims inventory: every native panel control is inventoried", async ({
   stack,
   control,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(90_000);
   const native = await scanNative(browser, stack, control);
   expect(
     uninventoried(native),

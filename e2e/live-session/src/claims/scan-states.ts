@@ -11,7 +11,6 @@ import { type FoundControl, scanControls } from "../helpers/aria-scan";
 import { LivePage } from "../pages/live-page";
 import type { StackConfig } from "../stack/config";
 import type { Control } from "../stack/control";
-import type { ScenarioName } from "../stack/scenarios";
 
 export type Sighting = FoundControl & { state: string };
 export type Sightings = { surface: "web" | "native"; found: Sighting[] };
@@ -42,10 +41,7 @@ export async function scanSignIn(
   return sightings;
 }
 
-export async function scanWeb(
-  page: Page,
-  control: Control,
-): Promise<Sightings> {
+export async function scanWeb(page: Page): Promise<Sightings> {
   const { sightings, note } = recorder("web");
   const live = new LivePage(page);
   await live.goto();
@@ -60,63 +56,8 @@ export async function scanWeb(
     await page.getByRole("tab", { name: tab }).click();
     await note(`live-tab-${tab.toLowerCase()}`, page);
   }
-  await live.stageScreenshot();
-  await note("live-tray-staged-first", page);
-  await live.apply().click();
-  await expect(live.task(1)).toBeVisible();
-  await note("live-task", page);
-
-  // One task per scenario that changes what the task card offers.
-  const tasks: Array<[number, ScenarioName]> = [
-    [2, "coding-answer"],
-    [3, "missing-context"],
-    [4, "withheld-preference"],
-    [5, "withheld-figure"],
-    [6, "provider-failure"],
-  ];
-  for (const [n, name] of tasks) {
-    await control.scenario(name);
-    await live.captureNewTask();
-    await expect(live.task(n)).toBeVisible({ timeout: 30_000 });
-    await note(`live-task-${name}`, page);
-    if (name === "coding-answer") {
-      await page.getByRole("tab", { name: "Code" }).click();
-      await note("live-task-code-tab", page);
-      await page.getByRole("tab", { name: "Answer" }).click();
-    }
-  }
-  // E-B3: an earlier task, a task with two revisions and its menu, the staging
-  // tray with its viewer and crop editor, and a no-question note.
-  await control.scenario("plain-answer");
-  await live.chip(1).click();
-  await note("live-earlier-task", page);
-  await live.stageScreenshot();
-  await live.apply().click();
-  const revisions = page.getByRole("button", {
-    name: /^Revisions: rev 2 of 2$/,
-  });
-  await expect(revisions).toBeVisible({ timeout: 30_000 });
-  await revisions.click();
-  await note("live-revisions-menu", page);
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: /^Back to T\d+$/ }).click();
-  await live.addScreenshot().click();
-  await expect(live.staged(1)).toBeVisible();
-  await note("live-tray-staged", page);
-  await page.getByRole("button", { name: "Open New 1" }).click();
-  await note("live-viewer", page);
-  await page.getByRole("button", { name: "Crop", exact: true }).click();
-  await note("live-crop-editor", page);
-  await page.getByRole("button", { name: "Cancel" }).click();
-  await page.getByRole("button", { name: "Close viewer" }).click();
-  await live.discard().click();
-  await control.scenario("no-question");
-  await live.captureNewTask();
-  await page.getByRole("tab", { name: "Transcript" }).click();
-  await expect(page.getByTestId("transcript-note")).toBeVisible({
-    timeout: 30_000,
-  });
-  await note("live-no-question-note", page);
+  // The web live page no longer captures or shows tasks (the in-tab card was
+  // removed, ADR-0033): it is session control, the details tabs and the end view.
   const bar = live.sessionBar();
   await bar.getByRole("button", { name: "Pause" }).click();
   await expect(bar.getByRole("button", { name: "Resume" })).toBeVisible();

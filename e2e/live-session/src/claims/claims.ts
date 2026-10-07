@@ -60,7 +60,9 @@ const make = (surface: Surface, rows: Row[]): Claim[] =>
     ...(spec ? { spec } : {}),
   }));
 
-const SMOKE_START = "web smoke: sign in, start a rehearsal";
+// The start path (Rehearsal target, consent, Start) is driven by startRehearsal in
+// this smoke; the old "sign in, start a rehearsal" smoke no longer exists.
+const SMOKE_START = "web smoke: End with confirmation";
 const SMOKE_END = "web smoke: End with confirmation";
 const SMOKE_SIGNIN = "web smoke: unauthenticated";
 const SMOKE_NATIVE = "native smoke: panel toolbar";
@@ -227,7 +229,7 @@ const screenshotRows = (surface: Surface): Row[] => [
     "the label equals the server's sentByRevision for the screenshot (newest revision), and the viewer header lists every revision's outcome",
     surface === "web"
       ? "web Screenshots to the model, "
-      : "native Screenshots viewer: Open S1",
+      : "native Screenshots to the model, Always",
   ],
   [
     `${surface}.screenshots.setting-tooltip`,
@@ -1193,7 +1195,7 @@ export const NATIVE_CLAIMS: Claim[] = make("native", [
     "native.mode.add-screen",
     "mode-menu",
     "menuitem",
-    /^Add screen to this problem/,
+    /^Add screen to (this problem|T\d+)/,
     "Adds a capture to the selected task",
     "server",
     "same task_id gets revision + 1; disabled with 'Needs a task first' before any task",
@@ -1585,7 +1587,7 @@ NATIVE_CLAIMS.push(
       "native.tool.stop",
       "toolbar",
       "button",
-      "Stop",
+      /^Stop( |$)/,
       "While work runs, the capture button stops all analysis; the session stays open",
       "server",
       "the in-flight action is suppressed (owner_stopped), its model call cancelled, the session stays active",
@@ -1975,6 +1977,78 @@ for (const claim of [...WEB_CLAIMS, ...NATIVE_CLAIMS]) {
     claim.spec = spec;
   }
 }
+
+// Controls the library toolbar, the transcript and the code files draw now,
+// found by the native scan. Pending: no passing spec observes their effect yet
+// (the mic menu belongs to window-modes-native / mic specs, which name it as
+// present only).
+NATIVE_CLAIMS.push(
+  ...make("native", [
+    [
+      "native.tool.mic-menu",
+      "toolbar",
+      "button",
+      "Microphone options",
+      "Opens the microphone menu (source, start or stop listening)",
+      "dom",
+      "the menu opens and lists the listening choice",
+    ],
+    [
+      "native.mic-menu.stop",
+      "mic-menu",
+      "menuitem",
+      /^(Stop|Start) listening/,
+      "Starts or stops listening from the menu",
+      "bridge",
+      "engine.start/stop recorded, same as the toolbar microphone button",
+    ],
+    [
+      "native.footer.build",
+      "footer",
+      "button",
+      /^Copy build /,
+      "Copies the build id and branch",
+      "clipboard",
+      "the clipboard holds the build id; the label says Copied",
+    ],
+    [
+      "native.chat.copy-message",
+      "transcript",
+      "button",
+      "Copy message",
+      "Copies this transcript message",
+      "clipboard",
+      "the clipboard holds the message text",
+    ],
+    [
+      "native.screenshots.clear",
+      "tray",
+      "button",
+      "Clear",
+      "Clears the staged screenshots",
+      "dom",
+      "the staged thumbnails are removed; nothing is stored",
+    ],
+    [
+      "native.code.file-solution",
+      "code-pane",
+      "button",
+      "solution.ts",
+      "Shows the solution file",
+      "dom",
+      "the editor holds the solution",
+    ],
+    [
+      "native.code.file-tests",
+      "code-pane",
+      "button",
+      "solution.test.ts",
+      "Shows the generated test file",
+      "dom",
+      "the editor holds the generated test source",
+    ],
+  ]),
+);
 
 export const CLAIMS: Claim[] = [...WEB_CLAIMS, ...NATIVE_CLAIMS];
 

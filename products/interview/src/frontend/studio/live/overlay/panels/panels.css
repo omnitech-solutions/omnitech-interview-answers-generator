@@ -63,7 +63,10 @@
   --ov-red: #ff453a;
   position: fixed;
   inset: 0;
-  z-index: 2147483000;
+  /* Below the library's body-level popovers (z-50, e.g. the footer's End
+     confirmation, which has no portal container): an enormous z-index here
+     painted the panes over them and they swallowed the clicks. */
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
