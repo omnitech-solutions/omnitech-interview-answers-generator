@@ -42,8 +42,9 @@ test("@native native Analyze screen in Manual: stages the screenshot on this dev
   await expect
     .poll(async () => (await host.calls("captureScreen")).length)
     .toBe(1);
+  // Design change: the old "To apply (1)" heading is the Answer panel's dock.
   await expect(
-    page.getByRole("heading", { name: "To apply (1)" }),
+    page.getByTestId("screenshot-tray").getByText("To apply \u00b7 1"),
   ).toBeVisible();
   await expect(page.getByTestId("staged-1")).toContainText("Not sent yet");
   // ...and nothing else happened: no model call, no stored screenshot, no action.
