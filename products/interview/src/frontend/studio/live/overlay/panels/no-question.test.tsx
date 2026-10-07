@@ -81,9 +81,9 @@ describe("native window", () => {
     expect(
       [...document.querySelectorAll('[data-kind="assistant"]')].length,
     ).toBe(0);
-    expect(screen.getByTestId("pn-marker")).toHaveTextContent(
-      /captured: no question found|No question found/,
-    );
+    expect(
+      within(screen.getByRole("log")).getByText(/no question found/),
+    ).toBeVisible();
   });
 
   it("makes no chip or Back target for a no-question capture beside real tasks", async () => {

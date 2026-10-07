@@ -212,7 +212,7 @@ describe("Add context", () => {
     expect(button("Send message")).toBeDisabled();
     fireEvent.change(box(), { target: { value: "   " } });
     expect(button("Send message")).toBeDisabled();
-    fireEvent.submit(box().closest("form") as HTMLFormElement);
+    fireEvent.keyDown(box(), { key: "Enter" });
     await flush();
     expect(journey.inputs).toEqual([]);
     expect(strip()).toBeVisible();
@@ -221,9 +221,8 @@ describe("Add context", () => {
   it("makes one request for a double press and keeps what was typed afterwards", async () => {
     await open();
     fireEvent.change(box(), { target: { value: "the examples" } });
-    const form = box().closest("form") as HTMLFormElement;
-    fireEvent.submit(form);
-    fireEvent.submit(form);
+    fireEvent.keyDown(box(), { key: "Enter" });
+    fireEvent.keyDown(box(), { key: "Enter" });
     await flush();
     expect(journey.inputs).toHaveLength(1);
   });

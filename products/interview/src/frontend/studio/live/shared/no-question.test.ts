@@ -6,7 +6,6 @@ import {
   type PanelRow,
   panelRows,
   taskChips,
-  taskMarkers,
 } from "../overlay/panels/panel-model";
 import { deriveNoQuestionTasks, deriveTasks } from "../session-tasks";
 import { transcriptRows } from "../session-transcript";
@@ -244,33 +243,14 @@ describe("native chat", () => {
     );
     return { tasks, noQuestion, transcript: [] } as never;
   };
-  const markersFor = (actions: ReturnType<typeof action>[]) => {
-    const m = model(actions) as { tasks: never; noQuestion: never };
-    return taskMarkers({
-      tasks: m.tasks,
-      actions,
-      observations: [],
-      deviceOnly: false,
-      noQuestion: m.noQuestion,
-    });
-  };
   const rows = (actions: ReturnType<typeof action>[]): PanelRow[] =>
-    panelRows(model(actions), [], [], 0, markersFor(actions));
+    panelRows(model(actions), []);
 
-  it("adds a muted note row and no Studio bubble for a no-question capture", () => {
+  it("makes no Studio bubble and no row for a no-question capture (its chip is built from the capture)", () => {
     const list = rows([real("a", 1), junk("x", 2)]);
     expect(list.filter((r) => r.kind === "assistant")).toHaveLength(1);
-    const note = list.find((r) => r.text === "No question found");
-    expect(note?.kind).toBe("marker");
-    expect(list.some((r) => r.text.includes("No question."))).toBe(false);
-  });
-
-  it("collapses a run of notes", () => {
-    const n = NO_QUESTION_NOTES.collapseAt;
-    const list = rows(
-      Array.from({ length: n }, (_v, i) => junk(`x${i}`, i + 1)),
-    );
-    expect(list.map((r) => r.text)).toEqual([`${n} captures with no question`]);
+    expect(list.some((r) => r.text.includes("No question"))).toBe(false);
+    expect(list.map((r) => r.kind)).toEqual(["assistant"]);
   });
 });
 

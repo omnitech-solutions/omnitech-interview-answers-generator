@@ -11,20 +11,25 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { deriveLiveModel } from "../../session-state";
+import { answerAction } from "../../testing/live-view-kit";
 import {
   minutesAfter,
   sessionView,
   snapshot,
   transcript,
 } from "../../testing/session-fixtures";
+import { answerResult } from "../../testing/session-result-fixtures";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { ChatPanel, type PanelSession } from "./panel-views";
 
-const model = (observations: ReturnType<typeof transcript>[]) =>
+const model = (
+  observations: ReturnType<typeof transcript>[],
+  actions: ReturnType<typeof answerAction>[] = [],
+) =>
   deriveLiveModel({
     session: sessionView({ processingPolicy: "permitted-remote" }),
     observations: [snapshot(1), ...observations],
-    actions: [],
+    actions,
     serverClockOffsetMs: 0,
     nowMs: Date.parse(minutesAfter(2)),
   });
@@ -280,5 +285,93 @@ describe("following the newest line", () => {
     expect(
       screen.queryByRole("button", { name: /^Jump to the latest/ }),
     ).toBeNull();
+  });
+});
+
+describe("what the transcript holds", () => {
+  it("draws a capture as one chip among the lines, never as a bubble", () => {
+    render(<ChatPanel s={fake().session} />);
+    const chips = document.querySelectorAll('[data-slot="transcript-event"]');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toHaveTextContent(/^S1 captured/);
+    expect(
+      document.querySelector('[data-slot="transcript-speech"]'),
+    ).toBeNull();
+  });
+
+  it("hides the chips and lines of what was cleared", () => {
+    const { session } = fake({ clearedAt: Date.parse(minutesAfter(5)) });
+    render(<ChatPanel s={session} />);
+    expect(document.querySelector('[data-slot="transcript-event"]')).toBeNull();
+  });
+
+  it("has no record dot and no system line while the microphone listens", () => {
+    render(
+      <ChatPanel
+        s={fake({ live: { mic: "listening", interim: "" } }).session}
+      />,
+    );
+    expect(screen.queryByRole("status", { name: "Recording" })).toBeNull();
+    expect(screen.queryByText(/Recording in Progress/)).toBeNull();
+    expect(screen.queryByText(/System/)).toBeNull();
+  });
+});
+
+describe("an answer in the transcript", () => {
+  const withAnswer = (draft: string, extra: Record<string, unknown> = {}) =>
+    fake({
+      model: model([], [answerAction(answerResult({ draft }))]),
+      ...extra,
+    });
+  const bubble = () => screen.getByTitle("Show this answer");
+
+  it("is a button that shows its task, by press or by Enter or Space, and its copy control never presses it", () => {
+    const { session } = withAnswer("A plan.");
+    const select = vi.fn();
+    render(<ChatPanel s={{ ...session, select } as PanelSession} />);
+    expect(bubble()).toHaveAttribute("role", "button");
+    expect(bubble()).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(bubble());
+    expect(select).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(bubble(), { key: "Enter" });
+    fireEvent.keyDown(bubble(), { key: " " });
+    expect(select).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+    expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it("marks the chosen answer pressed", () => {
+    const first = withAnswer("A plan.");
+    const taskId = first.session.model.tasks[0]?.taskId;
+    const { session } = withAnswer("A plan.", { selected: { taskId } });
+    render(<ChatPanel s={session} />);
+    expect(bubble()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows fenced code as a highlighted code block in the coding language", () => {
+    const { session } = withAnswer("Plan:\n```\nconst a = 1;\n```", {
+      prefs: { settings: { language: "typescript" } },
+    });
+    render(<ChatPanel s={session} />);
+    const block = document.querySelector('[data-slot="transcript-code"]');
+    expect(block).not.toBeNull();
+    expect(block?.querySelector(".hljs-keyword")).toHaveTextContent("const");
+  });
+});
+
+describe("sending with the keyboard", () => {
+  it("Enter sends the text, and Enter on blank text sends nothing", async () => {
+    const full = fake({ draft: "why?" });
+    const { rerender } = render(<ChatPanel s={full.session} />);
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    expect(full.calls.send).toHaveBeenCalledWith("why?");
+    const blank = fake({ draft: "  " });
+    rerender(<ChatPanel s={blank.session} />);
+    await act(async () => {
+      fireEvent.keyDown(box(), { key: "Enter" });
+    });
+    expect(blank.calls.send).not.toHaveBeenCalled();
   });
 });

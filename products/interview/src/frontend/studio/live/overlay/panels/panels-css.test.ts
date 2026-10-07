@@ -30,4 +30,17 @@ describe("panels.css rules", () => {
     expect(menu).toMatch(/max-height: calc\(100vh - \d+px\)/);
     expect(menu).toMatch(/overflow-y: auto/);
   });
+
+  it("the transcript is 330 px (never under 300) beside other panels, which share the rest equally; alone it takes the row", () => {
+    const chat = rule(
+      '.pn-single-body:has(> :not([data-which="chat"])) > [data-which="chat"]',
+    );
+    expect(chat).toMatch(/flex: 0 0 330px/);
+    expect(chat).toMatch(/min-width: 300px/);
+    const pane = rule(".pn-single-pane");
+    expect(pane).toMatch(/flex: 1 1 0/);
+    expect(pane).toMatch(/min-width: 0/);
+    // No pane has a width of its own: that would crop at narrow windows.
+    expect(css).not.toMatch(/\[data-which="(analysis|code)"\]\s*\{\s*flex:/);
+  });
 });

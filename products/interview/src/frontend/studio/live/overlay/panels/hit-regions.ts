@@ -33,7 +33,6 @@ export const HIT_SELECTORS = [
   ".pn-menu", // every popover and menu
   ".ov-rev-menu", // the revisions popover
   ".pn-toast", // a toast
-  ".pn-jump", // the jump-to-latest control
   ".ss-viewer-scrim", // the screenshot viewer, when open: covers the window
   "[data-oui-surface]", // every portalled library surface (menus, popovers, tooltips, dialogs, toasts)
 ] as const;

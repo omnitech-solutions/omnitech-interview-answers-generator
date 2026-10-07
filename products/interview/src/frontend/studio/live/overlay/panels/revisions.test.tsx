@@ -215,7 +215,7 @@ describe("a revision with no text yet", () => {
     expect(chatRows()).toHaveLength(1);
     expect(chatRows()[0]).not.toContain(SECOND);
     expect(chatRows()[0]).not.toContain(FIRST);
-    expect(screen.getByTestId("pn-stage")).toHaveTextContent("…");
+    expect(chatRows()[0]).toContain("…");
     // The older revision still reads as itself.
     choose(2);
     expect(chatRows()[0]).toContain(SECOND);

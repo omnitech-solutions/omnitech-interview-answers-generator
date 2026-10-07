@@ -64,7 +64,6 @@ import {
   speakerOf,
   stoppedByYou,
   taskChips,
-  taskMarkers,
 } from "./panel-model";
 
 const modelOf = (
@@ -141,61 +140,26 @@ describe("who said it", () => {
   });
 });
 
-describe("markers between the lines", () => {
-  const input = (actions: ReturnType<typeof action>[]) => {
-    const model = modelOf(actions);
-    return {
-      tasks: model.tasks,
-      actions,
-      observations: [snapshot(1)],
-      deviceOnly: false,
-    };
-  };
-
-  it("says which screenshot a task started from when the stream names it", () => {
-    expect(taskMarkers(input([first])).map((marker) => marker.text)).toEqual([
-      "S1 captured · T1 started",
-    ]);
-  });
-
-  it("claims no screenshot for a task the stream does not tie to one", () => {
-    expect(
-      taskMarkers(input([answerAction(answerResult())])).map(
-        (marker) => marker.text,
-      ),
-    ).toEqual(["T1 started"]);
-  });
-
-  it("marks a task the owner stopped, and what was and was not published", () => {
-    const texts = taskMarkers(input([stopped("task-2")])).map(
-      (marker) => marker.text,
-    );
-    expect(texts).toEqual([
-      "T1 started",
-      "T1 stopped by you · nothing published",
-    ]);
-    expect(
-      taskMarkers(input([first, stopped("task-1", "solve-code")])).map(
-        (marker) => marker.text,
-      ),
-    ).toContain("T1 stopped by you · nothing published for code");
-  });
-
-  it("puts the markers among the rows in time order, and drops the cleared ones", () => {
+describe("what the transcript holds", () => {
+  it("has only what was said, what was typed and the answers: no marker, no system line", () => {
     const model = modelOf([first]);
-    const markers = taskMarkers({
-      tasks: model.tasks,
-      actions: [first],
-      observations: [snapshot(1)],
-      deviceOnly: false,
-    });
-    const rows = panelRows(model, [], [], 0, markers);
-    expect(rows.some((row) => row.kind === "marker")).toBe(true);
-    expect(
-      panelRows(model, [], [], Date.parse(minutesAfter(5)), markers).some(
-        (row) => row.kind === "marker",
-      ),
-    ).toBe(false);
+    const rows = panelRows(model, [
+      {
+        key: "t",
+        kind: "Typed",
+        text: "why?",
+        at: Date.parse(minutesAfter(2)),
+      },
+    ]);
+    expect(new Set(rows.map((row) => row.kind))).toEqual(
+      new Set(["typed", "assistant"]),
+    );
+  });
+
+  it("drops what was cleared, but keeps what came after", () => {
+    const model = modelOf([first]);
+    expect(panelRows(model, [], Date.parse(minutesAfter(5)))).toEqual([]);
+    expect(panelRows(model, [], 0).length).toBeGreaterThan(0);
   });
 });
 
