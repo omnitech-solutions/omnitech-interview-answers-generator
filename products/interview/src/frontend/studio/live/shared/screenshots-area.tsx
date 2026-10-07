@@ -290,6 +290,7 @@ export function ScreenshotsArea({
   variant,
   onAdd,
   captureUnavailable = null,
+  hideTray = false,
 }: {
   view: ScreenshotsView;
   id: string;
@@ -298,6 +299,9 @@ export function ScreenshotsArea({
   onAdd(intent: TrayIntent): void;
   // Why capturing is not possible on this page right now, if it is not.
   captureUnavailable?: string | null;
+  // The staging tray is drawn elsewhere (the native Answer panel's dock): show
+  // only the stored screenshots here.
+  hideTray?: boolean;
 }) {
   const { tray, stored, staged } = view;
   const [viewing, setViewing] = useState<{ key: string; crop: boolean } | null>(
@@ -305,6 +309,8 @@ export function ScreenshotsArea({
   );
   const notice = useId();
   if (!tray.open) return null;
+  if (hideTray && stored.length === 0 && !view.loading && !view.error)
+    return null;
   const addReason = tray.addDisabledReason ?? captureUnavailable;
   const showApply = staged.length > 0 || tray.hasTarget;
   const open = viewing
@@ -345,101 +351,103 @@ export function ScreenshotsArea({
           )}
         </div>
       )}
-      <div className="ss-block" data-testid="screenshot-tray">
-        <div className="ss-row">
-          <h4 className="ss-title">
-            {staged.length > 0
-              ? `To apply (${staged.length})`
-              : tray.mode === "manual"
-                ? "Add screenshots"
-                : "Add context"}
-          </h4>
-          <button
-            type="button"
-            className="ss-btn"
-            disabled={addReason !== null}
-            aria-describedby={addReason ? notice : undefined}
-            data-testid="add-screenshot"
-            onClick={() => onAdd(tray.hasTarget ? tray.intent : "new")}
-          >
-            <Icon name="add" /> Add screenshot
-          </button>
-        </div>
-        {addReason && (
-          <p id={notice} className="ss-meta" data-testid="add-reason">
-            {addReason}
-          </p>
-        )}
-        {tray.hasTarget && (
-          <div className="ss-row" role="radiogroup" aria-label="Apply to">
-            {INTENTS.map((each) => (
-              <label
-                key={each.id}
-                className="ss-btn ss-radio"
-                data-on={tray.intent === each.id || undefined}
-                data-disabled={tray.applying || undefined}
-              >
-                <input
-                  type="radio"
-                  name={`${notice}-intent`}
-                  checked={tray.intent === each.id}
-                  disabled={tray.applying}
-                  data-testid={`intent-${each.id}`}
-                  onChange={() => tray.setIntent(each.id)}
-                />
-                {each.label(view.taskLabel)}
-              </label>
-            ))}
-          </div>
-        )}
-        {staged.length > 0 && (
-          <StagedList
-            view={view}
-            onOpen={(key, crop) => setViewing({ key, crop })}
-          />
-        )}
-        <p className="ss-meta" data-testid="tray-sends">
-          {tray.sends}
-        </p>
-        {tray.applying && (
-          <p className="ss-meta" role="status" data-testid="tray-status">
-            {tray.reading
-              ? "Reading text..."
-              : tray.intent === "add" && tray.hasTarget
-                ? `Regenerating ${view.taskLabel ?? "the task"}...`
-                : "Sending..."}
-          </p>
-        )}
-        {tray.failureText && (
-          <p className="ss-error" role="alert" data-testid="tray-error">
-            {tray.failureText}
-          </p>
-        )}
-        {showApply && (
+      {!hideTray && (
+        <div className="ss-block" data-testid="screenshot-tray">
           <div className="ss-row">
+            <h4 className="ss-title">
+              {staged.length > 0
+                ? `To apply (${staged.length})`
+                : tray.mode === "manual"
+                  ? "Add screenshots"
+                  : "Add context"}
+            </h4>
             <button
               type="button"
-              className="ss-btn primary"
-              disabled={!tray.canApply}
-              data-testid="apply-screenshots"
-              onClick={() => void tray.apply()}
+              className="ss-btn"
+              disabled={addReason !== null}
+              aria-describedby={addReason ? notice : undefined}
+              data-testid="add-screenshot"
+              onClick={() => onAdd(tray.hasTarget ? tray.intent : "new")}
             >
-              {tray.failure === "request" ? "Retry" : "Apply"}
+              <Icon name="add" /> Add screenshot
             </button>
-            {staged.length > 0 && (
+          </div>
+          {addReason && (
+            <p id={notice} className="ss-meta" data-testid="add-reason">
+              {addReason}
+            </p>
+          )}
+          {tray.hasTarget && (
+            <div className="ss-row" role="radiogroup" aria-label="Apply to">
+              {INTENTS.map((each) => (
+                <label
+                  key={each.id}
+                  className="ss-btn ss-radio"
+                  data-on={tray.intent === each.id || undefined}
+                  data-disabled={tray.applying || undefined}
+                >
+                  <input
+                    type="radio"
+                    name={`${notice}-intent`}
+                    checked={tray.intent === each.id}
+                    disabled={tray.applying}
+                    data-testid={`intent-${each.id}`}
+                    onChange={() => tray.setIntent(each.id)}
+                  />
+                  {each.label(view.taskLabel)}
+                </label>
+              ))}
+            </div>
+          )}
+          {staged.length > 0 && (
+            <StagedList
+              view={view}
+              onOpen={(key, crop) => setViewing({ key, crop })}
+            />
+          )}
+          <p className="ss-meta" data-testid="tray-sends">
+            {tray.sends}
+          </p>
+          {tray.applying && (
+            <p className="ss-meta" role="status" data-testid="tray-status">
+              {tray.reading
+                ? "Reading text..."
+                : tray.intent === "add" && tray.hasTarget
+                  ? `Regenerating ${view.taskLabel ?? "the task"}...`
+                  : "Sending..."}
+            </p>
+          )}
+          {tray.failureText && (
+            <p className="ss-error" role="alert" data-testid="tray-error">
+              {tray.failureText}
+            </p>
+          )}
+          {showApply && (
+            <div className="ss-row">
               <button
                 type="button"
-                className="ss-btn"
-                disabled={tray.applying}
-                data-testid="discard-screenshots"
-                onClick={tray.discard}
+                className="ss-btn primary"
+                disabled={!tray.canApply}
+                data-testid="apply-screenshots"
+                onClick={() => void tray.apply()}
               >
-                Discard
+                {tray.failure === "request" ? "Retry" : "Apply"}
               </button>
-            )}
-          </div>
-        )}
-      </div>
+              {staged.length > 0 && (
+                <button
+                  type="button"
+                  className="ss-btn"
+                  disabled={tray.applying}
+                  data-testid="discard-screenshots"
+                  onClick={tray.discard}
+                >
+                  Discard
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {open && (
         <ImageViewer
           shot={open}

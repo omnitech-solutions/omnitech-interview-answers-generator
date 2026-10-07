@@ -125,7 +125,7 @@
     .cm-editor,
     .pn-log,
     .pn-interim,
-    .pn-analysis-text,
+    .pn-answer-panel,
     .pn-code-body,
     .pn-example,
     .pn-strip-main,
@@ -312,27 +312,137 @@
 }
 
 /* ---- Analysis ---- */
-.pn-analysis {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  gap: 8px;
+/* The Answer panel is a library Panel (header, scrolling body, dock). Its width
+   decides what the header meta and the dock show, so it is the container. */
+.pn-answer-panel {
+  container: pn-answer / inline-size;
 }
-.pn-analysis-text {
-  flex: 1.25;
-  min-width: 0;
+.pn-answer-body {
+  padding: 12px 14px;
+  gap: 10px;
 }
-.pn-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+.pn-answer-content {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
-.pn-scroll p {
+.pn-answer-content p {
   margin: 2px 0;
 }
+.pn-answer-steps {
+  margin: auto 0;
+  align-self: center;
+}
+.pn-step-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  opacity: 0.6;
+}
+@container pn-answer (max-width: 420px) {
+  .pn-meta-tail {
+    display: none;
+  }
+  .pn-dock-add-label {
+    display: none;
+  }
+}
+
+/* The "To apply" dock: one row of controls at the panel's narrowest. */
+.pn-answer-dock {
+  padding: 0;
+}
+.pn-dock {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.pn-dock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pn-dock-count {
+  flex: none;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.pn-dock-thumbs {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+.pn-dock-thumb {
+  position: relative;
+  flex: none;
+}
+.pn-dock-thumb-open {
+  display: block;
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--oui-panel-divider);
+  border-radius: 6px;
+  background: var(--oui-panel-bg);
+  color: inherit;
+  cursor: pointer;
+}
+.pn-dock-thumb-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pn-dock-thumb-remove {
+  display: none;
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--oui-panel-dock-bg);
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+}
+.pn-dock-thumb:hover .pn-dock-thumb-remove,
+.pn-dock-thumb:focus-within .pn-dock-thumb-remove {
+  display: block;
+}
+.pn-dock-thumb-remove .studio-icon {
+  width: 10px;
+  height: 10px;
+}
+.pn-dock-note {
+  margin: 0;
+  font-size: 11.5px;
+  opacity: 0.75;
+}
+.pn-dock-note[data-tone="bad"] {
+  color: var(--pn-warn);
+  opacity: 1;
+}
+.pn-dock-intent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
 .pn-problem {
   margin: 0;
   font-size: 14px;
@@ -614,15 +724,6 @@
 .pn-single-pane[data-which="analysis"] {
   container-type: inline-size;
 }
-@container (max-width: 760px) {
-  .pn-analysis {
-    flex-direction: column;
-  }
-  .pn-analysis-text {
-    flex: 1.4;
-    min-height: 0;
-  }
-}
 .pn-single-pane[data-which="code"] {
   container-type: inline-size;
 }
@@ -679,14 +780,6 @@
 }
 .pn-problem-head .pn-problem {
   margin: 0;
-}
-.pn-type-pill {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  background: var(--ov-chip);
-  white-space: nowrap;
 }
 
 /* The speech line keeps its space, so the chat does not jump as words arrive. */
@@ -1157,29 +1250,6 @@
   font-weight: 600;
   text-shadow: none;
 }
-.pn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--pn-control);
-  margin-top: 4px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--pn-accent);
-  color: #fff;
-  font-weight: 500;
-  cursor: pointer;
-}
-.pn-primary:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.pn-primary kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  opacity: 0.75;
-}
 .pn-fill {
   flex: 1;
 }
@@ -1262,72 +1332,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-.pn-steps {
-  list-style: none;
-  margin: auto 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pn-steps li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.4);
-}
-.pn-steps li[data-state="done"] {
-  color: rgba(255, 255, 255, 0.6);
-}
-.pn-steps li[data-state="active"] {
-  color: #fff;
-}
-.pn-step-mark {
-  width: 16px;
-  display: inline-flex;
-  justify-content: center;
-}
-.pn-step-label {
-  flex: 1;
-}
-.pn-step-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-}
-.pn-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px;
-  text-align: center;
-}
-.pn-empty-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--pn-radius);
-  background: var(--pn-chip);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pn-empty-icon .studio-icon {
-  width: 22px;
-  height: 22px;
-}
-.pn-empty-title {
-  font-size: 15px;
-  font-weight: 600;
-}
-.pn-empty-sub {
-  max-width: 300px;
-  font-size: 12.5px;
-  color: var(--ov-muted);
 }
 .pn-placeholder {
   display: flex;
@@ -1594,8 +1598,7 @@
     .pn-problem-head,
     .pn-answer,
     .pn-constraints,
-    .pn-empty,
-    .pn-steps,
+    .pn-answer-steps,
     .pn-muted,
     .pn-strip-main,
     .pn-strip-sub,

@@ -333,7 +333,7 @@ describe("analysis", () => {
       within(steps)
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(["done", "active", "waiting"]);
+    ).toEqual(["done", "current", "pending"]);
     expect(steps).toHaveTextContent("Reading the problem");
     expect(screen.queryByTestId("pn-answer")).toBeNull();
   });
@@ -359,7 +359,7 @@ describe("analysis", () => {
       within(screen.getByTestId("pn-steps"))
         .getAllByRole("listitem")
         .map((item) => item.getAttribute("data-state")),
-    ).toEqual(["done", "done", "active"]);
+    ).toEqual(["done", "done", "current"]);
   });
 });
 
