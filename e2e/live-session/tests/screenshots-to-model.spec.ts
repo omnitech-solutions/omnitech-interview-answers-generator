@@ -19,7 +19,7 @@ import {
   startSessionViaApi,
 } from "../src/helpers/api";
 import { db } from "../src/helpers/sql";
-import { taskScreenshots } from "../src/helpers/tasks";
+import { say, settled, taskScreenshots } from "../src/helpers/tasks";
 import { SetupPage } from "../src/pages/setup-page";
 
 const test = panelTest;
@@ -520,13 +520,21 @@ for (const setting of ["always", "text-only-when-text", "never"] as const) {
     live,
     control,
   }) => {
-    const { id } = await startSessionViaApi({ screenshotSend: setting });
+    // Design change: the web page lost its capture band, and the screenshots
+    // tray only exists once a task is on show (or something is staged), so the
+    // session first has T1 from a spoken question; the screenshot then starts T2.
+    await control.scenario("plain-answer");
+    const started = await startSessionViaApi({ screenshotSend: setting });
+    const id = started.id;
     await page.goto(`${live.livePath()}/${id}`);
+    await say(started.response.credential.value, "What is a closure?");
+    await settled(id, 1);
     await live.stageScreenshot();
+    await page.getByTestId("intent-new").click();
     await expect(live.apply()).toBeEnabled();
     await live.apply().click();
-    await expect.poll(async () => (await control.calls()).length).toBe(1);
-    const [call] = await control.calls();
+    await expect.poll(async () => (await control.calls()).length).toBe(2);
+    const call = (await control.calls())[1];
     expect(call?.images).toBe(setting === "never" ? 0 : 1);
 
     let sent: Sent | undefined;

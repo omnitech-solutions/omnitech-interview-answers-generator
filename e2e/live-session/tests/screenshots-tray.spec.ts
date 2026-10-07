@@ -124,6 +124,47 @@ const stagedWidth = (page: Page, n: number): Promise<number> =>
     n,
   );
 
+// Design change (native dock): the heading "To apply (n)" is the dock's count
+// "To apply · n"; the per-thumbnail Crop button is gone (crop lives in the
+// image viewer, opened from the thumbnail); Remove shows on hover or focus.
+const toApply = (s: Surface, n: number): Locator =>
+  s.kind === "native"
+    ? s.page.getByTestId("screenshot-tray").getByText(`To apply \u00b7 ${n}`)
+    : s.page.getByRole("heading", { name: `To apply (${n})` });
+
+async function openCrop(s: Surface, n: number): Promise<void> {
+  if (s.kind === "web") {
+    await s.page.getByRole("button", { name: `Crop New ${n}` }).click();
+    return;
+  }
+  await s.page.getByRole("button", { name: `Open New ${n}` }).click();
+  await s.page
+    .getByTestId("image-viewer")
+    .getByRole("button", { name: "Crop" })
+    .click();
+}
+
+async function removeStaged(s: Surface, n: number): Promise<void> {
+  // The native remove control appears while the thumbnail is hovered or focused.
+  if (s.kind === "native") await s.page.getByTestId(`staged-${n}`).hover();
+  await s.page.getByRole("button", { name: `Remove New ${n}` }).click();
+}
+
+// Move one staged image a place left or right: the web tray's Move buttons;
+// in the native dock, Alt+Arrow on the thumbnail's open button.
+async function moveStaged(
+  s: Surface,
+  n: number,
+  by: "left" | "right",
+): Promise<void> {
+  if (s.kind === "web") {
+    await s.page.getByRole("button", { name: `Move New ${n} ${by}` }).click();
+    return;
+  }
+  await s.page.getByRole("button", { name: `Open New ${n}` }).focus();
+  await s.page.keyboard.press(`Alt+Arrow${by === "left" ? "Left" : "Right"}`);
+}
+
 const callsAfter = async (control: Control, count: number) =>
   (await control.calls()).slice(count);
 
@@ -192,9 +233,7 @@ for (const kind of ["web", "native"] as const) {
     await s.add();
     await s.add();
     await expect(staged(page)).toHaveCount(2);
-    await expect(
-      page.getByRole("heading", { name: "To apply (2)" }),
-    ).toBeVisible();
+    await expect(toApply(s, 2)).toBeVisible();
     for (const n of [1, 2])
       await expect(page.getByTestId(`staged-${n}`)).toContainText(
         "Not sent yet",
@@ -298,12 +337,10 @@ for (const kind of ["web", "native"] as const) {
     await expect(staged(page)).toHaveCount(2);
     const both = await stagedDigests(page);
 
-    await page.getByRole("button", { name: "Remove New 1" }).click();
+    await removeStaged(s, 1);
 
     await expect(staged(page)).toHaveCount(1);
-    await expect(
-      page.getByRole("heading", { name: "To apply (1)" }),
-    ).toBeVisible();
+    await expect(toApply(s, 1)).toBeVisible();
     expect((await control.calls()).length).toBe(before);
     const rest = await stagedDigests(page);
     expect(rest).toHaveLength(1);
@@ -348,7 +385,7 @@ for (const kind of ["web", "native"] as const) {
     expect(wholeWidth).toBeGreaterThan(400);
 
     // Crop opens the editor on the staged image (a dialog).
-    await page.getByRole("button", { name: "Crop New 1" }).click();
+    await openCrop(s, 1);
     const dialog = viewer(page);
     await expect(dialog).toBeVisible();
     const editor = page.getByTestId("crop-editor");
@@ -380,7 +417,7 @@ for (const kind of ["web", "native"] as const) {
     await page.getByRole("button", { name: "Close viewer" }).click();
 
     // Apply crop: a NEW, smaller image replaces the staged one.
-    await page.getByRole("button", { name: "Crop New 1" }).click();
+    await openCrop(s, 1);
     await page
       .getByTestId("crop-editor")
       .getByRole("spinbutton", { name: "Width" })
@@ -415,7 +452,7 @@ for (const kind of ["web", "native"] as const) {
     const { page } = s;
     await page.getByTestId("intent-new").click();
     await s.add();
-    await page.getByRole("button", { name: "Crop New 1" }).click();
+    await openCrop(s, 1);
     const output = page.getByTestId("crop-output");
     await expect(output).toBeVisible();
     const full = await stagedWidth(page, 1);
@@ -448,7 +485,7 @@ for (const kind of ["web", "native"] as const) {
     await expect(staged(page)).toHaveCount(2);
     // Make the two different (the web share shows one still frame): crop the
     // second, so the two images have different bytes.
-    await page.getByRole("button", { name: "Crop New 2" }).click();
+    await openCrop(s, 2);
     await page
       .getByTestId("crop-editor")
       .getByRole("spinbutton", { name: "Width" })
@@ -458,14 +495,20 @@ for (const kind of ["web", "native"] as const) {
     const original = await stagedDigests(page);
     expect(original[0]).not.toBe(original[1]);
     // The first cannot move left; the last cannot move right.
-    await expect(
-      page.getByRole("button", { name: "Move New 1 left" }),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("button", { name: "Move New 2 right" }),
-    ).toBeDisabled();
+    if (kind === "web") {
+      await expect(
+        page.getByRole("button", { name: "Move New 1 left" }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "Move New 2 right" }),
+      ).toBeDisabled();
+    } else {
+      await moveStaged(s, 1, "left");
+      await moveStaged(s, 2, "right");
+      expect(await stagedDigests(page)).toEqual(original);
+    }
 
-    await page.getByRole("button", { name: "Move New 2 left" }).click();
+    await moveStaged(s, 2, "left");
 
     const reordered = await stagedDigests(page);
     expect(reordered).toEqual([original[1], original[0]]);
@@ -482,7 +525,7 @@ for (const kind of ["web", "native"] as const) {
     await page.getByTestId("intent-new").click();
     await s.add();
     await s.add();
-    await page.getByRole("button", { name: "Crop New 1" }).click();
+    await openCrop(s, 1);
     await page
       .getByTestId("crop-editor")
       .getByRole("spinbutton", { name: "Width" })
@@ -490,7 +533,7 @@ for (const kind of ["web", "native"] as const) {
     await page.getByRole("button", { name: "Apply crop" }).click();
     await expect.poll(() => stagedWidth(page, 1)).toBe(500);
     const second = await stagedDigests(page);
-    await page.getByRole("button", { name: "Move New 1 right" }).click();
+    await moveStaged(s, 1, "right");
     expect(await stagedDigests(page)).toEqual([second[1], second[0]]);
   });
 
