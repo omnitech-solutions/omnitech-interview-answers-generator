@@ -9,6 +9,7 @@ import { expect, test } from "../src/fixtures/panel-test";
 import { db } from "../src/helpers/sql";
 import { settled, taskIdsOf, taskScreenshots } from "../src/helpers/tasks";
 import {
+  captureCaret,
   captureMenu,
   displayRows,
   expectTooltip,
@@ -214,6 +215,9 @@ test("@native native capture target: the capture button's tooltip names the targ
   await expect(menu(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu(page)).toHaveCount(0);
+  // The closed menu hands focus back to the caret a tick after it unmounts;
+  // opening again before that would be dismissed by the focus moving.
+  await expect(captureCaret(page)).toBeFocused();
   await analyze.focus();
   await page.keyboard.press("ArrowDown");
   await expect(menu(page)).toBeVisible();

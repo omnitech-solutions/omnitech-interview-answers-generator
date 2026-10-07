@@ -248,7 +248,9 @@ test("@native host without capture-screen: Analyze says a share is needed first,
     { ...NO_HOST, capabilities: ["hotkeys"] },
     { auto: "off" },
   );
-  await expect(page.getByRole("toolbar")).toBeVisible();
+  await expect(
+    page.getByRole("toolbar", { name: "Session controls" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Analyze screen" }).first().click();
 
@@ -393,11 +395,18 @@ test("@native host See-through: on sends setHitRegions covering the toolbar, off
   await seeThrough.click();
   await expect(seeThrough).toHaveAttribute("aria-pressed", "false");
   await expect(root).not.toHaveAttribute("data-glass", /.*/);
+  // Design change (d895817): the single window reports what it draws whether
+  // See-through is on or not (undrawn glass always passes clicks through), so
+  // off keeps a non-empty report that still covers the toolbar; null is only for
+  // an unmounted or hidden page.
   await expect
-    .poll(
-      async () => (await host.calls("setHitRegions")).at(-1)?.params["regions"],
-    )
-    .toBeNull();
+    .poll(async () => {
+      const last = (await host.calls("setHitRegions")).at(-1)?.params[
+        "regions"
+      ] as Array<{ x: number; width: number }> | null | undefined;
+      return Array.isArray(last) && last.length > 0;
+    })
+    .toBe(true);
 
   // Hiding is refused: the shell keeps the window, the page does not pretend
   // otherwise and the session is still there to resume.
