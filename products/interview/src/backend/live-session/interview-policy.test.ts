@@ -105,6 +105,20 @@ describe("baseline classification", () => {
     ).toEqual({ kind: "open", taskKey: "q-u1" });
   });
 
+  it("opens a task for an imperative ask in the middle of an unpunctuated transcript", () => {
+    // Heard on a real call (2026-10-07): no punctuation, the ask mid-utterance.
+    expect(
+      verdict(
+        "You remembers after the interview number two tell me about a project that you've worked on",
+      ).decision,
+    ).toEqual({ kind: "open", taskKey: "q-u1" });
+    // The cue mid-utterance, trailing off, still waits for the question.
+    expect(
+      verdict("You remembers after the interview number two tell me about")
+        .decision,
+    ).toEqual({ kind: "ignore" });
+  });
+
   it("ignores a long statement as a monologue even with question words in it", () => {
     const monologue = `How we did it was ${"and then more context ".repeat(MONOLOGUE_WORDS)}`;
     expect(verdict(monologue)).toEqual({

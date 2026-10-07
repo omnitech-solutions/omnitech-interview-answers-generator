@@ -180,6 +180,15 @@ const ASK_INTENT = [
   /\bmy (?:next|last|final|first|second|third) question\b/,
   /\bi wanted to ask (?:you|about)\b/,
   /\bcould you (?:please )?(?:walk|talk|tell|describe|explain|share)\b/,
+  // The plain imperative ask, wherever it falls: a transcript has no sentence
+  // boundaries, so "...interview number two tell me about a project that
+  // you've worked on" must be read as an ask in the middle of the utterance.
+  /\btell (?:me|us) (?:about|how|why|what|where|when)\b/,
+  /\b(?:walk|talk) (?:me|us) through\b/,
+  /\bdescribe (?:a|an|the|your|how|what)\b/,
+  /\bexplain (?:how|why|what|the|your|a|an)\b/,
+  /\bgive (?:me|us) (?:an example|a time|a situation|an instance)\b/,
+  /\bshare (?:an example|a time|a situation|with (?:me|us))\b/,
 ];
 
 // An ask cue only opens a task when the question text follows it. An announcement
