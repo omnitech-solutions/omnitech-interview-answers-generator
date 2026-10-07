@@ -7,7 +7,7 @@ import { nativeChord } from "../../shared/shortcuts";
 import type { AutoLine } from "../auto-line";
 
 type StripTone = "neutral" | "accent" | "green" | "amber";
-export type StripActionId = "stop" | "resume";
+export type StripActionId = "stop";
 
 export type StripInput = {
   paused: boolean;
@@ -28,7 +28,7 @@ export type StripInput = {
 };
 
 export type StripState = {
-  id: "paused" | "busy" | "auto-problem" | "auto-watching" | "finished";
+  id: "busy" | "auto-problem" | "auto-watching" | "finished";
   tone: StripTone;
   // A spinner stands for work in flight; otherwise the icon.
   busy: boolean;
@@ -44,29 +44,14 @@ type Entry = {
   show(input: StripInput): Omit<StripState, "id">;
 };
 
-// What a paused session says, once: the footer shows it (the strip does not).
+// What a paused session says, once: the footer's clock shows it (the strip does
+// not, and says nothing while paused).
 export const PAUSED_NOTICE = {
   label: "Paused",
   sub: "Nothing is captured and no new work starts",
 } as const;
 
 const STRIP_TABLE: readonly Entry[] = [
-  {
-    id: "paused",
-    when: (input) => input.paused,
-    show: () => ({
-      tone: "amber",
-      busy: false,
-      icon: "pause_circle",
-      label: PAUSED_NOTICE.label,
-      sub: PAUSED_NOTICE.sub,
-      action: {
-        id: "resume",
-        label: "Resume session",
-        title: "Carry on listening and analysing",
-      },
-    }),
-  },
   {
     id: "busy",
     when: (input) => input.busy !== null,
@@ -127,6 +112,9 @@ const STRIP_TABLE: readonly Entry[] = [
 ];
 
 export function stripState(input: StripInput): StripState | null {
+  // Paused: nothing is captured and no new work starts, so there is no work or
+  // Auto line to report; the footer says it is paused.
+  if (input.paused) return null;
   const entry = STRIP_TABLE.find((each) => each.when(input));
   return entry ? { id: entry.id, ...entry.show(input) } : null;
 }

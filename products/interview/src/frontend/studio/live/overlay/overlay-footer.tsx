@@ -1,6 +1,13 @@
-// Follow-up input and the footer: Pause or
-// Resume, and End (with its own confirmation). Each calls a store action.
+// Follow-up input and the footer: the library's session bar with the session
+// clock, Pause or Resume, and End (with its confirmation). Each calls a store
+// action.
 
+import {
+  Button,
+  SessionBar,
+  StatusClock,
+  type StatusClockBuildTag,
+} from "@oc-tech/omni-ui-components";
 import {
   type FormEvent,
   type ReactNode,
@@ -11,9 +18,10 @@ import {
 import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
-import { BUILD_ID } from "./build-id";
+import { BUILD } from "./build-id";
 import { FOCUS_INPUT_EVENT } from "./panels/commands";
-import { type FooterButtonId, footerButtons } from "./panels/toolbar-config";
+import { PAUSED_NOTICE } from "./panels/strip-model";
+import { footerButtons } from "./panels/toolbar-config";
 
 export const UNAVAILABLE_NOTE =
   "Not available yet: this Studio server can’t take owner input.";
@@ -108,18 +116,15 @@ export function FollowUp({
   );
 }
 
-// What the footer is for. A live session may show its running time beside a
-// live dot (amber while paused); a finished session offers a new one (and its
-// summary page) instead of Pause and End.
+// What the footer is for. A live session shows its running time (amber while
+// paused) with Pause or Resume and End; a finished session offers a new one (and
+// its summary page) instead; with no session yet there are no session buttons.
 export type FooterVariant =
   | {
       kind: "live";
       paused: boolean;
-      clock?: { label: string; paused: boolean } | null;
-      // Something to say at the footer's left, in the warning colour (a paused
-      // session: what it means). Without one the left is empty space, which keeps
-      // the clock and the buttons at the right.
-      notice?: { label: string; sub?: string } | null;
+      // The formatted session time; without it only the buttons show.
+      clock?: { label: string } | null;
     }
   | {
       kind: "ended";
@@ -130,6 +135,63 @@ export type FooterVariant =
   // No session yet (signed out, or signed in and not started): the same bar with
   // no session buttons, and who is signed in at its right end.
   | { kind: "idle"; status: ReactNode };
+
+const COPIED_SHOWN_MS = 1500;
+
+// The development build tag: `<short sha> · <branch>`, the full commit as its
+// tooltip, choosing it copies the commit. Null in a packaged build.
+function useBuildTag(): StatusClockBuildTag | null {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  if (BUILD.packaged) return null;
+  return {
+    sha: BUILD.id,
+    ...(BUILD.branch ? { branch: BUILD.branch } : {}),
+    title: BUILD.sha,
+    copied,
+    onCopy: () => {
+      void navigator.clipboard?.writeText(BUILD.sha)?.catch(() => undefined);
+      setCopied(true);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), COPIED_SHOWN_MS);
+    },
+  };
+}
+
+// A filled red disc: the recording mark before the session time.
+function RecordIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="6" fill="currentColor" />
+    </svg>
+  );
+}
+
+// The session clock: the record mark and the formatted time, amber with the
+// paused wording while paused (nothing else about the bar changes with state).
+export function SessionClock({
+  elapsed,
+  paused,
+  buildTag,
+}: {
+  elapsed: string;
+  paused: boolean;
+  buildTag?: StatusClockBuildTag | null;
+}) {
+  return (
+    <StatusClock
+      state={paused ? "paused" : "live"}
+      elapsed={elapsed}
+      label={`Session time ${elapsed}${paused ? ", paused" : ""}`}
+      icon={<RecordIcon />}
+      pausedIcon={<Icon name="pause_circle" filled />}
+      pausedLabel={PAUSED_NOTICE.label}
+      {...(paused ? { title: PAUSED_NOTICE.sub } : {})}
+      {...(buildTag ? { buildTag } : {})}
+    />
+  );
+}
 
 export function Footer({
   variant,
@@ -145,141 +207,123 @@ export function Footer({
   actions: SessionActions;
   onFailure(code: SessionErrorCode): void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const endButton = useRef<HTMLButtonElement>(null);
-  const keepGoing = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (confirming) keepGoing.current?.focus();
-  }, [confirming]);
+  const buildTag = useBuildTag();
   const run = async (work: Promise<CommandResult>) => {
     const result = await work;
     if (!result.ok) onFailure(result.code);
     return result.ok;
   };
-  // What each button does; which ones show is decided by footerButtons().
-  const press: Record<FooterButtonId, () => void> = {
-    pause: () => void run(actions.pause()),
-    resume: () => void run(actions.resume()),
-    end: () => setConfirming(true),
-    start: () => variant.kind === "ended" && variant.onStart(),
-    summary: () => variant.kind === "ended" && variant.onOpenSummary?.(),
-  };
-  const clock = variant.kind === "live" ? variant.clock : null;
-  const notice = variant.kind === "live" ? (variant.notice ?? null) : null;
-  const buttons =
-    variant.kind === "idle"
-      ? []
-      : footerButtons(
-          variant.kind === "ended"
-            ? {
-                kind: "ended",
-                starting: variant.starting,
-                canSummary: variant.onOpenSummary !== undefined,
-              }
-            : {
-                kind: "live",
-                paused: variant.paused,
-                busy: pending.includes("pause") || pending.includes("resume"),
-              },
-          wording,
-        );
-  return (
-    <div className="ov-footer" data-notice={notice ? "warn" : undefined}>
-      <div className="ov-footer-row">
-        <span className="ov-footer-lead">
-          {notice && (
-            <span
-              className="ov-footer-notice"
-              role="status"
-              data-testid="ov-footer-notice"
-              title={notice.sub}
-            >
-              <Icon name="pause_circle" filled />
-              <strong>{notice.label}</strong>
-              {notice.sub && <span>{notice.sub}</span>}
+  const busy = pending.includes("pause") || pending.includes("resume");
+  if (variant.kind === "idle")
+    return (
+      <SessionBar
+        label="Session footer"
+        actions={
+          <>
+            {buildTag && (
+              <Button
+                variant="ghost"
+                buttonSize="sm"
+                title={buildTag.title}
+                aria-label={`Copy build ${buildTag.title ?? buildTag.sha}`}
+                onClick={buildTag.onCopy}
+              >
+                {buildTag.copied
+                  ? "Copied"
+                  : `${buildTag.sha}${buildTag.branch ? ` · ${buildTag.branch}` : ""}`}
+              </Button>
+            )}
+            <span data-testid="ov-status" className="ov-status">
+              {variant.status}
             </span>
-          )}
-        </span>
-        <span className="ov-build" data-testid="ov-build" title="Build">
-          {BUILD_ID}
-        </span>
-        {clock && (
-          <span
-            className="ov-clock"
-            role="timer"
-            aria-label={`Session time ${clock.label}${clock.paused ? ", paused" : ""}`}
-            data-paused={clock.paused ? "true" : undefined}
-            data-testid="ov-clock"
-          >
-            <span className="ov-clock-dot" aria-hidden="true" />
-            {clock.label}
-          </span>
-        )}
-        {variant.kind === "idle" && (
-          <span className="ov-status" data-testid="ov-status">
-            {variant.status}
-          </span>
-        )}
-        {buttons.map((button) => (
-          <button
-            key={button.id}
-            ref={button.id === "end" ? endButton : undefined}
-            type="button"
-            className={
-              button.tone === "default"
-                ? "ov-button"
-                : `ov-button ${button.tone}`
-            }
-            title={button.title}
-            disabled={button.disabled}
-            onClick={() => press[button.id]()}
-          >
-            {button.icon && <Icon name={button.icon} filled />}
-            {button.label}
-          </button>
-        ))}
-      </div>
-      {confirming && (
-        <div
-          className="ov-confirm"
-          role="alertdialog"
-          aria-label="End this session?"
-          onKeyDown={(event) => {
-            if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
-            event.stopPropagation();
-            setConfirming(false);
-            endButton.current?.focus();
-          }}
-        >
-          <span>
-            End this session? Capture stops and running work is cancelled.
-          </span>
-          <button
-            ref={keepGoing}
-            type="button"
-            className="ov-button"
-            onClick={() => {
-              setConfirming(false);
-              endButton.current?.focus();
-            }}
-          >
-            Keep going
-          </button>
-          <button
-            type="button"
-            className="ov-button danger"
-            disabled={pending.includes("end")}
-            onClick={async () => {
-              await run(actions.end());
-              // Answered either way: on success the ended card takes over, on
-              // failure the note says so and the dialog does not linger.
-              setConfirming(false);
-            }}
-          >
-            End now
-          </button>
-        </div>
-      )}
-    </div>
+          </>
+        }
+      />
+    );
+  if (variant.kind === "ended") {
+    const ended = footerButtons(
+      {
+        kind: "ended",
+        starting: variant.starting,
+        canSummary: variant.onOpenSummary !== undefined,
+      },
+      wording,
+    );
+    const summary = ended.find((button) => button.id === "summary");
+    const start = ended.find((button) => button.id === "start");
+    return (
+      <SessionBar
+        label="Session footer"
+        actions={
+          <>
+            {summary && (
+              <Button
+                variant="outline"
+                tone="neutral"
+                soft
+                buttonSize="control"
+                icon={<Icon name="open_in_new" />}
+                onClick={variant.onOpenSummary}
+              >
+                {summary.label}
+              </Button>
+            )}
+            <Button
+              tone="success"
+              buttonSize="control"
+              fillIcon
+              icon={<Icon name="play_circle" filled />}
+              disabled={variant.starting}
+              onClick={variant.onStart}
+            >
+              {start?.label}
+            </Button>
+          </>
+        }
+      />
+    );
+  }
+  // What each live button says; which one shows is the bar's status.
+  const [pause, end] = footerButtons(
+    { kind: "live", paused: false, busy },
+    wording,
+  );
+  const [resume] = footerButtons({ kind: "live", paused: true, busy }, wording);
+  const clock = variant.clock;
+  return (
+    <SessionBar
+      label="Session footer"
+      status={variant.paused ? "paused" : "live"}
+      leading={
+        clock ? (
+          <SessionClock
+            elapsed={clock.label}
+            paused={variant.paused}
+            buildTag={buildTag}
+          />
+        ) : undefined
+      }
+      pause={{
+        label: pause?.label,
+        icon: <Icon name="pause" filled />,
+        disabled: busy,
+        onClick: () => void run(actions.pause()),
+      }}
+      resume={{
+        label: resume?.label,
+        icon: <Icon name="play_arrow" filled />,
+        disabled: busy,
+        onClick: () => void run(actions.resume()),
+      }}
+      end={{
+        label: end?.label,
+        disabled: pending.includes("end"),
+        onClick: () => void run(actions.end()),
+        confirm: {
+          title: "End this session?",
+          description: "Capture stops and running work is cancelled.",
+        },
+      }}
+    />
   );
 }

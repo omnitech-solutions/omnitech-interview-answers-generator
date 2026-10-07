@@ -26,7 +26,6 @@ import {
   type PanelSession,
 } from "./panel-views";
 import { StatusStrip, useStrip } from "./status-strip";
-import { PAUSED_NOTICE } from "./strip-model";
 import { openSessionSummary } from "./summary-link";
 import { Toolbar } from "./toolbar";
 import {
@@ -122,18 +121,16 @@ export function SinglePanel({
     return () => window.removeEventListener(FOCUS_INPUT_EVENT, open);
   }, [chatShown, show]);
 
-  // The paused wording lives in the footer (beside Resume session), so the strip
+  // The paused wording lives in the footer's clock, so while paused the strip
   // keeps only what else it has to say; with nothing else it is not drawn.
-  const full = useStrip(s);
-  const strip =
-    full && full.state?.id === "paused" ? { ...full, state: null } : full;
+  const strip = useStrip(s);
   const stripShown =
     strip !== null &&
     !ended &&
     (strip.state !== null || strip.engine || strip.chips.length > 1);
   const [menuOpen, setMenuOpen] = useState(false);
-  // A paused session shows no body: the toolbar, the strip that says it is paused
-  // (with Resume session) and the footer stay; the panes come back on resume.
+  // A paused session shows no body: the toolbar, the strip and the footer (with
+  // Resume session) stay; the panes come back on resume.
   const holdBody = s.paused && !ended;
   const anyPane = PANES.some((pane) => shown[pane.id]) && !holdBody;
 
@@ -247,8 +244,7 @@ export function SinglePanel({
               : {
                   kind: "live",
                   paused: s.paused,
-                  clock: { label: s.model.elapsedLabel, paused: s.paused },
-                  notice: s.paused ? PAUSED_NOTICE : null,
+                  clock: { label: s.model.elapsedLabel },
                 }
           }
           pending={s.snapshot.pending}

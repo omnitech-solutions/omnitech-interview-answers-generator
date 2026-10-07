@@ -2,20 +2,27 @@ import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 
 // A visible build id (short commit, "+" when the tree has uncommitted changes),
-// so anyone using a host can say which build they are running.
-function buildId(): string {
+// so anyone using a host can say which build they are running. The full commit
+// and the branch feed the development build tag in the session footer; a
+// packaged app build (BUILD_PACKAGED=1) never shows it.
+function buildInfo(): { id: string; sha: string; branch: string } {
   try {
     const run = (cmd: string) =>
       execSync(cmd, { stdio: ["ignore", "pipe", "ignore"] })
         .toString()
         .trim();
-    const sha = run("git rev-parse --short HEAD");
+    const short = run("git rev-parse --short HEAD");
     const dirty = run("git status --porcelain").length > 0 ? "+" : "";
-    return `${sha}${dirty}`;
+    return {
+      id: `${short}${dirty}`,
+      sha: run("git rev-parse HEAD"),
+      branch: run("git rev-parse --abbrev-ref HEAD"),
+    };
   } catch {
-    return "dev";
+    return { id: "dev", sha: "", branch: "" };
   }
 }
+const build = buildInfo();
 
 // [SAFETY] NX-SEC-01: a static baseline on every route. The microphone and
 // display capture are what the live session uses (dictation, screen share), so
@@ -53,7 +60,13 @@ const config: NextConfig = {
     { source: BASELINE_SOURCE, headers: securityHeaders },
     { source: SELF_PROTECTED_SOURCE, headers: [noSniff] },
   ],
-  env: { NEXT_PUBLIC_BUILD_ID: buildId() },
+  env: {
+    NEXT_PUBLIC_BUILD_ID: build.id,
+    NEXT_PUBLIC_BUILD_SHA: build.sha,
+    NEXT_PUBLIC_BUILD_BRANCH: build.branch,
+    NEXT_PUBLIC_BUILD_PACKAGED:
+      process.env["BUILD_PACKAGED"] === "1" ? "1" : "",
+  },
   distDir: process.env["NEXT_DIST_DIR"] ?? ".next",
   // The dev badge would sit over Interview Studio's sidebar footer.
   devIndicators: false,

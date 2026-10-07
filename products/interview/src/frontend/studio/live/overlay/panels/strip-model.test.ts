@@ -24,17 +24,14 @@ describe("the strip's one table of states", () => {
     expect(stripState(quiet)).toBeNull();
   });
 
-  it("says Paused with a Resume action, ahead of everything else", () => {
-    const state = stripState({
-      ...quiet,
-      paused: true,
-      busy: { label: "Drafting an answer", seconds: 5 },
-    });
-    expect(state).toMatchObject({
-      id: "paused",
-      label: "Paused",
-      action: { id: "resume", label: "Resume session" },
-    });
+  it("says nothing while paused, whatever else is going on: the footer says it", () => {
+    expect(
+      stripState({
+        ...quiet,
+        paused: true,
+        busy: { label: "Drafting an answer", seconds: 5 },
+      }),
+    ).toBeNull();
   });
 
   it("says what the work is, how long it has taken, for which task, and offers Stop analysis", () => {
