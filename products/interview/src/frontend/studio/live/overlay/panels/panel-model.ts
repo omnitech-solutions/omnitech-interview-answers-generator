@@ -434,7 +434,12 @@ export function panelRows(
               : (note ?? ""),
         ...(shown && first ? { items: shown.items } : {}),
         ...(stage ? { stage } : {}),
-        at: Date.parse(last?.firstSeenAt ?? "") || 0,
+        // The answer sits with the question that opened the task (owner's
+        // rule), whichever revision is on show and whenever it was written.
+        at:
+          Date.parse(task.firstSeenAt) ||
+          Date.parse(last?.firstSeenAt ?? "") ||
+          0,
       },
     ];
   });
