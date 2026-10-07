@@ -123,6 +123,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
   const pending = shots.staged.length > 0;
   const area = (
     <ScreenshotsArea
+      onAddContext={() => window.dispatchEvent(new Event(FOCUS_INPUT_EVENT))}
       view={shots}
       id={areaId}
       variant="native"

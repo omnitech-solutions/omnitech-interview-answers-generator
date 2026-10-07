@@ -25,6 +25,8 @@ type Surface = {
   credential: string;
   // Staging one image: the tray's own Add screenshot button.
   add(): Promise<void>;
+  // Capture new problem in the Answer pane, confirmed: stages one frame as a NEW task.
+  captureNew(): Promise<void>;
 };
 
 const toggle = (page: Page): Locator =>
@@ -75,6 +77,12 @@ async function manualSurface(
     add: async () => {
       const before = await staged(page).count();
       await page.getByTestId("add-screenshot").click();
+      await expect(staged(page)).toHaveCount(before + 1);
+    },
+    captureNew: async () => {
+      const before = await staged(page).count();
+      await page.getByTestId("pn-capture-new").click();
+      await page.getByRole("button", { name: "Capture", exact: true }).click();
       await expect(staged(page)).toHaveCount(before + 1);
     },
   };
@@ -186,9 +194,6 @@ for (const kind of ["web", "native"] as const) {
       // Manual: the tray is open without a press, and the icon says so.
       await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
       await expect(area(page)).toBeVisible();
-      await expect(
-        page.getByRole("heading", { name: "Add screenshots" }),
-      ).toBeVisible();
       await expect(toggle(page)).toHaveAccessibleName("Screenshots (0)");
 
       // The toggle is real: it hides and shows the area.
@@ -232,9 +237,7 @@ for (const kind of ["web", "native"] as const) {
       const tasksBefore = taskIdsOf(await db.actions(s.id));
 
       // A NEW problem from two images.
-      await page.getByTestId("intent-new").click();
-      await expect(page.getByTestId("intent-new")).toBeChecked();
-      await s.add();
+      await s.captureNew();
       await s.add();
       await expect(staged(page)).toHaveCount(2);
       await expect(toApply(s, 2)).toBeVisible();
@@ -293,14 +296,7 @@ for (const kind of ["web", "native"] as const) {
       const taskId = taskIdsOf(first)[0] as string;
       const before = (await control.calls()).length;
 
-      // With a task on show the choice is offered and Add to T1 is the default.
-      const radios = page.getByRole("radiogroup", { name: "Apply to" });
-      await expect(
-        radios.getByRole("radio", { name: "New problem" }),
-      ).not.toBeChecked();
-      await expect(
-        radios.getByRole("radio", { name: "Add to T1" }),
-      ).toBeChecked();
+      // With a task on show a staged screenshot adds to it (no choice to make).
       await s.add();
       await expect(staged(page)).toHaveCount(1);
       await apply(page).click();
@@ -335,8 +331,7 @@ for (const kind of ["web", "native"] as const) {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
       const before = (await control.calls()).length;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await s.add();
       await expect(staged(page)).toHaveCount(2);
       const both = await stagedDigests(page);
@@ -360,8 +355,7 @@ for (const kind of ["web", "native"] as const) {
 
       // Discard: stage again, drop everything.
       await settled(s.id, 2);
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await s.add();
       await expect(staged(page)).toHaveCount(2);
       const observed = (await db.observations(s.id)).length;
@@ -381,8 +375,7 @@ for (const kind of ["web", "native"] as const) {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
       const before = (await control.calls()).length;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await expect(staged(page)).toHaveCount(1);
       const wholeBytes = await stagedBytes(page, 1);
       const wholeWidth = await stagedWidth(page, 1);
@@ -454,8 +447,7 @@ for (const kind of ["web", "native"] as const) {
     }) => {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await openCrop(s, 1);
       const output = page.getByTestId("crop-output");
       await expect(output).toBeVisible();
@@ -483,8 +475,7 @@ for (const kind of ["web", "native"] as const) {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
       const before = (await control.calls()).length;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await s.add();
       await expect(staged(page)).toHaveCount(2);
       // Make the two different (the web share shows one still frame): crop the
@@ -517,8 +508,7 @@ for (const kind of ["web", "native"] as const) {
 
       // And back with Move right on the next batch.
       await settled(s.id, 2);
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await s.add();
       await openCrop(s, 1);
       await page
@@ -543,8 +533,7 @@ for (const kind of ["web", "native"] as const) {
       const returnsFocus = browserName !== "webkit";
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       const thumb = page.getByRole("button", { name: "Open New 1" });
       await thumb.click();
 
@@ -598,8 +587,7 @@ for (const kind of ["web", "native"] as const) {
     }) => {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       await page.getByRole("button", { name: "Open New 1" }).click();
       const dialog = viewer(page);
       const picture = dialog.getByRole("img", { name: "Screenshot New 1" });
@@ -621,8 +609,7 @@ for (const kind of ["web", "native"] as const) {
     }) => {
       const s = await manualSurface(kind, { live, control, openPanel });
       const { page } = s;
-      await page.getByTestId("intent-new").click();
-      await s.add();
+      await s.captureNew();
       const whole = await stagedBytes(page, 1);
       await page.getByRole("button", { name: "Open New 1" }).click();
 
@@ -656,8 +643,9 @@ for (const kind of ["web", "native"] as const) {
       page.on("request", (request) => {
         if (request.resourceType() === "image") urls.push(request.url());
       });
-      await page.getByTestId("intent-new").click();
-      for (let n = 0; n < 4; n += 1) await s.add();
+      // Capture new problem stages the first image; three more join it.
+      await s.captureNew();
+      for (let n = 0; n < 3; n += 1) await s.add();
       await apply(page).click();
       const actions = await settled(s.id, 2);
       const created = taskIdsOf(actions)[1] as string;
@@ -751,10 +739,6 @@ for (const kind of ["web", "native"] as const) {
     await expect(page.getByTestId("tray-sends")).toHaveText(
       "Nothing staged. Apply regenerates without new context.",
     );
-    // "New problem" with nothing staged has nothing to make a task from.
-    await page.getByTestId("intent-new").click();
-    await expect(apply(page)).toBeDisabled();
-    await page.getByTestId("intent-add").click();
     await expect(apply(page)).toBeEnabled();
 
     await apply(page).click();

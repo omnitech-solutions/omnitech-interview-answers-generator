@@ -176,7 +176,6 @@ test("@native native Add screen to T1: disabled with its reason before any task,
   // It staged an image for the SAME task (Add to T1 is the chosen intent) and
   // the server has not heard of it yet.
   await expect(page.getByTestId("staged-1")).toBeVisible();
-  await expect(page.getByTestId("intent-add")).toBeChecked();
   expect((await db.actions(id)).length).toBe(first.length);
   await apply(page).click();
   await expect

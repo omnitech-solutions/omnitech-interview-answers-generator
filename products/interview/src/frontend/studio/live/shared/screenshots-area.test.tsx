@@ -384,23 +384,19 @@ describe.each(["native", "web"] as const)("%s", (variant) => {
       expect(input.images).toEqual([blobs[2], blobs[1], blobs[0]]);
     });
 
-    it("Apply sends ONE request, to the task by default, a new problem when chosen", async () => {
+    it("Apply sends ONE request, to the task on show; there is no target choice (a new problem is captured from the pane)", async () => {
       const applyContext = applyOk();
       await mount({ variant, mode: "manual", applyContext });
+      expect(screen.queryByRole("radiogroup", { name: "Apply to" })).toBeNull();
       expect(
-        screen.getByRole("radiogroup", { name: "Apply to" }),
-      ).toBeVisible();
-      expect(
-        (screen.getByRole("radio", { name: "Add to T1" }) as HTMLInputElement)
-          .checked,
-      ).toBe(true);
+        screen.queryByRole("heading", { name: "Add screenshots" }),
+      ).toBeNull();
       await add();
-      fireEvent.click(screen.getByRole("radio", { name: "New problem" }));
       fireEvent.click(screen.getByTestId("apply-screenshots"));
       fireEvent.click(screen.getByTestId("apply-screenshots"));
       await flush();
       expect(applyContext).toHaveBeenCalledTimes(1);
-      expect(applyContext.mock.calls[0]?.[0]).toBeNull();
+      expect(applyContext.mock.calls[0]?.[0]).not.toBeNull();
       // Applied: the tray is empty again.
       expect(screen.queryByTestId("staged-1")).toBeNull();
     });

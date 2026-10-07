@@ -175,17 +175,8 @@ describe.each(SURFACES)("$name", (surface) => {
     expect(screen.queryByTestId("staged-1")).toBeNull();
   });
 
-  it("Apply as a new problem sends no target and starts a new task from the staged image", async () => {
-    await open();
-    await click(screen.getByTestId("add-screenshot"));
-    await click(screen.getByRole("radio", { name: "New problem" }));
-    await click(screen.getByTestId("apply-screenshots"));
-    expect(journey.captures).toHaveLength(1);
-    expect(journey.captures[0]).not.toHaveProperty("targetTaskId");
-    await advance(1_500);
-    expect(document.body).toHaveTextContent("T2");
-  });
-
+  // A new problem is no longer chosen in the tray: the native pane captures one
+  // (Capture new problem); staged screenshots always add to the task on show.
   it("forces a plain regenerate with nothing staged: one new revision, no image", async () => {
     await open();
     let regenerated: unknown;

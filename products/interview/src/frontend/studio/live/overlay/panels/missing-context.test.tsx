@@ -10,6 +10,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { presentation } from "../../focus-presentation";
@@ -39,7 +40,12 @@ const alerts = () =>
     .map((each) => each.textContent)
     .join(" | ");
 const box = () => screen.getByLabelText("Message");
-const button = (name: string | RegExp) => screen.getByRole("button", { name });
+// "Add context" is the strip's own button (the screenshots card offers one too);
+// every other press is looked up on the page.
+const button = (name: string | RegExp) =>
+  name === "Add context" && strip()
+    ? within(strip() as HTMLElement).getByRole("button", { name })
+    : screen.getByRole("button", { name });
 const press = async (name: string | RegExp) => {
   fireEvent.click(button(name));
   await flush();

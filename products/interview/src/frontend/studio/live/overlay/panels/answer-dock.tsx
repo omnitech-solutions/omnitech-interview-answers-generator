@@ -13,11 +13,6 @@ import type {
   ShotView,
 } from "../../shared/use-screenshots-view";
 
-const INTENTS: { id: TrayIntent; label(task: string | null): string }[] = [
-  { id: "new", label: () => "New problem" },
-  { id: "add", label: (task) => `Add to ${task ?? "this task"}` },
-];
-
 function Thumb({
   shot,
   index,
@@ -178,28 +173,6 @@ export function AnswerDock({
         <p id={notice} className="pn-dock-note" data-testid="add-reason">
           {addReason}
         </p>
-      )}
-      {tray.hasTarget && (
-        <div className="pn-dock-row" role="radiogroup" aria-label="Apply to">
-          {INTENTS.map((each) => (
-            <label
-              key={each.id}
-              className="pn-dock-intent"
-              data-on={tray.intent === each.id || undefined}
-              data-disabled={busy || undefined}
-            >
-              <input
-                type="radio"
-                name={`${notice}-intent`}
-                checked={tray.intent === each.id}
-                disabled={busy}
-                data-testid={`intent-${each.id}`}
-                onChange={() => tray.setIntent(each.id)}
-              />
-              {each.label(view.taskLabel)}
-            </label>
-          ))}
-        </div>
       )}
       <span className="pn-sr" data-testid="tray-sends">
         {tray.sends}

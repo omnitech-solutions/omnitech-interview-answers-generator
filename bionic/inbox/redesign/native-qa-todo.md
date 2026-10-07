@@ -164,3 +164,7 @@ Not fixed yet. A real-browser test exists (`e2e/live-session/tests/window-fit.sp
 **Issue.** While rev 3 was being solved, the Code panel kept showing the previous revision's code with no sign that a newer solution was in progress, and there was no way to cancel the running solution from the Code panel; the owner also wants to move between revisions at any time.
 **Expected.** The Code panel names the revision on screen (the new revision control, 012, done), shows a "rev N: writing code… · Stop" line while a newer revision runs, and Stop cancels that run; picking any revision works at any time.
 **Status.** Open (012's control is in; the running-state line and Stop are not).
+
+## 016 Screenshots card and dock: no target choice, no redundant heading, Add context beside Add screenshot (DONE)
+
+**Owner (2026-10-07).** "New problem" is gone from the T1 screenshots card and from the dock: a staged screenshot always adds to the task on show; a new problem is captured from the Answer pane's "Capture new problem" (asks first). The "Add screenshots" heading is gone (the card title and the button already say it). "Add context" sits next to "Add screenshot" and focuses the composer. Tests: `screenshots-area.test`, `missing-context.test`, e2e `screenshots-tray.spec` (24/24 chromium) and `capture-tasks-native.spec`.

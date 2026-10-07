@@ -279,16 +279,12 @@ function StagedList({
   );
 }
 
-const INTENTS: { id: TrayIntent; label(task: string | null): string }[] = [
-  { id: "new", label: () => "New problem" },
-  { id: "add", label: (task) => `Add to ${task ?? "this task"}` },
-];
-
 export function ScreenshotsArea({
   view,
   id,
   variant,
   onAdd,
+  onAddContext,
   captureUnavailable = null,
   hideTray = false,
 }: {
@@ -297,6 +293,8 @@ export function ScreenshotsArea({
   variant: ScreenshotsVariant;
   // Takes one capture and stages it (surface-specific; nothing is sent).
   onAdd(intent: TrayIntent): void;
+  // Puts the person in the composer to add context in words (optional).
+  onAddContext?: () => void;
   // Why capturing is not possible on this page right now, if it is not.
   captureUnavailable?: string | null;
   // The staging tray is drawn elsewhere (the native Answer panel's dock): show
@@ -354,13 +352,9 @@ export function ScreenshotsArea({
       {!hideTray && (
         <div className="ss-block" data-testid="screenshot-tray">
           <div className="ss-row">
-            <h4 className="ss-title">
-              {staged.length > 0
-                ? `To apply (${staged.length})`
-                : tray.mode === "manual"
-                  ? "Add screenshots"
-                  : "Add context"}
-            </h4>
+            {staged.length > 0 && (
+              <h4 className="ss-title">{`To apply (${staged.length})`}</h4>
+            )}
             <button
               type="button"
               className="ss-btn"
@@ -371,33 +365,21 @@ export function ScreenshotsArea({
             >
               <Icon name="add" /> Add screenshot
             </button>
+            {onAddContext && (
+              <button
+                type="button"
+                className="ss-btn"
+                data-testid="add-context"
+                onClick={onAddContext}
+              >
+                <Icon name="edit" /> Add context
+              </button>
+            )}
           </div>
           {addReason && (
             <p id={notice} className="ss-meta" data-testid="add-reason">
               {addReason}
             </p>
-          )}
-          {tray.hasTarget && (
-            <div className="ss-row" role="radiogroup" aria-label="Apply to">
-              {INTENTS.map((each) => (
-                <label
-                  key={each.id}
-                  className="ss-btn ss-radio"
-                  data-on={tray.intent === each.id || undefined}
-                  data-disabled={tray.applying || undefined}
-                >
-                  <input
-                    type="radio"
-                    name={`${notice}-intent`}
-                    checked={tray.intent === each.id}
-                    disabled={tray.applying}
-                    data-testid={`intent-${each.id}`}
-                    onChange={() => tray.setIntent(each.id)}
-                  />
-                  {each.label(view.taskLabel)}
-                </label>
-              ))}
-            </div>
           )}
           {staged.length > 0 && (
             <StagedList
