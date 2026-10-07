@@ -331,7 +331,11 @@ function installShim(options: InstalledOptions): void {
   });
 
   const engineReply = (listening: boolean, paused = false) => {
-    if (engineRefusal) return { ok: false, reason: engineRefusal };
+    // Only a START is refused (the shell's refusals are start refusals); a stop
+    // always succeeds, so the microphone press can stop an engine, then fail to
+    // start it again.
+    if (engineRefusal && listening && !paused)
+      return { ok: false, reason: engineRefusal };
     engineCurrent = engineState(listening, paused);
     for (const listener of [...engineListeners]) listener(engineCurrent);
     return { ok: true, engine: engineCurrent };

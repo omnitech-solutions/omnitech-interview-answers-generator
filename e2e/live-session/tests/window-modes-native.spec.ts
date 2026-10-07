@@ -16,7 +16,7 @@ const lastSize = async (host: {
   calls(name: string): Promise<Array<{ params: Record<string, unknown> }>>;
 }) => (await host.calls("setWindowSize")).at(-1)?.params;
 
-test("@native native See-through: ON makes the glass clear and reports the surfaces that keep taking clicks (toolbar and panes); OFF reports none; the choice survives a reload", async ({
+test("@native native See-through: ON makes the glass clear and reports the surfaces that keep taking clicks (toolbar and panes); OFF still reports the drawn surfaces; the choice survives a reload", async ({
   openPanel,
 }) => {
   const panel = await openPanel({ auto: "off" });
@@ -28,8 +28,12 @@ test("@native native See-through: ON makes the glass clear and reports the surfa
       | undefined;
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-glass="clear"]')).toHaveCount(0);
-  // Off: the window takes the mouse everywhere, so the shell was told nothing.
-  expect(await host.calls("setHitRegions")).toEqual([]);
+  // Design change (draw-only hit testing, d895817): the compact window always
+  // reports what it draws (See-through or not), so undrawn glass passes clicks
+  // through; the old "Off tells the shell nothing" no longer exists.
+  await expect
+    .poll(async () => (await regions())?.length ?? 0)
+    .toBeGreaterThan(0);
 
   await seeThrough(page).click();
 
@@ -68,9 +72,12 @@ test("@native native See-through: ON makes the glass clear and reports the surfa
   await seeThrough(page).click();
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-glass="clear"]')).toHaveCount(0);
-  // Off again: the page released the window (null), so it takes the mouse
-  // everywhere.
-  await expect.poll(regions).toBeNull();
+  // Off again: the glass is opaque again, and (draw-only hit testing) the page
+  // keeps reporting its drawn surfaces; it never releases the window to null
+  // while mounted.
+  await expect
+    .poll(async () => (await regions())?.length ?? 0)
+    .toBeGreaterThan(0);
   await panel.reload();
   await expect(seeThrough(page)).toHaveAttribute("aria-pressed", "false");
 });
