@@ -23,6 +23,8 @@ public protocol EngineRun: AnyObject {
     var sourceStatuses: [CaptureSource: SourceStatus] { get }
     var speechFailure: SpeechFailure? { get }
     var lastHeardAt: Date? { get }
+    // The microphone's level over the last pass, 0-100 (0 when nothing is known).
+    var audioLevel: Int { get }
     func start() async
     // One pass (the engine calls it about four times a second).
     func step() async
@@ -32,6 +34,11 @@ public protocol EngineRun: AnyObject {
     func stopLocally()
     // Stops sources quietly, without telling Studio (restart, hold, shutdown).
     func discard()
+}
+
+// A run that knows nothing about levels (tests) reports silence.
+extension EngineRun {
+    public var audioLevel: Int { 0 }
 }
 
 // [DOMAIN] Why Studio's engine.start was not carried out: a closed set.
@@ -392,14 +399,18 @@ public final class HandsFreeEngine: EngineHost {
     private func publish() {
         let next = makeSnapshot()
         guard next != snapshot else { return }
+        // The level moves while someone talks; only the rest is worth a log line.
+        let logged = next.withoutLevel != snapshot.withoutLevel
         snapshot = next
-        EventLog.shared.record(
-            .system, "engine.state",
-            [
-                "stage": "\(next.stage)", "paused": "\(next.paused)",
-                "sources": next.sources.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
-                "speechFailure": next.speechFailure.map { "\($0)" } ?? "none",
-            ])
+        if logged {
+            EventLog.shared.record(
+                .system, "engine.state",
+                [
+                    "stage": "\(next.stage)", "paused": "\(next.paused)",
+                    "sources": next.sources.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
+                    "speechFailure": next.speechFailure.map { "\($0)" } ?? "none",
+                ])
+        }
         onChange(next)
     }
 
@@ -408,11 +419,13 @@ public final class HandsFreeEngine: EngineHost {
         var paused = false
         var age: Int?
         var failure: SpeechFailure?
+        var level = 0
         switch phase {
         case .running(let active):
             let run = active.run
             failure = run.speechFailure
             paused = run.state == .paused
+            if !paused { level = run.audioLevel }
             for source in active.plan.sources { sources[EngineSourceKind(source)] = health(source, run: run) }
             if let heard = run.lastHeardAt {
                 // Five-second steps: listeners hear about a change only when this moves.
@@ -422,7 +435,8 @@ public final class HandsFreeEngine: EngineHost {
         default: break
         }
         return EngineSnapshot(
-            stage: stage, sources: sources, paused: paused, lastHeardAgeSeconds: age, speechFailure: failure)
+            stage: stage, sources: sources, paused: paused, lastHeardAgeSeconds: age, speechFailure: failure,
+            micLevel: level)
     }
 
     private func health(_ source: CaptureSource, run: EngineRun) -> SourceHealth {

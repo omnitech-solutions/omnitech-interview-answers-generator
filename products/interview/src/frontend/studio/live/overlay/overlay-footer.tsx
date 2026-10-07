@@ -3,6 +3,7 @@
 
 import {
   Button,
+  Popconfirm,
   SessionBar,
   StatusClock,
   type StatusClockBuildTag,
@@ -12,6 +13,7 @@ import { Icon } from "../../icon";
 import type { SessionErrorCode } from "../session-client";
 import type { CommandResult, SessionActions } from "../session-snapshot";
 import { BUILD } from "./build-id";
+import type { HeardLine } from "./panels/panel-model";
 import { PAUSED_NOTICE } from "./panels/strip-model";
 import { footerButtons } from "./panels/toolbar-config";
 
@@ -55,6 +57,10 @@ export type FooterVariant =
       paused: boolean;
       // The formatted session time; without it only the buttons show.
       clock?: { label: string } | null;
+      // What was heard, newest first (the age of the latest shows beside the
+      // clock), and the microphone's level now (0-100) for the sound wave.
+      heard?: readonly HeardLine[];
+      micLevel?: number | null;
     }
   | {
       kind: "ended";
@@ -103,11 +109,9 @@ function RecordIcon() {
 export function SessionClock({
   elapsed,
   paused,
-  buildTag,
 }: {
   elapsed: string;
   paused: boolean;
-  buildTag?: StatusClockBuildTag | null;
 }) {
   return (
     <StatusClock
@@ -118,7 +122,6 @@ export function SessionClock({
       pausedIcon={<Icon name="pause_circle" filled />}
       pausedLabel={PAUSED_NOTICE.label}
       {...(paused ? { title: PAUSED_NOTICE.sub } : {})}
-      {...(buildTag ? { buildTag } : {})}
     />
   );
 }
@@ -220,40 +223,141 @@ export function Footer({
   );
   const [resume] = footerButtons({ kind: "live", paused: true, busy }, wording);
   const clock = variant.clock;
+  const paused = variant.paused;
   return (
     <SessionBar
       label="Session footer"
-      status={variant.paused ? "paused" : "live"}
+      status={paused ? "paused" : "live"}
       leading={
-        clock ? (
-          <SessionClock
-            elapsed={clock.label}
-            paused={variant.paused}
-            buildTag={buildTag}
+        <>
+          {clock && <SessionClock elapsed={clock.label} paused={paused} />}
+          <MicLine
+            heard={variant.heard ?? []}
+            paused={paused}
+            level={variant.micLevel ?? null}
           />
-        ) : undefined
+        </>
       }
-      pause={{
-        label: pause?.label,
-        icon: <Icon name="pause" filled />,
-        disabled: busy,
-        onClick: () => void run(actions.pause()),
-      }}
-      resume={{
-        label: resume?.label,
-        icon: <Icon name="play_arrow" filled />,
-        disabled: busy,
-        onClick: () => void run(actions.resume()),
-      }}
-      end={{
-        label: end?.label,
-        disabled: pending.includes("end"),
-        onClick: () => void run(actions.end()),
-        confirm: {
-          title: "End this session?",
-          description: "Capture stops and running work is cancelled.",
-        },
-      }}
+      // The library's own buttons, composed here so the build tag can sit at
+      // the far right after them.
+      actions={
+        <>
+          {paused ? (
+            <Button
+              buttonSize="control"
+              tone="success"
+              fillIcon
+              icon={<Icon name="play_arrow" filled />}
+              disabled={busy}
+              onClick={() => void run(actions.resume())}
+              data-slot="session-resume"
+            >
+              {resume?.label}
+            </Button>
+          ) : (
+            <Button
+              buttonSize="control"
+              variant="outline"
+              tone="neutral"
+              soft
+              fillIcon
+              icon={<Icon name="pause" filled />}
+              disabled={busy}
+              onClick={() => void run(actions.pause())}
+              data-slot="session-pause"
+            >
+              {pause?.label}
+            </Button>
+          )}
+          <Popconfirm
+            title="End this session?"
+            description="Capture stops and running work is cancelled."
+            confirmText="End now"
+            cancelText="Keep going"
+            onConfirm={() => void run(actions.end())}
+          >
+            <Button
+              buttonSize="control"
+              variant="outline"
+              tone="danger"
+              soft
+              disabled={pending.includes("end")}
+              data-slot="session-end"
+            >
+              {end?.label}
+            </Button>
+          </Popconfirm>
+          {buildTag && <BuildTagChip tag={buildTag} />}
+        </>
+      }
     />
+  );
+}
+
+// The build tag at the far right of the footer (development builds only).
+function BuildTagChip({
+  tag,
+}: {
+  tag: ReturnType<typeof useBuildTag> & object;
+}) {
+  return (
+    <button
+      type="button"
+      className="pn-build-tag"
+      title={tag.title}
+      onClick={tag.onCopy}
+      data-testid="pn-build-tag"
+    >
+      {tag.copied ? "Copied" : tag.sha}
+      {tag.branch && !tag.copied ? ` · ${tag.branch}` : ""}
+    </button>
+  );
+}
+
+// What the microphone is doing, beside the clock: a sound wave while it hears
+// something (level from the shell), the age of the last words otherwise. The
+// Transcript & chat panel is the one record of what was heard.
+function MicLine({
+  heard,
+  paused,
+  level,
+}: {
+  heard: readonly HeardLine[];
+  paused: boolean;
+  level: number | null;
+}) {
+  const latest = heard[0] ?? null;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const age = latest ? Math.max(0, Math.round((now - latest.at) / 1000)) : null;
+  const text = paused
+    ? "Paused"
+    : latest
+      ? `Listening · heard ${age}s ago`
+      : "Listening · nothing heard yet";
+  const bars = [0.35, 0.7, 1, 0.6, 0.4];
+  return (
+    <span
+      className="pn-mic-line"
+      data-testid="pn-mic-line"
+      data-level={level ?? 0}
+      aria-label={text}
+    >
+      <span className="pn-mic-wave" aria-hidden="true">
+        {bars.map((weight, index) => (
+          <i
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed bars
+            key={index}
+            style={{
+              height: `${Math.max(2, Math.round(((level ?? 0) / 100) * 14 * weight) + 2)}px`,
+            }}
+          />
+        ))}
+      </span>
+      <span className="pn-mic-line-text">{text}</span>
+    </span>
   );
 }

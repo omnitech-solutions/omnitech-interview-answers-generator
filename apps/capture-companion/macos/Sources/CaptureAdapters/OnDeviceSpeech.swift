@@ -155,27 +155,37 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
             // [GUARD] The recogniser ends a request after a stretch of silence
             // (kAFAssistantErrorDomain 1110 "No speech detected"). Silence is not
             // a failure: the request is dropped and the next audio opens a new one.
+            // A failure carries the error as a code (domain/code), never its
+            // message: the one thing the event log can say about WHY it stopped.
             let outcome: Outcome =
-                error != nil && result == nil ? (Self.isSilenceEnd(error) ? .silence : .failed) : .result
+                error != nil && result == nil
+                ? (Self.isSilenceEnd(error)
+                    ? .silence : .failed((error as NSError?).map { "\($0.domain)/\($0.code)" } ?? "unknown"))
+                : .result
             guard let transcriber = self else { return }
             transcriber.queue.async {
                 transcriber.handle(generation: mine, text: text, startMs: start, endMs: end, outcome: outcome)
             }
         }
         self.request = request
+        CompanionEvents.record(.system, "speech.request_opened", ["generation": "\(generation)"])
         return request
     }
 
-    private enum Outcome { case result, silence, failed }
+    private enum Outcome { case result, silence, failed(String) }
 
     private func handle(generation mine: Int, text: String?, startMs: Int?, endMs: Int?, outcome: Outcome) {
         guard mine == generation else { return }
-        if outcome == .silence {
+        if case .silence = outcome {
+            CompanionEvents.record(
+                .system, "speech.silence_end",
+                ["generation": "\(mine)", "hadText": latestText.isEmpty ? "false" : "true"])
             flushSegment()
             discardRequest()
             return
         }
-        if outcome == .failed {
+        if case .failed(let code) = outcome {
+            CompanionEvents.record(.system, "speech.failed", ["generation": "\(mine)", "error": code])
             discardRequest()
             onFailure()
             return
@@ -188,9 +198,18 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
     }
 
     private func checkSegmentEnd() {
-        guard request != nil, !latestText.isEmpty else { return }
-        let quiet = Date().timeIntervalSince(lastUpdate) >= silenceSeconds
+        guard request != nil else { return }
         let long = Date().timeIntervalSince(requestStartedAt) >= maxRequestSeconds
+        // [GUARD] A request that has produced nothing for the whole window is
+        // recycled: a recogniser that went quiet without an error would otherwise
+        // hold one request open for ever and nothing would be heard again.
+        if latestText.isEmpty {
+            guard long else { return }
+            CompanionEvents.record(.system, "speech.request_recycled", ["generation": "\(generation)"])
+            discardRequest()
+            return
+        }
+        let quiet = Date().timeIntervalSince(lastUpdate) >= silenceSeconds
         guard quiet || long else { return }
         flushSegment()
         discardRequest()
@@ -203,6 +222,8 @@ public final class OnDeviceTranscriber: @unchecked Sendable {
         let start = latestStartMs
         let end = max(latestEndMs, start)
         latestText = ""
+        // Sizes only (rule:id-only-traces): the text itself never enters a log.
+        CompanionEvents.record(.system, "speech.segment_final", ["chars": "\(text.count)", "ms": "\(end - start)"])
         onFinal(text, start, end)
     }
 

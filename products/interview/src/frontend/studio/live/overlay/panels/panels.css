@@ -1313,3 +1313,43 @@
 .pn-menu-item[data-outdated] [data-mark="outdated"] {
   color: var(--pn-warn);
 }
+
+/* ---- The footer's mic line (sound wave + state) and the build tag at the far right ---- */
+.pn-mic-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ov-muted);
+}
+.pn-mic-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+.pn-mic-wave i {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ov-green, #4caf50);
+  transition: height 120ms ease-out;
+}
+.pn-mic-line[data-level="0"] .pn-mic-wave i {
+  background: var(--ov-faint);
+}
+.pn-mic-line-text {
+  white-space: nowrap;
+}
+.pn-build-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pn-chip);
+  color: var(--ov-muted);
+  font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}

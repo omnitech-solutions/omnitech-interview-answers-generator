@@ -651,6 +651,8 @@ export type EngineState = {
     screen: EngineSourceHealth;
   };
   lastHeardAgeSeconds: number | null;
+  // The microphone's level now, 0-100. Absent from an older shell.
+  micLevel?: number | undefined;
   // One plain line naming the one action needed ("Grant Microphone in System
   // Settings"), or null.
   hint: string | null;

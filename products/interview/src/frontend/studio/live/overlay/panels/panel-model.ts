@@ -322,6 +322,25 @@ function heardPieces(model: LiveViewModel): HeardPiece[] {
   );
 }
 
+// What the microphone (and app audio) heard, newest first, for the footer's
+// mic line and its history: the same groups the transcript shows.
+export type HeardLine = {
+  key: string;
+  speaker: string;
+  text: string;
+  at: number;
+};
+export function heardHistory(model: LiveViewModel): HeardLine[] {
+  return groupHeard(heardPieces(model))
+    .map((group) => ({
+      key: group.key,
+      speaker: speakerOf(group.source).label,
+      text: group.text,
+      at: group.lastAt,
+    }))
+    .reverse();
+}
+
 export function groupHeard(pieces: readonly HeardPiece[]): HeardGroup[] {
   const groups: HeardGroup[] = [];
   for (const piece of pieces) {

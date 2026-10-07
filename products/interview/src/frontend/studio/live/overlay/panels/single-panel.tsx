@@ -19,6 +19,7 @@ import { EndedCard } from "./ended-card";
 import { MiniPlayer } from "./mini-player";
 import { openPanelBus } from "./panel-bus";
 import type { PanelGlass } from "./panel-glass";
+import { heardHistory } from "./panel-model";
 import {
   AnswerPanel,
   ChatPanel,
@@ -269,6 +270,8 @@ export function SinglePanel({
                   kind: "live",
                   paused: s.paused,
                   clock: { label: s.model.elapsedLabel },
+                  heard: heardHistory(s.model),
+                  micLevel: s.micLevel,
                 }
           }
           pending={s.snapshot.pending}

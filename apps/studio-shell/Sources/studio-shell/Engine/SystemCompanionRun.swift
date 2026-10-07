@@ -138,6 +138,14 @@ public final class SystemCompanionRun: EngineRun {
     private var counter = 0
     private var started = false
     public private(set) var lastHeardAt: Date?
+    // What the last pass heard per source: the level drives the footer's sound
+    // wave; the fed milliseconds and segment count are logged every ~15 s so the
+    // event log shows whether audio arrives and whether it turns into text.
+    private var levels: [CaptureSource: Int] = [:]
+    private var fedMs: [CaptureSource: Int] = [:]
+    private var segments = 0
+
+    public var audioLevel: Int { session.machine.isCapturing ? (levels[.microphone] ?? 0) : 0 }
 
     public init(
         plan: RunPlan, endpoint: Endpoint, credentials: CredentialStore, focus: FocusTracker,
@@ -219,9 +227,29 @@ public final class SystemCompanionRun: EngineRun {
     }
 
     private func heard(_ source: TranscriptSource, _ text: String, _ start: Int, _ end: Int) {
-        if session.submitTranscript(source: source, text: text, startMs: start, endMs: end) != nil {
-            lastHeardAt = Date()
+        let queued = session.submitTranscript(source: source, text: text, startMs: start, endMs: end) != nil
+        if queued { lastHeardAt = Date() }
+        segments += 1
+        // Queued for Studio, or dropped (not capturing, empty, oversize): the
+        // size and the verdict, never the words.
+        CompanionEvents.record(
+            .system, "transcript.produced",
+            ["source": source.rawValue, "chars": "\(text.count)", "queued": queued ? "true" : "false"])
+    }
+
+    // Roughly how loud the microphone was over the frames of one pass, 0-100
+    // in steps of 20 (about -50 dBFS to -10 dBFS), so a change is a real one.
+    static func level(_ frames: [AudioFrame]) -> Int {
+        var sum = 0.0
+        var count = 0
+        for frame in frames {
+            for sample in frame.samples { sum += Double(sample * sample) }
+            count += frame.samples.count
         }
+        guard count > 0 else { return 0 }
+        let decibels = 20 * log10(max(sum / Double(count), 1e-12).squareRoot())
+        let scaled = (decibels + 50) / 40 * 100
+        return Int((min(max(scaled, 0), 100) / 20).rounded()) * 20
     }
 
     public func step() async {
@@ -233,7 +261,22 @@ public final class SystemCompanionRun: EngineRun {
                 if transcribing { transcriber.start() } else { transcriber.stop() }
             }
         }
-        for (source, ring) in rings { transcribers[source]?.feed(ring.drain()) }
+        for (source, ring) in rings {
+            let frames = ring.drain()
+            levels[source] = Self.level(frames)
+            fedMs[source, default: 0] += frames.reduce(0) { $0 + $1.durationMs }
+            transcribers[source]?.feed(frames)
+        }
+        if counter % 60 == 59 {
+            CompanionEvents.record(
+                .system, "audio.fed",
+                [
+                    "ms": fedMs.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","),
+                    "segments": "\(segments)", "transcribing": transcribing ? "true" : "false",
+                ])
+            fedMs = [:]
+            segments = 0
+        }
         serveCaptureRequest()
         if counter % 4 == 0 {
             await watchPermissions()

@@ -881,6 +881,8 @@ export function usePanelSession(
     setLanguage,
     // The owner's hints in force (skill, code language) for the next problem.
     hints,
+    // The microphone's level from the shell (0-100), for the footer's wave.
+    micLevel: engine.state?.micLevel ?? null,
     stop: stopAnalysis,
     auto: autoNow,
     // Set while the newest capture found no question (D36); never a task.

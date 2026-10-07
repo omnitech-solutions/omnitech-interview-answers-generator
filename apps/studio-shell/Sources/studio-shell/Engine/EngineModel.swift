@@ -56,16 +56,26 @@ public struct EngineSnapshot: Equatable, Sendable {
     public var paused: Bool
     public var lastHeardAgeSeconds: Int?
     public var speechFailure: SpeechFailure?
+    // The microphone's level now, 0-100 in steps of 20: the page's sound wave.
+    public var micLevel: Int
 
     public init(
         stage: PairingStage = .idle, sources: [EngineSourceKind: SourceHealth] = [:], paused: Bool = false,
-        lastHeardAgeSeconds: Int? = nil, speechFailure: SpeechFailure? = nil
+        lastHeardAgeSeconds: Int? = nil, speechFailure: SpeechFailure? = nil, micLevel: Int = 0
     ) {
         self.stage = stage
         self.sources = sources
         self.paused = paused
         self.lastHeardAgeSeconds = lastHeardAgeSeconds
         self.speechFailure = speechFailure
+        self.micLevel = micLevel
+    }
+
+    // The snapshot without its level: what is worth a log line when it changes.
+    public var withoutLevel: EngineSnapshot {
+        var copy = self
+        copy.micLevel = 0
+        return copy
     }
 
     public func health(_ kind: EngineSourceKind) -> SourceHealth { sources[kind] ?? .off }
@@ -115,6 +125,7 @@ public struct EngineSnapshot: Equatable, Sendable {
             "paused": paused,
             "sources": sourceValues,
             "lastHeardAgeSeconds": lastHeardAgeSeconds.map { min(max($0, 0), 86_400) } as Any? ?? NSNull(),
+            "micLevel": min(max(micLevel, 0), 100),
             "hint": hint as Any? ?? NSNull(),
         ]
         if let speechFailure { value["speech"] = speechFailure.rawValue }
