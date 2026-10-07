@@ -24,8 +24,11 @@ const chromiumLaunch = {
 
 export default defineConfig({
   testDir: "./tests",
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
+  // A test that is not done in 20 s is stuck, not slow: fail fast and name the locator. Actions
+  // and assertions give up after 10 s, so one missing element costs 10 s, not the whole budget.
+  // The few tests that really need longer say so themselves with `test.slow()` (60 s).
+  timeout: 20_000,
+  expect: { timeout: 10_000 },
   // One stack, one disposable database: specs share it, each starts its own
   // session, and the web specs run one at a time.
   workers: 1,
@@ -44,6 +47,8 @@ export default defineConfig({
   globalSetup: "./src/stack/global-setup.ts",
   use: {
     headless: !headed,
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
