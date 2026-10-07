@@ -32,13 +32,13 @@ import {
 import { useCaptureProblem } from "../use-capture-problem";
 import { useCompanionCapability } from "../use-companion-capability";
 import { useLiveSession } from "../use-live-session";
+import type { AnalyzeChoice, AnalyzeVia } from "./analyze-choice";
 import { newestResultIsNoQuestion } from "./auto-backoff";
 import { loadAutoPreferred, saveAutoPreferred } from "./auto-prefs";
 import { captureFailureOf } from "./capture-failure";
 import { loadMask, loadSettings } from "./capture-prefs";
 import type { Frame } from "./capture-source";
 import { FULL } from "./mask-geometry";
-import type { AnalyzeChoice, AnalyzeVia } from "./overlay-capture";
 import { failureNote } from "./overlay-footer";
 import { type ChatEntry, captureList } from "./overlay-model";
 import {

@@ -1,8 +1,8 @@
 // What to call a task. The name a surface shows comes from the published
 // answer's own words only; a task with nothing to name it is "Analysis".
 import { approach } from "../overlay/overlay-model";
-import { taskHeading } from "../overlay/overlay-task";
 import type { TaskView } from "../session-tasks";
+import { taskHeading } from "./task-heading";
 import { TASK_KIND } from "./task-kind";
 
 const NAME_MAX = 60;

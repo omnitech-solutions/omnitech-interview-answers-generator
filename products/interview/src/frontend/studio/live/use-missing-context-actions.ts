@@ -5,9 +5,9 @@
 // and each says why when it cannot run here.
 import { useContext } from "react";
 import { HandsFreeContext } from "./overlay/hands-free-context";
-import { DEVICE_ONLY_ANALYZE } from "./overlay/overlay-capture";
 import { FOCUS_INPUT_EVENT } from "./overlay/panels/commands";
 import type { HandsFree } from "./overlay/use-hands-free";
+import { DEVICE_ONLY_ANALYZE } from "./shared/capture-problem";
 import type { MissingContextActionId } from "./shared/missing-context-strip";
 
 // Straight from the click: the browser asks for a source only inside a gesture.
