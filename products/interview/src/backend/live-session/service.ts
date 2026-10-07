@@ -152,6 +152,7 @@ export async function planAssist(
         captured: captured.map((line) => line.text),
         screenBased,
         ...(exercise.length > 0 ? { exercise } : {}),
+        ...(input.hints?.language ? { language: input.hints.language } : {}),
       }),
     resultFor: (draft, meta) => ({
       version: 1,

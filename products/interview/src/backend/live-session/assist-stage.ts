@@ -245,6 +245,9 @@ type AssistValidationContext = {
   // (restatement and constraints read from the screenshot) of any revision of
   // this task. Present when the task is an open coding task.
   exercise?: readonly string[];
+  // The owner's code language in force: a coding brief is generated in it
+  // whatever the model wrote.
+  language?: LiveOwnerLanguage;
 };
 
 // The categories whose answer explains technology, not the candidate: figures
@@ -947,10 +950,24 @@ export function createAssistStage(
         return { ok: false, violations: zodViolations(parsed.error) };
       // [STRATEGY] A mislabelled ref whose quote names exactly one approved
       // entry is re-bound to it before anything is checked (claims.ts).
-      const output = withoutUngroundedStar({
+      const validated = {
         ...parsed.data,
         claims: rebindClaims(parsed.data.claims, ctx.snapshot),
-      });
+      };
+      // [GUARD] The owner's code language is a setting, not a suggestion: a
+      // coding brief is generated in it whatever the model wrote (a regenerate
+      // in PHP of a TypeScript task is PHP).
+      const output = withoutUngroundedStar(
+        ctx.language && validated.codingBrief
+          ? {
+              ...validated,
+              codingBrief: {
+                ...validated.codingBrief,
+                language: ctx.language,
+              },
+            }
+          : validated,
+      );
       const violations = crossFieldViolations(output);
       if (output.category === "no-question") {
         // [SAFETY] No grounding, claim or logistics checks: nothing to ground.
