@@ -6,9 +6,10 @@
 //
 // Everything model-written (test names, code) renders as inert text
 // (rule:inert-draft-rendering). Nothing here sends or submits anything.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import { type Language, languageSchema } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { PreviewedCode } from "../workspace/assistant-change";
 import type { SessionDraftState } from "../workspace/workspace-view";
@@ -84,7 +85,7 @@ export function SessionDraftPanel({
       <span className="sd-subtitle">
         Private session draft{from} · {target}
       </span>
-      <Button size="lg" onClick={onBack}>
+      <Button variant="outline" buttonSize="lg" onClick={onBack}>
         <Icon name="arrow_back" size={16} />
         Back to session
       </Button>
@@ -319,7 +320,8 @@ function Suggestion({
           not applied. Applying replaces your solution, usage and tests.
         </span>
         <Button
-          size="lg"
+          variant="outline"
+          buttonSize="lg"
           disabled={busy}
           onClick={() => {
             dismissed.add(held.runId);
@@ -329,8 +331,8 @@ function Suggestion({
           Dismiss
         </Button>
         <Button
-          variant="primary"
-          size="lg"
+          variant="default"
+          buttonSize="lg"
           disabled={busy}
           onClick={() => void apply()}
         >
@@ -342,7 +344,8 @@ function Suggestion({
           <Icon name="error" size={16} />
           {CONFLICT_NOTE}{" "}
           <Button
-            size="lg"
+            variant="outline"
+            buttonSize="lg"
             onClick={() => void state.reload().then(() => setMessage(null))}
           >
             Reload draft

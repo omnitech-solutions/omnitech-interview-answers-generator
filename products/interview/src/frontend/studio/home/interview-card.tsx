@@ -1,6 +1,6 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { InterviewPlan, PlanItem } from "@omnitech/interview-contracts";
 import { type FormEvent, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import type { PlanState } from "./use-plan";
 
@@ -213,8 +213,12 @@ function InterviewForm({
         </label>
       </div>
       <div className="home-form-actions">
-        {onCancel && <Button onClick={onCancel}>Cancel</Button>}
-        <Button variant="primary" type="submit">
+        {onCancel && (
+          <Button variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+        <Button variant="default" type="submit">
           {plan ? "Save" : "Add interview"}
         </Button>
       </div>

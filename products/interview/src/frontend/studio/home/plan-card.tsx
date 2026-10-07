@@ -1,10 +1,10 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   PlanItem,
   PlanItemInput,
   PlanItemKind,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon, type IconName } from "../icon";
 import type { StudioLists } from "../use-studio-lists";
@@ -76,7 +76,11 @@ export function PlanCard({
               )}
             </div>
             {item.kind !== "task" && (
-              <Button size="sm" onClick={() => open(item)}>
+              <Button
+                variant="outline"
+                buttonSize="sm"
+                onClick={() => open(item)}
+              >
                 Open
               </Button>
             )}
@@ -121,6 +125,7 @@ function AddToPlan({
   return (
     <div className="ws-versions" ref={menu}>
       <Button
+        variant="outline"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen(!open)}

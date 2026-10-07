@@ -2,12 +2,13 @@
 // and "Delete session data" with its confirm step (ADR-0012/retention-modes,
 // owner-chooses-retention, complete-session-purge). Browser-visible failures
 // are fixed codes: this file maps them to sentences and shows nothing else.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   LiveRetentionMode,
   LiveSessionView,
 } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import {
   PROMOTED_NOTE,
@@ -106,7 +107,8 @@ export function EndedRetention({
               <span className="live-note">Shorten to</span>
               {RETENTION_MODES.map((mode) => (
                 <Button
-                  size="lg"
+                  variant="outline"
+                  buttonSize="lg"
                   key={mode}
                   disabled={!shorter.includes(mode)}
                   pressed={mode === session.retention}
@@ -144,14 +146,18 @@ export function EndedRetention({
               <div className="ended-actions">
                 <Button
                   variant="destructive"
-                  size="lg"
+                  buttonSize="lg"
                   className="ended-danger"
                   onClick={() => void confirmDelete()}
                 >
                   <Icon name="delete" />
                   Delete permanently
                 </Button>
-                <Button size="lg" onClick={() => setConfirming(false)}>
+                <Button
+                  variant="outline"
+                  buttonSize="lg"
+                  onClick={() => setConfirming(false)}
+                >
                   Keep session data
                 </Button>
               </div>
@@ -160,7 +166,7 @@ export function EndedRetention({
             <div className="ended-actions">
               <Button
                 variant="destructive"
-                size="lg"
+                buttonSize="lg"
                 ref={deleteButton}
                 className="ended-danger"
                 onClick={() => {
@@ -177,7 +183,11 @@ export function EndedRetention({
             <p className="ended-error" role="alert">
               {deleteError}{" "}
               {!confirming && !purging && (
-                <Button size="lg" onClick={() => void confirmDelete()}>
+                <Button
+                  variant="outline"
+                  buttonSize="lg"
+                  onClick={() => void confirmDelete()}
+                >
                   <Icon name="refresh" />
                   Retry deletion
                 </Button>

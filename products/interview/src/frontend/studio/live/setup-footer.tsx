@@ -1,7 +1,8 @@
 // The Setup view's sticky footer: "Ready" or the one thing in the way, and the
 // one Start button. A disabled Start points at the reason with aria-describedby.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type { Ref } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 
 export function SetupFooter({
@@ -37,8 +38,8 @@ export function SetupFooter({
         <div className="setup-muted">{note}</div>
       </div>
       <Button
-        variant="primary"
-        size="lg"
+        variant="default"
+        buttonSize="lg"
         disabled={blocker !== null || pending}
         aria-describedby="setup-footer-state"
         data-testid="start-session"

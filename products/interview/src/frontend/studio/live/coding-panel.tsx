@@ -6,9 +6,10 @@
 // (rule:fenced-current-publish and code-states.ts). The code is an editable,
 // runnable canvas (overlay/code-canvas.tsx); the Workspace draft remains the
 // saved copy.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { type KeyboardEvent, useRef, useState } from "react";
-import { Button } from "../../ui";
 import { Icon } from "../icon";
 import { AnswerBody } from "./answer-body";
 import { LiveCodeCanvas } from "./overlay/code-canvas";
@@ -290,7 +291,11 @@ export function CodingPanel({
                 <span className="live-chip green">{draftLabel}</span>
               )}
               {link && (
-                <Button size="lg" onClick={() => link.open()}>
+                <Button
+                  variant="outline"
+                  buttonSize="lg"
+                  onClick={() => link.open()}
+                >
                   <Icon name="terminal" />
                   Open in Workspace
                 </Button>

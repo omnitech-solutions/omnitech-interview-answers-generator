@@ -1,5 +1,5 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import { formatRelativeTime, formatTimestamp } from "../../format-timestamp";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { Icon } from "../icon";
 import { runStatus } from "../run-status";
@@ -43,11 +43,11 @@ export function HomeView({
             <h1>{greeting(new Date().getHours())}</h1>
             <p>{subtitle}</p>
           </div>
-          <Button onClick={actions.newQuestion}>
+          <Button variant="outline" onClick={actions.newQuestion}>
             <Icon name="add" />
             New question
           </Button>
-          <Button variant="primary" onClick={() => actions.go("rehearsal")}>
+          <Button variant="default" onClick={() => actions.go("rehearsal")}>
             <Icon name="play_arrow" filled />
             Start a rehearsal
           </Button>

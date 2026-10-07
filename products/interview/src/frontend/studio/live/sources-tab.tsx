@@ -3,9 +3,10 @@
 // processing runs, and the two one-way privacy controls: switch to this Mac only
 // (ADR-0012/tighten-only-locality) and shorten retention
 // (ADR-0012/owner-chooses-retention). Neither can be undone, so each confirms.
+
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { type ReactNode, useState } from "react";
-import { Button } from "../../ui";
 import { Icon, type IconName } from "../icon";
 import { CapabilityTable } from "./capability-table";
 import { type SpeechState, speechState } from "./companion-capability";
@@ -61,7 +62,8 @@ function ConfirmAction({
   if (!asking)
     return (
       <Button
-        size="lg"
+        variant="outline"
+        buttonSize="lg"
         onClick={() => {
           setFailure(null);
           setAsking(true);
@@ -74,12 +76,16 @@ function ConfirmAction({
     <div className="live-confirm" role="group" aria-label={label}>
       <p>{question}</p>
       <div className="live-confirm-actions">
-        <Button size="lg" onClick={() => setAsking(false)}>
+        <Button
+          variant="outline"
+          buttonSize="lg"
+          onClick={() => setAsking(false)}
+        >
           Cancel
         </Button>
         <Button
-          variant="primary"
-          size="lg"
+          variant="default"
+          buttonSize="lg"
           onClick={async () => {
             const result = await run();
             if (result.ok) setAsking(false);
@@ -169,7 +175,7 @@ function CompanionRow({
         {pairingOpen ? (
           pairing
         ) : (
-          <Button size="lg" onClick={onPair}>
+          <Button variant="outline" buttonSize="lg" onClick={onPair}>
             <Icon name="link" />
             Pair capture companion
           </Button>

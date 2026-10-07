@@ -1,10 +1,10 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   BriefingContext,
   BriefingPrepared,
   CandidateMatrix,
 } from "@omnitech/interview-contracts";
 import { useState } from "react";
-import { Button } from "../../../ui";
 import { Icon } from "../../icon";
 import { copyText } from "../../live/shared/copy-text";
 
@@ -50,7 +50,7 @@ export function BriefingTab({
               yourself, the stories to reuse, questions to ask and what to
               avoid.
             </p>
-            <Button variant="primary" onClick={onPrepare}>
+            <Button variant="default" onClick={onPrepare}>
               <Icon name="auto_awesome" />
               Prepare the briefing
             </Button>
@@ -91,7 +91,7 @@ export function BriefingTab({
             </ul>
           )}
           <div className="bp-row">
-            <Button disabled={preparing} onClick={onPrepare}>
+            <Button variant="outline" disabled={preparing} onClick={onPrepare}>
               <Icon name="refresh" size={16} />
               {preparing ? "Preparing…" : "Prepare again"}
             </Button>

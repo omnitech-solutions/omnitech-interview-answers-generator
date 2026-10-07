@@ -1,3 +1,4 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type { LiveSessionView } from "@omnitech/interview-contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icon";
@@ -222,43 +223,51 @@ function OpenSessionBar({
 
       <div className="live-bar-actions" role="toolbar" aria-label="Session">
         {variant === "header" && (
-          <button
+          <Button
             type="button"
-            className="studio-button live-bar-button"
+            variant="outline"
+            buttonSize="lg"
+            className="live-bar-button"
             title="Pop out the capture controls into a floating window"
             disabled={presentationMode === "floating"}
             onClick={() => presentation.setMode("floating")}
           >
             <Icon name="picture_in_picture_alt" />
             Pop out
-          </button>
+          </Button>
         )}
         {variant === "bar" && (
-          <button
+          <Button
             type="button"
-            className="studio-button live-bar-button"
+            variant="outline"
+            buttonSize="lg"
+            className="live-bar-button"
             title="Open the live session"
             onClick={props.variant === "bar" ? props.onOpen : undefined}
           >
             Open
-          </button>
+          </Button>
         )}
         {(paused || session.status === "active") && (
-          <button
+          <Button
             type="button"
-            className="studio-button live-bar-button"
+            variant="outline"
+            buttonSize="lg"
+            className="live-bar-button"
             aria-busy={pauseBusy}
             disabled={pauseBusy}
             onClick={() => void (paused ? resume() : pause())}
           >
             <Icon name={pauseFace.icon} filled />
             {pauseFace.label}
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           ref={endButton}
           type="button"
-          className="studio-button live-bar-button danger"
+          variant="destructive"
+          buttonSize="lg"
+          className="live-bar-button"
           aria-haspopup="dialog"
           aria-expanded={confirming}
           aria-busy={endBusy}
@@ -267,7 +276,7 @@ function OpenSessionBar({
         >
           <Icon name="stop_circle" filled />
           End
-        </button>
+        </Button>
       </div>
 
       {confirming && (

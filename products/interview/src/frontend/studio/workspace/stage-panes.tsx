@@ -1,10 +1,10 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import type {
   AnswerGuide,
   StageId,
   TestResult,
 } from "@omnitech/interview-contracts";
 import { MarkdownContent } from "../../markdown-content";
-import { Button } from "../../ui";
 import { Icon, type IconName } from "../icon";
 import { PracticeTimer } from "../practice-timer";
 import { type CoverageState, edgeCoverage } from "./coverage";
@@ -52,14 +52,14 @@ export function StagePane(props: StagePaneProps) {
       <StageBody {...props} />
       <div className="ws-stage-nav">
         {previous && (
-          <Button onClick={() => props.onStage(previous.id)}>
+          <Button variant="outline" onClick={() => props.onStage(previous.id)}>
             <Icon name="chevron_left" />
             {previous.label}
           </Button>
         )}
         <span className="ws-spacer" />
         {next && (
-          <Button variant="primary" onClick={() => props.onStage(next.id)}>
+          <Button variant="default" onClick={() => props.onStage(next.id)}>
             Next: {next.label}
             <Icon name="chevron_right" />
           </Button>

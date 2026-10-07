@@ -1,5 +1,5 @@
+import { Button } from "@oc-tech/omni-ui-components";
 import { useEffect } from "react";
-import { Button } from "../../ui";
 import type { StudioActions } from "../config/commands";
 import { EndedView, SessionNotFound } from "./ended-view";
 import { LiveSessionPanel } from "./live-session-view";
@@ -43,7 +43,11 @@ function LiveSessionState({ rest, studio }: LiveSessionViewProps) {
         <p className="live-note">
           Studio couldn’t reach the session service. It will keep trying.
         </p>
-        <Button size="lg" onClick={() => void actions.refresh()}>
+        <Button
+          variant="outline"
+          buttonSize="lg"
+          onClick={() => void actions.refresh()}
+        >
           Try again
         </Button>
       </div>
