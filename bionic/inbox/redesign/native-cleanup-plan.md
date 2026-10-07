@@ -91,15 +91,20 @@ Swift never references React components, but it DOES reference the page by strin
 - `HostBridge.swift` / `BridgeHandler.swift`: `webkit.messageHandlers.studioHost`, the `HostBridgeScript.emit*` events
   (presentation, account state, screen-watch status, commands) and their page-side listeners; `StudioWebFetch.swift`
   (`callAsyncJavaScript`); `StudioPanel.swift` (probe calls).
-Actions: (a) inventory every string contract (`evaluateJavaScript`, `callAsyncJavaScript`, `WKScriptMessageHandler`,
-`messageHandlers`, `querySelector`, `getElementById`, `dispatchEvent`/`CustomEvent`, event and handler names, IDs,
-data attributes, localStorage keys) and pair each with its TypeScript side in the manifest `bridgeContracts`; (b) update
-`chrome` and `typing` in `WindowDrag.swift` to the new DOM (the library `Toolbar`, `SessionBar` and `Panel` roots expose
-`data-slot`, plus `data-oui-surface` on portalled surfaces; prefer stable `data-` hooks owned by the app over library
-class names), keep `panels.css` in step, change the matching Swift tests, and run `node scripts/verify-native.mjs`
-(build + the 165 + 67 harness tests + swift-format/SwiftLint + coverage gate); (c) add a TypeScript parity test (like the
-shortcut parity test against Hotkeys.swift) that reads `WindowDrag.swift` and asserts every selector in `chrome` and
-`typing` matches an element the swapped toolbar, footer, transcript and answer actually render, so the contract cannot drift again;
-(d) Swift dead code: Periphery (`periphery scan` on the SwiftPM packages) for unused types and functions. It needs a
-toolchain that can index the build; on this Command-Line-Tools-only machine (Xcode licence unaccepted) it may not
-run: try it, and if it cannot, record it as an owner step instead of claiming it ran.
+Decision (owner, chosen approach): extend the pattern the page already uses for hit regions. `hit-regions.ts` writes
+`data-hit-surfaces` on `document.documentElement` (built from the page's own `HIT_SELECTORS`) and the Swift probe reads
+it. The page ALSO publishes two more attributes from the same module, e.g. `data-drag-chrome` (what always drags: toolbar
+and footer) and `data-text-surfaces` (what the person reads and copies: transcript, answers, code, fields), built from
+app-owned `data-` hooks on the swapped components (not library class names), and `WindowDrag.probeScript` reads them,
+falling back to today's lists when an older page does not publish them. One source of truth in TypeScript, no hard-coded
+class names in Swift, no parity test needed. This is done at the END, after tracks B and C1 have settled the DOM.
+Actions: (a) inventory every other string contract (`evaluateJavaScript`, `callAsyncJavaScript`, `WKScriptMessageHandler`,
+`messageHandlers`, `querySelector`, `getElementById`, `dispatchEvent`/`CustomEvent`, event and handler names, IDs, data
+attributes, localStorage keys) and pair each with its TypeScript side in the manifest `bridgeContracts`; (b) implement the
+decision above: add the two attributes and their `data-` hooks on the page side, change `WindowDrag.swift` to read them,
+keep `panels.css` (user-select and text cursor) driven by the same hooks, change the matching Swift tests, and run
+`node scripts/verify-native.mjs` (build, the 165 + 67 harness tests, swift-format and SwiftLint, the coverage gate);
+add a small TypeScript test that the published lists are non-empty and each selector matches a rendered element in the swapped
+toolbar, footer, transcript, answer and code; (c) Swift dead code: Periphery (`periphery scan` on the SwiftPM packages)
+for unused types and functions. It needs a toolchain that can index the build; on this Command-Line-Tools-only machine
+(Xcode licence unaccepted) it may not run: try it, and if it cannot, record it as an owner step instead of claiming it ran.
