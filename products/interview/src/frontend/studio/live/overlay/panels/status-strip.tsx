@@ -40,7 +40,7 @@ export function useStrip(s: PanelSession): Strip | null {
   });
   const chips = taskChips(tasks, s.selected?.taskId);
   const engine = s.engineNeeds;
-  return state || engine || chips.length > 1 ? { state, engine, chips } : null;
+  return state || engine ? { state, engine, chips } : null;
 }
 
 export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
@@ -81,22 +81,6 @@ export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
         </span>
       )}
       <span className="pn-fill" />
-      {chips.length > 1 && (
-        <div className="pn-task-chips" role="group" aria-label="Tasks">
-          {chips.map((chip) => (
-            <button
-              key={chip.taskId}
-              type="button"
-              className="pn-task-chip"
-              aria-pressed={chip.selected}
-              title={`Show ${chip.label}`}
-              onClick={() => s.select(chip.newest ? null : chip.taskId)}
-            >
-              {chip.text}
-            </button>
-          ))}
-        </div>
-      )}
       {state?.action && (
         <button
           type="button"

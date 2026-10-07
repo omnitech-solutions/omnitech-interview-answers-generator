@@ -27,6 +27,7 @@ import {
 } from "./panel-views";
 import { StatusStrip, useStrip } from "./status-strip";
 import { openSessionSummary } from "./summary-link";
+import { TaskBar } from "./task-bar";
 import { Toolbar } from "./toolbar";
 import {
   ALL_PANES_SHOWN,
@@ -127,9 +128,7 @@ export function SinglePanel({
   // keeps only what else it has to say; with nothing else it is not drawn.
   const strip = useStrip(s);
   const stripShown =
-    strip !== null &&
-    !ended &&
-    (strip.state !== null || strip.engine || strip.chips.length > 1);
+    strip !== null && !ended && (strip.state !== null || strip.engine);
   const [menuOpen, setMenuOpen] = useState(false);
   // A paused session shows no body: the toolbar, the strip and the footer (with
   // Resume session) stay; the panes come back on resume.
@@ -242,6 +241,7 @@ export function SinglePanel({
         }}
       />
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
+      {!holdBody && <TaskBar s={s} />}
       {anyPane && (
         <div className="pn-single-body">
           {PANES.filter((pane) => shown[pane.id]).map((pane) => (

@@ -593,11 +593,40 @@
 .pn-single-confirm {
   flex: none;
 }
-/* The answer's first row: capture the next problem without leaving the pane. */
-.pn-answer-capture {
+/* The task bar above the panes: Capture new problem left; Problem and
+   revisions right. */
+.pn-root .pn-task-bar.pn-card {
+  flex: none;
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 8px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  min-height: 0;
+}
+.pn-task-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* The Problem trigger has one width, however long the task's name. */
+.pn-root .pn-task-bar .pn-problem-trigger {
+  width: 360px;
+  flex: none;
+  justify-content: space-between;
+}
+.pn-task-bar-label {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-task-bar-rev {
+  font-size: 12px;
+  color: var(--ov-muted);
 }
 
 /* The footer is the library's session bar: it draws its own surface, and that

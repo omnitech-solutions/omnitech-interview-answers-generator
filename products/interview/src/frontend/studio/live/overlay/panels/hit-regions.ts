@@ -25,6 +25,7 @@ export const HIT_SELECTORS = [
   ".pn-card", // a pane's card: chat, answer, code, settings, unavailable
   '[data-slot="panel"]', // a library Panel: the Code panel (and the other native panels)
   ".pn-single-foot", // the footer
+  ".pn-task-bar", // the task bar: Capture new problem, the Problem and revision menus
   ".pn-single-confirm", // an inline confirmation
   ".pn-ended", // the ended card
   ".pn-mini-card", // the Mini player
