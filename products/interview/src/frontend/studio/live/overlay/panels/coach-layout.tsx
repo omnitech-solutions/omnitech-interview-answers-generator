@@ -18,7 +18,6 @@ import type { CoachNote } from "@omnitech/interview-contracts";
 import {
   type CSSProperties,
   type ReactNode,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -47,7 +46,17 @@ const LINE = "#2c2c2f";
 const FOLLOW_SLACK = 48;
 
 const STYLE = {
-  body: { flex: "1 1 0", minHeight: 0, display: "flex", gap: 8 },
+  // The library panes inside a coach layout (answer, transcript, code) take
+  // the same neutral grey as the notes: no blue panel in these layouts.
+  body: {
+    flex: "1 1 0",
+    minHeight: 0,
+    display: "flex",
+    gap: 8,
+    "--oui-panel-bg": PANEL,
+    "--oui-panel-dock-bg": PANEL,
+    "--oui-panel-divider": LINE,
+  } as CSSProperties,
   column: {
     display: "flex",
     flexDirection: "column",
@@ -153,6 +162,7 @@ const STYLE = {
   tabs: {
     flex: "0 0 auto",
     display: "flex",
+    flexDirection: "row",
     alignItems: "center",
     gap: 2,
     padding: 4,
@@ -201,15 +211,25 @@ function QuestionsList({
           const shown = question.key === shownKey;
           const colour = question.live ? ASK : shown ? READ : "#a1a1a6";
           return (
-            <div
+            // A row is a button, so the shell never drags the window from it;
+            // its label wraps, which a library Button's does not.
+            <button
               key={question.key}
+              type="button"
+              aria-label={question.label}
+              aria-current={shown ? "true" : undefined}
+              title={question.question?.text ?? question.label}
               data-live={question.live ? "" : undefined}
               data-testid="pn-coach-question"
+              onClick={() => onPick(question.key)}
               style={{
+                all: "unset",
+                boxSizing: "border-box",
                 display: "flex",
-                gap: 6,
-                padding: "5px 6px 7px 6px",
+                gap: 10,
+                padding: "9px 10px 9px 8px",
                 borderRadius: 8,
+                cursor: "pointer",
                 borderLeft: `3px solid ${
                   question.live ? ASK : shown ? READ : "transparent"
                 }`,
@@ -226,7 +246,7 @@ function QuestionsList({
                   fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                   fontSize: 12,
                   color: question.live ? ASK : shown ? READ : FAINT,
-                  paddingTop: 7,
+                  paddingTop: 1,
                 }}
               >
                 {question.number}
@@ -235,22 +255,21 @@ function QuestionsList({
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "flex-start",
+                  gap: 2,
                   minWidth: 0,
-                  color: colour,
                 }}
               >
-                <Button
-                  buttonSize="sm"
-                  variant="ghost"
-                  aria-current={shown ? "true" : undefined}
-                  title={question.question?.text ?? question.label}
-                  labelMaxWidth="186px"
-                  onClick={() => onPick(question.key)}
+                <span
+                  style={{
+                    fontSize: 13.5,
+                    lineHeight: 1.35,
+                    color: colour,
+                    fontWeight: question.live ? 600 : shown ? 500 : 400,
+                  }}
                 >
                   {question.label}
-                </Button>
-                <span style={{ fontSize: 11.5, color: FAINT, paddingLeft: 8 }}>
+                </span>
+                <span style={{ fontSize: 11.5, color: FAINT }}>
                   {[
                     clock(question.at),
                     question.notes.length > 0
@@ -262,7 +281,7 @@ function QuestionsList({
                     .join(" · ")}
                 </span>
               </span>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -272,7 +291,7 @@ function QuestionsList({
 
 // ---- Notes ----------------------------------------------------------------------
 
-function NoteBlock({ note }: { note: CoachNote }) {
+function NoteBlock({ note, heading }: { note: CoachNote; heading: string }) {
   if (note.tone === "watch")
     return (
       <div style={STYLE.warn} data-tone="watch" data-testid="pn-coach-block">
@@ -285,7 +304,8 @@ function NoteBlock({ note }: { note: CoachNote }) {
     );
   return (
     <div style={STYLE.note} data-tone="say" data-testid="pn-coach-block">
-      <span style={STYLE.caps}>{note.title}</span>
+      {/* A note named as its question says the heading once, not twice. */}
+      {note.title !== heading && <span style={STYLE.caps}>{note.title}</span>}
       <Prompter note={note} inline />
     </div>
   );
@@ -317,19 +337,28 @@ function NotesPane({
   const [below, setBelow] = useState(false);
   const noteCount = question?.notes.length ?? 0;
   const key = question?.key;
+  // The question and the note count the pane last settled on.
+  const settled = useRef<{ key: string | undefined; count: number }>({
+    key: undefined,
+    count: 0,
+  });
   useLayoutEffect(() => {
     const element = scroller.current;
+    const before = settled.current;
+    settled.current = { key, count: noteCount };
     if (!element) return;
-    element.scrollTop = 0;
-    atBottom.current = true;
-    setBelow(false);
-  }, [key]);
-  useEffect(() => {
-    const element = scroller.current;
-    if (!element || noteCount === 0) return;
+    // Another question opens at its top.
+    if (before.key !== key) {
+      element.scrollTop = 0;
+      atBottom.current = element.scrollHeight <= element.clientHeight;
+      setBelow(false);
+      return;
+    }
+    // A note was added to the question on show.
+    if (noteCount <= before.count) return;
     if (atBottom.current) element.scrollTop = element.scrollHeight;
     else setBelow(true);
-  }, [noteCount]);
+  }, [key, noteCount]);
   return (
     <section
       className="pn-card"
@@ -433,7 +462,11 @@ function NotesPane({
               </p>
             )}
             {question.notes.map((note) => (
-              <NoteBlock key={note.id} note={note} />
+              <NoteBlock
+                key={note.id}
+                note={note}
+                heading={question.question?.text ?? question.label}
+              />
             ))}
             {below && (
               <div style={STYLE.pill}>

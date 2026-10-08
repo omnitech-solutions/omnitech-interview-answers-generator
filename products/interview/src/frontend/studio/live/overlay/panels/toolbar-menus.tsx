@@ -66,7 +66,7 @@ export function ViewMenu({
           (each) => ({
             id: each.id,
             label: each.label,
-            subtitle: each.hint,
+            description: each.hint,
             checked: each.id === view,
           }),
         ),

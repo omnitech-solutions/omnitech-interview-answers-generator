@@ -52,13 +52,18 @@ export function createCoachNotes(filePath: string) {
   return {
     get: snapshot,
     add(input: CoachNoteInput): CoachNotesResponse {
+      const { at, ...parsed } = coachNoteInputSchema.parse(input);
       const note: CoachNote = {
-        ...coachNoteInputSchema.parse(input),
+        ...parsed,
         id: randomUUID(),
-        createdAt: new Date().toISOString(),
+        createdAt: at ?? new Date().toISOString(),
       };
-      // Newest first; the oldest fall off the end.
-      keep([note, ...held()].slice(0, MAX_NOTES));
+      // Newest first by the moment each was for; the oldest fall off the end.
+      keep(
+        [note, ...held()]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, MAX_NOTES),
+      );
       return snapshot();
     },
     clear(): CoachNotesResponse {

@@ -108,8 +108,11 @@ export function conversationTurns(
   }
 
   // [STRATEGY] A note joins the question its coach named (the turn that
-  // already holds a note with the same ask id); otherwise the last question
-  // asked before it was posted. A note with no turn yet waits in its own.
+  // already holds a note with the same ask id). Otherwise it joins the last
+  // question asked before it was posted, unless the coach has already filed
+  // that one under another ask: then the note is for a question the
+  // transcript did not open (a rephrasing, a follow-up, nothing heard at all)
+  // and it opens a turn of its own, so no question's notes pile onto another.
   const ordered = [...notes].sort(
     (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
   );
@@ -120,11 +123,19 @@ export function conversationTurns(
           each.notes.some((held) => held.askId === note.askId),
         )
       : undefined;
-    const turn =
-      named ??
-      turns.findLast((each) => each.at <= at) ??
-      turns[0] ??
-      open(null, at);
+    const nearest = turns.findLast((each) => each.at <= at) ?? turns[0];
+    const taken =
+      note.askId !== undefined &&
+      (nearest?.notes.some(
+        (held) => held.askId !== undefined && held.askId !== note.askId,
+      ) ??
+        false);
+    let turn = named ?? (taken ? undefined : nearest);
+    if (!turn) {
+      turn = open(null, at);
+      turn.key = note.askId ? `ask-${note.askId}` : `note-${note.id}`;
+      turns.sort((a, b) => a.at - b.at);
+    }
     turn.notes.push(note);
     if (note.ask) turn.ask = note.ask;
   }

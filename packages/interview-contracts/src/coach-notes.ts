@@ -29,9 +29,12 @@ export const coachNoteInputSchema = z.strictObject({
   // Notes that share an id are for the same question: a later one is a
   // follow-up under it, never a replacement.
   askId: z.string().trim().min(1).max(64).optional(),
+  // When the note was for, when that is not now: a coach restoring a
+  // session's notes gives each one the moment it was first shown.
+  at: z.iso.datetime().optional(),
 });
 
-export const coachNoteSchema = coachNoteInputSchema.extend({
+export const coachNoteSchema = coachNoteInputSchema.omit({ at: true }).extend({
   id: z.uuid(),
   createdAt: z.iso.datetime(),
 });

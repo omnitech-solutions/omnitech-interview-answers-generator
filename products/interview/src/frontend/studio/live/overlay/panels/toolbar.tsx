@@ -10,6 +10,7 @@
 import { Toolbar as LibraryToolbar, Tag } from "@oc-tech/omni-ui-components";
 import type { PresentationHost } from "@omnitech/interview-contracts";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { isCoachView, useChatView } from "./chat-view-pref";
 import { canPassThrough } from "./hit-regions";
 import type { PanelGlass } from "./panel-glass";
 import type { PanelSession } from "./panel-views";
@@ -70,6 +71,7 @@ export function Toolbar({
       setMenu((now) => (open ? id : now === id ? null : now)),
   });
   const passThrough = canPassThrough(controls.presentation);
+  const coachView = isCoachView(useChatView());
   return (
     <div data-drag-handle="" className="pn-contents">
       <LibraryToolbar
@@ -116,11 +118,17 @@ export function Toolbar({
               </>
             ),
           },
-          {
-            id: "panels",
-            label: "Panels",
-            children: <PaneToggles s={s} panes={controls.panes} />,
-          },
+          // The pane toggles belong to the classic layouts: a coach layout
+          // has its own columns, so they are not drawn there.
+          ...(coachView
+            ? []
+            : [
+                {
+                  id: "panels",
+                  label: "Panels",
+                  children: <PaneToggles s={s} panes={controls.panes} />,
+                },
+              ]),
           {
             id: "tools",
             label: "Tools",

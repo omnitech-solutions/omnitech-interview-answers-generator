@@ -43,7 +43,9 @@ export const VIEW_GROUPS = [
 ] as const;
 
 const KEY = "omnitech.interview.view";
-const DEFAULT: ChatView = "original";
+// A window opens in the call-first coach layout until another is chosen; the
+// base layout is "Original" in the View menu.
+const DEFAULT: ChatView = "coach";
 const isView = (value: string | null): value is ChatView =>
   CHAT_VIEWS.some((view) => view.id === value);
 
