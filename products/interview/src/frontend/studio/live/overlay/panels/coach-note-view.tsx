@@ -143,7 +143,11 @@ export function drawnSections(note: CoachNote): {
 // undefined where the card expects a field to be absent.
 const cueSection = (section: DrawnSection): CueSection => ({
   kind: section.kind,
-  label: section.label,
+  // A kind's own heading is the card's to draw (or to leave out, for anchors
+  // set under the lines they support): only a heading of the note's own is given.
+  ...(section.label === SECTION[section.kind].label
+    ? {}
+    : { label: section.label }),
   lines: section.lines.map((line) => ({
     segments: line.segments.map((segment) => ({
       text: segment.text,
@@ -156,7 +160,6 @@ const cueSection = (section: DrawnSection): CueSection => ({
 
 const linkRow: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4 };
 
-// [DOMAIN] The library's CueCard draws the note: this file only reads a note
 // [SAFETY] The native window keeps the stylesheet it loaded: when the library
 // is updated under a running window, the card's markup is new and its rules
 // are missing (small text, no bullets). The card's base size is a rule of
@@ -177,6 +180,7 @@ function reloadOnStaleStyles(card: HTMLElement, size: keyof typeof CARD_PX) {
   window.location.reload();
 }
 
+// [DOMAIN] The library's CueCard draws the note: this file only reads a note
 // (structured, or written as Markdown) into the card's sections and hands it
 // the diagram and the links.
 export function CoachNoteView({

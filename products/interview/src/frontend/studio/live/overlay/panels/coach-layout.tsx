@@ -33,7 +33,7 @@ import {
   Tag,
 } from "@oc-tech/omni-ui-components";
 import type { CoachNote } from "@omnitech/interview-contracts";
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Icon } from "../../../icon";
 import { ChatPanel } from "./chat-panel";
 import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
@@ -64,6 +64,7 @@ import {
   type Question,
   questionsOf,
   type Turn,
+  WAITING_MS,
   waitingTurn,
 } from "./conversation-model";
 import { clock, panelRows } from "./panel-model";
@@ -552,6 +553,18 @@ export function CoachLayout({
   // The question just asked whose notes have not arrived: it is named above
   // the notes on show and has no row of its own until it has notes.
   const waiting = waitingTurn(turns);
+  // A question stops waiting when its time is up, not at the next thing heard.
+  const [, tick] = useState(0);
+  const waitingAt = waiting?.at;
+  useEffect(() => {
+    if (waitingAt === undefined) return;
+    const left = waitingAt + WAITING_MS - Date.now();
+    const timer = window.setTimeout(
+      () => tick((n) => n + 1),
+      Math.max(left, 0) + 50,
+    );
+    return () => window.clearTimeout(timer);
+  }, [waitingAt]);
   // The question on show: the one picked from the list, or the newest.
   const [picked, setPicked] = useState<string | null>(null);
   const live = questions[questions.length - 1];
