@@ -2,7 +2,7 @@
 // teleprompter, with the documentation for the topic. A coach outside this
 // window (a person or an agent holding the API token) posts them; this strip
 // only reads and shows them. It opens by itself when a new note arrives.
-import { Button, Input, Tag } from "@oc-tech/omni-ui-components";
+import { ActionMenu, Button, Input, Tag } from "@oc-tech/omni-ui-components";
 import {
   type CoachNote,
   coachNotesResponseSchema,
@@ -91,6 +91,57 @@ export function matchesNote(note: CoachNote, query: string): boolean {
 export const noteMarkdown = (note: CoachNote): string =>
   note.markdown ?? note.points.map((point) => `- ${point}`).join("\n");
 
+// The gap the window's rows keep between them (panels.css): a strip that
+// appears adds its own height and one gap.
+const ROW_GAP = 8;
+const MAX_STRIP_HEIGHT = 340;
+
+// [DOMAIN] Where the coach panel sits in the window. It is moved from its
+// menu, or by dragging its header toward an edge: it snaps to the nearest one.
+// Wherever it sits the window grows to hold it (taller for top and bottom,
+// wider for the sides), so the panes are never covered or squeezed.
+export const COACH_DOCKS = ["bottom", "top", "left", "right"] as const;
+export type CoachDock = (typeof COACH_DOCKS)[number];
+const DOCK_LABEL: Record<CoachDock, string> = {
+  bottom: "Bottom",
+  top: "Top",
+  left: "Left",
+  right: "Right",
+};
+const DOCK_KEY = "omnitech.interview.coach.dock";
+const SIDE_WIDTH = 380;
+const isSide = (dock: CoachDock) => dock === "left" || dock === "right";
+function savedDock(): CoachDock {
+  try {
+    const kept = window.localStorage.getItem(DOCK_KEY);
+    return (COACH_DOCKS as readonly string[]).includes(kept ?? "")
+      ? (kept as CoachDock)
+      : "bottom";
+  } catch {
+    return "bottom";
+  }
+}
+// The width a side-docked panel adds to the window. The window's own fit
+// (single-panel.tsx) reads it, so its next resize keeps that room.
+export const coachReserve = { width: 0 };
+// The edge nearest a point in the window: where a dragged panel snaps.
+export function nearestDock(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): CoachDock {
+  const distance: Record<CoachDock, number> = {
+    left: x,
+    right: width - x,
+    top: y,
+    bottom: height - y,
+  };
+  return COACH_DOCKS.reduce((best, dock) =>
+    distance[dock] < distance[best] ? dock : best,
+  );
+}
+
 // [STRATEGY] The strip's look is set here, not in the stylesheet: the native
 // window takes a new component at once but keeps its old stylesheet until it
 // reloads, and a prompter with no layout cannot be read at a glance.
@@ -99,6 +150,22 @@ export const noteMarkdown = (note: CoachNote): string =>
 const ACCENT = "var(--oui-accent, #7aa2ff)";
 const MUTED = "var(--ov-muted, #9aa4b2)";
 const STYLE = {
+  // At the side the panel stands the height of the window, beside the panes.
+  sideDock: {
+    position: "fixed",
+    top: ROW_GAP,
+    bottom: ROW_GAP,
+    width: SIDE_WIDTH,
+    zIndex: 5,
+  },
+  bodySide: {
+    display: "grid",
+    gridTemplateRows: "minmax(0, 1fr) minmax(0, 150px)",
+    gap: 10,
+    flex: "1 1 auto",
+    minHeight: 0,
+    margin: "6px 0 4px",
+  },
   strip: {
     flex: "0 0 auto",
     display: "flex",
@@ -385,11 +452,6 @@ function Prompter({ note }: { note: CoachNote }) {
 const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-// The gap the window's rows keep between them (panels.css): a strip that
-// appears adds its own height and one gap.
-const ROW_GAP = 8;
-const MAX_STRIP_HEIGHT = 340;
-
 export function CoachNotes({
   enabled,
   setWindowSize,
@@ -401,6 +463,16 @@ export function CoachNotes({
     | undefined;
 }) {
   const { notes, clear } = useCoachNotes(enabled);
+  const [dock, setDockState] = useState<CoachDock>(savedDock);
+  const setDock = (next: CoachDock) => {
+    setDockState(next);
+    try {
+      window.localStorage.setItem(DOCK_KEY, next);
+    } catch {
+      // The choice still holds for this window.
+    }
+  };
+  const side = isSide(dock);
   // [DOMAIN] The strip never takes room from the panes above it: the window
   // grows by the strip's height when it appears or opens, and gives that
   // height back when it folds or goes. The panes keep the height they had.
@@ -408,15 +480,23 @@ export function CoachNotes({
   const added = useRef(0);
   const resize = useRef(setWindowSize);
   resize.current = setWindowSize;
-  const follow = (height: number) => {
-    // Bounded, so nothing can make the window chase its own height.
+  const addedWidth = useRef(0);
+  const follow = (height: number, wide = false) => {
+    // Bounded, so nothing can make the window chase its own height. A panel
+    // at the side adds width and no height.
     const wanted =
-      height > 0 ? Math.min(Math.ceil(height), MAX_STRIP_HEIGHT) + ROW_GAP : 0;
+      height > 0 && !wide
+        ? Math.min(Math.ceil(height), MAX_STRIP_HEIGHT) + ROW_GAP
+        : 0;
+    const wantedWidth = height > 0 && wide ? SIDE_WIDTH + ROW_GAP : 0;
     const change = wanted - added.current;
-    if (change === 0 || !resize.current) return;
+    const changeWidth = wantedWidth - addedWidth.current;
+    coachReserve.width = wantedWidth;
+    if ((change === 0 && changeWidth === 0) || !resize.current) return;
     added.current = wanted;
+    addedWidth.current = wantedWidth;
     void resize.current({
-      width: window.innerWidth,
+      width: Math.max(window.innerWidth + changeWidth, 320),
       height: Math.max(window.innerHeight + change, 200),
     });
   };
@@ -429,12 +509,39 @@ export function CoachNotes({
       follow(0);
       return;
     }
-    follow(element.offsetHeight);
+    follow(element.offsetHeight, side);
     if (typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(() => follow(element.offsetHeight));
+    const watch = new ResizeObserver(() => follow(element.offsetHeight, side));
     watch.observe(element);
     return () => watch.disconnect();
   });
+  // A panel at the side stands beside the panes: the window's content keeps
+  // clear of it with a margin on that side.
+  const shownAtSide = side && enabled && notes.length > 0;
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>(".pn-root");
+    if (!root || !shownAtSide) return;
+    const edge = dock === "left" ? "paddingLeft" : "paddingRight";
+    const before = root.style[edge];
+    root.style[edge] = `${SIDE_WIDTH + ROW_GAP * 2}px`;
+    return () => {
+      root.style[edge] = before;
+    };
+  }, [dock, shownAtSide]);
+  // Dragging the header: on release the panel snaps to the nearest edge.
+  const dragged = useRef(false);
+  const drop = (event: { clientX: number; clientY: number }) => {
+    if (!dragged.current) return;
+    dragged.current = false;
+    setDock(
+      nearestDock(
+        event.clientX,
+        event.clientY,
+        window.innerWidth,
+        window.innerHeight,
+      ),
+    );
+  };
   // Leaving (the session ended, the window closed its panes) gives it back.
   useEffect(() => () => follow(0), []);
   const [open, setOpen] = useState(false);
@@ -459,12 +566,31 @@ export function CoachNotes({
       ref={attach}
       // Its own height only, never a share of the window's: a strip that
       // stretched with the window would ask for a taller window again.
-      style={STYLE.strip}
+      style={
+        side
+          ? { ...STYLE.strip, ...STYLE.sideDock, [dock]: ROW_GAP }
+          : { ...STYLE.strip, order: dock === "top" ? -1 : 0 }
+      }
+      data-dock={dock}
       className="pn-card pn-coach"
       aria-label="Coach notes"
       data-testid="pn-coach"
     >
-      <div style={STYLE.bar}>
+      <div
+        style={{ ...STYLE.bar, cursor: "grab", touchAction: "none" }}
+        title="Drag toward an edge to move the coach panel there"
+        onPointerDown={(event) => {
+          // A press on a control inside the header is that control's own.
+          if ((event.target as HTMLElement).closest("button, input")) return;
+          dragged.current = true;
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerUp={drop}
+        onPointerCancel={() => {
+          dragged.current = false;
+        }}
+        data-testid="pn-coach-header"
+      >
         <Button
           buttonSize="sm"
           variant="ghost"
@@ -479,6 +605,32 @@ export function CoachNotes({
           <span className="pn-coach-preview">{notes[0].title}</span>
         )}
         <span style={{ flex: "1 1 auto" }} aria-hidden="true" />
+        <ActionMenu
+          label="Where the coach panel sits"
+          title="Dock"
+          width={180}
+          sections={[
+            {
+              id: "dock",
+              selection: "single",
+              value: dock,
+              items: COACH_DOCKS.map((id) => ({ id, label: DOCK_LABEL[id] })),
+            },
+          ]}
+          onValueChange={(_group, id) => setDock(id as CoachDock)}
+          trigger={
+            <Button
+              buttonSize="sm"
+              variant="ghost"
+              icon={<Icon name="open_in_new" />}
+              iconAfter={<Icon name="expand_more" />}
+              aria-label={`Coach panel position: ${DOCK_LABEL[dock]}`}
+              data-testid="pn-coach-dock"
+            >
+              {DOCK_LABEL[dock]}
+            </Button>
+          }
+        />
         <Button
           buttonSize="sm"
           variant="ghost"
@@ -492,7 +644,7 @@ export function CoachNotes({
         </Button>
       </div>
       {open && (
-        <div style={STYLE.body}>
+        <div style={side ? STYLE.bodySide : STYLE.body}>
           {shown ? (
             // Keyed by note, so a new note starts at its top.
             <Prompter key={shown.id} note={shown} />

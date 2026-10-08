@@ -2,10 +2,12 @@
 // sections, the microphone's look by state, the answer-style and shortcut menus
 // and the chord glyphs. Pure: no React and no bridge, so each rule is a table
 // test. The toolbar (toolbar.tsx and its toolbar-*.tsx parts) only draws this.
+
 import type {
   ActionMenuSection,
   IconButtonTone,
 } from "@oc-tech/omni-ui-components";
+import { createElement } from "react";
 import type { IconName } from "../../../icon";
 import type { ScreenProblem } from "../../screen-problems";
 import type { PickerRow } from "./display-picker-model";
@@ -107,6 +109,15 @@ export const displayIdOfRow = (rowId: string): number | null =>
 // The capture menu: "When to analyse" (Manual, then Auto), "Display" (only where
 // the host can choose a screen) and the one action that adds the screen to the
 // task on show.
+const DISPLAY_THUMBNAIL = {
+  width: 72,
+  height: 45,
+  objectFit: "cover",
+  borderRadius: 5,
+  border: "1px solid rgba(127,127,127,0.4)",
+  flex: "none",
+} as const;
+
 export function captureSections(
   input: CaptureSectionInput,
 ): ActionMenuSection[] {
@@ -147,6 +158,19 @@ export function captureSections(
       label: row.kind === "follow" ? row.label : row.name,
       description: row.kind === "follow" ? row.sub : row.position,
       checked: row.checked,
+      // A small picture of what that display shows now: with three screens,
+      // "2 of 3" alone does not say which one it is.
+      ...(row.kind === "display" && row.thumbnailSrc
+        ? {
+            icon: createElement("img", {
+              src: row.thumbnailSrc,
+              alt: "",
+              draggable: false,
+              style: DISPLAY_THUMBNAIL,
+              "data-testid": `pn-display-thumb-${row.id}`,
+            }),
+          }
+        : {}),
       ...(input.waiting ? { disabledReason: input.waiting } : {}),
     }));
     const note = input.displays.notice;

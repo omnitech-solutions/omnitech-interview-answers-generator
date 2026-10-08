@@ -13,7 +13,7 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
-import { CoachNotes } from "./coach-notes";
+import { CoachNotes, coachReserve } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
 import { InterviewContextChip } from "./interview-context-chip";
@@ -179,7 +179,10 @@ export function SinglePanel({
         (pill?.offsetWidth ?? BARE_WIDTH - WINDOW_PAD) + WINDOW_PAD;
       // With the body held the window is sized for nothing but the toolbar, so the
       // strip and the footer are exactly as wide as it.
-      const width = windowWidthFor(holdBody ? NO_PANES : shown, toolbar);
+      // Plus the room a coach panel docked at the side stands in.
+      const width =
+        windowWidthFor(holdBody ? NO_PANES : shown, toolbar) +
+        coachReserve.width;
       let height: number | undefined;
       if (!anyPane && root) {
         const content =
