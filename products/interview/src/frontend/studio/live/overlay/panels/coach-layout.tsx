@@ -27,7 +27,7 @@ import { CallSlot } from "./call-slot";
 import { ChatPanel } from "./chat-panel";
 import type { ChatView } from "./chat-view-pref";
 import { ColumnSplitter, useCoachColumns, WindowEdge } from "./coach-columns";
-import { Prompter, useCoachNotes } from "./coach-notes";
+import { noteMarkdown, Prompter, useCoachNotes } from "./coach-notes";
 import {
   conversationTurns,
   type Question,
@@ -175,6 +175,8 @@ const STYLE = {
     background: "rgba(245, 184, 74, 0.1)",
     border: "1px solid rgba(245, 184, 74, 0.35)",
   },
+  steerSay: { margin: "4px 0 0 28px", fontSize: 17, color: READ },
+  wants: { margin: 0, fontSize: 14, lineHeight: 1.4, color: DIM },
   warnTitle: {
     display: "flex",
     alignItems: "center",
@@ -320,8 +322,31 @@ function QuestionsList({
 
 // ---- Notes ----------------------------------------------------------------------
 
+// A note titled as its question ("Q: Data consistency…") adds nothing above it.
+const topic = (text: string) =>
+  text
+    .replace(/^q:\s*/i, "")
+    .trim()
+    .toLowerCase();
+const sameTopic = (a: string, b: string) => topic(a) === topic(b);
+
+// The amber box: what is off, then the line that gets the answer back.
+function Steer({ issue, say }: { issue: string; say?: string | undefined }) {
+  return (
+    <div style={STYLE.warn} data-testid="pn-coach-steer">
+      <div style={STYLE.warnTitle}>
+        <Icon name="warning" />
+        <span>{issue.replaceAll("**", "")}</span>
+      </div>
+      {say && <p style={STYLE.steerSay}>{say.replaceAll("**", "")}</p>}
+    </div>
+  );
+}
+
 function NoteBlock({ note, heading }: { note: CoachNote; heading: string }) {
-  if (note.tone === "watch")
+  const body = noteMarkdown(note) !== "";
+  // A warning with nothing structured in it is the whole note, in amber.
+  if (note.tone === "watch" && !note.steer)
     return (
       <div style={STYLE.warn} data-tone="watch" data-testid="pn-coach-block">
         <div style={STYLE.warnTitle}>
@@ -332,10 +357,19 @@ function NoteBlock({ note, heading }: { note: CoachNote; heading: string }) {
       </div>
     );
   return (
-    <div style={STYLE.note} data-tone="say" data-testid="pn-coach-block">
+    <div style={STYLE.note} data-tone={note.tone} data-testid="pn-coach-block">
       {/* A note named as its question says the heading once, not twice. */}
-      {note.title !== heading && <span style={STYLE.caps}>{note.title}</span>}
-      <Prompter note={note} inline />
+      {sameTopic(note.title, heading) || (
+        <span style={STYLE.caps}>{note.title}</span>
+      )}
+      {note.wants && (
+        <p style={STYLE.wants}>
+          <span style={STYLE.caps}>She wants </span>
+          {note.wants.replaceAll("**", "")}
+        </p>
+      )}
+      {note.steer && <Steer issue={note.steer.issue} say={note.steer.say} />}
+      {body && <Prompter note={note} inline />}
     </div>
   );
 }

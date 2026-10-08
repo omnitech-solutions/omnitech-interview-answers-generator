@@ -80,6 +80,12 @@ export function matchesNote(note: CoachNote, query: string): boolean {
   const text = [
     note.title,
     note.markdown ?? "",
+    note.ask ?? "",
+    note.heard ?? "",
+    note.wants ?? "",
+    note.steer?.issue ?? "",
+    note.steer?.say ?? "",
+    ...note.sections.flatMap((section) => [section.label, ...section.points]),
     ...note.points,
     ...note.links.flatMap((link) => [link.label, link.url]),
   ]
@@ -89,8 +95,22 @@ export function matchesNote(note: CoachNote, query: string): boolean {
 }
 
 // What a note says, as Markdown: its own Markdown, or its points as bullets.
-export const noteMarkdown = (note: CoachNote): string =>
-  note.markdown ?? note.points.map((point) => `- ${point}`).join("\n");
+// A structured note (its sections, its diagram) is turned into the same
+// Markdown, so there is one way a note is drawn. The steer is left to the
+// caller, which draws it as a warning.
+export function noteMarkdown(note: CoachNote): string {
+  if (note.markdown) return note.markdown;
+  const sections = note.sections.flatMap((section) => [
+    `## ${section.label}`,
+    ...section.points.map((point) => `- ${point}`),
+  ]);
+  const diagram = note.diagram ? ["```mermaid", note.diagram, "```"] : [];
+  return [
+    ...note.points.map((point) => `- ${point}`),
+    ...sections,
+    ...diagram,
+  ].join("\n");
+}
 
 // The gap the window's rows keep between them (panels.css): a strip that
 // appears adds its own height and one gap.
@@ -401,21 +421,26 @@ function Diagram({ source }: { source: string }) {
 }
 
 // [DOMAIN] A note under the call is read at a glance while speaking, so it is
-// drawn as talking points: one sentence to a line, each on its own bullet,
-// never a paragraph. A scripted line's quotation marks are dropped (the point
-// is what to say, not a quotation of it).
-const SENTENCE_END =
-  /(?<=[.!?]["”']?(?:\*\*)?)\s+(?=(?:\*\*)?["“']?[A-Z0-9])|;\s+/;
+// drawn as talking points: one whole sentence to a bullet, never a paragraph
+// and never a fragment. A sentence too short to stand alone ("I enjoyed
+// this.") stays with the one before it. A scripted line's quotation marks are
+// dropped (the point is what to say, not a quotation of it).
+const SENTENCE_END = /(?<=[.!?]["”']?(?:\*\*)?)\s+(?=(?:\*\*)?["“']?[A-Z0-9])/;
+const STANDS_ALONE_WORDS = 5;
 export function talkingPoints(text: string): string[] {
-  return text
-    .split(SENTENCE_END)
-    .map((point) =>
-      point
-        .trim()
-        .replace(/^["“”]+|["“”]+$/g, "")
-        .trim(),
-    )
-    .filter((point) => point !== "");
+  const points: string[] = [];
+  for (const sentence of text.split(SENTENCE_END)) {
+    const point = sentence
+      .trim()
+      .replace(/^["“”]+|["“”]+$/g, "")
+      .trim();
+    if (point === "") continue;
+    const last = points.length - 1;
+    if (last >= 0 && point.split(/\s+/).length < STANDS_ALONE_WORDS)
+      points[last] = `${points[last]} ${point}`;
+    else points.push(point);
+  }
+  return points;
 }
 
 // One note, drawn. `inline` is the note under its question in the conversation:
@@ -442,6 +467,15 @@ export function Prompter({
           <strong style={STYLE.title}>{note.title}</strong>
         </header>
       )}
+      {!inline && note.steer && (
+        <p style={STYLE.paragraph}>
+          {inlineMarkdown(
+            note.steer.say
+              ? `${note.steer.issue} ${note.steer.say}`
+              : note.steer.issue,
+          )}
+        </p>
+      )}
       {blocks.map((block, at) => {
         const key = `${at}:${block.kind}`;
         if (block.kind === "code")
@@ -462,7 +496,8 @@ export function Prompter({
           const points =
             block.kind === "text"
               ? talkingPoints(block.text)
-              : block.items.flatMap(talkingPoints);
+              : // A bullet was written as one point: it stays one.
+                block.items;
           return (
             <ul key={key} style={STYLE.points}>
               {points.map((point) => (
