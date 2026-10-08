@@ -37,7 +37,14 @@ import {
   type TestServer,
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
-import { setCoachWindowHeight, setCoachWindowWidth } from "./coach-columns";
+import { QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
+import {
+  COLUMN_HANDLES,
+  QUESTIONS_FLOOR,
+  SIDE_FLOOR,
+  setCoachWindowHeight,
+  setCoachWindowWidth,
+} from "./coach-columns";
 import { resetCommandClaims } from "./commands";
 import { GREEN_MENU_GRACE_MS, GREEN_MENU_HOVER_MS } from "./toolbar-config";
 import { keyOpen, pointerOpen, tipOf } from "./toolbar-test-kit";
@@ -2938,6 +2945,32 @@ describe("the layout chosen in the View menu", () => {
     [...document.querySelectorAll(".pn-single-pane")].map((pane) =>
       pane.getAttribute("data-which"),
     );
+  // The notes pane's Layout menu opens with a press; "Default" is the reset.
+  function resetCoachLayout() {
+    fireEvent.pointerDown(screen.getByTestId("pn-coach-layout-menu"), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Default/ }));
+  }
+  // jsdom lays nothing out: the toolbar's pill is as wide as the test says.
+  function toolbarIs(width: number) {
+    const own = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetWidth",
+    );
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains("pn-toolbar") ? width : 0;
+      },
+    });
+    return () => {
+      if (own) Object.defineProperty(HTMLElement.prototype, "offsetWidth", own);
+    };
+  }
+  // What the window keeps round the toolbar (WINDOW_PAD).
+  const PAD = 16;
   function sizes() {
     const asked: { width: number; height?: number }[] = [];
     nativeHost({
@@ -3011,11 +3044,14 @@ describe("the layout chosen in the View menu", () => {
         expect.objectContaining({ method: "GET" }),
       );
       // The question in a few words (what was heard, cut), the whole beneath.
-      expect(screen.getByTestId("pn-coach-asked").textContent).toBe(
-        `${QUESTION.slice(0, 60).trimEnd()}…`,
-      );
-      expect(screen.getByTestId("pn-coach-heard").textContent).toBe(QUESTION);
-      expect(screen.getByTestId("pn-coach-block")).toHaveTextContent(
+      const line = screen.getByTestId("pn-coach-asked");
+      expect(
+        line.querySelector('[data-slot="heard-line-title"]')?.textContent,
+      ).toBe(`${QUESTION.slice(0, 60).trimEnd()}…`);
+      expect(
+        line.querySelector('[data-slot="heard-line-text"]')?.textContent,
+      ).toBe(QUESTION);
+      expect(screen.getByTestId("pn-coach-note")).toHaveTextContent(
         "Name the Outbox pattern",
       );
       // The toolbar above it and the footer beneath it are the same ones.
@@ -3059,7 +3095,7 @@ describe("the layout chosen in the View menu", () => {
     ["coach", 860],
     ["prompter", 780],
   ] as const)(
-    "%s: a window dragged wider or narrower at its edge is asked for at that width, and Reset layout gives the layout's own back",
+    "%s: a window dragged wider or narrower at its edge is asked for at that width, and the Default layout gives the layout's own back",
     async (view, height) => {
       chosenView.view = view;
       serveNotes();
@@ -3070,7 +3106,7 @@ describe("the layout chosen in the View menu", () => {
         act(() => setCoachWindowWidth(own + 180));
         await flush();
         expect(asked.at(-1)).toEqual({ width: own + 180, height });
-        fireEvent.click(screen.getByTestId("pn-coach-reset"));
+        resetCoachLayout();
         await flush();
         expect(asked.at(-1)).toEqual({ width: own, height });
       } finally {
@@ -3112,7 +3148,7 @@ describe("the layout chosen in the View menu", () => {
     ["coach", 860],
     ["prompter", 780],
   ] as const)(
-    "%s: a window dragged taller or shorter at its bottom edge is asked for at that height, and Reset layout gives the layout's own back",
+    "%s: a window dragged taller or shorter at its bottom edge is asked for at that height, and the Default layout gives the layout's own back",
     async (view, own) => {
       chosenView.view = view;
       serveNotes();
@@ -3128,7 +3164,7 @@ describe("the layout chosen in the View menu", () => {
         act(() => setCoachWindowHeight(own - 300));
         await flush();
         expect(asked.at(-1)).toEqual({ width, height: own - 300 });
-        fireEvent.click(screen.getByTestId("pn-coach-reset"));
+        resetCoachLayout();
         await flush();
         expect(asked.at(-1)).toEqual({ width, height: own });
       } finally {
@@ -3197,27 +3233,134 @@ describe("the layout chosen in the View menu", () => {
   });
 
   it.each([
-    ["coach", 1340, 860],
-    ["conversation", 1340, 860],
-    ["prompter", 720, 780],
-  ])(
-    "%s: asks the window for %i px across and at least %i px of height",
-    async (view, width, height) => {
+    ["coach", 860],
+    ["conversation", 860],
+  ] as const)(
+    "%s: asks the window for the questions (250), the centre at the toolbar's width, the answer (400) and the four handles (32), and at least %i px of height",
+    async (view, height) => {
       chosenView.view = view;
       serveNotes();
       const asked = sizes();
-      await show();
-      expect(asked.at(-1)).toEqual({ width, height });
+      const restore = toolbarIs(600);
+      try {
+        await show();
+        expect(asked.at(-1)).toEqual({
+          width: QUESTIONS_WIDTH + (600 + PAD) + RIGHT_WIDTH + COLUMN_HANDLES,
+          height,
+        });
+        expect(asked.at(-1)?.width).toBe(1_298);
+      } finally {
+        restore();
+      }
     },
   );
 
-  it("a coach layout leaves a window that is already tall enough at the person's own height", async () => {
+  it("coach: the window follows a toolbar that is wider", async () => {
     chosenView.view = "coach";
     serveNotes();
+    const asked = sizes();
+    let restore = toolbarIs(600);
+    try {
+      await show();
+      const narrow = asked.at(-1)?.width as number;
+      cleanup();
+      restore();
+      restore = toolbarIs(700);
+      await show();
+      expect(asked.at(-1)?.width).toBe(narrow + 100);
+    } finally {
+      restore();
+    }
+  });
+
+  it.each(["coach", "conversation"] as const)(
+    "%s: a width dragged narrower than the side columns at their least (180 and 300) round the toolbar is not used: the floor is asked for",
+    async (view) => {
+      chosenView.view = view;
+      serveNotes();
+      const asked = sizes();
+      const restore = toolbarIs(600);
+      const floor = QUESTIONS_FLOOR + (600 + PAD) + SIDE_FLOOR + COLUMN_HANDLES;
+      try {
+        await show();
+        act(() => setCoachWindowWidth(floor - 300));
+        await flush();
+        expect(asked.at(-1)?.width).toBe(floor);
+        expect(floor).toBe(1_128);
+        // At the floor exactly, and above it, the dragged width stands.
+        act(() => setCoachWindowWidth(floor));
+        await flush();
+        expect(asked.at(-1)?.width).toBe(floor);
+        act(() => setCoachWindowWidth(floor + 40));
+        await flush();
+        expect(asked.at(-1)?.width).toBe(floor + 40);
+      } finally {
+        act(() => setCoachWindowWidth(null));
+        restore();
+      }
+    },
+  );
+
+  it("prompter: asks for its own 720 px across and at least 780 px of height, and a dragged width is held only to the toolbar's", async () => {
+    chosenView.view = "prompter";
+    serveNotes();
+    const asked = sizes();
+    const restore = toolbarIs(500);
+    try {
+      await show();
+      expect(asked.at(-1)).toEqual({ width: 720, height: 780 });
+      act(() => setCoachWindowWidth(480));
+      await flush();
+      expect(asked.at(-1)?.width).toBe(500 + PAD);
+      act(() => setCoachWindowWidth(600));
+      await flush();
+      expect(asked.at(-1)?.width).toBe(600);
+    } finally {
+      act(() => setCoachWindowWidth(null));
+      restore();
+    }
+  });
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: opens three quarters of the screen tall, whatever height the window has, until its bottom edge is dragged",
+    async (view) => {
+      chosenView.view = view;
+      serveNotes();
+      vi.stubGlobal("screen", { availWidth: 1_920, availHeight: 1_001 });
+      const asked = sizes();
+      await show();
+      // 1001 x 0.75 = 750.75, asked for in whole pixels.
+      expect(asked.at(-1)?.height).toBe(751);
+      try {
+        act(() => setCoachWindowHeight(600));
+        await flush();
+        expect(asked.at(-1)?.height).toBe(600);
+        act(() => setCoachWindowHeight(null));
+        await flush();
+        expect(asked.at(-1)?.height).toBe(751);
+      } finally {
+        act(() => setCoachWindowHeight(null));
+      }
+    },
+  );
+
+  it("a coach layout asks for three quarters of the screen even when the window is already taller", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    vi.stubGlobal("screen", { availWidth: 1_920, availHeight: 1_200 });
+    vi.stubGlobal("innerHeight", 1_100);
+    const asked = sizes();
+    await show();
+    expect(asked.at(-1)?.height).toBe(900);
+  });
+
+  it("original: the screen's height is not used: a window tall enough is left at the person's own height", async () => {
+    vi.stubGlobal("screen", { availWidth: 1_920, availHeight: 1_200 });
     vi.stubGlobal("innerHeight", 1_000);
     const asked = sizes();
     await show();
-    expect(asked.at(-1)).toEqual({ width: 1340 });
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.at(-1)).not.toHaveProperty("height");
   });
 
   it.each(["coach", "prompter"] as const)(

@@ -4,6 +4,7 @@
 // real library here.
 import type { CoachNote } from "@omnitech/interview-contracts";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,6 +12,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setCoachTextSize } from "./coach-columns";
 import { COACH_COLOUR, CoachNoteView, drawnSections } from "./coach-note-view";
 
 // Plain functions, so no mock reset can take the drawing away.
@@ -25,7 +27,13 @@ vi.mock("mermaid", () => ({
 
 afterEach(() => {
   cleanup();
+  // The notes' size is kept in the module.
+  act(() => setCoachTextSize("lg"));
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 type Segment =
@@ -985,5 +993,187 @@ describe("CoachNoteView", () => {
       expect(root).not.toHaveTextContent("Updating…");
       expect(root).not.toHaveTextContent("Preparing response…");
     });
+  });
+});
+
+describe("CoachNoteView: the quiet line above a note, and how large it reads", () => {
+  const SAY: CoachNote["sections"] = [
+    { kind: "say", lines: [line("Say one")] },
+  ];
+  const card = () => screen.getByTestId("pn-coach-note");
+  const metaLine = () => card().querySelector('[data-slot="cue-card-meta"]');
+
+  it("a note given a quiet line says it first, above its sections", () => {
+    render(
+      <CoachNoteView note={note({ sections: SAY })} meta="Answer · 10:40" />,
+    );
+    expect(metaLine()?.textContent).toBe("Answer · 10:40");
+    expect(card().firstElementChild).toBe(metaLine());
+  });
+
+  it("a note given none, or an empty one, draws no such line", () => {
+    render(<CoachNoteView note={note({ sections: SAY })} />);
+    expect(metaLine()).toBeNull();
+    cleanup();
+    render(<CoachNoteView note={note({ sections: SAY })} meta="" />);
+    expect(metaLine()).toBeNull();
+  });
+
+  it("the compact note keeps its quiet line", () => {
+    render(
+      <CoachNoteView
+        note={note({ sections: SAY })}
+        mode="compact"
+        meta="Answer · 10:40"
+      />,
+    );
+    expect(metaLine()?.textContent).toBe("Answer · 10:40");
+  });
+
+  it("reads large until another size is chosen, and follows the size chosen at once", () => {
+    render(<CoachNoteView note={note({ sections: SAY })} />);
+    expect(card()).toHaveAttribute("data-size", "lg");
+    for (const size of ["sm", "md", "xl", "lg"] as const) {
+      act(() => setCoachTextSize(size));
+      expect(card()).toHaveAttribute("data-size", size);
+    }
+  });
+
+  it("every note on show takes the one size", () => {
+    render(
+      <>
+        <CoachNoteView note={note({ sections: SAY })} />
+        <CoachNoteView note={note({ sections: SAY })} mode="compact" />
+      </>,
+    );
+    act(() => setCoachTextSize("xl"));
+    expect(
+      screen
+        .getAllByTestId("pn-coach-note")
+        .map((each) => each.getAttribute("data-size")),
+    ).toEqual(["xl", "xl"]);
+  });
+});
+
+// [SAFETY] The native window keeps the stylesheet it loaded. A card drawn
+// from one older than the library does not have the size its markup asks for,
+// and the page loads again: once a minute at most, so it can never loop.
+describe("CoachNoteView: a card drawn from a stale stylesheet", () => {
+  const RELOADED_KEY = "omnitech.interview.styles-reloaded-at";
+  const SAY: CoachNote["sections"] = [
+    { kind: "say", lines: [line("Say one")] },
+  ];
+  const NOW = Date.parse("2026-10-08T17:40:00.000Z");
+  // The page's reload, watched. jsdom's own cannot be replaced, so the page is
+  // given a location that has everything of the real one and a reload to watch.
+  function watchReload() {
+    const reload = vi.fn();
+    vi.stubGlobal("location", { href: window.location.href, reload });
+    return reload;
+  }
+  // What the stylesheet gives the card, as the browser would report it.
+  const drawnAt = (fontSize: string) =>
+    vi
+      .spyOn(window, "getComputedStyle")
+      .mockReturnValue({ fontSize } as CSSStyleDeclaration);
+  const draw = () => render(<CoachNoteView note={note({ sections: SAY })} />);
+  const clock = (at: number) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(at);
+  };
+
+  it("where the size cannot be read (no stylesheet at all, as here) nothing reloads and nothing is kept", () => {
+    const reload = watchReload();
+    expect(
+      Number.isFinite(
+        Number.parseFloat(getComputedStyle(document.body).fontSize),
+      ),
+    ).toBe(false);
+    draw();
+    act(() => setCoachTextSize("xl"));
+    expect(reload).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem(RELOADED_KEY)).toBeNull();
+  });
+
+  it.each([
+    ["sm", "14px"],
+    ["md", "16px"],
+    ["lg", "19px"],
+    ["xl", "22px"],
+  ] as const)(
+    "a %s card drawn at its own %s is current: nothing reloads",
+    (size, fontSize) => {
+      const reload = watchReload();
+      drawnAt(fontSize);
+      act(() => setCoachTextSize(size));
+      draw();
+      expect(reload).not.toHaveBeenCalled();
+      expect(window.sessionStorage.getItem(RELOADED_KEY)).toBeNull();
+    },
+  );
+
+  it("a size within half a pixel of the card's own is current too", () => {
+    const reload = watchReload();
+    drawnAt("19.4px");
+    draw();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("a large card drawn at the page's 13 px is stale: the page loads again, once, and says when", () => {
+    clock(NOW);
+    const reload = watchReload();
+    drawnAt("13px");
+    draw();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem(RELOADED_KEY)).toBe(String(NOW));
+  });
+
+  it("it does not load again within the minute, however many cards are drawn or sizes chosen, and does once the minute has passed", () => {
+    clock(NOW);
+    const reload = watchReload();
+    drawnAt("13px");
+    draw();
+    draw();
+    act(() => setCoachTextSize("xl"));
+    vi.setSystemTime(NOW + 59_999);
+    draw();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem(RELOADED_KEY)).toBe(String(NOW));
+    vi.setSystemTime(NOW + 60_000);
+    draw();
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(window.sessionStorage.getItem(RELOADED_KEY)).toBe(
+      String(NOW + 60_000),
+    );
+  });
+
+  it("a page that loaded again under a minute ago is left alone, even on its first card", () => {
+    clock(NOW);
+    window.sessionStorage.setItem(RELOADED_KEY, String(NOW - 30_000));
+    const reload = watchReload();
+    drawnAt("13px");
+    draw();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("choosing a size the stylesheet does not answer to is what is noticed: the check runs again with the size", () => {
+    clock(NOW);
+    const reload = watchReload();
+    drawnAt("19px");
+    draw();
+    expect(reload).not.toHaveBeenCalled();
+    // The stale sheet has one size for every card: extra large stays 19 px.
+    act(() => setCoachTextSize("xl"));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("where the time of the last reload cannot be kept, the page never reloads: it could not stop itself", () => {
+    const reload = watchReload();
+    drawnAt("13px");
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("no storage");
+    });
+    draw();
+    expect(reload).not.toHaveBeenCalled();
   });
 });
