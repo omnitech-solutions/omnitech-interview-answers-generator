@@ -156,6 +156,30 @@ describe("what the transcript holds", () => {
     );
   });
 
+  it("keeps the newest 60 rows for the transcript pane, and as many as a reader of the whole session asks for", () => {
+    const model = modelOf([]);
+    const typed = Array.from({ length: 70 }, (_, at) => ({
+      key: `t-${at}`,
+      kind: "Typed" as const,
+      text: `Line ${at}`,
+      at: Date.parse(minutesAfter(2, at)),
+    }));
+    const window = panelRows(model, typed);
+    expect(window).toHaveLength(60);
+    expect(window[0]?.text).toBe("Line 10");
+    expect(window.at(-1)?.text).toBe("Line 69");
+    const whole = panelRows(model, typed, 0, {}, Number.POSITIVE_INFINITY);
+    expect(whole).toHaveLength(70);
+    expect(whole[0]?.text).toBe("Line 0");
+    expect(panelRows(model, typed, 0, {}, 5).map((row) => row.text)).toEqual([
+      "Line 65",
+      "Line 66",
+      "Line 67",
+      "Line 68",
+      "Line 69",
+    ]);
+  });
+
   it("drops what was cleared, but keeps what came after", () => {
     const model = modelOf([first]);
     expect(panelRows(model, [], Date.parse(minutesAfter(5)))).toEqual([]);

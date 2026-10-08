@@ -6,6 +6,7 @@ import {
   currentQuestion,
   echoes,
   questionsOf,
+  waitingTurn,
 } from "./conversation-model";
 import type { PanelRow } from "./panel-model";
 
@@ -384,17 +385,19 @@ describe("questionsOf", () => {
     expect(questions[0]?.question).toBeNull();
   });
 
-  it("files a note posted just before the first question under that question", () => {
-    const questions = questionsOf(
-      conversationTurns(
-        [heard("interviewer", 30, QUESTION_ONE)],
-        [note(5, "Opening line")],
-      ),
+  it("a note posted before the first question is never filed under it: it is a question of its own, and the one just asked waits", () => {
+    const turns = conversationTurns(
+      [heard("interviewer", 30, QUESTION_ONE)],
+      [note(5, "Opening line")],
     );
+    const questions = questionsOf(turns);
 
-    expect(questions.map((each) => [each.label, each.notes.length])).toEqual([
-      [QUESTION_ONE, 1],
-    ]);
+    expect(
+      questions.map((each) => [each.number, each.label, each.notes.length]),
+    ).toEqual([[1, "Opening line", 1]]);
+    expect(questions[0]?.question).toBeNull();
+    expect(questions[0]?.live).toBe(true);
+    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_ONE);
   });
 
   it("keeps what each turn holds", () => {
@@ -451,5 +454,453 @@ describe("questionsOf", () => {
     );
 
     expect(only?.label).toBe(ask);
+  });
+});
+
+describe("where a note is filed", () => {
+  const rows = [
+    heard("interviewer", 0, QUESTION_ONE),
+    heard("interviewer", 60, QUESTION_TWO),
+  ];
+  const shape = (turns: ReturnType<typeof conversationTurns>) =>
+    turns.map((turn) => [
+      turn.key,
+      turn.question?.text ?? null,
+      turn.notes.map((each) => each.title),
+    ]);
+
+  it("under the last question asked before it, when the coach has filed nothing else there", () => {
+    expect(
+      shape(conversationTurns(rows, [note(20, "First", { askId: "a" })])),
+    ).toEqual([
+      ["interviewer-0", QUESTION_ONE, ["First"]],
+      ["interviewer-60", QUESTION_TWO, []],
+    ]);
+  });
+
+  it("a question asked at the very moment of the note counts as asked before it", () => {
+    expect(
+      conversationTurns(rows, [note(60, "On the dot")]).map(
+        (turn) => turn.notes.length,
+      ),
+    ).toEqual([0, 1]);
+  });
+
+  it("in a turn of its own when that question already holds notes for another ask: no question's notes pile onto another", () => {
+    const turns = conversationTurns(rows, [
+      note(20, "First", { askId: "a" }),
+      note(30, "A rephrasing the transcript missed", {
+        askId: "b",
+        ask: "Splitting by team",
+      }),
+    ]);
+
+    // The new turn is led by the note: no heard question, the note's time,
+    // keyed by the ask, and in its place in time.
+    expect(shape(turns)).toEqual([
+      ["interviewer-0", QUESTION_ONE, ["First"]],
+      ["ask-b", null, ["A rephrasing the transcript missed"]],
+      ["interviewer-60", QUESTION_TWO, []],
+    ]);
+    expect(turns[1]?.at).toBe(T0 + 30_000);
+    expect(turns[1]?.ask).toBe("Splitting by team");
+    expect(turns[1]).toMatchObject({ asides: [], studio: [], mine: [] });
+  });
+
+  it("a later note for that ask joins the turn it opened, however late and whatever was asked since", () => {
+    const turns = conversationTurns(rows, [
+      note(20, "First", { askId: "a" }),
+      note(30, "Opened it", { askId: "b" }),
+      note(90, "Joins it", { askId: "b" }),
+    ]);
+
+    expect(shape(turns)).toEqual([
+      ["interviewer-0", QUESTION_ONE, ["First"]],
+      ["ask-b", null, ["Opened it", "Joins it"]],
+      ["interviewer-60", QUESTION_TWO, []],
+    ]);
+  });
+
+  it("a note-led turn is the nearest for what comes next: an unnamed note joins it, another ask opens one more", () => {
+    const turns = conversationTurns(rows, [
+      note(20, "First", { askId: "a" }),
+      note(30, "Second ask", { askId: "b" }),
+      note(40, "Unnamed"),
+      note(45, "Third ask", { askId: "c" }),
+    ]);
+
+    expect(shape(turns)).toEqual([
+      ["interviewer-0", QUESTION_ONE, ["First"]],
+      ["ask-b", null, ["Second ask", "Unnamed"]],
+      ["ask-c", null, ["Third ask"]],
+      ["interviewer-60", QUESTION_TWO, []],
+    ]);
+  });
+
+  it("a note with no ask id never opens a turn beside a question: it joins the nearest, whatever that holds", () => {
+    const turns = conversationTurns(rows, [
+      note(20, "First", { askId: "a" }),
+      note(30, "Unnamed"),
+    ]);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]?.notes.map((each) => each.title)).toEqual([
+      "First",
+      "Unnamed",
+    ]);
+  });
+
+  it("a named note joins a question that so far holds only unnamed notes", () => {
+    const turns = conversationTurns(rows, [
+      note(20, "Unnamed"),
+      note(30, "Named", { askId: "a" }),
+    ]);
+
+    expect(turns).toHaveLength(2);
+    expect(turns[0]?.notes.map((each) => each.title)).toEqual([
+      "Unnamed",
+      "Named",
+    ]);
+  });
+
+  it("opens a turn keyed by the ask when nothing was asked before it, ahead of the first question", () => {
+    const turns = conversationTurns(
+      [heard("interviewer", 30, QUESTION_ONE)],
+      [note(5, "Opening line", { askId: "intro" })],
+    );
+
+    expect(shape(turns)).toEqual([
+      ["ask-intro", null, ["Opening line"]],
+      ["interviewer-30", QUESTION_ONE, []],
+    ]);
+  });
+
+  it("opens a turn keyed by the note itself when it names no ask", () => {
+    const early = note(5, "Opening line");
+    const turns = conversationTurns(
+      [heard("interviewer", 30, QUESTION_ONE)],
+      [early],
+    );
+
+    expect(turns.map((turn) => turn.key)).toEqual([
+      `note-${early.id}`,
+      "interviewer-30",
+    ]);
+    // The next unnamed note before the question joins it; it opens no second turn.
+    expect(
+      conversationTurns(
+        [heard("interviewer", 30, QUESTION_ONE)],
+        [early, note(9, "Then your stack")],
+      ).map((turn) => turn.notes.length),
+    ).toEqual([2, 0]);
+  });
+
+  it("the turn that waits before the first question (a greeting) takes a note posted after it", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, "Hi there, thanks for joining us today"),
+        heard("interviewer", 30, QUESTION_ONE),
+      ],
+      [note(5, "Opening line")],
+    );
+
+    expect(turns.map((turn) => [turn.key, turn.notes.length])).toEqual([
+      ["before", 1],
+      ["interviewer-30", 0],
+    ]);
+  });
+});
+
+describe("questionsOf: rephrasings and follow-ups", () => {
+  const FOLLOW_UP = "And how would you test that in production";
+  const THIRD = "Tell me about a project you are proud of";
+
+  it("a question the coach did not answer, asked before the last answered one, is a follow-up of the question before it", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("you", 10, "I default to the monolith unless it earns it"),
+          heard("interviewer", 30, FOLLOW_UP),
+          heard("you", 40, "With a canary and a synthetic probe on it"),
+          heard("interviewer", 45, "OK sounds good"),
+          heard("interviewer", 60, QUESTION_TWO),
+        ],
+        [note(5, "Name the criteria"), note(70, "Name the techniques")],
+      ),
+    );
+
+    expect(
+      questions.map((each) => [each.number, each.question?.text, each.live]),
+    ).toEqual([
+      [1, QUESTION_ONE, false],
+      [2, QUESTION_TWO, true],
+    ]);
+    expect(questions[0]?.followUps.map((row) => row.text)).toEqual([FOLLOW_UP]);
+    // What was said and heard under the follow-up goes with it, in order.
+    expect(questions[0]?.mine.map((row) => row.text)).toEqual([
+      "I default to the monolith unless it earns it",
+      "With a canary and a synthetic probe on it",
+    ]);
+    expect(questions[0]?.asides.map((row) => row.text)).toEqual([
+      "OK sounds good",
+    ]);
+    expect(questions[1]?.followUps).toEqual([]);
+  });
+
+  it("carries the studio's answer to a follow-up to the question it was folded into", () => {
+    const answer: PanelRow = {
+      key: "a-task-2",
+      kind: "assistant",
+      label: "Studio · T2",
+      text: "Canary first.",
+      at: T0 + 35_000,
+      taskId: "task-2",
+    };
+    const [first] = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("interviewer", 30, FOLLOW_UP),
+          answer,
+          heard("interviewer", 60, QUESTION_TWO),
+        ],
+        [note(5, "Name the criteria"), note(70, "Name the techniques")],
+      ),
+    );
+
+    expect(first?.studio).toEqual([answer]);
+  });
+
+  it("several in a row all fold into the same question, oldest first", () => {
+    const [first, second] = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("interviewer", 20, FOLLOW_UP),
+          heard("interviewer", 40, THIRD),
+          heard("interviewer", 60, QUESTION_TWO),
+        ],
+        [note(5, "First"), note(70, "Second")],
+      ),
+    );
+
+    expect(first?.followUps.map((row) => row.text)).toEqual([FOLLOW_UP, THIRD]);
+    expect(second?.number).toBe(2);
+  });
+
+  it("of the questions asked after the last answered one, only the newest waits: the others are follow-ups too", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, QUESTION_ONE),
+        heard("interviewer", 30, FOLLOW_UP),
+        heard("interviewer", 60, QUESTION_TWO),
+      ],
+      [note(5, "Name the criteria")],
+    );
+    const questions = questionsOf(turns);
+
+    expect(questions.map((each) => each.question?.text)).toEqual([
+      QUESTION_ONE,
+    ]);
+    expect(questions[0]?.followUps.map((row) => row.text)).toEqual([FOLLOW_UP]);
+    expect(questions[0]?.live).toBe(true);
+    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_TWO);
+  });
+
+  it("the question that waits is in no row and under no question: nothing of it is folded", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, QUESTION_ONE),
+        heard("interviewer", 60, QUESTION_TWO),
+        heard("you", 70, "We detect an identical correlation ID and skip it"),
+        heard("interviewer", 80, "OK sounds good"),
+      ],
+      [note(5, "Name the criteria")],
+    );
+    const [only, ...rest] = questionsOf(turns);
+
+    expect(rest).toEqual([]);
+    expect(only).toMatchObject({ followUps: [], mine: [], asides: [] });
+  });
+
+  it("with no notes at all, every question is its own row", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("interviewer", 30, FOLLOW_UP),
+        ],
+        [],
+      ),
+    );
+
+    expect(questions.map((each) => each.followUps)).toEqual([[], []]);
+  });
+
+  it("a question asked before the coach's first note has nothing to hang on: it has no row", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("you", 10, "I default to the monolith unless it earns it"),
+          heard("interviewer", 60, QUESTION_TWO),
+        ],
+        [note(70, "Name the techniques")],
+      ),
+    );
+
+    expect(
+      questions.map((each) => [
+        each.number,
+        each.question?.text,
+        each.notes.length,
+      ]),
+    ).toEqual([[1, QUESTION_TWO, 1]]);
+    expect(questions[0]).toMatchObject({ followUps: [], mine: [] });
+  });
+
+  it("once a coach is writing, every row has notes", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("interviewer", 20, FOLLOW_UP),
+          heard("interviewer", 60, QUESTION_TWO),
+          heard("interviewer", 120, THIRD),
+        ],
+        [note(5, "First"), note(70, "Second", { askId: "b" })],
+      ),
+    );
+
+    expect(questions.map((each) => each.number)).toEqual([1, 2]);
+    expect(questions.every((each) => each.notes.length > 0)).toBe(true);
+    expect(questions.map((each) => each.live)).toEqual([false, true]);
+  });
+
+  it("a greeting before the first question is not a question and is not folded into one", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, "Hi there, thanks for joining us today"),
+          heard("interviewer", 30, QUESTION_ONE),
+        ],
+        [note(40, "Name the criteria")],
+      ),
+    );
+
+    expect(questions).toHaveLength(1);
+    expect(questions[0]?.asides).toEqual([]);
+    expect(questions[0]?.followUps).toEqual([]);
+  });
+
+  it("folds into a question the coach opened with a note, too", () => {
+    const questions = questionsOf(
+      conversationTurns(
+        [
+          heard("interviewer", 0, QUESTION_ONE),
+          heard("interviewer", 40, FOLLOW_UP),
+          heard("interviewer", 60, QUESTION_TWO),
+        ],
+        [
+          note(10, "First", { askId: "a" }),
+          note(20, "Rephrased", { askId: "b", ask: "Splitting by team" }),
+          note(70, "Second", { askId: "c" }),
+        ],
+      ),
+    );
+
+    expect(questions.map((each) => each.label)).toEqual([
+      QUESTION_ONE,
+      "Splitting by team",
+      QUESTION_TWO,
+    ]);
+    expect(questions[1]?.followUps.map((row) => row.text)).toEqual([FOLLOW_UP]);
+  });
+
+  it("leaves the turns it was given as they were", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, QUESTION_ONE),
+        heard("interviewer", 30, FOLLOW_UP),
+        heard("you", 40, "With a canary and a synthetic probe on it"),
+        heard("interviewer", 60, QUESTION_TWO),
+      ],
+      [note(5, "First"), note(70, "Second")],
+    );
+    const before = structuredClone(turns);
+    questionsOf(turns);
+
+    expect(turns).toEqual(before);
+  });
+});
+
+describe("waitingTurn: the question just asked that the coach has not answered", () => {
+  const rows = [
+    heard("interviewer", 0, QUESTION_ONE),
+    heard("interviewer", 60, QUESTION_TWO),
+  ];
+
+  it("is the last question, when it was asked after the last one that has notes", () => {
+    const turns = conversationTurns(rows, [note(5, "First")]);
+
+    expect(waitingTurn(turns)).toBe(turns[1]);
+    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_TWO);
+  });
+
+  it("is only ever the last one, however many were asked since the last note", () => {
+    const turns = conversationTurns(
+      [
+        ...rows,
+        heard("interviewer", 120, "Tell me about a project you are proud of"),
+      ],
+      [note(5, "First")],
+    );
+
+    expect(waitingTurn(turns)).toBe(turns[2]);
+  });
+
+  it("is none once the last question has notes", () => {
+    expect(
+      waitingTurn(
+        conversationTurns(rows, [note(5, "First"), note(70, "Second")]),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("is none where no coach has written a note: every question is listed instead", () => {
+    const turns = conversationTurns(rows, []);
+
+    expect(waitingTurn(turns)).toBeUndefined();
+    expect(questionsOf(turns)).toHaveLength(2);
+  });
+
+  it("is none when the last turn is one a note opened, or when there is nothing at all", () => {
+    expect(
+      waitingTurn(
+        conversationTurns(rows, [
+          note(70, "Second", { askId: "a" }),
+          note(90, "A rephrasing", { askId: "b" }),
+        ]),
+      ),
+    ).toBeUndefined();
+    expect(waitingTurn([])).toBeUndefined();
+    expect(
+      waitingTurn(conversationTurns([], [note(5, "Opening line")])),
+    ).toBeUndefined();
+  });
+
+  it("comes into the list, as the live question, when its notes arrive", () => {
+    const turns = conversationTurns(rows, [
+      note(5, "First"),
+      note(70, "Second"),
+    ]);
+
+    expect(
+      questionsOf(turns).map((each) => [each.question?.text, each.live]),
+    ).toEqual([
+      [QUESTION_ONE, false],
+      [QUESTION_TWO, true],
+    ]);
   });
 });
