@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accountLines,
+  candidacyTargets,
   chipOf,
   footerStatus,
   LOCAL_FACTS,
@@ -125,6 +126,63 @@ describe("what to start", () => {
     expect(
       startTargets(choices("2026-10-09T10:00:00Z"), local, future),
     ).toEqual([REHEARSAL_TARGET]);
+  });
+});
+
+describe("the Interview list (every candidacy, newest first as served)", () => {
+  const candidacy = (
+    id: string,
+    interviews: number,
+    flags: { hasJobSpec?: boolean; hasBrief?: boolean } = {},
+  ) => ({
+    id,
+    title: `Role ${id}`,
+    companyName: "Example Corp",
+    createdAt: "2026-10-01T00:00:00Z",
+    ...flags,
+    interviews: Array.from({ length: interviews }, (_, at) => ({
+      id: `${id}-i${at}`,
+      label: `Round ${at}`,
+      kind: "technical",
+      // Unscheduled and past interviews count: the context lives in the app.
+      scheduledAt: at === 0 ? null : "2020-01-01T10:00:00Z",
+    })),
+  });
+  it("is empty with no data, and never invents a candidacy", () => {
+    expect(candidacyTargets(null)).toEqual([]);
+    expect(candidacyTargets({ profiles: [], candidacies: [] })).toEqual([]);
+  });
+  it("starts for the one interview a candidacy has (agreement needed), else for the candidacy alone", () => {
+    const targets = candidacyTargets({
+      profiles: [],
+      candidacies: [
+        candidacy("c1", 1, { hasBrief: true, hasJobSpec: true }),
+        candidacy("c2", 2, { hasJobSpec: true }),
+        candidacy("c3", 0),
+      ],
+    });
+    expect(targets.map((target) => target.id)).toEqual([
+      "candidacy:c1",
+      "candidacy:c2",
+      "candidacy:c3",
+    ]);
+    expect(targets[0]).toMatchObject({
+      target: { kind: "interview", candidacyId: "c1", interviewId: "c1-i0" },
+      icon: "work",
+      title: "Role c1",
+      sub: "Example Corp · Brief ready",
+      needsAgreement: true,
+    });
+    expect(targets[1]).toMatchObject({
+      target: { kind: "candidacy", candidacyId: "c2" },
+      sub: "Example Corp · Job spec, not cleaned up",
+      needsAgreement: false,
+    });
+    expect(targets[2]).toMatchObject({
+      target: { kind: "candidacy", candidacyId: "c3" },
+      sub: "Example Corp · No job spec yet",
+      needsAgreement: false,
+    });
   });
 });
 

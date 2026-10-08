@@ -665,16 +665,28 @@ describe("idle: signed in, no live session", () => {
     );
   });
 
-  it("a local profile: 'This Mac' chip, Rehearsal only, honest footer, sign out of the local profile", async () => {
+  it("a local profile: 'This Mac' chip, Rehearsal first with Interview offered too, honest footer, sign out of the local profile", async () => {
     const host = bridge();
     idleStudio();
     choices = CHOICES(new Date(Date.now() + 86_400_000).toISOString());
     await show(undefined, undefined, LOCAL);
     const chip = screen.getByTestId("pn-chip");
     expect(chip).toHaveTextContent("This Mac");
+    // The same two fixed choices as an account: the context is added in the
+    // app, so a local profile's interviews can be started for as well.
     const targets = screen.getAllByRole("radio");
-    expect(targets).toHaveLength(1);
-    expect(targets[0]).toHaveTextContent("Rehearsal");
+    expect(targets.map((target) => target.textContent)).toEqual([
+      "Rehearsal",
+      "Interview",
+    ]);
+    expect(targets[0]).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
+    ).toBeNull();
+    fireEvent.click(targets[1] as HTMLElement);
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Staff Engineer",
+    );
     expect(screen.getByTestId("ov-status")).toHaveTextContent(
       "Local profile · no account",
     );
@@ -724,37 +736,106 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByText("Using this Mac without an account")).toBeVisible();
   });
 
-  it("offers the next interview and Rehearsal, the interview needs 'everyone has agreed', Rehearsal does not", async () => {
+  it("offers Rehearsal and Interview; Interview lists every candidacy with its company and spec state, needs 'everyone has agreed' for its one interview, Rehearsal does not", async () => {
     bridge();
     idleStudio();
-    choices = CHOICES(new Date(Date.now() + 3 * 86_400_000).toISOString());
+    const scheduled = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const second = "33333333-3333-4333-8333-333333333333";
+    choices = {
+      ...CHOICES(scheduled),
+      candidacies: [
+        // Served newest first; shown in that order, none dropped or reordered.
+        {
+          id: second,
+          title: "Platform Lead",
+          companyName: "Other Ltd",
+          createdAt: minutesAfter(0),
+          hasJobSpec: true,
+          hasBrief: true,
+          interviews: [],
+        },
+        {
+          ...CHOICES(scheduled).candidacies[0],
+          hasJobSpec: true,
+          hasBrief: false,
+        },
+      ],
+    };
     await show(undefined, undefined, ACCOUNT);
     const targets = screen.getAllByRole("radio");
     expect(targets.map((target) => target.textContent)).toEqual([
-      expect.stringContaining("Technical"),
-      expect.stringContaining("Rehearsal"),
+      "Rehearsal",
+      "Interview",
     ]);
+    // Rehearsal is the default and asks for no agreement.
     expect(targets[0]).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
+    ).toBeNull();
+    expect(screen.queryByTestId("pn-start-interview")).toBeNull();
+    fireEvent.click(targets[1] as HTMLElement);
+    // The first listed candidacy (no interview stage) is the current one: it
+    // starts for the candidacy alone, so no agreement is asked for yet.
+    const picker = screen.getByTestId("pn-start-interview");
+    expect(picker).toHaveTextContent("Platform Lead");
+    expect(
+      screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
+    ).toBeNull();
+    expect(screen.getByTestId("pn-start-add-interview")).toHaveTextContent(
+      "Add an interview",
+    );
+    expect(screen.getByTestId("pn-start-edit-context")).toHaveTextContent(
+      "Job spec and notes",
+    );
+    fireEvent.click(picker);
+    const first = screen.getByTestId(`pn-start-interview-option-${second}`);
+    expect(first).toHaveTextContent("Platform Lead");
+    expect(first).toHaveTextContent("Other Ltd · Brief ready");
+    const staff = screen.getByTestId(`pn-start-interview-option-${CANDIDACY}`);
+    expect(staff).toHaveTextContent("Staff Engineer");
+    expect(staff).toHaveTextContent("Example Corp · Job spec, not cleaned up");
+    expect(
+      screen.getByTestId("pn-start-interview-footer-action"),
+    ).toHaveTextContent("Add an interview…");
+    // Its one interview: the recording agreement is asked for before Start.
+    fireEvent.click(staff);
+    expect(picker).toHaveTextContent("Staff Engineer");
     expect(
       screen.getByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toHaveAttribute("aria-checked", "false");
-    fireEvent.click(targets[1] as HTMLElement);
+    // Back to Rehearsal: no agreement.
+    fireEvent.click(targets[0] as HTMLElement);
     expect(
       screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toBeNull();
   });
 
-  it("an interview in the past, or none, offers Rehearsal alone: no invented data", async () => {
+  it("an interview in the past, or unscheduled, is still offered (the context is entered here); with no candidacy nothing is invented", async () => {
     bridge();
     idleStudio();
     choices = CHOICES(new Date(Date.now() - 86_400_000).toISOString());
     await show(undefined, undefined, ACCOUNT);
-    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Staff Engineer",
+    );
     cleanup();
     choices = CHOICES(null);
     await show(undefined, undefined, ACCOUNT);
-    expect(screen.getAllByRole("radio")).toHaveLength(1);
-    expect(screen.getByRole("radio")).toHaveTextContent("Rehearsal");
+    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Staff Engineer",
+    );
+    cleanup();
+    choices = { ...CHOICES(null), candidacies: [] };
+    await show(undefined, undefined, ACCOUNT);
+    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
+    const picker = screen.getByTestId("pn-start-interview");
+    expect(picker).toHaveTextContent("No interview yet");
+    fireEvent.click(picker);
+    expect(screen.queryAllByTestId(/pn-start-interview-option-/)).toEqual([]);
+    expect(screen.queryByTestId("pn-start-edit-context")).toBeNull();
+    expect(screen.getByTestId("pn-start-add-interview")).toBeVisible();
   });
 
   it("shows each permission, with Allow… that opens the right settings pane", async () => {
@@ -841,6 +922,14 @@ describe("idle: signed in, no live session", () => {
       );
     });
     await show(undefined, undefined, ACCOUNT);
+    // Rehearsal is the default; the interview is chosen on purpose.
+    expect(screen.getByTestId("pn-start-hint")).toHaveTextContent(
+      "Listening starts right away",
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
+    expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
+      "Staff Engineer",
+    );
     expect(screen.getByTestId("pn-start-hint")).toHaveTextContent(
       "Confirm everyone has agreed",
     );
