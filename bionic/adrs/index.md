@@ -2,6 +2,7 @@
 
 | id | title | status | date | supersedes | superseded_by | tags |
 |----|-------|--------|------|------------|---------------|------|
+| ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Proposed | 2026-10-08 | — (amends ADR-0007, ADR-0012, ADR-0034) | — | observability, ai, tracing, opentelemetry |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 | — (amends ADR-0007) | — | observability, native, logging, active-session |
 | ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 | — (amends ADR-0017) | — | active-session, overlay, pip, native, live-ui |
 | ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 | — (amends ADR-0018) | — | active-session, capture, toolbar, live-ui |

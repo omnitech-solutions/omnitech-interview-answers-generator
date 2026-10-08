@@ -33,10 +33,11 @@ See [[research/index]].
 - [[research/references/interview-studio]] — Interview Studio views, code locations, assistant model, CLI pushes — sources: 0 — `last_reviewed: 2026-10-02`
 - [[research/references/ui-components]] — one config-driven component set: variants, sizes, states, design tokens, rules — sources: 0 — `last_reviewed: 2026-10-06`
 
-## ADRs (35)
+## ADRs (36)
 
 | id | title | status | date |
 |---|---|---|---|
+| [[adrs/ADR-0035-record-every-ai-interaction-with-its-content-in-dev]] | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Proposed | 2026-10-08 |
 | [[adrs/ADR-0034-record-native-app-and-companion-events-through-one]] | Record native-app and companion events through one redacting event log | Proposed | 2026-10-07 |
 | [[adrs/ADR-0033-remove-document-picture-in-picture-and-the-in-tab]] | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | 2026-10-06 |
 | [[adrs/ADR-0032-keep-the-toolbar-capture-a-one-shot-analysis-and-s]] | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | 2026-10-05 |

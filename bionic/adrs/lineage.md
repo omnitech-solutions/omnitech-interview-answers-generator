@@ -43,6 +43,7 @@ graph TD
   ADR_0032["ADR-0032"]
   ADR_0033["ADR-0033"]
   ADR_0034["ADR-0034"]
+  ADR_0035["ADR-0035"]
   ADR_0010 -.-> ADR_0009
   ADR_0012 -.-> ADR_0011
   ADR_0013 -.-> ADR_0011
@@ -65,6 +66,9 @@ graph TD
   ADR_0032 -.-> ADR_0018
   ADR_0033 -.-> ADR_0017
   ADR_0034 -.-> ADR_0007
+  ADR_0035 -.-> ADR_0007
+  ADR_0035 -.-> ADR_0012
+  ADR_0035 -.-> ADR_0034
 ```
 
 ## Lineage table
@@ -106,6 +110,7 @@ graph TD
 | ADR-0032 | Keep the toolbar capture a one-shot analysis and stage answer-pane captures in the tray | Proposed | — | ADR-0018 | — |
 | ADR-0033 | Remove Document Picture-in-Picture and the in-tab overlay card; the native shell is the live-session surface | Proposed | — | ADR-0017 | — |
 | ADR-0034 | Record native-app and companion events through one redacting event log | Proposed | — | ADR-0007 | — |
+| ADR-0035 | Record every AI interaction with its content in development, as spans exported through OpenTelemetry | Proposed | — | ADR-0007, ADR-0012, ADR-0034 | — |
 
 ## Topic clusters
 
@@ -113,7 +118,7 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 
 - **active-session** — ADR-0011, ADR-0012, ADR-0013, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020, ADR-0021, ADR-0022, ADR-0024, ADR-0025, ADR-0026, ADR-0027, ADR-0028, ADR-0032, ADR-0033, ADR-0034
 - **agents** — ADR-0001, ADR-0007, ADR-0010, ADR-0014, ADR-0016, ADR-0017
-- **ai** — ADR-0007, ADR-0009, ADR-0010, ADR-0014, ADR-0030
+- **ai** — ADR-0007, ADR-0009, ADR-0010, ADR-0014, ADR-0030, ADR-0035
 - **architecture** — ADR-0002, ADR-0004, ADR-0029
 - **capture** — ADR-0018, ADR-0021, ADR-0022, ADR-0027, ADR-0032
 - **companion** — ADR-0018, ADR-0021
@@ -126,6 +131,7 @@ ADRs grouped by shared tag (a tag appears below if ≥2 ADRs carry it). Use a cl
 - **macos** — ADR-0019, ADR-0028
 - **native** — ADR-0019, ADR-0020, ADR-0028, ADR-0033, ADR-0034
 - **oauth** — ADR-0006, ADR-0020
+- **observability** — ADR-0034, ADR-0035
 - **ocr** — ADR-0025, ADR-0026
 - **overlay** — ADR-0017, ADR-0018, ADR-0019, ADR-0022, ADR-0028, ADR-0033
 - **performance** — ADR-0010, ADR-0015
