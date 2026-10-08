@@ -178,6 +178,16 @@ const ASK_INTENT = [
   /\bi(?: d| would)? (?:really )?(?:love|like) (?:your|for you to)\b/,
   /\bi(?: m| am) (?:curious|interested to (?:hear|know|learn))\b/,
   /\bmy (?:next|last|final|first|second|third) question\b/,
+  // The question announced in the third person, as a recorded or read-out
+  // interview does: "the next question is what do you mean by automatic code
+  // splitting". Speech carries no question mark, so the announcement is the
+  // only sign that what follows is a question.
+  /\b(?:the|a|an|one|another|next|last|final|first|second|third|other) question (?:for you )?(?:is|was|would be)\b/,
+  // A question put to the candidate in the middle of an utterance: these
+  // forms address "you", so a speaker explaining something is not caught.
+  /\bwhat do you (?:mean|understand|think|know|make)\b/,
+  /\b(?:how|why|what|when|where) (?:would|do|did|could|should|will|can) you\b/,
+  /\bwhat (?:is|are|was|were) your\b/,
   /\bi wanted to ask (?:you|about)\b/,
   /\bcould you (?:please )?(?:walk|talk|tell|describe|explain|share)\b/,
   // The plain imperative ask, wherever it falls: a transcript has no sentence
