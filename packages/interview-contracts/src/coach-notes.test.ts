@@ -165,8 +165,29 @@ describe("a coach note as posted", () => {
     expect(parsed).not.toHaveProperty("askId");
   });
 
+  it("may say when the note was for, as an ISO time in UTC", () => {
+    const at = (value: unknown) => accepts({ title: "T", at: value });
+    expect(at("2026-10-08T17:40:00.000Z")).toBe(true);
+    expect(at("2026-10-08T17:40:00Z")).toBe(true);
+    expect(at("yesterday")).toBe(false);
+    expect(at("2026-10-08")).toBe(false);
+    expect(at("2026-10-08T17:40:00")).toBe(false);
+    expect(at("2026-10-08T17:40:00+02:00")).toBe(false);
+    expect(at("")).toBe(false);
+    expect(at(1_791_481_200_000)).toBe(false);
+    expect(at(null)).toBe(false);
+    expect(
+      coachNoteInputSchema.parse({ title: "T", at: "2026-10-08T17:40:00Z" }),
+    ).toMatchObject({ at: "2026-10-08T17:40:00Z" });
+  });
+
+  it("leaves the time out when it is not given: the note is for now", () => {
+    expect(coachNoteInputSchema.parse({ title: "T" })).not.toHaveProperty("at");
+  });
+
   it("refuses a key it does not know, so a coach cannot set the id or the time", () => {
     expect(accepts({ title: "T", id: stored.id })).toBe(false);
+    expect(accepts({ title: "T", createdAt: stored.createdAt })).toBe(false);
     expect(accepts({ title: "T", html: "<b>bold</b>" })).toBe(false);
   });
 });
@@ -179,6 +200,19 @@ describe("a coach note as kept", () => {
     );
     expect(
       coachNoteSchema.safeParse({ ...stored, createdAt: "yesterday" }).success,
+    ).toBe(false);
+  });
+
+  it("has one time, createdAt: the moment it was posted for is not kept beside it", () => {
+    expect(
+      coachNoteSchema.safeParse({ ...stored, at: "2026-10-08T17:40:00.000Z" })
+        .success,
+    ).toBe(false);
+    expect(
+      coachNotesResponseSchema.safeParse({
+        revision: 1,
+        notes: [{ ...stored, at: "2026-10-08T17:40:00.000Z" }],
+      }).success,
     ).toBe(false);
   });
 

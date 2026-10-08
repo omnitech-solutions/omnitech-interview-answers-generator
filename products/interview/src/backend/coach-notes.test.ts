@@ -78,6 +78,63 @@ describe("the coach notes store", () => {
     ]);
   });
 
+  it("a note posted for an earlier moment carries that moment as its time, and nothing else of it", () => {
+    const store = createCoachNotes(file);
+    const { notes } = store.add({
+      title: "Restored",
+      at: "2026-10-08T17:40:00.000Z",
+    });
+    expect(notes[0]?.createdAt).toBe("2026-10-08T17:40:00.000Z");
+    expect(notes[0]).not.toHaveProperty("at");
+    expect(notes[0]?.id).toMatch(/^[0-9a-f-]{36}$/);
+    // What is on disk reads back under the kept-note contract.
+    expect(createCoachNotes(file).get().notes).toEqual(notes);
+  });
+
+  it("a note with no moment of its own is for now", () => {
+    const before = Date.now();
+    const { notes } = createCoachNotes(file).add({ title: "Now" });
+    const at = Date.parse(notes[0]?.createdAt ?? "");
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("lists by the moment each note was for, newest first, whatever order they were posted in", () => {
+    const store = createCoachNotes(file);
+    store.add({ title: "Second asked", at: "2026-10-08T17:42:00.000Z" });
+    store.add({ title: "First asked", at: "2026-10-08T17:40:00.000Z" });
+    store.add({ title: "Third asked", at: "2026-10-08T17:44:00.000Z" });
+    expect(titles(store.get())).toEqual([
+      "Third asked",
+      "Second asked",
+      "First asked",
+    ]);
+    // A note for now is newer than any restored one.
+    expect(titles(store.add({ title: "Now" }))[0]).toBe("Now");
+    expect(store.get().revision).toBe(4);
+    expect(titles(createCoachNotes(file).get())).toEqual(titles(store.get()));
+  });
+
+  it("refuses a moment that is not an ISO time, and keeps what it had", () => {
+    const store = createCoachNotes(file);
+    store.add({ title: "First" });
+    expect(() => store.add({ title: "Bad", at: "yesterday" })).toThrow();
+    expect(titles(store.get())).toEqual(["First"]);
+    expect(store.get().revision).toBe(1);
+  });
+
+  it("when full, a note for a moment older than all it holds is the one that falls off", () => {
+    const store = createCoachNotes(file);
+    for (let at = 1; at <= 200; at += 1) store.add({ title: `Note ${at}` });
+    const { notes } = store.add({
+      title: "Long ago",
+      at: "2020-01-01T00:00:00.000Z",
+    });
+    expect(notes).toHaveLength(200);
+    expect(titles({ notes })).not.toContain("Long ago");
+    expect(notes.at(-1)?.title).toBe("Note 1");
+  });
+
   it("keeps the newest 200 notes: the oldest fall off the end", () => {
     const store = createCoachNotes(file);
     for (let at = 1; at <= 201; at += 1) store.add({ title: `Note ${at}` });
