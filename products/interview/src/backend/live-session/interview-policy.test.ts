@@ -390,3 +390,90 @@ describe("source reaches the policy through the core", () => {
     expect(decided.decision).toEqual({ kind: "ignore" });
   });
 });
+
+describe("a spoken question is recognised wherever the ask falls (no question mark, no sentence start)", () => {
+  const kind = (text: string) => verdict(text).decision.kind;
+
+  it.each([
+    [
+      "announced in the third person",
+      "the next question is what do you mean by automatic code splitting",
+    ],
+    [
+      "announced as another question for you",
+      "all right another question for you would be about caching strategies in general",
+    ],
+    [
+      "asking what the candidate means",
+      "that makes sense but what do you mean by lazy loading in a react application",
+    ],
+    [
+      "asking how the candidate would do something",
+      "with that in mind how would you approach caching for this api",
+    ],
+    [
+      "asking why the candidate did something",
+      "thanks for sharing that and why did you choose postgres for that project",
+    ],
+    [
+      "asking what the candidate does",
+      "thanks for that and what do you look for in a code review",
+    ],
+    [
+      "asking for the candidate's own view",
+      "thanks for that so what is your approach to testing react components",
+    ],
+  ])("opens a task for a question %s", (_name, text) => {
+    expect(kind(text)).toBe("open");
+  });
+
+  it("opens a task for a question announced after a long preamble", () => {
+    const preamble = Array.from(
+      { length: MONOLOGUE_WORDS },
+      () => "background",
+    ).join(" ");
+    expect(
+      kind(
+        `${preamble} and the next question is what do you mean by automatic code splitting`,
+      ),
+    ).toBe("open");
+  });
+
+  it("does not take a speaker explaining something for a question: the cues address the candidate", () => {
+    expect(kind("this is how the cache works in our system today")).toBe(
+      "ignore",
+    );
+    expect(
+      kind("that is why the team moved the reads over to a replica last year"),
+    ).toBe("ignore");
+  });
+
+  it.each([
+    ["on the verb", "the next question is what do you mean"],
+    ["on a preposition", "the next question is what do you mean by"],
+    [
+      "on an article",
+      "and then we shipped it and with that in mind how would you handle the",
+    ],
+    [
+      "on a conjunction",
+      "the next question is what do you mean by code splitting and",
+    ],
+  ])(
+    "holds an utterance cut off mid-question (%s) for its rest",
+    (_name, text) => {
+      expect(kind(text)).toBe("ignore");
+    },
+  );
+
+  it("opens the task once the rest of the cut-off question has arrived", () => {
+    expect(kind("the next question is what do you mean by")).toBe("ignore");
+    expect(
+      kind("the next question is what do you mean by automatic code splitting"),
+    ).toBe("open");
+  });
+
+  it("holds an announcement with no question after it yet", () => {
+    expect(kind("okay great and the next question is")).toBe("ignore");
+  });
+});
