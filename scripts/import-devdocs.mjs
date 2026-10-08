@@ -34,6 +34,19 @@ const libraryPath = join(dataDirectory, "library.json");
 // the library's collection and first tag (the Knowledge filters read it).
 export const DOCUMENTATION = [
   { slug: "nextjs", collection: "nextjs", publisher: "Next.js" },
+  // Not carried by DevDocs: read from the project's own documentation
+  // repository (Markdown, MIT licence) and addressed on its own site.
+  {
+    slug: "nestjs",
+    collection: "nestjs",
+    publisher: "NestJS",
+    github: {
+      repository: "nestjs/docs.nestjs.com",
+      ref: "master",
+      directory: "content",
+      site: "https://docs.nestjs.com",
+    },
+  },
   { slug: "react", collection: "react", publisher: "React" },
   { slug: "node", collection: "nodejs", publisher: "Node.js" },
   { slug: "typescript", collection: "typescript", publisher: "TypeScript" },
@@ -226,7 +239,113 @@ async function download(slug, file) {
   return JSON.parse(text);
 }
 
+// [STRATEGY] The NestJS pages are Markdown already. What is cleaned is only
+// what its own site renders specially: the title is a level-three heading (so
+// every heading moves up two levels), a code block carries its file name and a
+// second JavaScript variant after "@@switch" (the TypeScript one is kept), and
+// callouts and banners are HTML or site tags.
+export function nestMarkdown(markdown) {
+  return markdown
+    .replace(/```([a-z]*)\n([\s\S]*?)```/g, (_, language, code) => {
+      const [first] = code.split(/^@@switch\s*$/m);
+      const body = first
+        .replace(/^@@filename\(([^)]*)\)\s*$/m, (_line, name) =>
+          name ? `// ${name}` : "",
+        )
+        .replace(/^\n+/, "")
+        .replace(/\s+$/, "");
+      return `\`\`\`${language}\n${body}\n\`\`\``;
+    })
+    .replace(/^(#{3,6}) /gm, (_, marks) => `${"#".repeat(marks.length - 2)} `)
+    .replace(/^> (info|warning|error) /gm, "> ")
+    .replace(/<figure>[\s\S]*?<\/figure>/g, "")
+    .replace(/<\/?app-[a-z-]+[^>]*>/g, "")
+    .replace(/\[([^\]]+)\]\((?:\/|#)[^)]*\)/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function cachedText(folder, name, url) {
+  const cached = join(cacheDirectory, folder, name);
+  if (existsSync(cached)) return readFileSync(cached, "utf8");
+  const response = await fetch(url, {
+    headers: { "user-agent": "omnitech-interview-studio/devdocs-import" },
+  });
+  if (!response.ok) throw new Error(`${url}: answered ${response.status}`);
+  const text = await response.text();
+  mkdirSync(dirname(cached), { recursive: true });
+  writeFileSync(cached, text);
+  return text;
+}
+
+async function pagesFromGithub(documentation) {
+  const { repository, ref, directory, site } = documentation.github;
+  const tree = JSON.parse(
+    await cachedText(
+      documentation.slug,
+      "tree.json",
+      `https://api.github.com/repos/${repository}/git/trees/${ref}?recursive=1`,
+    ),
+  );
+  const files = tree.tree.filter(
+    (each) =>
+      each.type === "blob" &&
+      each.path.startsWith(`${directory}/`) &&
+      each.path.endsWith(".md"),
+  );
+  const items = [];
+  for (const file of files) {
+    const path = file.path.slice(directory.length + 1, -".md".length);
+    const markdown = nestMarkdown(
+      await cachedText(
+        documentation.slug,
+        `${path}.md`,
+        `https://raw.githubusercontent.com/${repository}/${ref}/${file.path}`,
+      ),
+    );
+    if (markdown.length < MIN_BODY_CHARS) continue;
+    const title = (/^# (.+)$/m.exec(markdown)?.[1] ?? path).replaceAll("`", "");
+    const body = /^# /.test(markdown) ? markdown : `# ${title}\n\n${markdown}`;
+    const firstParagraph = body
+      .split(/\n{2,}/)
+      .find((part) => !/^(#|- |>|```|\|)/.test(part) && part.length > 40);
+    const section = path.includes("/") ? slugOf(path.split("/")[0]) : "";
+    items.push({
+      slug: slugOf(`${documentation.collection}-docs-${path}`),
+      title: `${documentation.publisher}: ${title}`,
+      summary: (
+        firstParagraph ?? `${documentation.publisher} documentation: ${title}.`
+      )
+        .replace(/[`*]/g, "")
+        .slice(0, SUMMARY_CHARS)
+        .trim(),
+      body,
+      contentType: "official-reference",
+      collection: documentation.collection,
+      tags: [
+        ...new Set(
+          [documentation.collection, "official-docs", section].filter(Boolean),
+        ),
+      ],
+      source: {
+        publisher: documentation.publisher,
+        canonicalUrl: `${site}/${path}`,
+        official: true,
+        lastVerifiedAt: new Date().toISOString().slice(0, 10),
+      },
+    });
+  }
+  return items;
+}
+
+// Where a set's pages are addressed: what tells its pages from anything else.
+const originOf = (documentation) =>
+  documentation.github
+    ? `${documentation.github.site}/`
+    : `https://devdocs.io/${documentation.slug}/`;
+
 async function pagesOf(documentation) {
+  if (documentation.github) return pagesFromGithub(documentation);
   const catalogue = await (
     await fetch("https://devdocs.io/docs.json", {
       headers: { "user-agent": "omnitech-interview-studio/devdocs-import" },
@@ -282,9 +401,8 @@ function writeLibrary(file) {
   renameSync(temporary, libraryPath);
 }
 const importedFrom = (stored, documentation) =>
-  stored.item.source?.canonicalUrl?.startsWith(
-    `https://devdocs.io/${documentation.slug}/`,
-  ) ?? false;
+  stored.item.source?.canonicalUrl?.startsWith(originOf(documentation)) ??
+  false;
 
 async function main() {
   const flags = process.argv.slice(2).filter((each) => each.startsWith("--"));
