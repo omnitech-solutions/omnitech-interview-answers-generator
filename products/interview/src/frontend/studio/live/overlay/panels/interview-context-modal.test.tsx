@@ -15,7 +15,10 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { briefSummary, InterviewContextModal } from "./interview-context-modal";
+import {
+  briefSections,
+  InterviewContextModal,
+} from "./interview-context-modal";
 
 const { documentJson, postJson } = vi.hoisted(() => ({
   documentJson: vi.fn(),
@@ -183,8 +186,9 @@ describe("editing an interview", () => {
       within(brief)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
-    ).toEqual(briefSummary(BRIEF));
-    expect(brief).toHaveTextContent("Must-haves: TypeScript, Postgres");
+    ).toEqual(briefSections(BRIEF).flatMap((part) => part.items));
+    expect(within(brief).getByText("Must-haves")).toBeInTheDocument();
+    expect(within(brief).getByText("TypeScript")).toBeInTheDocument();
     expect(brief).not.toHaveTextContent("Nice-to-haves");
     expect(screen.getByTestId("pn-context-clean")).toHaveTextContent(
       "Clean up again",

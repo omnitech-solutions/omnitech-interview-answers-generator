@@ -689,7 +689,12 @@ function Idle({
     starting,
     failure,
   };
-  const block = startBlock(facts);
+  // Interview chosen with nothing to start for: Start waits for one, it never
+  // silently starts a rehearsal instead.
+  const noInterview = mode === "interview" && !interview;
+  const block = noInterview
+    ? "Add an interview first, or start a Rehearsal."
+    : startBlock(facts);
   const hint = startHint(facts);
 
   async function start() {
