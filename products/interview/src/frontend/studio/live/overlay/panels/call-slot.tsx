@@ -6,6 +6,7 @@
 // whole window; a double click folds it away and brings it back. The height
 // is kept for the next session.
 import { useRef, useState } from "react";
+import { useLayoutReset } from "./coach-columns";
 
 const KEY = "omnitech.interview.call-slot.height";
 const DEFAULT_HEIGHT = 250;
@@ -46,6 +47,8 @@ export function CallSlot() {
       // The height still holds for this window.
     }
   };
+  // "Reset layout" puts the room back to the height it opens with.
+  useLayoutReset(() => resize(DEFAULT_HEIGHT));
   // Where the drag began: the pointer's height on screen and the slot's own.
   const drag = useRef<{ y: number; height: number } | null>(null);
   return (

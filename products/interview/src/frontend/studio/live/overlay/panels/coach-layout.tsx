@@ -25,7 +25,8 @@ import {
 import { Icon } from "../../../icon";
 import { CallSlot } from "./call-slot";
 import { ChatPanel } from "./chat-panel";
-import { type ChatView, QUESTIONS_WIDTH, RIGHT_WIDTH } from "./chat-view-pref";
+import type { ChatView } from "./chat-view-pref";
+import { ColumnSplitter, useCoachColumns } from "./coach-columns";
 import { Prompter, useCoachNotes } from "./coach-notes";
 import {
   conversationTurns,
@@ -317,6 +318,7 @@ function NotesPane({
   questions,
   onPick,
   onLive,
+  onReset,
 }: {
   label: string;
   // The question on show: the one picked, or the one on the table.
@@ -325,6 +327,8 @@ function NotesPane({
   onPick(key: string): void;
   // Back to the question on the table.
   onLive(): void;
+  // Puts every size in the layout back: the columns and the call's room.
+  onReset(): void;
 }) {
   const at = question ? questions.indexOf(question) : -1;
   const previous = at > 0 ? questions[at - 1] : undefined;
@@ -408,6 +412,15 @@ function NotesPane({
             </Button>
           )
         )}
+        <Button
+          buttonSize="sm"
+          variant="ghost"
+          title="Put the columns and the call's room back to their sizes"
+          onClick={onReset}
+          data-testid="pn-coach-reset"
+        >
+          Reset layout
+        </Button>
         <IconButton
           variant="ghost"
           iconSize="sm"
@@ -557,6 +570,7 @@ export function CoachLayout({
   const shown = questions.find((each) => each.key === picked) ?? live;
   // Picking the question on the table is following it again.
   const pick = (key: string) => setPicked(key === live?.key ? null : key);
+  const sizes = useCoachColumns();
   const notes = (
     <NotesPane
       label={view === "coach" ? "Coach" : "Notes"}
@@ -564,10 +578,11 @@ export function CoachLayout({
       questions={questions}
       onPick={pick}
       onLive={() => setPicked(null)}
+      onReset={sizes.reset}
     />
   );
   const centre = (
-    <div style={{ ...STYLE.column, gap: 0, flex: "1 1 0" }}>
+    <div style={{ ...STYLE.column, gap: 0, flex: "1 1 0", overflow: "hidden" }}>
       <CallSlot />
       {notes}
     </div>
@@ -583,22 +598,43 @@ export function CoachLayout({
         {centre}
       </div>
     );
+  // The bars stand in the gaps, so the row itself keeps none.
+  const side = (which: "left" | "right") => ({
+    ...STYLE.column,
+    flex: `0 0 ${sizes.columns[which]}px`,
+    overflow: "hidden",
+  });
   return (
     <div
+      ref={sizes.row}
       className="pn-single-body"
-      style={STYLE.body}
+      style={{ ...STYLE.body, gap: 0 }}
       data-view={view}
       data-testid="pn-coach-layout"
     >
-      <div style={{ ...STYLE.column, flex: `0 0 ${QUESTIONS_WIDTH}px` }}>
+      <div style={side("left")}>
         <QuestionsList
           questions={questions}
           shownKey={shown?.key}
           onPick={pick}
         />
       </div>
+      <ColumnSplitter
+        side="left"
+        width={sizes.columns.left}
+        max={sizes.ceiling("left")}
+        onResize={(width) => sizes.resize("left", width)}
+        onReset={() => sizes.resetSide("left")}
+      />
       {centre}
-      <div style={{ ...STYLE.column, flex: `0 0 ${RIGHT_WIDTH}px` }}>
+      <ColumnSplitter
+        side="right"
+        width={sizes.columns.right}
+        max={sizes.ceiling("right")}
+        onResize={(width) => sizes.resize("right", width)}
+        onReset={() => sizes.resetSide("right")}
+      />
+      <div style={side("right")}>
         {view === "coach" ? (
           <RightTabs s={s} />
         ) : (
