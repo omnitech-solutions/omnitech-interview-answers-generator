@@ -98,6 +98,8 @@ describe("generateInterviewAnswer", () => {
       {
         system: expect.stringContaining("matches this JSON Schema"),
         prompt: expect.stringContaining("Build an accessible React counter."),
+        // The answer's JSON Schema, for a host that runs on an agent runtime.
+        schema: expect.objectContaining({ type: "object" }),
       },
       scope,
     );

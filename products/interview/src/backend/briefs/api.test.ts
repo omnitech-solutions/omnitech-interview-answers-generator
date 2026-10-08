@@ -80,7 +80,16 @@ describe("briefs API", () => {
     expect(prompts.at(-1)?.prompt).toBe(
       "Question: How does React decide when to re-render?",
     );
-    expect(prompts.at(-1)).not.toHaveProperty("schema");
+    // The reply's schema also travels beside the prompt, without zod's draft
+    // reference: the host hands it to an agent runtime and to nothing else
+    // (interview-backend.test.ts); a direct model reads it in the instructions.
+    expect(prompts.at(-1)).toMatchObject({
+      schema: {
+        type: "object",
+        required: expect.arrayContaining(["followUps"]),
+      },
+    });
+    expect(prompts.at(-1)).not.toHaveProperty("schema.$schema");
     expect(prompts.at(-1)?.system).toContain("matches this JSON Schema");
     expect(prompts.at(-1)?.system).toContain('"followUps"');
 
