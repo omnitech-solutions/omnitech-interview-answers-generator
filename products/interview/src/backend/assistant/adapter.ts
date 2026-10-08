@@ -11,6 +11,7 @@ import {
   renderGuideMarkdown,
   runResultSchema,
 } from "@omnitech/interview-contracts";
+import { createLogger } from "@omnitech/logging";
 import {
   type DatabasePort,
   evidenceListSchema,
@@ -64,6 +65,7 @@ export const interviewProposalPatchSchema = interviewDraftPatchSchema
 // assistant reads them but cannot change them.
 export const CONCEPT_BRIEFS_WORKSPACE = "concept-briefs";
 // What the model sends to change a pack's answers: each answer by its id.
+const log = createLogger({ service: "assistant" });
 const briefingAnswerEditSchema = z.strictObject({
   id: z.string().min(1).max(256),
   answerMarkdown: z.string().trim().min(1).max(32_000).optional(),
@@ -177,8 +179,19 @@ function packContext(
     candidatePreferences,
     profile: _profile,
     roleIds: _roleIds,
-    ...employer
+    condensed,
+    ...pasted
   } = briefing.context;
+  // The condensed copy of a long field stands in for it here: the assistant
+  // reads the pack on every turn, and the posting or the research pasted
+  // whole can fill its whole context. The originals stay in the pack.
+  const employer = {
+    ...pasted,
+    ...(condensed?.jobDescription
+      ? { jobDescription: condensed.jobDescription }
+      : {}),
+    ...(condensed?.research ? { research: condensed.research } : {}),
+  };
   return {
     kind: "behavioural-briefing-pack",
     title: briefing.title,
@@ -586,6 +599,20 @@ export function createInterviewAdapter(
               pack.context.profile.revision,
             )
             .catch(() => null);
+          const seen = packContext(pack, profile?.matrix.roles ?? []);
+          // Sizes only, never the text: what a turn costs, and which part of
+          // the pack is to blame when a reply is refused as too long.
+          const size = (value: unknown) => JSON.stringify(value ?? "").length;
+          log.info("assistant.context", {
+            artifactId: origin.artifactId,
+            revision: current.origin.artifactRevision,
+            totalChars: size(seen),
+            jobDescriptionChars: size(seen.employer.jobDescription),
+            researchChars: size(seen.employer.research),
+            answersChars: size(seen.you.answers),
+            preparedChars: size(seen.preparedBriefing),
+            condensed: Boolean(pack.context.condensed),
+          });
           return {
             origin: current.origin,
             instructions: briefingPrompt.instructions,
@@ -594,7 +621,7 @@ export function createInterviewAdapter(
                 version: briefingPrompt.version,
                 taskProfile: briefingPrompt.taskProfile,
               },
-              ...packContext(pack, profile?.matrix.roles ?? []),
+              ...seen,
             }),
             evidence: [],
           };

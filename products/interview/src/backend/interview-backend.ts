@@ -101,7 +101,17 @@ function scopeResolver(services: InterviewBackendServices) {
 // The product's one-shot JSON replies, on the given profile, as the member
 // the request resolved to.
 function generator(ai: AiExecutionGateway, profileId: string) {
-  return async (input: { system: string; prompt: string }, scope: Scope) =>
+  // An agent runtime needs the reply's schema to return an object; a direct
+  // model reads the shape from the instructions (strict schema decoding is
+  // slow on local models), so the schema goes to agents only.
+  const agent = profileId.startsWith("agent/");
+  return async (
+    {
+      schema,
+      ...input
+    }: { system: string; prompt: string; schema?: Record<string, unknown> },
+    scope: Scope,
+  ) =>
     (
       await ai.execute({
         context: {
@@ -111,7 +121,11 @@ function generator(ai: AiExecutionGateway, profileId: string) {
           permissions: [...manifest.permissions],
         },
         profileId,
-        task: { type: "structured-generation", ...input },
+        task: {
+          type: "structured-generation",
+          ...input,
+          ...(agent && schema ? { schema } : {}),
+        },
       })
     ).result;
 }
@@ -177,7 +191,16 @@ async function build(
     model: assistantModels.port,
     models: assistantModels.catalog,
     modelVersion: services.modelVersion,
-    generate: generator(services.ai, INTERVIEW_ASSISTANT_PROFILE),
+    // [DOMAIN] The pack's one-shot generation (drafted answers, the prepared
+    // briefing, condensing the setup) runs where the assistant runs: on the
+    // agent (Claude Code) when that is the default model, never on the local
+    // draft stand-in, which cannot answer.
+    generate: generator(
+      services.ai,
+      services.assistantDefaultModel?.startsWith("agent/")
+        ? services.assistantDefaultModel
+        : INTERVIEW_ASSISTANT_PROFILE,
+    ),
     runner: createCodeRunner(),
     contextCharacters: services.contextCharacters,
     // Local development starts briefing packs from the bundled profile, for

@@ -240,6 +240,30 @@ export function BehaviouralPack({
     });
   }
 
+  // Condense the long setup fields for the assistant. Edits still waiting to
+  // be written go first, so the copy is made from what is on screen.
+  const [condensing, setCondensing] = useState(false);
+  async function condenseSetup() {
+    if (artifactId === null || condensing) return;
+    setCondensing(true);
+    setError("");
+    try {
+      if (dirty && context) await persist(context, expected);
+      await write(async () =>
+        applied(
+          await client.condense(artifactId, {
+            expectedRevision: revision.current,
+          }),
+        ),
+      );
+      onChanged();
+    } catch (failure) {
+      setError(failureOf(failure, "The setup couldn’t be condensed."));
+    } finally {
+      setCondensing(false);
+    }
+  }
+
   // [STRATEGY] Answers are drafted one question at a time, so each appears
   // as soon as it is ready; a failure is shown on its row and the rest go on.
   async function draftAnswers(questions: readonly string[]) {
@@ -518,6 +542,15 @@ export function BehaviouralPack({
           profiles={profiles}
           matrix={matrix}
           setup={setup}
+          {...(artifactId !== null && briefing
+            ? {
+                condense: {
+                  current: context?.condensed ?? null,
+                  busy: condensing,
+                  run: () => void condenseSetup(),
+                },
+              }
+            : {})}
           onChange={(next) => {
             // A new pack's suggested questions follow its stage and company.
             if (

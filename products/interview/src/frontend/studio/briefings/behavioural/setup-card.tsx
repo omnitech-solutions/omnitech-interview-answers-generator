@@ -76,6 +76,14 @@ export function contextOf(
     ...(previous?.candidatePreferences
       ? { candidatePreferences: previous.candidatePreferences }
       : {}),
+    // [GUARD] The condensed copy holds only while both long fields are what
+    // it was made from: an edit to either drops it, so the assistant never
+    // reads a summary of text that is no longer there.
+    ...(previous?.condensed &&
+    (previous.jobDescription ?? "") === setup.jobDescription.trim() &&
+    (previous.research ?? "") === setup.research.trim()
+      ? { condensed: previous.condensed }
+      : {}),
   };
   for (const [key, value] of [
     ["interviewer", optional(setup.interviewer)],
@@ -88,6 +96,56 @@ export function contextOf(
   if (minutes >= 5 && minutes <= 480) context.durationMinutes = minutes;
   if (setup.roleIds.length) context.roleIds = [...setup.roleIds];
   return context;
+}
+
+// A field worth condensing is a long one (the server leaves short ones alone).
+const LONG_FIELD_CHARS = 4_000;
+const thousands = (count: number) => count.toLocaleString("en-US");
+
+// [DOMAIN] The assistant reads the pack on every turn, so a posting or
+// research pasted whole can fill its context. This makes a condensed copy for
+// it; what is typed above is kept exactly as it is.
+function CondenseRow({
+  setup,
+  condense,
+}: {
+  setup: PackSetup;
+  condense: NonNullable<Parameters<typeof SetupCard>[0]["condense"]>;
+}) {
+  const original = setup.jobDescription.length + setup.research.length;
+  const long =
+    setup.jobDescription.length >= LONG_FIELD_CHARS ||
+    setup.research.length >= LONG_FIELD_CHARS;
+  const current = condense.current;
+  // What the assistant reads now: each condensed field in place of its original.
+  const seen =
+    (current?.jobDescription?.length ?? setup.jobDescription.length) +
+    (current?.research?.length ?? setup.research.length);
+  return (
+    <div className="bp-row" data-testid="bp-condense">
+      <button
+        type="button"
+        className="bp-link"
+        disabled={condense.busy || !long}
+        onClick={condense.run}
+        data-testid="bp-condense-run"
+      >
+        <Icon name="auto_awesome" />
+        {condense.busy
+          ? "Condensing…"
+          : current
+            ? "Condense again"
+            : "Condense for the assistant"}
+      </button>
+      <span className="bp-meta" role="status" data-testid="bp-condense-status">
+        {current
+          ? `The assistant reads a condensed copy: ${thousands(seen)} of ${thousands(original)} characters. What you pasted is kept.`
+          : long
+            ? `The assistant reads all ${thousands(original)} characters on every turn. Condensing keeps what you pasted and gives it a shorter copy.`
+            : "Short enough as it is: nothing to condense."}
+      </span>
+    </div>
+  );
 }
 
 // [STRATEGY] Roles are ranked by how many of their skills, systems and
@@ -130,6 +188,7 @@ export function SetupCard({
   setup,
   onChange,
   onImported,
+  condense,
 }: {
   client: BriefingClient;
   profiles: readonly BriefingProfileSummary[];
@@ -137,6 +196,16 @@ export function SetupCard({
   setup: PackSetup;
   onChange(setup: PackSetup): void;
   onImported(profile: ProfileRef): void;
+  // Condensing the long fields for the assistant: offered on a saved pack.
+  condense?: {
+    // The copy in force, when there is one that still matches the fields.
+    current: {
+      jobDescription?: string | undefined;
+      research?: string | undefined;
+    } | null;
+    busy: boolean;
+    run(): void;
+  };
 }) {
   const [moreContext, setMoreContext] = useState(
     Boolean(setup.jobDescription || setup.employerNotes || setup.research),
@@ -244,6 +313,7 @@ export function SetupCard({
               "research",
               "Interviewer background, candidate reports, reviews…",
             )}
+            {condense && <CondenseRow setup={setup} condense={condense} />}
           </div>
         )}
       </div>

@@ -526,21 +526,31 @@ export function createPlatformAiGateway() {
       enabled: true,
       locality: languageLocality,
       // The picker names the model itself; the provider heads its group.
-      listing: {
-        name: language?.model ?? "Draft model",
-        shortName: language?.model.split("/").at(-1) ?? "Default",
-        tags: localDefault ? ["loaded"] : [],
-        vision: false,
-        reasoning: false,
-        tools: true,
-        contextWindow: assistantBudget.contextTokens,
-        local: localDefault !== undefined,
-        provider: {
-          name: language?.label ?? "Draft model",
-          ...(language ? { endpoint: new URL(language.baseUrl).host } : {}),
-          local: localDefault !== undefined,
-        },
-      },
+      // [GUARD] With no language model configured this profile is only the
+      // local draft stand-in, which cannot answer: it is not offered beside
+      // the agents (Claude Code, Codex), so a conversation can never be left
+      // on it and fail every reply.
+      ...(language || !agentPayloadSecret(process.env)
+        ? {
+            listing: {
+              name: language?.model ?? "Draft model",
+              shortName: language?.model.split("/").at(-1) ?? "Default",
+              tags: localDefault ? ["loaded"] : [],
+              vision: false,
+              reasoning: false,
+              tools: true,
+              contextWindow: assistantBudget.contextTokens,
+              local: localDefault !== undefined,
+              provider: {
+                name: language?.label ?? "Draft model",
+                ...(language
+                  ? { endpoint: new URL(language.baseUrl).host }
+                  : {}),
+                local: localDefault !== undefined,
+              },
+            },
+          }
+        : {}),
     },
     // Model catalogs: each lists models as `<profile id>/<model>`.
     ...(lmStudioUrl

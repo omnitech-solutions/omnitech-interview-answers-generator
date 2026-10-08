@@ -87,6 +87,15 @@ export const briefingContextSchema = z.strictObject({
   employerNotes: text.optional(),
   // What the person found out: interviewer background, candidate reports.
   research: text.optional(),
+  // A model-condensed copy of the two long fields above, for what reads the
+  // pack on every turn (the assistant). The originals stay exactly as pasted;
+  // the copy is dropped when either original changes, so it is never stale.
+  condensed: z
+    .strictObject({
+      jobDescription: text.optional(),
+      research: text.optional(),
+    })
+    .optional(),
   candidatePreferences: text.optional(),
   // The matrix roles to lean on; answers draw on these first.
   roleIds: z
@@ -229,6 +238,10 @@ export const briefingPrepareSchema = z.strictObject({
   expectedRevision: revision,
   request: text.optional(),
 });
+// POST .../artifacts/:id/condense: condense the pack's long setup fields.
+export const briefingCondenseSchema = z.strictObject({
+  expectedRevision: revision,
+});
 export const briefingProfileImportSchema = z.strictObject({
   name: word,
   matrix: candidateMatrixSchema,
@@ -331,6 +344,7 @@ export type BriefingProfileImport = z.infer<typeof briefingProfileImportSchema>;
 export type BriefingPut = z.infer<typeof briefingPutSchema>;
 export type BriefingAsk = z.infer<typeof briefingAskSchema>;
 export type BriefingPrepare = z.infer<typeof briefingPrepareSchema>;
+export type BriefingCondense = z.infer<typeof briefingCondenseSchema>;
 export type BriefingPrepared = z.infer<typeof briefingPreparedSchema>;
 export type BriefingPreparedContent = z.infer<
   typeof briefingPreparedContentSchema

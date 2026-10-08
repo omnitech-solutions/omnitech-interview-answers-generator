@@ -1,5 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  createWriteStream,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   defaultLocalModelEnvironment,
@@ -163,7 +169,30 @@ const build = spawnSync(
 );
 if (build.status !== 0) process.exit(build.status ?? 1);
 
-const child = spawn(
+// [DOMAIN] Everything the servers print also goes to .dev-local/dev.log (this
+// run only, colours stripped), so a failure can be read after the terminal
+// has scrolled past it, and by a tool that cannot see the terminal.
+mkdirSync(new URL("../.dev-local/", import.meta.url), { recursive: true });
+const devLog = createWriteStream(new URL("../.dev-local/dev.log", import.meta.url));
+const ANSI = /\u001b\[[0-9;?]*[A-Za-z]/g;
+// The children write to pipes, so they are told to keep their colours.
+const loggedEnvironment = process.env.NO_COLOR
+  ? localEnvironment
+  : { ...localEnvironment, FORCE_COLOR: localEnvironment.FORCE_COLOR ?? "1" };
+const logged = { env: loggedEnvironment, stdio: ["inherit", "pipe", "pipe"] };
+function tee(running) {
+  for (const [stream, terminal] of [
+    [running.stdout, process.stdout],
+    [running.stderr, process.stderr],
+  ])
+    stream.on("data", (chunk) => {
+      terminal.write(chunk);
+      devLog.write(String(chunk).replace(ANSI, ""));
+    });
+  return running;
+}
+
+const child = tee(spawn(
   "pnpm",
   [
     "--parallel",
@@ -176,16 +205,16 @@ const child = spawn(
     "run",
     "dev",
   ],
-  { env: localEnvironment, stdio: "inherit" },
-);
+  logged,
+));
 
 // Every package and product rebuilds its dist on save through the root
 // solution, so the web app never loads a stale build.
-const watcher = spawn(
+const watcher = tee(spawn(
   "pnpm",
   ["exec", "tsc", "-b", "tsconfig.json", "--watch", "--preserveWatchOutput"],
-  { env: localEnvironment, stdio: "inherit" },
-);
+  logged,
+));
 
 // `pnpm dev:stop` finds this launcher through its recorded pid.
 const stateFile = new URL("../.dev-local/state.json", import.meta.url);

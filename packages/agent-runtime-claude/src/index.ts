@@ -137,8 +137,28 @@ type Turn = {
   wake: (() => void) | undefined;
   done: boolean;
   streamed: boolean;
+  // Everything streamed so far: a structured run's answer, written out.
+  text: string;
   sessionId?: string;
 };
+// The object a structured run wrote out, when what it streamed is one whole
+// JSON object (a fenced block is unwrapped). Undefined otherwise.
+function writtenObject(text: string): Record<string, unknown> | undefined {
+  const body = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```$/, "")
+    .trim();
+  if (!body.startsWith("{")) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 type Session = {
   input: InputQueue;
   query: Query;
@@ -304,6 +324,7 @@ export function createClaudeRuntimeAdapter(
           const delta = streamedText(message);
           if (delta) {
             turn.streamed = true;
+            turn.text += delta;
             push(turn, { type: "text-delta", text: delta });
           }
           if (message.type === "assistant" && !turn.streamed)
@@ -333,7 +354,24 @@ export function createClaudeRuntimeAdapter(
                   output: message.structured_output ?? message.result,
                 },
               });
-            } else
+            } else if (
+              // [STRATEGY] A one-turn structured run can write its whole
+              // answer and then be stopped for wanting a second turn (the
+              // closing turn after the answer, or the answer written as text
+              // instead of through the tool). The answer is complete: the
+              // run completes with it rather than failing with it in hand.
+              message.subtype === "error_max_turns" &&
+              !session.cancelRequested &&
+              writtenObject(turn.text) !== undefined
+            )
+              push(turn, {
+                type: "completed",
+                result: {
+                  sessionId: message.session_id,
+                  output: writtenObject(turn.text),
+                },
+              });
+            else
               push(turn, {
                 type: "failed",
                 error: {
@@ -520,6 +558,7 @@ export function createClaudeRuntimeAdapter(
       events: [],
       done: false,
       streamed: false,
+      text: "",
       wake: undefined,
     };
     session.cancelRequested = false;

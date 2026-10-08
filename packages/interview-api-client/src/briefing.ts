@@ -3,6 +3,7 @@ import {
   type BriefingArtifactListResponse,
   type BriefingArtifactResponse,
   type BriefingAsk,
+  type BriefingCondense,
   type BriefingPrepare,
   type BriefingProfileImport,
   type BriefingProfileImportResponse,
@@ -17,6 +18,7 @@ import {
   briefingArtifactListResponseSchema,
   briefingArtifactResponseSchema,
   briefingAskSchema,
+  briefingCondenseSchema,
   briefingPrepareSchema,
   briefingProfileImportResponseSchema,
   briefingProfileImportSchema,
@@ -64,6 +66,8 @@ export interface BriefingClient {
   ask(id: string, input: BriefingAsk): Promise<BriefingArtifact>;
   // Prepare or refresh the pack's full briefing sections.
   prepare(id: string, input: BriefingPrepare): Promise<BriefingArtifact>;
+  // Condense the pack's long setup fields; the originals are kept.
+  condense(id: string, input: BriefingCondense): Promise<BriefingArtifact>;
   save(id: string, input: BriefingSave): Promise<SavedBriefingRevision>;
 }
 
@@ -146,6 +150,14 @@ export function createBriefingClient(
           artifactPath(id) + "/ask",
           "POST",
           briefingAskSchema.parse(input),
+        ),
+      ),
+    condense: async (id, input) =>
+      briefingArtifactResponseSchema.parse(
+        await write(
+          artifactPath(id) + "/condense",
+          "POST",
+          briefingCondenseSchema.parse(input),
         ),
       ),
     prepare: async (id, input) =>

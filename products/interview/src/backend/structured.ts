@@ -4,7 +4,9 @@ import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
 // One-shot structured generation for the product's JSON replies (briefs,
 // behavioural briefings).
 export type StructuredGenerate = (
-  input: { system: string; prompt: string },
+  // `schema` is the reply's JSON Schema: an agent runtime (Claude Code)
+  // needs it to return an object; a direct model reads it from `system`.
+  input: { system: string; prompt: string; schema?: Record<string, unknown> },
   scope: WorkspaceScope,
 ) => Promise<unknown>;
 
@@ -18,7 +20,12 @@ export async function generateChecked<T>(
   schema: z.ZodType<T>,
   scope: WorkspaceScope,
 ): Promise<T> {
-  const shape = JSON.stringify(schema.toJSONSchema({ unrepresentable: "any" }));
+  // The runtime's own schema check cannot resolve zod's "$schema" draft
+  // reference, so the schema travels without it.
+  const { $schema: _draft, ...jsonSchema } = schema.toJSONSchema({
+    unrepresentable: "any",
+  }) as Record<string, unknown>;
+  const shape = JSON.stringify(jsonSchema);
   const system = `${request.system}\nReply with one JSON object that matches this JSON Schema: ${shape}`;
   const first = await ask({ system, prompt: request.prompt });
   const firstCheck = schema.safeParse(first);
@@ -47,7 +54,7 @@ export async function generateChecked<T>(
 
   async function ask(input: { system: string; prompt: string }) {
     try {
-      return await generate(input, scope);
+      return await generate({ ...input, schema: jsonSchema }, scope);
     } catch {
       throw new WorkspaceError(
         "generation-failed",
