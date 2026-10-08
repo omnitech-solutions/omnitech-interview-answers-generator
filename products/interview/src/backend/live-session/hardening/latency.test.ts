@@ -60,7 +60,10 @@ const summary = (values: number[]) => ({
 });
 
 const QUESTION_SETS = Object.entries(ALL_REPLAY_SETS).filter(
-  ([, set]) => !("expect" in set) || (set as any).expect.opensTasks > 0,
+  ([, set]) =>
+    !("expect" in set) ||
+    (set as unknown as { expect: { opensTasks: number } }).expect.opensTasks >
+      0,
 ) as Array<[string, { phases: readonly ReplayPhase[] }]>;
 
 type Call = {

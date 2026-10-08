@@ -99,6 +99,7 @@ export function EndedRetention({
           </p>
           <p className="live-note">{PROMOTED_NOTE}</p>
           {shorter.length > 0 && !purging && (
+            // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
             <div
               className="ended-shorten"
               role="group"
@@ -130,6 +131,7 @@ export function EndedRetention({
               Deleting…
             </p>
           ) : confirming ? (
+            // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
             <div
               className="ended-confirm"
               role="group"

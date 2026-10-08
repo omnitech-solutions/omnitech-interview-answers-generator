@@ -366,6 +366,7 @@ function Stories({
               >
                 <option value="">Choose a role</option>
                 {matrix?.roles.map((item, at) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
                   <option key={`/roles/${at}`} value={`/roles/${at}`}>
                     {item.company} · {item.title}
                   </option>

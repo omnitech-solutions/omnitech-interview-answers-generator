@@ -145,6 +145,6 @@ export function codeStates(facts: CodeFacts): CodeStates {
   else if (!facts.syntax.clean) reasons.push("syntax_errors");
 
   const fullyVerified =
-    testsPassed && allCovered && facts.syntax !== null && facts.syntax.clean;
+    testsPassed && allCovered && facts.syntax?.clean === true;
   return { generated, testsPassed, fullyVerified, reasons };
 }

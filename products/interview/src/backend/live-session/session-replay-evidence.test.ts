@@ -444,7 +444,12 @@ describe("(e) hazard 7b: a spoken metric is not a fact", () => {
           draft: "Describe the performance project and what was measured.",
           claims: [
             typeof claim["refs"] === "function"
-              ? { ...claim, refs: (claim["refs"] as Function)(request) }
+              ? {
+                  ...claim,
+                  refs: (claim["refs"] as (request: unknown) => unknown)(
+                    request,
+                  ),
+                }
               : claim,
           ],
         }),

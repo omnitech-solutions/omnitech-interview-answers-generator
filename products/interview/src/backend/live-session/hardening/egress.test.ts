@@ -75,6 +75,7 @@ function spyModel(targetId: string, calls: string[]): ModelProviderAdapter {
       yield { type: "completed", result: execution.result };
     },
     async *streamStructured() {
+      yield* [];
       calls.push(`${targetId}.streamStructured`);
     },
   };

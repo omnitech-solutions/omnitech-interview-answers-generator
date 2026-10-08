@@ -100,11 +100,7 @@ export function pendingCaptureOf(
 ): CaptureRequest | undefined {
   if (status !== "active" || !declaration.captureRequests) return undefined;
   const stored = decode(row.captureRequest);
-  if (
-    !stored ||
-    stored.status !== "pending" ||
-    Date.parse(stored.expiresAt) <= row.nowMs
-  )
+  if (stored?.status !== "pending" || Date.parse(stored.expiresAt) <= row.nowMs)
     return undefined;
   if (stored.request.mode === "region") {
     const selection = stored.selection;
@@ -176,8 +172,7 @@ export async function failCaptureRequest(
 ): Promise<void> {
   const stored = decode(row.captureRequest);
   if (
-    !stored ||
-    stored.status !== "pending" ||
+    stored?.status !== "pending" ||
     stored.request.requestId !== requestId ||
     Date.parse(stored.expiresAt) <= row.nowMs
   )
@@ -320,8 +315,7 @@ export async function checkSnapshotRequest(
 ): Promise<SnapshotRequestCheck> {
   const stored = decode(row.captureRequest);
   if (
-    !stored ||
-    stored.status !== "pending" ||
+    stored?.status !== "pending" ||
     stored.request.requestId !== requestId ||
     Date.parse(stored.expiresAt) <= row.nowMs ||
     (await findStoredOwnerInput(tx, scope, sessionId, requestId))
@@ -352,11 +346,7 @@ export async function fulfilCaptureRequest(
   const requestId = observation.content.requestId;
   if (requestId === undefined) return false;
   const stored = decode(row.captureRequest);
-  if (
-    !stored ||
-    stored.status !== "pending" ||
-    stored.request.requestId !== requestId
-  )
+  if (stored?.status !== "pending" || stored.request.requestId !== requestId)
     return false;
   const snapshot = {
     sourceId: observation.sourceId,

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { restoreOptional, strictSchema } from "./strict-schema";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 const product = {
   type: "object",
   properties: {
@@ -28,7 +31,7 @@ const product = {
 } as const;
 
 describe("strictSchema", () => {
-  const strict = strictSchema(product) as any;
+  const strict = strictSchema(product) as Json;
 
   it("requires every property and forbids extra keys at every object", () => {
     expect(strict.required).toEqual([
@@ -55,8 +58,8 @@ describe("strictSchema", () => {
   });
 
   it("does not change the schema it was given", () => {
-    expect((product as any).required).toHaveLength(4);
-    expect((product.properties as any).usageCode.type).toBe("string");
+    expect((product as Json).required).toHaveLength(4);
+    expect((product.properties as Json).usageCode.type).toBe("string");
   });
 
   it("wraps an untyped optional property in a null union", () => {
@@ -64,7 +67,7 @@ describe("strictSchema", () => {
       type: "object",
       properties: { any: { description: "anything" } },
       required: [],
-    }) as any;
+    }) as Json;
     expect(wrapped.properties.any.anyOf).toEqual([
       { description: "anything" },
       { type: "null" },
@@ -83,7 +86,7 @@ describe("restoreOptional", () => {
           coverage: { cases: ["a"], note: null },
           tests: [{ name: "t", skip: null }],
         },
-        product as any,
+        product as Json,
       ),
     ).toEqual({
       language: "typescript",
@@ -103,7 +106,7 @@ describe("restoreOptional", () => {
           coverage: { cases: [] },
           tests: [],
         },
-        product as any,
+        product as Json,
       ),
     ).toEqual({
       language: "ts",
@@ -124,7 +127,7 @@ describe("strict schema edge cases", () => {
         fixed: { type: "string", const: "x" },
       },
       required: [],
-    }) as any;
+    }) as Json;
     expect(strict.properties.level.enum).toEqual(["a", "b", null]);
     expect(strict.properties.fixed).toEqual({
       type: "string",
@@ -156,7 +159,7 @@ describe("strict schema edge cases", () => {
           required: ["name"],
         },
       },
-    } as any;
+    } as Json;
     expect(
       restoreOptional(
         { item: { name: "n", note: null }, either: { a: "x", b: null } },
@@ -171,7 +174,7 @@ describe("strict schema edge cases", () => {
         type: "object",
         properties: { maybe: { type: ["string", "null"] } },
         required: [],
-      } as any),
+      } as Json),
     ).toEqual({ maybe: null });
   });
 });

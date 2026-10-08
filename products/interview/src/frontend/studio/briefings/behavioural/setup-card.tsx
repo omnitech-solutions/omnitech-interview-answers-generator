@@ -272,6 +272,7 @@ export function SetupCard({
           <span>Stage</span>
           <div className="brief-kinds" role="radiogroup" aria-label="Stage">
             {STAGES.map((item) => (
+              // biome-ignore lint/a11y/useSemanticElements: a styled button is the radio here; a native input would change the element and its styling
               <button
                 key={item.id}
                 type="button"

@@ -226,6 +226,7 @@ export function WindowDots({
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
     <div className="pn-dots" role="group" aria-label="Window controls">
       {WINDOW_CONTROLS.map(render)}
     </div>
@@ -252,6 +253,7 @@ function QuitPopover({
   onQuit(): void;
 }) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only hears keys and hover that bubble from the focusable button inside it
     <span className="pn-popover" onKeyDown={onKeyDown}>
       {/* The dot's own click opens and closes it; the popover only reports a
           dismissal (Escape, a press outside). */}
@@ -318,6 +320,7 @@ function SizeMenu({
     ),
   ];
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only hears keys and hover that bubble from the focusable button inside it
     <span
       className="pn-popover"
       onMouseEnter={onEnter}

@@ -44,6 +44,7 @@ export function ScreenshotSendControl({
   const statusId = `${id}-status`;
   return (
     <fieldset
+      // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the fieldset keeps the group's disabled state and legend; radiogroup names the choice it holds
       role="radiogroup"
       className={VARIANT[variant]}
       disabled={locked || saving}

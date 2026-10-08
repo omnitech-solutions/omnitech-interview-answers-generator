@@ -518,73 +518,71 @@ export function Library({
             className={`library-filters${filtersOpen ? " open" : ""}`}
             aria-label="Knowledge index"
           >
-            <>
-              {searching ? (
-                <button
-                  type="button"
-                  className="library-clear-filters"
-                  onClick={clearSearch}
-                >
-                  Clear search and filters
-                </button>
-              ) : null}
-              <FilterGroup label="Content type">
-                {(Object.keys(contentTypeLabels) as LibraryContentType[]).map(
-                  (type) => (
-                    <FilterButton
-                      key={type}
-                      active={types.includes(type)}
-                      count={facets?.contentTypes[type]}
-                      onClick={() => toggleFilter(type, types, setTypes)}
-                    >
-                      {contentTypeLabels[type]}
-                    </FilterButton>
-                  ),
-                )}
-              </FilterGroup>
-              <FilterGroup label="Collections">
-                {Object.entries(facets?.collections ?? {}).map(
-                  ([value, count]) => (
-                    <FilterButton
+            {searching ? (
+              <button
+                type="button"
+                className="library-clear-filters"
+                onClick={clearSearch}
+              >
+                Clear search and filters
+              </button>
+            ) : null}
+            <FilterGroup label="Content type">
+              {(Object.keys(contentTypeLabels) as LibraryContentType[]).map(
+                (type) => (
+                  <FilterButton
+                    key={type}
+                    active={types.includes(type)}
+                    count={facets?.contentTypes[type]}
+                    onClick={() => toggleFilter(type, types, setTypes)}
+                  >
+                    {contentTypeLabels[type]}
+                  </FilterButton>
+                ),
+              )}
+            </FilterGroup>
+            <FilterGroup label="Collections">
+              {Object.entries(facets?.collections ?? {}).map(
+                ([value, count]) => (
+                  <FilterButton
+                    key={value}
+                    active={collections.includes(value)}
+                    count={count}
+                    onClick={() =>
+                      toggleFilter(value, collections, setCollections)
+                    }
+                  >
+                    {value.replaceAll("-", " ")}
+                  </FilterButton>
+                ),
+              )}
+            </FilterGroup>
+            <FilterGroup label="Trust">
+              <FilterButton
+                active={officialOnly}
+                count={facets?.contentTypes["official-reference"]}
+                onClick={() => setOfficialOnly((value) => !value)}
+              >
+                Official only
+              </FilterButton>
+            </FilterGroup>
+            <FilterGroup label="Popular tags">
+              <div className="library-tag-cloud">
+                {Object.entries(facets?.tags ?? {})
+                  .sort((left, right) => right[1] - left[1])
+                  .slice(0, 18)
+                  .map(([value, count]) => (
+                    <button
+                      type="button"
                       key={value}
-                      active={collections.includes(value)}
-                      count={count}
-                      onClick={() =>
-                        toggleFilter(value, collections, setCollections)
-                      }
+                      className={tags.includes(value) ? "active" : ""}
+                      onClick={() => toggleFilter(value, tags, setTags)}
                     >
-                      {value.replaceAll("-", " ")}
-                    </FilterButton>
-                  ),
-                )}
-              </FilterGroup>
-              <FilterGroup label="Trust">
-                <FilterButton
-                  active={officialOnly}
-                  count={facets?.contentTypes["official-reference"]}
-                  onClick={() => setOfficialOnly((value) => !value)}
-                >
-                  Official only
-                </FilterButton>
-              </FilterGroup>
-              <FilterGroup label="Popular tags">
-                <div className="library-tag-cloud">
-                  {Object.entries(facets?.tags ?? {})
-                    .sort((left, right) => right[1] - left[1])
-                    .slice(0, 18)
-                    .map(([value, count]) => (
-                      <button
-                        type="button"
-                        key={value}
-                        className={tags.includes(value) ? "active" : ""}
-                        onClick={() => toggleFilter(value, tags, setTags)}
-                      >
-                        {value} <span>{count}</span>
-                      </button>
-                    ))}
-                </div>
-              </FilterGroup>
-            </>
+                      {value} <span>{count}</span>
+                    </button>
+                  ))}
+              </div>
+            </FilterGroup>
           </aside>
 
           <section className="library-main">
@@ -767,7 +765,7 @@ function LibraryLanding({
                     ? "L"
                     : slug === "symfony"
                       ? "S"
-                      : "0" + (collections.findIndex((c) => c[0] === slug) + 1)}
+                      : `0${collections.findIndex((c) => c[0] === slug) + 1}`}
             </span>
             <strong>{title}</strong>
             <small>{description}</small>
@@ -817,6 +815,7 @@ function LibraryArticle({
         <h1>{item.title}</h1>
         <p>{item.summary}</p>
         {item.source ? (
+          // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass
           <div
             className="library-provenance"
             aria-label={`${item.title} source details`}

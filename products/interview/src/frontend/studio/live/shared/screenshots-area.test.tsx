@@ -168,7 +168,7 @@ beforeEach(() => {
   vi.stubGlobal(
     "URL",
     Object.assign(URL, {
-      createObjectURL: vi.fn(() => `blob:staged-${(n += 1)}`),
+      createObjectURL: vi.fn(() => `blob:staged-${++n}`),
       revokeObjectURL: vi.fn(),
     }),
   );

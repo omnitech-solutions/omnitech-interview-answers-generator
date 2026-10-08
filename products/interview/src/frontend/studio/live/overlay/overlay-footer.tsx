@@ -347,6 +347,7 @@ function MicLine({
       : "Listening · nothing heard yet";
   const bars = [0.35, 0.7, 1, 0.6, 0.4];
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass
     <span
       className="pn-mic-line"
       data-testid="pn-mic-line"

@@ -349,7 +349,7 @@ const idsOf = (run: SessionRun): IdGenerator => ({
   // per-run counter, so a rebuilt run names every question as the last did.
   next: (prefix, stableKey) =>
     stableKey === undefined
-      ? `${prefix}-${(run.taskCounter += 1)}`
+      ? `${prefix}-${++run.taskCounter}`
       : `${prefix}-${stableKey}`,
 });
 

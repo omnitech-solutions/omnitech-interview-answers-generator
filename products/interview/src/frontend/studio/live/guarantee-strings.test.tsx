@@ -61,7 +61,7 @@ const assistant = {
 };
 
 // Claims that are never true here. Each names why.
-export const FORBIDDEN: readonly [RegExp, string][] = [
+const FORBIDDEN: readonly [RegExp, string][] = [
   [/renews? every/i, "credential renewal is by the owner, up to 2 hours"],
   [
     /\b10\s*min(ute)?s?\b.{0,30}renew|renew.{0,30}\b10\s*min/i,

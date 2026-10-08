@@ -99,7 +99,7 @@ async function controlOf(world: World) {
 let eventCounter = 0;
 const snapshot = (
   requestId: string | undefined,
-  eventId = `s-${(eventCounter += 1)}`,
+  eventId = `s-${++eventCounter}`,
 ) => {
   const base = screenshot("scr", 0, "image/png", PNG_BYTES.byteLength, eventId);
   return requestId === undefined

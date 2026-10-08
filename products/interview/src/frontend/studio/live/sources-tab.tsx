@@ -73,6 +73,7 @@ function ConfirmAction({
       </Button>
     );
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
     <div className="live-confirm" role="group" aria-label={label}>
       <p>{question}</p>
       <div className="live-confirm-actions">

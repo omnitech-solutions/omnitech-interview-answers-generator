@@ -12,6 +12,6 @@ it.each(pointed)("AGENTS.md names skill %s and the skill exists", (name) => {
   expect(agents).toContain(name);
   const skill = join(repoRoot, ".agents/skills", name, "SKILL.md");
   expect(existsSync(skill), `${skill} is missing`).toBe(true);
-  const frontmatter = /^---\n([^]*?)\n---/.exec(readFileSync(skill, "utf8"));
+  const frontmatter = /^---\n([\s\S]*?)\n---/.exec(readFileSync(skill, "utf8"));
   expect(frontmatter?.[1]).toMatch(new RegExp(`^name: ${name}$`, "m"));
 });

@@ -73,6 +73,7 @@ export function Segmented<T extends string>({
   variant?: "tabs" | "filter";
 }) {
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the role is set by a conditional the rule cannot follow; every role it can be takes a label
     <div
       className="dx-segmented"
       role={variant === "tabs" ? "tablist" : "group"}

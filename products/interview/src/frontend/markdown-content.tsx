@@ -137,10 +137,12 @@ function MermaidDiagram({ source }: { source: string }) {
       className={`mermaid-diagram${showSource ? " mermaid-diagram-split" : ""}`}
       aria-label="Workflow diagram"
     >
+      {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
       <div
         className="mermaid-canvas"
         aria-label="Interactive diagram. Drag to pan; pinch or hold Control or Command while scrolling to zoom."
       >
+        {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
         <div
           className="mermaid-toolbar panzoom-exclude"
           aria-label="Diagram controls"
@@ -435,7 +437,7 @@ function highlightedKeywords(
   return children.split(pattern).map((part, index) =>
     keywords.some((keyword) => keyword.toLowerCase() === part.toLowerCase()) ? (
       <strong
-        // The source order is stable and duplicate words need distinct keys.
+        // biome-ignore lint/suspicious/noArrayIndexKey: the source order is stable and duplicate words need distinct keys
         key={`${part}-${index}`}
         className="markdown-keyword"
       >

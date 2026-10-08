@@ -70,6 +70,7 @@ function ClaimRow({ claim }: { claim: ClaimView }) {
           {chip.entries.map((entry, index) => (
             <figure
               // The same entry can be cited twice, so position is part of the key.
+              // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
               key={`${entry.quote}-${index}`}
             >
               <blockquote>“{entry.quote}”</blockquote>
@@ -95,7 +96,7 @@ export function ClaimList({
   return (
     <ul className="live-claims" aria-label={label}>
       {claims.map((claim, index) => (
-        // Index key: claims carry no id and are referenced by position elsewhere, so the list is only replaced whole, never reordered.
+        // biome-ignore lint/suspicious/noArrayIndexKey: claims carry no id and are referenced by position elsewhere, so the list is only replaced whole, never reordered
         <ClaimRow key={index} claim={claim} />
       ))}
     </ul>

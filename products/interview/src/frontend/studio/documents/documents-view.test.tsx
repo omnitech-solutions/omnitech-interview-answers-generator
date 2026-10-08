@@ -211,7 +211,7 @@ function mockApi() {
         });
       if (path === "/api/interview/documents" && method === "POST")
         return new Response(
-          [
+          `${[
             {
               t: "plan",
               batches: [{ id: "batch-1", title: "Header", count: 2 }],
@@ -226,7 +226,7 @@ function mockApi() {
             { t: "done", document: { id: DOCUMENT_ID }, errors: [] },
           ]
             .map((event) => JSON.stringify(event))
-            .join("\n") + "\n",
+            .join("\n")}\n`,
           { headers: { "content-type": "application/x-ndjson" } },
         );
       if (

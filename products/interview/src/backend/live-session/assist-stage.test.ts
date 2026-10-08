@@ -160,7 +160,9 @@ describe("assist request", () => {
     const open: string[] = [];
     const walk = (node: unknown, path: string) => {
       if (Array.isArray(node))
-        node.forEach((item, index) => walk(item, `${path}.${index}`));
+        node.forEach((item, index) => {
+          walk(item, `${path}.${index}`);
+        });
       else if (node && typeof node === "object") {
         const record = node as Record<string, unknown>;
         const types = [record["type"]].flat();

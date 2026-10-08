@@ -131,6 +131,7 @@ export function AnswersTab({
         />
       ))}
       {pending.map((item, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
         <div key={`${index}:${item.question}`} className="bp-answer">
           <div className="bp-answer-head static">
             <span className={`bp-dot ${item.state}`}>

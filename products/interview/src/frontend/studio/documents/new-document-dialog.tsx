@@ -471,6 +471,7 @@ export function NewDocumentDialog({
               ].map((option) => {
                 const disabled = needsStage && option.id === "";
                 return (
+                  // biome-ignore lint/a11y/useSemanticElements: a styled button is the radio here; a native input would change the element and its styling
                   <button
                     key={option.id || "general"}
                     type="button"

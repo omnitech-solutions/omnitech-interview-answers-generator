@@ -226,7 +226,7 @@ describe("baseline classification", () => {
 async function replay(phaseCount: number) {
   const policy = createInterviewSessionPolicy();
   let counter = 0;
-  const ids: IdGenerator = { next: (prefix) => `${prefix}-${(counter += 1)}` };
+  const ids: IdGenerator = { next: (prefix) => `${prefix}-${++counter}` };
   let view: TranscriptView = emptyTranscript();
   let tasks: TaskState = emptyTaskState();
   const processed = new Set<string>();

@@ -360,7 +360,7 @@ function replay(phases: readonly ReplayPhase[]): Replayed {
       utterance,
       verdict.segmentClass,
       verdict.decision,
-      { next: (prefix) => `${prefix}-${(counter += 1)}` },
+      { next: (prefix) => `${prefix}-${++counter}` },
     );
     state = step.state;
     for (const id of utterance.segmentIds) outcomes.set(id, step.outcome.kind);

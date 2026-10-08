@@ -122,14 +122,14 @@ const ALLOWED: readonly Allowed[] = [
   ],
 ];
 
-export type Finding = {
+type Finding = {
   file: string;
   selector: string;
   property: string;
   value: string;
 };
 
-export function findings(file: string, source: string): Finding[] {
+function findings(file: string, source: string): Finding[] {
   const css = source
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/@import[^;]*;/g, "");

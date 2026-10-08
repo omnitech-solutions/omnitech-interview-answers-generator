@@ -446,6 +446,7 @@ export function DocumentEditor({
           <Icon name={saveState.icon} size={16} />
           {saveState.text}
         </span>
+        {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
         <span className="dx-save" aria-label="Candidate review status">
           {claimState === "confirmed" && !dirty
             ? "Candidate confirmed"

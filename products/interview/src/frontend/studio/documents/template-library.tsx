@@ -73,12 +73,25 @@ export function TemplateLibrary({
               </button>
             }
           />
+          {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
           <div className="dx-card" role="table" aria-label="Templates">
+            {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
             <div className="dx-table-row dx-table-head" role="row">
+              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
               <span role="columnheader">TEMPLATE</span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
               <span role="columnheader">KIND</span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
               <span role="columnheader">FORMAT</span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
               <span role="columnheader">FIELDS</span>
+              {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: a static header of a read-only table: nothing to operate, so it takes no focus */}
               <span role="columnheader">USED BY</span>
             </div>
             {templates.length === 0 && (
@@ -89,6 +102,7 @@ export function TemplateLibrary({
             {templates.map((item) => {
               const used = templateUsage(documents, item);
               return (
+                // biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics
                 <button
                   key={item.template.id}
                   type="button"
@@ -97,6 +111,7 @@ export function TemplateLibrary({
                   data-selected={item.template.id === selectedId}
                   onClick={() => onSelect(item.template.id)}
                 >
+                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
                   <span className="dx-cell-name" role="cell">
                     <Icon name={KIND_ICON[item.template.kind]} size={20} />
                     <span className="dx-cell-text">
@@ -107,15 +122,19 @@ export function TemplateLibrary({
                       </span>
                     </span>
                   </span>
+                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
                   <span className="dx-muted" role="cell">
                     {KIND_LABEL[item.template.kind]}
                   </span>
+                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
                   <span className="dx-mono dx-muted" role="cell">
                     {item.template.format.toUpperCase()}
                   </span>
+                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
                   <span className="dx-mono" role="cell">
                     {item.fieldCount}
                   </span>
+                  {/* biome-ignore lint/a11y/useSemanticElements: the grid is laid out with CSS on divs and spans; table elements would change the layout, and the roles carry the table semantics */}
                   <span className="dx-muted" role="cell">
                     {used ? `${used} doc${used > 1 ? "s" : ""}` : "—"}
                   </span>

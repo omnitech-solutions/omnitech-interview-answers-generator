@@ -18,6 +18,7 @@ export function ExplanationsPane({
     <div className="briefings-explanations">
       {explanations.map((explanation, index) => (
         <details
+          // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
           key={`${index}:${explanation.title}`}
           className="briefings-explanation"
           open={index === 0}

@@ -30,6 +30,9 @@ import {
   until,
 } from "./session-e2e-support";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 const harnesses: Harness[] = [];
 const make = async (...args: Parameters<typeof createHarness>) => {
   const harness = await createHarness(...args);
@@ -56,7 +59,7 @@ const done = (h: Harness, taskId: string, kind: string, revision = 1) =>
     (a) => a.actionKind === kind && a.taskRevision === revision,
   );
 const resultOf = (action: { result: unknown } | undefined) =>
-  action?.result as Record<string, any>;
+  action?.result as Record<string, Json>;
 
 describe.each(["claude", "codex"] as const)(
   "transcript plus Analyze latest capture (%s-shaped runtime)",

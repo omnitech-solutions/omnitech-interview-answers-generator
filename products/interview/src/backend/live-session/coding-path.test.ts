@@ -346,7 +346,7 @@ describe("one direct repair attempt", () => {
   }, 60_000);
 
   it("stops after one repair: still failing publishes as generated with tests not passed", async () => {
-    const { runner, runAll } = fakeRunner((call) =>
+    const { runner, runAll } = fakeRunner((_call) =>
       runResult({
         exitCode: 1,
         tests: [{ name: "t0", status: "failed" }],
@@ -377,7 +377,7 @@ describe("one direct repair attempt", () => {
   }, 60_000);
 
   it("treats a timeout as tests not passed", async () => {
-    const { runner } = fakeRunner((call, input) =>
+    const { runner } = fakeRunner((_call, input) =>
       runResult({
         exitCode: null,
         timedOut: true,

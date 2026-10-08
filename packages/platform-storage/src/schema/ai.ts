@@ -156,7 +156,7 @@ export const agentJobPayloads = ai.table.withRLS(
       .notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
+  (_table) => [
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -317,7 +317,7 @@ export const modelDefinitions = ai.table(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [
+  (_table) => [
     check(
       "model_definitions_kind_check",
       sql`(kind = ANY (ARRAY['language'::text, 'embedding'::text, 'image'::text, 'multimodal'::text]))`,
@@ -341,7 +341,7 @@ export const profiles = ai.table(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [
+  (_table) => [
     check(
       "profiles_execution_family_check",
       sql`(execution_family = ANY (ARRAY['direct-model'::text, 'agent-runtime'::text]))`,
@@ -426,7 +426,7 @@ export const usageRecords = ai.table.withRLS(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [
+  (_table) => [
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,

@@ -77,7 +77,7 @@ const beat = (capturing = true) => ({
   capturing,
 });
 
-export const capabilityReport = (
+const capabilityReport = (
   overrides: Record<string, unknown> = {},
   speech: Record<string, unknown> = {},
 ) => ({

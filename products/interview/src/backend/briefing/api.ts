@@ -665,7 +665,7 @@ export function createBriefingApi(options: {
         input.briefing.context.profile.revision,
         true,
       );
-      let existing;
+      let existing: Awaited<ReturnType<typeof workspace.readTransaction>>;
       try {
         existing = await workspace.readTransaction(
           tx,

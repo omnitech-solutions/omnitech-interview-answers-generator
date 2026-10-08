@@ -636,8 +636,7 @@ export async function createSessionJob(
         );
         const row = result.rows[0];
         if (
-          !row ||
-          row["status"] !== "active" ||
+          row?.["status"] !== "active" ||
           // [SAFETY] A remote agent job is never created for a session that
           // has tightened to device-only, however late the tighten came.
           row["processing_policy"] !== "permitted_remote" ||

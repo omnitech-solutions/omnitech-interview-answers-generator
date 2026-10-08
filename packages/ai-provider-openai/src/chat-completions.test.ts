@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatRequestError, createChatCompletions } from "./chat-completions";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 const keyed = {
   label: "Local model",
   model: "test-model",
@@ -49,7 +52,7 @@ afterEach(() => {
 describe("createChatCompletions", () => {
   it("sends system, messages and schema, and normalises usage", async () => {
     let url: unknown;
-    let body: any;
+    let body: Json;
     vi.stubGlobal("fetch", async (u: unknown, init: RequestInit) => {
       url = u;
       body = JSON.parse(String(init.body));
@@ -90,7 +93,7 @@ describe("createChatCompletions", () => {
   });
 
   it("prefers an explicit prompt and sends no credentials to LM Studio", async () => {
-    let body: any;
+    let body: Json;
     let headers: Headers | undefined;
     vi.stubGlobal("fetch", async (_u: unknown, init: RequestInit) => {
       body = JSON.parse(String(init.body));

@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOpenAiModelAdapter } from "./index";
 import { parseStructuredOutput } from "./structured-output";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 const schema = {
   type: "object",
   properties: { value: { $ref: "#/$defs/value" } },
@@ -24,7 +27,7 @@ async function collect(source: AsyncIterable<unknown>) {
 }
 describe("host structured adapter", () => {
   it("preserves schema, roles, model and limits in built local provider request bytes", async () => {
-    let body: any;
+    let body: Json;
     let headers: Headers | undefined;
     vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
       body = JSON.parse(String(init.body));

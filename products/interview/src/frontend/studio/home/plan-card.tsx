@@ -54,6 +54,7 @@ export function PlanCard({
             key={item.id}
             className={`home-plan-item${item.done ? " done" : ""}`}
           >
+            {/* biome-ignore lint/a11y/useSemanticElements: a styled button is the checkbox here; a native input would change the element and its styling */}
             <button
               type="button"
               role="checkbox"

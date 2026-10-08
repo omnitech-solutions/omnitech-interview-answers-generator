@@ -78,6 +78,7 @@ export function Resizer({
     } as const
   )[grows];
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a draggable, focusable splitter with its own styling, which an hr cannot be
     <div
       role="separator"
       aria-label={label}

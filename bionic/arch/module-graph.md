@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1190 modules, 3119 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1190 modules, 3118 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -1762,7 +1762,6 @@ graph LR
   products_interview_src_frontend_studio_live_live_screenshots_test_tsx["products/interview/src/frontend/studio/live/live-screenshots.test.tsx"] --> products_interview_src_frontend_studio_live_session_registry_ts["products/interview/src/frontend/studio/live/session-registry.ts"]
   products_interview_src_frontend_studio_live_live_screenshots_test_tsx["products/interview/src/frontend/studio/live/live-screenshots.test.tsx"] --> products_interview_src_frontend_studio_live_testing_missing_context_kit_ts["products/interview/src/frontend/studio/live/testing/missing-context-kit.ts"]
   products_interview_src_frontend_studio_live_live_screenshots_test_tsx["products/interview/src/frontend/studio/live/live-screenshots.test.tsx"] --> products_interview_src_frontend_studio_live_testing_session_fixtures_ts["products/interview/src/frontend/studio/live/testing/session-fixtures.ts"]
-  products_interview_src_frontend_studio_live_live_session_panel_test_tsx["products/interview/src/frontend/studio/live/live-session-panel.test.tsx"] --> products_interview_src_frontend_studio_config_commands_ts["products/interview/src/frontend/studio/config/commands.ts"]
   products_interview_src_frontend_studio_live_live_session_panel_test_tsx["products/interview/src/frontend/studio/live/live-session-panel.test.tsx"] --> products_interview_src_frontend_studio_live_live_session_view_tsx["products/interview/src/frontend/studio/live/live-session-view.tsx"]
   products_interview_src_frontend_studio_live_live_session_panel_test_tsx["products/interview/src/frontend/studio/live/live-session-panel.test.tsx"] --> products_interview_src_frontend_studio_live_session_registry_ts["products/interview/src/frontend/studio/live/session-registry.ts"]
   products_interview_src_frontend_studio_live_live_session_panel_test_tsx["products/interview/src/frontend/studio/live/live-session-panel.test.tsx"] --> products_interview_src_frontend_studio_live_testing_session_fixtures_ts["products/interview/src/frontend/studio/live/testing/session-fixtures.ts"]

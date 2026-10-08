@@ -748,9 +748,10 @@ describe("the capture split control and the microphone with a native engine", ()
     hint: null,
   };
   function withEngine(calls: string[], over: Record<string, unknown> = {}) {
-    const ok = (name: string) => async () => (
-      calls.push(name), { ok: true, engine: engineState }
-    );
+    const ok = (name: string) => async () => {
+      calls.push(name);
+      return { ok: true, engine: engineState };
+    };
     (
       window as unknown as { studioHost: { engine: unknown } }
     ).studioHost.engine = {
@@ -2391,17 +2392,18 @@ describe("toolbar contract: order, locks and the microphone press", () => {
   it("pressing the microphone while it listens stops the engine, and the name follows the engine's report", async () => {
     const calls: string[] = [];
     nativeHost();
-    const ok = (name: string) => async () => (
-      calls.push(name), { ok: true, engine: engineState }
-    );
+    const ok = (name: string) => async () => {
+      calls.push(name);
+      return { ok: true, engine: engineState };
+    };
     (
       window as unknown as { studioHost: { engine: unknown } }
     ).studioHost.engine = {
       start: ok("start"),
-      stop: async () => (
-        calls.push("stop"),
-        { ok: true, engine: { ...engineState, listening: false } }
-      ),
+      stop: async () => {
+        calls.push("stop");
+        return { ok: true, engine: { ...engineState, listening: false } };
+      },
       pause: ok("pause"),
       resume: ok("resume"),
       status: ok("status"),
@@ -2471,9 +2473,10 @@ describe("microphone states (Zoom semantics) and its caret menu", () => {
   function shell(state: unknown, over: Record<string, unknown> = {}) {
     const calls: string[] = [];
     nativeHost();
-    const reply = (note: string) => async () => (
-      calls.push(note), { ok: true, engine: state }
-    );
+    const reply = (note: string) => async () => {
+      calls.push(note);
+      return { ok: true, engine: state };
+    };
     (
       window as unknown as { studioHost: { engine: unknown } }
     ).studioHost.engine = {
@@ -2520,9 +2523,10 @@ describe("microphone states (Zoom semantics) and its caret menu", () => {
         microphoneDeviceId: "built-in",
       }),
       {
-        retryMicrophone: async () => (
-          calls.push("retry"), { ok: true, engine: lost() }
-        ),
+        retryMicrophone: async () => {
+          calls.push("retry");
+          return { ok: true, engine: lost() };
+        },
       },
     );
     await show();
@@ -2554,9 +2558,10 @@ describe("microphone states (Zoom semantics) and its caret menu", () => {
     const calls = shell(
       { ...listening, microphoneDevices: [{ id: "usb", name: "USB Mic" }] },
       {
-        selectMicrophone: async (id: string) => (
-          calls.push(`select:${id}`), { ok: true, engine: listening }
-        ),
+        selectMicrophone: async (id: string) => {
+          calls.push(`select:${id}`);
+          return { ok: true, engine: listening };
+        },
       },
     );
     await show();

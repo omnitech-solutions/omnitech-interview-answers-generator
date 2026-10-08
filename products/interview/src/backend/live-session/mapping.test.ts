@@ -64,7 +64,7 @@ describe("the minted credential", () => {
     expect(await presentedCredentialHash(minted.plaintext)).toBe(minted.hash);
     expect(await presentedCredentialHash(`${minted.plaintext}x`)).toBeNull();
     expect(
-      await presentedCredentialHash("Bearer " + minted.plaintext),
+      await presentedCredentialHash(`Bearer ${minted.plaintext}`),
     ).toBeNull();
     expect(await presentedCredentialHash(undefined)).toBeNull();
   });

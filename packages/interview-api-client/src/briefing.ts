@@ -139,7 +139,7 @@ export function createBriefingClient(
     propose: async (id, input) =>
       briefingProposalResponseSchema.parse(
         await write(
-          artifactPath(id) + "/proposals",
+          `${artifactPath(id)}/proposals`,
           "POST",
           briefingProposalRequestSchema.parse(input),
         ),
@@ -147,7 +147,7 @@ export function createBriefingClient(
     ask: async (id, input) =>
       briefingArtifactResponseSchema.parse(
         await write(
-          artifactPath(id) + "/ask",
+          `${artifactPath(id)}/ask`,
           "POST",
           briefingAskSchema.parse(input),
         ),
@@ -155,7 +155,7 @@ export function createBriefingClient(
     condense: async (id, input) =>
       briefingArtifactResponseSchema.parse(
         await write(
-          artifactPath(id) + "/condense",
+          `${artifactPath(id)}/condense`,
           "POST",
           briefingCondenseSchema.parse(input),
         ),
@@ -163,7 +163,7 @@ export function createBriefingClient(
     prepare: async (id, input) =>
       briefingArtifactResponseSchema.parse(
         await write(
-          artifactPath(id) + "/prepare",
+          `${artifactPath(id)}/prepare`,
           "POST",
           briefingPrepareSchema.parse(input),
         ),
@@ -171,7 +171,7 @@ export function createBriefingClient(
     apply: async (id, input) =>
       briefingArtifactResponseSchema.parse(
         await write(
-          artifactPath(id) + "/apply",
+          `${artifactPath(id)}/apply`,
           "POST",
           briefingApplySchema.parse(input),
         ),
@@ -179,7 +179,7 @@ export function createBriefingClient(
     save: async (id, input) =>
       briefingSavedResponseSchema.parse(
         await write(
-          artifactPath(id) + "/save",
+          `${artifactPath(id)}/save`,
           "POST",
           briefingSaveSchema.parse(input),
         ),

@@ -215,6 +215,7 @@ function productionCounts(): Map<string, number> {
 
 it("recognises raw pg queries and sql statements but not builder calls", () => {
   expect(countRawSql('await client.query("SELECT 1");')).toBe(1);
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: the string is source text for the scanner, with a template literal inside it
   expect(countRawSql("await pool.query(`SELECT ${x}`, [1]);")).toBe(1);
   expect(countRawSql("await tx.execute(sql`select 1`);")).toBe(1);
   expect(countRawSql("await db.execute(sql.raw(text));")).toBe(1);

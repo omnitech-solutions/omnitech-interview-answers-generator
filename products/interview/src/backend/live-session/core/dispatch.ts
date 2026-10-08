@@ -146,7 +146,7 @@ export function recordDispatchOutcome(
   outcome: "succeeded" | "failed",
 ): DispatchLedger {
   const entry = ledger.entries[key];
-  if (!entry || entry.status !== "in-flight") return ledger;
+  if (entry?.status !== "in-flight") return ledger;
   return {
     entries: { ...ledger.entries, [key]: { ...entry, status: outcome } },
   };

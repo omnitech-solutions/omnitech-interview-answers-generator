@@ -53,8 +53,9 @@ const forwardedFromElsewhere = (headers: Headers): boolean => {
   if (clientsAssertedLocal()) return false;
   const clients = headers.get("x-forwarded-for");
   return (
-    clients !== null &&
-    clients.split(",").some((client) => !LOOPBACK_ADDRESS.test(client.trim()))
+    clients
+      ?.split(",")
+      .some((client) => !LOOPBACK_ADDRESS.test(client.trim())) ?? false
   );
 };
 

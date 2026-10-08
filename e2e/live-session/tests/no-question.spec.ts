@@ -10,7 +10,6 @@ import { db } from "../src/helpers/sql";
 import { chooseProblem } from "../src/helpers/task-bar";
 import { say, settled, taskIdsOf } from "../src/helpers/tasks";
 
-const NOTE = (n: number) => `S${n} captured: no question found`;
 // In the native chat a capture with no question is an event line of the
 // transcript, one per capture: "S1 · no question found · 14:05".
 const EVENT = (n: number) => `S${n} · no question found`;

@@ -30,7 +30,9 @@ import {
 type Fixtures = {
   stack: StackConfig;
   control: Control;
+  // biome-ignore lint/suspicious/noConfusingVoidType: an automatic Playwright fixture with no value is typed void, which is what lets its body call use() with no argument
   cleanSlate: void;
+  // biome-ignore lint/suspicious/noConfusingVoidType: an automatic Playwright fixture with no value is typed void, which is what lets its body call use() with no argument
   micGuard: void;
   live: LivePage;
   // Opens the native panel in a fresh context with the host shim.
@@ -69,9 +71,13 @@ export const test = base.extend<Fixtures>({
     },
     { auto: true },
   ],
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this destructuring pattern and refuses any other first parameter
   storageState: async ({}, use) => use(stackConfig().storageStatePath),
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this destructuring pattern and refuses any other first parameter
   baseURL: async ({}, use) => use(stackConfig().webUrl),
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this destructuring pattern and refuses any other first parameter
   stack: async ({}, use) => use(stackConfig()),
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this destructuring pattern and refuses any other first parameter
   control: async ({}, use) => {
     const control = new Control(stackConfig().controlUrl);
     await control.reset();

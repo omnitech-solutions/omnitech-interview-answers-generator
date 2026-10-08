@@ -129,7 +129,7 @@ export function ocrBlockFor(
   result: RecognitionResult | null | undefined,
 ): LiveOcrBlock | null {
   try {
-    if (!result || result.ok !== true) return null;
+    if (result?.ok !== true) return null;
     if (!ENGINES.includes(result.engine) || typeof result.text !== "string")
       return null;
     const capped = capOcrText(

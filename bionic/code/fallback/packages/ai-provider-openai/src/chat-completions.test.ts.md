@@ -2,4 +2,4 @@
 
 _Source: `packages/ai-provider-openai/src/chat-completions.test.ts` (header-comment fallback)_
 
-The kind of failure and the model, never the provider's own message.
+biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks

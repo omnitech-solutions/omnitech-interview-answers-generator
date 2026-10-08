@@ -17,11 +17,15 @@ function InlineText({ text }: { text: string }) {
     <>
       {parts.map((part, index) => {
         if (part.startsWith("**") && part.endsWith("**"))
+          // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
           return <strong key={`${part}-${index}`}>{part.slice(2, -2)}</strong>;
         if (part.startsWith("*") && part.endsWith("*"))
+          // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
           return <em key={`${part}-${index}`}>{part.slice(1, -1)}</em>;
         if (part.startsWith("`") && part.endsWith("`"))
+          // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
           return <code key={`${part}-${index}`}>{part.slice(1, -1)}</code>;
+        // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
         return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
       })}
     </>
@@ -56,6 +60,7 @@ function RichTextArea({
   }
   return (
     <div className="studio-rich-text">
+      {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
       <div
         className="studio-rich-text-toolbar"
         aria-label="Rich text formatting"
@@ -111,6 +116,7 @@ export function SlideBlockEditor({
   return (
     <div className="studio-block-editor">
       {blocks.map((block, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
         <div className="studio-block-row" key={`${index}-${block.type}`}>
           <select
             aria-label={`Block ${index + 1} type`}
@@ -208,8 +214,10 @@ export function SlideBlockView({
         ? diagram.nodes.map(String)
         : [];
       return (
+        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass
         <div className="studio-diagram-block" aria-label="Diagram">
           {nodes.map((node, index) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
             <React.Fragment key={`${node}-${index}`}>
               <span>{node}</span>
               {index < nodes.length - 1 ? <b aria-hidden="true">→</b> : null}
@@ -220,6 +228,7 @@ export function SlideBlockView({
     }
     if (block.type === "INFOGRAPHIC" && data && typeof data === "object") {
       return (
+        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass
         <div className="studio-infographic-block" aria-label="Infographic">
           {Object.entries(data as Record<string, unknown>).map(
             ([key, value]) => (

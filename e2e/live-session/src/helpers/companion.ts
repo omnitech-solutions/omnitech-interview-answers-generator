@@ -10,7 +10,7 @@ export type Ack = { status: number; body: Record<string, unknown> };
 
 let counter = 0;
 const next = (label: string) =>
-  `${label}-${Date.now().toString(36)}-${(counter += 1)}`;
+  `${label}-${Date.now().toString(36)}-${++counter}`;
 const sequences = new Map<string, number>();
 const sequenceOf = (credential: string, sourceId: string): number => {
   const key = `${credential}|${sourceId}`;

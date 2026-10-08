@@ -41,7 +41,7 @@ const mockObjects = new Set(["vi", "vitest", "jest"]);
  * mock helpers. Strings used as runtime file paths (`new URL(..)`) are not
  * module specifiers and are not returned.
  */
-export function moduleSpecifiers(
+function moduleSpecifiers(
   file: ts.SourceFile,
 ): Array<{ specifier: string; line: number }> {
   const sites: Array<{ specifier: string; line: number }> = [];

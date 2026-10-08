@@ -159,6 +159,7 @@ export function ImageViewer({
   const clearGlass =
     document.querySelector(".pn-root")?.getAttribute("data-glass") === "clear";
   const body = (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the backdrop only closes on an outside pointer press; the keyboard closes the dialog with Escape and its own buttons
     <div
       className="ss-viewer-scrim"
       {...(clearGlass ? { "data-glass": "clear" } : {})}

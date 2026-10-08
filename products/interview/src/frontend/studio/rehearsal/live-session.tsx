@@ -101,6 +101,7 @@ export function LiveSession({
             )}
           </div>
         </div>
+        {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
         <span
           className={`rehearsal-clock${at.warning ? ` ${at.warning}` : ""}`}
           aria-label="Phase time left"
@@ -225,6 +226,7 @@ export function LiveSession({
             {CHECKS.map((label, index) => {
               const on = session.checks.includes(index);
               return (
+                // biome-ignore lint/a11y/useSemanticElements: a styled button is the checkbox here; a native input would change the element and its styling
                 <button
                   key={label}
                   type="button"

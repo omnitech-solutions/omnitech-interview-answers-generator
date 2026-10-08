@@ -44,7 +44,7 @@ const CORPUS = [
 
 describe("tenant slug parity with Endpoint.swift", () => {
   const source = readFileSync(SWIFT, "utf8");
-  const match = /isValidSlug[^]*?range\(of: "([^"]+)"/.exec(source);
+  const match = /isValidSlug[\s\S]*?range\(of: "([^"]+)"/.exec(source);
 
   it("finds the Swift slug pattern", () => {
     expect(match?.[1]).toBeTruthy();

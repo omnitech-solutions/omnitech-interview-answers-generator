@@ -138,6 +138,7 @@ export function CodeCard({
         <div className="pn-codemain">
           {example && <TextCard text={example} />}
           {tabs.length > 1 && (
+            // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
             <div className="pn-file-tabs" role="group" aria-label="File">
               {tabs.map((file) => (
                 <Button

@@ -482,7 +482,9 @@ export function createInterviewAdapter(
       const seen = new Set<string>();
       const draftClaims = [...besideClaims, ...insideClaims].filter((claim) => {
         const key = JSON.stringify(claim);
-        return seen.has(key) ? false : (seen.add(key), true);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
       });
       const available = await workspace.transaction(scope, (tx, current) =>
         visible(tx, current),

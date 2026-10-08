@@ -347,8 +347,8 @@ it("serializes versioned interview instructions/current draft/evidence into actu
     "model",
   );
   const claimStart = performance.now();
-  let claim,
-    dequeues = 0;
+  let claim: Awaited<ReturnType<typeof repo.claimRun>> | undefined;
+  let dequeues = 0;
   // Drain at most 16 cancelled fixture entries; no delay, effect retry, or
   // production polling policy. Fail visibly if the live fixture cannot claim.
   while (!claim && dequeues < 16) {
@@ -357,11 +357,11 @@ it("serializes versioned interview instructions/current draft/evidence into actu
     if (claim) break;
   }
   process.stdout.write(
-    JSON.stringify({
+    `${JSON.stringify({
       fixtureQueueDrain: "after-bounded16",
       dequeues,
       durationMs: Number((performance.now() - claimStart).toFixed(3)),
-    }) + "\n",
+    })}\n`,
   );
   expect(claim).toBeDefined();
   expect(claim!.run.id).toBe(run.id);
@@ -652,7 +652,7 @@ for (const [caseName, sourceIds] of [
     const acceptance = service.apply(scope, id);
     const outcomes = await Promise.allSettled([validation, acceptance]);
     process.stdout.write(
-      JSON.stringify({
+      `${JSON.stringify({
         interleaving: caseName,
         durationMs: Number((performance.now() - start).toFixed(3)),
         outcomes: outcomes.map((r) =>
@@ -662,7 +662,7 @@ for (const [caseName, sourceIds] of [
         ),
         firstHeld: heldIdentity,
         lockOrder,
-      }) + "\n",
+      })}\n`,
     );
     expect(outcomes.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
     const expected = [...sourceIds].sort(); // Exact UTF-16 strings, no locale equivalence.

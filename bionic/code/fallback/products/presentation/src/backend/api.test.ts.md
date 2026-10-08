@@ -2,5 +2,4 @@
 
 _Source: `products/presentation/src/backend/api.test.ts` (header-comment fallback)_
 
-fixture_member is NOSUPERUSER NOBYPASSRLS, so tenant policies bind it exactly
-as they bind the app role in production.
+biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks

@@ -375,6 +375,7 @@ export function AnswerPane({ s }: { s: PanelSession }) {
             {card.constraints.some((each) => each.status === "current") && (
               <div className="pn-constraints">
                 <strong>Constraints:</strong>
+                {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
                 <div className="pn-chips" aria-label="Constraints">
                   {card.constraints
                     .filter((each) => each.status === "current")

@@ -43,6 +43,7 @@ export function PracticeTimer({ seconds }: { seconds: number }) {
           <div style={{ width: `${(elapsed / seconds) * 100}%` }} />
         </div>
       </div>
+      {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass */}
       <span className="ws-big-mono" aria-label="Time left">
         {time}
       </span>

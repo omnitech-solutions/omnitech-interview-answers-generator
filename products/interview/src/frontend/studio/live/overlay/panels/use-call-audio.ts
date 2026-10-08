@@ -16,7 +16,7 @@ export function useCallAudio(refresh: unknown): {
 } {
   const host = accountHost();
   const [callAudio, setCallAudio] = useState<AccountCallAudio | null>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `refresh` asks for a fresh read
+  // `refresh` is a dependency on purpose: it asks for a fresh read.
   useEffect(() => {
     if (!host?.setCallAudio) return;
     let live = true;

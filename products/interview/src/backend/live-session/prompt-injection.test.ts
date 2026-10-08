@@ -61,6 +61,9 @@ import { SYNTHETIC_MATRIX } from "./replay-fixture-matrix";
 import { ActiveSessionRepository } from "./repository";
 import { seg } from "./session-replay-fixtures";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 let fx: Fixture;
 let repo: ActiveSessionRepository;
 const cleanups: Array<() => Promise<void>> = [];
@@ -487,7 +490,7 @@ describe("hostile text inside the schema's allowed fields", () => {
         actionKind: "draft-answer",
         dispatchStatus: "succeeded",
       });
-      const result = action.result as Record<string, any>;
+      const result = action.result as Record<string, Json>;
       // Data in a data field and nothing else: the closed result shape only.
       expect(Object.keys(result).sort()).toEqual(RESULT_KEYS);
       expect(

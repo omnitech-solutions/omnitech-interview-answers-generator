@@ -129,7 +129,7 @@ export async function grantApplicationRole(
       EXECUTE format('GRANT CREATE ON DATABASE %I TO fixture_member', current_database());
       FOR schema_name IN
         SELECT nspname FROM pg_namespace
-        WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
+        WHERE nspname NOT LIKE 'pg_%' AND nspname <> 'information_schema'
       LOOP
         EXECUTE format('GRANT USAGE ON SCHEMA %I TO fixture_member', schema_name);
         EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO fixture_member', schema_name);

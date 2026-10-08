@@ -19,6 +19,9 @@ import PptxGenJS from "pptxgenjs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPresentationApi } from "./api";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 // fixture_member is NOSUPERUSER NOBYPASSRLS, so tenant policies bind it exactly
 // as they bind the app role in production.
 let pg: DisposablePostgres;
@@ -118,7 +121,7 @@ async function call(
   const text = await response.text();
   return {
     status: response.status,
-    body: text ? (JSON.parse(text) as any) : undefined,
+    body: text ? (JSON.parse(text) as Json) : undefined,
   };
 }
 
@@ -134,7 +137,7 @@ async function createDocument(
   });
   expect(created.status).toBe(201);
   const document = await call(tenant, "GET", `/documents/${created.body!.id}`);
-  return document.body as Record<string, any>;
+  return document.body as Record<string, Json>;
 }
 
 beforeAll(async () => {
@@ -363,7 +366,7 @@ describe("documents", () => {
     expect((await call("south", "GET", `/documents/${id}`)).status).toBe(404);
     expect(
       (await call("south", "GET", "/documents")).body!.map(
-        (row: any) => row.id,
+        (row: Json) => row.id,
       ),
     ).not.toContain(id);
     expect(
@@ -414,7 +417,7 @@ describe("documents", () => {
     ).toBe(404);
     expect(
       (await call("north", "GET", "/documents")).body!.map(
-        (row: any) => row.id,
+        (row: Json) => row.id,
       ),
     ).not.toContain(document["id"]);
   });
@@ -429,8 +432,8 @@ describe("documents", () => {
     expect(copy.status).toBe(201);
     const reread = await call("north", "GET", `/documents/${copy.body!["id"]}`);
     expect(reread.body).toMatchObject({ title: "Original copy" });
-    expect(reread.body!["slides"].map((s: any) => s.sourceXml)).toEqual(
-      document["slides"].map((s: any) => s.sourceXml),
+    expect(reread.body!["slides"].map((s: Json) => s.sourceXml)).toEqual(
+      document["slides"].map((s: Json) => s.sourceXml),
     );
     expect(
       (
@@ -454,7 +457,7 @@ describe("documents", () => {
     );
     const listed = await call("north", "GET", "/documents");
     expect(
-      listed.body!.find((row: any) => row.id === document["id"]).favorite,
+      listed.body!.find((row: Json) => row.id === document["id"]).favorite,
     ).toBe(true);
     expect(
       (await call("north", "GET", `/documents/${document["id"]}`)).body![
@@ -521,12 +524,12 @@ describe("slides", () => {
       ).status,
     ).toBe(204);
     let reread = (await call("north", "GET", `/documents/${id}`)).body!;
-    expect(reread["slides"].map((s: any) => s.id).slice(0, 3)).toEqual([
+    expect(reread["slides"].map((s: Json) => s.id).slice(0, 3)).toEqual([
       c!.id,
       a!.id,
       b!.id,
     ]);
-    expect(reread["slides"].map((s: any) => s.position)).toEqual([0, 1, 2, 3]);
+    expect(reread["slides"].map((s: Json) => s.position)).toEqual([0, 1, 2, 3]);
     expect(reread["revision"]).toBe(2);
 
     expect(
@@ -552,8 +555,8 @@ describe("slides", () => {
         .status,
     ).toBe(204);
     reread = (await call("north", "GET", `/documents/${id}`)).body!;
-    expect(reread["slides"].map((s: any) => s.position)).toEqual([0, 1, 2]);
-    expect(reread["slides"].map((s: any) => s.id)).not.toContain(c!.id);
+    expect(reread["slides"].map((s: Json) => s.position)).toEqual([0, 1, 2]);
+    expect(reread["slides"].map((s: Json) => s.id)).not.toContain(c!.id);
     expect(
       (await call("north", "DELETE", `/documents/${id}/slides/${c!.id}`))
         .status,
@@ -580,7 +583,7 @@ describe("themes", () => {
       ).toBe(204);
     }
     let theme = (await call("north", "GET", "/themes")).body!.find(
-      (t: any) => t.id === id,
+      (t: Json) => t.id === id,
     );
     expect(theme).toMatchObject({
       name: "Sunrise",
@@ -595,12 +598,12 @@ describe("themes", () => {
       });
     }
     theme = (await call("north", "GET", "/themes")).body!.find(
-      (t: any) => t.id === id,
+      (t: Json) => t.id === id,
     );
     expect(theme).toMatchObject({ favorite: false, liked: false });
 
     expect(
-      (await call("south", "GET", "/themes")).body!.map((t: any) => t.id),
+      (await call("south", "GET", "/themes")).body!.map((t: Json) => t.id),
     ).not.toContain(id);
     expect(
       (await call("north", "PUT", `/themes/${id}/love`, { enabled: true }))
@@ -638,10 +641,10 @@ describe("themes", () => {
     });
     expect(again.body!["id"]).toBe(first.body!["id"]);
     const themes = (await call("north", "GET", "/themes")).body!;
-    expect(themes.filter((t: any) => t.id === first.body!["id"])).toHaveLength(
+    expect(themes.filter((t: Json) => t.id === first.body!["id"])).toHaveLength(
       1,
     );
-    expect(themes.find((t: any) => t.id === first.body!["id"]).name).toBe(
+    expect(themes.find((t: Json) => t.id === first.body!["id"]).name).toBe(
       "Board deck renamed",
     );
   });
@@ -696,14 +699,14 @@ describe("images and recordings", () => {
     });
     expect(remote.status).toBe(201);
     const images = (await call("north", "GET", "/images")).body!;
-    expect(images.find((i: any) => i.id === saved.body!["id"])).toMatchObject({
+    expect(images.find((i: Json) => i.id === saved.body!["id"])).toMatchObject({
       assetReference: PNG,
       providerId: "upload",
       modelId: "user-upload",
       metadata: { name: "dot", mimeType: "image/png" },
     });
     expect(
-      images.find((i: any) => i.id === remote.body!["id"]).metadata,
+      images.find((i: Json) => i.id === remote.body!["id"]).metadata,
     ).toMatchObject({
       mimeType: "image/jpeg",
     });
@@ -931,7 +934,7 @@ describe("AI generation", () => {
     });
     const listed = (await call("north", "GET", "/images")).body!;
     expect(
-      listed.find((i: any) => i.id === response.body!["imageId"]),
+      listed.find((i: Json) => i.id === response.body!["imageId"]),
     ).toMatchObject({
       providerId: "openai",
       modelId: "image-1",
@@ -1345,7 +1348,7 @@ describe("cross-tenant references", () => {
   });
 
   it("still applies a built-in theme and the tenant's own theme", async () => {
-    const themes = (await call("south", "GET", "/themes")).body as any[];
+    const themes = (await call("south", "GET", "/themes")).body as Json[];
     const builtIn = themes.find((theme) => theme.builtIn);
     const own = await call("south", "POST", "/themes", {
       name: "South brand",

@@ -187,6 +187,7 @@ function ResultSummary({
         <ul className="sd-tests" aria-label="Generated tests">
           {tests.results.map((test, index) => (
             <li
+              // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
               key={`${index}:${test.name}`}
               className={`sd-test ${test.status}`}
             >
@@ -307,6 +308,7 @@ function Suggestion({
   };
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: the element and its class are styling hooks; the region role names it without changing the element
     <div
       className="sd-suggestion"
       role="region"

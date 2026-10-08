@@ -58,6 +58,7 @@ export function MissingContextStrip({
   onAction(id: MissingContextActionId): void;
   // Given, "Add context" opens a field right here and sends the text to the
   // task on show (a revision of it), instead of moving to the composer.
+  // biome-ignore lint/suspicious/noConfusingVoidType: the handler may be a plain callback that returns nothing or an async one; void is what accepts both
   onContext?: (text: string) => Promise<unknown> | void;
   // An action that cannot run now, with the reason in words. It stays visible
   // and disabled so the person is told why, never a button that does nothing.

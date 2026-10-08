@@ -52,15 +52,17 @@ export function DraftPoints({ text }: { text: string }) {
     <>
       {blocksOf(text).map((block, index) =>
         block.kind === "list" ? (
-          // Index keys: blocks are split from one string with no id and the list is replaced whole, never reordered.
+          // biome-ignore lint/suspicious/noArrayIndexKey: blocks are split from one string with no id and the list is replaced whole, never reordered
           <ul key={index} className="live-draft-points">
             {block.items.map((item, at) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
               <li key={at} className="live-draft-text">
                 <InlineBold text={item} />
               </li>
             ))}
           </ul>
         ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
           <p key={index} className="live-draft-text">
             <InlineBold text={block.text} />
           </p>

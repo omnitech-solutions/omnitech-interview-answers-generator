@@ -2,7 +2,6 @@
 // the body, the header bar and the pairing panel together.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StudioActions } from "../config/commands";
 import { LiveSessionPanel } from "./live-session-view";
 import { getSessionStore, resetSessionStores } from "./session-registry";
 import {
@@ -16,7 +15,6 @@ import {
 import { answerResult } from "./testing/session-result-fixtures";
 import { createTestServer } from "./testing/session-test-server";
 
-const studio = {} as StudioActions;
 let server: ReturnType<typeof createTestServer>;
 let session = sessionView({ lastHeartbeatAt: minutesAfter(1, 55) });
 

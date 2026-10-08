@@ -60,6 +60,7 @@ export function NewBrief({
       )}
       <div className="brief-kinds" role="radiogroup" aria-label="Kind">
         {KINDS.map((item) => (
+          // biome-ignore lint/a11y/useSemanticElements: a styled button is the radio here; a native input would change the element and its styling
           <button
             key={item.id}
             type="button"

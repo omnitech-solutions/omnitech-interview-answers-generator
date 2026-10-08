@@ -1027,7 +1027,7 @@
       "doc_path": "fallback/packages/agent-runtime-codex/src/index.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "6470e1fd434691a2de97fdb37d2843c1c2f04990c6c7981b97a7e16fbf1ec34c",
+      "sha256": "f57090901f2e931ad0a44a812d43f113c077c37e1448ca016ce4de5a99571892",
       "source_path": "packages/agent-runtime-codex/src/index.ts"
     },
     {
@@ -1041,7 +1041,7 @@
       "doc_path": "fallback/packages/agent-runtime-codex/src/strict-schema.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "ef8f1484825f74fddaf974b119d333fbc00ddc3ffb02f7c392a7904eb96ed814",
+      "sha256": "c4a81edad79f7381f92f78b79f26f4e59bb0bf3b2f3a2c67a1471f51fc17cf37",
       "source_path": "packages/agent-runtime-codex/src/strict-schema.test.ts"
     },
     {
@@ -1132,7 +1132,7 @@
       "doc_path": "fallback/packages/ai-provider-openai/src/chat-completions.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "78a827cfb53c8e4bb4d9b3cd64958ba474bdc1083ccfbd49153b0bea2c00b068",
+      "sha256": "a839b57d00d9a53a7a6a9375d755bb2f21891dc875aedeefad7c263cabc40bc4",
       "source_path": "packages/ai-provider-openai/src/chat-completions.test.ts"
     },
     {
@@ -1160,7 +1160,7 @@
       "doc_path": "fallback/packages/ai-provider-openai/src/structured-chat.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "00c38210c849a73b727e8d73e279a8eabf66f9db26fb35a7f946d020ae314bb6",
+      "sha256": "087dd0277ef126648ef12803c8e82f3ac8da696533e91f7b7b5c4c4229413fbf",
       "source_path": "packages/ai-provider-openai/src/structured-chat.test.ts"
     },
     {
@@ -4268,7 +4268,7 @@
       "doc_path": "fallback/products/interview/src/frontend/studio/documents/template-library.tsx.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "13c7cfe5ef077e9dc13e6a05c147c07be87a6a84119a6ca3a6a1321cd85aa186",
+      "sha256": "9b08f281def8b801ab50d550adb6f7c9167c37226166ef5ff0bf1879f49b4c6b",
       "source_path": "products/interview/src/frontend/studio/documents/template-library.tsx"
     },
     {
@@ -7110,7 +7110,7 @@
       "doc_path": "fallback/products/presentation/src/backend/api.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "21f8d99a9db8e38a6698a8c5e54813f9350ea352c208a18865c0e57844154b4f",
+      "sha256": "518866b3d230d3f6a4df26b39bed6b3fae83030e9cbccaf9733374d8eb6d7bd2",
       "source_path": "products/presentation/src/backend/api.test.ts"
     },
     {
@@ -7278,7 +7278,7 @@
       "doc_path": "fallback/products/presentation/src/frontend/slide-blocks.tsx.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "77e25809a0f6fc79fdb8ae5f5ad2537bbba02fccff3bc1f1916ca12dee4ba1a4",
+      "sha256": "fcae8608ad817c1d79f284d53a4d6656bae940a1d5ecfde54f7b8c4bdc9f1d60",
       "source_path": "products/presentation/src/frontend/slide-blocks.tsx"
     },
     {

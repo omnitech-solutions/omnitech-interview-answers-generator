@@ -32,22 +32,35 @@ function fake(start: EngineHost["start"] | null = null) {
   const host: EngineHost = {
     start:
       start ??
-      (async (r) => (
-        calls.push(`start:${r.sessionId}:${r.sources.join("+")}`),
-        { ok: true, engine: state() }
-      )),
-    stop: async () => (
-      calls.push("stop"), { ok: true, engine: state({ listening: false }) }
-    ),
-    pause: async () => (
-      calls.push("pause"), { ok: true, engine: state({ paused: true }) }
-    ),
-    resume: async () => (calls.push("resume"), { ok: true, engine: state() }),
+      (async (r) => {
+        calls.push(`start:${r.sessionId}:${r.sources.join("+")}`);
+        return { ok: true, engine: state() };
+      }),
+    stop: async () => {
+      calls.push("stop");
+      return { ok: true, engine: state({ listening: false }) };
+    },
+    pause: async () => {
+      calls.push("pause");
+      return { ok: true, engine: state({ paused: true }) };
+    },
+    resume: async () => {
+      calls.push("resume");
+      return { ok: true, engine: state() };
+    },
     status: async () => ({ ok: true, engine: state() }),
-    onEvent: (l) => (listeners.add(l), () => listeners.delete(l)),
+    onEvent: (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
   };
   (window as { studioHost?: unknown }).studioHost = { engine: host };
-  return { calls, emit: (s: EngineState) => listeners.forEach((l) => l(s)) };
+  return {
+    calls,
+    emit: (s: EngineState) => {
+      for (const l of listeners) l(s);
+    },
+  };
 }
 const settle = () => act(async () => void (await Promise.resolve()));
 
@@ -298,14 +311,11 @@ describe("one predicate for the microphone control", () => {
 
   it("a press on a refused engine starts it again (not browser dictation) and the reason shows meanwhile", async () => {
     let refuse = true;
-    const engine = fake(async (r) =>
-      refuse
-        ? { ok: false, reason: "signed-out" }
-        : {
-            ok: true,
-            engine: (engine.calls.push(`start:${r.sessionId}`), state()),
-          },
-    );
+    const engine = fake(async (r) => {
+      if (refuse) return { ok: false, reason: "signed-out" };
+      engine.calls.push(`start:${r.sessionId}`);
+      return { ok: true, engine: state() };
+    });
     const dictation = vi.fn();
     const view = renderHook((p) => useEngine(p), { initialProps: input() });
     await settle();

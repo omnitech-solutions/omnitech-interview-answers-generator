@@ -32,6 +32,9 @@ import { purgeSession } from "../live-session/session-purge";
 import { RECRUITER_SCREEN } from "../live-session/session-replay-fixtures";
 import { createRehearsalApi } from "./api";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 let fx: Fixture;
 let repo: ActiveSessionRepository;
 const cleanups: Array<() => Promise<void>> = [];
@@ -99,7 +102,7 @@ async function save(
   );
   return {
     status: response.status,
-    body: (await response.json()) as Record<string, any>,
+    body: (await response.json()) as Record<string, Json>,
   };
 }
 const scorecards = async () =>
@@ -112,7 +115,7 @@ const scorecards = async () =>
   );
 
 let runCounter = 0;
-const runId = (label: string) => `run-${label}-${(runCounter += 1)}`;
+const runId = (label: string) => `run-${label}-${++runCounter}`;
 
 async function startRehearsal(
   tenant: string,

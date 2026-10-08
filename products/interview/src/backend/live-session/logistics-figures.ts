@@ -49,7 +49,8 @@ const SPELLED_PREFIX =
 const IDIOMS = /\b(?:day[- ]to[- ]day|annual leave|o\.k\.)/gi;
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // The spans of a preference quote a draft may repeat verbatim: the whole quote
 // and its value after a "Label:" prefix, without trailing punctuation.
@@ -131,7 +132,7 @@ export function hasUnapprovedLogisticsFigure(
   for (const span of approvedSpans(approvedQuotes))
     rest = rest.replace(
       new RegExp(
-        `(?<![\\p{L}\\p{N}])${escape(span).replace(/ /g, "\\s+")}(?![\\p{L}\\p{N}])`,
+        `(?<![\\p{L}\\p{N}])${escapeRegExp(span).replace(/ /g, "\\s+")}(?![\\p{L}\\p{N}])`,
         "giu",
       ),
       (match) => {

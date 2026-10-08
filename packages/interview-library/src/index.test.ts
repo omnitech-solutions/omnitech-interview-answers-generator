@@ -212,9 +212,9 @@ describe("OramaLibrarySearchIndex", () => {
 
   it("handles empty indexes, pagination, short terms, and seed composition", async () => {
     expect(() =>
-      interviewLibrarySeed.forEach((entry) =>
-        libraryItemInputSchema.parse(entry),
-      ),
+      interviewLibrarySeed.forEach((entry) => {
+        libraryItemInputSchema.parse(entry);
+      }),
     ).not.toThrow();
     expect(interviewLibrarySeed).toHaveLength(85);
     expect(

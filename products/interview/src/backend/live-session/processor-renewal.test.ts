@@ -20,7 +20,11 @@ function harness(renew: SessionClaimPort["renew"], maxRenewFailures?: number) {
   let claimed = false;
   const written: string[] = [];
   const claim: SessionClaimPort = {
-    claim: async () => (claimed ? [] : ((claimed = true), [CLAIM])),
+    claim: async () => {
+      if (claimed) return [];
+      claimed = true;
+      return [CLAIM];
+    },
     renew,
     release: async () => true,
     purgeCandidates: async () => [],

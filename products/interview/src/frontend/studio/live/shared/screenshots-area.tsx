@@ -150,6 +150,7 @@ function Strip({
         className="ss-strip"
         aria-label="Screenshots of this task"
         data-testid="screenshot-strip"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the list scrolls, so it must take keyboard focus to be scrolled without a pointer
         tabIndex={0}
         onKeyDown={onKey}
       >

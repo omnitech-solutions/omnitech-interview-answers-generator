@@ -109,7 +109,11 @@ describe("native sign-in handoff", () => {
     handoffs.beginAttempt(STATE, CHALLENGE);
     const code = handoffs.issue(STATE, ORIGIN, identity)!;
     expect(
-      JSON.stringify([...(handoffs as any).handoffs.keys()]),
+      JSON.stringify([
+        ...(
+          handoffs as unknown as { handoffs: Map<string, unknown> }
+        ).handoffs.keys(),
+      ]),
     ).not.toContain(code);
   });
 });

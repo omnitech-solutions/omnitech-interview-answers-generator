@@ -197,7 +197,7 @@ export const fontPairs = presentation.table.withRLS(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [
+  (_table) => [
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
@@ -229,7 +229,7 @@ export const generatedImages = presentation.table.withRLS(
       .default(sql`now()`)
       .notNull(),
   },
-  (table) => [
+  (_table) => [
     pgPolicy("tenant_scope", {
       using: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,
       withCheck: sql`(tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid)`,

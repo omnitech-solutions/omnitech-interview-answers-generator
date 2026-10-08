@@ -364,9 +364,9 @@ export function createSessionClient(
       if (input.label) form.set("label", input.label);
       for (const image of input.images)
         form.append("image", image, "capture.jpg");
-      if (input.ocr && input.ocr.some((block) => block !== null))
+      if (input.ocr?.some((block) => block !== null))
         form.set("ocr", JSON.stringify(input.ocr));
-      if (input.display && input.display.some((entry) => entry !== null))
+      if (input.display?.some((entry) => entry !== null))
         form.set("display", JSON.stringify(input.display));
       // No content-type header: the browser adds the multipart boundary.
       await read(

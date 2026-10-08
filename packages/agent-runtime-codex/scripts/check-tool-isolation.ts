@@ -5,6 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON-RPC payloads from the Codex app-server: the script reads the fields of the methods it calls
+type Wire = any;
+
 if (process.env["BENCHMARK_LIVE"] !== "1")
   throw new Error("Set BENCHMARK_LIVE=1 for live provider calls.");
 const directory = await mkdtemp(join(tmpdir(), "omnitech-tool-isolation-"));
@@ -18,12 +21,12 @@ async function scenario(disabled: boolean) {
   let nextId = 1;
   const pending = new Map<
     number,
-    { resolve(value: any): void; reject(error: Error): void }
+    { resolve(value: Wire): void; reject(error: Error): void }
   >();
   let commandCalls = 0;
   let response = "";
   let timedOut = false;
-  let finish: ((value: void) => void) | undefined;
+  let finish: (() => void) | undefined;
   const completed = new Promise<void>((resolve) => {
     finish = resolve;
   });
@@ -46,7 +49,7 @@ async function scenario(disabled: boolean) {
   });
   const call = (method: string, params: unknown) => {
     const id = nextId++;
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<Wire>((resolve, reject) => {
       pending.set(id, { resolve, reject });
       child.stdin.write(`${JSON.stringify({ id, method, params })}\n`);
     });

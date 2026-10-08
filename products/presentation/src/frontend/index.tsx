@@ -777,6 +777,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
               >
                 <span className="presentation-reference-lines">
                   {Array.from({ length: option.lines }).map((_, index) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
                     <i key={index} />
                   ))}
                 </span>
@@ -842,6 +843,7 @@ export function PresentationCreate({ tenantSlug, products }: ProductPageProps) {
             {outline.map((item, index) => (
               <input
                 aria-label={`Slide ${index + 1} outline`}
+                // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
                 key={index}
                 onChange={(event) =>
                   setOutline((current) =>
@@ -1641,6 +1643,7 @@ export function PresentationEditor({
       >
         {document.slides.map((slide) => (
           <React.Fragment key={slide.id}>
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer selection of a slide card; a key handler would add behaviour, so it waits for an accessibility pass */}
             <article
               className={`presentation-reference-slide-card ${slide.id === selectedId ? "is-selected" : ""}`}
               key={slide.id}
@@ -2569,6 +2572,7 @@ export function PresentationMode({
         <aside className="presentation-recordings">
           <h2>Recordings</h2>
           {recordings.map((recording) => (
+            // biome-ignore lint/a11y/useMediaCaption: the person's own recording, played back to them: no caption track exists for it
             <video
               controls
               key={recording.id}
@@ -2583,7 +2587,7 @@ export function PresentationMode({
 }
 
 export function SharedPresentation(props: ProductPageProps) {
-  const { tenantSlug, pathSegments } = props;
+  const { pathSegments } = props;
   const token = pathSegments[1];
   const [document, setDocument] = useState<PresentationDocument>();
   const [error, setError] = useState("");

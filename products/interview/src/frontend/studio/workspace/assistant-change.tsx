@@ -35,9 +35,10 @@ export function PreviewedCode({
   );
   let line = 0;
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label names this part for assistive technology; the role it would need changes the accessibility tree, so it waits for an accessibility pass
     <div className="assistant-preview-code" aria-label="Previewed change">
       {rows.map((row, index) => (
-        // Index key: diff rows have no id and are rebuilt whole from the diff, never reordered.
+        // biome-ignore lint/suspicious/noArrayIndexKey: diff rows have no id and are rebuilt whole from the diff, never reordered
         <div key={index} className={`assistant-preview-line ${row.kind}`}>
           <span className="assistant-preview-number">
             {row.kind === "removed" ? "" : ++line}

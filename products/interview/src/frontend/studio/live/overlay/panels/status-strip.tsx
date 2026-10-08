@@ -44,7 +44,7 @@ export function useStrip(s: PanelSession): Strip | null {
 }
 
 export function StatusStrip({ s, strip }: { s: PanelSession; strip: Strip }) {
-  const { state, engine, chips } = strip;
+  const { state, engine } = strip;
   return (
     <div
       className="pn-strip"

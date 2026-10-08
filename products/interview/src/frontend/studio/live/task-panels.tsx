@@ -133,6 +133,7 @@ export function TaskSelector({
     }))
     .reverse();
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a fieldset brings its own border, padding and legend layout; the div keeps the styling and the group role names it
     <div className="live-task-select" role="group" aria-label="Detected tasks">
       {newestFirst.map(({ task, number }) => (
         <button

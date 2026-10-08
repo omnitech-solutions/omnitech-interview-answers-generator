@@ -107,6 +107,8 @@ export function Popover(props: PopoverProps) {
         {props.trigger}
       </button>
       {open && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the panel has a menu or dialog role (set by a conditional the rule cannot follow) and handles its own keys
+        // biome-ignore lint/a11y/useAriaPropsSupportedByRole: the role is set by a conditional the rule cannot follow; every role it can be takes a label
         <div
           id={id}
           ref={panel}

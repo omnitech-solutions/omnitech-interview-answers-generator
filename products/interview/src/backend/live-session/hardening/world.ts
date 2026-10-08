@@ -16,12 +16,18 @@ import {
 } from "../live-session-fixture";
 import { createSessionRoutes } from "../routes";
 
+// biome-ignore lint/suspicious/noExplicitAny: the kit is a generic bound: the real companion types flow from the module a suite hands in, and any is what lets every such module satisfy it
+type Loose = any;
+
 // The fixture companion arrives as an argument: only TEST files may import
 // @omnitech/capture-companion/fixture (scripts/package-boundaries.test.ts), so
 // every suite imports it and hands the module in. The types flow from it.
 export type CompanionKit = {
-  createFixtureCompanion: (options: any) => { companion: any; capture: any };
-  VirtualClock: new (startMs?: number) => any;
+  createFixtureCompanion: (options: Loose) => {
+    companion: Loose;
+    capture: Loose;
+  };
+  VirtualClock: new (startMs?: number) => Loose;
 };
 type CompanionOf<K extends CompanionKit> = ReturnType<
   K["createFixtureCompanion"]

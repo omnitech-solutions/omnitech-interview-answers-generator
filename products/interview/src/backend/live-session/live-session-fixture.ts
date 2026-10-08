@@ -22,6 +22,7 @@ export type Person = {
 
 // Raw rows read back to assert on stored state; their columns are asserted by
 // name, so they are deliberately loosely typed.
+// biome-ignore lint/suspicious/noExplicitAny: raw database rows read back in tests; each assertion names the column it checks
 export type AnyRow = any;
 
 export type Fixture = {
@@ -140,7 +141,7 @@ export function transcript(
   sourceId: string,
   sequence: number,
   text = "synthetic words",
-  eventId = `evt-${(eventCounter += 1)}`,
+  eventId = `evt-${++eventCounter}`,
 ) {
   return {
     version: 1,
@@ -158,7 +159,7 @@ export function screenshot(
   sequence: number,
   mediaType = "image/png",
   byteLength = PNG_BYTES.byteLength,
-  eventId = `evt-${(eventCounter += 1)}`,
+  eventId = `evt-${++eventCounter}`,
 ) {
   return {
     version: 1,

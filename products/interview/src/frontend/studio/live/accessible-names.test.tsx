@@ -61,7 +61,7 @@ function contentText(node: Node): string {
   return [...node.childNodes].map(contentText).join(" ");
 }
 
-export function accessibleName(element: Element): string {
+function accessibleName(element: Element): string {
   const labelledBy = element.getAttribute("aria-labelledby");
   if (labelledBy) {
     const text = labelledBy
@@ -107,7 +107,7 @@ const CONTROLS = [
 ].join(",");
 
 // Problems with controls and the wiring between them, as readable strings.
-export function accessibilityProblems(root: ParentNode = document.body) {
+function accessibilityProblems(root: ParentNode = document.body) {
   const problems: string[] = [];
   const describe = (element: Element) =>
     `<${element.tagName.toLowerCase()}${element.getAttribute("role") ? ` role=${element.getAttribute("role")}` : ""}${element.className ? ` class="${String(element.className)}"` : ""}>`;

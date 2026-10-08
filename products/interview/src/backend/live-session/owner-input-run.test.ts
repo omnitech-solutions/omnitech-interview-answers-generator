@@ -38,7 +38,7 @@ const observation = (
   body: unknown,
   screenshotArtifactId: string | null = null,
 ): StoredObservation => ({
-  sequence: (sequence += 1),
+  sequence: ++sequence,
   sourceId,
   eventId,
   kind,

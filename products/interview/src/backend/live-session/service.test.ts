@@ -26,6 +26,9 @@ import { HAZARD_FIXTURES } from "./replay-fixtures-hazards";
 import { ActiveSessionRepository } from "./repository";
 import { RECRUITER_SCREEN } from "./session-replay-fixtures";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON read back from the code under test; each assertion names the fields it checks
+type Json = any;
+
 let fx: Fixture;
 let repo: ActiveSessionRepository;
 const cleanups: Array<() => Promise<void>> = [];
@@ -197,7 +200,7 @@ describe("unsupported references", () => {
 
     const [action] = await w.actions();
     expect(action).toMatchObject({ dispatchStatus: "succeeded" });
-    const result = action?.result as Record<string, any>;
+    const result = action?.result as Record<string, Json>;
     expect(result).toMatchObject({
       version: 1,
       stage: "draft-answer",
@@ -375,7 +378,7 @@ describe("hazard 7d: notice period and compensation", () => {
       "succeeded",
     ]);
     const [first, second] = stored.map(
-      (action) => action.result as Record<string, any>,
+      (action) => action.result as Record<string, Json>,
     );
     expect(first?.["category"]).toBe("logistics");
     expect(first?.["logistics"]).toEqual({
@@ -398,7 +401,7 @@ describe("hazard 7d: notice period and compensation", () => {
       "succeeded",
     ]);
     const results = stored.map(
-      (action) => action.result as Record<string, any>,
+      (action) => action.result as Record<string, Json>,
     );
     expect(results[0]?.["logistics"]).toEqual({
       found: [],

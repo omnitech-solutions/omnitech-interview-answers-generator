@@ -67,6 +67,8 @@ export function SignOutDialog({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the backdrop only closes on an outside pointer press; the keyboard closes the dialog with Escape and its own buttons
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the backdrop only closes on an outside pointer press; the keyboard closes the dialog with Escape and its own buttons
     <div
       className="studio-modal-scrim"
       data-testid="sign-out-scrim"

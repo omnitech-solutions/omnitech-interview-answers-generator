@@ -2407,7 +2407,7 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3119,
+      "n_entities": 3118,
       "n_sources": 1191,
       "verdict": "populated"
     },

@@ -108,6 +108,9 @@ export function SignInView({
         </div>
         {localAvailable ? (
           <>
+            {/* biome-ignore lint/a11y/useAriaPropsForRole: a static divider: the value attributes belong to a separator that can be moved */}
+            {/* biome-ignore lint/a11y/useSemanticElements: the divider holds visible text and its own styling, which an hr cannot */}
+            {/* biome-ignore lint/a11y/useFocusableInteractive: a static divider that cannot be moved, so it takes no focus */}
             <div className="auth-or" role="separator">
               <span>or</span>
             </div>

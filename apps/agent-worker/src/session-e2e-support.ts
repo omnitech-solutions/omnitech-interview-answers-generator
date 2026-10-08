@@ -15,10 +15,10 @@ import type {
   AgentRunRequest,
   AgentRuntimeAdapter,
 } from "@omnitech/agent-runtime-contracts";
-import {
-  type AiExecution,
-  type AiExecutionRequest,
-  type ModelProviderAdapter,
+import type {
+  AiExecution,
+  AiExecutionRequest,
+  ModelProviderAdapter,
 } from "@omnitech/ai-contracts";
 import { type AiProfile, createAiExecutionGateway } from "@omnitech/ai-runtime";
 import { withDeclaredLocality } from "@omnitech/ai-runtime/config";

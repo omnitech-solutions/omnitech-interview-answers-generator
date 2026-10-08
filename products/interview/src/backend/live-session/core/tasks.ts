@@ -226,8 +226,7 @@ export function applyVerdict(
     case "resume-deferred": {
       if (!isOpaqueHandle(decision.topic)) return refuse("invalid_handle");
       const entry = state.deferred[decision.topic];
-      if (!entry || entry.status !== "deferred")
-        return refuse("topic_not_deferred");
+      if (entry?.status !== "deferred") return refuse("topic_not_deferred");
       return step(
         {
           ...state,

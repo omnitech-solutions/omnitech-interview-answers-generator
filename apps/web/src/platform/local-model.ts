@@ -1,6 +1,6 @@
 import type { ModelProviderAdapter } from "@omnitech/ai-contracts";
 
-function escape(text: string) {
+function escapeXml(text: string) {
   return text
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -60,7 +60,7 @@ export function createLocalModelAdapter(): ModelProviderAdapter {
         request.task.type === "structured-generation"
           ? isSlide
             ? {
-                sourceXml: `<SECTION layout="vertical"><H1>${escape(title)}</H1><P>${escape(brief.slice(title.length).replace(/^[.!?\s]+/, "") || "Add supporting detail for your audience.")}</P></SECTION>`,
+                sourceXml: `<SECTION layout="vertical"><H1>${escapeXml(title)}</H1><P>${escapeXml(brief.slice(title.length).replace(/^[.!?\s]+/, "") || "Add supporting detail for your audience.")}</P></SECTION>`,
               }
             : {
                 title,

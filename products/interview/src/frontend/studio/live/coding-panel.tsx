@@ -96,7 +96,7 @@ function TestResults({ code }: { code: CodeResult }) {
           <summary>Test results ({tests.results.length})</summary>
           <ul>
             {tests.results.map((result, index) => (
-              // Index key: results arrive in the runner's fixed order, test names may repeat, and the list is replaced whole.
+              // biome-ignore lint/suspicious/noArrayIndexKey: results arrive in the runner's fixed order, test names may repeat, and the list is replaced whole
               <li key={index} data-status={result.status}>
                 {result.status}: {result.name}
               </li>

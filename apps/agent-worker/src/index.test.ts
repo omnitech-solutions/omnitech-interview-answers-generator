@@ -154,9 +154,7 @@ describe("agent worker lifecycle", () => {
         yield { type: "started", sessionId: "session-1" };
         yield { type: "awaiting-input", request: { approval: "write" } };
       },
-      async *resume(): AsyncIterable<AgentEvent> {
-        return;
-      },
+      async *resume(): AsyncIterable<AgentEvent> {},
       async cancel() {},
     };
 
@@ -272,9 +270,7 @@ describe("agent worker lifecycle", () => {
         attachments: false,
         tools: true,
       },
-      async *run(): AsyncIterable<AgentEvent> {
-        return;
-      },
+      async *run(): AsyncIterable<AgentEvent> {},
       async *resume(): AsyncIterable<AgentEvent> {
         resumed = true;
         yield {
@@ -376,9 +372,7 @@ it("does not publish a completed result after cancellation", async () => {
               result: { sessionId: "session", output: "must not publish" },
             };
           },
-          async *resume() {
-            return;
-          },
+          async *resume() {},
           async cancel(id) {
             cancelled = id;
           },
@@ -421,12 +415,11 @@ it("marks a thrown runtime failure and removes its temporary workspace", async (
             tools: false,
           },
           async *run(request) {
+            yield* [];
             workspace = request.workingDirectory;
             throw new Error("private runtime detail");
           },
-          async *resume() {
-            return;
-          },
+          async *resume() {},
           async cancel() {},
         },
       },
@@ -472,6 +465,7 @@ it("fails a job whose stored profile is out of bounds without running it", async
             yield { type: "started" as const, sessionId: "session" };
           },
           async *resume() {
+            yield* [];
             ran = true;
           },
           async cancel() {},
@@ -553,9 +547,7 @@ describe("agent worker concurrency", () => {
           result: { output: {}, sessionId: "session" },
         };
       },
-      async *resume(): AsyncIterable<AgentEvent> {
-        return;
-      },
+      async *resume(): AsyncIterable<AgentEvent> {},
       async cancel() {},
     };
     return {
@@ -650,9 +642,7 @@ describe("agent worker lease and cancellation", () => {
           release = resolve;
         });
       },
-      async *resume(): AsyncIterable<AgentEvent> {
-        return;
-      },
+      async *resume(): AsyncIterable<AgentEvent> {},
       async cancel(id: string) {
         cancelled.push(id);
         release();
@@ -763,9 +753,7 @@ describe("agent worker lease and cancellation", () => {
           release = resolve;
         });
       },
-      async *resume(): AsyncIterable<AgentEvent> {
-        return;
-      },
+      async *resume(): AsyncIterable<AgentEvent> {},
       async cancel(id: string) {
         cancelled.push(id);
         release();
@@ -842,9 +830,7 @@ describe("agent worker lease and cancellation", () => {
                 result: { output: {}, sessionId: "s" },
               };
             },
-            async *resume(): AsyncIterable<AgentEvent> {
-              return;
-            },
+            async *resume(): AsyncIterable<AgentEvent> {},
             async cancel() {},
           },
         },

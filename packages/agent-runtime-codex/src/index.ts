@@ -11,12 +11,15 @@ import {
 } from "@omnitech/agent-runtime-contracts";
 import { restoreOptional, strictSchema } from "./strict-schema";
 
+// biome-ignore lint/suspicious/noExplicitAny: JSON-RPC payloads from the Codex app-server: each handler reads the fields its own method defines
+type RpcPayload = any;
+
 // Wire shape pinned against `codex app-server generate-ts` from CLI 0.160.0.
 type Message = {
   id?: number;
   method?: string;
-  params?: any;
-  result?: any;
+  params?: RpcPayload;
+  result?: RpcPayload;
   error?: { message?: string };
 };
 export interface CodexRuntimeOptions {
@@ -32,7 +35,7 @@ class AppServerHost {
   private nextId = 1;
   private pending = new Map<
     number,
-    { resolve(value: any): void; reject(error: Error): void }
+    { resolve(value: RpcPayload): void; reject(error: Error): void }
   >();
   private listeners = new Set<(message: Message) => void>();
   private starting: Promise<void> | undefined;
@@ -108,9 +111,10 @@ class AppServerHost {
     child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`);
   }
   ready() {
-    return (this.starting ??= this.start());
+    this.starting ??= this.start();
+    return this.starting;
   }
-  call(method: string, params: unknown): Promise<any> {
+  call(method: string, params: unknown): Promise<RpcPayload> {
     const child = this.child;
     if (!child?.stdin.writable)
       return Promise.reject(new Error("Codex App Server unavailable."));

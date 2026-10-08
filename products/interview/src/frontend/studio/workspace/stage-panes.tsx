@@ -150,6 +150,7 @@ function UnderstandStage({
           {clarify.map((item, index) => {
             const done = clarified.includes(index);
             return (
+              // biome-ignore lint/a11y/useSemanticElements: a styled button is the checkbox here; a native input would change the element and its styling
               <button
                 key={item}
                 type="button"

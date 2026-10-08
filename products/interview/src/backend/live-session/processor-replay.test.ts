@@ -264,8 +264,7 @@ describe("dispatch deduplication", () => {
     let calls = 0;
     const w = await world("dedup-retry");
     const failing = createFakeGateway({
-      fail: () =>
-        (calls += 1) === 1 ? new Error("model unavailable") : undefined,
+      fail: () => (++calls === 1 ? new Error("model unavailable") : undefined),
     });
     const processor = buildProcessor(fx, {
       workerId: "worker-dedup-retry-2",

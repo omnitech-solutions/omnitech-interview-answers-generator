@@ -223,6 +223,7 @@ function Setup({
         {FORMATS.map((item) => {
           const on = item.id === settings.format;
           return (
+            // biome-ignore lint/a11y/useSemanticElements: a styled button is the radio here; a native input would change the element and its styling
             <button
               key={item.id}
               type="button"

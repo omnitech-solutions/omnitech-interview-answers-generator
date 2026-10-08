@@ -236,14 +236,13 @@ const source = (row: Record<string, unknown>): InterviewEvidence =>
   });
 
 function canonicalJson(value: unknown): string {
-  if (Array.isArray(value))
-    return "[" + value.map(canonicalJson).join(",") + "]";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object")
     return (
       "{" +
       Object.entries(value)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => JSON.stringify(key) + ":" + canonicalJson(item))
+        .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
         .join(",") +
       "}"
     );

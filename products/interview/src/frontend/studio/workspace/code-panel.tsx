@@ -327,6 +327,7 @@ export function TestsTab({
   return (
     <ul className="ws-tests" aria-label="Test results">
       {tests.map((test, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the items carry no id and repeat, and the list is rebuilt whole from its source in a fixed order, never reordered
         <li key={`${index}:${test.name}`} className={`ws-test ${test.status}`}>
           <div className="ws-test-row">
             <Icon

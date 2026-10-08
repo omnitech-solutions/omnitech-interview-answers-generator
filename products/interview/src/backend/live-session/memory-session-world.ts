@@ -68,7 +68,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
   let actions: StoredAction[] = [];
   const events = { purges: 0 };
   let tick = 0;
-  const stamp = () => new Date(1_790_000_000_000 + (tick += 1)).toISOString();
+  const stamp = () => new Date(1_790_000_000_000 + ++tick).toISOString();
 
   const nextSequence = () =>
     observations.reduce((max, o) => Math.max(max, o.sequence), 0) + 1;
@@ -275,7 +275,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
       const blocked = guard(input.holder);
       if (blocked) return blocked;
       const action = find(input.actionId);
-      if (!action || action.dispatchStatus !== "in_flight")
+      if (action?.dispatchStatus !== "in_flight")
         return refuse("action_settled");
       touch(action, { dispatchStatus: "failed" });
       return { outcome: "recorded" };
@@ -284,7 +284,7 @@ export function createMemorySessionWorld(options: MemoryWorldOptions = {}) {
       const blocked = guard(input.holder);
       if (blocked) return blocked;
       const action = find(input.actionId);
-      if (!action || action.dispatchStatus !== "in_flight")
+      if (action?.dispatchStatus !== "in_flight")
         return refuse("action_settled");
       touch(action, {
         dispatchStatus: "suppressed",

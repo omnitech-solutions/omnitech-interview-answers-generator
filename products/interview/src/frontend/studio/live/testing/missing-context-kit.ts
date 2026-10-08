@@ -57,7 +57,7 @@ export type Journey = {
 
 let clock = 0;
 // Strictly increasing, so "newest" is never a tie.
-const stamp = (): string => minutesAfter(2, (clock += 1));
+const stamp = (): string => minutesAfter(2, ++clock);
 
 export function revisionAction(
   taskId: string,

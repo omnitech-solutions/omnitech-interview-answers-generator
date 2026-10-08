@@ -163,7 +163,7 @@ describe("one refusal for every bad credential (rule:credential-strength)", () =
       [expired.session.id],
     );
     await repo.revokeCredential(scopeOf(revoked.person), revoked.session.id);
-    const unknown = "asc_" + "A".repeat(43);
+    const unknown = `asc_${"A".repeat(43)}`;
     const envelope = transcript("mic", 0);
     const refusals = [
       await ingest(unknown, envelope),

@@ -50,6 +50,7 @@ export function Segmented<T extends string>({
       {options.map((option, index) => {
         const checked = option.value === value;
         return (
+          // biome-ignore lint/a11y/useSemanticElements: a styled button is the radio here; a native input would change the element and its styling
           <button
             key={option.value}
             ref={(node) => {

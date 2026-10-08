@@ -42,7 +42,7 @@ export function QuestionsCard({
         </Button>
       </div>
       {questions.map((question, index) => (
-        // Index key: questions are plain strings with no id; each row is fully controlled by its value, so removing one keeps no stale per-row state.
+        // biome-ignore lint/suspicious/noArrayIndexKey: questions are plain strings with no id; each row is fully controlled by its value, so removing one keeps no stale per-row state
         <div key={index} className="bp-question-row">
           <span className="bp-mono">{index + 1}</span>
           <input
