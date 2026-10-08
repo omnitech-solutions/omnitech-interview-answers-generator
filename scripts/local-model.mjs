@@ -44,6 +44,15 @@ export const DEFAULT_LM_STUDIO_MODEL = "qwen/qwen3-coder-30b";
  */
 export async function defaultLocalModelEnvironment(env = process.env) {
   if (modelConfigured(env)) return {};
+  // Claude Code is the default executor (owner's rule, 2026-10-07): with an
+  // agent as the assistant default nothing local is picked or loaded. A local
+  // model is opt-in: set LM_STUDIO_MODEL (or AI_MODEL, OPENAI_MODEL) in .env.
+  if ((env.INTERVIEW_ASSISTANT_DEFAULT_MODEL ?? "agent/claude-code").startsWith("agent/")) {
+    console.log(
+      "[dev] Claude Code is the default model; LM Studio is not started or loaded. Set LM_STUDIO_MODEL in .env to use a local model.",
+    );
+    return {};
+  }
   const loaded = await loadedLmStudioModel(env);
   const model = loaded ?? DEFAULT_LM_STUDIO_MODEL;
   console.log(
