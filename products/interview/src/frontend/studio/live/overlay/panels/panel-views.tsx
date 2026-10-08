@@ -11,6 +11,7 @@ import { SKILLS } from "../../shared/skills";
 import { useScreenshotSend } from "../../shared/use-screenshot-send";
 import { BUILD_ID } from "../build-id";
 import { AnswerPane, CodePane } from "./answer-pane";
+import { CallAudioSetting } from "./call-audio-setting";
 import { DEFAULT_SKILL } from "./commands";
 import {
   languageOptions,
@@ -148,6 +149,7 @@ export function SettingsPanel({
             ))}
           </select>
         </label>
+        <CallAudioSetting />
         {s.session && <PrivacySettings s={s} />}
         <p className="pn-footer">
           <span data-testid="pn-build">Build {BUILD_ID}</span>

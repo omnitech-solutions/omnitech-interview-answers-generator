@@ -11,6 +11,7 @@ import {
   startBlock,
   startHint,
   startTargets,
+  TAP_PENDING_TEXT,
 } from "./start-model";
 import { parseProviders, windowTenant } from "./use-account";
 
@@ -62,6 +63,50 @@ describe("honest copy", () => {
 });
 
 describe("permission rows", () => {
+  it("through the system audio tap, app audio never follows or points at Screen Recording", () => {
+    const tap = {
+      selected: "processTap",
+      active: "processTap",
+      permission: "undetermined",
+      tapSupported: true,
+    } as const;
+    const rows = permissionRows({
+      microphone: "granted",
+      screen: "denied",
+      callAudio: tap,
+    });
+    expect(rows.map((row) => [row.label, row.state, row.settings])).toEqual([
+      ["Microphone", "granted", null],
+      ["App audio (system audio tap)", "undetermined", null],
+      ["Screen recording", "denied", "screen"],
+    ]);
+    expect(rows[1]?.pending).toBe(TAP_PENDING_TEXT);
+    expect(
+      permissionRows({
+        microphone: "granted",
+        screen: "denied",
+        callAudio: { ...tap, permission: "granted" },
+      })[1]?.state,
+    ).toBe("granted");
+    // The tap chosen but screen capture carrying it (fallback), or the default:
+    // exactly the rows as before.
+    for (const callAudio of [
+      { ...tap, active: "screenCaptureKit" },
+      { ...tap, selected: "screenCaptureKit", active: "screenCaptureKit" },
+    ] as const)
+      expect(
+        permissionRows({
+          microphone: "granted",
+          screen: "denied",
+          callAudio,
+        }).map((row) => [row.label, row.state, row.settings]),
+      ).toEqual([
+        ["Microphone", "granted", null],
+        ["App audio", "denied", "screen"],
+        ["Screen recording", "denied", "screen"],
+      ]);
+  });
+
   it("has none until the shell answers; app audio follows Screen Recording", () => {
     expect(permissionRows(null)).toEqual([]);
     const rows = permissionRows({ microphone: "granted", screen: "denied" });

@@ -336,11 +336,14 @@ export {
 } from "./schemas";
 export {
   ACCOUNT_PROVIDERS,
+  type AccountCallAudio,
   type AccountHost,
   type AccountPermissionState,
   type AccountPermissions,
   type AccountProvider,
   type AccountSignInState,
+  CALL_AUDIO_SOURCES,
+  type CallAudioSource,
   displayLabel,
   ENGINE_PAIRING_STATES,
   ENGINE_SOURCE_HEALTH,

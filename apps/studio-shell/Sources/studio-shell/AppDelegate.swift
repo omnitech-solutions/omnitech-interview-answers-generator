@@ -43,7 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ["build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev"])
         model.load()
         engine = SystemEngine.make(
-            webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location })
+            webView: { [weak self] in self?.model.webView }, location: { [weak self] in self?.model.location },
+            callAudio: { [weak self] in self?.model.prefs.callAudio ?? .default })
         engine.onChange = { [weak self] snapshot in
             guard let self, let script = EngineBridge.emitScript(snapshot) else { return }
             for view in self.model.allViews { view.evaluateJavaScript(script, completionHandler: nil) }

@@ -13,6 +13,9 @@
 # (FocusSampling falls back to the last other app while the main window is key).
 # There is no App Sandbox: the web view needs only outbound network, and
 # ScreenCaptureKit needs the user's Screen Recording grant, not an entitlement.
+# The optional Core Audio process tap (Settings: "System audio tap") needs the
+# "System Audio Recording Only" grant, which macOS asks for with
+# NSAudioCaptureUsageDescription below.
 set -eu
 
 cd "$(dirname "$0")/.."
@@ -53,6 +56,8 @@ cat >"$bundle/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>Interview Studio listens to your microphone during a live session you start, so your assistant can hear the interviewer. Speech is turned into text on this Mac and no audio is recorded or kept.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Interview Studio listens to the sound of your call during a live session you start, when you choose "System audio tap" in Settings, so your assistant can hear the other person. Speech is turned into text on this Mac and no audio is recorded or kept.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Interview Studio recognises speech on this Mac, never on a server, to turn what is said in your live session into text.</string>
   <key>NSAppTransportSecurity</key>

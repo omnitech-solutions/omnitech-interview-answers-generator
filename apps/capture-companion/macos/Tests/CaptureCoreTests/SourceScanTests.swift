@@ -69,7 +69,7 @@ func sourceScanTests(_ t: Harness) async {
     await t.test("adapters import only the permitted frameworks and never log or name secrets") {
         let allowed: Set<String> = [
             "Foundation", "CaptureCore", "ScreenCaptureKit", "Speech", "AVFoundation", "CoreMedia",
-            "CoreImage", "CoreGraphics", "ImageIO", "Security", "Dispatch", "CaptureAdapters", "AppKit",
+            "CoreImage", "CoreGraphics", "ImageIO", "Security", "Dispatch", "CaptureAdapters", "AppKit", "CoreAudio",
         ]
         let adapters = try sources(in: "Sources/CaptureAdapters") + sources(in: "Sources/capture-companion")
         t.expect(adapters.count >= 6, "found \(adapters.count) adapter files")

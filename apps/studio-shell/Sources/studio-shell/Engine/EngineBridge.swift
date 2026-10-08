@@ -122,7 +122,8 @@ public enum SystemEngine {
     // companion session. `location` is read at use, so a rebind is honoured.
     @MainActor
     public static func make(
-        webView: @escaping () -> WKWebView?, location: @escaping () -> StudioLocation?
+        webView: @escaping () -> WKWebView?, location: @escaping () -> StudioLocation?,
+        callAudio: @escaping () -> CallAudioSource = { .default }
     ) -> HandsFreeEngine {
         // The engine's own session credential, scoped to this build's code identity (see
         // CredentialAccount); the pairing the person pastes stays in the shared item.
@@ -133,8 +134,10 @@ public enum SystemEngine {
             clock: SystemClock()
         ) { plan in
             let fallback = StudioLocation(address: "", tenantSlug: "local")!
+            // The person's call-audio choice is read when a run begins, so a change applies from the next start.
             return SystemCompanionRun(
-                plan: plan, endpoint: (location() ?? fallback).endpoint, credentials: credentials, focus: focus)
+                plan: plan, endpoint: (location() ?? fallback).endpoint, credentials: credentials, focus: focus,
+                callAudio: callAudio())
         }
     }
 }

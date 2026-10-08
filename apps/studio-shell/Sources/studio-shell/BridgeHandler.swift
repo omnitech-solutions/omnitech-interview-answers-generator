@@ -1,4 +1,5 @@
 import AppKit
+import CaptureAdapters
 import CaptureCore
 import CoreGraphics
 import StudioShellCore
@@ -190,10 +191,13 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
         case .success(.reopenSignIn): replyHandler(account.reopenSignIn(), nil)
         case .success(.copySignInLink): replyHandler(account.copySignInLink(), nil)
         case .success(.signOut): replyHandler(account.signOut(), nil)
-        case .success(.permissions):
-            replyHandler(
-                HostReply.permissions(microphone: ShellPermissions.microphone(), screen: ShellPermissions.screen()), nil
-            )
+        case .success(.permissions): replyHandler(permissionsReply(), nil)
+        case .success(.setCallAudio(let source)):
+            // Takes effect when listening next starts; a tap that failed earlier gets a fresh attempt.
+            model.prefs.callAudio = source
+            ApplicationAudioSource.forgetTapEvidence()
+            CompanionEvents.record(.user, "audio.call_source_set", ["source": source.rawValue])
+            replyHandler(permissionsReply(), nil)
         case .success(.captureScreen(let request, let displayId, let intent)):
             // Sampled now, before any await and before the panel can take focus.
             let sample = capture.sample(intent: intent)
@@ -247,5 +251,17 @@ final class BridgeHandler: NSObject, WKScriptMessageHandlerWithReply {
                         display: result.display, pinned: result.pinned, pinFallback: result.pinFallback), nil)
             }
         }
+    }
+
+    // The Mac's permission states plus what the call's audio depends on right now.
+    private func permissionsReply() -> [String: Any] {
+        let selected = model.prefs.callAudio
+        let screen = ShellPermissions.screen()
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let report = CallAudioReport(
+            selected: selected, active: ApplicationAudioSource.carrier(for: selected).source,
+            evidence: ApplicationAudioSource.tapEvidence, screen: screen,
+            tapSupported: CallAudioSource.tapSupported(osMajor: system.majorVersion, osMinor: system.minorVersion))
+        return HostReply.permissions(microphone: ShellPermissions.microphone(), screen: screen, callAudio: report)
     }
 }

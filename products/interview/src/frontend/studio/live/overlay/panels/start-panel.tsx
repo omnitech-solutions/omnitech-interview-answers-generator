@@ -901,7 +901,9 @@ function PermissionLine({ row }: { row: PermissionRow }) {
       <span className="pn-start-perm-label">{row.label}</span>
       {granted && <span className="pn-start-perm-state">Allowed</span>}
       {undetermined && (
-        <span className="pn-start-perm-state">macOS asks when you start</span>
+        <span className="pn-start-perm-state">
+          {row.pending ?? "macOS asks when you start"}
+        </span>
       )}
       {row.settings && (
         <Button

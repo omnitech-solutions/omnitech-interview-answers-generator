@@ -311,10 +311,26 @@ export type AccountSignInState =
 // What the Mac says about each permission a session listens and watches with.
 // "undetermined": macOS has not been asked yet; it asks the first time.
 export type AccountPermissionState = "granted" | "denied" | "undetermined";
+// How the call's audio is captured: ScreenCaptureKit (the default; macOS shows
+// its sharing indicator) or a Core Audio process tap (macOS 14.4+, none).
+export const CALL_AUDIO_SOURCES = ["screenCaptureKit", "processTap"] as const;
+export type CallAudioSource = (typeof CALL_AUDIO_SOURCES)[number];
+// `active` is what carries the call's audio now: the choice, or ScreenCaptureKit
+// when a chosen tap cannot run. `permission` is the state of what `active`
+// needs: Screen Recording, or (the tap) System Audio Recording, which reads
+// "granted" only once sound was heard because macOS cannot be asked.
+export type AccountCallAudio = {
+  selected: CallAudioSource;
+  active: CallAudioSource;
+  permission: AccountPermissionState;
+  tapSupported: boolean;
+};
 export type AccountPermissions = {
   microphone: AccountPermissionState;
-  // Screen Recording also gates the app's audio.
+  // Screen Recording gates the app's audio too, unless `callAudio` says a tap carries it.
   screen: AccountPermissionState;
+  // Absent from a shell that only knows ScreenCaptureKit.
+  callAudio?: AccountCallAudio;
 };
 
 export type AccountHost = {
@@ -334,6 +350,9 @@ export type AccountHost = {
   // Returns the remover.
   onState(listener: (state: AccountSignInState) => void): () => void;
   permissions(): Promise<AccountPermissions>;
+  // Stores the choice (it applies when listening next starts) and answers the
+  // states that now apply; null when the shell refused. Absent on an older shell.
+  setCallAudio?(source: CallAudioSource): Promise<AccountPermissions | null>;
 };
 
 // [GUARD] An account object with every method, or null.
