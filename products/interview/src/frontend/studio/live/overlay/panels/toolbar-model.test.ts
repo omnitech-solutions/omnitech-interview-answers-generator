@@ -123,6 +123,58 @@ describe("captureSections", () => {
       disabledReason: "Needs a task first",
     });
   });
+  it("gives each display row a small picture of that screen, and none to Follow my browser or a display without one", () => {
+    const display = captureSections({
+      ...input,
+      displays: {
+        rows: [
+          {
+            kind: "follow",
+            label: "Follow my browser",
+            sub: "x",
+            checked: false,
+          },
+          {
+            kind: "display",
+            id: 7,
+            name: "Studio Display",
+            position: "2 of 3",
+            thumbnailSrc: "data:image/jpeg;base64,AAAA",
+            checked: true,
+          },
+          {
+            kind: "display",
+            id: 9,
+            name: "Built-in",
+            position: "3 of 3",
+            thumbnailSrc: "",
+            checked: false,
+          },
+        ],
+        notice: null,
+      },
+    })[1];
+    const [follow, pictured, plain] = display?.items ?? [];
+    expect(follow?.icon).toBeUndefined();
+    expect(plain?.icon).toBeUndefined();
+    expect(pictured).toMatchObject({
+      id: displayRowId(7),
+      label: "Studio Display",
+      description: "2 of 3",
+      checked: true,
+    });
+    const picture = pictured?.icon as {
+      type: string;
+      props: Record<string, unknown>;
+    };
+    expect(picture.type).toBe("img");
+    expect(picture.props).toMatchObject({
+      src: "data:image/jpeg;base64,AAAA",
+      // Decorative: the row's name already says which display it is.
+      alt: "",
+      draggable: false,
+    });
+  });
   it("maps display rows to ids and back", () => {
     expect(displayIdOfRow("follow")).toBeNull();
     expect(displayIdOfRow(displayRowId(7))).toBe(7);

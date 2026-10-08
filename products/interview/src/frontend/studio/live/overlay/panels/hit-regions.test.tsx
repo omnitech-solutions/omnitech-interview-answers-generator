@@ -45,6 +45,10 @@ describe("surface table", () => {
     ])
       expect(HIT_SELECTORS).toContain(surface);
   });
+
+  it("includes a control that stands outside any card (the call slot's resize bar), so it takes the mouse", () => {
+    expect(HIT_SELECTORS).toContain("[data-hit-surface]");
+  });
 });
 
 describe("the report", () => {

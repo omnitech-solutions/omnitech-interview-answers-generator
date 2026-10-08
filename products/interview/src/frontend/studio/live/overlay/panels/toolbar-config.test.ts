@@ -42,6 +42,14 @@ describe("pane table", () => {
     expect(windowWidthFor({ ...none, chat: true })).toBe(BARE_WIDTH);
     expect(windowWidthFor(ALL_PANES_SHOWN, 2000)).toBe(2000);
   });
+
+  it("gives the Answer pane the most room: it is the pane read aloud from", () => {
+    const answer = PANES.find((pane) => pane.id === "analysis");
+    expect(answer?.width).toBe(680);
+    for (const pane of PANES)
+      if (pane.id !== "analysis")
+        expect(pane.width).toBeLessThan(answer?.width ?? 0);
+  });
 });
 
 describe("capture control", () => {
