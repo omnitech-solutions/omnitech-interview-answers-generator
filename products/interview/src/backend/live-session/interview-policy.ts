@@ -215,7 +215,14 @@ const MIN_WORDS_AFTER_ASK_CUE = 4;
 // through") needs only its object, unlike an announcement ("my next question").
 const COMPLETE_WITH_ONE_WORD =
   /^(?:\\b)?(?:tell \(\?:me\|us\)|\(\?:walk\|talk\) \(\?:me\|us\) through)/;
+// An utterance cut off mid-question ("the next question is what do you mean")
+// ends on a word that cannot end a question (prepositions that can, as in
+// "a project you worked on", are not in the list). It is held like a trailing
+// announcement: the rest arrives in the next utterance, which opens the task.
+const DANGLING_END =
+  /\b(?:mean|by|of|the|a|an|is|are|was|between|and|or|your)$/;
 function hasAskWithContent(normalized: string): boolean {
+  if (DANGLING_END.test(normalized)) return false;
   return ASK_INTENT.some((cue) => {
     const needed = COMPLETE_WITH_ONE_WORD.test(cue.source)
       ? 1
