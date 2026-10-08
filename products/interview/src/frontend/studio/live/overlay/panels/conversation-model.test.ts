@@ -1,5 +1,5 @@
 import type { CoachNote } from "@omnitech/interview-contracts";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   asksSomething,
   conversationTurns,
@@ -7,11 +7,25 @@ import {
   echoes,
   heardEmphasis,
   questionsOf,
+  WAITING_MS,
   waitingTurn,
 } from "./conversation-model";
 import type { PanelRow } from "./panel-model";
 
 const T0 = Date.parse("2026-10-08T17:40:00.000Z");
+// [DOMAIN] A question waits for its notes three minutes at most, so every
+// reading has a "now". The scripted calls here are read two and a half
+// minutes in: inside the wait of anything asked in them. `waitingTurn` is
+// given that moment; `questionsOf` reads the clock itself, so the clock is
+// set to it.
+const NOW = T0 + 150_000;
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 const heard = (
   speaker: "interviewer" | "you",
   seconds: number,
@@ -162,6 +176,139 @@ describe("asksSomething", () => {
   it("counts five words as enough", () => {
     expect(asksSomething("How would you test it")).toBe(true);
     expect(asksSomething("How would you test")).toBe(false);
+  });
+
+  // [DOMAIN] Inside a sentence a question word is a relative ("the reports
+  // which", "the people who"): a long stretch of talk with one in it asks
+  // nothing.
+  it.each([
+    [
+      "which",
+      "The team keeps a short list of the reports which no longer fit on one page, and it is reviewed on the first Monday of the month",
+    ],
+    [
+      "who",
+      "Most of the people who joined last spring sit in the second office, and the rest of the group is spread over three time zones",
+    ],
+    [
+      "what, where and when",
+      "The handbook covers what the team owns, the places where it deploys, and the weeks when nothing ships",
+    ],
+    [
+      "how, why and whose",
+      "It is a group whose members know how the pipeline runs, and the notes say why it was built that way",
+    ],
+  ])(
+    "a statement with %s only mid-sentence is not a question",
+    (_name, text) => {
+      expect(asksSomething(text)).toBe(false);
+    },
+  );
+
+  it.each([
+    ["at the start", "Which of those two would be harder to change"],
+    ["at the start", "Who decided what went into the first release"],
+    [
+      "after a full stop",
+      "That makes sense. Which of them would be harder to change",
+    ],
+    ["after a comma", "Right then, who decided the order of the releases"],
+    ["after a colon", "One more thing: where did the old data go"],
+    ["after and", "And which of those was the harder one"],
+    ["after so", "So who made the final call there"],
+    ["after but", "But why keep both of them running"],
+    ["after okay", "Okay what happened after the first release"],
+    ["after ok", "Ok how long did the migration take"],
+    ["after well", "Well when did the team find out"],
+    ["after now", "Now whose decision was that in the end"],
+    ["after then", "Then how was the second one rolled out"],
+    ["after also", "Also where does the audit log live"],
+    ["after right", "Right what came after the first version"],
+    ["after yeah", "Yeah why was it built that way"],
+    [
+      "after a long lead-in",
+      "The first version went out in spring, and which part of it was the hardest to keep running",
+    ],
+  ])("a question word where a clause begins (%s) asks", (_name, text) => {
+    expect(asksSomething(text)).toBe(true);
+  });
+
+  it.each([
+    ["at the start", "Is it something the whole group agreed on"],
+    ["after a full stop", "Fair enough. Were they ready for the launch"],
+    ["after so", "So was there a plan for the rollback"],
+  ])(
+    "is/are/was/were it, they, there or that where a clause begins (%s) asks",
+    (_name, text) => {
+      expect(asksSomething(text)).toBe(true);
+    },
+  );
+
+  it("the same words mid-sentence do not: they state, they do not ask", () => {
+    expect(
+      asksSomething("The upshot of the review was that nothing had to move"),
+    ).toBe(false);
+    expect(
+      asksSomething("In the end the plan is there for anyone to read"),
+    ).toBe(false);
+  });
+
+  it.each([
+    [
+      "a question mark",
+      "The reports which no longer fit, those get reviewed monthly?",
+    ],
+    [
+      "an auxiliary put to the person",
+      "The people who joined last spring, did you hire them all",
+    ],
+    [
+      "an auxiliary put to both",
+      "For the reports which no longer fit, should we split them",
+    ],
+    ["a request", "About the people who joined last spring, tell me more"],
+    [
+      "a request to explain",
+      "The reports which no longer fit, explain the reason",
+    ],
+  ])(
+    "a mid-sentence question word does not stop %s from asking",
+    (_name, text) => {
+      expect(asksSomething(text)).toBe(true);
+    },
+  );
+});
+
+describe("a long statement with a question word mid-sentence", () => {
+  const STATEMENT =
+    "Most of the people who joined last spring sit in the second office, and the rest of the group is spread over three time zones";
+
+  it("opens no turn: it is an aside of the question it follows", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, QUESTION_ONE),
+        heard("interviewer", 30, STATEMENT),
+      ],
+      [],
+    );
+
+    expect(turns.map((turn) => turn.question?.text)).toEqual([QUESTION_ONE]);
+    expect(turns[0]?.asides.map((row) => row.text)).toEqual([STATEMENT]);
+    expect(currentQuestion(turns)?.text).toBe(QUESTION_ONE);
+  });
+
+  it("never waits for notes, and is no follow-up of the question the coach answered", () => {
+    const turns = conversationTurns(
+      [
+        heard("interviewer", 0, QUESTION_ONE),
+        heard("interviewer", 30, STATEMENT),
+      ],
+      [note(5, "Name the criteria")],
+    );
+
+    expect(waitingTurn(turns, NOW)).toBeUndefined();
+    expect(questionsOf(turns)).toHaveLength(1);
+    expect(questionsOf(turns)[0]?.followUps).toEqual([]);
   });
 });
 
@@ -402,7 +549,7 @@ describe("questionsOf", () => {
     ).toEqual([[1, "Opening line", 1]]);
     expect(questions[0]?.question).toBeNull();
     expect(questions[0]?.live).toBe(true);
-    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_ONE);
+    expect(waitingTurn(turns, NOW)?.question?.text).toBe(QUESTION_ONE);
   });
 
   it("keeps what each turn holds", () => {
@@ -710,7 +857,7 @@ describe("questionsOf: rephrasings and follow-ups", () => {
     ]);
     expect(questions[0]?.followUps.map((row) => row.text)).toEqual([FOLLOW_UP]);
     expect(questions[0]?.live).toBe(true);
-    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_TWO);
+    expect(waitingTurn(turns, NOW)?.question?.text).toBe(QUESTION_TWO);
   });
 
   it("the question that waits is in no row and under no question: nothing of it is folded", () => {
@@ -849,8 +996,8 @@ describe("waitingTurn: the question just asked that the coach has not answered",
   it("is the last question, when it was asked after the last one that has notes", () => {
     const turns = conversationTurns(rows, [note(5, "First")]);
 
-    expect(waitingTurn(turns)).toBe(turns[1]);
-    expect(waitingTurn(turns)?.question?.text).toBe(QUESTION_TWO);
+    expect(waitingTurn(turns, NOW)).toBe(turns[1]);
+    expect(waitingTurn(turns, NOW)?.question?.text).toBe(QUESTION_TWO);
   });
 
   it("is only ever the last one, however many were asked since the last note", () => {
@@ -862,13 +1009,14 @@ describe("waitingTurn: the question just asked that the coach has not answered",
       [note(5, "First")],
     );
 
-    expect(waitingTurn(turns)).toBe(turns[2]);
+    expect(waitingTurn(turns, NOW)).toBe(turns[2]);
   });
 
   it("is none once the last question has notes", () => {
     expect(
       waitingTurn(
         conversationTurns(rows, [note(5, "First"), note(70, "Second")]),
+        NOW,
       ),
     ).toBeUndefined();
   });
@@ -876,7 +1024,7 @@ describe("waitingTurn: the question just asked that the coach has not answered",
   it("is none where no coach has written a note: every question is listed instead", () => {
     const turns = conversationTurns(rows, []);
 
-    expect(waitingTurn(turns)).toBeUndefined();
+    expect(waitingTurn(turns, NOW)).toBeUndefined();
     expect(questionsOf(turns)).toHaveLength(2);
   });
 
@@ -887,12 +1035,89 @@ describe("waitingTurn: the question just asked that the coach has not answered",
           note(70, "Second", { askId: "a" }),
           note(90, "A rephrasing", { askId: "b" }),
         ]),
+        NOW,
       ),
     ).toBeUndefined();
-    expect(waitingTurn([])).toBeUndefined();
+    expect(waitingTurn([], NOW)).toBeUndefined();
     expect(
-      waitingTurn(conversationTurns([], [note(5, "Opening line")])),
+      waitingTurn(conversationTurns([], [note(5, "Opening line")]), NOW),
     ).toBeUndefined();
+  });
+
+  describe("for three minutes at most", () => {
+    // QUESTION_TWO was asked a minute in; the coach answered only the first.
+    const turns = () => conversationTurns(rows, [note(5, "First")]);
+    const ASKED = T0 + 60_000;
+
+    it("the wait is three minutes", () => {
+      expect(WAITING_MS).toBe(180_000);
+    });
+
+    it("still waits at the very end of the three minutes, and no longer a moment after", () => {
+      expect(waitingTurn(turns(), ASKED)?.question?.text).toBe(QUESTION_TWO);
+      expect(waitingTurn(turns(), ASKED + WAITING_MS)?.question?.text).toBe(
+        QUESTION_TWO,
+      );
+      expect(waitingTurn(turns(), ASKED + WAITING_MS + 1)).toBeUndefined();
+      expect(waitingTurn(turns(), ASKED + 60 * 60_000)).toBeUndefined();
+    });
+
+    it("the three minutes run from when it was asked, not from the coach's last note", () => {
+      const late = conversationTurns(rows, [note(55, "First")]);
+      expect(waitingTurn(late, ASKED + WAITING_MS + 1)).toBeUndefined();
+      expect(waitingTurn(late, ASKED + WAITING_MS)).toBe(late[1]);
+    });
+
+    it("with no moment given, the moment is now", () => {
+      vi.setSystemTime(ASKED + WAITING_MS);
+      expect(waitingTurn(turns())?.question?.text).toBe(QUESTION_TWO);
+      vi.setSystemTime(ASKED + WAITING_MS + 1);
+      expect(waitingTurn(turns())).toBeUndefined();
+    });
+
+    it("once it no longer waits it is folded as a follow-up of the last answered question, with what was said under it", () => {
+      const talked = conversationTurns(
+        [
+          ...rows,
+          heard("you", 70, "We detect an identical correlation ID and skip it"),
+          heard("interviewer", 80, "OK sounds good"),
+        ],
+        [note(5, "First")],
+      );
+      // Inside the wait it is in no row and under no question.
+      vi.setSystemTime(ASKED + WAITING_MS);
+      expect(questionsOf(talked)).toHaveLength(1);
+      expect(questionsOf(talked)[0]).toMatchObject({
+        followUps: [],
+        mine: [],
+        asides: [],
+      });
+
+      vi.setSystemTime(ASKED + WAITING_MS + 1);
+      const [only, ...rest] = questionsOf(talked);
+      expect(rest).toEqual([]);
+      expect(only?.question?.text).toBe(QUESTION_ONE);
+      expect(only?.live).toBe(true);
+      expect(only?.followUps.map((row) => row.text)).toEqual([QUESTION_TWO]);
+      expect(only?.mine.map((row) => row.text)).toEqual([
+        "We detect an identical correlation ID and skip it",
+      ]);
+      expect(only?.asides.map((row) => row.text)).toEqual(["OK sounds good"]);
+    });
+
+    it("a question that waited too long still comes into the list when its notes do arrive", () => {
+      vi.setSystemTime(ASKED + 60 * 60_000);
+      const answered = conversationTurns(rows, [
+        note(5, "First"),
+        note(900, "Second"),
+      ]);
+      expect(
+        questionsOf(answered).map((each) => [each.question?.text, each.live]),
+      ).toEqual([
+        [QUESTION_ONE, false],
+        [QUESTION_TWO, true],
+      ]);
+    });
   });
 
   it("comes into the list, as the live question, when its notes arrive", () => {

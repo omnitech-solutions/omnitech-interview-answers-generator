@@ -1,6 +1,6 @@
 // One coaching note, drawn: how any note (structured, Markdown or plain
-// points) is read into sections of lines, and how the window draws them in
-// full and in the compact form. Mermaid is a stand-in: nothing is drawn by the
+// points) is read into sections of lines, and how the library's CueCard draws
+// them in full and in the compact form. Mermaid is a stand-in: nothing is drawn by the
 // real library here.
 import type { CoachNote } from "@omnitech/interview-contracts";
 import {
@@ -64,9 +64,13 @@ const short = (drawn: ReturnType<typeof drawnSections>) =>
       each.segments.map((segment) => segment.text).join(""),
     ),
   ]);
-// jsdom reports a colour as rgb().
-const rgb = (hex: string) =>
-  `rgb(${[1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(", ")})`;
+// The library's CueCard colours by tone, in its own classes: which tone an
+// element takes is what is read here, never the colour value.
+const toneOf = (element: Element | null | undefined) =>
+  /--oui-(?:tone-(\w+)-fg|panel-(meta)-fg)/
+    .exec(element?.getAttribute("class") ?? "")
+    ?.slice(1)
+    .find(Boolean) ?? null;
 
 describe("drawnSections: a structured note", () => {
   it("is drawn as it is, each section under its kind's label unless it has its own", () => {
@@ -373,12 +377,24 @@ describe("CoachNoteView", () => {
       '[data-testid="pn-coach-note"]',
     ) as HTMLElement;
   };
+  const SECTION = '[data-slot="cue-card-section"]';
+  const LINE = '[data-slot="cue-card-line"]';
+  const LABEL = '[data-slot="cue-card-label"]';
+  const PIECE = '[data-slot="cue-card-segment"]';
+  const sections = (root: HTMLElement) => [
+    ...root.querySelectorAll<HTMLElement>(SECTION),
+  ];
   const section = (root: HTMLElement, kind: string) =>
-    root.querySelector<HTMLElement>(`[data-section="${kind}"]`) as HTMLElement;
+    root.querySelector<HTMLElement>(
+      `${SECTION}[data-kind="${kind}"]`,
+    ) as HTMLElement;
   const kinds = (root: HTMLElement) =>
-    [...root.querySelectorAll("[data-section]")].map((each) =>
-      each.getAttribute("data-section"),
-    );
+    sections(root).map((each) => each.getAttribute("data-kind"));
+  const lines = (within: HTMLElement) => [
+    ...within.querySelectorAll<HTMLElement>(LINE),
+  ];
+  const linesText = (within: HTMLElement) =>
+    lines(within).map((each) => each.textContent);
   const ALL: CoachNote["sections"] = [
     { kind: "say", lines: [line("Say one"), line("Say two")] },
     { kind: "anchors", lines: [line("Anchor one")] },
@@ -386,9 +402,10 @@ describe("CoachNoteView", () => {
     { kind: "caution", lines: [line("Off track"), line("The line back")] },
   ];
 
-  it("says what it is: its kind, its status and how it is drawn (in full unless asked otherwise)", () => {
+  it("is the library's cue card, and says what it is: its kind, its status and how it is drawn (in full unless asked otherwise)", () => {
     const root = view({ kind: "behavioral", sections: ALL });
     expect(root.tagName).toBe("ARTICLE");
+    expect(root).toHaveAttribute("data-slot", "cue-card");
     expect(root).toHaveAttribute("data-kind", "behavioral");
     expect(root).toHaveAttribute("data-status", "ready");
     expect(root).toHaveAttribute("data-mode", "detail");
@@ -397,24 +414,26 @@ describe("CoachNoteView", () => {
   });
 
   it.each([
-    ["say", "Say this", COACH_COLOUR.act],
-    ["anchors", "Anchors", COACH_COLOUR.evidence],
-    ["ask", "Ask", COACH_COLOUR.act],
-    ["caution", "Careful", COACH_COLOUR.caution],
-    ["context", "Context", COACH_COLOUR.context],
+    ["say", "Say this", "success"],
+    ["anchors", "Anchors", "accent"],
+    ["ask", "Ask", "success"],
+    ["caution", "Careful", "warning"],
+    ["context", "Context", "meta"],
   ] as const)(
-    "a %s section is labelled %s in its kind's colour, the words inside left to their own",
-    (kind, label, colour) => {
+    "a %s section is labelled %s in its kind's tone (%s), the words inside left to their own",
+    (kind, label, tone) => {
       const root = view({ sections: [{ kind, lines: [line("The line")] }] });
       expect(kinds(root)).toEqual([kind]);
       const drawn = within(section(root, kind)).getByText(label);
-      expect(drawn.style.color).toBe(rgb(colour));
-      expect(drawn.style.textTransform).toBe("uppercase");
-      // A section's own heading takes the same colour.
+      expect(drawn).toHaveAttribute("data-slot", "cue-card-label");
+      expect(toneOf(drawn)).toBe(tone);
+      // The words of the line take no tone from the label.
+      expect(toneOf(root.querySelector(PIECE))).toBeNull();
+      // A section's own heading takes the same tone.
       const own = view({
         sections: [{ kind, label: "If pushed", lines: [line("The line")] }],
       });
-      expect(within(own).getByText("If pushed").style.color).toBe(rgb(colour));
+      expect(toneOf(within(own).getByText("If pushed"))).toBe(tone);
       expect(within(own).queryByText(label)).toBeNull();
     },
   );
@@ -429,82 +448,108 @@ describe("CoachNoteView", () => {
     });
   });
 
-  it("what to say and what to ask are a sentence to a line, each on its own mark; what to say is the larger", () => {
+  it("what to say and what to ask are a sentence to a line, each on its own mark", () => {
     const root = view({ sections: ALL });
     for (const kind of ["say", "ask"]) {
-      const lines = [...section(root, kind).querySelectorAll("p")];
-      expect(lines.length).toBeGreaterThan(0);
-      for (const each of lines) {
+      const drawn = lines(section(root, kind));
+      expect(drawn.length).toBeGreaterThan(0);
+      for (const each of drawn) {
         const mark = each.previousElementSibling as HTMLElement;
         expect(mark).toHaveAttribute("aria-hidden", "true");
         expect(mark.textContent).toBe("");
-        expect(each.style.color).toBe(rgb(COACH_COLOUR.read));
+        expect(each.tagName).toBe("P");
+        // The sentence itself takes no tone: it is the text to read.
+        expect(toneOf(each)).toBeNull();
       }
     }
-    expect(
-      [...section(root, "say").querySelectorAll("p")].map(
-        (each) => each.textContent,
-      ),
-    ).toEqual(["Say one", "Say two"]);
-    const size = (kind: string) =>
-      Number.parseFloat(
-        (section(root, kind).querySelector("p") as HTMLElement).style.fontSize,
-      );
-    expect(size("say")).toBeGreaterThan(size("ask"));
+    expect(linesText(section(root, "say"))).toEqual(["Say one", "Say two"]);
+    expect(linesText(section(root, "ask"))).toEqual(["Ask one"]);
   });
 
-  it("context is small and grey with no mark: it is read later, never said", () => {
+  it("context is grey with no mark: it is read later, never said", () => {
     const root = view({
       sections: [
         { kind: "say", lines: [line("Say one")] },
         { kind: "context", lines: [line("Why she asks")] },
       ],
     });
-    const read = section(root, "context").querySelector("p") as HTMLElement;
-    expect(read.textContent).toBe("Why she asks");
-    expect(read.style.color).toBe(rgb(COACH_COLOUR.context));
-    expect(read.previousElementSibling).toBeNull();
-    expect(Number.parseFloat(read.style.fontSize)).toBeLessThan(
-      Number.parseFloat(
-        (section(root, "say").querySelector("p") as HTMLElement).style.fontSize,
-      ),
-    );
+    const [read] = lines(section(root, "context"));
+    expect(read?.textContent).toBe("Why she asks");
+    expect(toneOf(read)).toBe("meta");
+    expect(read?.previousElementSibling).toBeNull();
+    expect(toneOf(lines(section(root, "say"))[0])).toBeNull();
   });
 
-  it("anchors are short rows on a blue mark, not sentences", () => {
+  it("anchors are rows on a blue mark, one to an anchor", () => {
     const root = view({
       sections: [
         { kind: "anchors", lines: [line("Acme, 2021"), line("40% fewer")] },
       ],
     });
     const anchors = section(root, "anchors");
-    expect(anchors.querySelector("p")).toBeNull();
     const marks = [
       ...anchors.querySelectorAll<HTMLElement>('[aria-hidden="true"]'),
     ];
     expect(marks).toHaveLength(2);
     for (const mark of marks) {
-      expect(mark.style.background).toBe(rgb(COACH_COLOUR.evidence));
+      expect(toneOf(mark)).toBe("accent");
       expect(mark.nextElementSibling?.textContent).toMatch(/Acme|40%/);
     }
-    expect(anchors).toHaveTextContent("Acme, 202140% fewer");
+    expect(linesText(anchors)).toEqual(["Acme, 2021", "40% fewer"]);
   });
 
-  it("a caution is the amber box: what is off in amber, then the lines that get back on track in white", () => {
+  it("anchors that come straight after what to say are nested under it; anchors that open a note stand on their own", () => {
+    const anchors = (text: string) => ({
+      kind: "anchors" as const,
+      lines: [line(text)],
+    });
+    const root = view({
+      sections: [
+        anchors("Before anything"),
+        { kind: "say", lines: [line("Say one")] },
+        anchors("Under the say"),
+      ],
+    });
+    expect(
+      sections(root).map((each) => [
+        each.getAttribute("data-kind"),
+        each.hasAttribute("data-nested"),
+      ]),
+    ).toEqual([
+      ["anchors", false],
+      ["say", false],
+      ["anchors", true],
+    ]);
+    // Nested or not, every anchor is drawn, in the order given.
+    expect(linesText(root)).toEqual([
+      "Before anything",
+      "Say one",
+      "Under the say",
+    ]);
+  });
+
+  it("a caution is the amber box with the warning icon: what is off, then the lines that get back on track in the reading colour", () => {
     const root = view({ sections: ALL });
     const box = section(root, "caution");
-    expect(box.style.border).toContain("245, 184, 74");
-    expect(box.style.background).toContain("245, 184, 74");
-    const lines = [...box.querySelectorAll("p")];
-    expect(lines.map((each) => each.textContent)).toEqual([
+    expect(box.getAttribute("class")).toContain("--oui-tone-warning-border");
+    expect(box.getAttribute("class")).toContain("--oui-tone-warning-bg");
+    expect(toneOf(box)).toBe("warning");
+    expect(box.querySelector("svg")).not.toBeNull();
+    const drawn = lines(box);
+    expect(drawn.map((each) => each.textContent)).toEqual([
       "Off track",
       "The line back",
     ]);
-    expect(lines[0]?.style.color).toBe(rgb(COACH_COLOUR.caution));
-    expect(lines[1]?.style.color).toBe(rgb(COACH_COLOUR.read));
-    // No other section is boxed.
-    for (const kind of ["say", "anchors", "ask"])
-      expect(section(root, kind).style.border).toBe("");
+    // The first line keeps the box's amber; the way back is set apart from it.
+    expect(drawn[0]?.getAttribute("class")).not.toContain("--oui-foreground");
+    expect(drawn[1]?.getAttribute("class")).toContain("--oui-foreground");
+    // No other section is boxed, and none carries the icon.
+    for (const kind of ["say", "anchors", "ask"]) {
+      expect(section(root, kind).getAttribute("class")).not.toContain(
+        "--oui-tone-warning",
+      );
+      expect(section(root, kind).querySelector("svg")).toBeNull();
+    }
   });
 
   it("sections are drawn in the order given, a kind as often as it comes", () => {
@@ -519,7 +564,7 @@ describe("CoachNoteView", () => {
     expect(root).toHaveTextContent("CarefulFirstSay thisSecondIf pushedThird");
   });
 
-  it("each piece of a line says its role, and is styled by it alone", () => {
+  it("each piece of a line says its role, and is toned by it alone", () => {
     const root = view({
       sections: [
         {
@@ -545,23 +590,23 @@ describe("CoachNoteView", () => {
       "context",
     ]);
     // The spaces that join the pieces are kept as written.
-    expect(section(root, "say").querySelector("p")?.textContent).toBe(
+    expect(lines(section(root, "say"))[0]?.textContent).toBe(
       "One thing I should add: at Acme (not the client) in 2021",
     );
-    const [cue, spoken, evidence, caution, context] = pieces;
-    // The way in is heavier and takes no colour of its own.
-    expect(cue?.style.fontWeight).toBe("650");
-    expect(cue?.style.color).toBe("");
-    expect(spoken?.getAttribute("style") ?? "").toBe("");
-    expect(evidence?.style.color).toBe(rgb(COACH_COLOUR.evidence));
-    expect(evidence?.style.fontWeight).toBe("600");
-    expect(caution?.style.color).toBe(rgb(COACH_COLOUR.caution));
-    expect(caution?.style.fontWeight).toBe("600");
-    expect(context?.style.color).toBe(rgb(COACH_COLOUR.context));
-    expect(context?.style.fontWeight).toBe("");
+    // The way in and the spoken words take no colour of their own.
+    expect(pieces.map(toneOf)).toEqual([
+      null,
+      null,
+      "accent",
+      "warning",
+      "meta",
+    ]);
+    expect(pieces[1]?.getAttribute("class") ?? "").toBe("");
+    // Nothing is coloured inline: the card's tones are the library's.
+    for (const each of pieces) expect(each).not.toHaveAttribute("style");
   });
 
-  it("a claim that is only inferred is marked: a dotted amber underline and a word of warning on hover; a verified or unmarked one is not", () => {
+  it("a claim that is only inferred is marked: a dotted underline in the warning tone and a word of warning on hover; a verified or unmarked one is not", () => {
     const root = view({
       sections: [
         {
@@ -581,16 +626,18 @@ describe("CoachNoteView", () => {
     ];
     expect(inferred).toHaveAttribute(
       "title",
-      "Not confirmed in your experience: check before saying",
+      "Not confirmed: check before saying",
     );
-    expect(inferred?.style.textDecoration).toContain("underline");
-    expect(inferred?.style.textDecoration).toContain("dotted");
+    expect(inferred?.getAttribute("class")).toContain("decoration-dotted");
+    expect(inferred?.getAttribute("class")).toContain(
+      "decoration-[color:var(--oui-tone-warning-fg)]",
+    );
     // It is still drawn as the evidence it is.
-    expect(inferred?.style.color).toBe(rgb(COACH_COLOUR.evidence));
+    expect(toneOf(inferred)).toBe("accent");
     for (const each of [verified, plain]) {
       expect(each).not.toHaveAttribute("title");
-      expect(each?.style.textDecoration).toBe("");
-      expect(each?.style.color).toBe(rgb(COACH_COLOUR.evidence));
+      expect(each?.getAttribute("class")).not.toContain("decoration");
+      expect(toneOf(each)).toBe("accent");
     }
   });
 
@@ -606,9 +653,10 @@ describe("CoachNoteView", () => {
       ],
     });
     const said = root.querySelector<HTMLElement>("[data-role]");
-    expect(said).toHaveAttribute("title");
-    expect(said?.style.textDecoration).toContain("dotted");
-    expect(said?.style.color).toBe("");
+    expect(said).toHaveAttribute("title", "Not confirmed: check before saying");
+    expect(said?.getAttribute("class")).toContain("decoration-dotted");
+    expect(toneOf(said)).toBe("warning");
+    expect(said?.getAttribute("class")).not.toContain("--oui-tone-accent-fg");
   });
 
   it("a piece that names its source carries the pointer; one that does not carries none", () => {
@@ -636,9 +684,7 @@ describe("CoachNoteView", () => {
         "## Say\nStart from the **Outbox** pattern here. One transaction writes both rows.\n## Avoid\n- “Exactly-once”",
     });
     expect(kinds(root)).toEqual(["say", "caution"]);
-    expect(
-      [...root.querySelectorAll("p")].map((each) => each.textContent),
-    ).toEqual([
+    expect(linesText(root)).toEqual([
       "Start from the Outbox pattern here.",
       "One transaction writes both rows.",
       "Exactly-once",
@@ -656,8 +702,9 @@ describe("CoachNoteView", () => {
     expect(kinds(root)).toEqual(["context", "say"]);
     const context = section(root, "context");
     expect(context.textContent).toBe("She is probing for trade-offs here");
-    expect(context.firstElementChild?.tagName).toBe("DIV");
+    expect(context.querySelector(LABEL)).toBeNull();
     expect(within(context).queryByText("Context")).toBeNull();
+    expect(toneOf(lines(context)[0])).toBe("meta");
   });
 
   describe("in full", () => {
@@ -725,9 +772,13 @@ describe("CoachNoteView", () => {
           },
         ],
       });
-      expect(section(root, "anchors")).toHaveTextContent(
-        "Anchor AAnchor BAnchor CAnchor DAnchor E",
-      );
+      expect(linesText(section(root, "anchors"))).toEqual([
+        "Anchor A",
+        "Anchor B",
+        "Anchor C",
+        "Anchor D",
+        "Anchor E",
+      ]);
     });
 
     it("has no links row when the note has no links", () => {
@@ -778,14 +829,18 @@ describe("CoachNoteView", () => {
 
     it("cuts the anchors to the first three, in order, and cuts nothing else", () => {
       const root = view(FULL, "compact");
-      expect(section(root, "anchors").textContent).toBe(
-        "AnchorsAnchor AAnchor BAnchor C",
-      );
-      expect(
-        [...section(root, "say").querySelectorAll("p")].map(
-          (each) => each.textContent,
-        ),
-      ).toEqual(["Say 1", "Say 2", "Say 3", "Say 4", "Say 5"]);
+      expect(linesText(section(root, "anchors"))).toEqual([
+        "Anchor A",
+        "Anchor B",
+        "Anchor C",
+      ]);
+      expect(linesText(section(root, "say"))).toEqual([
+        "Say 1",
+        "Say 2",
+        "Say 3",
+        "Say 4",
+        "Say 5",
+      ]);
     });
 
     it("three anchors or fewer are all kept", () => {
@@ -800,9 +855,11 @@ describe("CoachNoteView", () => {
         },
         "compact",
       );
-      expect(section(root, "anchors").textContent).toBe(
-        "AnchorsAnchor AAnchor BAnchor C",
-      );
+      expect(linesText(section(root, "anchors"))).toEqual([
+        "Anchor A",
+        "Anchor B",
+        "Anchor C",
+      ]);
     });
 
     it("each anchors section keeps its own first three", () => {
@@ -829,7 +886,7 @@ describe("CoachNoteView", () => {
         },
         "compact",
       );
-      expect(section(root, "caution").querySelectorAll("p")).toHaveLength(5);
+      expect(lines(section(root, "caution"))).toHaveLength(5);
     });
 
     it("draws no diagram and no links", async () => {
@@ -883,18 +940,19 @@ describe("CoachNoteView", () => {
       ).toBeTruthy();
     });
 
-    it("says so before the links, which stay", () => {
+    it("says so last, after the links, which stay", () => {
       const root = view({
         status: "pending",
         sections: ALL,
         links: [{ label: "Saga reference", url: "https://example.com/saga" }],
       });
+      const status = within(root).getByRole("status");
       expect(
         within(root)
-          .getByRole("status")
-          .compareDocumentPosition(within(root).getByTestId("pn-coach-link")) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
+          .getByTestId("pn-coach-link")
+          .compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
+      expect(root.lastElementChild).toBe(status);
     });
 
     it("compact says the same of what it draws: updating when a section is on show, preparing when none of its kinds is", () => {
