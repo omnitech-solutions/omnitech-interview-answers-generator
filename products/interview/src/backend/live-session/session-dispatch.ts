@@ -25,6 +25,7 @@ import {
   type AiGeneratedBy,
   AiPolicyRefusedError,
 } from "@omnitech/ai-contracts";
+import { createLogger } from "@omnitech/logging";
 import { ASSIST_ACTION_KIND } from "./assist-stage";
 import type { Clock, ProcessingPolicy, Task } from "./core/index";
 import type { AgentEscalationPort } from "./escalation";
@@ -54,6 +55,8 @@ import {
   summarizeWithheld,
   type WithheldSummary,
 } from "./withheld";
+
+const storyLog = createLogger({ service: "session" });
 
 // How often the draft so far is written for the browser while it streams.
 const PROGRESS_INTERVAL_MS = 600;
@@ -226,7 +229,34 @@ export async function beginDispatch(
   let bytesOut = 0;
   let generatedBy: AiGeneratedBy | undefined;
 
-  const finish = (event: string, outcome: string, detail?: DispatchDetail) =>
+  // The words of the draft about to be published, for the story line only.
+  let publishedText: string | undefined;
+  const finish = (event: string, outcome: string, detail?: DispatchDetail) => {
+    // The session's story for whoever watches the worker (words only where
+    // content logging is on; the trace below stays ids and codes).
+    if (event === "dispatch.published")
+      storyLog.info("session.answer", {
+        sessionId,
+        taskId: task.taskId,
+        revision,
+        stage: stage.actionKind,
+        category: detail?.["category"],
+        durationMs: clock.nowMs() - startedAt,
+        claims: `${Number(detail?.["matrixBacked"] ?? 0)} backed, ${Number(detail?.["suggestedInterpretation"] ?? 0)} suggested`,
+        content: publishedText,
+      });
+    else if (
+      event === "dispatch.suppressed" ||
+      event === "dispatch.refused" ||
+      event === "dispatch.failed"
+    )
+      storyLog.warn("session.withheld", {
+        sessionId,
+        taskId: task.taskId,
+        revision,
+        stage: stage.actionKind,
+        reason: outcome,
+      });
     run.trace({
       event,
       outcome,
@@ -238,6 +268,7 @@ export async function beginDispatch(
       byteCounts: { input: bytesIn, output: bytesOut },
       ...(detail ? { detail } : {}),
     });
+  };
   // A write that comes back refused because this holder was succeeded stops
   // the run; nothing else is written from it.
   const lost = (reason: string): boolean => {
@@ -620,6 +651,14 @@ export async function beginDispatch(
       }
     },
     async publish(result, options = {}) {
+      const draft =
+        (result as { draft?: unknown; code?: unknown } | null) ?? {};
+      publishedText =
+        typeof draft.draft === "string"
+          ? draft.draft
+          : typeof draft.code === "string"
+            ? draft.code
+            : undefined;
       let published: Awaited<ReturnType<SessionStorePort["publishResult"]>>;
       try {
         published = await store.publishResult({

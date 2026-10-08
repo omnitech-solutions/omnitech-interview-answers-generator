@@ -550,7 +550,12 @@ async function ingestLocked(
     sourceId: observation.sourceId,
     sequence: decision.seq,
     ...(observation.kind === "transcript.final"
-      ? { chars: observation.content.text.length }
+      ? {
+          chars: observation.content.text.length,
+          speaker: observation.content.source ?? observation.content.speaker,
+          // Written only where content logging is on (a local `pnpm dev`).
+          content: observation.content.text,
+        }
       : {}),
   });
 

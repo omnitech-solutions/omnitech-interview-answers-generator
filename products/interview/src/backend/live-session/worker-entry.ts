@@ -12,6 +12,7 @@
 // web host and passes it in (rule:model-calls-gateway-routed).
 import { type AiExecutionGateway, refusedStream } from "@omnitech/ai-contracts";
 import type { PlatformDatabase } from "@omnitech/database";
+import { createLogger } from "@omnitech/logging";
 import type { Clock } from "./core/index";
 import type { AgentEscalationPort } from "./escalation";
 import {
@@ -29,7 +30,7 @@ import {
   type DatabasePortOptions,
 } from "./session-ports";
 import type { SessionCodeRunner } from "./session-run";
-import { createLoggerTraceSink, type TraceSink } from "./trace";
+import { createLoggerTraceSink, sanitizeTrace, type TraceSink } from "./trace";
 
 export {
   INTERVIEW_ANSWER_PROFILE,
@@ -117,8 +118,21 @@ export function createSessionWorker(
     ...(rest.jobs === undefined ? {} : { jobs: rest.jobs }),
     ...(rest.drafts === undefined ? {} : { drafts: rest.drafts }),
   };
+  // In the story format (a local `pnpm dev`) the id-only trace is written
+  // through the logger as dim lines; elsewhere it stays one JSON line each.
+  const traceLog = createLogger({ service: "worker" });
   const sink: TraceSink =
-    trace ?? (log ? createLoggerTraceSink(log) : { emit: () => undefined });
+    trace ??
+    (log
+      ? traceLog.config.format === "story"
+        ? {
+            emit(event) {
+              const { event: name, detail, ...ids } = sanitizeTrace(event);
+              traceLog.debug(name, { ...ids, ...(detail ?? {}) });
+            },
+          }
+        : createLoggerTraceSink(log)
+      : { emit: () => undefined });
   return createSessionProcessor(
     {
       claim: createDatabaseClaimPort(database, portOptions),

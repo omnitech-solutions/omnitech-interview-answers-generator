@@ -10,7 +10,7 @@
 
 export type LogLevel = "error" | "warn" | "info" | "debug" | "trace";
 export type LogFields = Record<string, unknown>;
-export type LogFormat = "json" | "pretty";
+export type LogFormat = "json" | "pretty" | "story";
 
 export interface LogConfig {
   level: LogLevel;
@@ -58,7 +58,9 @@ export function resolveLogConfig(
         ? "warn"
         : "debug";
   const format: LogFormat =
-    env["LOG_FORMAT"] === "json" || env["LOG_FORMAT"] === "pretty"
+    env["LOG_FORMAT"] === "json" ||
+    env["LOG_FORMAT"] === "pretty" ||
+    env["LOG_FORMAT"] === "story"
       ? env["LOG_FORMAT"]
       : node === "production"
         ? "json"
@@ -66,7 +68,11 @@ export function resolveLogConfig(
   return {
     level,
     format,
-    content: env["LOG_CONTENT"] === "true" && level === "trace",
+    // Content needs its own switch AND a format or level a person chose to
+    // read it in: trace, or the story format of a local `pnpm dev`.
+    content:
+      env["LOG_CONTENT"] === "true" &&
+      (level === "trace" || (format === "story" && node !== "production")),
   };
 }
 
@@ -128,6 +134,158 @@ function pretty(
   return `${clock} ${level.toUpperCase().padEnd(5)} ${service} ${event}${pairs ? ` ${pairs}` : ""}`;
 }
 
+// ---- the story format -----------------------------------------------------------
+//
+// What a person reads while a session runs (`pnpm dev`): the few events that
+// tell the story of a session stand out, each on a labelled line with its
+// words when content is enabled; everything else is one dim line, still there
+// for whoever needs it. Colours are ANSI and off under NO_COLOR.
+
+const colour = (code: string, text: string): string =>
+  process.env["NO_COLOR"] ? text : `\x1b[${code}m${text}\x1b[0m`;
+const dim = (text: string) => colour("2", text);
+const bold = (text: string) => colour("1", text);
+
+const short = (value: unknown, keep = 8): string =>
+  typeof value === "string" ? value.slice(0, keep) : "";
+// "task-q-a154e8058b20-microphone-0" reads as "a154e805·mic·0".
+const taskName = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  const spoken =
+    /^task-q-(?:h-)?([a-f0-9]{4,})[a-f0-9-]*?-?(microphone|application-audio)?-?(\d+)?$/.exec(
+      value,
+    );
+  if (!spoken) return value.replace(/^task-/, "").slice(0, 14);
+  const source =
+    spoken[2] === "microphone" ? "mic" : spoken[2] ? "app" : "typed";
+  return `${spoken[1]?.slice(0, 8)}·${source}${spoken[3] ? `·${spoken[3]}` : ""}`;
+};
+const seconds = (ms: unknown): string =>
+  typeof ms === "number" ? `${(ms / 1000).toFixed(1)}s` : "";
+const quoted = (content: unknown): string =>
+  typeof content === "string" && content !== ""
+    ? `"${content.replace(/\s+/g, " ").trim()}"`
+    : dim("(words hidden: set LOG_CONTENT=true)");
+const indented = (content: unknown): string =>
+  typeof content === "string" && content !== ""
+    ? `\n${content
+        .split("\n")
+        .map((line) => `              ${line}`)
+        .join("\n")}`
+    : "";
+
+type StoryLine = { label: string; code: string; text: string };
+
+// The events that tell the story. Anything not here is written dim.
+function storyOf(event: string, f: LogFields): StoryLine | null {
+  const who =
+    f["speaker"] === "microphone"
+      ? "You (mic)"
+      : f["speaker"] === "application-audio"
+        ? "Interviewer (app audio)"
+        : String(f["speaker"] ?? "");
+  switch (event) {
+    case "observation.stored":
+      if (f["kind"] === "transcript.final")
+        return {
+          label: "HEARD",
+          code: "36",
+          text: `${bold(who)}  ${quoted(f["content"])}`,
+        };
+      if (f["kind"] === "screen.snapshot")
+        return { label: "SCREEN", code: "35", text: "screenshot captured" };
+      if (f["kind"] === "owner.input")
+        return {
+          label: "YOU",
+          code: "35",
+          text: `${String(f["operation"] ?? "input")}  ${f["content"] ? quoted(f["content"]) : ""}`,
+        };
+      return null;
+    case "session.decision": {
+      const task = f["taskId"] ? ` ${dim(taskName(f["taskId"]))}` : "";
+      if (f["decision"] === "opened")
+        return {
+          label: "QUESTION",
+          code: "32",
+          text: `new task${task}  ${quoted(f["content"])}`,
+        };
+      if (f["decision"] === "revised")
+        return {
+          label: "FOLLOW-UP",
+          code: "32",
+          text: `revises${task}  ${quoted(f["content"])}`,
+        };
+      return {
+        label: "SKIPPED",
+        code: "33",
+        text: `${String(f["decision"])} (${String(f["reason"] ?? "not a question")})  ${quoted(f["content"])}`,
+      };
+    }
+    case "session.drafting":
+      return {
+        label: "DRAFTING",
+        code: "34",
+        text: `${dim(taskName(f["taskId"]))} rev ${String(f["revision"])}  ${String(f["stage"] ?? "")} via ${String(f["profileId"] ?? "")} (${String(f["sources"] ?? "?")} sources, ${String(f["promptBytes"] ?? "?")} B)${f["content"] ? indented(f["content"]) : ""}`,
+      };
+    case "session.answer":
+      return {
+        label: "ANSWER",
+        code: "32;1",
+        text: `${dim(taskName(f["taskId"]))} rev ${String(f["revision"])}  ${String(f["category"] ?? "")} in ${seconds(f["durationMs"])}  ${dim(String(f["claims"] ?? ""))}${indented(f["content"])}`,
+      };
+    case "session.withheld":
+      return {
+        label: "NO ANSWER",
+        code: "31;1",
+        text: `${dim(taskName(f["taskId"]))} rev ${String(f["revision"])}  ${String(f["reason"] ?? "")}`,
+      };
+    case "companion.heartbeat_stop":
+      return {
+        label: "PAUSED",
+        code: "33",
+        text: `the app stopped capturing (${String(f["state"] ?? "")})`,
+      };
+    default:
+      return null;
+  }
+}
+
+// Fields nobody reads on a dim line.
+const DIM_DROPPED = new Set([
+  "tenantId",
+  "byteCounts",
+  "localityDecision",
+  "fence",
+  "content",
+]);
+
+function story(
+  time: Date,
+  level: LogLevel,
+  service: string,
+  event: string,
+  fields: LogFields,
+): string {
+  const clock = time.toISOString().slice(11, 19);
+  const session = fields["sessionId"]
+    ? ` ${dim(`#${short(fields["sessionId"])}`)}`
+    : "";
+  const told = storyOf(event, fields);
+  if (told)
+    return `${dim(clock)}${session}  ${colour(told.code, told.label.padEnd(9))} ${told.text}`;
+  const pairs = Object.entries(fields)
+    .filter(([key]) => !DIM_DROPPED.has(key) && key !== "sessionId")
+    .map(
+      ([key, value]) =>
+        `${key}=${key === "taskId" ? taskName(value) : typeof value === "string" ? value : JSON.stringify(value)}`,
+    )
+    .join(" ");
+  const line = `${clock}${fields["sessionId"] ? ` #${short(fields["sessionId"])}` : ""}  ${service} ${event}${pairs ? ` ${pairs}` : ""}`;
+  if (level === "error") return colour("31", line);
+  if (level === "warn") return colour("33", line);
+  return dim(line);
+}
+
 // ---- the logger ---------------------------------------------------------------
 
 export function createLogger(options: LoggerOptions): Logger {
@@ -135,9 +293,7 @@ export function createLogger(options: LoggerOptions): Logger {
   const config: LogConfig = {
     level: options.level ?? fromEnv.level,
     format: options.format ?? fromEnv.format,
-    content:
-      options.content ??
-      (fromEnv.content && (options.level ?? fromEnv.level) === "trace"),
+    content: options.content ?? fromEnv.content,
   };
   const write =
     options.write ?? ((line: string) => process.stderr.write(`${line}\n`));
@@ -161,7 +317,9 @@ export function createLogger(options: LoggerOptions): Logger {
           ...merged,
         }),
       );
-    } else write(pretty(time, level, options.service, event, merged));
+    } else if (config.format === "story")
+      write(story(time, level, options.service, event, merged));
+    else write(pretty(time, level, options.service, event, merged));
   };
 
   return {

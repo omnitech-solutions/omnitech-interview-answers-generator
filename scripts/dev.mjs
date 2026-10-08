@@ -12,6 +12,12 @@ const localEnvironment = {
   ...configuredEnvironment,
   ...(await defaultLocalModelEnvironment(configuredEnvironment)),
   NODE_ENV: configuredEnvironment.NODE_ENV ?? "development",
+  // The readable session story, with the words heard and answered, on this
+  // machine's own terminal (set LOG_FORMAT=pretty or LOG_CONTENT=false in .env
+  // to turn either off; production never writes content).
+  LOG_FORMAT: configuredEnvironment.LOG_FORMAT ?? "story",
+  LOG_CONTENT: configuredEnvironment.LOG_CONTENT ?? "true",
+  LOG_LEVEL: configuredEnvironment.LOG_LEVEL ?? "debug",
   FAKE_AUTH_ENABLED: configuredEnvironment.FAKE_AUTH_ENABLED ?? "true",
   // Claude Code is the assistant and the screenshot analyser by default; LM
   // Studio is never required (set these in .env to change it).

@@ -200,14 +200,21 @@ const ASK_INTENT = [
 // is held: the question arrives in the next utterance, which opens the task, so
 // the draft is never written for an empty question.
 const MIN_WORDS_AFTER_ASK_CUE = 4;
+// "Tell me about yourself" is complete with ONE word after the cue: an
+// imperative that already names its preposition ("tell me about", "walk me
+// through") needs only its object, unlike an announcement ("my next question").
+const COMPLETE_WITH_ONE_WORD =
+  /^(?:\\b)?(?:tell \(\?:me\|us\)|\(\?:walk\|talk\) \(\?:me\|us\) through)/;
 function hasAskWithContent(normalized: string): boolean {
   return ASK_INTENT.some((cue) => {
+    const needed = COMPLETE_WITH_ONE_WORD.test(cue.source)
+      ? 1
+      : MIN_WORDS_AFTER_ASK_CUE;
     for (const match of normalized.matchAll(new RegExp(cue.source, "g"))) {
       const after = normalized
         .slice((match.index ?? 0) + match[0].length)
         .trim();
-      if (after !== "" && after.split(" ").length >= MIN_WORDS_AFTER_ASK_CUE)
-        return true;
+      if (after !== "" && after.split(" ").length >= needed) return true;
     }
     return false;
   });

@@ -28,6 +28,7 @@
 //              order), processOwnerInputs, processUtterances
 //   progress   noteRecorded, handledThrough, nextPending, nextPendingCoding
 //   cancel     cancelSupersededSlots
+
 import {
   screenSnapshotSchema,
   transcriptFinalSchema,
@@ -47,6 +48,7 @@ import {
   liveOcrBlockSchema,
   liveOwnerInputRequestSchema,
 } from "@omnitech/interview-contracts";
+import { createLogger } from "@omnitech/logging";
 import {
   ASSIST_ACTION_KIND,
   type AssistDraft,
@@ -97,6 +99,8 @@ import type { SessionClaim } from "./session-claim";
 import type { SessionContext } from "./session-context";
 import type { StoredAction, StoredObservation } from "./session-reads";
 import type { SessionTraceEvent } from "./trace";
+
+const storyLog = createLogger({ service: "session" });
 
 // An owner input replayed and waiting to be applied to the task state after the
 // spoken utterances have been (so a follow-up finds the task it targets).
@@ -1229,6 +1233,23 @@ export async function processUtterances(
         })();
     run.tasks = step.state;
     fromCore(run, step.trace);
+    // The story line: what was decided about what was heard, and why.
+    storyLog.info("session.decision", {
+      sessionId: run.claim.sessionId,
+      decision: step.outcome.kind,
+      ...(typeof step.trace.ids["taskId"] === "string"
+        ? { taskId: step.trace.ids["taskId"] }
+        : {}),
+      speaker: utterance.source,
+      reason:
+        step.outcome.kind === "refused"
+          ? step.outcome.reason
+          : utterance.source === "microphone" &&
+              interviewerHeard(run, utterance)
+            ? "your own voice while the interviewer is talking"
+            : "no question heard in it",
+      content: utterance.text,
+    });
     handled += 1;
   }
   return handled;

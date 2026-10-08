@@ -137,6 +137,14 @@ describe("baseline classification", () => {
     ).toEqual({ kind: "open", taskKey: "q-u1" });
   });
 
+  it("opens a task for 'tell me about yourself' said mid-utterance (one word completes it)", () => {
+    // Heard on app audio 2026-10-08 and skipped: the cue needed four words after it.
+    expect(verdict("Number one tell me about yourself").decision).toEqual({
+      kind: "open",
+      taskKey: "q-u1",
+    });
+  });
+
   it("ignores a long statement as a monologue even with question words in it", () => {
     const monologue = `How we did it was ${"and then more context ".repeat(MONOLOGUE_WORDS)}`;
     expect(verdict(monologue)).toEqual({
