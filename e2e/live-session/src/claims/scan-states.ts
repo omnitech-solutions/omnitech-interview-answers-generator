@@ -186,7 +186,12 @@ export async function scanNative(
   await page.setViewportSize({ width: 1320, height: 900 });
   await toolbar.getByRole("button", { name: /^Screen to capture/ }).click();
   await note("native-screen-menu", page);
-  await page.keyboard.press("Escape");
+  // The menu must be gone before the next click: an Escape pressed while the
+  // menu is still opening is dropped, and the menu then covers the button.
+  await expect(async () => {
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0, { timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
   // Auto keeps the area closed until the icon is pressed.
   await page.getByRole("button", { name: /^Screenshots \(/ }).click();
   await page.getByTestId("add-screenshot").click();
