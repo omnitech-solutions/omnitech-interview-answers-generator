@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   answerGuideSchema,
+  coachNoteInputSchema,
   explanationRequestSchema,
   generateRequestSchema,
   libraryItemInputSchema,
@@ -28,6 +29,7 @@ import { readBoundedJson } from "@omnitech/platform-contracts";
 import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { WorkspaceError, type WorkspaceScope } from "./assistant/workspace";
+import { coachNotes } from "./coach-notes";
 import { LibraryIndexUnavailableError } from "./library-service";
 import {
   bundleReactPreview,
@@ -778,6 +780,27 @@ console.log(solve([1, 2, 3]));`,
     }
     return context.json(await answerRepository.listPage(page, pageSize));
   });
+
+  // Coach notes for the live window: read by the page, written by a coach.
+  app.get("/api/v1/coach-notes", (context) => context.json(coachNotes.get()));
+  app.post("/api/v1/coach-notes", async (context) => {
+    const body = await readBody(context, JSON_BODY_LIMIT_BYTES);
+    if (!body.ok) return body.response;
+    const parsed = coachNoteInputSchema.safeParse(body.value);
+    // [SAFETY] The issue paths only: a note's text never goes into an error.
+    if (!parsed.success)
+      return apiError(
+        context,
+        400,
+        "invalid_coach_note",
+        "The coach note is invalid.",
+        parsed.error.issues.map((issue) => issue.path.join(".")),
+      );
+    return context.json(coachNotes.add(parsed.data), 201);
+  });
+  app.delete("/api/v1/coach-notes", (context) =>
+    context.json(coachNotes.clear()),
+  );
 
   app.get("/api/v1/playground-control", (context) =>
     context.json(playgroundControlStore.get()),

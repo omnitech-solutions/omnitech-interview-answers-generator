@@ -1375,3 +1375,72 @@
 .pn-context-chip {
   max-width: 260px;
 }
+
+/* The coach's notes: one more row under the footer, folded to a single line
+   until a note arrives. The list scrolls inside its own height so the window
+   never grows past the panes. */
+.pn-coach {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+}
+.pn-coach-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pn-coach-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--ov-muted);
+}
+.pn-coach-bar > :last-child {
+  margin-left: auto;
+}
+.pn-coach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  margin: 6px 0 2px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.pn-coach-note {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--pn-chip);
+  font-size: 13px;
+  opacity: 0.72;
+}
+.pn-coach-note[data-latest] {
+  opacity: 1;
+}
+.pn-coach-note[data-tone="watch"] {
+  box-shadow: inset 3px 0 0 var(--ov-danger, #e5484d);
+}
+.pn-coach-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pn-coach-points {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.pn-coach-points li + li {
+  margin-top: 3px;
+}
+.pn-coach-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}

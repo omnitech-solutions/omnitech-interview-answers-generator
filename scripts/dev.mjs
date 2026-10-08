@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   createWriteStream,
   mkdirSync,
@@ -14,7 +15,27 @@ import {
 import { loadDevEnvironment } from "./dev-env.mjs";
 
 const configuredEnvironment = loadDevEnvironment();
+// [DOMAIN] Local tools on this machine (the CLI, a coaching agent) reach the
+// API with a bearer token. When none is configured, one is made for this
+// checkout and kept in .dev-local/api-token (readable by this user only), so
+// they work without anyone inventing a secret in .env.
+function localApiToken() {
+  const file = new URL("../.dev-local/api-token", import.meta.url);
+  try {
+    const kept = readFileSync(file, "utf8").trim();
+    if (kept) return kept;
+  } catch {
+    // Not made yet.
+  }
+  mkdirSync(new URL("../.dev-local/", import.meta.url), { recursive: true });
+  const made = randomBytes(32).toString("hex");
+  writeFileSync(file, `${made}\n`, { mode: 0o600 });
+  return made;
+}
+
 const localEnvironment = {
+  INTERVIEW_API_TOKEN:
+    configuredEnvironment.INTERVIEW_API_TOKEN ?? localApiToken(),
   ...configuredEnvironment,
   ...(await defaultLocalModelEnvironment(configuredEnvironment)),
   NODE_ENV: configuredEnvironment.NODE_ENV ?? "development",

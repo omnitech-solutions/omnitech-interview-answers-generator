@@ -71,6 +71,16 @@ export {
   candidateMatrixSchema,
 } from "./briefing";
 export {
+  type CoachNote,
+  type CoachNoteInput,
+  type CoachNoteLink,
+  type CoachNotesResponse,
+  coachNoteInputSchema,
+  coachNoteLinkSchema,
+  coachNoteSchema,
+  coachNotesResponseSchema,
+} from "./coach-notes";
+export {
   type DocumentField,
   type DocumentFieldError,
   type DocumentFormat,

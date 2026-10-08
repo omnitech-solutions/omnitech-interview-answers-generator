@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
+import { CoachNotes } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
 import { InterviewContextChip } from "./interview-context-chip";
@@ -294,6 +295,8 @@ export function SinglePanel({
           onFailure={(code) => s.notify(failureNote(code))}
         />
       </div>
+      {/* What a coach wants said next, and the documentation for the topic. */}
+      <CoachNotes enabled={s.open} />
     </>
   );
 }
