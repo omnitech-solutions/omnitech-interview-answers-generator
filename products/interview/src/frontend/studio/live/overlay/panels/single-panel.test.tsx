@@ -37,6 +37,7 @@ import {
   type TestServer,
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
+import { setCoachWindowWidth } from "./coach-columns";
 import { resetCommandClaims } from "./commands";
 import { GREEN_MENU_GRACE_MS, GREEN_MENU_HOVER_MS } from "./toolbar-config";
 import { keyOpen, pointerOpen, tipOf } from "./toolbar-test-kit";
@@ -2812,6 +2813,24 @@ describe("the View menu", () => {
     ).toEqual([expect.stringContaining("Original")]);
   });
 
+  it("says under each layout what it is for", async () => {
+    await show();
+    pointerOpen(trigger());
+    const menu = screen.getByRole("menu", { name: "View" });
+    const hint = (label: string) =>
+      within(menu).getByRole("menuitemradio", {
+        name: new RegExp(`^${label}`),
+      });
+    for (const [label, text] of [
+      ["Call-first coach", "Questions, coach, answer"],
+      ["Conversation under the call", "Questions, notes, transcript"],
+      ["Prompter only", "The call and one note"],
+      ["Original", "Transcript, answer, code and the coach panel"],
+      ["Transcript only", "For review or a record"],
+    ] as const)
+      expect(hint(label)).toHaveTextContent(text);
+  });
+
   it.each([
     ["coach", "Call-first coach"],
     ["conversation", "Conversation under the call"],
@@ -3000,6 +3019,90 @@ describe("the layout chosen in the View menu", () => {
       expect(document.querySelector(".pn-single-foot")).not.toBeNull();
     },
   );
+
+  it.each(["coach", "conversation", "prompter"] as const)(
+    "%s: the toolbar draws no pane toggles, since the layout has its own columns; the View menu stays",
+    async (view) => {
+      chosenView.view = view;
+      serveNotes();
+      await show();
+      expect(screen.queryByTestId("pn-panes")).toBeNull();
+      expect(screen.queryByRole("group", { name: "Panels" })).toBeNull();
+      for (const label of ["Chat", "Answer", "Code"])
+        expect(
+          within(toolbar()).queryByRole("button", { name: label }),
+        ).toBeNull();
+      expect(toolbar()).toContainElement(screen.getByTestId("pn-view"));
+      expect(
+        within(toolbar()).getByRole("button", { name: /^Answer style/ }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each(["original", "transcript"] as const)(
+    "%s: the toolbar keeps the pane toggles",
+    async (view) => {
+      chosenView.view = view;
+      serveNotes();
+      await show();
+      expect(screen.getByRole("group", { name: "Panels" })).toContainElement(
+        screen.getByTestId("pn-panes"),
+      );
+    },
+  );
+
+  it.each([
+    ["coach", 860],
+    ["prompter", 780],
+  ] as const)(
+    "%s: a window dragged wider or narrower at its edge is asked for at that width, and Reset layout gives the layout's own back",
+    async (view, height) => {
+      chosenView.view = view;
+      serveNotes();
+      const asked = sizes();
+      await show();
+      const own = asked.at(-1)?.width as number;
+      try {
+        act(() => setCoachWindowWidth(own + 180));
+        await flush();
+        expect(asked.at(-1)).toEqual({ width: own + 180, height });
+        fireEvent.click(screen.getByTestId("pn-coach-reset"));
+        await flush();
+        expect(asked.at(-1)).toEqual({ width: own, height });
+      } finally {
+        act(() => setCoachWindowWidth(null));
+      }
+    },
+  );
+
+  it("coach: the window is never asked to be narrower than its toolbar, whatever was dragged", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    const asked = sizes();
+    await show();
+    try {
+      act(() => setCoachWindowWidth(480));
+      await flush();
+      const narrow = asked.at(-1)?.width as number;
+      expect(narrow).toBeGreaterThanOrEqual(480);
+      expect(narrow).toBeLessThan(1340);
+    } finally {
+      act(() => setCoachWindowWidth(null));
+    }
+  });
+
+  it("original: a width dragged in a coach layout is not used", async () => {
+    const asked = sizes();
+    await show();
+    const own = asked.at(-1)?.width as number;
+    try {
+      act(() => setCoachWindowWidth(own + 400));
+      await flush();
+      expect(asked.at(-1)?.width).toBe(own);
+    } finally {
+      act(() => setCoachWindowWidth(null));
+    }
+  });
 
   it("coach: the answer, the transcript and the code are the real panes behind the tabs", async () => {
     chosenView.view = "coach";
