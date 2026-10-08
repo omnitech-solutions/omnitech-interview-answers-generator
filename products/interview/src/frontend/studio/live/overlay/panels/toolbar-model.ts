@@ -167,7 +167,7 @@ export function captureSections(
               alt: "",
               draggable: false,
               style: DISPLAY_THUMBNAIL,
-              "data-testid": `pn-display-thumb-${row.id}`,
+              "data-testid": `pn-screen-thumb-${row.id}`,
             }),
           }
         : {}),
