@@ -37,7 +37,7 @@ import {
   type TestServer,
 } from "../../testing/session-test-server";
 import { OverlayPage } from "../overlay-page";
-import { setCoachWindowWidth } from "./coach-columns";
+import { setCoachWindowHeight, setCoachWindowWidth } from "./coach-columns";
 import { resetCommandClaims } from "./commands";
 import { GREEN_MENU_GRACE_MS, GREEN_MENU_HOVER_MS } from "./toolbar-config";
 import { keyOpen, pointerOpen, tipOf } from "./toolbar-test-kit";
@@ -3105,6 +3105,70 @@ describe("the layout chosen in the View menu", () => {
       expect(asked.at(-1)?.width).toBe(own);
     } finally {
       act(() => setCoachWindowWidth(null));
+    }
+  });
+
+  it.each([
+    ["coach", 860],
+    ["prompter", 780],
+  ] as const)(
+    "%s: a window dragged taller or shorter at its bottom edge is asked for at that height, and Reset layout gives the layout's own back",
+    async (view, own) => {
+      chosenView.view = view;
+      serveNotes();
+      const asked = sizes();
+      await show();
+      const width = asked.at(-1)?.width as number;
+      expect(asked.at(-1)).toEqual({ width, height: own });
+      try {
+        act(() => setCoachWindowHeight(own + 120));
+        await flush();
+        expect(asked.at(-1)).toEqual({ width, height: own + 120 });
+        // Shorter than the layout opens at: the dragged height stands as given.
+        act(() => setCoachWindowHeight(own - 300));
+        await flush();
+        expect(asked.at(-1)).toEqual({ width, height: own - 300 });
+        fireEvent.click(screen.getByTestId("pn-coach-reset"));
+        await flush();
+        expect(asked.at(-1)).toEqual({ width, height: own });
+      } finally {
+        act(() => setCoachWindowHeight(null));
+      }
+    },
+  );
+
+  it("coach: a dragged height and a dragged width are asked for together", async () => {
+    chosenView.view = "coach";
+    serveNotes();
+    const asked = sizes();
+    await show();
+    const own = asked.at(-1)?.width as number;
+    try {
+      act(() => {
+        setCoachWindowWidth(own + 180);
+        setCoachWindowHeight(700);
+      });
+      await flush();
+      expect(asked.at(-1)).toEqual({ width: own + 180, height: 700 });
+    } finally {
+      act(() => {
+        setCoachWindowWidth(null);
+        setCoachWindowHeight(null);
+      });
+    }
+  });
+
+  it("original: a height dragged in a coach layout is not used", async () => {
+    const asked = sizes();
+    await show();
+    const before = asked.at(-1);
+    try {
+      act(() => setCoachWindowHeight(700));
+      await flush();
+      expect(asked.at(-1)).toEqual(before);
+      expect(asked.some((size) => size.height === 700)).toBe(false);
+    } finally {
+      act(() => setCoachWindowHeight(null));
     }
   });
 
