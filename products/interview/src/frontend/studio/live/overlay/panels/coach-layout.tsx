@@ -74,6 +74,8 @@ const QUESTIONS_CEILING = 360;
 // The reader counts as "at the bottom" within this many px of it.
 const FOLLOW_SLACK = 48;
 
+// The colour of the question on show, as the list marks its chosen row.
+const CHOSEN = "var(--oui-tone-accent-fg)";
 const STYLE = {
   // The library panes inside a coach layout (answer, transcript, code) take
   // the same neutral grey as the notes: no blue panel in these layouts.
@@ -542,10 +544,24 @@ function NotesPane({
             }}
           >
             <div style={STYLE.asked}>
-              <span style={STYLE.askBar} aria-hidden="true" />
+              {/* The same marks as its row in the list: the chosen question
+                  is blue, and only the one on the table is green. */}
+              <span
+                style={{
+                  ...STYLE.askBar,
+                  background: question.live && !waiting ? ASK : CHOSEN,
+                }}
+                aria-hidden="true"
+              />
               <div style={{ minWidth: 0 }}>
-                <span style={STYLE.askLabel}>
-                  {`${
+                <span
+                  style={{
+                    ...STYLE.askLabel,
+                    color: question.live && !waiting ? ASK : CHOSEN,
+                  }}
+                  data-testid="pn-coach-asked-label"
+                >
+                  {`Q${question.number} · ${
                     waiting
                       ? "Previous question"
                       : question.live
