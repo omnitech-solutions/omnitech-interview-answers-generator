@@ -1,3 +1,4 @@
+import CaptureCore
 import Foundation
 
 // [DOMAIN] What the shell remembers between launches: interaction mode, the
@@ -107,6 +108,13 @@ public struct ShellPrefs {
     public var captureDisplay: UInt32? {
         get { store.string(forKey: "capture.display").flatMap { UInt32($0) } }
         nonmutating set { store.set(newValue.map { String($0) }, forKey: "capture.display") }
+    }
+
+    // How the call's audio is captured. Absent or unreadable is the default
+    // (ScreenCaptureKit), so an existing install behaves exactly as before.
+    public var callAudio: CallAudioSource {
+        get { CallAudioSource.parse(store.string(forKey: "audio.callSource")) }
+        nonmutating set { store.set(newValue.rawValue, forKey: "audio.callSource") }
     }
 
     // The compact window and Settings each remember where they were put.

@@ -3,8 +3,8 @@ import CoreGraphics
 import StudioShellCore
 
 // What macOS says about the permissions a session listens and watches with. Read
-// only: it never prompts. Screen Recording also gates the app's audio, so the page
-// shows one state for both.
+// only: it never prompts. Screen Recording gates the call's audio only while
+// ScreenCaptureKit carries it (CallAudioReport says which capture does).
 enum ShellPermissions {
     static func microphone() -> PermissionState {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {

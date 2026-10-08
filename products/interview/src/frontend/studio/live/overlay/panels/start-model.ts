@@ -4,9 +4,11 @@
 // shown is a fact the page holds: nothing here claims where data is stored or
 // processed beyond what the Studio address and the bridge can say.
 import type {
+  AccountCallAudio,
   AccountPermissionState,
   AccountPermissions,
   AccountProvider,
+  CallAudioSource,
   LiveSessionChoicesResponse,
 } from "@omnitech/interview-contracts";
 import type { ProductMember } from "@omnitech/platform-contracts";
@@ -111,33 +113,88 @@ export type PermissionRow = {
   state: AccountPermissionState;
   // Where "Allow…" goes (the macOS privacy pane); null when macOS asks itself.
   settings: "microphone" | "screen" | null;
+  // What an undetermined row says instead of "macOS asks when you start".
+  pending?: string;
 };
 
-// App audio is gated by Screen Recording, so it follows the screen's state.
+export const TAP_PENDING_TEXT =
+  "macOS asks on first use · confirmed once call sound is heard";
+
+// App audio is gated by Screen Recording while ScreenCaptureKit carries it, so
+// it follows the screen's state. Through the system audio tap it needs System
+// Audio Recording instead, which macOS cannot be asked about: the row never
+// borrows the screen's state and never sends the person to Screen Recording.
 export function permissionRows(
   permissions: AccountPermissions | null,
 ): PermissionRow[] {
   if (!permissions) return [];
+  const tap =
+    permissions.callAudio?.active === "processTap"
+      ? permissions.callAudio
+      : null;
+  if (tap)
+    return [
+      microphoneRow(permissions),
+      {
+        id: "app-audio",
+        label: "App audio (system audio tap)",
+        state: tap.permission === "granted" ? "granted" : "undetermined",
+        settings: null,
+        pending: TAP_PENDING_TEXT,
+      },
+      screenRow(permissions),
+    ];
   return [
-    {
-      id: "microphone",
-      label: "Microphone",
-      state: permissions.microphone,
-      settings: permissions.microphone === "denied" ? "microphone" : null,
-    },
+    microphoneRow(permissions),
     {
       id: "app-audio",
       label: "App audio",
       state: permissions.screen,
       settings: permissions.screen === "denied" ? "screen" : null,
     },
-    {
-      id: "screen",
-      label: "Screen recording",
-      state: permissions.screen,
-      settings: permissions.screen === "denied" ? "screen" : null,
-    },
+    screenRow(permissions),
   ];
+}
+
+const microphoneRow = (permissions: AccountPermissions): PermissionRow => ({
+  id: "microphone",
+  label: "Microphone",
+  state: permissions.microphone,
+  settings: permissions.microphone === "denied" ? "microphone" : null,
+});
+const screenRow = (permissions: AccountPermissions): PermissionRow => ({
+  id: "screen",
+  label: "Screen recording",
+  state: permissions.screen,
+  settings: permissions.screen === "denied" ? "screen" : null,
+});
+
+// ---- Call audio (Settings) --------------------------------------------------
+
+export const CALL_AUDIO_OPTIONS: readonly {
+  value: CallAudioSource;
+  label: string;
+}[] = [
+  {
+    value: "screenCaptureKit",
+    label: "Screen capture (shows the sharing indicator)",
+  },
+  {
+    value: "processTap",
+    label: "System audio tap (macOS 14.4+, no sharing indicator)",
+  },
+];
+
+// The honest line under the choice: what it costs, what it needs, and whether
+// the choice is really what carries the call's audio right now.
+export function callAudioNote(callAudio: AccountCallAudio): string {
+  if (callAudio.selected === "screenCaptureKit")
+    return "macOS shows “Currently Sharing” for the whole session. Needs Screen Recording.";
+  if (!callAudio.tapSupported)
+    return "This Mac’s macOS is older than 14.4, so screen capture is still used.";
+  if (callAudio.active === "screenCaptureKit")
+    return "The tap could not run on this Mac, so screen capture is used until you choose it again or restart.";
+  return "No sharing indicator. macOS asks once for System Audio Recording; if you refuse, the call is heard as silence. Applies the next time listening starts.";
 }
 
 // ---- What the session is for ------------------------------------------------

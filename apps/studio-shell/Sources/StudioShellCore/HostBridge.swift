@@ -88,6 +88,8 @@ public enum HostCall: Equatable, Sendable {
     case copySignInLink
     case signOut
     case permissions
+    // The person's choice of how the call's audio is captured (Settings).
+    case setCallAudio(CallAudioSource)
 }
 
 public enum HostCallError: Error, Equatable, Sendable {
@@ -129,6 +131,7 @@ public enum HostCallDecoder {
         case "listDisplays": allowed = ["thumbnails"]
         case "setCaptureDisplay": allowed = ["displayId"]
         case "signIn": allowed = ["provider"]
+        case "setCallAudio": allowed = ["source"]
         case "cancelSignIn", "reopenSignIn", "copySignInLink", "signOut", "permissions": allowed = []
         default: return .failure(.unknownMethod)
         }
@@ -149,6 +152,12 @@ public enum HostCallDecoder {
         case "copySignInLink": return .success(.copySignInLink)
         case "signOut": return .success(.signOut)
         case "permissions": return .success(.permissions)
+        case "setCallAudio":
+            // [GUARD] Exactly one of the two names; anything else is refused, never defaulted.
+            guard let name = params["source"] as? String, let source = CallAudioSource(rawValue: name) else {
+                return .failure(.invalidParameters)
+            }
+            return .success(.setCallAudio(source))
         case "listDisplays":
             // [GUARD] Only a real boolean; absent means previews, as before.
             guard params["thumbnails"] != nil else { return .success(.listDisplays(thumbnails: true)) }
@@ -395,8 +404,13 @@ public enum HostReply {
     public static func failure(_ reason: String) -> [String: Any] { ["ok": false, "reason": reason] }
 
     // The Mac's permission states, closed names only.
-    public static func permissions(microphone: PermissionState, screen: PermissionState) -> [String: Any] {
-        ["microphone": microphone.rawValue, "screen": screen.rawValue]
+    // `callAudio` is additive: an older page reads the two it knows.
+    public static func permissions(
+        microphone: PermissionState, screen: PermissionState, callAudio: CallAudioReport? = nil
+    ) -> [String: Any] {
+        var reply: [String: Any] = ["microphone": microphone.rawValue, "screen": screen.rawValue]
+        if let callAudio { reply["callAudio"] = callAudio.wire }
+        return reply
     }
 
     // Additive: `no-focused-window` may name the application that was in front (a name
@@ -520,6 +534,12 @@ public enum HostBridgeScript {
                   return call("permissions").then(
                     function (reply) { return reply; },
                     function () { return { microphone: "undetermined", screen: "undetermined" }; });
+                },
+                // "screenCaptureKit" or "processTap"; answers the permission states that now apply.
+                setCallAudio: function (source) {
+                  return call("setCallAudio", { source: String(source) }).then(
+                    function (reply) { return reply; },
+                    function () { return null; });
                 }
               });
               function call(method, params) {

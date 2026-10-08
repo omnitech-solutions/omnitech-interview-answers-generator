@@ -13,7 +13,7 @@ import StudioShellCore
 // [SAFETY] INVARIANT (@unchecked Sendable): every stored property is a `let`
 // holding a Sendable value (`CaptureEvents` is a Sendable struct of @Sendable
 // closures) or an object that is itself an audited @unchecked Sendable adapter
-// (`MicrophoneCapture`, `ScreenKitSource`); the only `var`, `generation`, is read
+// (`MicrophoneCapture`, `ApplicationAudioSource`); the only `var`, `generation`, is read
 // and written inside `lock.withLock`. This type adds no hazard of its own, but it
 // inherits the unguarded start/stop overlap noted on those adapters (the `Task`s
 // started here are not ordered with `stop`).
@@ -21,13 +21,13 @@ import StudioShellCore
 // `generation` in an `OSAllocatedUnfairLock<Int>`.
 final class EngineSources: SourceControl, @unchecked Sendable {
     private let microphone: MicrophoneCapture?
-    private let applicationAudio: ScreenKitSource?
+    private let applicationAudio: ApplicationAudioSource?
     private let screenSelected: Bool
     private let events: CaptureEvents
     private let lock = NSLock()
     private var generation = 0
 
-    init(selection: Set<CaptureSource>, events: CaptureEvents) {
+    init(selection: Set<CaptureSource>, callAudio: CallAudioSource, events: CaptureEvents) {
         self.events = events
         microphone =
             selection.contains(.microphone)
@@ -36,9 +36,9 @@ final class EngineSources: SourceControl, @unchecked Sendable {
             : nil
         applicationAudio =
             selection.contains(.applicationAudio)
-            ? ScreenKitSource(
-                kind: .applicationAudio, onAudio: { events.onAudio(.applicationAudio, $0) },
-                onScreenshot: { _, _ in }, onLost: { events.onLost(.applicationAudio, $0) })
+            ? ApplicationAudioSource(
+                preference: callAudio, onAudio: { events.onAudio(.applicationAudio, $0) },
+                onLost: { events.onLost(.applicationAudio, $0) })
             : nil
         screenSelected = selection.contains(.screen)
     }
@@ -125,6 +125,7 @@ private final class MemoryStopMarker: StopMarkerStore {
 @MainActor
 public final class SystemCompanionRun: EngineRun {
     private let plan: RunPlan
+    private let callAudio: CallAudioSource
     private let locale: String
     private let focus: FocusTracker
     private let permissions = SystemPermissionProbe()
@@ -166,9 +167,10 @@ public final class SystemCompanionRun: EngineRun {
 
     public init(
         plan: RunPlan, endpoint: Endpoint, credentials: CredentialStore, focus: FocusTracker,
-        locale: String = Locale.current.identifier
+        callAudio: CallAudioSource = .default, locale: String = Locale.current.identifier
     ) {
         self.plan = plan
+        self.callAudio = callAudio
         self.locale = locale
         self.focus = focus
         // Audio and screen callbacks arrive on OS queues; they copy plain values and hop to the main actor.
@@ -177,7 +179,7 @@ public final class SystemCompanionRun: EngineRun {
             onAudio: { source, frame in Task { @MainActor in box.run?.audio(source, frame) } },
             onScreenshot: { _, _ in },
             onLost: { source, reason in Task { @MainActor in box.run?.lost(source, reason) } })
-        let sources = EngineSources(selection: plan.sources, events: events)
+        let sources = EngineSources(selection: plan.sources, callAudio: callAudio, events: events)
         self.sources = sources
         for source in plan.sources where source != .screen { rings[source] = AudioRingBuffer(maxSeconds: 30) }
         let runId = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)).lowercased()
@@ -353,8 +355,16 @@ public final class SystemCompanionRun: EngineRun {
             session.sourceLost(.microphone, reason: .permissionRevoked)
         }
         for source in [CaptureSource.screen, .applicationAudio] where session.machine.statuses[source] == .running {
+            guard needsScreenRecording(source) else { continue }
             if await permissions.screen() != .granted { session.sourceLost(source, reason: .permissionRevoked) }
         }
+    }
+
+    // [DOMAIN] Screen Recording gates the call's audio only while ScreenCaptureKit
+    // carries it (by choice, on an older macOS, or after the tap fell back). A
+    // tap is not lost because Screen Recording is off: it never needed it.
+    private func needsScreenRecording(_ source: CaptureSource) -> Bool {
+        source != .applicationAudio || ApplicationAudioSource.carrier(for: callAudio).source == .screenCaptureKit
     }
 
     public func canRecover() async -> Bool {
@@ -367,7 +377,8 @@ public final class SystemCompanionRun: EngineRun {
         for (source, status) in session.machine.statuses where status == .lost || status == .revoked {
             switch source {
             case .microphone: if await permissions.microphone() != .granted { return false }
-            case .applicationAudio, .screen: if await permissions.screen() != .granted { return false }
+            case .applicationAudio, .screen:
+                if needsScreenRecording(source), await permissions.screen() != .granted { return false }
             }
         }
         return true

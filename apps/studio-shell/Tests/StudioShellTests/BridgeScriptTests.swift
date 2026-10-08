@@ -90,13 +90,13 @@ func bridgeScriptTests(_ t: Harness) async {
             window.studioHost.account.reopenSignIn();
             window.studioHost.account.copySignInLink();
             window.studioHost.account.signOut();
-            window.studioHost.account.permissions();
+            window.studioHost.account.permissions(); window.studioHost.account.setCallAudio('processTap');
             """)
         let posted = context.evaluateScript("__posted.join('|')")?.toString() ?? ""
         for fragment in [
             "\"method\":\"signIn\"", "\"provider\":\"google\"", "\"method\":\"cancelSignIn\"",
             "\"method\":\"reopenSignIn\"", "\"method\":\"copySignInLink\"", "\"method\":\"signOut\"",
-            "\"method\":\"permissions\"",
+            "\"method\":\"permissions\"", "\"method\":\"setCallAudio\"", "\"source\":\"processTap\"",
         ] { t.expect(posted.contains(fragment), "posts \(fragment)") }
         t.expectEqual(context.evaluateScript("window.studioHost.account.state().phase")?.toString(), "idle")
         context.evaluateScript(
