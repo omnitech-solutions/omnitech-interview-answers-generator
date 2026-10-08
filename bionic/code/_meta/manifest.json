@@ -1153,7 +1153,7 @@
       "doc_path": "fallback/packages/ai-provider-openai/src/index.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "a444f054cbd12972c2e62e6c4ef0aba32d45bd5b4fda6f21b559bdd01b7d7fc1",
+      "sha256": "b0e66726e3e134f1c2e05763fe691e7c980e4ac9b110fa6ac8f8387b8e3fd8a9",
       "source_path": "packages/ai-provider-openai/src/index.ts"
     },
     {
@@ -2392,7 +2392,7 @@
       "doc_path": "fallback/products/interview/src/backend/documents/api.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "4a0887541e478e82db90770db06f62cda1f1a8ba305a29c343388e59f4e34e7d",
+      "sha256": "999e74c37153ee51d3d7010cb7d632a958188cf9ebfd502b1cbea4fdb158d98f",
       "source_path": "products/interview/src/backend/documents/api.ts"
     },
     {
@@ -5119,6 +5119,27 @@
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "051e461c85c729adfac9d5fb914f6d47e7c818b01eb8b0f7d47c651ae62ca250",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "f1ea56121ed12c0afd1b055eb62f4fb1250cf255651ab2c2dbd78d95c3ab464f",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "e9f993fb480c1e53b5c231b1be5a97f24fd041bfd55adb24cbfb67e5aaa6810e",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx"
+    },
+    {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/languages.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -5360,7 +5381,7 @@
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "717fc7c1bb6681794075ea8de495d024e17de1baa1fd636e4b631b53727fb1cc",
+      "sha256": "f710a5f3a9310f1ea01ea8599e54c03b7121c9b7c80dbe44354b0a1096a07166",
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts"
     },
     {

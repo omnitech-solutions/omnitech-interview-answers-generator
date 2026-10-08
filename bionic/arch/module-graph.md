@@ -1,6 +1,6 @@
 # Module graph
 
-_Static TS/JS import graph of 1176 modules, 3097 edges (resolve-or-drop; static parse, no Node executed)._
+_Static TS/JS import graph of 1181 modules, 3105 edges (resolve-or-drop; static parse, no Node executed)._
 
 ```mermaid
 graph LR
@@ -184,6 +184,7 @@ graph LR
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_fixtures_host_shim_ts["e2e/live-session/src/fixtures/host-shim.ts"]
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_helpers_aria_scan_ts["e2e/live-session/src/helpers/aria-scan.ts"]
+  e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_helpers_toolbar_ts["e2e/live-session/src/helpers/toolbar.ts"]
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_pages_live_page_ts["e2e/live-session/src/pages/live-page.ts"]
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_stack_config_ts["e2e/live-session/src/stack/config.ts"]
   e2e_live_session_src_claims_scan_states_ts["e2e/live-session/src/claims/scan-states.ts"] --> e2e_live_session_src_stack_control_ts["e2e/live-session/src/stack/control.ts"]
@@ -251,6 +252,7 @@ graph LR
   e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_missing_context_spec_ts["e2e/live-session/tests/missing-context.spec.ts"] --> e2e_live_session_src_stack_scenarios_ts["e2e/live-session/src/stack/scenarios.ts"]
   e2e_live_session_tests_native_details_spec_ts["e2e/live-session/tests/native-details.spec.ts"] --> e2e_live_session_src_fixtures_host_shim_ts["e2e/live-session/src/fixtures/host-shim.ts"]
@@ -273,6 +275,7 @@ graph LR
   e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_no_question_spec_ts["e2e/live-session/tests/no-question.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_panel_layout_spec_ts["e2e/live-session/tests/panel-layout.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_policy_device_only_spec_ts["e2e/live-session/tests/policy-device-only.spec.ts"] --> e2e_live_session_src_fixtures_test_ts["e2e/live-session/src/fixtures/test.ts"]
@@ -292,22 +295,26 @@ graph LR
   e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_revisions_spec_ts["e2e/live-session/tests/revisions.spec.ts"] --> e2e_live_session_src_stack_scenarios_ts["e2e/live-session/src/stack/scenarios.ts"]
   e2e_live_session_tests_screen_picker_native_spec_ts["e2e/live-session/tests/screen-picker-native.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_screen_picker_native_spec_ts["e2e/live-session/tests/screen-picker-native.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_screen_picker_native_spec_ts["e2e/live-session/tests/screen-picker-native.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_screen_picker_native_spec_ts["e2e/live-session/tests/screen-picker-native.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_screen_picker_native_spec_ts["e2e/live-session/tests/screen-picker-native.spec.ts"] --> e2e_live_session_src_helpers_toolbar_ts["e2e/live-session/src/helpers/toolbar.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_fixtures_host_shim_ts["e2e/live-session/src/fixtures/host-shim.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_pages_setup_page_ts["e2e/live-session/src/pages/setup-page.ts"]
   e2e_live_session_tests_screenshots_to_model_spec_ts["e2e/live-session/tests/screenshots-to-model.spec.ts"] --> e2e_live_session_src_stack_control_ts["e2e/live-session/src/stack/control.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_fixtures_panel_test_ts["e2e/live-session/src/fixtures/panel-test.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_helpers_api_ts["e2e/live-session/src/helpers/api.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_helpers_sql_ts["e2e/live-session/src/helpers/sql.ts"]
+  e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_helpers_task_bar_ts["e2e/live-session/src/helpers/task-bar.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_helpers_tasks_ts["e2e/live-session/src/helpers/tasks.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_helpers_toolbar_ts["e2e/live-session/src/helpers/toolbar.ts"]
   e2e_live_session_tests_screenshots_tray_spec_ts["e2e/live-session/tests/screenshots-tray.spec.ts"] --> e2e_live_session_src_pages_live_page_ts["e2e/live-session/src/pages/live-page.ts"]
@@ -2001,6 +2008,7 @@ graph LR
   products_interview_src_frontend_studio_live_overlay_panels_interview_context_chip_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx"] --> products_interview_src_frontend_studio_documents_documents_client_ts["products/interview/src/frontend/studio/documents/documents-client.ts"]
   products_interview_src_frontend_studio_live_overlay_panels_interview_context_chip_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx"] --> products_interview_src_frontend_studio_icon_tsx["products/interview/src/frontend/studio/icon.tsx"]
   products_interview_src_frontend_studio_live_overlay_panels_interview_context_chip_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx"] --> products_interview_src_frontend_studio_live_overlay_panels_interview_context_modal_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx"]
+  products_interview_src_frontend_studio_live_overlay_panels_interview_context_modal_test_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.test.tsx"] --> products_interview_src_frontend_studio_live_overlay_panels_interview_context_modal_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx"]
   products_interview_src_frontend_studio_live_overlay_panels_interview_context_modal_tsx["products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx"] --> products_interview_src_frontend_studio_documents_documents_client_ts["products/interview/src/frontend/studio/documents/documents-client.ts"]
   products_interview_src_frontend_studio_live_overlay_panels_mic_menu_actions_test_tsx["products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx"] --> products_interview_src_frontend_studio_live_overlay_panels_use_engine_ts["products/interview/src/frontend/studio/live/overlay/panels/use-engine.ts"]
   products_interview_src_frontend_studio_live_overlay_panels_mic_menu_model_test_ts["products/interview/src/frontend/studio/live/overlay/panels/mic-menu-model.test.ts"] --> products_interview_src_frontend_studio_live_overlay_panels_mic_menu_model_ts["products/interview/src/frontend/studio/live/overlay/panels/mic-menu-model.ts"]
@@ -3103,11 +3111,11 @@ graph LR
   vitest_config_ts["vitest.config.ts"] --> scripts_docker_tests_mjs["scripts/docker-tests.mjs"]
 ```
 
-## Isolated modules (40)
+## Isolated modules (43)
 
 _No resolved import edge (leaf or standalone):_
 
-`apps/web/next-env.d.ts`, `apps/web/proxy.ts`, `apps/web/scripts/copy-ocr-assets.mjs`, `apps/web/src/platform/optional-module-stub.ts`, `apps/web/src/platform/web-app-manifest.ts`, `apps/web/vitest.config.ts`, `apps/web/vitest.setup.ts`, `docker/app/forward.mjs`, `e2e/live-session/scripts/run.mjs`, `e2e/live-session/src/reporters/live-reporter.ts`, `packages/agent-runtime-codex/scripts/check-tool-isolation.ts`, `packages/database/drizzle.config.ts`, `packages/database/scripts/write-migration-names.mjs`, `packages/interview-cli/tsup.config.ts`, `packages/interview-contracts/src/live-session.test.ts`, `packages/interview-playground-control/tsup.config.ts`, `packages/logging/tsup.config.ts`, `products/interview/scripts/copy-document-assets.mjs`, `products/interview/scripts/generate-studio-icons.mjs`, `products/interview/src/frontend/studio/live/host-capability-parity.test.ts`, `products/interview/src/frontend/studio/live/layout-rules.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/panel-glass.test.tsx`, `products/interview/src/frontend/studio/live/overlay/panels/panels-css.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/stacking.test.ts`, `products/interview/vitest.config.ts`, `products/interview/vitest.setup.ts`, `scripts/assistant-sync.mjs`, `scripts/dev-build-graph.test.ts`, `scripts/dev-stop.mjs`, `scripts/ocr-assets-wiring.test.ts`, `scripts/package-boundaries.test.ts`, `scripts/raw-sql-guard.test.ts`, `scripts/rls-role-guard.test.ts`, `scripts/swift-coverage.mjs`, `scripts/swift-format.mjs`, `scripts/swiftlint.mjs`, `scripts/tenant-context-boundary.test.ts`, `scripts/verify-native.mjs`, `vitest.package.config.ts`
+`apps/web/next-env.d.ts`, `apps/web/proxy.ts`, `apps/web/scripts/copy-ocr-assets.mjs`, `apps/web/src/platform/optional-module-stub.ts`, `apps/web/src/platform/web-app-manifest.ts`, `apps/web/vitest.config.ts`, `apps/web/vitest.setup.ts`, `coverage/block-navigation.js`, `coverage/prettify.js`, `coverage/sorter.js`, `docker/app/forward.mjs`, `e2e/live-session/scripts/run.mjs`, `e2e/live-session/src/reporters/live-reporter.ts`, `packages/agent-runtime-codex/scripts/check-tool-isolation.ts`, `packages/database/drizzle.config.ts`, `packages/database/scripts/write-migration-names.mjs`, `packages/interview-cli/tsup.config.ts`, `packages/interview-contracts/src/live-session.test.ts`, `packages/interview-playground-control/tsup.config.ts`, `packages/logging/tsup.config.ts`, `products/interview/scripts/copy-document-assets.mjs`, `products/interview/scripts/generate-studio-icons.mjs`, `products/interview/src/frontend/studio/live/host-capability-parity.test.ts`, `products/interview/src/frontend/studio/live/layout-rules.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/glass-guard.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/panel-glass.test.tsx`, `products/interview/src/frontend/studio/live/overlay/panels/panels-css.test.ts`, `products/interview/src/frontend/studio/live/overlay/panels/stacking.test.ts`, `products/interview/vitest.config.ts`, `products/interview/vitest.setup.ts`, `scripts/assistant-sync.mjs`, `scripts/dev-build-graph.test.ts`, `scripts/dev-stop.mjs`, `scripts/ocr-assets-wiring.test.ts`, `scripts/package-boundaries.test.ts`, `scripts/raw-sql-guard.test.ts`, `scripts/rls-role-guard.test.ts`, `scripts/swift-coverage.mjs`, `scripts/swift-format.mjs`, `scripts/swiftlint.mjs`, `scripts/tenant-context-boundary.test.ts`, `scripts/verify-native.mjs`, `vitest.package.config.ts`
 
 ## Residuals
 

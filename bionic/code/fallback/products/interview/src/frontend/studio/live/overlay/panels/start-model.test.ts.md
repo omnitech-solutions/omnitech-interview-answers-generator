@@ -2,4 +2,4 @@
 
 _Source: `products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts` (header-comment fallback)_
 
-_No leading comment block found._
+Unscheduled and past interviews count: the context lives in the app.

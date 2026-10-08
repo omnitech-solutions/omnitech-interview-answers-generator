@@ -151,6 +151,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -167,6 +170,7 @@
         "e2e/live-session/src/helpers/footprint.ts",
         "e2e/live-session/src/helpers/png.ts",
         "e2e/live-session/src/helpers/sql.ts",
+        "e2e/live-session/src/helpers/task-bar.ts",
         "e2e/live-session/src/helpers/tasks.ts",
         "e2e/live-session/src/helpers/toolbar.ts",
         "e2e/live-session/src/pages/live-page.ts",
@@ -838,6 +842,7 @@
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/languages.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx",
@@ -1194,7 +1199,7 @@
         "vitest.package.config.ts"
       ],
       "n_entities": 81,
-      "n_sources": 1176,
+      "n_sources": 1181,
       "verdict": "populated"
     },
     {
@@ -1336,6 +1341,9 @@
         "apps/web/src/platform/web-app-manifest.ts",
         "apps/web/vitest.config.ts",
         "apps/web/vitest.setup.ts",
+        "coverage/block-navigation.js",
+        "coverage/prettify.js",
+        "coverage/sorter.js",
         "docker/app/forward.mjs",
         "e2e/live-session/playwright.config.ts",
         "e2e/live-session/scripts/run.mjs",
@@ -1352,6 +1360,7 @@
         "e2e/live-session/src/helpers/footprint.ts",
         "e2e/live-session/src/helpers/png.ts",
         "e2e/live-session/src/helpers/sql.ts",
+        "e2e/live-session/src/helpers/task-bar.ts",
         "e2e/live-session/src/helpers/tasks.ts",
         "e2e/live-session/src/helpers/toolbar.ts",
         "e2e/live-session/src/pages/live-page.ts",
@@ -2023,6 +2032,7 @@
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/hit-regions.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/interview-context-chip.tsx",
+        "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.test.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/interview-context-modal.tsx",
         "products/interview/src/frontend/studio/live/overlay/panels/languages.ts",
         "products/interview/src/frontend/studio/live/overlay/panels/mic-menu-actions.test.tsx",
@@ -2379,8 +2389,8 @@
         "vitest.config.ts",
         "vitest.package.config.ts"
       ],
-      "n_entities": 3097,
-      "n_sources": 1177,
+      "n_entities": 3105,
+      "n_sources": 1182,
       "verdict": "populated"
     },
     {
