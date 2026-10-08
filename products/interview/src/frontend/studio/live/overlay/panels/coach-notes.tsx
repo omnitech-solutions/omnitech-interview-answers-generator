@@ -19,7 +19,7 @@ import {
 import { Icon } from "../../../icon";
 import { TENANT_HEADER } from "../../../studio-fetch";
 import { openExternalThroughHost } from "../../host-adapter";
-import { isConversation, useChatView } from "./chat-view-pref";
+import { isCoachView, useChatView } from "./chat-view-pref";
 import { windowTenant } from "./use-account";
 
 const POLL_MS = 2_000;
@@ -190,7 +190,7 @@ const STYLE = {
     fontSize: 18,
     lineHeight: 1.5,
   },
-  inlineNote: { fontSize: 16, lineHeight: 1.5 },
+  inlineNote: { fontSize: 19, lineHeight: 1.45 },
   head: { display: "flex", alignItems: "center", gap: 10, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: 700, lineHeight: 1.25 },
   heading: {
@@ -475,9 +475,9 @@ export function CoachNotes({
     | ((size: { width: number; height?: number }) => unknown)
     | undefined;
 }) {
-  // In a conversation view the notes sit under their questions in the
-  // transcript pane, so this panel stands down (and stops reading).
-  const apart = !isConversation(useChatView());
+  // A coach layout draws the notes itself, under the call, so this panel
+  // stands down (and stops reading).
+  const apart = !isCoachView(useChatView());
   const { notes, clear } = useCoachNotes(enabled && apart);
   const [dock, setDockState] = useState<CoachDock>(savedDock);
   const setDock = (next: CoachDock) => {

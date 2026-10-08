@@ -5,20 +5,29 @@
 import type { CoachNote } from "@omnitech/interview-contracts";
 import type { PanelRow } from "./panel-model";
 
-// [DOMAIN] An interviewer line this long opens a turn. Shorter ones ("OK",
-// "Sounds good") are asides of the turn they follow, never a question.
+// [DOMAIN] An interviewer line opens a turn only when it asks something of the
+// person: it is long enough to be more than an acknowledgement and it carries
+// a question word or a request ("tell me", "walk me through"). A thank-you or
+// a closing remark is an aside of the turn it follows, never a question.
 export const QUESTION_WORDS = 5;
+const ASKS =
+  /\b(?:how|what|why|where|when|which|who|whose)\b|\b(?:do|did|does|are|is|was|were|have|has|can|could|would|will|should) (?:you|we|it|they|there|that)\b|\b(?:tell|walk|talk|show|give) (?:me|us)\b|\b(?:describe|explain|i want to hear|i would like to hear|curious to hear|any questions)\b/;
 // The microphone also hears the call through the speakers. A line of the
 // person's that repeats an interviewer line this close in time is that echo.
 const ECHO_WINDOW_MS = 30_000;
 const ECHO_SHARE = 0.7;
+// A heard question with no restatement from the coach is cut to this length
+// in the questions list.
+const ASK_LENGTH = 60;
 
 export type Turn = {
   key: string;
   at: number;
   // What was asked. Null only for what came before the first question.
   question: PanelRow | null;
-  // Short interviewer lines after the question.
+  // The coach's restatement of the question, when a note carries one.
+  ask: string | null;
+  // Interviewer lines after the question that ask nothing.
   asides: PanelRow[];
   // The coach's notes for this question, oldest first.
   notes: CoachNote[];
@@ -30,6 +39,9 @@ export type Turn = {
 
 const words = (text: string): string[] =>
   text.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+
+export const asksSomething = (text: string): boolean =>
+  words(text).length >= QUESTION_WORDS && ASKS.test(text.toLowerCase());
 
 // One line repeats another when most of the shorter one's words are in the
 // longer one.
@@ -74,6 +86,7 @@ export function conversationTurns(
       key: question?.key ?? "before",
       at,
       question,
+      ask: null,
       asides: [],
       notes: [],
       studio: [],
@@ -83,8 +96,7 @@ export function conversationTurns(
     return turn;
   };
   for (const row of kept) {
-    const asks = isInterviewer(row) && words(row.text).length >= QUESTION_WORDS;
-    if (asks) {
+    if (isInterviewer(row) && asksSomething(row.text)) {
       open(row, row.at);
       continue;
     }
@@ -95,16 +107,26 @@ export function conversationTurns(
     else turn.mine.push(row);
   }
 
-  // [STRATEGY] A note is for the last question asked before it was posted.
-  // A note with no turn yet (nothing heard) waits in a turn of its own.
+  // [STRATEGY] A note joins the question its coach named (the turn that
+  // already holds a note with the same ask id); otherwise the last question
+  // asked before it was posted. A note with no turn yet waits in its own.
   const ordered = [...notes].sort(
     (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
   );
   for (const note of ordered) {
     const at = Date.parse(note.createdAt);
+    const named = note.askId
+      ? turns.find((each) =>
+          each.notes.some((held) => held.askId === note.askId),
+        )
+      : undefined;
     const turn =
-      turns.findLast((each) => each.at <= at) ?? turns[0] ?? open(null, at);
+      named ??
+      turns.findLast((each) => each.at <= at) ??
+      turns[0] ??
+      open(null, at);
     turn.notes.push(note);
+    if (note.ask) turn.ask = note.ask;
   }
   return turns;
 }
@@ -112,3 +134,26 @@ export function conversationTurns(
 // The question on the table: the newest turn that has one.
 export const currentQuestion = (turns: readonly Turn[]): PanelRow | null =>
   turns.findLast((turn) => turn.question !== null)?.question ?? null;
+
+// The questions, for the list and the notes: every turn that asks something
+// or holds a note. `live` is the one on the table.
+export type Question = Turn & { number: number; live: boolean; label: string };
+export function questionsOf(turns: readonly Turn[]): Question[] {
+  const asked = turns.filter(
+    (turn) => turn.question !== null || turn.notes.length > 0,
+  );
+  return asked.map((turn, at) => {
+    const heard = turn.question?.text ?? turn.notes[0]?.title ?? "";
+    return {
+      ...turn,
+      number: at + 1,
+      live: at === asked.length - 1,
+      // The coach's words when there are any; otherwise what was heard, cut.
+      label:
+        turn.ask ??
+        (heard.length > ASK_LENGTH
+          ? `${heard.slice(0, ASK_LENGTH).trimEnd()}…`
+          : heard),
+    };
+  });
+}

@@ -21,6 +21,7 @@ import {
   PaneToggles,
   SeeThroughButton,
   ShortcutsMenu,
+  ViewMenu,
 } from "./toolbar-menus";
 import { MicButton, MicControl } from "./toolbar-mic";
 import { WindowDots } from "./window-dots";
@@ -28,7 +29,7 @@ import type { PanelWindowMode } from "./window-mode";
 
 export { CaptureButton, MicButton, SeeThroughButton };
 
-type MenuId = "capture" | "mic" | "skill" | "keys";
+type MenuId = "capture" | "mic" | "view" | "skill" | "keys";
 
 // What the one window gives the toolbar.
 type WindowControls = {
@@ -102,6 +103,7 @@ export function Toolbar({
             label: "Answer style",
             children: (
               <>
+                <ViewMenu {...at("view")} />
                 <AnswerStyleMenu s={s} {...at("skill")} />
                 {s.card?.modelLabel && (
                   <Tag

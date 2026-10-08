@@ -3,11 +3,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
-// The transcript pane has two layouts. The suite's existing tests describe the
-// transcript layout, so that is what a test gets unless it asks for another
-// (`chatViewForTests.view = "conversation"`); the choice itself is tested in
+// The live window has several layouts (the View menu). The suite's existing
+// tests describe the base one, "original", so that is what a test gets unless
+// it asks for another (`chatViewForTests.view = "coach"`); the choice itself is tested in
 // chat-view-pref.test.ts against the real module.
-const chatViewForTests = vi.hoisted(() => ({ view: "transcript" }));
+const chatViewForTests = vi.hoisted(() => ({ view: "original" }));
 Object.assign(globalThis, { chatViewForTests });
 vi.mock(
   "./src/frontend/studio/live/overlay/panels/chat-view-pref",
@@ -76,5 +76,5 @@ if (typeof window !== "undefined") {
 }
 
 afterEach(() => {
-  chatViewForTests.view = "transcript";
+  chatViewForTests.view = "original";
 });

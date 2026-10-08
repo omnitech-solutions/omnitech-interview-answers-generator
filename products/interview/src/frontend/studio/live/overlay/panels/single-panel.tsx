@@ -13,11 +13,8 @@ import {
   useState,
 } from "react";
 import { Footer, failureNote } from "../overlay-footer";
-import {
-  CONVERSATION_WIDTH,
-  isConversation,
-  useChatView,
-} from "./chat-view-pref";
+import { COACH_WINDOW, useChatView } from "./chat-view-pref";
+import { CoachLayout } from "./coach-layout";
 import { CoachNotes, coachReserve } from "./coach-notes";
 import { FOCUS_INPUT_EVENT } from "./commands";
 import { EndedCard } from "./ended-card";
@@ -55,15 +52,14 @@ import type { PanelWindowMode } from "./window-mode";
 // Set here as well as in the stylesheet, which the native window keeps until
 // it reloads.
 const ANSWER_SHARE = { flexGrow: 1.7 } as const;
-// The conversation is read from while speaking and stands under the call
-// window, so its pane is wider than the transcript's.
-const CONVERSATION_SHARE = {
-  flex: `0 0 ${CONVERSATION_WIDTH}px`,
-} as const;
-const CHAT_WIDTH = PANES.find((pane) => pane.id === "chat")?.width ?? 0;
 
 export const ENDED_LOCK = "The session has ended. Start a new session.";
 
+const TRANSCRIPT_ONLY: PaneState = {
+  chat: true,
+  analysis: false,
+  code: false,
+};
 const NO_PANES: PaneState = { chat: false, analysis: false, code: false };
 // The least height a window with panes showing is asked for (the shell opens at 640).
 const PANE_HEIGHT = 640;
@@ -98,10 +94,16 @@ export function SinglePanel({
   glass: PanelGlass;
   windowMode: PanelWindowMode;
 }) {
-  const { shown, show } = panes;
-  const conversation = isConversation(useChatView());
-  // Beside other panes the conversation takes its own width; alone it has the row.
-  const wideChat = conversation && shown.chat && (shown.analysis || shown.code);
+  const { shown: chosen, show } = panes;
+  // [DOMAIN] The layout chosen in the View menu. "Original" is the base and
+  // is drawn exactly as before; "Transcript only" is the base with only its
+  // transcript; a coach layout takes the body's place.
+  const layout = useChatView();
+  const coachView =
+    layout === "coach" || layout === "conversation" || layout === "prompter"
+      ? layout
+      : null;
+  const shown = layout === "transcript" ? TRANSCRIPT_ONLY : chosen;
   // What each pane shows. The ids and sizes live in PANES.
   const view: Record<PaneId, (session: PanelSession) => ReactNode> = {
     chat: (session) => <ChatPanel s={session} />,
@@ -156,7 +158,8 @@ export function SinglePanel({
   // "Session ended" card and the footer with Open summary and Start a new
   // session; what was said and answered is in the summary.
   const holdBody = s.paused || ended;
-  const anyPane = PANES.some((pane) => shown[pane.id]) && !holdBody;
+  const anyPane =
+    (coachView !== null || PANES.some((pane) => shown[pane.id])) && !holdBody;
 
   const mode = windowMode.mode;
   // The window height the panes last had, asked back when they return.
@@ -198,10 +201,12 @@ export function SinglePanel({
       // With the body held the window is sized for nothing but the toolbar, so the
       // strip and the footer are exactly as wide as it.
       // Plus the room a coach panel docked at the side stands in.
+      // A coach layout has its own width: its columns, not the panes'.
       const width =
-        windowWidthFor(holdBody ? NO_PANES : shown, toolbar) +
-        coachReserve.width +
-        (wideChat && !holdBody ? CONVERSATION_WIDTH - CHAT_WIDTH : 0);
+        coachView && !holdBody
+          ? Math.max(COACH_WINDOW[coachView].width, toolbar)
+          : windowWidthFor(holdBody ? NO_PANES : shown, toolbar) +
+            coachReserve.width;
       let height: number | undefined;
       if (!anyPane && root) {
         const content =
@@ -214,8 +219,10 @@ export function SinglePanel({
         // showing asks for a short one) gets back the height the panes last had,
         // never less than PANE_HEIGHT. Otherwise the person's own height stands.
         const current = window.innerHeight;
-        if (current >= PANE_HEIGHT) paneHeight.current = current;
-        else height = Math.max(paneHeight.current ?? 0, PANE_HEIGHT);
+        // The call sits above the notes, so a coach layout needs more height.
+        const least = coachView ? COACH_WINDOW[coachView].height : PANE_HEIGHT;
+        if (current >= least) paneHeight.current = current;
+        else height = Math.max(paneHeight.current ?? 0, least);
       }
       void presentation.setWindowSize?.({
         width,
@@ -235,7 +242,7 @@ export function SinglePanel({
     return () => watch.disconnect();
   }, [
     shown,
-    wideChat,
+    coachView,
     holdBody,
     anyPane,
     ended,
@@ -275,7 +282,8 @@ export function SinglePanel({
       </ToolbarLock.Provider>
       {stripShown && strip && <StatusStrip s={s} strip={strip} />}
       {!holdBody && <TaskBar s={s} />}
-      {anyPane && (
+      {anyPane && coachView && <CoachLayout s={s} view={coachView} />}
+      {anyPane && !coachView && (
         <div className="pn-single-body">
           {PANES.filter((pane) => shown[pane.id]).map((pane) => (
             <div
@@ -284,13 +292,7 @@ export function SinglePanel({
               data-which={pane.id}
               // The answer takes the larger share of the width beside the
               // code: it is what is read from while speaking.
-              style={
-                pane.id === "analysis"
-                  ? ANSWER_SHARE
-                  : pane.id === "chat" && wideChat
-                    ? CONVERSATION_SHARE
-                    : undefined
-              }
+              style={pane.id === "analysis" ? ANSWER_SHARE : undefined}
             >
               {view[pane.id](s)}
             </div>

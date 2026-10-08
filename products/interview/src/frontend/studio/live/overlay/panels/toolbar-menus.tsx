@@ -10,6 +10,12 @@ import {
 } from "@oc-tech/omni-ui-components";
 import { Icon } from "../../../icon";
 import { SKILLS } from "../../shared/skills";
+import {
+  CHAT_VIEWS,
+  setChatView,
+  useChatView,
+  VIEW_GROUPS,
+} from "./chat-view-pref";
 import { DEFAULT_SKILL } from "./commands";
 import type { PanelGlass } from "./panel-glass";
 import type { PanelSession } from "./panel-views";
@@ -32,6 +38,63 @@ import {
 
 // The answer style: the chosen style's full name (up to 260 px, then an
 // ellipsis with the whole name as a tooltip) opens the grouped menu.
+// The window's layout: the coach layouts (the call on top, the notes beneath)
+// and the classic ones. One choice, kept for the next session.
+export function ViewMenu({
+  container,
+  open,
+  onOpenChange,
+}: {
+  container: HTMLElement | null;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+}) {
+  const lock = useToolbarLock();
+  const view = useChatView();
+  const label = CHAT_VIEWS.find((each) => each.id === view)?.label ?? "";
+  return (
+    <ActionMenu
+      label="View"
+      title="How the window is laid out"
+      width={300}
+      container={container}
+      sections={VIEW_GROUPS.map((group) => ({
+        id: group.id,
+        label: group.label,
+        labelStyle: "caps" as const,
+        items: CHAT_VIEWS.filter((each) => each.group === group.id).map(
+          (each) => ({
+            id: each.id,
+            label: each.label,
+            subtitle: each.hint,
+            checked: each.id === view,
+          }),
+        ),
+      }))}
+      open={open}
+      onOpenChange={onOpenChange}
+      onValueChange={(_group, id) => {
+        const next = CHAT_VIEWS.find((each) => each.id === id);
+        if (next) setChatView(next.id);
+      }}
+      trigger={
+        <Button
+          buttonSize="control"
+          tone="neutral"
+          icon={<Icon name="visibility" />}
+          iconAfter={<Icon name="expand_more" />}
+          labelMaxWidth="var(--oui-control-label-max)"
+          aria-label={`View: ${label}`}
+          data-testid="pn-view"
+          {...(lock ? { disabled: true, title: lock } : {})}
+        >
+          {label}
+        </Button>
+      }
+    />
+  );
+}
+
 export function AnswerStyleMenu({
   s,
   container,

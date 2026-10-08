@@ -23,6 +23,12 @@ export const coachNoteInputSchema = z.strictObject({
   // When given it is what the window shows; `points` are then left out.
   markdown: z.string().trim().min(1).max(6_000).optional(),
   links: z.array(coachNoteLinkSchema).max(5).default([]),
+  // The question this note is for, restated in a few words for the questions
+  // list ("Data consistency across services").
+  ask: z.string().trim().min(1).max(80).optional(),
+  // Notes that share an id are for the same question: a later one is a
+  // follow-up under it, never a replacement.
+  askId: z.string().trim().min(1).max(64).optional(),
 });
 
 export const coachNoteSchema = coachNoteInputSchema.extend({
