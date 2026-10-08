@@ -1,6 +1,6 @@
 // The coach panel: which notes a search finds, how a note's Markdown is read,
-// where a dragged panel snaps, and that the panel stands down while the
-// transcript pane is a conversation (the notes sit under their questions).
+// where a dragged panel snaps, and that the panel stands down in a coach view
+// (the coach layout draws the notes itself, under their questions).
 import type { CoachNote } from "@omnitech/interview-contracts";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -166,7 +166,7 @@ describe("the coach panel and the chat view", () => {
     window.localStorage.clear();
   });
 
-  it("shows the notes it reads while the transcript layout keeps it apart", async () => {
+  it("shows the notes it reads in the original view", async () => {
     serveNotes();
     render(<CoachNotes enabled />);
     expect(await screen.findByTestId("pn-coach")).toHaveTextContent(
@@ -177,7 +177,7 @@ describe("the coach panel and the chat view", () => {
     );
   });
 
-  it.each(["conversation", "conversation-slot"])(
+  it.each(["coach", "conversation", "prompter"])(
     "draws nothing and reads nothing while the view is %s",
     async (chosen) => {
       view.view = chosen;
@@ -189,6 +189,13 @@ describe("the coach panel and the chat view", () => {
       expect(fetched).not.toHaveBeenCalled();
     },
   );
+
+  it("is still the docked panel in the transcript-only view", async () => {
+    view.view = "transcript";
+    serveNotes();
+    render(<CoachNotes enabled />);
+    expect(await screen.findByTestId("pn-coach")).toBeInTheDocument();
+  });
 
   it("draws nothing while the session is not open", async () => {
     const fetched = serveNotes();

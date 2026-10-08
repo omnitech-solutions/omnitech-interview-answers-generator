@@ -412,83 +412,40 @@ describe("sending with the keyboard", () => {
   });
 });
 
-describe("the conversation views (chosen from the View menu)", () => {
-  const QUESTION = "How do you decide when a feature should be a microservice";
+describe("the chat panel and the View menu", () => {
   const chosen = (
     globalThis as unknown as { chatViewForTests: { view: string } }
   ).chatViewForTests;
-  // The conversation reads the coach's notes itself; none are posted here.
-  const serveNotes = () => {
-    const fetched = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ revision: 0, notes: [] }), {
-          status: 200,
-        }),
-    );
-    vi.stubGlobal("fetch", fetched);
-    return fetched;
-  };
-  const asked = () =>
-    fake({
-      model: model([
-        transcript(2, QUESTION, { sourceId: "application-audio-r1" }),
-      ]),
-    }).session;
-  afterEach(() => window.localStorage.clear());
 
-  it("the transcript layout shows the transcript, with the View menu in its header, and reads no coach notes", async () => {
-    const fetched = serveNotes();
-    render(<ChatPanel s={asked()} />);
-    expect(screen.getByLabelText("Transcript and chat")).toBeInTheDocument();
-    expect(screen.queryByTestId("pn-conversation")).toBeNull();
-    expect(screen.queryByTestId("pn-call-slot")).toBeNull();
-    expect(screen.getByTestId("pn-chat-view")).toHaveAccessibleName(
-      "Conversation view",
-    );
-    await act(async () => undefined);
-    expect(fetched).not.toHaveBeenCalled();
-  });
-
-  it("the conversation layout shows the questions in place of the transcript, and keeps the View menu and the message box", async () => {
-    chosen.view = "conversation";
-    const fetched = serveNotes();
-    render(<ChatPanel s={asked()} />);
-    expect(screen.getByTestId("pn-conversation")).toHaveTextContent(QUESTION);
-    expect(screen.queryByLabelText("Transcript and chat")).toBeNull();
-    expect(screen.getByTestId("pn-chat-view")).toBeInTheDocument();
-    expect(box()).toBeEnabled();
-    // No room is kept for the call window in this layout.
-    expect(screen.queryByTestId("pn-call-slot")).toBeNull();
-    expect(screen.queryByRole("slider")).toBeNull();
-    // The notes are read here, since the coach panel stands down.
-    await act(async () => undefined);
-    expect(fetched).toHaveBeenCalledWith(
-      "/api/v1/coach-notes",
-      expect.objectContaining({ method: "GET" }),
-    );
-  });
-
-  it("the conversation under the call keeps room for the call window above it, with a bar to resize that room", async () => {
-    chosen.view = "conversation-slot";
-    serveNotes();
-    render(<ChatPanel s={asked()} />);
-    await act(async () => undefined);
-    const slot = screen.getByTestId("pn-call-slot");
-    const conversation = screen.getByTestId("pn-conversation");
-    expect(conversation).toHaveTextContent(QUESTION);
-    // The room comes first: the conversation reads directly beneath the call.
-    expect(
-      slot.compareDocumentPosition(conversation) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    // It sits outside the pane's card, so the call shows through it.
-    expect(screen.getByTestId("pn-chat")).not.toContainElement(slot);
-    const bar = screen.getByRole("slider", {
-      name: "Height of the room for the call window",
-    });
-    expect(bar).toHaveAttribute("data-testid", "pn-call-slot-resize");
-    // A surface of its own, so it takes the mouse outside any card.
-    expect(bar).toHaveAttribute("data-hit-surface");
-    expect(screen.getByTestId("pn-chat-view")).toBeInTheDocument();
-  });
+  it.each(["original", "transcript", "coach", "conversation", "prompter"])(
+    "always draws the transcript, with no View menu and no room for the call, in the %s view",
+    async (view) => {
+      chosen.view = view;
+      const fetched = vi.fn();
+      vi.stubGlobal("fetch", fetched);
+      render(
+        <ChatPanel
+          s={
+            fake({
+              model: model([
+                transcript(2, "How do you decide what becomes a service", {
+                  sourceId: "application-audio-r1",
+                }),
+              ]),
+            }).session
+          }
+        />,
+      );
+      expect(screen.getByLabelText("Transcript and chat")).toBeInTheDocument();
+      expect(box()).toBeInTheDocument();
+      expect(screen.queryByTestId("pn-view")).toBeNull();
+      expect(screen.queryByTestId("pn-chat-view")).toBeNull();
+      expect(screen.queryByTestId("pn-call-slot")).toBeNull();
+      expect(screen.queryByRole("slider")).toBeNull();
+      // The coach's notes are not this pane's to read.
+      await act(async () => undefined);
+      expect(fetched).not.toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    },
+  );
 });
