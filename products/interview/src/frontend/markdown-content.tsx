@@ -330,7 +330,7 @@ function MarkdownCode({
 
 function inlineCodeLanguage(source: string): string {
   if (/^(?:<|<\/)[A-Za-z]/.test(source)) return "tsx";
-  if (/\$[A-Za-z_]|\->/.test(source)) return "php";
+  if (/\$[A-Za-z_]|->/.test(source)) return "php";
   if (/^(?:def|class|module)\s|\.(?:each|map|select)\b/.test(source))
     return "ruby";
   return "typescript";

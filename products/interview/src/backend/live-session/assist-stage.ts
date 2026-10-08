@@ -895,17 +895,8 @@ export function createAssistStage(
         : MAX_PROMPT_BYTES;
       // [STRATEGY] The ranking is by the spoken text only, never by a model
       // or by a category the model has not chosen yet.
-      // The role ranking reads the spoken words, and the employer brief's own
-      // lines when there is one: "tell me about our company" carries no
-      // signal of its own, the brief's stack and must-haves do.
-      const briefText = input.context.snapshot.sources
-        .filter((source) =>
-          source.pointer.startsWith("/context/employerBrief/"),
-        )
-        .map((source) => source.text)
-        .join(" ");
       let sources = selectSourcesForTask(input.context.snapshot, {
-        query: [...lines.map((line) => line.text), briefText].join(" "),
+        query: lines.map((line) => line.text).join(" "),
         category: "other",
         matrix: input.context.matrix,
         limits: input.deviceOnly ? DEVICE_TASK_VIEW_LIMITS : TASK_VIEW_LIMITS,

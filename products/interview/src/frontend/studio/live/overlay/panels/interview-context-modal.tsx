@@ -43,6 +43,8 @@ export function briefSections(
   const section = (heading: string, items: readonly string[]) =>
     items.length ? [{ heading, items: [...items] }] : [];
   return [
+    ...section("About the company", brief.companyFacts ?? []),
+    ...section("Your prep", brief.prepNotes ?? []),
     ...section("Summary", brief.summary ? [brief.summary] : []),
     ...section("Must-haves", brief.mustHaves),
     ...section("Nice-to-haves", brief.niceToHaves),

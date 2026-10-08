@@ -68,6 +68,8 @@ export function briefLines(brief: EmployerBrief): string {
   return [
     `Employer brief: ${brief.role} at ${brief.company}`,
     ...list(`About ${brief.company}`, brief.companyFacts ?? []),
+    // One line each, so a task view can carry just the ones a question touches.
+    ...(brief.prepNotes ?? []).map((note) => `Prep: ${flat(note)}`),
     ...(brief.summary ? [`Role summary: ${flat(brief.summary)}`] : []),
     ...list("Must-haves", brief.mustHaves),
     ...list("Nice-to-haves", brief.niceToHaves),

@@ -55,8 +55,12 @@ export const TASK_VIEW_LIMITS: SourceLimits = {
   maxSourceChars: 400,
   maxTotalChars: 5_000,
 };
-// Lines of the employer brief a task view carries ahead of the matrix.
-export const MAX_BRIEF_SOURCES = 20;
+// Lines of the employer brief a task view carries ahead of the matrix, and the
+// share of the view's characters they may take: the matrix keeps the rest, so
+// a long brief (company facts, the candidate's prep) can never crowd out the
+// approved experience an answer must cite.
+export const MAX_BRIEF_SOURCES = 24;
+export const BRIEF_CHAR_SHARE = 0.45;
 // The smaller window of a device profile.
 export const DEVICE_MAX_TOTAL_CHARS = 2_500;
 export const DEVICE_TASK_VIEW_LIMITS: SourceLimits = {
@@ -338,6 +342,8 @@ const rolePointer = /^\/roles\/(\d+)(?:\/|$)/;
 // Non-role sections (the candidate header, mappings) are short and framing
 // critical: they rank right after the best role.
 const FRAMING_RANK = 0.5;
+// A leaf at least this long reads as a sentence, not a tag.
+const SPOKEN_LEAF_CHARS = 40;
 
 // [STRATEGY] Rank, then keep a PREFIX of the ranking that fits the budget: the
 // set shrinks by dropping the lowest-ranked sources. A source longer than the
@@ -356,25 +362,6 @@ export function selectSourcesForTask(
   const byKind = (kind: SourceKind) =>
     snapshot.sources.filter((source) => source.sourceKind === kind);
 
-  const roleRank = new Map<number, number>();
-  if (task.matrix)
-    for (const [rank, { pointer }] of selectCandidateFragments(
-      task.matrix,
-      task.query,
-      task.category,
-    ).entries())
-      roleRank.set(Number(rolePointer.exec(pointer)?.[1]), rank);
-  const rankOf = (source: ContextSource) => {
-    const role = rolePointer.exec(source.pointer);
-    return role
-      ? (roleRank.get(Number(role[1])) ?? Number.MAX_SAFE_INTEGER)
-      : FRAMING_RANK;
-  };
-  const ranked = byKind("candidate")
-    .map((source, index) => ({ source, index, rank: rankOf(source) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map((entry) => entry.source);
-
   // Preferences are the only source of notice period and compensation, so a
   // logistics-shaped task puts them first.
   const preferencesFirst =
@@ -387,22 +374,104 @@ export function selectSourcesForTask(
   // lines) leads every task view: an answer about the company, the role or
   // what they value has nothing to lean on otherwise, because a full matrix
   // alone fills the view. The raw spec's sentences follow the matrix.
-  const brief = employer
-    .filter((source) => source.pointer.startsWith("/context/employerBrief/"))
-    .slice(0, MAX_BRIEF_SOURCES);
+  // Which lines: the header always; then the lines that share words with what
+  // was asked ("questions to ask", "values", a prep line about that story);
+  // then the rest in the brief's own order, within the brief's share.
+  const asked = new Set(task.query.toLowerCase().match(/[a-z]{4,}/g) ?? []);
+  const touches = (text: string) =>
+    new Set(
+      (text.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((word) =>
+        asked.has(word),
+      ),
+    ).size;
+  const briefBudget = Math.floor(limits.maxTotalChars * BRIEF_CHAR_SHARE);
+  const brief: ContextSource[] = [];
+  let briefChars = 0;
+  for (const { source } of employer
+    .filter((each) => each.pointer.startsWith("/context/employerBrief/"))
+    .map((source, index) => ({
+      source,
+      index,
+      rank: index === 0 ? Number.POSITIVE_INFINITY : touches(source.text),
+    }))
+    .sort((a, b) => b.rank - a.rank || a.index - b.index)) {
+    if (brief.length >= MAX_BRIEF_SOURCES) break;
+    if (source.text.length > limits.maxSourceChars) continue;
+    if (briefChars + source.text.length > briefBudget) continue;
+    brief.push(source);
+    briefChars += source.text.length;
+  }
+  // [STRATEGY] Roles are ranked by the spoken words plus the brief lines that
+  // touch them: a prep line naming the story for this question ("proudest
+  // project: Relay") must outweigh every other line of the brief. When no
+  // line touches the question ("tell me about our company") all kept lines
+  // speak, because the question carries no signal of its own.
+  const touching = brief.filter((source) => touches(source.text) > 0);
+  const roleRank = new Map<number, number>();
+  if (task.matrix)
+    for (const [rank, { pointer }] of selectCandidateFragments(
+      task.matrix,
+      [
+        task.query,
+        ...(touching.length > 0 ? touching : brief).map((each) => each.text),
+      ].join(" "),
+      task.category,
+    ).entries())
+      roleRank.set(Number(rolePointer.exec(pointer)?.[1]), rank);
+  // A role the question or its prep line names outright ("Proudest project:
+  // Relay ...") leads whatever the term scores say: those are binary and tie
+  // across roles, and a tie falls to the newest role, not the story. The
+  // question speaks first, then the prep lines in the order they were kept
+  // (most words shared with the question first).
+  const voices = [task.query, ...touching.map((each) => each.text)].map(
+    (text) => text.toLowerCase(),
+  );
+  for (const [index, role] of (task.matrix?.roles ?? []).entries()) {
+    const company = role.company.toLowerCase().match(/[a-z]{4,}/)?.[0];
+    if (!company) continue;
+    const at = voices.findIndex((voice) =>
+      new RegExp(`\\b${company}\\b`).test(voice),
+    );
+    if (at >= 0) roleRank.set(index, at - voices.length);
+  }
+  const rankOf = (source: ContextSource) => {
+    const role = rolePointer.exec(source.pointer);
+    return role
+      ? (roleRank.get(Number(role[1])) ?? Number.MAX_SAFE_INTEGER)
+      : FRAMING_RANK;
+  };
+  const ranked = byKind("candidate")
+    .map((source, index) => ({ source, index, rank: rankOf(source) }))
+    // Within a role, what can be said aloud (an accomplishment, a
+    // responsibility) goes before one-word leaves (tags, technologies): the
+    // source count is spent on substance.
+    .sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        Number(b.source.text.length >= SPOKEN_LEAF_CHARS) -
+          Number(a.source.text.length >= SPOKEN_LEAF_CHARS) ||
+        a.index - b.index,
+    )
+    .map((entry) => entry.source);
+
   const employerRest = employer.filter((source) => !brief.includes(source));
   const order = preferencesFirst
     ? [...preferences, ...brief, ...ranked, ...employerRest]
     : [...brief, ...ranked, ...employerRest, ...preferences];
 
+  // The brief has its own bounds (count and share), so its lines do not use
+  // up the source count: the matrix keeps its full allowance beside them.
   const kept: ContextSource[] = [];
   let total = 0;
+  let counted = 0;
   for (const source of order) {
     if (source.text.length > limits.maxSourceChars) continue;
-    if (kept.length >= limits.maxSources) break;
+    const isBrief = brief.includes(source);
+    if (!isBrief && counted >= limits.maxSources) break;
     if (total + source.text.length > limits.maxTotalChars) break;
     kept.push(source);
     total += source.text.length;
+    if (!isBrief) counted += 1;
   }
   return kept;
 }

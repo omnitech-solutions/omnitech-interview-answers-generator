@@ -73,6 +73,15 @@ const CHOICES = (scheduledAt: string | null) => ({
   ],
 });
 
+// One candidacy with no interview stage: it starts with no recording agreement.
+const NO_STAGE: LiveSessionChoicesResponse = {
+  ...CHOICES(null),
+  candidacies: CHOICES(null).candidacies.map((each) => ({
+    ...each,
+    interviews: [],
+  })),
+} as LiveSessionChoicesResponse;
+
 type Providers = { providers?: string[]; configured?: boolean };
 let providers: Providers = { providers: ["google", "linkedin"] };
 let choices: LiveSessionChoicesResponse = CHOICES(null);
@@ -666,25 +675,16 @@ describe("idle: signed in, no live session", () => {
     );
   });
 
-  it("a local profile: 'This Mac' chip, Rehearsal first with Interview offered too, honest footer, sign out of the local profile", async () => {
+  it("a local profile: 'This Mac' chip, its interviews offered like an account's, honest footer, sign out of the local profile", async () => {
     const host = bridge();
     idleStudio();
     choices = CHOICES(new Date(Date.now() + 86_400_000).toISOString());
     await show(undefined, undefined, LOCAL);
     const chip = screen.getByTestId("pn-chip");
     expect(chip).toHaveTextContent("This Mac");
-    // The same two fixed choices as an account: the context is added in the
-    // app, so a local profile's interviews can be started for as well.
-    const targets = screen.getAllByRole("radio");
-    expect(targets.map((target) => target.textContent)).toEqual([
-      "Rehearsal",
-      "Interview",
-    ]);
-    expect(targets[0]).toHaveAttribute("aria-checked", "true");
-    expect(
-      screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
-    ).toBeNull();
-    fireEvent.click(targets[1] as HTMLElement);
+    // The same picker as an account: the context is added in the app, so a
+    // local profile's interviews are started for as well. No Rehearsal choice.
+    expect(screen.queryAllByRole("radio")).toEqual([]);
     expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
       "Staff Engineer",
     );
@@ -737,7 +737,7 @@ describe("idle: signed in, no live session", () => {
     expect(screen.getByText("Using this Mac without an account")).toBeVisible();
   });
 
-  it("offers Rehearsal and Interview; Interview lists every candidacy with its company and spec state, needs 'everyone has agreed' for its one interview, Rehearsal does not", async () => {
+  it("a session is always for an interview: every candidacy is listed with its company and spec state, and one with an interview stage needs 'everyone has agreed'", async () => {
     bridge();
     idleStudio();
     const scheduled = new Date(Date.now() + 3 * 86_400_000).toISOString();
@@ -764,18 +764,8 @@ describe("idle: signed in, no live session", () => {
       ],
     };
     await show(undefined, undefined, ACCOUNT);
-    const targets = screen.getAllByRole("radio");
-    expect(targets.map((target) => target.textContent)).toEqual([
-      "Rehearsal",
-      "Interview",
-    ]);
-    // Rehearsal is the default and asks for no agreement.
-    expect(targets[0]).toHaveAttribute("aria-checked", "true");
-    expect(
-      screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
-    ).toBeNull();
-    expect(screen.queryByTestId("pn-start-interview")).toBeNull();
-    fireEvent.click(targets[1] as HTMLElement);
+    // No Rehearsal choice: a session with no context attached cannot start.
+    expect(screen.queryAllByRole("radio")).toEqual([]);
     // The first listed candidacy (no interview stage) is the current one: it
     // starts for the candidacy alone, so no agreement is asked for yet.
     const picker = screen.getByTestId("pn-start-interview");
@@ -805,8 +795,9 @@ describe("idle: signed in, no live session", () => {
     expect(
       screen.getByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toHaveAttribute("aria-checked", "false");
-    // Back to Rehearsal: no agreement.
-    fireEvent.click(targets[0] as HTMLElement);
+    // Back to the candidacy with no interview stage: no agreement.
+    fireEvent.click(picker);
+    fireEvent.click(screen.getByTestId(`pn-start-interview-option-${second}`));
     expect(
       screen.queryByRole("checkbox", { name: /Everyone has agreed/ }),
     ).toBeNull();
@@ -817,21 +808,18 @@ describe("idle: signed in, no live session", () => {
     idleStudio();
     choices = CHOICES(new Date(Date.now() - 86_400_000).toISOString());
     await show(undefined, undefined, ACCOUNT);
-    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
     expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
       "Staff Engineer",
     );
     cleanup();
     choices = CHOICES(null);
     await show(undefined, undefined, ACCOUNT);
-    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
     expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
       "Staff Engineer",
     );
     cleanup();
     choices = { ...CHOICES(null), candidacies: [] };
     await show(undefined, undefined, ACCOUNT);
-    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
     const picker = screen.getByTestId("pn-start-interview");
     expect(picker).toHaveTextContent("No interview yet");
     fireEvent.click(picker);
@@ -924,11 +912,6 @@ describe("idle: signed in, no live session", () => {
       );
     });
     await show(undefined, undefined, ACCOUNT);
-    // Rehearsal is the default; the interview is chosen on purpose.
-    expect(screen.getByTestId("pn-start-hint")).toHaveTextContent(
-      "Listening starts right away",
-    );
-    fireEvent.click(screen.getByRole("radio", { name: "Interview" }));
     expect(screen.getByTestId("pn-start-interview")).toHaveTextContent(
       "Staff Engineer",
     );
@@ -957,7 +940,7 @@ describe("idle: signed in, no live session", () => {
     ]);
   });
 
-  it("Rehearsal starts with no agreement and carries no interview", async () => {
+  it("a candidacy with no interview stage starts with no agreement and carries its candidacy", async () => {
     bridge();
     idleStudio();
     const posted: Array<Record<string, unknown>> = [];
@@ -971,6 +954,7 @@ describe("idle: signed in, no live session", () => {
         201,
       );
     });
+    choices = NO_STAGE;
     await show(undefined, undefined, LOCAL);
     expect(screen.getByTestId("pn-start-hint")).toHaveTextContent(
       "Listening starts right away",
@@ -979,11 +963,27 @@ describe("idle: signed in, no live session", () => {
     await settle();
     expect(posted).toHaveLength(1);
     expect(posted[0]).toEqual(
-      expect.objectContaining({
-        rehearsal: expect.objectContaining({ strict: false }),
-      }),
+      expect.objectContaining({ candidacyId: CANDIDACY }),
     );
     expect(posted[0]).not.toHaveProperty("interviewId");
+  });
+
+  it("with no interview at all Start waits for one: nothing is posted", async () => {
+    bridge();
+    idleStudio();
+    const post = vi.fn();
+    server.on("POST /", ({ body }) => {
+      post(body);
+      return jsonResponse({ error: { code: "invalid_input" } }, 400);
+    });
+    choices = { ...CHOICES(null), candidacies: [] };
+    await show(undefined, undefined, ACCOUNT);
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    await settle();
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pn-start-toast")).toHaveTextContent(
+      "Add an interview first.",
+    );
   });
 
   it("a refused start says what the server's fixed sentence says and stays on the screen", async () => {
@@ -992,6 +992,7 @@ describe("idle: signed in, no live session", () => {
     server.on("POST /", () =>
       jsonResponse({ error: { code: "invalid_input" } }, 400),
     );
+    choices = NO_STAGE;
     await show(undefined, undefined, LOCAL);
     fireEvent.click(screen.getByRole("button", { name: "Start session" }));
     await settle();
