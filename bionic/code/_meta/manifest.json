@@ -5021,6 +5021,20 @@
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/auto-session.ts"
     },
     {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/call-audio-setting.test.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "447eefaeb25739c4416de1eb5eaa1d94a3b05241403f97f1e9181a8f0ed2266c",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/call-audio-setting.test.tsx"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/call-audio-setting.tsx.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "88809256e2a8c7eb4fc53b32cbdd44bd7f070d2064d06a5fe13ab3b8701793e3",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/call-audio-setting.tsx"
+    },
+    {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/capture-problem.test.tsx.md",
       "extractor_version": "1",
       "owner": "typescript",
@@ -5381,7 +5395,7 @@
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts.md",
       "extractor_version": "1",
       "owner": "typescript",
-      "sha256": "f710a5f3a9310f1ea01ea8599e54c03b7121c9b7c80dbe44354b0a1096a07166",
+      "sha256": "fc6e740ede2f5dd4eed66a7b5ab3c081503ac4a41f958d9a2bde113505bc28e7",
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts"
     },
     {
@@ -5572,6 +5586,13 @@
       "owner": "typescript",
       "sha256": "f692976d3edfb97803dcc4319d850d952c1dd5309cfea8c1570eb3499038f879",
       "source_path": "products/interview/src/frontend/studio/live/overlay/panels/use-account.ts"
+    },
+    {
+      "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/use-call-audio.ts.md",
+      "extractor_version": "1",
+      "owner": "typescript",
+      "sha256": "9fe6da5306100b00e96cb807f2c27e72f7a1da509246ea2cb38ed024dec043e9",
+      "source_path": "products/interview/src/frontend/studio/live/overlay/panels/use-call-audio.ts"
     },
     {
       "doc_path": "fallback/products/interview/src/frontend/studio/live/overlay/panels/use-elapsed.ts.md",

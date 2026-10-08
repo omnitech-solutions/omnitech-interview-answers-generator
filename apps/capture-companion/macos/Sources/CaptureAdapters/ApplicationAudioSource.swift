@@ -47,7 +47,9 @@ public final class ApplicationAudioSource: @unchecked Sendable {
 
     // Which capture carries the call's audio for this preference right now,
     // and why a chosen tap does not.
-    public static func carrier(for preference: CallAudioSource) -> (source: CallAudioSource, reason: TapUnavailableReason?) {
+    public static func carrier(for preference: CallAudioSource) -> (
+        source: CallAudioSource, reason: TapUnavailableReason?
+    ) {
         let system = ProcessInfo.processInfo.operatingSystemVersion
         return CallAudioPlan.attempt(
             preference: preference, osMajor: system.majorVersion, osMinor: system.minorVersion,

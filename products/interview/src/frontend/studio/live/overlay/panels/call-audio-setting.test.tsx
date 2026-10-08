@@ -84,21 +84,26 @@ describe("Settings › Call audio", () => {
     expect(screen.queryByTestId("pn-call-audio-select")).toBeNull();
   });
 
+  // The library Select: the trigger carries the test id and shows the chosen
+  // label; its options are `<testid>-option-<value>` once it is open.
+  const option = (value: string) =>
+    screen.getByTestId(`pn-call-audio-select-option-${value}`);
+
   it("defaults to screen capture, with both plainly labelled choices", async () => {
     bridge(report());
     render(<CallAudioSetting />);
     const select = await screen.findByTestId("pn-call-audio-select");
-    expect(select).toHaveValue("screenCaptureKit");
-    expect(
-      screen.getByRole("option", {
-        name: "Screen capture (shows the sharing indicator)",
-      }),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("option", {
-        name: "System audio tap (macOS 14.4+, no sharing indicator)",
-      }),
-    ).toBeEnabled();
+    expect(select).toHaveTextContent(
+      "Screen capture (shows the sharing indicator)",
+    );
+    fireEvent.click(select);
+    expect(option("screenCaptureKit")).toHaveTextContent(
+      "Screen capture (shows the sharing indicator)",
+    );
+    expect(option("processTap")).toHaveTextContent(
+      "System audio tap (macOS 14.4+, no sharing indicator)",
+    );
+    expect(option("processTap")).not.toHaveAttribute("data-disabled", "true");
     expect(screen.getByTestId("pn-call-audio-note")).toHaveTextContent(
       "Currently Sharing",
     );
@@ -108,8 +113,9 @@ describe("Settings › Call audio", () => {
     const setCallAudio = bridge(report());
     render(<CallAudioSetting />);
     const select = await screen.findByTestId("pn-call-audio-select");
-    fireEvent.change(select, { target: { value: "processTap" } });
-    await waitFor(() => expect(select).toHaveValue("processTap"));
+    fireEvent.click(select);
+    fireEvent.click(option("processTap"));
+    await waitFor(() => expect(select).toHaveTextContent("System audio tap"));
     expect(setCallAudio).toHaveBeenCalledWith("processTap");
     expect(screen.getByTestId("pn-call-audio-note")).toHaveTextContent(
       "System Audio Recording",
@@ -122,16 +128,15 @@ describe("Settings › Call audio", () => {
     );
     render(<CallAudioSetting />);
     const select = await screen.findByTestId("pn-call-audio-select");
-    fireEvent.change(select, { target: { value: "screenCaptureKit" } });
+    fireEvent.click(select);
+    fireEvent.click(option("screenCaptureKit"));
     await waitFor(() => expect(setCallAudio).toHaveBeenCalled());
-    expect(select).toHaveValue("processTap");
+    expect(select).toHaveTextContent("System audio tap");
     cleanup();
     bridge(report({ tapSupported: false }));
     render(<CallAudioSetting />);
-    await screen.findByTestId("pn-call-audio-select");
-    expect(
-      screen.getByRole("option", { name: /System audio tap/ }),
-    ).toBeDisabled();
+    fireEvent.click(await screen.findByTestId("pn-call-audio-select"));
+    expect(option("processTap")).toHaveAttribute("data-disabled", "true");
   });
 
   it("says when the chosen tap is not what carries the call's audio", () => {

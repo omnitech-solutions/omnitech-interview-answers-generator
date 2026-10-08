@@ -7,6 +7,7 @@
 // [SAFETY] The line under the choice says what it really costs: the sharing
 // indicator, the permission macOS asks for, and when a chosen tap is not what
 // is running.
+import { Select } from "@oc-tech/omni-ui-components";
 import { CALL_AUDIO_OPTIONS, callAudioNote } from "./start-model";
 import { useCallAudio } from "./use-call-audio";
 
@@ -16,27 +17,17 @@ export function CallAudioSetting() {
   return (
     <>
       <div className="pn-label">Capture</div>
-      <label className="pn-field">
-        <span>Call audio</span>
-        <select
-          className="pn-select"
-          data-testid="pn-call-audio-select"
-          value={callAudio.selected}
-          onChange={(event) => void choose(event.target.value)}
-        >
-          {CALL_AUDIO_OPTIONS.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              disabled={
-                option.value === "processTap" && !callAudio.tapSupported
-              }
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Call audio"
+        data-testid="pn-call-audio-select"
+        value={callAudio.selected}
+        onChange={(value) => void choose(value)}
+        options={CALL_AUDIO_OPTIONS.map((option) => ({
+          value: option.value,
+          label: option.label,
+          disabled: option.value === "processTap" && !callAudio.tapSupported,
+        }))}
+      />
       <p className="pn-footer" data-testid="pn-call-audio-note">
         {callAudioNote(callAudio)}
       </p>

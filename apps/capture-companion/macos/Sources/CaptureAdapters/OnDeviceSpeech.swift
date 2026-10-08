@@ -72,14 +72,16 @@ public struct SystemPermissionProbe: PermissionProbe {
 // when the request is gone; the one that finds it taken keeps its audio and
 // opens when it is told the slot is free.
 // [SAFETY] @unchecked Sendable: `owner` and `waiters` are touched only under `lock`.
-private final class RecognitionSlot: @unchecked Sendable {
-    static let shared = RecognitionSlot()
+public final class RecognitionSlot: @unchecked Sendable {
+    public static let shared = RecognitionSlot()
+    // Its own instance per test; the app uses `shared`.
+    public init() {}
     private let lock = NSLock()
     private var owner: ObjectIdentifier?
     private var waiters: [(id: ObjectIdentifier, wake: @Sendable () -> Void)] = []
 
     /// True when `id` holds the slot now; otherwise `wake` runs once it is free.
-    func acquire(_ id: ObjectIdentifier, wake: @escaping @Sendable () -> Void) -> Bool {
+    public func acquire(_ id: ObjectIdentifier, wake: @escaping @Sendable () -> Void) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         if owner == nil || owner == id {
@@ -91,7 +93,7 @@ private final class RecognitionSlot: @unchecked Sendable {
     }
 
     /// Gives the slot back (or stops waiting for it) and wakes whoever waits.
-    func release(_ id: ObjectIdentifier) {
+    public func release(_ id: ObjectIdentifier) {
         lock.lock()
         waiters.removeAll { $0.id == id }
         guard owner == id else {

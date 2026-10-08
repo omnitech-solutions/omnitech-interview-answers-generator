@@ -108,4 +108,26 @@ describe("the microphone menu's actions (Retry now, choose a device)", () => {
     await settle();
     expect(calls).toEqual(["start:s1"]);
   });
+
+  it("restart stops and starts again with the same session and sources (a setting read at run start applies at once)", async () => {
+    const calls = withMenu(state());
+    const view = renderHook(() => useEngine(input()));
+    await settle();
+    calls.length = 0;
+    act(() => view.result.current.restart());
+    await settle();
+    await settle();
+    expect(calls).toEqual(["stop", "start:s1"]);
+    expect(view.result.current.micPending).toBe(false);
+  });
+
+  it("restart does nothing while the session is paused", async () => {
+    const calls = withMenu(state({ paused: true }));
+    const view = renderHook(() => useEngine(input({ paused: true })));
+    await settle();
+    calls.length = 0;
+    act(() => view.result.current.restart());
+    await settle();
+    expect(calls).toEqual([]);
+  });
 });

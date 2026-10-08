@@ -23,6 +23,8 @@ await windowDragTests(harness)
 await eventLogTests(harness)
 await eventLogSinkTests(harness)
 await callAudioTests(harness)
+await recognitionSlotTests(harness)
+await silentMicrophoneTests(harness)
 await processTapHardwareTests(harness)
 
 for failure in harness.failures { print(failure) }

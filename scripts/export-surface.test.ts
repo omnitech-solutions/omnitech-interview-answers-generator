@@ -97,7 +97,7 @@ const surfaces: Record<string, SurfaceRow> = {
   //   the package reads the tuple yet (live-session.ts is another worker's file).
   // +1: codeQualityRules(language), the code/comment/test contract the live coding
   // stage shares with the web prompt.
-  "@omnitech/interview-contracts": { entrypoints: 1, names: 382 },
+  "@omnitech/interview-contracts": { entrypoints: 1, names: 385 },
   "@omnitech/interview-library": { entrypoints: 1, names: 5 },
   "@omnitech/interview-playground-control": { entrypoints: 1, names: 16 },
   "@omnitech/interview-storage": { entrypoints: 1, names: 8 },

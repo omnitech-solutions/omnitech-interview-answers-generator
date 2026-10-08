@@ -126,3 +126,120 @@ describe("createLogger", () => {
     expect(sink.lines[1]).toContain('"content":{"prompt":"p"}');
   });
 });
+
+describe("the story format (a local pnpm dev)", () => {
+  const env = {
+    LOG_FORMAT: "story",
+    LOG_CONTENT: "true",
+    LOG_LEVEL: "debug",
+    NO_COLOR: "1",
+  };
+  const story = (service = "session") => {
+    const sink = capture();
+    process.env["NO_COLOR"] = "1";
+    return {
+      sink,
+      log: createLogger({ service, env, write: sink.write, now: at }),
+    };
+  };
+  const S = "d49f5e74-bb9e-4efc-8c33-602bf4a63e29";
+  const T = "task-q-a154e8058b20-microphone-0";
+
+  it("allows content with LOG_CONTENT=true below trace, never in production", () => {
+    expect(resolveLogConfig(env).content).toBe(true);
+    expect(resolveLogConfig({ ...env, LOG_CONTENT: "false" }).content).toBe(
+      false,
+    );
+    expect(resolveLogConfig({ ...env, NODE_ENV: "production" }).content).toBe(
+      false,
+    );
+  });
+
+  it("tells what was heard, with the speaker and the words", () => {
+    const { sink, log } = story("interview-web");
+    log.info("observation.stored", {
+      sessionId: S,
+      kind: "transcript.final",
+      speaker: "application-audio",
+      chars: 33,
+      content: "Number one tell me about yourself",
+    });
+    expect(sink.lines).toEqual([
+      '18:00:00 #d49f5e74  HEARD     Interviewer (app audio)  "Number one tell me about yourself"',
+    ]);
+  });
+
+  it("tells the decision, the answer and a missing answer, each with the short task name", () => {
+    const { sink, log } = story();
+    log.info("session.decision", {
+      sessionId: S,
+      decision: "opened",
+      taskId: T,
+      content: "Tell me about yourself",
+    });
+    log.info("session.decision", {
+      sessionId: S,
+      decision: "ignored",
+      reason: "no question heard in it",
+      content: "okay sure",
+    });
+    log.info("session.answer", {
+      sessionId: S,
+      taskId: T,
+      revision: 1,
+      category: "background",
+      durationMs: 18686,
+      claims: "5 backed, 1 suggested",
+      content: "- one\n- two",
+    });
+    log.warn("session.withheld", {
+      sessionId: S,
+      taskId: T,
+      revision: 2,
+      reason: "owner_stopped",
+    });
+    expect(sink.lines).toEqual([
+      '18:00:00 #d49f5e74  QUESTION  new task a154e805·mic·0  "Tell me about yourself"',
+      '18:00:00 #d49f5e74  SKIPPED   ignored (no question heard in it)  "okay sure"',
+      "18:00:00 #d49f5e74  ANSWER    a154e805·mic·0 rev 1  background in 18.7s  5 backed, 1 suggested\n              - one\n              - two",
+      "18:00:00 #d49f5e74  NO ANSWER a154e805·mic·0 rev 2  owner_stopped",
+    ]);
+  });
+
+  it("writes every other event as one compact line without the noise fields or the words", () => {
+    const { sink, log } = story("worker");
+    log.debug("task.opened", {
+      sessionId: S,
+      tenantId: "t",
+      taskId: T,
+      revision: 1,
+      fence: 5,
+      localityDecision: "none",
+      byteCounts: { input: 0, output: 0 },
+      outcome: "ok",
+      content: "secret words",
+    });
+    expect(sink.lines).toEqual([
+      "18:00:00 #d49f5e74  worker task.opened taskId=a154e805·mic·0 revision=1 outcome=ok",
+    ]);
+  });
+
+  it("says the words are hidden when content is off", () => {
+    const sink = capture();
+    process.env["NO_COLOR"] = "1";
+    createLogger({
+      service: "interview-web",
+      env: { ...env, LOG_CONTENT: "false" },
+      write: sink.write,
+      now: at,
+    }).info("observation.stored", {
+      sessionId: S,
+      kind: "transcript.final",
+      speaker: "microphone",
+      content: "private",
+    });
+    expect(sink.lines[0]).toBe(
+      "18:00:00 #d49f5e74  HEARD     You (mic)  (words hidden: set LOG_CONTENT=true)",
+    );
+  });
+});

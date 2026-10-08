@@ -2,4 +2,5 @@
 
 _Source: `products/interview/src/frontend/studio/live/overlay/panels/start-model.test.ts` (header-comment fallback)_
 
-Unscheduled and past interviews count: the context lives in the app.
+The tap chosen but screen capture carrying it (fallback), or the default:
+exactly the rows as before.
